@@ -13,7 +13,7 @@ rich==13.9.4
 sentinel==1.0.0
 toml==0.10.2
 tzlocal==5.3.1
-urllib3==2.2.3
+urllib3==2.5.0
 WMI==1.5.1; platform_system == "Windows"
 
 # Snyk security fixes (for reference: addresses known security issues in used packages)
