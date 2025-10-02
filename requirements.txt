@@ -1,10 +1,10 @@
 colorama==0.4.6
-dnspython==2.7.0
+dnspython==2.8.0
 geoip2==5.1.0
 packaging==25.0
 prettytable==3.16.0
-psutil==7.0.0
-pydantic==2.11.7
+psutil==7.1.0
+pydantic==2.11.9
 pypresence==4.3.0
 PyQt6==6.8.1
 pywin32==311; platform_system == "Windows"
@@ -13,7 +13,7 @@ requests==2.32.5
 rich==14.1.0
 sentinel==1.0.0
 toml==0.10.2
-types-requests==2.32.4.20250809
+types-requests==2.32.4.20250913
 types-toml==0.10.8.20240310
 tzlocal==5.3.1
 urllib3==2.5.0
