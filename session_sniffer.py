@@ -138,6 +138,11 @@ from modules.launcher.package_checker import (
     get_dependencies_from_pyproject,
     get_dependencies_from_requirements,
 )
+from modules.models import (
+    GithubReleaseResponse,
+    GithubVersionsResponse,
+    IpApiResponse,
+)
 from modules.msgbox import MsgBox
 from modules.networking.exceptions import (
     NetworkInterfaceStateMismatchError,
@@ -1832,7 +1837,7 @@ class GUIDetectionSettings:
 def check_for_updates() -> None:
     from modules.utils import format_project_version
 
-    def get_updater_json_response() -> dict[str, Any] | None:
+    def get_updater_json_response() -> GithubVersionsResponse | None:
         from modules.constants.standalone import GITHUB_VERSIONS_URL
 
         while True:
@@ -1870,21 +1875,18 @@ def check_for_updates() -> None:
                 elif choice == MsgBox.ReturnValues.IDIGNORE:
                     return None
             else:
-                versions_json = response.json()
-                if not isinstance(versions_json, dict):
-                    raise TypeError(format_type_error(versions_json, dict))
+                versions_data = response.json()
+                return GithubVersionsResponse.model_validate(versions_data)
 
-                return versions_json  # pyright: ignore[reportUnknownVariableType]
-
-    versions_json = get_updater_json_response()
-    if versions_json is None:
+    versions_response = get_updater_json_response()
+    if versions_response is None:
         return
 
     current_version = Version(PYPROJECT_DATA['project']['version'])
 
     # Get versions from the response
-    latest_stable_version = Version(versions_json['latest_stable']['version'])
-    latest_rc_version = Version(versions_json['latest_prerelease']['version'])
+    latest_stable_version = Version(versions_response.latest_stable.version)
+    latest_rc_version = Version(versions_response.latest_prerelease.version)
 
     # Check for updates based on the current version
     is_new_stable_version_available = latest_stable_version > current_version
@@ -2235,20 +2237,16 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
                 'http_code': getattr(e.response, 'status_code', None),
             }
 
-        release_data = response.json()
-        if not isinstance(release_data, dict):
-            raise TypeError(format_type_error(release_data, dict))
+        release_response_data = response.json()
+        release_data = GithubReleaseResponse.model_validate(release_response_data)
 
-        for asset in release_data['assets']:  # pyright: ignore[reportUnknownVariableType]
-            asset_name = asset['name']  # pyright: ignore[reportUnknownVariableType]
-            if not isinstance(asset_name, str):
-                continue
-            if asset_name not in geolite2_databases:
+        for asset in release_data.assets:
+            if asset.name not in geolite2_databases:
                 continue
 
-            geolite2_databases[asset_name].update({
-                'last_version': asset['updated_at'],  # pyright: ignore[reportUnknownArgumentType]
-                'download_url': asset['browser_download_url'],  # pyright: ignore[reportUnknownArgumentType]
+            geolite2_databases[asset.name].update({
+                'last_version': asset.updated_at.isoformat(),
+                'download_url': str(asset.browser_download_url),
             })
 
         failed_fetching_flag_list: list[str] = []
@@ -2895,47 +2893,6 @@ def iplookup_core() -> None:
         #MAX_THROTTLE_TIME = 60
         MAX_BATCH_IP_API_IPS = 100  # pylint: disable=invalid-name
         FIELDS_TO_LOOKUP = 'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'  # pylint: disable=invalid-name
-        FIELD_MAPPINGS: dict[str, tuple[str, tuple[type[str | float | int | bool], ...]]] = {  # pylint: disable=invalid-name
-            'continent': ('continent', (str,)),
-            'continent_code': ('continentCode', (str,)),
-            'country': ('country', (str,)),
-            'country_code': ('countryCode', (str,)),
-            'region': ('regionName', (str,)),
-            'region_code': ('region', (str,)),
-            'city': ('city', (str,)),
-            'district': ('district', (str,)),
-            'zip_code': ('zip', (str,)),
-            'lat': ('lat', (float, int)),
-            'lon': ('lon', (float, int)),
-            'time_zone': ('timezone', (str,)),
-            'offset': ('offset', (int,)),
-            'currency': ('currency', (str,)),
-            'isp': ('isp', (str,)),
-            'org': ('org', (str,)),
-            'asn': ('as', (str,)),
-            'as_name': ('asname', (str,)),
-            'mobile': ('mobile', (bool,)),
-            'proxy': ('proxy', (bool,)),
-            'hosting': ('hosting', (bool,)),
-        }
-
-        def validate_and_get_iplookup_field(
-            player_ip: str,
-            iplookup: dict[str, Any],
-            json_key: str,
-            expected_types: tuple[type[Any], ...],
-        ) -> str | float | int | bool:
-            """Retrieve a field from a dictionary and validate its type."""
-            field_value = iplookup.get(json_key)
-            if field_value is None:
-                return 'N/A'
-
-            if not isinstance(field_value, expected_types):
-                raise TypeError(format_type_error(field_value, expected_types, f' in field "{json_key}" ({player_ip})'))
-            if not isinstance(field_value, (str, float, int, bool)):
-                raise TypeError(format_type_error(field_value, (str, float, int, bool), f' in field "{json_key}" ({player_ip})'))
-
-            return field_value
 
         while not gui_closed__event.is_set():
             if ScriptControl.has_crashed():
@@ -2974,21 +2931,35 @@ def iplookup_core() -> None:
                     continue
                 raise  # Re-raise other HTTP errors
 
-            iplookup_results = response.json()
-            if not isinstance(iplookup_results, list):
-                raise TypeError(format_type_error(iplookup_results, list))
+            iplookup_results_data = response.json()
+            iplookup_results = [IpApiResponse.model_validate(item) for item in iplookup_results_data]
 
-            for iplookup in iplookup_results:  # pyright: ignore[reportUnknownVariableType]
-                if not isinstance(iplookup, dict):
-                    raise TypeError(format_type_error(iplookup, dict))  # pyright: ignore[reportUnknownArgumentType]
+            for iplookup in iplookup_results:
+                player = PlayersRegistry.require_player_by_ip(iplookup.query)
 
-                player_ip = iplookup.get('query')  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-                if not isinstance(player_ip, str):
-                    raise TypeError(format_type_error(player_ip, str))  # pyright: ignore[reportUnknownArgumentType]
+                player.iplookup.ipapi.continent = iplookup.continent
+                player.iplookup.ipapi.continent_code = iplookup.continent_code
+                player.iplookup.ipapi.country = iplookup.country
+                player.iplookup.ipapi.country_code = iplookup.country_code
+                player.iplookup.ipapi.region = iplookup.region
+                player.iplookup.ipapi.region_code = iplookup.region_code
+                player.iplookup.ipapi.city = iplookup.city
+                player.iplookup.ipapi.district = iplookup.district
+                player.iplookup.ipapi.zip_code = iplookup.zip_code
+                player.iplookup.ipapi.lat = iplookup.lat
+                player.iplookup.ipapi.lon = iplookup.lon
+                player.iplookup.ipapi.time_zone = iplookup.time_zone
+                player.iplookup.ipapi.offset = iplookup.offset
+                player.iplookup.ipapi.currency = iplookup.currency
+                player.iplookup.ipapi.isp = iplookup.isp
+                player.iplookup.ipapi.org = iplookup.org
+                player.iplookup.ipapi.asn = iplookup.asn
+                player.iplookup.ipapi.as_name = iplookup.as_name
 
-                player = PlayersRegistry.require_player_by_ip(player_ip)
-                for attr, (json_key, expected_types) in FIELD_MAPPINGS.items():
-                    setattr(player.iplookup.ipapi, attr, validate_and_get_iplookup_field(player_ip, iplookup, json_key, expected_types))  # pyright: ignore[reportUnknownArgumentType]
+                player.iplookup.ipapi.mobile = iplookup.mobile
+                player.iplookup.ipapi.proxy = iplookup.proxy
+                player.iplookup.ipapi.hosting = iplookup.hosting
+
                 player.iplookup.ipapi.is_initialized = True
 
             throttle_until(int(response.headers['X-Rl']), int(response.headers['X-Ttl']))
