@@ -23,23 +23,23 @@
         "version": "1.4.0rc1+20250823.743"
     },
     "latest_stable": {
-        "base_version": "1.3.9",
+        "base_version": "1.4.0",
         "epoch": 0,
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": false,
-        "local": "20250822.832",
+        "local": "20251002.1806",
         "major": 1,
-        "micro": 9,
-        "minor": 3,
+        "micro": 0,
+        "minor": 4,
         "post": null,
         "pre": null,
-        "public": "1.3.9",
+        "public": "1.4.0",
         "release": [
             1,
-            3,
-            9
+            4,
+            0
         ],
-        "version": "1.3.9+20250822.832"
+        "version": "1.4.0+20251002.1806"
     }
 }
