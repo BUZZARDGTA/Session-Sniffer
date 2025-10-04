@@ -2887,10 +2887,10 @@ def iplookup_core() -> None:
             gui_closed__event.wait(sleep_time)
 
         # Following values taken from https://ip-api.com/docs/api:batch the 03/04/2024.
-        #MAX_REQUESTS = 15
-        #MAX_THROTTLE_TIME = 60
-        MAX_BATCH_IP_API_IPS = 100  # pylint: disable=invalid-name
-        FIELDS_TO_LOOKUP = 'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'  # pylint: disable=invalid-name
+        #max_requests = 15
+        #max_throttle_time = 60
+        max_batch_ip_api_ips = 100
+        fields_to_lookup = 'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 
         while not gui_closed__event.is_set():
             if ScriptControl.has_crashed():
@@ -2904,7 +2904,7 @@ def iplookup_core() -> None:
 
                 ips_to_lookup.append(player.ip)
 
-                if len(ips_to_lookup) == MAX_BATCH_IP_API_IPS:
+                if len(ips_to_lookup) == max_batch_ip_api_ips:
                     break
 
             if not ips_to_lookup:
@@ -2914,7 +2914,7 @@ def iplookup_core() -> None:
             try:
                 response = s.post(
                     'http://ip-api.com/batch',
-                    params={'fields': FIELDS_TO_LOOKUP},
+                    params={'fields': fields_to_lookup},
                     headers={'Content-Type': 'application/json'},
                     json=ips_to_lookup,
                     timeout=3,
@@ -3562,8 +3562,7 @@ def rendering_core() -> None:
         def update_userip_databases() -> float:
             from modules.constants.standard import USERIP_DATABASES_PATH
 
-            # pylint: disable=invalid-name
-            DEFAULT_USERIP_FILE_HEADER = format_triple_quoted_text(f"""
+            default_userip_file_header = format_triple_quoted_text(f"""
                 ;;-----------------------------------------------------------------------------
                 ;; {TITLE} User IP default database file
                 ;;-----------------------------------------------------------------------------
@@ -3575,7 +3574,7 @@ def rendering_core() -> None:
                 [Settings]
             """)
 
-            DEFAULT_USERIP_FILES_SETTINGS = {
+            default_userip_files_settings = {
                 USERIP_DATABASES_PATH / 'Blacklist.ini': """
                     ENABLED=True
                     COLOR=RED
@@ -3633,7 +3632,7 @@ def rendering_core() -> None:
                 """,
             }
 
-            DEFAULT_USERIP_FILE_FOOTER = format_triple_quoted_text("""
+            default_userip_file_footer = format_triple_quoted_text("""
                 [UserIP]
                 # Add users below in this format: username=IP
                 # Examples:
@@ -3641,13 +3640,12 @@ def rendering_core() -> None:
                 # username2=127.0.0.1
                 # username3=255.255.255.255
             """, add_trailing_newline=True)
-            # pylint: enable=invalid-name
 
             USERIP_DATABASES_PATH.mkdir(parents=True, exist_ok=True)
 
-            for userip_path, settings in DEFAULT_USERIP_FILES_SETTINGS.items():
+            for userip_path, settings in default_userip_files_settings.items():
                 if not userip_path.is_file():
-                    file_content = f'{DEFAULT_USERIP_FILE_HEADER}\n\n{settings}\n\n{DEFAULT_USERIP_FILE_FOOTER}'
+                    file_content = f'{default_userip_file_header}\n\n{settings}\n\n{default_userip_file_footer}'
                     userip_path.write_text(file_content, encoding='utf-8')
 
             # Remove deleted files from notified settings conflicts
@@ -3742,6 +3740,9 @@ def rendering_core() -> None:
 
             def calculate_table_padding(connected_players: list[Player], disconnected_players: list[Player]) -> tuple[int, int, int, int]:
                 """Calculate optimal padding for table columns based on player data."""
+                table_country_column_length_threshold = 27
+                table_continent_column_length_threshold = 13
+
                 connected_country_padding = 0
                 connected_continent_padding = 0
                 disconnected_country_padding = 0
@@ -3753,9 +3754,9 @@ def rendering_core() -> None:
                     continent_len = len(player.iplookup.ipapi.continent)
 
                     # Only include in padding calculation if within threshold
-                    if country_len <= TABLE_COUNTRY_COLUMN_LENGTH_THRESHOLD:
+                    if country_len <= table_country_column_length_threshold:
                         connected_country_padding = max(connected_country_padding, country_len)
-                    if continent_len <= TABLE_CONTINENT_COLUMN_LENGTH_THRESHOLD:
+                    if continent_len <= table_continent_column_length_threshold:
                         connected_continent_padding = max(connected_continent_padding, continent_len)
 
                 # Calculate optimal padding for disconnected players
@@ -3764,18 +3765,15 @@ def rendering_core() -> None:
                     continent_len = len(player.iplookup.ipapi.continent)
 
                     # Only include in padding calculation if within threshold
-                    if country_len <= TABLE_COUNTRY_COLUMN_LENGTH_THRESHOLD:
+                    if country_len <= table_country_column_length_threshold:
                         disconnected_country_padding = max(disconnected_country_padding, country_len)
-                    if continent_len <= TABLE_CONTINENT_COLUMN_LENGTH_THRESHOLD:
+                    if continent_len <= table_continent_column_length_threshold:
                         disconnected_continent_padding = max(disconnected_continent_padding, continent_len)
 
                 return connected_country_padding, connected_continent_padding, disconnected_country_padding, disconnected_continent_padding
 
-            TABLE_COUNTRY_COLUMN_LENGTH_THRESHOLD = 27  # pylint: disable=invalid-name
-            TABLE_CONTINENT_COLUMN_LENGTH_THRESHOLD = 13  # pylint: disable=invalid-name
-
-            logging_connected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(LOGGING_CONNECTED_PLAYERS_TABLE__FIELD_NAMES, 'Last Rejoin', Qt.SortOrder.DescendingOrder)
-            logging_disconnected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(LOGGING_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES, 'Last Seen', Qt.SortOrder.AscendingOrder)
+            logging_connected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(logging_connected_players_table__field_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder)
+            logging_disconnected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(logging_disconnected_players_table__field_names, 'Last Seen', Qt.SortOrder.AscendingOrder)
             row_texts: list[str] = []
 
             # Calculate optimal padding for both connected and disconnected players
@@ -3978,10 +3976,10 @@ def rendering_core() -> None:
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
                 if 'PPS' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[CONNECTED_COLUMN_MAPPING['PPS']] = row_colors[CONNECTED_COLUMN_MAPPING['PPS']]._replace(foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation))
+                    row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation))
                     row_texts.append(f'{player.pps.rate}')
                 if 'PPM' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[CONNECTED_COLUMN_MAPPING['PPM']] = row_colors[CONNECTED_COLUMN_MAPPING['PPM']]._replace(foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation))
+                    row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation))
                     row_texts.append(f'{player.ppm.rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.FIELDS_TO_HIDE:
@@ -4271,14 +4269,14 @@ def rendering_core() -> None:
         (
             GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES,
             GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES,
-            LOGGING_CONNECTED_PLAYERS_TABLE__FIELD_NAMES,  # pylint: disable=invalid-name
-            LOGGING_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES,  # pylint: disable=invalid-name
+            logging_connected_players_table__field_names,
+            logging_disconnected_players_table__field_names,
         ) = compile_tables_header_field_names()
 
         GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)
         GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)
         # Define the column name to index mapping for connected and disconnected players
-        CONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)}  # pylint: disable=invalid-name
+        connected_column_mapping = {header: index for index, header in enumerate(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
         # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
 
         from modules.constants.local import COUNTRY_FLAGS_FOLDER_PATH
@@ -5865,7 +5863,7 @@ class MainWindow(QMainWindow):
         from modules.guis.utils import resize_window_for_screen
 
         # Set up the window
-        self.setWindowTitle(f'{TITLE}')
+        self.setWindowTitle(TITLE)
         self.setMinimumSize(800, 600)
         resize_window_for_screen(self, screen_width, screen_height)
 
@@ -6406,10 +6404,8 @@ class DiscordIntro(QDialog):
         # Ensure the dialog is modal, blocking interaction with the main window
         self.setModal(True)
 
-        WINDOW_TITLE = '🏆 Join our Discord Community! 🤝'  # pylint: disable=invalid-name
-
         # Set up the window
-        self.setWindowTitle(WINDOW_TITLE)
+        self.setWindowTitle('🏆 Join our Discord Community! 🤝')
         self.setMinimumSize(460, 160)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.Dialog)  # | Qt.WindowType.WindowStaysOnTopHint
 
@@ -6440,7 +6436,7 @@ class DiscordIntro(QDialog):
 
         # Label for the Discord message
         self.title_label = QLabel(
-            f"<font size='6' color='#5865F2'><b>{WINDOW_TITLE}</b></font>",
+            f"<font size='6' color='#5865F2'><b>{window_title}</b></font>",
             self)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
