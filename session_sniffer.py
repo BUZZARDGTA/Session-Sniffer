@@ -2479,8 +2479,8 @@ for interface in tshark_interfaces:
         Settings.reconstruct_settings()
 
     manufacturer = 'N/A' if interface.manufacturer is None else interface.manufacturer
-    packets_sent = 'N/A' if interface.packets_sent is None else interface.packets_sent
-    packets_recv = 'N/A' if interface.packets_recv is None else interface.packets_recv
+    packets_sent: Literal['N/A'] | int = 'N/A' if interface.packets_sent is None else interface.packets_sent
+    packets_recv: Literal['N/A'] | int = 'N/A' if interface.packets_recv is None else interface.packets_recv
     interface_name = interface.name if interface.name is not None else 'Unknown Interface'
 
     if interface.ip_addresses:
