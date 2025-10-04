@@ -1,6 +1,6 @@
 """Module for defining constants that require imports from third-party libraries."""
 from PyQt6.QtGui import QColor
-from qdarkstyle.colorsystem import Gray
+from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
 from tzlocal import get_localzone
 
 LOCAL_TZ = get_localzone()

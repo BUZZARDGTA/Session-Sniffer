@@ -7,8 +7,8 @@ import time
 from queue import SimpleQueue
 from threading import Event, Thread
 
-import sentinel
-from pypresence import (
+import sentinel  # pyright: ignore[reportMissingTypeStubs]
+from pypresence import (  # pyright: ignore[reportMissingTypeStubs]
     DiscordNotFound,
     PipeClosed,
     Presence,
