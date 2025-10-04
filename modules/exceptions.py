@@ -8,7 +8,7 @@ class PlayerAlreadyExistsError(ValueError):
     """Raised when attempting to add a player that already exists in the registry."""
 
     def __init__(self, ip: str) -> None:
-        """"Initialize the exception with a message."""
+        """Initialize the exception with a message."""
         super().__init__(f'Player with IP "{ip}" already exists.')
 
 

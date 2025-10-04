@@ -70,7 +70,7 @@ class Packet:
 
     @classmethod
     def from_fields(cls, fields: PacketFields) -> 'Packet':
-        """"Create a Packet object from TShark output fields.
+        """Create a Packet object from TShark output fields.
 
         Args:
             fields (PacketFields): A named tuple containing the packet fields.

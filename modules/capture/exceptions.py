@@ -27,7 +27,7 @@ class TSharkProcessingError(ValueError):
 
 
 class UnexpectedFieldCountError(TSharkProcessingError):
-    """"Raised when the number of fields in TShark output is unexpected."""
+    """Raised when the number of fields in TShark output is unexpected."""
 
     def __init__(self, actual: int, fields: tuple[str, ...]) -> None:
         """Initialize the UnexpectedFieldCountError exception."""
@@ -56,7 +56,7 @@ class InvalidIPv4AddressInCaptureError(TSharkProcessingError):
 
 
 class InvalidPortFormatError(TSharkProcessingError):
-    """"Raised when source or destination ports are not digits."""
+    """Raised when source or destination ports are not digits."""
 
     def __init__(self, port: str) -> None:
         """Initialize the InvalidPortFormatError exception."""
