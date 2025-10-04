@@ -5,6 +5,7 @@ It is used to determine whether each player's IP is responsive to pings.
 import dataclasses
 import time
 from threading import Lock, Semaphore
+from typing import NamedTuple
 from urllib.parse import urlparse
 
 from pydantic.dataclasses import dataclass
@@ -75,18 +76,17 @@ class EndpointInfo:
         return self.average_time() + penalty
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class PingResult:
-    ping_times:          list[float]
-    packets_transmitted: int   | None
-    packets_received:    int   | None
-    packet_duplicates:   int   | None
-    packet_loss:         float | None
-    packet_errors:       int   | None
-    rtt_min:             float | None
-    rtt_avg:             float | None
-    rtt_max:             float | None
-    rtt_mdev:            float | None
+class PingResult(NamedTuple):
+    ping_times: list[float]
+    packets_transmitted: int | None
+    packets_received: int | None
+    packet_duplicates: int | None
+    packet_loss: float | None
+    packet_errors: int | None
+    rtt_min: float | None
+    rtt_avg: float | None
+    rtt_max: float | None
+    rtt_mdev: float | None
 
     def is_invalid(self, ping_response: str) -> bool:
         """Return True if the ping data is invalid (missing critical information)."""

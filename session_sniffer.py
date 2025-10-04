@@ -20,7 +20,7 @@ from operator import attrgetter
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
 from types import FrameType, TracebackType
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, NamedTuple
 
 import colorama
 import geoip2.database
@@ -183,8 +183,7 @@ logging.captureWarnings(capture=True)
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
-class ExceptionInfo:
+class ExceptionInfo(NamedTuple):
     exc_type: type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType | None
@@ -787,8 +786,7 @@ class Settings(DefaultSettings):
             cls.reconstruct_settings()
 
 
-@dataclass(slots=True, kw_only=True, eq=True)
-class ARPEntry:
+class ARPEntry(NamedTuple):
     ip_address: str
     mac_address: str
     organization_name: str | None = None
@@ -1156,8 +1154,7 @@ class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
     hosting:        Literal['...', 'N/A'] | bool        = '...'
 
 
-@dataclass(config={'arbitrary_types_allowed': True}, kw_only=True, slots=True)
-class PlayerCountryFlag:
+class PlayerCountryFlag(NamedTuple):
     pixmap: QPixmap
     icon: QIcon
 
@@ -1467,8 +1464,7 @@ class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-na
     PROTECTION_SUSPEND_PROCESS_MODE: int | float | Literal['Auto', 'Manual']
 
 
-@dataclass(frozen=True, slots=True)
-class UserIP:
+class UserIP(NamedTuple):
     """Class representing information associated with a specific IP, including settings and usernames."""
     ip: str
     database_path: Path
@@ -3162,14 +3158,12 @@ def capture_core() -> None:
                 continue
 
 
-@dataclass(frozen=True, config={'arbitrary_types_allowed': True}, kw_only=True, slots=True)
-class CellColor:
+class CellColor(NamedTuple):
     foreground: QColor
     background: QColor
 
 
-@dataclass(frozen=True, config={'arbitrary_types_allowed': True}, kw_only=True, slots=True)
-class GUIUpdatePayload:  # pylint: disable=too-many-instance-attributes
+class GUIUpdatePayload(NamedTuple):
     """Payload containing all data needed for GUI updates."""
     header_text: str
     status_capture_text: str
@@ -3982,10 +3976,10 @@ def rendering_core() -> None:
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
                 if 'PPS' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[CONNECTED_COLUMN_MAPPING['PPS']] = dataclasses.replace(row_colors[CONNECTED_COLUMN_MAPPING['PPS']], foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation))
+                    row_colors[CONNECTED_COLUMN_MAPPING['PPS']] = row_colors[CONNECTED_COLUMN_MAPPING['PPS']]._replace(foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation))
                     row_texts.append(f'{player.pps.rate}')
                 if 'PPM' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[CONNECTED_COLUMN_MAPPING['PPM']] = dataclasses.replace(row_colors[CONNECTED_COLUMN_MAPPING['PPM']], foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation))
+                    row_colors[CONNECTED_COLUMN_MAPPING['PPM']] = row_colors[CONNECTED_COLUMN_MAPPING['PPM']]._replace(foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation))
                     row_texts.append(f'{player.ppm.rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.FIELDS_TO_HIDE:

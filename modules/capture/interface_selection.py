@@ -3,9 +3,8 @@
 It displays a list of interfaces with relevant details and allows users to select an interface
 for further network sniffing operations.
 """
-from typing import Literal
+from typing import Literal, NamedTuple
 
-from pydantic.dataclasses import dataclass
 from PyQt6.QtCore import QItemSelectionModel, Qt
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
@@ -23,17 +22,16 @@ from PyQt6.QtWidgets import (
 from modules.utils import format_type_error
 
 
-@dataclass(frozen=True, slots=True)
-class InterfaceSelectionData:
-    selection_index:   int
-    name:              str
-    description:       str | None
-    packets_sent:      Literal['N/A'] | int
-    packets_recv:      Literal['N/A'] | int
-    ip_address:        str | None
-    mac_address:       str | None
+class InterfaceSelectionData(NamedTuple):
+    selection_index: int
+    name: str
+    description: str | None
+    packets_sent: Literal['N/A'] | int
+    packets_recv: Literal['N/A'] | int
+    ip_address: str | None
+    mac_address: str | None
     organization_name: Literal['N/A'] | str  # noqa: PYI051
-    is_arp:            bool                 = False
+    is_arp: bool = False
 
 
 class SafeQTableWidget(QTableWidget):

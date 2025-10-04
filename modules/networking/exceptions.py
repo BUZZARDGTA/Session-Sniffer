@@ -2,7 +2,6 @@
 
 This module contains custom exception classes for networking operations.
 """
-import dataclasses
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -103,9 +102,8 @@ class InvalidPingResultError(Exception):
 
     def __init__(self, ip: str, response_content: str, ping_result: 'PingResult') -> None:
         """Initialize the exception with ping result information."""
-        field_names = [field.name for field in dataclasses.fields(ping_result)]
         attributes = '\n'.join(f'{attr}={getattr(ping_result, attr)}'
-                               for attr in field_names)
+                               for attr in ping_result._fields)
         super().__init__(f'Invalid ping result for {ip}:\n'
                          f'Response: {response_content}\n'
                          f'{attributes}')

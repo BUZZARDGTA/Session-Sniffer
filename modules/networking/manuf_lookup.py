@@ -3,9 +3,7 @@
 Includes functions to fetch, parse, and search the database with CIDR-aware prefix matching.
 """
 import re
-from typing import TYPE_CHECKING
-
-from pydantic.dataclasses import dataclass
+from typing import TYPE_CHECKING, NamedTuple
 
 from modules.constants.local import MANUF_FILE_PATH
 from modules.networking.exceptions import (
@@ -34,8 +32,7 @@ RE_MANUF_ENTRY_PATTERN = re.compile(
 )
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class ManufEntry:
+class ManufEntry(NamedTuple):
     mac_prefix: str
     prefix_int: int
     cidr: int

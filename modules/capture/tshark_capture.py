@@ -3,8 +3,7 @@ import subprocess
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from pathlib import Path
-
-from pydantic.dataclasses import dataclass
+from typing import NamedTuple
 
 from modules.capture.exceptions import (
     InvalidIPv4AddressInCaptureError,
@@ -41,8 +40,7 @@ def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
     return dt_utc.astimezone(LOCAL_TZ)
 
 
-@dataclass(frozen=True, slots=True)
-class PacketFields:
+class PacketFields(NamedTuple):
     time_epoch: str
     src_ip: str
     dst_ip: str
@@ -50,20 +48,17 @@ class PacketFields:
     dst_port: str
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class IP:
+class IP(NamedTuple):
     src: str
     dst: str
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class Port:
+class Port(NamedTuple):
     src: int
     dst: int
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class Packet:
+class Packet(NamedTuple):
     datetime: datetime
     ip: IP
     port: Port
