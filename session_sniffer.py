@@ -3063,8 +3063,11 @@ def pinger_core() -> None:
                 gui_closed__event.wait(0.1)
 
 
-tshark_packets_latencies: list[tuple[datetime, timedelta]] = []
-tshark_restarted_times: int = 0
+@dataclass(kw_only=True, slots=True)
+class TsharkStats:
+    """Statistics and data tracking for TShark packet capture performance."""
+    packets_latencies: ClassVar[list[tuple[datetime, timedelta]]] = []
+    restarted_times: ClassVar[int] = 0
 
 
 def capture_core() -> None:
@@ -3072,12 +3075,10 @@ def capture_core() -> None:
         def packet_callback(packet: Packet) -> None:
             from modules.networking.utils import is_private_device_ipv4
 
-            global tshark_restarted_times
-
             packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
-            tshark_packets_latencies.append((packet.datetime, packet_latency))
+            TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
             if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
-                tshark_restarted_times += 1
+                TsharkStats.restarted_times += 1
                 raise PacketCaptureOverflowError(Settings.CAPTURE_OVERFLOW_TIMER)
 
             if Settings.CAPTURE_IP_ADDRESS:
@@ -4158,10 +4159,10 @@ def rendering_core() -> None:
             one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
 
             # Filter packets received in the last second
-            recent_packets = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in tshark_packets_latencies if pkt_time >= one_second_ago]
+            recent_packets = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in TsharkStats.packets_latencies if pkt_time >= one_second_ago]
 
             # Update latencies list to only keep recent packets
-            tshark_packets_latencies[:] = recent_packets
+            TsharkStats.packets_latencies[:] = recent_packets
 
             # Calculate average latency
             if recent_packets:
@@ -4221,7 +4222,7 @@ def rendering_core() -> None:
             pps_color = ('#bf616a' if global_pps_rate >= pps_critical
                          else '#ebcb8b' if global_pps_rate >= pps_warning
                          else '#a3be8c')
-            restart_color = '#a3be8c' if not tshark_restarted_times else '#bf616a'
+            restart_color = '#a3be8c' if not TsharkStats.restarted_times else '#bf616a'
             memory_color = ('#bf616a' if memory_mb >= memory_high
                             else '#ebcb8b' if memory_mb >= memory_medium
                             else '#a3be8c')
@@ -4234,7 +4235,7 @@ def rendering_core() -> None:
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f}MB</span> '
                 f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{tshark_restarted_times}</span>'
+                f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{TsharkStats.restarted_times}</span>'
             )
 
             # Discord RPC section (if enabled)

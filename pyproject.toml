@@ -132,7 +132,6 @@ ignore = [
     "PLR0912", # too-many-branches
     "PLR0913", # too-many-arguments
     "PLR0915", # too-many-statements
-    "PLW0603", # global-statement
     "S602",    # subprocess-popen-with-shell-equals-true
     "S603",    # subprocess-without-shell-equals-true
     "T201",    # print
