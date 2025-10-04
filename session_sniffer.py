@@ -6401,11 +6401,13 @@ class DiscordIntro(QDialog):
     def __init__(self) -> None:
         super().__init__()
 
+        window_title = '🏆 Join our Discord Community! 🤝'
+
         # Ensure the dialog is modal, blocking interaction with the main window
         self.setModal(True)
 
         # Set up the window
-        self.setWindowTitle('🏆 Join our Discord Community! 🤝')
+        self.setWindowTitle(window_title)
         self.setMinimumSize(460, 160)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.Dialog)  # | Qt.WindowType.WindowStaysOnTopHint
 
