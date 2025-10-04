@@ -87,15 +87,12 @@ recursive = true
 
 [tool.pylint."messages control"]
 disable = [
-    "global-statement",
-    "import-outside-toplevel",
     "line-too-long",
     "locally-disabled",
     "missing-class-docstring",
     "missing-function-docstring",
     "redefined-outer-name",
     "suppressed-message",
-    "too-few-public-methods",
     "too-many-arguments",
     "too-many-branches",
     "too-many-locals",
