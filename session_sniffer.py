@@ -5125,8 +5125,6 @@ class SessionTableView(QTableView):
             shortcut: str | None = None,
             tooltip: str | None = None,
             handler: Callable[..., None] | None = None,
-            *,
-            enabled: bool | None = None,
         ) -> QAction:
             """Helper to create and configure a QAction."""
             action = menu.addAction(label)  # pyright: ignore[reportUnknownMemberType]
@@ -5137,9 +5135,7 @@ class SessionTableView(QTableView):
                 action.setShortcut(shortcut)
             if tooltip:
                 action.setToolTip(tooltip)
-            if enabled is False:
-                action.setEnabled(enabled)
-            elif handler:
+            if handler:
                 action.triggered.connect(handler)  # pyright: ignore[reportUnknownMemberType]
 
             return action
@@ -5303,13 +5299,13 @@ class SessionTableView(QTableView):
                         def create_move_handler(db_path: Path) -> Callable[[], None]:
                             return lambda: self.userip_manager__move([displayed_ip], db_path)  # type: ignore[list-item]
 
-                        add_action(
+                        action = add_action(
                             move_userip_menu,
                             str(database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')),
                             tooltip='Move selected IP address to this UserIP database.',
                             handler=create_move_handler(database_path),
-                            enabled=player.userip.database_path != database_path,
                         )
+                        action.setEnabled(player.userip.database_path != database_path)
                     add_action(
                         userip_menu,
                         'Delete  ',  # Extra spaces for alignment

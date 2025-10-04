@@ -93,7 +93,6 @@ disable = [
     "missing-function-docstring",
     "redefined-outer-name",
     "suppressed-message",
-    "too-many-arguments",
     "too-many-branches",
     "too-many-locals",
     "too-many-statements",
@@ -124,7 +123,6 @@ ignore = [
     "ERA001",  # commented-out-code
     "FIX002",  # line-contains-todo
     "PLR0912", # too-many-branches
-    "PLR0913", # too-many-arguments
     "PLR0915", # too-many-statements
     "S602",    # subprocess-popen-with-shell-equals-true
     "S603",    # subprocess-without-shell-equals-true
