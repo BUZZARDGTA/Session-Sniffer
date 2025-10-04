@@ -1526,16 +1526,13 @@ class UserIPDatabases:
     @staticmethod
     def _notify_ip_conflict(
         *,
-        initial_userip_database: Path,
-        initial_userip_usernames: list[str],
-        initial_userip_ip: str,
-        conflicting_userip_database: Path,
-        conflicting_userip_username: str,
-        conflicting_userip_ip: str,
+        existing_userip: UserIP,
+        conflicting_database_path: Path,
+        conflicting_username: str,
     ) -> None:
         Thread(
             target=MsgBox.show,
-            name=f'UserIPConflictError-{initial_userip_ip}',
+            name=f'UserIPConflictError-{existing_userip.ip}',
             kwargs={
                 'title': TITLE,
                 'text': format_triple_quoted_text(f"""
@@ -1549,11 +1546,11 @@ class UserIPDatabases:
                         the conflict is resolved.
 
                     DEBUG:
-                        "{initial_userip_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
-                        {', '.join(initial_userip_usernames)}={initial_userip_ip}
+                        "{existing_userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
+                        {', '.join(existing_userip.usernames)}={existing_userip.ip}
 
-                        "{conflicting_userip_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
-                        {conflicting_userip_username}={conflicting_userip_ip}
+                        "{conflicting_database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
+                        {conflicting_username}={existing_userip.ip}
                 """),
                 'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
             },
@@ -1592,12 +1589,9 @@ class UserIPDatabases:
                         if ip in ip_to_userip and ip_to_userip[ip].database_path != database_path:
                             if ip not in cls.notified_ip_conflicts:
                                 cls._notify_ip_conflict(
-                                    initial_userip_database=ip_to_userip[ip].database_path,
-                                    initial_userip_usernames=ip_to_userip[ip].usernames,
-                                    initial_userip_ip=ip_to_userip[ip].ip,
-                                    conflicting_userip_database=database_path,
-                                    conflicting_userip_username=username,
-                                    conflicting_userip_ip=ip,
+                                    existing_userip=ip_to_userip[ip],
+                                    conflicting_database_path=database_path,
+                                    conflicting_username=username,
                                 )
                                 cls.notified_ip_conflicts.add(ip)
                             unresolved_conflicts.add(ip)
