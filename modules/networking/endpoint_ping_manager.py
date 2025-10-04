@@ -95,7 +95,7 @@ class PingResult(NamedTuple):
         )
 
 
-MAX_RETRIES_PER_IP  = 3
+MAX_RETRIES_PER_IP = 3
 DEFAULT_RETRY_COOLDOWN = 3.0
 
 
@@ -144,19 +144,19 @@ def parse_ping_response(ping_response: str) -> PingResult:
     packets_transmitted = packets_received = packet_duplicates = packet_loss = packet_errors = None
     packets_match = RE_PACKET_STATS_PATTERN.search(ping_response)
     if packets_match:
-        packets_transmitted =   int(packets_match.group('PACKETS_TRANSMITTED'))
-        packets_received    =   int(packets_match.group('PACKETS_RECEIVED'))
-        packet_duplicates   =   int(packets_match.group('DUPLICATES') or 0)
-        packet_loss         = float(packets_match.group('PACKET_LOSS_PERCENTAGE'))
-        packet_errors       =   int(packets_match.group('ERRORS') or 0)
+        packets_transmitted = int(packets_match.group('PACKETS_TRANSMITTED'))
+        packets_received = int(packets_match.group('PACKETS_RECEIVED'))
+        packet_duplicates = int(packets_match.group('DUPLICATES') or 0)
+        packet_loss = float(packets_match.group('PACKET_LOSS_PERCENTAGE'))
+        packet_errors = int(packets_match.group('ERRORS') or 0)
 
     # Extract RTT statistics
     rtt_min = rtt_avg = rtt_max = rtt_mdev = None
     rtt_match = RE_RTT_STATS_PATTERN.search(ping_response)
     if rtt_match:
-        rtt_min  = float(rtt_match.group('RTT_MIN'))
-        rtt_avg  = float(rtt_match.group('RTT_AVG'))
-        rtt_max  = float(rtt_match.group('RTT_MAX'))
+        rtt_min = float(rtt_match.group('RTT_MIN'))
+        rtt_avg = float(rtt_match.group('RTT_AVG'))
+        rtt_max = float(rtt_match.group('RTT_MAX'))
         rtt_mdev = float(rtt_match.group('RTT_MDEV'))
 
     return PingResult(

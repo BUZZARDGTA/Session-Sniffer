@@ -262,7 +262,7 @@ def main() -> None:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:135.0) Gecko/20100101 Firefox/135.0',
                 'Accept': 'application/json',
             })
-            #s.verify = False
+            # s.verify = False
             ping_loop(target_ip, s)
     except KeyboardInterrupt:
         sys.exit(0)

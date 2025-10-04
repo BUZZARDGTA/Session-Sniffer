@@ -16,13 +16,13 @@ DISCORD_APPLICATION_ID = 1313304495958261781
 INTERFACE_PARTS_LENGTH = 3
 MIN_PORT = 1
 MAX_PORT = 65535
-PPS_THRESHOLD_WARNING  = 1500  # Warning  threshold (yellow alert)
+PPS_THRESHOLD_WARNING = 1500  # Warning  threshold (yellow alert)
 PPS_THRESHOLD_CRITICAL = 3000  # Critical threshold (red    alert)
 ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
 NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
 RATE_ZERO = 0
-RATE_LOW  = 1
-RATE_MAX  = 3
+RATE_LOW = 1
+RATE_MAX = 3
 MAX_PPS_VALUES = 3
 MAX_PPM_VALUES = 3
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50

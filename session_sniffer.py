@@ -380,10 +380,10 @@ class ThreadsExceptionHandler:
         raising_exc_value (BaseException | None): The value of the raised exception.
         raising_exc_traceback (TracebackType | None): The traceback information for the raised exception.
     """
-    raising_function:      ClassVar[str                 | None] = None
-    raising_exc_type:      ClassVar[type[BaseException] | None] = None
-    raising_exc_value:     ClassVar[BaseException       | None] = None
-    raising_exc_traceback: ClassVar[TracebackType       | None] = None
+    raising_function: ClassVar[str | None] = None
+    raising_exc_type: ClassVar[type[BaseException] | None] = None
+    raising_exc_value: ClassVar[BaseException | None] = None
+    raising_exc_traceback: ClassVar[TracebackType | None] = None
 
     def __enter__(self) -> None:
         """Enter the runtime context related to this object."""
@@ -525,10 +525,10 @@ class Settings(DefaultSettings):
         'Hosting': 'iplookup.ipapi.hosting',
         'Pinging': 'ping.is_pinging',
     }
-    GUI_FORCED_FIELDS          : ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets',               'IP Address')
-    GUI_HIDEABLE_FIELDS        : ClassVar = (                                                                                           'PPS', 'PPM',               'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
-    GUI_ALL_CONNECTED_FIELDS   : ClassVar = ('Usernames', 'First Seen', 'Last Rejoin',              'Rejoins', 'T. Packets', 'Packets', 'PPS', 'PPM', 'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
-    GUI_ALL_DISCONNECTED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets',               'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
+    GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address')
+    GUI_HIDEABLE_FIELDS: ClassVar = ('PPS', 'PPM', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
+    GUI_ALL_CONNECTED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Rejoins', 'T. Packets', 'Packets', 'PPS', 'PPM', 'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
+    GUI_ALL_DISCONNECTED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
 
     @classmethod
     def iterate_over_settings(cls) -> Iterator[tuple[str, Any]]:
@@ -839,17 +839,17 @@ class ARPEntry(NamedTuple):
 
 @dataclass(kw_only=True, slots=True)
 class Interface:
-    index:        int
-    ip_enabled:   bool | None    = None
-    state:        int  | None    = None
-    name:         str  | None    = None
-    mac_address:  str  | None    = None
-    manufacturer: str  | None    = None
-    packets_sent: int  | None    = None
-    packets_recv: int  | None    = None
-    descriptions: list[str]      = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    ip_addresses: list[str]      = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    arp_entries:  list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    index: int
+    ip_enabled: bool | None = None
+    state: int | None = None
+    name: str | None = None
+    mac_address: str | None = None
+    manufacturer: str | None = None
+    packets_sent: int | None = None
+    packets_recv: int | None = None
+    descriptions: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
     def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
         """Add an ARP entry for the given interface."""
@@ -1055,7 +1055,7 @@ class ThirdPartyServers(enum.Enum):
     PC_UK_MINISTRY_OF_DEFENCE = ('25.0.0.0/8',)
     PC_SERVERS_COM = ('173.237.26.0/24',)
     PC_OTHERS = ('113.117.15.193/32',)
-    PS_SONY_INTERACTIVE  = ('104.142.128.0/17',)
+    PS_SONY_INTERACTIVE = ('104.142.128.0/17',)
     PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
     GTAV_TAKETWO = ('104.255.104.0/22', '185.56.64.0/22', '192.81.240.0/21')
     GTAV_PC_MICROSOFT = ('52.139.128.0/18',)
@@ -1166,37 +1166,37 @@ class PlayerDateTime:
 class PlayerGeoLite2:
     is_initialized: bool = False
 
-    country:      Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
     country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    city:         Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    asn:          Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
 
 
 @dataclass(kw_only=True, slots=True)
 class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
     is_initialized: bool = False
 
-    continent:      Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    continent_code: Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    country:        Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    country_code:   Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    region:         Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    region_code:    Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    city:           Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    district:       Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    zip_code:       Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    lat:            Literal['...', 'N/A'] | float | int = '...'
-    lon:            Literal['...', 'N/A'] | float | int = '...'
-    time_zone:      Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    offset:         Literal['...', 'N/A'] | int         = '...'
-    currency:       Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    org:            Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    isp:            Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    asn:            Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    as_name:        Literal['...', 'N/A'] | str         = '...'  # noqa: PYI051
-    mobile:         Literal['...', 'N/A'] | bool        = '...'
-    proxy:          Literal['...', 'N/A'] | bool        = '...'
-    hosting:        Literal['...', 'N/A'] | bool        = '...'
+    continent: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    continent_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    region: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    region_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    district: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    zip_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    lat: Literal['...', 'N/A'] | float | int = '...'
+    lon: Literal['...', 'N/A'] | float | int = '...'
+    time_zone: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    offset: Literal['...', 'N/A'] | int = '...'
+    currency: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    org: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    isp: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    as_name: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    mobile: Literal['...', 'N/A'] | bool = '...'
+    proxy: Literal['...', 'N/A'] | bool = '...'
+    hosting: Literal['...', 'N/A'] | bool = '...'
 
 
 class PlayerCountryFlag(NamedTuple):
@@ -1214,17 +1214,17 @@ class PlayerIPLookup:
 class PlayerPing:  # pylint: disable=too-many-instance-attributes
     is_initialized: bool = False
 
-    is_pinging:          Literal['...'] | bool         = '...'
-    ping_times:          Literal['...'] | list[float]  = '...'
-    packets_transmitted: Literal['...'] | int   | None = '...'
-    packets_received:    Literal['...'] | int   | None = '...'
-    packet_duplicates:   Literal['...'] | int   | None = '...'
-    packet_loss:         Literal['...'] | float | None = '...'
-    packet_errors:       Literal['...'] | int   | None = '...'
-    rtt_min:             Literal['...'] | float | None = '...'
-    rtt_avg:             Literal['...'] | float | None = '...'
-    rtt_max:             Literal['...'] | float | None = '...'
-    rtt_mdev:            Literal['...'] | float | None = '...'
+    is_pinging: Literal['...'] | bool = '...'
+    ping_times: Literal['...'] | list[float] = '...'
+    packets_transmitted: Literal['...'] | int | None = '...'
+    packets_received: Literal['...'] | int | None = '...'
+    packet_duplicates: Literal['...'] | int | None = '...'
+    packet_loss: Literal['...'] | float | None = '...'
+    packet_errors: Literal['...'] | int | None = '...'
+    rtt_min: Literal['...'] | float | None = '...'
+    rtt_avg: Literal['...'] | float | None = '...'
+    rtt_max: Literal['...'] | float | None = '...'
+    rtt_mdev: Literal['...'] | float | None = '...'
 
 
 @dataclass(kw_only=True, slots=True)
@@ -1321,11 +1321,11 @@ class PlayersRegistry:
 
     This class provides methods to add, retrieve, and iterate over players in the registry.
     """
-    _DEFAULT_CONNECTED_SORT_ORDER   : ClassVar = 'datetime.last_rejoin'
+    _DEFAULT_CONNECTED_SORT_ORDER: ClassVar = 'datetime.last_rejoin'
     _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar = 'datetime.last_seen'
 
     _registry_lock: ClassVar = RLock()
-    _connected_players_registry   : ClassVar[dict[str, Player]] = {}
+    _connected_players_registry: ClassVar[dict[str, Player]] = {}
     _disconnected_players_registry: ClassVar[dict[str, Player]] = {}
 
     @classmethod
@@ -2894,8 +2894,8 @@ def iplookup_core() -> None:
             gui_closed__event.wait(sleep_time)
 
         # Following values taken from https://ip-api.com/docs/api:batch the 03/04/2024.
-        #max_requests = 15
-        #max_throttle_time = 60
+        # max_requests = 15
+        # max_throttle_time = 60
         max_batch_ip_api_ips = 100
         fields_to_lookup = 'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 
@@ -4850,8 +4850,8 @@ class SessionTableModel(QAbstractTableModel):
                 self.endResetModel()
 
             # Ensure the view resizes properly after a row is removed
-            #view.resizeRowsToContents()
-            #view.viewport().update()
+            # view.resizeRowsToContents()
+            # view.viewport().update()
 
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""

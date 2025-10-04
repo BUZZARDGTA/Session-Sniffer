@@ -1,13 +1,6 @@
 [flake8]
 extend-ignore =
-    E201,
-    E203,
-    E221,
-    E222,
-    E241,
-    E265,
     E501,
-    W503,
 extend-exclude =
     .dev,
     .history,
