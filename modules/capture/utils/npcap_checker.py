@@ -4,8 +4,10 @@ This module provides a utility function to check whether Npcap is installed on t
 Npcap is required for network packet capturing in Windows environments.
 """
 import subprocess
+import sys
 import webbrowser
 from contextlib import suppress
+from threading import Thread
 
 from modules.constants.standalone import TITLE
 from modules.constants.standard import SC_EXE
@@ -74,14 +76,11 @@ def ensure_npcap_installed() -> None:
         )
 
         if result == MsgBox.ReturnValues.IDCANCEL:
-            import sys
             sys.exit(1)
         elif result == MsgBox.ReturnValues.IDRETRY:
             continue
 
     # Success message in a separate thread so the app can continue running
-    from threading import Thread
-
     def show_success_message() -> None:
         MsgBox.show(
             title=TITLE,

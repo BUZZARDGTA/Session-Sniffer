@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from modules.guis.utils import resize_window_for_screen
 from modules.utils import format_type_error
 
 
@@ -64,8 +65,6 @@ class SafeQTableWidget(QTableWidget):
 class InterfaceSelectionDialog(QDialog):
     def __init__(self, screen_width: int, screen_height: int, interfaces: list[InterfaceSelectionData]) -> None:
         super().__init__()
-
-        from modules.guis.utils import resize_window_for_screen
 
         # Set up the window
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')

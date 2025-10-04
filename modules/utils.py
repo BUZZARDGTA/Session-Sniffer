@@ -17,6 +17,8 @@ import psutil
 from packaging.version import Version
 from win32com.client import Dispatch
 
+from modules.constants.standalone import USER_SHELL_FOLDERS__REG_KEY
+from modules.constants.standard import CMD_EXE
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -115,8 +117,6 @@ def get_documents_folder() -> Path:
     Raises:
         TypeError: If the retrieved path is not a string.
     """
-    from modules.constants.standalone import USER_SHELL_FOLDERS__REG_KEY
-
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, USER_SHELL_FOLDERS__REG_KEY) as key:
         documents_path, _ = winreg.QueryValueEx(key, 'Personal')
         if not isinstance(documents_path, str):
@@ -437,8 +437,6 @@ def resolve_lnk(shortcut_path: Path) -> Path:
 
 def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     """Executes a script with the given arguments in a new CMD terminal window."""
-    from modules.constants.standard import CMD_EXE
-
     # Build the base command
     full_command = [str(CMD_EXE), '/K']
 
@@ -460,8 +458,6 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
 
 def run_cmd_command(command: str, args: list[str] | None = None) -> None:
     """Executes a command with the given arguments in a new CMD terminal window."""
-    from modules.constants.standard import CMD_EXE
-
     # Build the base command
     full_command = [str(CMD_EXE), '/K', command]
 

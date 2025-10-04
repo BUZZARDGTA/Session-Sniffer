@@ -3,6 +3,7 @@ import ast
 import dataclasses
 import enum
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ import time
 import webbrowser
 import winsound
 from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from operator import attrgetter
@@ -101,14 +103,52 @@ from modules.capture.tshark_capture import (
 )
 from modules.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from modules.capture.utils.npcap_checker import ensure_npcap_installed
-from modules.constants.external import LOCAL_TZ
-from modules.constants.local import PYPROJECT_DATA, TSHARK_PATH, VERSION
-from modules.constants.standalone import (
-    GITHUB_RELEASES_URL,
-    NETWORK_ADAPTER_DISABLED,
-    TITLE,
+from modules.constants.external import (
+    HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR,
+    LOCAL_TZ,
 )
-from modules.constants.standard import SETTINGS_PATH
+from modules.constants.local import (
+    COUNTRY_FLAGS_FOLDER_PATH,
+    PAPING_PATH,
+    PYPROJECT_DATA,
+    SCRIPTS_FOLDER_PATH,
+    TSHARK_PATH,
+    TTS_FOLDER_PATH,
+    VERSION,
+)
+from modules.constants.standalone import (
+    DISCORD_APPLICATION_ID,
+    DISCORD_INVITE_URL,
+    DOCUMENTATION_URL,
+    ERROR_USER_MAPPED_FILE,
+    EXCLUDED_CAPTURE_NETWORK_INTERFACES,
+    GITHUB_RELEASE_API__GEOLITE2__URL,
+    GITHUB_RELEASES_URL,
+    GITHUB_REPO_URL,
+    GITHUB_VERSIONS_URL,
+    GUI_COLUMN_HEADERS_TOOLTIPS,
+    INTERFACE_PARTS_LENGTH,
+    MAX_PORT,
+    MIN_PORT,
+    MINIMUM_PACKETS_FOR_SESSION_HOST,
+    NETWORK_ADAPTER_DISABLED,
+    RATE_LOW,
+    RATE_MAX,
+    RATE_ZERO,
+    TITLE,
+    USERIP_INI_SETTINGS,
+)
+from modules.constants.standard import (
+    GEOLITE2_DATABASES_FOLDER_PATH,
+    RE_SETTINGS_INI_PARSER_PATTERN,
+    RE_USERIP_INI_PARSER_PATTERN,
+    SESSIONS_LOGGING_PATH,
+    SETTINGS_PATH,
+    SHUTDOWN_EXE,
+    USERIP_DATABASES_PATH,
+    USERIP_LOGGING_PATH,
+)
+from modules.discord.rpc import DiscordRPC
 from modules.exceptions import (
     PlayerAlreadyExistsError,
     PlayerNotFoundInRegistryError,
@@ -134,7 +174,7 @@ from modules.guis.stylesheets import (
     DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
     DISCORD_POPUP_MAIN_STYLESHEET,
 )
-from modules.guis.utils import get_screen_size
+from modules.guis.utils import get_screen_size, resize_window_for_screen
 from modules.launcher.package_checker import (
     check_packages_version,
     get_dependencies_from_pyproject,
@@ -146,30 +186,58 @@ from modules.models import (
     IpApiResponse,
 )
 from modules.msgbox import MsgBox
+from modules.networking.endpoint_ping_manager import (
+    PingResult,
+    fetch_and_parse_ping,
+)
 from modules.networking.exceptions import (
+    AllEndpointsExhaustedError,
     NetworkInterfaceStateMismatchError,
 )
 from modules.networking.manuf_lookup import MacLookup
+from modules.networking.reverse_dns import lookup as reverse_dns_lookup
 from modules.networking.unsafe_https import s
 from modules.networking.utils import (
     format_mac_address,
     is_ipv4_address,
     is_mac_address,
+    is_private_device_ipv4,
     is_valid_non_special_ipv4,
 )
+from modules.networking.wmi_utils import (
+    iterate_project_legacy_network_adapter_details,
+    iterate_project_legacy_network_ip_details,
+    iterate_project_network_adapter_details,
+    iterate_project_network_ip_details,
+    iterate_project_network_neighbor_details,
+)
+from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from modules.utils import (
+    check_case_insensitive_and_exact_match,
     clear_screen,
+    custom_str_to_bool,
+    custom_str_to_nonetype,
     dedup_preserve_order,
     format_attribute_error,
+    format_project_version,
     format_triple_quoted_text,
     format_type_error,
+    get_pid_by_path,
     is_pyinstaller_compiled,
     pluralize,
     run_cmd_command,
     run_cmd_script,
     set_window_title,
+    take,
+    terminate_process_tree,
     validate_and_strip_balanced_outer_parens,
     validate_file,
+    write_lines_to_file,
+)
+from modules.utils_exceptions import (
+    InvalidBooleanValueError,
+    InvalidNoneTypeValueError,
+    NoMatchFoundError,
 )
 
 logging.basicConfig(
@@ -199,8 +267,6 @@ def terminate_script(
     terminate_gracefully: bool = True,
     force_terminate_errorlevel: int | Literal[False] | None = False,
 ) -> None:
-    from modules.utils import terminate_process_tree
-
     def should_terminate_gracefully() -> bool:
         if terminate_gracefully is False:
             return False
@@ -508,8 +574,6 @@ class Settings(DefaultSettings):
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
-        from modules.constants.standard import RE_SETTINGS_INI_PARSER_PATTERN
-
         def process_ini_line_output(line: str) -> str:
             return line.rstrip('\n')
 
@@ -560,17 +624,6 @@ class Settings(DefaultSettings):
 
     @classmethod
     def load_from_settings_file(cls, settings_path: Path) -> None:
-        from modules.utils import (
-            check_case_insensitive_and_exact_match,
-            custom_str_to_bool,
-            custom_str_to_nonetype,
-        )
-        from modules.utils_exceptions import (
-            InvalidBooleanValueError,
-            InvalidNoneTypeValueError,
-            NoMatchFoundError,
-        )
-
         matched_settings_count = 0
 
         try:
@@ -1419,9 +1472,6 @@ class SessionHost:
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
-        from modules.constants.standalone import MINIMUM_PACKETS_FOR_SESSION_HOST
-        from modules.utils import take
-
         connected_players = take(2, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
 
         potential_session_host_player = None
@@ -1492,8 +1542,6 @@ class UserIPDatabases:
         conflicting_userip_username: str,
         conflicting_userip_ip: str,
     ) -> None:
-        from modules.constants.standard import USERIP_DATABASES_PATH
-
         Thread(
             target=MsgBox.show,
             name=f'UserIPConflictError-{initial_userip_ip}',
@@ -1833,11 +1881,7 @@ class GUIDetectionSettings:
 
 
 def check_for_updates() -> None:
-    from modules.utils import format_project_version
-
     def get_updater_json_response() -> GithubVersionsResponse | None:
-        from modules.constants.standalone import GITHUB_VERSIONS_URL
-
         while True:
             try:
                 response = s.get(GITHUB_VERSIONS_URL)
@@ -1911,14 +1955,6 @@ def check_for_updates() -> None:
 
 def populate_network_interfaces_info() -> None:
     """Populate the AllInterfaces collection with network interface details."""
-    from modules.networking.wmi_utils import (
-        iterate_project_legacy_network_adapter_details,
-        iterate_project_legacy_network_ip_details,
-        iterate_project_network_adapter_details,
-        iterate_project_network_ip_details,
-        iterate_project_network_neighbor_details,
-    )
-
     def validate_and_format_mac_address(mac_address: str | None) -> str | None:
         """Validate the MAC address, ensuring it is in the correct format."""
         if mac_address in (None, ''):
@@ -2099,11 +2135,6 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
         - Device name (str)
         - Interface name (str)
     """
-    from modules.constants.standalone import (
-        EXCLUDED_CAPTURE_NETWORK_INTERFACES,
-        INTERFACE_PARTS_LENGTH,
-    )
-
     def process_stdout(stdout_line: str) -> tuple[int, str, str]:
         parts = stdout_line.strip().split(' ', maxsplit=INTERFACE_PARTS_LENGTH - 1)
 
@@ -2192,12 +2223,6 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     def update_geolite2_databases() -> dict[str, requests.exceptions.RequestException | str | int | None]:
-        from modules.constants.standalone import (  # TODO(BUZZARDGTA): Implement adding: `, GITHUB_RELEASE_API__GEOLITE2__BACKUP__URL` in case the first one fails.
-            ERROR_USER_MAPPED_FILE,
-            GITHUB_RELEASE_API__GEOLITE2__URL,
-        )
-        from modules.constants.standard import GEOLITE2_DATABASES_FOLDER_PATH
-
         geolite2_version_file_path = GEOLITE2_DATABASES_FOLDER_PATH / 'version.json'
         geolite2_databases: dict[str, dict[str, str | None]] = {
             f'GeoLite2-{db}.mmdb': {
@@ -2333,8 +2358,6 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
         }
 
     def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
-        from modules.constants.standard import GEOLITE2_DATABASES_FOLDER_PATH
-
         try:
             geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_FOLDER_PATH / 'GeoLite2-ASN.mmdb')
             geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_FOLDER_PATH / 'GeoLite2-City.mmdb')
@@ -2741,14 +2764,6 @@ def process_userip_task(
     connection_type: Literal['connected', 'disconnected'],
 ) -> None:
     with ThreadsExceptionHandler():
-        from modules.constants.local import TTS_FOLDER_PATH
-        from modules.constants.standard import SHUTDOWN_EXE, USERIP_LOGGING_PATH
-        from modules.utils import (
-            get_pid_by_path,
-            terminate_process_tree,
-            write_lines_to_file,
-        )
-
         if player.userip_detection is None:
             raise TypeError(format_type_error(player.userip_detection, PlayerUserIPDetection))
 
@@ -2826,8 +2841,6 @@ def process_userip_task(
             winsound.PlaySound(str(tts_file_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
 
         if connection_type == 'connected':
-            from modules.constants.standard import USERIP_DATABASES_PATH
-
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
 
             relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')
@@ -2964,103 +2977,89 @@ def iplookup_core() -> None:
 
 
 def hostname_core() -> None:
-    with ThreadsExceptionHandler():
-        from concurrent.futures import Future, ThreadPoolExecutor
+    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
+        futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
+        pending_ips: set[str] = set()   # Tracks IPs currently being processed
 
-        from modules.networking.reverse_dns import lookup as reverse_dns_lookup
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
 
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
-            pending_ips: set[str] = set()   # Tracks IPs currently being processed
-
-            while not gui_closed__event.is_set():
-                if ScriptControl.has_crashed():
-                    return
-
-                for player in PlayersRegistry.get_default_sorted_players():
-                    if player.reverse_dns.is_initialized or player.ip in pending_ips:
-                        continue
-
-                    future = executor.submit(reverse_dns_lookup, player.ip)
-                    futures[future] = player.ip
-                    pending_ips.add(player.ip)
-
-                if not futures:
-                    gui_closed__event.wait(1)
+            for player in PlayersRegistry.get_default_sorted_players():
+                if player.reverse_dns.is_initialized or player.ip in pending_ips:
                     continue
 
-                for future, ip in list(futures.items()):
-                    if not future.done():
-                        continue
+                future = executor.submit(reverse_dns_lookup, player.ip)
+                futures[future] = player.ip
+                pending_ips.add(player.ip)
 
-                    futures.pop(future)
+            if not futures:
+                gui_closed__event.wait(1)
+                continue
 
-                    hostname = future.result()
+            for future, ip in list(futures.items()):
+                if not future.done():
+                    continue
 
-                    player = PlayersRegistry.require_player_by_ip(ip)
-                    player.reverse_dns.hostname = hostname
-                    player.reverse_dns.is_initialized = True
+                futures.pop(future)
 
-                gui_closed__event.wait(0.1)
+                hostname = future.result()
+
+                player = PlayersRegistry.require_player_by_ip(ip)
+                player.reverse_dns.hostname = hostname
+                player.reverse_dns.is_initialized = True
+
+            gui_closed__event.wait(0.1)
 
 
 def pinger_core() -> None:
-    with ThreadsExceptionHandler():
-        from concurrent.futures import Future, ThreadPoolExecutor
+    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
+        futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
+        pending_ips: set[str] = set()   # Tracks IPs currently being processed
 
-        from modules.networking.endpoint_ping_manager import (
-            PingResult,
-            fetch_and_parse_ping,
-        )
-        from modules.networking.exceptions import AllEndpointsExhaustedError
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
 
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
-            pending_ips: set[str] = set()   # Tracks IPs currently being processed
-
-            while not gui_closed__event.is_set():
-                if ScriptControl.has_crashed():
-                    return
-
-                for player in PlayersRegistry.get_default_sorted_players():
-                    if player.ping.is_initialized or player.ip in pending_ips:
-                        continue
-
-                    future = executor.submit(fetch_and_parse_ping, player.ip)
-                    futures[future] = player.ip
-                    pending_ips.add(player.ip)
-
-                if not futures:
-                    gui_closed__event.wait(1)
+            for player in PlayersRegistry.get_default_sorted_players():
+                if player.ping.is_initialized or player.ip in pending_ips:
                     continue
 
-                for future, ip in list(futures.items()):
-                    if not future.done():
-                        continue
+                future = executor.submit(fetch_and_parse_ping, player.ip)
+                futures[future] = player.ip
+                pending_ips.add(player.ip)
 
-                    futures.pop(future)
-                    pending_ips.remove(ip)
+            if not futures:
+                gui_closed__event.wait(1)
+                continue
 
-                    try:
-                        ping_result = future.result()
-                    except AllEndpointsExhaustedError:
-                        continue
+            for future, ip in list(futures.items()):
+                if not future.done():
+                    continue
 
-                    player = PlayersRegistry.require_player_by_ip(ip)
-                    player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
-                    player.ping.ping_times = ping_result.ping_times
-                    player.ping.packets_transmitted = ping_result.packets_transmitted
-                    player.ping.packets_received = ping_result.packets_received
-                    player.ping.packet_duplicates = ping_result.packet_duplicates
-                    player.ping.packet_loss = ping_result.packet_loss
-                    player.ping.packet_errors = ping_result.packet_errors
-                    player.ping.rtt_min = ping_result.rtt_min
-                    player.ping.rtt_avg = ping_result.rtt_avg
-                    player.ping.rtt_max = ping_result.rtt_max
-                    player.ping.rtt_mdev = ping_result.rtt_mdev
-                    player.ping.is_initialized = True
+                futures.pop(future)
+                pending_ips.remove(ip)
 
-                gui_closed__event.wait(0.1)
+                try:
+                    ping_result = future.result()
+                except AllEndpointsExhaustedError:
+                    continue
+
+                player = PlayersRegistry.require_player_by_ip(ip)
+                player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
+                player.ping.ping_times = ping_result.ping_times
+                player.ping.packets_transmitted = ping_result.packets_transmitted
+                player.ping.packets_received = ping_result.packets_received
+                player.ping.packet_duplicates = ping_result.packet_duplicates
+                player.ping.packet_loss = ping_result.packet_loss
+                player.ping.packet_errors = ping_result.packet_errors
+                player.ping.rtt_min = ping_result.rtt_min
+                player.ping.rtt_avg = ping_result.rtt_avg
+                player.ping.rtt_max = ping_result.rtt_max
+                player.ping.rtt_mdev = ping_result.rtt_mdev
+                player.ping.is_initialized = True
+
+            gui_closed__event.wait(0.1)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -3073,8 +3072,6 @@ class TsharkStats:
 def capture_core() -> None:
     with ThreadsExceptionHandler():
         def packet_callback(packet: Packet) -> None:
-            from modules.networking.utils import is_private_device_ipv4
-
             packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
             TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
             if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
@@ -3255,22 +3252,6 @@ def rendering_core() -> None:
         def parse_userip_ini_file(ini_path: Path, unresolved_ip_invalid: set[str]) -> tuple[UserIPSettings | None, dict[str, list[str]] | None]:
             def process_ini_line_output(line: str) -> str:
                 return line.strip()
-
-            from modules.constants.standalone import USERIP_INI_SETTINGS
-            from modules.constants.standard import (
-                RE_SETTINGS_INI_PARSER_PATTERN,
-                RE_USERIP_INI_PARSER_PATTERN,
-            )
-            from modules.utils import (
-                check_case_insensitive_and_exact_match,
-                custom_str_to_bool,
-                custom_str_to_nonetype,
-            )
-            from modules.utils_exceptions import (
-                InvalidBooleanValueError,
-                InvalidNoneTypeValueError,
-                NoMatchFoundError,
-            )
 
             validate_file(ini_path)
 
@@ -3560,8 +3541,6 @@ def rendering_core() -> None:
             ), userip
 
         def update_userip_databases() -> float:
-            from modules.constants.standard import USERIP_DATABASES_PATH
-
             default_userip_file_header = format_triple_quoted_text(f"""
                 ;;-----------------------------------------------------------------------------
                 ;; {TITLE} User IP default database file
@@ -3867,8 +3846,6 @@ def rendering_core() -> None:
                 row_texts.append(f'{player.ping.is_pinging}')
                 logging_disconnected_players_table.add_row(row_texts)
 
-            from modules.constants.standard import SESSIONS_LOGGING_PATH
-
             # Check if the directories exist, if not create them
             if not SESSIONS_LOGGING_PATH.parent.is_dir():
                 SESSIONS_LOGGING_PATH.parent.mkdir(parents=True)  # Create the directories if they don't exist
@@ -3935,18 +3912,12 @@ def rendering_core() -> None:
 
             def get_player_rate_color(color: QColor, rate: int, *, is_first_calculation: bool) -> QColor:
                 """Determine the color for player rates based on given thresholds."""
-                from modules.constants.standalone import RATE_LOW, RATE_MAX, RATE_ZERO
-
                 if not is_first_calculation:
                     if rate == RATE_ZERO:
                         return QColor('red')
                     if RATE_LOW <= rate <= RATE_MAX:
                         return QColor('yellow')
                 return color
-
-            from modules.constants.external import (
-                HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR,
-            )
 
             row_texts: list[str] = []
             session_connected_table__processed_data: list[list[str]] = []
@@ -4279,17 +4250,11 @@ def rendering_core() -> None:
         connected_column_mapping = {header: index for index, header in enumerate(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
         # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
 
-        from modules.constants.local import COUNTRY_FLAGS_FOLDER_PATH
-        from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
-
         last_userip_parse_time = None
         last_session_logging_processing_time = None
 
         discord_rpc_manager = None
         if Settings.DISCORD_PRESENCE:
-            from modules.constants.standalone import DISCORD_APPLICATION_ID
-            from modules.discord.rpc import DiscordRPC
-
             discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
 
         while not gui_closed__event.is_set():
@@ -4597,8 +4562,6 @@ class SessionTableModel(QAbstractTableModel):
 
     # pylint: disable=invalid-name
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
-        from modules.constants.standalone import GUI_COLUMN_HEADERS_TOOLTIPS
-
         if orientation == Qt.Orientation.Horizontal:
             if role == Qt.ItemDataRole.DisplayRole:
                 return self._headers[section]  # Display the header name
@@ -4673,8 +4636,6 @@ class SessionTableModel(QAbstractTableModel):
             )
         elif sorted_column_name == 'IP Address':
             # Sort by IP address
-            import ipaddress
-
             combined.sort(
                 key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
                 reverse=sort_order_bool,
@@ -5173,10 +5134,6 @@ class SessionTableView(QTableView):
 
     def show_context_menu(self, pos: QPoint) -> None:
         """Show the context menu at the specified position with options to interact with the table's content."""
-        from modules.constants.standard import (
-            USERIP_DATABASES_PATH,
-        )
-
         def add_action(
             menu: QMenu,
             label: str,
@@ -5291,8 +5248,6 @@ class SessionTableView(QTableView):
                 raise TypeError(format_type_error(column_name, str))
 
             if column_name == 'IP Address':
-                from modules.constants.local import SCRIPTS_FOLDER_PATH
-
                 # Get the IP address from the selected cell
                 displayed_ip = selected_model.get_display_text(selected_indexes[0])
                 if not displayed_ip:
@@ -5458,8 +5413,6 @@ class SessionTableView(QTableView):
         clipboard.setText(clipboard_content)
 
     def show_detailed_ip_lookup_player_cell(self, ip: str) -> None:
-        from modules.constants.standard import USERIP_DATABASES_PATH
-
         player = PlayersRegistry.require_player_by_ip(ip)
 
         QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
@@ -5517,11 +5470,7 @@ class SessionTableView(QTableView):
 
         def run_paping(host: str, port: int) -> None:
             """Runs paping in a new terminal window to check TCP connectivity continuously."""
-            from modules.constants.local import PAPING_PATH
-
             run_cmd_script(PAPING_PATH, [host, '-p', str(port)])
-
-        from modules.constants.standalone import MAX_PORT, MIN_PORT
 
         port_str, ok = QInputDialog.getText(self, 'Input Port', 'Enter the port number to check TCP connectivity:')
 
@@ -5543,9 +5492,6 @@ class SessionTableView(QTableView):
         run_paping(ip, port)
 
     def userip_manager__add(self, ip_addresses: list[str], selected_database: Path) -> None:
-        from modules.constants.standard import USERIP_DATABASES_PATH
-        from modules.utils import write_lines_to_file
-
         # Prompt the user for a username
         username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(ip_addresses))}:')
 
@@ -5564,12 +5510,6 @@ class SessionTableView(QTableView):
             QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
 
     def userip_manager__move(self, ip_addresses: list[str], selected_database: Path) -> None:
-        from modules.constants.standard import (
-            RE_USERIP_INI_PARSER_PATTERN,
-            USERIP_DATABASES_PATH,
-        )
-        from modules.utils import write_lines_to_file
-
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
 
@@ -5625,12 +5565,6 @@ class SessionTableView(QTableView):
             QMessageBox.information(self, TITLE, report)
 
     def userip_manager__del(self, ip_addresses: list[str]) -> None:
-        from modules.constants.standard import (
-            RE_USERIP_INI_PARSER_PATTERN,
-            USERIP_DATABASES_PATH,
-        )
-        from modules.utils import write_lines_to_file
-
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
 
@@ -5859,8 +5793,6 @@ class PersistentMenu(QMenu):
 class MainWindow(QMainWindow):
     def __init__(self, screen_width: int, screen_height: int) -> None:
         super().__init__()
-
-        from modules.guis.utils import resize_window_for_screen
 
         # Set up the window
         self.setWindowTitle(TITLE)
@@ -6342,18 +6274,12 @@ class MainWindow(QMainWindow):
             self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
 
     def open_project_repo(self) -> None:
-        from modules.constants.standalone import GITHUB_REPO_URL
-
         webbrowser.open(GITHUB_REPO_URL)
 
     def open_documentation(self) -> None:
-        from modules.constants.standalone import DOCUMENTATION_URL
-
         webbrowser.open(DOCUMENTATION_URL)
 
     def join_discord(self) -> None:
-        from modules.constants.standalone import DISCORD_INVITE_URL
-
         webbrowser.open(DISCORD_INVITE_URL)
 
     def toggle_mobile_detection(self) -> None:
@@ -6540,8 +6466,6 @@ class DiscordIntro(QDialog):
         self.move(x, y)
 
     def open_discord(self) -> None:
-        from modules.constants.standalone import DISCORD_INVITE_URL
-
         webbrowser.open(DISCORD_INVITE_URL)
 
         Settings.SHOW_DISCORD_POPUP = False

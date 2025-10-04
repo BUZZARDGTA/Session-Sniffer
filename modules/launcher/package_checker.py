@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, Literal
 
 from packaging.requirements import Requirement
 
+from modules.constants.local import PYPROJECT_DATA, REQUIREMENTS_PATH
+
 if TYPE_CHECKING:
     from packaging.specifiers import SpecifierSet
 
 
 def get_dependencies_from_pyproject() -> dict[str, Requirement]:
-    from modules.constants.local import PYPROJECT_DATA
-
     dependencies = PYPROJECT_DATA.get('project', {}).get('dependencies', [])
 
     return {
@@ -19,8 +19,6 @@ def get_dependencies_from_pyproject() -> dict[str, Requirement]:
 
 
 def get_dependencies_from_requirements() -> dict[str, Requirement]:
-    from modules.constants.local import REQUIREMENTS_PATH
-
     dependencies: dict[str, Requirement] = {}
 
     with REQUIREMENTS_PATH.open('r', encoding='utf-8') as f:

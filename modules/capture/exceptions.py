@@ -3,6 +3,8 @@
 This module contains custom exception classes for packet capture operations.
 """
 
+from modules.constants.standalone import MAX_PORT, MIN_PORT
+
 
 class PacketCaptureOverflowError(Exception):
     """Raised when packet capture time exceeds the configured overflow timer."""
@@ -68,7 +70,6 @@ class InvalidPortNumberError(TSharkProcessingError):
 
     def __init__(self, port: int) -> None:
         """Initialize the InvalidPortNumberError exception."""
-        from modules.constants.standalone import MAX_PORT, MIN_PORT
         super().__init__(f'Invalid port number: {port}. Port must be a number between {MIN_PORT} and {MAX_PORT}.')
 
 
