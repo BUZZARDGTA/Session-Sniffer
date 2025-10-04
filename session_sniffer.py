@@ -263,15 +263,9 @@ def terminate_script(
     msgbox_crash_text: str | None = None,
     stdout_crash_text: str | None = None,
     exception_info: ExceptionInfo | None = None,
-    *,
-    terminate_gracefully: bool = True,
-    force_terminate_errorlevel: int | Literal[False] | None = False,
 ) -> None:
     def should_terminate_gracefully() -> bool:
-        if terminate_gracefully is False:
-            return False
-
-        for thread_name in ('capture_core__thread', 'rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread'):
+        for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread', 'capture_core__thread'):
             if thread_name in globals():
                 thread = globals()[thread_name]
                 if isinstance(thread, Thread) and thread.is_alive():
@@ -296,7 +290,7 @@ def terminate_script(
                 '[link=https://github.com/BUZZARDGTA/Session-Sniffer/issues]'
                 'https://github.com/BUZZARDGTA/Session-Sniffer/issues[/link].\n\n'
                 'DEBUG:\n'
-                f'VERSION={globals().get("VERSION", "Unknown Version")}'  # Define a default value for VERSION if it's not defined
+                f'VERSION={globals().get("VERSION", "Unknown Version")}'
             ),
             style='white',
         )
@@ -321,11 +315,8 @@ def terminate_script(
         time.sleep(3)
 
     if should_terminate_gracefully():
-        if force_terminate_errorlevel is False:
-            errorlevel = 1 if terminate_method == 'THREAD_RAISED' else 0
-        else:
-            errorlevel = force_terminate_errorlevel if force_terminate_errorlevel is not None else 0
-        sys.exit(errorlevel)
+        exit_code = 1 if terminate_method == 'THREAD_RAISED' else 0
+        sys.exit(exit_code)
 
     terminate_process_tree()
 
