@@ -45,11 +45,6 @@ Discord = "https://discord.gg/hMZ7MsPX7G"
 
 [tool.mypy]
 python_version = "3.13"
-disable_error_code = [
-    "arg-type",
-    "no-untyped-call",
-    "no-untyped-def",
-]
 check_untyped_defs = true
 ignore_missing_imports = true
 strict = true
