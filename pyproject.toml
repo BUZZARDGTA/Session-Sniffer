@@ -66,6 +66,7 @@ ignore = [
     "D406",
     "D413",
 ]
+match = "(?!test_)(?!whitelist\\.py).*\\.py"
 
 
 [tool.pylint.master]
