@@ -5,3 +5,4 @@ extend-exclude =
     .dev,
     .history,
     .venv,
+    whitelist.py,
