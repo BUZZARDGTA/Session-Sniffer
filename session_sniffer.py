@@ -1942,7 +1942,7 @@ def populate_network_interfaces_info() -> None:
     """Populate the AllInterfaces collection with network interface details."""
     def validate_and_format_mac_address(mac_address: str | None) -> str | None:
         """Validate the MAC address, ensuring it is in the correct format."""
-        if mac_address in (None, ''):
+        if mac_address is None or not mac_address:
             return None
 
         formatted_mac_address = format_mac_address(mac_address)
@@ -1964,7 +1964,7 @@ def populate_network_interfaces_info() -> None:
 
     def validate_ip_address(ip_address: str | None) -> str | None:
         """Validate the IP address, ensuring it is a valid IPv4 address."""
-        if ip_address in (None, ''):
+        if ip_address is None or not ip_address:
             return None
 
         if not is_ipv4_address(ip_address):
