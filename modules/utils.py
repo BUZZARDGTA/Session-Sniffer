@@ -276,7 +276,7 @@ def format_triple_quoted_text(
     *,
     add_leading_newline: bool = False,
     add_trailing_newline: bool = False,
-):
+) -> str:
     """Format a triple-quoted string by removing leading whitespace and optionally adding newlines.
 
     Args:

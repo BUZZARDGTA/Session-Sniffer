@@ -117,11 +117,6 @@ exclude = [
 
 [tool.ruff.lint]
 ignore = [
-    "ANN201",  # missing-return-type-undocumented-public-function
-    "ANN202",  # missing-return-type-private-function
-    "ANN204",  # missing-return-type-special-method
-    "ANN205",  # missing-return-type-static-method
-    "ANN206",  # missing-return-type-class-method
     "C901",    # complex-structure
     "D101",    # undocumented-public-class
     "D102",    # undocumented-public-method

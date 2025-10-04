@@ -99,7 +99,7 @@ class PacketCapture:
         tshark_path: Path,
         capture_filter: str | None = None,
         display_filter: str | None = None,
-    ):
+    ) -> None:
         """Initialize the PacketCapture class.
 
         Args:

@@ -198,7 +198,7 @@ def terminate_script(
     *,
     terminate_gracefully: bool = True,
     force_terminate_errorlevel: int | Literal[False] | None = False,
-):
+) -> None:
     from modules.utils import terminate_process_tree
 
     def should_terminate_gracefully() -> bool:
@@ -1491,7 +1491,7 @@ class UserIPDatabases:
         conflicting_userip_database: Path,
         conflicting_userip_username: str,
         conflicting_userip_ip: str,
-    ):
+    ) -> None:
         from modules.constants.standard import USERIP_DATABASES_PATH
 
         Thread(
@@ -5186,7 +5186,7 @@ class SessionTableView(QTableView):
             handler: Callable[..., None] | None = None,
             *,
             enabled: bool | None = None,
-        ):
+        ) -> QAction:
             """Helper to create and configure a QAction."""
             action = menu.addAction(label)  # pyright: ignore[reportUnknownMemberType]
             if not isinstance(action, QAction):
@@ -5786,7 +5786,7 @@ class GUIWorkerThread(QThread):
         self,
         connected_table_view: SessionTableView,
         disconnected_table_view: SessionTableView,
-    ):
+    ) -> None:
         super().__init__()
 
         self.connected_table_view = connected_table_view
