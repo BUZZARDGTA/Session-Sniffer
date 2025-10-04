@@ -4,11 +4,11 @@ It is used to determine whether each player's IP is responsive to pings.
 """
 import dataclasses
 import time
+from dataclasses import dataclass
 from threading import Lock, Semaphore
 from typing import NamedTuple
 from urllib.parse import urlparse
 
-from pydantic.dataclasses import dataclass
 from requests import exceptions
 
 from modules.constants.standard import (

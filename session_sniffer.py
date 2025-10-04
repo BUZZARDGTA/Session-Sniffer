@@ -15,6 +15,7 @@ import time
 import webbrowser
 import winsound
 from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
@@ -30,7 +31,7 @@ import requests
 from colorama import Fore
 from packaging.version import Version
 from prettytable import PrettyTable, TableStyle
-from pydantic.dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QAbstractTableModel,
@@ -1450,7 +1451,7 @@ class SessionHost:
         return potential_session_host_player
 
 
-@dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
+@pydantic_dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
 class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-name
     """Class to represent settings with attributes for each setting key."""
     ENABLED: bool
