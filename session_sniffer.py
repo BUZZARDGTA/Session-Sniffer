@@ -4505,7 +4505,7 @@ class SessionTableModel(QAbstractTableModel):
         return len(self._headers)
     # pylint: enable=invalid-name
 
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:  # pylint: disable=too-many-return-statements # noqa: PLR0911
         """Override data method to customize data retrieval and alignment."""
         if not index.isValid():
             return None
