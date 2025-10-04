@@ -74,6 +74,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpacerItem,
+    QStatusBar,
     QTableView,
     QToolBar,
     QToolTip,
@@ -3167,6 +3168,21 @@ class CellColor:
     background: QColor
 
 
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True}, kw_only=True, slots=True)
+class GUIUpdatePayload:  # pylint: disable=too-many-instance-attributes
+    """Payload containing all data needed for GUI updates."""
+    header_text: str
+    status_capture_text: str
+    status_config_text: str
+    status_discord_text: str
+    status_issues_text: str
+    status_performance_text: str
+    connected_rows: list[tuple[list[str], list[CellColor]]]
+    disconnected_rows: list[tuple[list[str], list[CellColor]]]
+    connected_num: int
+    disconnected_num: int
+
+
 class ThreadSafeMeta(type):
     """Metaclass that ensures thread-safe access to class attributes."""
 
@@ -3193,6 +3209,11 @@ class AbstractGUIRenderingData:
     GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
 
     header_text: str
+    status_capture_text: str
+    status_config_text: str
+    status_discord_text: str
+    status_issues_text: str
+    status_performance_text: str
     SESSION_CONNECTED_TABLE__NUM_COLS: int
     session_connected_table__num_rows: int
     session_connected_table__processed_data: list[list[str]]
@@ -4116,12 +4137,29 @@ def rendering_core() -> None:
                 session_disconnected_table__compiled_colors,
             )
 
-        def generate_gui_header_text(global_pps_rate: int) -> str:
-            from modules.constants.standalone import (
-                PPS_THRESHOLD_CRITICAL,
-                PPS_THRESHOLD_WARNING,
-            )
+        def generate_gui_header() -> str:
+            """Generate the GUI header with title, version, and tagline."""
+            return f"""
+            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px; border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
+                <div style="text-align: center;">
+                    <span style="font-size: 24px; color: #88c0d0; font-weight: bold;">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
+                </div>
+                <p style="font-size: 14px; margin: 8px 0 0 0; text-align: center; color: #d8dee9;">
+                    The best FREE and Open-Source packet sniffer, aka IP puller
+                </p>
+            </div>
+            """
 
+        def generate_gui_status_text(global_pps_rate: int) -> tuple[str, str, str, str, str]:
+            """Generate status bar text content for individual sections.
+
+            Args:
+                global_pps_rate (int): The current global packets per second rate.
+
+            Returns:
+                A tuple of (capture, config, discord, issues, performance) containing HTML formatted text
+                for each individual status bar section.
+            """
             one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
 
             # Filter packets received in the last second
@@ -4139,66 +4177,99 @@ def rendering_core() -> None:
                 avg_latency_seconds = 0.0
                 avg_latency_rounded = 0.0
 
-            # Determine latency color
-            if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER:
-                latency_color = '<span style="color: red;">'
-            elif avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER:
-                latency_color = '<span style="color: yellow;">'
-            else:
-                latency_color = '<span style="color: green;">'
-
-            # For reference, in a GTA Online session, the packets per second (PPS) typically range from 0 (solo session) to 1500 (public session, 32 players).
-            # If the packet rate exceeds these ranges, we flag them with yellow or red color to indicate potential issues (such as scanning unwanted packets outside of the GTA game).
-            # Also these values averagely indicates the max performances my script can run at during my testings. Luckely it's just enough to process GTA V game.
-            if global_pps_rate >= PPS_THRESHOLD_CRITICAL:
-                pps_color = '<span style="color: red;">'
-            elif global_pps_rate >= PPS_THRESHOLD_WARNING:
-                pps_color = '<span style="color: yellow;">'
-            else:
-                pps_color = '<span style="color: green;">'
-
             is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
             is_arp_enabled = 'Enabled' if selected_interface.is_arp else 'Disabled'
             displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
-            color_tshark_restarted_time = '<span style="color: green;">' if not tshark_restarted_times else '<span style="color: red;">'
-            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
-                rpc_message = ' RPC:<span style="color: green;">Connected</span>' if discord_rpc_manager.connection_status.is_set() else ' RPC:<span style="color: yellow;">Waiting for Discord</span>'
-            else:
-                rpc_message = ''
 
             invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
             conflict_ip_count = len(UserIPDatabases.notified_ip_conflicts)
             corrupted_settings_count = len(UserIPDatabases.notified_settings_corrupted)
 
-            header = f"""
-            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 20px; border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
-                <div>
-                    <span style="font-size: 24px; color: #88c0d0">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
-                </div>
-                <p style="font-size: 16px; margin: 5px 0;">
-                    The best FREE and Open-Source packet sniffer, aka IP puller.
-                </p>
-                <p style="font-size: 14px; margin: 5px 0;">
-                    Scanning on interface <span style="color: yellow;">{capture.interface}</span> | IP:<span style="color: yellow;">{displayed_capture_ip_address}</span> | ARP:<span style="color: yellow;">{is_arp_enabled}</span> | VPN:<span style="color: yellow;">{is_vpn_mode_enabled}</span> | Preset:<span style="color: yellow;">{Settings.CAPTURE_PROGRAM_PRESET}</span>
-                </p>
-                <p style="font-size: 14px; margin: 5px 0;">
-                    Packets latency per sec:{latency_color}{avg_latency_rounded}</span>/<span style="color: green;">{Settings.CAPTURE_OVERFLOW_TIMER}</span> (tshark restart{pluralize(tshark_restarted_times)}:{color_tshark_restarted_time}{tshark_restarted_times}</span>) PPS:{pps_color}{global_pps_rate}</span>{rpc_message}
-                </p>
-            </div>
-            """
+            # Create rich status bar text with emojis, colors, and visual organization
+            # Define color thresholds
+            pps_critical = 1500
+            pps_warning = 1000
 
+            # Capture section
+            capture_section = (
+                f'<span style="color: #88c0d0; font-weight: bold;">📡 Capture:</span> '
+                f'<span style="color: #a3be8c;">{capture.interface}</span> '
+                f'<span style="color: #81a1c1;"> • </span>'
+                f'<span style="color: #d08770;">IP:</span> <span style="color: #a3be8c;">{displayed_capture_ip_address}</span>'
+            )
+
+            # Configuration section
+            arp_color = '#a3be8c' if is_arp_enabled == 'Enabled' else '#bf616a'
+            vpn_color = '#a3be8c' if is_vpn_mode_enabled == 'Enabled' else '#bf616a'
+            config_section = (
+                f'<span style="color: #88c0d0; font-weight: bold;">⚙️ Config:</span> '
+                f'<span style="color: #d08770;">ARP:</span> <span style="color: {arp_color};">{is_arp_enabled}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">VPN:</span> <span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Preset:</span> <span style="color: #b48ead;">{Settings.CAPTURE_PROGRAM_PRESET}</span>'
+            )
+
+            # Get current process memory usage
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+
+            # Define memory thresholds for color coding
+            memory_high = 500  # MB - High usage (red)
+            memory_medium = 250  # MB - Medium usage (yellow)
+
+            # Performance section with color-coded values
+            latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
+                             else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
+                             else '#a3be8c')
+            pps_color = ('#bf616a' if global_pps_rate >= pps_critical
+                         else '#ebcb8b' if global_pps_rate >= pps_warning
+                         else '#a3be8c')
+            restart_color = '#a3be8c' if not tshark_restarted_times else '#bf616a'
+            memory_color = ('#bf616a' if memory_mb >= memory_high
+                            else '#ebcb8b' if memory_mb >= memory_medium
+                            else '#a3be8c')
+
+            performance_section = (
+                f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
+                f'<span style="color: #d08770;">Latency:</span> <span style="color: {latency_color};">{avg_latency_rounded}/{Settings.CAPTURE_OVERFLOW_TIMER}s</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{global_pps_rate}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f}MB</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{tshark_restarted_times}</span>'
+            )
+
+            # Discord RPC section (if enabled)
+            discord_section = ''
+            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
+                rpc_connected = discord_rpc_manager.connection_status.is_set()
+                rpc_color = '#a3be8c' if rpc_connected else '#ebcb8b'
+                rpc_status = 'Connected' if rpc_connected else 'Waiting'
+                discord_section = (
+                    f'<span style="color: #88c0d0; font-weight: bold;">💬 Discord:</span> '
+                    f'<span style="color: {rpc_color};">{rpc_status}</span>'
+                )
+
+            # Issues section (if any)
+            issues_section = ''
             if any([invalid_ip_count, conflict_ip_count, corrupted_settings_count]):
-                num_of_userip_files = len(UserIPDatabases.get_userip_database_filepaths())
-
-                header += '───────────────────────────────────────────────────────────────────────────────────────────────────<br>'
+                issues: list[str] = []
                 if invalid_ip_count:
-                    header += f'Number of invalid IP{pluralize(invalid_ip_count)} in UserIP file{pluralize(num_of_userip_files)}: <span style="color: red;">{invalid_ip_count}</span><br>'
+                    issues.append(f'<span style="color: #bf616a;">❌ Invalid IPs: {invalid_ip_count}</span>')
                 if conflict_ip_count:
-                    header += f'Number of conflicting IP{pluralize(conflict_ip_count)} in UserIP file{pluralize(num_of_userip_files)}: <span style="color: red;">{conflict_ip_count}</span><br>'
+                    issues.append(f'<span style="color: #bf616a;">⚠️ Conflicts: {conflict_ip_count}</span>')
                 if corrupted_settings_count:
-                    header += f'Number of corrupted setting(s) in UserIP file{pluralize(num_of_userip_files)}: <span style="color: red;">{corrupted_settings_count}</span><br>'
-                header += '───────────────────────────────────────────────────────────────────────────────────────────────────'
-            return header
+                    issues.append(f'<span style="color: #bf616a;">🔧 Corrupted: {corrupted_settings_count}</span>')
+
+                issues_section = (
+                    f'<span style="color: #bf616a; font-weight: bold;">⚠️ Issues:</span> '
+                    f'{" <span style=\"color: #81a1c1;\">•</span> ".join(issues)}'
+                )
+
+            return capture_section, config_section, discord_section, issues_section, performance_section
 
         GUIrenderingData.FIELDS_TO_HIDE = set(Settings.GUI_FIELDS_TO_HIDE)
         (
@@ -4359,7 +4430,8 @@ def rendering_core() -> None:
             if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and (discord_rpc_manager.last_update_time is None or (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0):  # noqa: PLR2004
                 discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
 
-            GUIrenderingData.header_text = generate_gui_header_text(global_pps_rate)
+            GUIrenderingData.header_text = generate_gui_header()
+            GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text, GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text, GUIrenderingData.status_performance_text = generate_gui_status_text(global_pps_rate)
             (
                 GUIrenderingData.session_connected_table__num_rows,
                 GUIrenderingData.session_connected_table__processed_data,
@@ -5713,13 +5785,7 @@ class SessionTableView(QTableView):
 
 
 class GUIWorkerThread(QThread):
-    update_signal = pyqtSignal(
-        str,
-        list,
-        list,
-        int,
-        int,
-    )
+    update_signal = pyqtSignal(GUIUpdatePayload)
 
     def __init__(
         self,
@@ -5741,6 +5807,11 @@ class GUIWorkerThread(QThread):
             GUIrenderingData.gui_rendering_ready_event.clear()
 
             header_text = GUIrenderingData.header_text
+            status_capture_text = GUIrenderingData.status_capture_text
+            status_config_text = GUIrenderingData.status_config_text
+            status_discord_text = GUIrenderingData.status_discord_text
+            status_issues_text = GUIrenderingData.status_issues_text
+            status_performance_text = GUIrenderingData.status_performance_text
 
             connected_data = [row[:] for row in GUIrenderingData.session_connected_table__processed_data]
             connected_colors = [row[:] for row in GUIrenderingData.session_connected_table__compiled_colors]
@@ -5753,13 +5824,20 @@ class GUIWorkerThread(QThread):
             connected_rows = list(zip(connected_data, connected_colors, strict=True))
             disconnected_rows = list(zip(disconnected_data, disconnected_colors, strict=True))
 
-            self.update_signal.emit(
-                header_text,
-                connected_rows,
-                disconnected_rows,
-                connected_num,
-                disconnected_num,
+            payload = GUIUpdatePayload(
+                header_text=header_text,
+                status_capture_text=status_capture_text,
+                status_config_text=status_config_text,
+                status_discord_text=status_discord_text,
+                status_issues_text=status_issues_text,
+                status_performance_text=status_performance_text,
+                connected_rows=connected_rows,
+                disconnected_rows=disconnected_rows,
+                connected_num=connected_num,
+                disconnected_num=disconnected_num,
             )
+
+            self.update_signal.emit(payload)
 
 
 class PersistentMenu(QMenu):
@@ -5977,7 +6055,9 @@ class MainWindow(QMainWindow):
         self.disconnected_table_model.view = self.disconnected_table_view
 
         # Layout to organize the widgets
+        self.main_layout.addSpacing(4)
         self.main_layout.addWidget(self.header_text)
+        self.main_layout.addSpacing(14)
         self.main_layout.addWidget(self.connected_header_container)
         self.main_layout.addWidget(self.connected_table_view)
         self.main_layout.addWidget(self.tables_separator)
@@ -6001,6 +6081,91 @@ class MainWindow(QMainWindow):
         self.disconnected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
             lambda: self._update_selection_count(self.disconnected_table_view, 'disconnected'),
         )
+
+        # Create and configure the status bar
+        self.status_bar = QStatusBar(self)
+        self.setStatusBar(self.status_bar)
+        self.status_bar.setSizeGripEnabled(False)
+        self.status_bar.setStyleSheet("""
+            QStatusBar {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #2e3440, stop:1 #3b4252);
+                color: #d8dee9;
+                border-top: 2px solid #88c0d0;
+                font-family: 'Segoe UI', 'Roboto', sans-serif;
+                font-size: 10pt;
+                font-weight: 500;
+                padding: 4px 8px;
+                min-height: 24px;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+        """)
+
+        # Create individual status labels for better organization
+        self.status_capture_label = QLabel()
+        self.status_capture_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_capture_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #d8dee9;
+                border: none;
+                padding: 4px 8px 4px 8px;
+            }
+        """)
+
+        self.status_config_label = QLabel()
+        self.status_config_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_config_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #d8dee9;
+                border: none;
+                padding: 4px 8px;
+            }
+        """)
+
+        self.status_discord_label = QLabel()
+        self.status_discord_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_discord_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #d8dee9;
+                border: none;
+                padding: 4px 8px;
+            }
+        """)
+
+        self.status_issues_label = QLabel()
+        self.status_issues_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_issues_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #d8dee9;
+                border: none;
+                padding: 4px 8px;
+            }
+        """)
+
+        self.status_performance_label = QLabel()
+        self.status_performance_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.status_performance_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #d8dee9;
+                border: none;
+                padding: 4px 8px 4px 4px;
+            }
+        """)
+
+        # Add labels to status bar with proper spacing
+        self.status_bar.addWidget(self.status_capture_label)
+        self.status_bar.addWidget(self.status_config_label)
+        self.status_bar.addWidget(self.status_discord_label)
+        self.status_bar.addWidget(self.status_issues_label)
+        self.status_bar.addPermanentWidget(self.status_performance_label)  # Right-aligned performance
 
         # Raise and activate window to ensure it gets focus
         self.raise_()
@@ -6112,28 +6277,28 @@ class MainWindow(QMainWindow):
         self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({self.disconnected_table_model.rowCount()})')  # Set initial count on the expand button
         self.disconnected_expand_button.setVisible(True)
 
-    def update_gui(
-        self,
-        header_text: str,
-        connected_rows: list[tuple[list[str], list[CellColor]]],
-        disconnected_rows: list[tuple[list[str], list[CellColor]]],
-        connected_num: int,
-        disconnected_num: int,
-    ):
-        """Update header text and table data for connected and disconnected players."""
+    def update_gui(self, payload: GUIUpdatePayload) -> None:
+        """Update header text, status bar, and table data for connected and disconnected players."""
         # Update the main header text
-        self.header_text.setText(header_text)
+        self.header_text.setText(payload.header_text)
+
+        # Update individual status bar sections
+        self.status_capture_label.setText(payload.status_capture_text)
+        self.status_config_label.setText(payload.status_config_text)
+        self.status_discord_label.setText(payload.status_discord_text)
+        self.status_issues_label.setText(payload.status_issues_text)
+        self.status_performance_label.setText(payload.status_performance_text)
 
         # Check if counts changed to optimize text updates
-        connected_count_changed = self._last_connected_count != connected_num
-        disconnected_count_changed = self._last_disconnected_count != disconnected_num
+        connected_count_changed = self._last_connected_count != payload.connected_num
+        disconnected_count_changed = self._last_disconnected_count != payload.disconnected_num
 
         if connected_count_changed:
-            self._last_connected_count = connected_num
+            self._last_connected_count = payload.connected_num
             self._update_connected_header_with_selection()
 
         # Process connected players data
-        for processed_data, compiled_colors in connected_rows:
+        for processed_data, compiled_colors in payload.connected_rows:
             ip = self.connected_table_model.get_ip_from_data_safely(processed_data)
 
             # Remove from disconnected table (maintain data consistency)
@@ -6153,14 +6318,14 @@ class MainWindow(QMainWindow):
             self.connected_table_model.sort_current_column()
             self.connected_table_view.adjust_username_column_width()
         elif connected_count_changed:
-            self.connected_expand_button.setText(f'▲  Show Connected Players ({connected_num})')
+            self.connected_expand_button.setText(f'▲  Show Connected Players ({payload.connected_num})')
 
         if disconnected_count_changed:
-            self._last_disconnected_count = disconnected_num
+            self._last_disconnected_count = payload.disconnected_num
             self._update_disconnected_header_with_selection()
 
         # Process disconnected players data
-        for processed_data, compiled_colors in disconnected_rows:
+        for processed_data, compiled_colors in payload.disconnected_rows:
             ip = self.disconnected_table_model.get_ip_from_data_safely(processed_data)
 
             # Remove from connected table (maintain data consistency)
@@ -6180,7 +6345,7 @@ class MainWindow(QMainWindow):
             self.disconnected_table_model.sort_current_column()
             self.disconnected_table_view.adjust_username_column_width()
         elif disconnected_count_changed:
-            self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({disconnected_num})')
+            self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
 
     def open_project_repo(self) -> None:
         from modules.constants.standalone import GITHUB_REPO_URL
