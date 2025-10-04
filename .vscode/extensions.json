@@ -46,7 +46,8 @@
         "urosvujosevic.explorer-manager",
         "waderyan.gitblame",
         "wupb.arrange-selection",
-        "xyz.local-history"
+        "xyz.local-history",
+        "donjayamanne.githistory"
     ],
     "unwantedRecommendations": [
         "msjsdiag.debugger-for-firefox",
