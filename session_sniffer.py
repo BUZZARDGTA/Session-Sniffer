@@ -23,7 +23,7 @@ from operator import attrgetter
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
 from types import FrameType, TracebackType
-from typing import Any, ClassVar, Literal, NamedTuple
+from typing import Any, ClassVar, Literal, NamedTuple, TypedDict
 
 import colorama
 import geoip2.database
@@ -2634,6 +2634,15 @@ def wait_for_player_data_ready(player: Player, *, data_fields: tuple[Literal['us
     return False
 
 
+class NotificationConfig(TypedDict):
+    """Type definition for notification configuration."""
+    emoji: str
+    title: str
+    description: str
+    icon: MsgBox.Style
+    thread_name: str
+
+
 def show_detection_warning_popup(
     player: Player,
     notification_type: Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_left'],
@@ -2646,7 +2655,7 @@ def show_detection_warning_popup(
     """
     def show_popup_thread() -> None:
         """Thread function to show popup after ensuring data is ready."""
-        notification_configs: dict[Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_left'], dict[Literal['emoji', 'title', 'description', 'icon', 'thread_name'], str | MsgBox.Style]] = {
+        notification_configs: dict[Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_left'], NotificationConfig] = {
             'mobile': {
                 'emoji': '📱',
                 'title': 'MOBILE CONNECTION DETECTED!',
@@ -2725,7 +2734,7 @@ def show_detection_warning_popup(
                 Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
                 Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
             """),
-            style=MsgBox.Style.MB_OK | MsgBox.Style(config['icon']) | MsgBox.Style.MB_SYSTEMMODAL,
+            style=MsgBox.Style.MB_OK | config['icon'] | MsgBox.Style.MB_SYSTEMMODAL,
         )
 
     # Get thread name for the notification type
