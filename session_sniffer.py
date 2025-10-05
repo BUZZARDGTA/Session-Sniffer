@@ -1856,6 +1856,7 @@ class HostingWarnings:
             return cls.notified_hosting_ips.copy()
 
 
+@dataclass(kw_only=True, slots=True)
 class GUIDetectionSettings:
     """Runtime GUI detection settings that persist during application execution but are not saved to settings file."""
     mobile_detection_enabled: ClassVar[bool] = False
