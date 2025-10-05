@@ -91,7 +91,7 @@ class Packet(NamedTuple):
         )
 
 
-class PacketCapture:
+class PacketCapture:  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         *,
