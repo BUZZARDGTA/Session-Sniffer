@@ -66,7 +66,6 @@ ignore = [
     "D406",
     "D413",
 ]
-match = "(?!test_)(?!whitelist\\.py).*\\.py"
 
 
 [tool.pylint.master]
@@ -76,7 +75,6 @@ ignore = [
     ".dev",
     ".history",
     ".venv",
-    "whitelist.py",
 ]
 ignore-patterns = "^\\.#|.*\\.pyi"
 py-version = "3.13"
@@ -106,7 +104,6 @@ target-version = "py313"
 exclude = [
     ".history",
     ".venv",
-    "whitelist.py",
 ]
 
 [tool.ruff.lint]

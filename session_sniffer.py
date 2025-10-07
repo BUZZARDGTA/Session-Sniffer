@@ -194,9 +194,9 @@ from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
     NetworkInterfaceStateMismatchError,
 )
+from modules.networking.http_session import s
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup
-from modules.networking.unsafe_https import s
 from modules.networking.utils import (
     format_mac_address,
     is_ipv4_address,

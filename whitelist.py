@@ -1,3 +1,0 @@
-# type: ignore  # This is a vulture whitelist file
-
-pool_kwargs  # unused variable (modules\networking\unsafe_https.py:30)

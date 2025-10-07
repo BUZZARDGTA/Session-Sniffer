@@ -20,7 +20,7 @@ from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
     InvalidPingResultError,
 )
-from modules.networking.unsafe_https import s
+from modules.networking.http_session import s
 
 
 def format_type_error(
