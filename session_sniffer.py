@@ -15,15 +15,13 @@ import tempfile
 import time
 import webbrowser
 import winsound
-from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
-from types import FrameType, TracebackType
-from typing import Any, ClassVar, Literal, NamedTuple, TypedDict
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, TypedDict
 
 import colorama
 import geoip2.database
@@ -239,6 +237,10 @@ from modules.utils_exceptions import (
     InvalidNoneTypeValueError,
     NoMatchFoundError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
+    from types import FrameType, TracebackType
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -1131,7 +1133,7 @@ class PlayerPorts:
     last: int
 
     @classmethod
-    def from_packet_port(cls, port: int) -> 'PlayerPorts':
+    def from_packet_port(cls, port: int) -> PlayerPorts:
         return cls(
             all=[port],
             first=port,
@@ -1154,7 +1156,7 @@ class PlayerDateTime:
     last_seen: datetime
 
     @classmethod
-    def from_packet_datetime(cls, packet_datetime: datetime) -> 'PlayerDateTime':
+    def from_packet_datetime(cls, packet_datetime: datetime) -> PlayerDateTime:
         return cls(
             first_seen=packet_datetime,
             last_rejoin=packet_datetime,
@@ -4451,14 +4453,14 @@ class SessionTableModel(QAbstractTableModel):
         return ip_address.removesuffix(' 👑')
 
     @property
-    def view(self) -> 'SessionTableView':
+    def view(self) -> SessionTableView:
         """Get or attach a `SessionTableView` to this model."""
         if self._view is None:
             raise TypeError(format_type_error(self._view, SessionTableView))
         return self._view
 
     @view.setter
-    def view(self, new_view: 'SessionTableView') -> None:
+    def view(self, new_view: SessionTableView) -> None:
         """Attach a `SessionTableView` to this model."""
         self._view = new_view
 
@@ -5764,9 +5766,6 @@ class GUIWorkerThread(QThread):
 
 class PersistentMenu(QMenu):
     """Custom QMenu that doesn't close when checkable actions are triggered."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
 
     def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
         """Override mouse release event to prevent auto-closing on checkable actions."""

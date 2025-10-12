@@ -2,7 +2,7 @@
 
 It uses two WMI namespaces: 'root/StandardCimv2' for modern CIM-based network data and 'root/Cimv2' for legacy management data.
 """
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import wmi  # pyright: ignore[reportMissingTypeStubs]
 from wmi import (  # pyright: ignore[reportMissingTypeStubs]
@@ -10,6 +10,9 @@ from wmi import (  # pyright: ignore[reportMissingTypeStubs]
 )
 
 from modules.utils import format_type_error
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Initializing two WMI namespaces: "root/StandardCimv2" for modern CIM-based management with up-to-date network adapter data, and "root/Cimv2"
 # for legacy management, necessary to retrieve properties like "Manufacturer" and "NetEnabled" not available in the newer namespace.

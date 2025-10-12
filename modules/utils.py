@@ -7,14 +7,12 @@ import subprocess
 import sys
 import textwrap
 import winreg
-from collections.abc import Iterable
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import psutil
-from packaging.version import Version
 from win32com.client import Dispatch
 
 from modules.constants.standalone import USER_SHELL_FOLDERS__REG_KEY
@@ -27,6 +25,11 @@ from modules.utils_exceptions import (
     NoMatchFoundError,
     ParenthesisMismatchError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from packaging.version import Version
 
 
 def format_attribute_error(cls: type, name: str) -> str:

@@ -58,7 +58,7 @@ def _matches_prefix(mac_int: int, prefix_int: int, cidr: int) -> bool:
     return (mac_int >> shift) == (prefix_int >> shift)
 
 
-def _parse_and_load_manuf_database() -> 'ManufDatabaseType':
+def _parse_and_load_manuf_database() -> ManufDatabaseType:
     """Parse the manuf file and return a database dict of prefix -> ManufEntry list."""
     manuf_database: ManufDatabaseType = {}
 
@@ -113,7 +113,7 @@ class MacLookup:
         """Parse and load the manuf database."""
         self.manuf_database = _parse_and_load_manuf_database()
 
-    def _find_best_match(self, mac_address: str) -> 'ManufEntry | None':
+    def _find_best_match(self, mac_address: str) -> ManufEntry | None:
         """Find the best matching ManufEntry for the given MAC address using CIDR longest prefix match."""
         if self.manuf_database is None:
             self._refresh_manuf_database()
@@ -136,7 +136,7 @@ class MacLookup:
 
         return best_entry
 
-    def lookup(self, mac_address: str) -> 'ManufEntry | None':
+    def lookup(self, mac_address: str) -> ManufEntry | None:
         """Lookup the MAC address in the manuf database.
 
         :param mac_address: MAC address to lookup (string)

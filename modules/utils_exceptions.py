@@ -1,6 +1,9 @@
 """Utility-related exception classes for Session Sniffer."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class InvalidFileError(Exception):

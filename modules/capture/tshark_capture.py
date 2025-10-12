@@ -1,9 +1,7 @@
 """Module for packet capture using TShark, including packet processing and handling of TShark crashes."""
 import subprocess
-from collections.abc import Callable, Generator
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from modules.capture.exceptions import (
     InvalidIPv4AddressInCaptureError,
@@ -16,6 +14,10 @@ from modules.capture.exceptions import (
 from modules.constants.external import LOCAL_TZ
 from modules.constants.standalone import MAX_PORT, MIN_PORT
 from modules.networking.utils import is_ipv4_address
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
+    from pathlib import Path
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 5
 
@@ -64,7 +66,7 @@ class Packet(NamedTuple):
     port: Port
 
     @classmethod
-    def from_fields(cls, fields: PacketFields) -> 'Packet':
+    def from_fields(cls, fields: PacketFields) -> Packet:
         """Create a Packet object from TShark output fields.
 
         Args:

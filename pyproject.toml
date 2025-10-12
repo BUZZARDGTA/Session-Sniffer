@@ -28,7 +28,7 @@ dependencies = [
     "certifi>=2024.7.4",
     "idna>=3.7",
 ]
-requires-python = ">=3.13"
+requires-python = "==3.14"
 authors = [
     {name = "BUZZARDGTA"},
 ]
@@ -44,7 +44,7 @@ Discord = "https://discord.gg/hMZ7MsPX7G"
 
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 check_untyped_defs = true
 ignore_missing_imports = true
 strict = true
@@ -77,7 +77,7 @@ ignore = [
     ".venv",
 ]
 ignore-patterns = "^\\.#|.*\\.pyi"
-py-version = "3.13"
+py-version = "3.14"
 recursive = true
 
 [tool.pylint."messages control"]
@@ -95,12 +95,12 @@ disable = [
 
 
 [tool.pyright]
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 typeCheckingMode = "strict"
 
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 exclude = [
     ".history",
     ".venv",

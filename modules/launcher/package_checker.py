@@ -36,7 +36,7 @@ def get_dependencies_from_requirements() -> dict[str, Requirement]:
     return dependencies
 
 
-def check_packages_version(required_packages: dict[str, Requirement]) -> list[tuple[str, 'SpecifierSet', str]]:
+def check_packages_version(required_packages: dict[str, Requirement]) -> list[tuple[str, SpecifierSet, str]]:
     outdated_packages: list[tuple[str, SpecifierSet, str | Literal['Not Installed']]] = []  # noqa: PYI051
     for package_name, requirement in required_packages.items():
         try:

@@ -100,7 +100,7 @@ class InvalidOrganizationNameError(InvalidManufEntryFieldError):
 class InvalidPingResultError(Exception):
     """Exception raised when the parsed ping result contains invalid or missing data."""
 
-    def __init__(self, ip: str, response_content: str, ping_result: 'PingResult') -> None:
+    def __init__(self, ip: str, response_content: str, ping_result: PingResult) -> None:
         """Initialize the exception with ping result information."""
         attributes = '\n'.join(f'{attr}={getattr(ping_result, attr)}'
                                for attr in ping_result._fields)

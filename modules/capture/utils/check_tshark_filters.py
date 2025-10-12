@@ -1,6 +1,9 @@
 """Module for checking support for broadcast and multicast capture filters on a specified network interface using tshark."""
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tuple[bool, bool]:

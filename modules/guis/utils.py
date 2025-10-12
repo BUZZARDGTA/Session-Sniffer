@@ -3,10 +3,13 @@
 This module provides helper functions to interact with GUI elements.
 """
 
-from PyQt6.QtWidgets import QDialog, QMainWindow
+from typing import TYPE_CHECKING
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError
+
+if TYPE_CHECKING:
+    from PyQt6.QtWidgets import QDialog, QMainWindow
 
 
 def get_screen_size() -> tuple[int, int]:
