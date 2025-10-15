@@ -86,6 +86,7 @@ disable = [
     "locally-disabled",
     "missing-class-docstring",
     "missing-function-docstring",
+    "no-name-in-module",  # TODO: unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
     "too-many-branches",
