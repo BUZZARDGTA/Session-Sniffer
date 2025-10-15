@@ -1,6 +1,7 @@
 [flake8]
 extend-ignore =
     E501,
+    F821,  # TODO: unsupported in Python 3.14
 extend-exclude =
     .dev,
     .history,
