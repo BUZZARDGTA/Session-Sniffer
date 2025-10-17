@@ -4710,7 +4710,7 @@ class SessionTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.ToolTipRole:
                 # Fetch the header name and return the corresponding tooltip
                 header_name = self._headers[section]
-                return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name, None)
+                return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
 
         return None
     # pylint enable=invalid-name
