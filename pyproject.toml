@@ -8,7 +8,7 @@ dependencies = [
     "packaging==25.0",
     "prettytable==3.16.0",
     "psutil==7.1.0",
-    "pydantic==2.12.0",
+    "pydantic==2.12.2",
     "pypresence==4.3.0",
     "PyQt6==6.8.1",
     "pywin32==311; platform_system == 'Windows'",
@@ -82,18 +82,19 @@ recursive = true
 
 [tool.pylint."messages control"]
 disable = [
+    "fixme",
     "line-too-long",
     "locally-disabled",
     "missing-class-docstring",
     "missing-function-docstring",
-    "no-name-in-module",  # TODO: unsupported in Python 3.14
+    "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
     "too-many-branches",
     "too-many-locals",
     "too-many-statements",
-    "undefined-variable",  # TODO: unsupported in Python 3.14
-    "used-before-assignment",  # TODO: unsupported in Python 3.14
+    "undefined-variable",  # TODO (BUZZARDGTA): unsupported in Python 3.14
+    "used-before-assignment",  # TODO (BUZZARDGTA): unsupported in Python 3.14
 ]
 
 
