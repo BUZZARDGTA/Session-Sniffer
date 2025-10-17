@@ -12,7 +12,6 @@ TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData/Roaming/PopstarDevs/2Tak
 STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData/Roaming/Stand/Lua Scripts/GTA_V_Session_Sniffer-plugin/log.txt'
 CHERAX__PLUGIN__LOG_PATH = get_documents_folder() / 'Cherax/Lua/GTA_V_Session_Sniffer-plugin/log.txt'
 
-
 LOGS_PATHS = (
     STAND__PLUGIN__LOG_PATH,
     CHERAX__PLUGIN__LOG_PATH,

@@ -7,6 +7,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -82,6 +83,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
 from rich.console import Console
 from rich.text import Text
 from rich.traceback import Traceback
@@ -101,51 +103,21 @@ from modules.capture.tshark_capture import (
 )
 from modules.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from modules.capture.utils.npcap_checker import ensure_npcap_installed
-from modules.constants.external import (
-    HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR,
-    LOCAL_TZ,
-)
+from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
-    COUNTRY_FLAGS_FOLDER_PATH,
-    PAPING_PATH,
+    BIN_FOLDER_PATH,
+    IMAGES_FOLDER_PATH,
     PYPROJECT_DATA,
     SCRIPTS_FOLDER_PATH,
-    TSHARK_PATH,
     TTS_FOLDER_PATH,
     VERSION,
 )
 from modules.constants.standalone import (
-    DISCORD_APPLICATION_ID,
-    DISCORD_INVITE_URL,
-    DOCUMENTATION_URL,
-    ERROR_USER_MAPPED_FILE,
-    EXCLUDED_CAPTURE_NETWORK_INTERFACES,
-    GITHUB_RELEASE_API__GEOLITE2__URL,
-    GITHUB_RELEASES_URL,
-    GITHUB_REPO_URL,
-    GITHUB_VERSIONS_URL,
-    GUI_COLUMN_HEADERS_TOOLTIPS,
-    INTERFACE_PARTS_LENGTH,
     MAX_PORT,
     MIN_PORT,
-    MINIMUM_PACKETS_FOR_SESSION_HOST,
-    NETWORK_ADAPTER_DISABLED,
-    RATE_LOW,
-    RATE_MAX,
-    RATE_ZERO,
     TITLE,
-    USERIP_INI_SETTINGS,
 )
-from modules.constants.standard import (
-    GEOLITE2_DATABASES_FOLDER_PATH,
-    RE_SETTINGS_INI_PARSER_PATTERN,
-    RE_USERIP_INI_PARSER_PATTERN,
-    SESSIONS_LOGGING_PATH,
-    SETTINGS_PATH,
-    SHUTDOWN_EXE,
-    USERIP_DATABASES_PATH,
-    USERIP_LOGGING_PATH,
-)
+from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
 from modules.exceptions import (
     PlayerAlreadyExistsError,
@@ -252,6 +224,85 @@ logging.basicConfig(
 )
 logging.captureWarnings(capture=True)
 logger = logging.getLogger(__name__)
+
+GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
+GITHUB_RELEASES_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
+GITHUB_VERSIONS_URL = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Sniffer/version/release_versions.json'
+DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
+DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
+GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
+# GITHUB_RELEASE_API__GEOLITE2__BACKUP__URL = 'https://api.github.com/repos/PrxyHunter/GeoLite2/releases/latest'
+
+# TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
+ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
+NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
+RATE_ZERO = 0
+RATE_LOW = 1
+RATE_MAX = 3
+MINIMUM_PACKETS_FOR_SESSION_HOST = 50
+USERIP_INI_SETTINGS = ['ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION', 'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE']
+EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
+    'Adapter for loopback traffic capture',
+    'Event Tracing for Windows (ETW) reader',
+}
+GUI_COLUMN_HEADERS_TOOLTIPS = {
+    'Usernames': 'Displays the username(s) of players from your UserIP database files.\n\nFor GTA V PC users who have used the Session Sniffer mod menu plugin,\nit automatically resolves usernames while the plugin is running,\nor shows previously resolved players that were seen by the plugin.',
+    'First Seen': 'The very first time the player was observed across all sessions.',
+    'Last Rejoin': 'The most recent time the player rejoined your session.',
+    'Last Seen': 'The most recent time the player was active in your session.',
+    'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
+    'T. Packets': 'The total number of packets exchanged by the player across all sessions.',
+    'Packets': 'The number of packets exchanged by the player during the current session.',
+    'PPS': 'The number of Packets exchanged Per Second by the player.',
+    'PPM': 'The number of packets exchanged per Minute by the player.',
+    'IP Address': 'The IP address of the player.',
+    'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
+    'Last Port': "The port used by the player's last captured packet.",
+    'Middle Ports': 'The ports used by the player between the first and last captured packets.',
+    'First Port': "The port used by the player's first captured packet.",
+    'Continent': "The continent of the player's IP location.",
+    'Country': "The country of the player's IP location.",
+    'Region': "The region of the player's IP location.",
+    'R. Code': "The region code of the player's IP location.",
+    'City': "The city associated with the player's IP location (typically representing the ISP or an intermediate location, not the player's home address city).",
+    'District': "The district of the player's IP location.",
+    'ZIP Code': "The ZIP/postal code of the player's IP location.",
+    'Lat': "The latitude of the player's IP location.",
+    'Lon': "The longitude of the player's IP location.",
+    'Time Zone': "The time zone of the player's IP location.",
+    'Offset': "The time zone offset of the player's IP location.",
+    'Currency': "The currency associated with the player's IP location.",
+    'Organization': "The organization associated with the player's IP address.",
+    'ISP': "The Internet Service Provider of the player's IP address.",
+    'ASN / ISP': 'The Autonomous System Number or Internet Service Provider of the player.',
+    'AS': "The Autonomous System code of the player's IP.",
+    'ASN': "The Autonomous System Number name associated with the player's IP.",
+    'Mobile': 'Indicates if the player is using a mobile network (e.g., through a cellular hotspot or mobile data).',
+    'VPN': 'Indicates if the player is using a VPN, Proxy, or Tor relay.',
+    'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
+}
+DISCORD_APPLICATION_ID = 1313304495958261781
+COUNTRY_FLAGS_FOLDER_PATH = IMAGES_FOLDER_PATH / 'country_flags'
+GEOLITE2_DATABASES_FOLDER_PATH = Path('GeoLite2 Databases')
+HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
+INTERFACE_PARTS_LENGTH = 3
+PAPING_PATH = BIN_FOLDER_PATH / 'paping.exe'
+PRIVATE_NETWORK_RANGES = [
+    '10.0.0.0/8',  # Class A private networks
+    '100.64.0.0/10',  # Carrier-grade NAT
+    '172.16.0.0/12',  # Class B private networks
+    '192.168.0.0/16',  # Class C private networks
+    '224.0.0.0/4',  # Multicast addresses
+]
+PRIVATE_NETWORKS_FILTER = ' or '.join(PRIVATE_NETWORK_RANGES)
+RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
+RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).strftime('%Y/%m/%d') / f"{datetime.now(tz=LOCAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')}.log"
+SETTINGS_PATH = Path('Settings.ini')
+SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
+TSHARK_PATH = BIN_FOLDER_PATH / 'WiresharkPortable64/App/Wireshark/tshark.exe'
+USERIP_DATABASES_PATH = Path('UserIP Databases')
+USERIP_LOGGING_PATH = Path('UserIP_Logging.log')
 
 
 class ExceptionInfo(NamedTuple):
@@ -528,9 +579,106 @@ class Settings(DefaultSettings):
         'Pinging': 'ping.is_pinging',
     }
     GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address')
-    GUI_HIDEABLE_FIELDS: ClassVar = ('PPS', 'PPM', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
-    GUI_ALL_CONNECTED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Rejoins', 'T. Packets', 'Packets', 'PPS', 'PPM', 'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
-    GUI_ALL_DISCONNECTED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address', 'Hostname', 'Last Port', 'Middle Ports', 'First Port', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN', 'Mobile', 'VPN', 'Hosting', 'Pinging')
+    GUI_HIDEABLE_FIELDS: ClassVar = (
+        'PPS',
+        'PPM',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_ALL_CONNECTED_FIELDS: ClassVar = (
+        'Usernames',
+        'First Seen',
+        'Last Rejoin',
+        'Rejoins',
+        'T. Packets',
+        'Packets',
+        'PPS',
+        'PPM',
+        'IP Address',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_ALL_DISCONNECTED_FIELDS: ClassVar = (
+        'Usernames',
+        'First Seen',
+        'Last Rejoin',
+        'Last Seen',
+        'Rejoins',
+        'T. Packets',
+        'Packets',
+        'IP Address',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
 
     @classmethod
     def iterate_over_settings(cls) -> Iterator[tuple[str, Any]]:

@@ -5,7 +5,7 @@ Includes functions to fetch, parse, and search the database with CIDR-aware pref
 import re
 from typing import TYPE_CHECKING, NamedTuple
 
-from modules.constants.local import MANUF_FILE_PATH
+from modules.constants.local import RESOURCES_FOLDER_PATH
 from modules.networking.exceptions import (
     InvalidCidrError,
     InvalidMacPrefixError,
@@ -18,6 +18,7 @@ from modules.networking.utils import is_mac_address
 if TYPE_CHECKING:
     ManufDatabaseType = dict[str, list['ManufEntry']]
 
+MANUF_FILE_PATH = RESOURCES_FOLDER_PATH / 'manuf'
 RE_MANUF_ENTRY_PATTERN = re.compile(
     r"""
         ^

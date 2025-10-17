@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any, Literal
 import psutil
 from win32com.client import Dispatch
 
-from modules.constants.standalone import USER_SHELL_FOLDERS__REG_KEY
 from modules.constants.standard import CMD_EXE
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
@@ -30,6 +29,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from packaging.version import Version
+
+USER_SHELL_FOLDERS__REG_KEY = R'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
 
 
 def format_attribute_error(cls: type, name: str) -> str:

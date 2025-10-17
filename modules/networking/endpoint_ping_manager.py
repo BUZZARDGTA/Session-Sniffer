@@ -3,6 +3,7 @@
 It is used to determine whether each player's IP is responsive to pings.
 """
 import dataclasses
+import re
 import time
 from dataclasses import dataclass
 from threading import Lock, Semaphore
@@ -11,16 +12,17 @@ from urllib.parse import urlparse
 
 from requests import exceptions
 
-from modules.constants.standard import (
-    RE_BYTES_PATTERN,
-    RE_PACKET_STATS_PATTERN,
-    RE_RTT_STATS_PATTERN,
-)
 from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
     InvalidPingResultError,
 )
 from modules.networking.http_session import s
+
+RE_BYTES_PATTERN = re.compile(r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) ttl=(?P<TTL>\d+) time=(?P<TIME_MS>[\d\.]+) ms(?: \(DUP!\))?')
+# NOTE: I don't need this one so far, but who knows maybe later.
+# RE_HOST_UNREACHABLE_PATTERN = re.compile(r"From (?P<IP>\d+\.\d+\.\d+\.\d+) icmp_seq=(?P<ICMP_SEQ>\d+) Destination Host Unreachable")
+RE_PACKET_STATS_PATTERN = re.compile(r'(?P<PACKETS_TRANSMITTED>\d+) packets? transmitted, (?P<PACKETS_RECEIVED>\d+) received(?:, \+(?P<DUPLICATES>\d+) duplicates?)?(?:, \+(?P<ERRORS>\d+) errors?)?, (?P<PACKET_LOSS_PERCENTAGE>\d+(?:\.\d+)?)% packet loss, time (?P<TIME>\d+)ms')
+RE_RTT_STATS_PATTERN = re.compile(r'rtt min/avg/max/mdev = (?P<RTT_MIN>[\d\.]+)/(?P<RTT_AVG>[\d\.]+)/(?P<RTT_MAX>[\d\.]+)/(?P<RTT_MDEV>[\d\.]+) ms')
 
 
 def format_type_error(
