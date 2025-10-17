@@ -1,7 +1,7 @@
 [flake8]
 extend-ignore =
     E501,
-    F821,  # TODO (BUZZARDGTA): unsupported in Python 3.14
+    F821
 extend-exclude =
     .dev,
     .history,
