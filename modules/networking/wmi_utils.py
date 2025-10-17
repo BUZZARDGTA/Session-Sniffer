@@ -87,7 +87,9 @@ def iterate_project_legacy_network_adapter_details() -> Generator[tuple[int, str
     Raises:
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
-    for net_adapter in cimv2_namespace.query('SELECT InterfaceIndex, NetConnectionID, Description, MACAddress, Manufacturer FROM Win32_NetworkAdapter WHERE NetEnabled = True'):  # pyright: ignore[reportUnknownMemberType] # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapter
+    for net_adapter in cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
+        'SELECT InterfaceIndex, NetConnectionID, Description, MACAddress, Manufacturer FROM Win32_NetworkAdapter WHERE NetEnabled = True',  # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapter
+    ):
         if not isinstance(net_adapter.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_adapter.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if not isinstance(net_adapter.NetConnectionID, str):  # pyright: ignore[reportUnknownMemberType]

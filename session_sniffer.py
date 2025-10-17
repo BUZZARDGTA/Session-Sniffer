@@ -2678,7 +2678,9 @@ display_filter: list[str] = []
 excluded_protocols: list[str] = []
 
 if Settings.CAPTURE_IP_ADDRESS:
-    capture_filter.append(f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net 10.0.0.0/8 or 100.64.0.0/10 or 172.16.0.0/12 or 192.168.0.0/16 or 224.0.0.0/4))) or (dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net 10.0.0.0/8 or 100.64.0.0/10 or 172.16.0.0/12 or 192.168.0.0/16 or 224.0.0.0/4))))')
+    capture_filter.append(
+        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {PRIVATE_NETWORKS_FILTER}))) or (dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {PRIVATE_NETWORKS_FILTER}))))',
+    )
 
 broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
 if broadcast_support and multicast_support:

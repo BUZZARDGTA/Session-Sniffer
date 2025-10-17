@@ -80,10 +80,12 @@ ignore-patterns = "^\\.#|.*\\.pyi"
 py-version = "3.14"
 recursive = true
 
+[tool.pylint.format]
+max-line-length = 300
+
 [tool.pylint."messages control"]
 disable = [
     "fixme",
-    "line-too-long",
     "locally-disabled",
     "missing-class-docstring",
     "missing-function-docstring",
@@ -105,6 +107,7 @@ typeCheckingMode = "strict"
 
 [tool.ruff]
 target-version = "py314"
+line-length = 300
 exclude = [
     ".history",
     ".venv",
@@ -117,7 +120,6 @@ ignore = [
     "D102",    # undocumented-public-method
     "D103",    # undocumented-public-function
     "D107",    # undocumented-public-init
-    "E501",    # line-too-long
     "ERA001",  # commented-out-code
     "FIX002",  # line-contains-todo
     "PLR0912", # too-many-branches

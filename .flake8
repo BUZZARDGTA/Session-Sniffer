@@ -1,6 +1,6 @@
 [flake8]
+max-line-length = 300
 extend-ignore =
-    E501,
     F821
 extend-exclude =
     .dev,
