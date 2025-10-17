@@ -20,7 +20,6 @@ GEOLITE2_DATABASES_FOLDER_PATH = Path('GeoLite2 Databases')
 SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).strftime('%Y/%m/%d') / f"{datetime.now(tz=LOCAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')}.log"
 
 # Compiled regex for matching the optional time component in the version string
-RE_VERSION_TIME = re.compile(r' \((\d{2}:\d{2})\)$')
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(r'^user:(?P<username>[\w._-]{1,16}), scid:\d{1,9}, ip:(?P<ip>[\d.]+), timestamp:\d{10}$')
