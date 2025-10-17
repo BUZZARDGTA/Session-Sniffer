@@ -31,10 +31,7 @@ def format_type_error(
     suffix: str = '',
 ) -> str:
     """Generate a formatted error message for a type mismatch."""
-    if isinstance(expected_types, tuple):
-        type_names = ' or '.join(t.__name__ for t in expected_types)
-    else:
-        type_names = expected_types.__name__
+    type_names = ' or '.join(t.__name__ for t in expected_types) if isinstance(expected_types, tuple) else expected_types.__name__
 
     return f'Expected {type_names}, got {type(obj).__name__}: {obj!r}{suffix}'
 

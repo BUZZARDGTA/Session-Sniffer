@@ -3525,10 +3525,7 @@ def rendering_core() -> None:
                                 need_rewrite_current_setting = True
                         except NoMatchFoundError:
                             try:
-                                if '.' in value:
-                                    protection_suspend_process_mode = float(value)
-                                else:
-                                    protection_suspend_process_mode = int(value)
+                                protection_suspend_process_mode = float(value) if '.' in value else int(value)
                             except (ValueError, TypeError):
                                 is_setting_corrupted = True
                             else:
