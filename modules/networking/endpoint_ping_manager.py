@@ -18,11 +18,21 @@ from modules.networking.exceptions import (
 )
 from modules.networking.http_session import s
 
-RE_BYTES_PATTERN = re.compile(r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) ttl=(?P<TTL>\d+) time=(?P<TIME_MS>[\d\.]+) ms(?: \(DUP!\))?')
+RE_BYTES_PATTERN = re.compile(
+    r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) '
+    r'ttl=(?P<TTL>\d+) time=(?P<TIME_MS>[\d\.]+) ms(?: \(DUP!\))?',
+)
 # NOTE: I don't need this one so far, but who knows maybe later.
 # RE_HOST_UNREACHABLE_PATTERN = re.compile(r"From (?P<IP>\d+\.\d+\.\d+\.\d+) icmp_seq=(?P<ICMP_SEQ>\d+) Destination Host Unreachable")
-RE_PACKET_STATS_PATTERN = re.compile(r'(?P<PACKETS_TRANSMITTED>\d+) packets? transmitted, (?P<PACKETS_RECEIVED>\d+) received(?:, \+(?P<DUPLICATES>\d+) duplicates?)?(?:, \+(?P<ERRORS>\d+) errors?)?, (?P<PACKET_LOSS_PERCENTAGE>\d+(?:\.\d+)?)% packet loss, time (?P<TIME>\d+)ms')
-RE_RTT_STATS_PATTERN = re.compile(r'rtt min/avg/max/mdev = (?P<RTT_MIN>[\d\.]+)/(?P<RTT_AVG>[\d\.]+)/(?P<RTT_MAX>[\d\.]+)/(?P<RTT_MDEV>[\d\.]+) ms')
+RE_PACKET_STATS_PATTERN = re.compile(
+    r'(?P<PACKETS_TRANSMITTED>\d+) packets? transmitted, (?P<PACKETS_RECEIVED>\d+) received'
+    r'(?:, \+(?P<DUPLICATES>\d+) duplicates?)?(?:, \+(?P<ERRORS>\d+) errors?)?, '
+    r'(?P<PACKET_LOSS_PERCENTAGE>\d+(?:\.\d+)?)% packet loss, time (?P<TIME>\d+)ms',
+)
+RE_RTT_STATS_PATTERN = re.compile(
+    r'rtt min/avg/max/mdev = (?P<RTT_MIN>[\d\.]+)/(?P<RTT_AVG>[\d\.]+)/'
+    r'(?P<RTT_MAX>[\d\.]+)/(?P<RTT_MDEV>[\d\.]+) ms',
+)
 
 
 def format_type_error(

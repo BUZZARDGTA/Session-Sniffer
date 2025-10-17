@@ -240,13 +240,21 @@ RATE_ZERO = 0
 RATE_LOW = 1
 RATE_MAX = 3
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
-USERIP_INI_SETTINGS = ['ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION', 'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE']
+USERIP_INI_SETTINGS = [
+    'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
+    'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
+]
 EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
     'Adapter for loopback traffic capture',
     'Event Tracing for Windows (ETW) reader',
 }
 GUI_COLUMN_HEADERS_TOOLTIPS = {
-    'Usernames': 'Displays the username(s) of players from your UserIP database files.\n\nFor GTA V PC users who have used the Session Sniffer mod menu plugin,\nit automatically resolves usernames while the plugin is running,\nor shows previously resolved players that were seen by the plugin.',
+    'Usernames': (
+        'Displays the username(s) of players from your UserIP database files.\n\n'
+        'For GTA V PC users who have used the Session Sniffer mod menu plugin,\n'
+        'it automatically resolves usernames while the plugin is running,\n'
+        'or shows previously resolved players that were seen by the plugin.'
+    ),
     'First Seen': 'The very first time the player was observed across all sessions.',
     'Last Rejoin': 'The most recent time the player rejoined your session.',
     'Last Seen': 'The most recent time the player was active in your session.',
@@ -380,7 +388,11 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
         return
 
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
-    terminate_script('EXIT', 'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues', exception_info=exception_info)
+    terminate_script(
+        'EXIT',
+        'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues',
+        exception_info=exception_info,
+    )
 
 
 def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
@@ -501,7 +513,10 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None = None
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
-    GUI_FIELDS_TO_HIDE: tuple[str, ...] = ('PPM', 'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN')
+    GUI_FIELDS_TO_HIDE: tuple[str, ...] = (
+        'PPM', 'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
+        'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
+    )
     GUI_DATE_FIELDS_SHOW_DATE: bool = False
     GUI_DATE_FIELDS_SHOW_TIME: bool = False
     GUI_DATE_FIELDS_SHOW_ELAPSED: bool = True
@@ -875,7 +890,9 @@ class Settings(DefaultSettings):
 
                             for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
-                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, Settings.GUI_HIDEABLE_FIELDS)  # pyright: ignore[reportUnknownArgumentType]
+                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                        value, Settings.GUI_HIDEABLE_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                    )
                                     filtered_gui_fields_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
                                         need_rewrite_current_setting = True
@@ -2636,15 +2653,24 @@ for interface in tshark_interfaces:
 
     if interface.ip_addresses:
         for ip_address in interface.ip_addresses:
-            interfaces_selection_data.append(InterfaceSelectionData(len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions), packets_sent, packets_recv, ip_address, interface.mac_address, manufacturer))
+            interfaces_selection_data.append(InterfaceSelectionData(
+                len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
+                packets_sent, packets_recv, ip_address, interface.mac_address, manufacturer,
+            ))
     else:
-        interfaces_selection_data.append(InterfaceSelectionData(len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions), packets_sent, packets_recv, 'N/A', interface.mac_address, manufacturer))
+        interfaces_selection_data.append(InterfaceSelectionData(
+            len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
+            packets_sent, packets_recv, 'N/A', interface.mac_address, manufacturer,
+        ))
 
     if Settings.CAPTURE_ARP:
         for arp_entry in interface.get_arp_entries():
             organization_name = 'N/A' if arp_entry.organization_name is None else arp_entry.organization_name
 
-            interfaces_selection_data.append(InterfaceSelectionData(len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions), 'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, organization_name, is_arp=True))
+            interfaces_selection_data.append(InterfaceSelectionData(
+                len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
+                'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, organization_name, is_arp=True,
+            ))
 
 selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
 
@@ -2679,7 +2705,8 @@ excluded_protocols: list[str] = []
 
 if Settings.CAPTURE_IP_ADDRESS:
     capture_filter.append(
-        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {PRIVATE_NETWORKS_FILTER}))) or (dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {PRIVATE_NETWORKS_FILTER}))))',
+        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {PRIVATE_NETWORKS_FILTER}))) or '
+        f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {PRIVATE_NETWORKS_FILTER}))))',
     )
 
 broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
@@ -2744,7 +2771,12 @@ gui_closed__event = Event()
 _userip_logging_file_write_lock = Lock()
 
 
-def wait_for_player_data_ready(player: Player, *, data_fields: tuple[Literal['userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'], ...], timeout: float) -> bool:
+def wait_for_player_data_ready(
+    player: Player,
+    *,
+    data_fields: tuple[Literal['userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'], ...],
+    timeout: float,
+) -> bool:
     """Wait for specific player data fields to be ready for display.
 
     Args:
@@ -3050,7 +3082,10 @@ def iplookup_core() -> None:
         # max_requests = 15
         # max_throttle_time = 60
         max_batch_ip_api_ips = 100
-        fields_to_lookup = 'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+        fields_to_lookup = (
+            'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
+            'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+        )
 
         while not gui_closed__event.is_set():
             if ScriptControl.has_crashed():
@@ -3505,7 +3540,9 @@ def rendering_core() -> None:
                             settings[setting], need_rewrite_current_setting = custom_str_to_bool(value, only_match_against=False)
                         except InvalidBooleanValueError:
                             try:
-                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, ('Suspend_Process', 'Exit_Process', 'Restart_Process', 'Shutdown_PC', 'Restart_PC'))
+                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                    value, ('Suspend_Process', 'Exit_Process', 'Restart_Process', 'Shutdown_PC', 'Restart_PC'),
+                                )
                                 settings[setting] = normalized_match
                                 if not case_sensitive_match:
                                     need_rewrite_current_setting = True
@@ -3895,8 +3932,12 @@ def rendering_core() -> None:
 
                 return connected_country_padding, connected_continent_padding, disconnected_country_padding, disconnected_continent_padding
 
-            logging_connected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(logging_connected_players_table__field_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder)
-            logging_disconnected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(logging_disconnected_players_table__field_names, 'Last Seen', Qt.SortOrder.AscendingOrder)
+            logging_connected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(
+                logging_connected_players_table__field_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder,
+            )
+            logging_disconnected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(
+                logging_disconnected_players_table__field_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
+            )
             row_texts: list[str] = []
 
             # Calculate optimal padding for both connected and disconnected players
@@ -3998,7 +4039,10 @@ def rendering_core() -> None:
             if not SESSIONS_LOGGING_PATH.is_file():
                 SESSIONS_LOGGING_PATH.touch()  # Create the file if it doesn't exist
 
-            SESSIONS_LOGGING_PATH.write_text(logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(), encoding='utf-8')  # pyright: ignore[reportUnknownMemberType]
+            SESSIONS_LOGGING_PATH.write_text(
+                logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),  # pyright: ignore[reportUnknownMemberType]
+                encoding='utf-8',
+            )
 
         def process_gui_session_tables_rendering() -> tuple[int, list[list[str]], list[list[CellColor]], int, list[list[str]], list[list[CellColor]]]:
             def format_player_gui_datetime(datetime_object: datetime) -> str:
@@ -4091,10 +4135,14 @@ def rendering_core() -> None:
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
                 if 'PPS' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation))
+                    row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
+                        foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation),
+                    )
                     row_texts.append(f'{player.pps.rate}')
                 if 'PPM' not in GUIrenderingData.FIELDS_TO_HIDE:
-                    row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation))
+                    row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
+                        foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation),
+                    )
                     row_texts.append(f'{player.ppm.rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.FIELDS_TO_HIDE:
@@ -4249,7 +4297,8 @@ def rendering_core() -> None:
         def generate_gui_header() -> str:
             """Generate the GUI header with title, version, and tagline."""
             return f"""
-            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px; border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
+            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px;
+                        border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
                 <div style="text-align: center;">
                     <span style="font-size: 24px; color: #88c0d0; font-weight: bold;">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
                 </div>
@@ -4530,11 +4579,15 @@ def rendering_core() -> None:
                 last_session_logging_processing_time = time.monotonic()
                 process_session_logging()
 
-            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and (discord_rpc_manager.last_update_time is None or (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0):  # noqa: PLR2004
+            if (Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and
+                (discord_rpc_manager.last_update_time is None or
+                 (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0)):  # noqa: PLR2004
                 discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
 
             GUIrenderingData.header_text = generate_gui_header()
-            GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text, GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text, GUIrenderingData.status_performance_text = generate_gui_status_text(global_pps_rate)
+            (GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text,
+             GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text,
+             GUIrenderingData.status_performance_text) = generate_gui_status_text(global_pps_rate)
             (
                 GUIrenderingData.session_connected_table__num_rows,
                 GUIrenderingData.session_connected_table__processed_data,
@@ -4802,7 +4855,10 @@ class SessionTableModel(QAbstractTableModel):
                 key=lambda row: float(row[0][column]) if row[0][column] != '...' else float('-inf'),
                 reverse=sort_order_bool,
             )
-        elif sorted_column_name in {'Hostname', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code', 'Time Zone', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'}:
+        elif sorted_column_name in {
+            'Hostname', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code',
+            'Time Zone', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN',
+        }:
             # Sort by string representation of the column value
             combined.sort(
                 key=lambda row: str(row[0][column]).casefold(),
@@ -5563,7 +5619,10 @@ class SessionTableView(QTableView):
             IP Address: {player.ip}
             Hostname: {player.reverse_dns.hostname}
             Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
-            In UserIP database: {(player.userip_detection is not None and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')}") or "No"}
+            In UserIP database: {(
+                player.userip_detection is not None
+                and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')}"
+            ) or "No"}
             Last Port: {player.ports.last}
             Middle Port{pluralize(len(player.ports.middle))}: {', '.join(map(str, player.ports.middle))}
             First Port: {player.ports.first}
@@ -5647,7 +5706,11 @@ class SessionTableView(QTableView):
             # Append the username and associated IP(s) to the corresponding database file
             write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in ip_addresses])
 
-            QMessageBox.information(self, TITLE, f'Selected IP{pluralize(len(ip_addresses))} {ip_addresses} has been added with username "{username}" to UserIP database "{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}".')
+            QMessageBox.information(
+                self, TITLE,
+                f'Selected IP{pluralize(len(ip_addresses))} {ip_addresses} has been added with username "{username}" '
+                f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}".',
+            )
         else:
             # If the user canceled or left the input empty, show an error
             QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
@@ -5696,7 +5759,11 @@ class SessionTableView(QTableView):
 
         # After processing all databases, show a detailed report
         if deleted_entries_by_database:
-            report = f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} moved from the following UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database "{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":</b><br><br><br>'
+            report = (
+                f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} moved from the following '
+                f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
+                f'"{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":</b><br><br><br>'
+            )
             for database_path, deleted_entries in deleted_entries_by_database.items():
                 report += f'<b>{database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}:</b><br>'
                 report += '<ul>'
@@ -5745,7 +5812,10 @@ class SessionTableView(QTableView):
 
         # After processing all databases, show a detailed report
         if deleted_entries_by_database:
-            report = f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} removed from the following UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
+            report = (
+                f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} removed from the following '
+                f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
+            )
             for database_path, deleted_entries in deleted_entries_by_database.items():
                 report += f'<b>{database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}:</b><br>'
                 report += '<ul>'
@@ -6064,7 +6134,11 @@ class MainWindow(QMainWindow):
         while not GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES:  # Wait for the GUI rendering data to be ready
             gui_closed__event.wait(0.1)
         self.connected_table_model = SessionTableModel(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)
-        self.connected_table_view = SessionTableView(self.connected_table_model, GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Rejoin'), Qt.SortOrder.DescendingOrder)
+        self.connected_table_view = SessionTableView(
+            self.connected_table_model,
+            GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Rejoin'),
+            Qt.SortOrder.DescendingOrder,
+        )
         self.connected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.connected_table_view.setup_static_column_resizing()
         self.connected_table_model.view = self.connected_table_view
@@ -6115,7 +6189,11 @@ class MainWindow(QMainWindow):
         while not GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES:  # Wait for the GUI rendering data to be ready
             gui_closed__event.wait(0.1)
         self.disconnected_table_model = SessionTableModel(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)
-        self.disconnected_table_view = SessionTableView(self.disconnected_table_model, GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Seen'), Qt.SortOrder.AscendingOrder)
+        self.disconnected_table_view = SessionTableView(
+            self.disconnected_table_model,
+            GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Seen'),
+            Qt.SortOrder.AscendingOrder,
+        )
         self.disconnected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.disconnected_table_view.setup_static_column_resizing()
         self.disconnected_table_model.view = self.disconnected_table_view
@@ -6572,7 +6650,9 @@ class DiscordIntro(QDialog):
         if (
             event is not None
             and event.button() == Qt.MouseButton.LeftButton
-            and not self.exit_button.underMouse() and not self.join_button.underMouse() and not self.dont_remind_me_label.underMouse()  # Only allow dragging if the click is not on a button
+            and not self.exit_button.underMouse()
+            and not self.join_button.underMouse()
+            and not self.dont_remind_me_label.underMouse()  # Only allow dragging if the click is not on a button
         ):
             self._drag_pos = event.globalPosition().toPoint()
 

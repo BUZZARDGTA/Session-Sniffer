@@ -81,7 +81,7 @@ py-version = "3.14"
 recursive = true
 
 [tool.pylint.format]
-max-line-length = 300
+max-line-length = 180
 
 [tool.pylint."messages control"]
 disable = [
@@ -107,7 +107,7 @@ typeCheckingMode = "strict"
 
 [tool.ruff]
 target-version = "py314"
-line-length = 300
+line-length = 180
 exclude = [
     ".history",
     ".venv",
