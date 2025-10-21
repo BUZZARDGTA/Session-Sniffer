@@ -298,6 +298,7 @@ PAPING_PATH = BIN_FOLDER_PATH / 'paping.exe'
 PRIVATE_NETWORK_RANGES = [
     '10.0.0.0/8',  # Class A private networks
     '100.64.0.0/10',  # Carrier-grade NAT
+    '169.254.0.0/16',  # IANA Link-Local (APIPA, RFC 3927)
     '172.16.0.0/12',  # Class B private networks
     '192.168.0.0/16',  # Class C private networks
     '192.0.0.0/24',  # IANA Special-Purpose Address Block
