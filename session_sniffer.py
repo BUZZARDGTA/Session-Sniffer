@@ -300,6 +300,7 @@ PRIVATE_NETWORK_RANGES = [
     '100.64.0.0/10',  # Carrier-grade NAT
     '172.16.0.0/12',  # Class B private networks
     '192.168.0.0/16',  # Class C private networks
+    '198.18.0.0/15',  # Benchmarking
     '224.0.0.0/4',  # Multicast addresses
 ]
 PRIVATE_NETWORKS_FILTER = ' or '.join(PRIVATE_NETWORK_RANGES)
