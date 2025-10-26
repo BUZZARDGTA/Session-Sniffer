@@ -295,17 +295,26 @@ GEOLITE2_DATABASES_FOLDER_PATH = Path('GeoLite2 Databases')
 HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
 INTERFACE_PARTS_LENGTH = 3
 PAPING_PATH = BIN_FOLDER_PATH / 'paping.exe'
-PRIVATE_NETWORK_RANGES = [
-    '10.0.0.0/8',  # Class A private networks
-    '100.64.0.0/10',  # Carrier-grade NAT
-    '169.254.0.0/16',  # IANA Link-Local (APIPA, RFC 3927)
-    '172.16.0.0/12',  # Class B private networks
-    '192.168.0.0/16',  # Class C private networks
-    '192.0.0.0/24',  # IANA Special-Purpose Address Block
-    '198.18.0.0/15',  # Benchmarking
-    '224.0.0.0/4',  # Multicast addresses
+RESERVED_NETWORK_RANGES = [  # https://en.wikipedia.org/wiki/Reserved_IP_addresses
+    '0.0.0.0/8',
+    '10.0.0.0/8',
+    '100.64.0.0/10',
+    '127.0.0.0/8',
+    '169.254.0.0/16',
+    '172.16.0.0/12',
+    '192.0.0.0/24',
+    '192.0.2.0/24',
+    '192.88.99.0/24',
+    '192.168.0.0/16',
+    '198.18.0.0/15',
+    '198.51.100.0/24',
+    '203.0.113.0/24',
+    '224.0.0.0/4',
+    '233.252.0.0/24',
+    '240.0.0.0/4',
+    '255.255.255.255/32',
 ]
-PRIVATE_NETWORKS_FILTER = ' or '.join(PRIVATE_NETWORK_RANGES)
+RESERVED_NETWORKS_FILTER = ' or '.join(RESERVED_NETWORK_RANGES)
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).strftime('%Y/%m/%d') / f"{datetime.now(tz=LOCAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')}.log"
@@ -2713,8 +2722,8 @@ excluded_protocols: list[str] = []
 
 if Settings.CAPTURE_IP_ADDRESS:
     capture_filter.append(
-        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {PRIVATE_NETWORKS_FILTER}))) or '
-        f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {PRIVATE_NETWORKS_FILTER}))))',
+        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {RESERVED_NETWORKS_FILTER}))) or '
+        f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {RESERVED_NETWORKS_FILTER}))))',
     )
 
 broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
