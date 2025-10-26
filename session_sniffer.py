@@ -133,10 +133,12 @@ from modules.guis.exceptions import (
 )
 from modules.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
+    CONNECTED_CLEAR_BUTTON_STYLESHEET,
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     CONNECTED_HEADER_CONTAINER_STYLESHEET,
     CONNECTED_HEADER_TEXT_STYLESHEET,
     CUSTOM_CONTEXT_MENU_STYLESHEET,
+    DISCONNECTED_CLEAR_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
     DISCONNECTED_HEADER_TEXT_STYLESHEET,
@@ -1638,6 +1640,18 @@ class PlayersRegistry:
                 cls._get_sorted_connected_players(),
                 cls._get_sorted_disconnected_players(),
             )
+
+    @classmethod
+    def clear_connected_players(cls) -> None:
+        """Clear all connected players from the registry."""
+        with cls._registry_lock:
+            cls._connected_players_registry.clear()
+
+    @classmethod
+    def clear_disconnected_players(cls) -> None:
+        """Clear all disconnected players from the registry."""
+        with cls._registry_lock:
+            cls._disconnected_players_registry.clear()
 
 
 class SessionHost:
@@ -5077,6 +5091,13 @@ class SessionTableModel(QAbstractTableModel):
             # view.resizeRowsToContents()
             # view.viewport().update()
 
+    def clear_all_data(self) -> None:
+        """Clear all data from the table model."""
+        self.beginResetModel()
+        self._data = []
+        self._compiled_colors = []
+        self.endResetModel()
+
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""
         self.layoutAboutToBeChanged.emit()
@@ -6141,6 +6162,13 @@ class MainWindow(QMainWindow):
         # Add connected header to container with stretch to fill available space
         self.connected_header_layout.addWidget(self.session_connected_header, 1)
 
+        # Add clear button for connected table
+        self.connected_clear_button = QPushButton('CLEAR')
+        self.connected_clear_button.setToolTip('Clear all connected players')
+        self.connected_clear_button.setStyleSheet(CONNECTED_CLEAR_BUTTON_STYLESHEET)
+        self.connected_clear_button.clicked.connect(self.clear_connected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_header_layout.addWidget(self.connected_clear_button)
+
         # Add sleek collapse icon button for connected table
         self.connected_collapse_button = QPushButton('▼')
         self.connected_collapse_button.setToolTip('Hide the connected players table')
@@ -6181,6 +6209,13 @@ class MainWindow(QMainWindow):
 
         # Add disconnected header to container with stretch to fill available space
         self.disconnected_header_layout.addWidget(self.session_disconnected_header, 1)
+
+        # Add clear button for disconnected table
+        self.disconnected_clear_button = QPushButton('CLEAR')
+        self.disconnected_clear_button.setToolTip('Clear all disconnected players')
+        self.disconnected_clear_button.setStyleSheet(DISCONNECTED_CLEAR_BUTTON_STYLESHEET)
+        self.disconnected_clear_button.clicked.connect(self.clear_disconnected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_header_layout.addWidget(self.disconnected_clear_button)
 
         # Add sleek collapse icon button for disconnected table
         self.disconnected_collapse_button = QPushButton('▼')
@@ -6407,6 +6442,7 @@ class MainWindow(QMainWindow):
         self.connected_header_container.setVisible(True)
         self.connected_table_view.setVisible(True)
         self._update_separator_visibility()
+        self.connected_clear_button.setVisible(True)
         self.connected_collapse_button.setVisible(True)
 
         self.connected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
@@ -6417,12 +6453,14 @@ class MainWindow(QMainWindow):
         self.disconnected_header_container.setVisible(True)
         self.disconnected_table_view.setVisible(True)
         self._update_separator_visibility()
+        self.disconnected_clear_button.setVisible(True)
         self.disconnected_collapse_button.setVisible(True)
 
         self.disconnected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
 
     def minimize_connected_section(self) -> None:
         """Minimize the connected table completely."""
+        self.connected_clear_button.setVisible(False)
         self.connected_collapse_button.setVisible(False)
         self.connected_header_container.setVisible(False)
         self.connected_table_view.setVisible(False)
@@ -6432,6 +6470,7 @@ class MainWindow(QMainWindow):
 
     def minimize_disconnected_section(self) -> None:
         """Minimize the disconnected table completely."""
+        self.disconnected_clear_button.setVisible(False)
         self.disconnected_collapse_button.setVisible(False)
         self.disconnected_header_container.setVisible(False)
         self.disconnected_table_view.setVisible(False)
@@ -6549,6 +6588,16 @@ class MainWindow(QMainWindow):
     def toggle_player_leave_notifications(self) -> None:
         """Toggle player leave notifications on/off."""
         GUIDetectionSettings.player_leave_notifications_enabled = self.player_leave_notification_action.isChecked()
+
+    def clear_connected_players(self) -> None:
+        """Clear all connected players from the table and registry."""
+        PlayersRegistry.clear_connected_players()
+        self.connected_table_model.clear_all_data()
+
+    def clear_disconnected_players(self) -> None:
+        """Clear all disconnected players from the table and registry."""
+        PlayersRegistry.clear_disconnected_players()
+        self.disconnected_table_model.clear_all_data()
 
 
 class ClickableLabel(QLabel):

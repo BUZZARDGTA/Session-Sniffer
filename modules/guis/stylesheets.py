@@ -38,8 +38,76 @@ background: transparent;
 
 
 # =============================================================================
-# COMMON STYLES
+# COMMON BUTTON STYLES
 # =============================================================================
+
+CONNECTED_CLEAR_BUTTON_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(236, 240, 241, 0.1), stop:1 rgba(189, 195, 199, 0.2));
+    color: #ecf0f1;
+    border: 1px solid rgba(52, 73, 94, 0.6);
+    border-radius: 6px;
+    padding: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 40px;
+    max-width: 45px;
+    min-height: 28px;
+    max-height: 30px;
+    margin-left: 6px;
+    margin-right: 2px;
+}
+
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(52, 152, 219, 0.3), stop:1 rgba(41, 128, 185, 0.4));
+    border: 1px solid rgba(52, 152, 219, 0.8);
+    color: white;
+}
+
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(41, 128, 185, 0.5), stop:1 rgba(52, 152, 219, 0.6));
+    border: 1px solid rgba(41, 128, 185, 1.0);
+    padding-top: 4px;
+    padding-left: 4px;
+}
+""".strip()
+
+DISCONNECTED_CLEAR_BUTTON_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(236, 240, 241, 0.1), stop:1 rgba(189, 195, 199, 0.2));
+    color: #ecf0f1;
+    border: 1px solid rgba(52, 73, 94, 0.6);
+    border-radius: 6px;
+    padding: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 40px;
+    max-width: 45px;
+    min-height: 28px;
+    max-height: 30px;
+    margin-left: 6px;
+    margin-right: 2px;
+}
+
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(52, 152, 219, 0.3), stop:1 rgba(41, 128, 185, 0.4));
+    border: 1px solid rgba(52, 152, 219, 0.8);
+    color: white;
+}
+
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 rgba(41, 128, 185, 0.5), stop:1 rgba(52, 152, 219, 0.6));
+    border: 1px solid rgba(41, 128, 185, 1.0);
+    padding-top: 4px;
+    padding-left: 4px;
+}
+""".strip()
 
 COMMON_COLLAPSE_BUTTON_STYLESHEET = """
 QPushButton {
@@ -73,10 +141,6 @@ QPushButton:pressed {
     padding-left: 4px;
 }
 """.strip()
-
-# =============================================================================
-# BUTTON STYLES
-# =============================================================================
 
 CONNECTED_EXPAND_BUTTON_STYLESHEET = """
 QPushButton {
