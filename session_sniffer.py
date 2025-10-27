@@ -1659,6 +1659,13 @@ class SessionHost:
     search_player: ClassVar[bool] = False
     players_pending_for_disconnection: ClassVar[list[Player]] = []
 
+    @classmethod
+    def clear_session_host_data(cls) -> None:
+        """Clear all session host data including pending disconnections."""
+        cls.players_pending_for_disconnection.clear()
+        cls.search_player = False
+        cls.player = None
+
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
         connected_players = take(2, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
@@ -1892,6 +1899,24 @@ class MobileWarnings:
             return len(cls.notified_mobile_ips)
 
     @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified mobile IPs set in a single thread-safe operation.
+
+        Args:
+            ips (set[str]): Set of IP addresses to remove
+
+        Returns:
+            int: The number of IPs that were actually removed
+        """
+        with cls.lock:
+            removed_count = 0
+            for ip in ips:
+                if ip in cls.notified_mobile_ips:
+                    cls.notified_mobile_ips.remove(ip)
+                    removed_count += 1
+            return removed_count
+
+    @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
         """Get a copy of the notified mobile IPs set in a thread-safe manner.
 
@@ -1968,6 +1993,24 @@ class VPNWarnings:
             return len(cls.notified_vpn_ips)
 
     @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified VPN IPs set in a single thread-safe operation.
+
+        Args:
+            ips (set[str]): Set of IP addresses to remove
+
+        Returns:
+            int: The number of IPs that were actually removed
+        """
+        with cls.lock:
+            removed_count = 0
+            for ip in ips:
+                if ip in cls.notified_vpn_ips:
+                    cls.notified_vpn_ips.remove(ip)
+                    removed_count += 1
+            return removed_count
+
+    @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
         """Get a copy of the notified VPN IPs set in a thread-safe manner.
 
@@ -2042,6 +2085,24 @@ class HostingWarnings:
         """
         with cls.lock:
             return len(cls.notified_hosting_ips)
+
+    @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified hosting IPs set in a single thread-safe operation.
+
+        Args:
+            ips (set[str]): Set of IP addresses to remove
+
+        Returns:
+            int: The number of IPs that were actually removed
+        """
+        with cls.lock:
+            removed_count = 0
+            for ip in ips:
+                if ip in cls.notified_hosting_ips:
+                    cls.notified_hosting_ips.remove(ip)
+                    removed_count += 1
+            return removed_count
 
     @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
@@ -6591,13 +6652,30 @@ class MainWindow(QMainWindow):
 
     def clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
+        connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
+        connected_ips = {player.ip for player in connected_players}
+
         PlayersRegistry.clear_connected_players()
         self.connected_table_model.clear_all_data()
+        SessionHost.clear_session_host_data()
+
+        if connected_ips:
+            MobileWarnings.remove_notified_ips_batch(connected_ips)
+            VPNWarnings.remove_notified_ips_batch(connected_ips)
+            HostingWarnings.remove_notified_ips_batch(connected_ips)
 
     def clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
+        disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
+        disconnected_ips = {player.ip for player in disconnected_players}
+
         PlayersRegistry.clear_disconnected_players()
         self.disconnected_table_model.clear_all_data()
+
+        if disconnected_ips:
+            MobileWarnings.remove_notified_ips_batch(disconnected_ips)
+            VPNWarnings.remove_notified_ips_batch(disconnected_ips)
+            HostingWarnings.remove_notified_ips_batch(disconnected_ips)
 
 
 class ClickableLabel(QLabel):
