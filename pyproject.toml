@@ -102,6 +102,7 @@ disable = [
 
 [tool.pyright]
 pythonVersion = "3.14"
+pythonPlatform = "Windows"
 typeCheckingMode = "strict"
 
 
