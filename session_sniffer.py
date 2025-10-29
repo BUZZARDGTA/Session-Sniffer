@@ -2740,17 +2740,18 @@ for interface in tshark_interfaces:
     packets_sent: Literal['N/A'] | int = 'N/A' if interface.packets_sent is None else interface.packets_sent
     packets_recv: Literal['N/A'] | int = 'N/A' if interface.packets_recv is None else interface.packets_recv
     interface_name = interface.name if interface.name is not None else 'Unknown Interface'
+    mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
 
     if interface.ip_addresses:
         for ip_address in interface.ip_addresses:
             interfaces_selection_data.append(InterfaceSelectionData(
                 len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
-                packets_sent, packets_recv, ip_address, interface.mac_address, manufacturer,
+                packets_sent, packets_recv, ip_address, mac_address, manufacturer,
             ))
     else:
         interfaces_selection_data.append(InterfaceSelectionData(
             len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
-            packets_sent, packets_recv, 'N/A', interface.mac_address, manufacturer,
+            packets_sent, packets_recv, 'N/A', mac_address, manufacturer,
         ))
 
     if Settings.CAPTURE_ARP:
@@ -2853,7 +2854,7 @@ CAPTURE_FILTER = ' and '.join(capture_filter) if capture_filter else None
 DISPLAY_FILTER = ' and '.join(display_filter) if display_filter else None
 
 capture = PacketCapture(
-    interface=Settings.CAPTURE_INTERFACE_NAME,
+    interface=selected_interface,
     tshark_path=TSHARK_PATH,
     capture_filter=CAPTURE_FILTER,
     display_filter=DISPLAY_FILTER,
@@ -3501,7 +3502,7 @@ class GUIrenderingData(AbstractGUIRenderingData, metaclass=ThreadSafeMeta):
     gui_rendering_ready_event: ClassVar = Event()
 
 
-def rendering_core() -> None:
+def rendering_core(selected_interface: InterfaceSelectionData) -> None:
     with ThreadsExceptionHandler():
         def compile_tables_header_field_names() -> tuple[list[Any], list[Any], list[Any], list[Any]]:
             gui_connected_players_table__field_names = [
@@ -4697,7 +4698,12 @@ def rendering_core() -> None:
 clear_screen()
 set_window_title(f'DEBUG CONSOLE - {TITLE}')
 
-rendering_core__thread = Thread(target=rendering_core, name='rendering_core', daemon=True)
+rendering_core__thread = Thread(
+    target=rendering_core,
+    name='rendering_core',
+    args=(selected_interface,),
+    daemon=True,
+)
 rendering_core__thread.start()
 
 hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)

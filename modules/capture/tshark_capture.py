@@ -97,7 +97,7 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         *,
-        interface: str,
+        interface: InterfaceSelectionData,
         tshark_path: Path,
         capture_filter: str | None = None,
         display_filter: str | None = None,
@@ -105,7 +105,7 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
         """Initialize the PacketCapture class.
 
         Args:
-            interface (str): The network interface to capture packets from.
+            interface (InterfaceSelectionData): The selected network interface to capture packets from.
             tshark_path (Path): The path to the TShark executable.
             capture_filter (str | None): Optional capture filter for TShark.
             display_filter (str | None): Optional display filter for TShark.
@@ -120,7 +120,7 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
             '-l', '-n', '-Q',
             '--log-level', 'critical',
             '-B', '1',
-            '-i', interface,
+            '-i', interface.name,
             *(('-f', capture_filter) if capture_filter else ()),
             *(('-Y', display_filter) if display_filter else ()),
             '-T', 'fields',
