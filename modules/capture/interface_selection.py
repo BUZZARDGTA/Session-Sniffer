@@ -26,11 +26,11 @@ from modules.utils import format_type_error
 class InterfaceSelectionData(NamedTuple):
     selection_index: int
     name: str
-    description: str | None
+    description: str
     packets_sent: Literal['N/A'] | int
     packets_recv: Literal['N/A'] | int
-    ip_address: str | None
-    mac_address: str | None
+    ip_address: str
+    mac_address: str
     organization_name: Literal['N/A'] | str  # noqa: PYI051
     is_arp: bool = False
 
