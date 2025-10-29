@@ -38,13 +38,22 @@ def iterate_project_network_neighbor_details() -> Generator[tuple[int, str | Non
     Raises:
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
-    for net_neighbor in standard_cimv2_namespace.query('SELECT InterfaceIndex, IPAddress, LinkLayerAddress FROM MSFT_NetNeighbor WHERE AddressFamily = 2'):  # pyright: ignore[reportUnknownMemberType] # https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/nettcpipprov/msft-netneighbor
+    for net_neighbor in standard_cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
+        'SELECT InterfaceIndex, IPAddress, LinkLayerAddress FROM MSFT_NetNeighbor WHERE AddressFamily = 2',
+        # https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/nettcpipprov/msft-netneighbor
+    ):
         if not isinstance(net_neighbor.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
-            raise TypeError(format_type_error(net_neighbor.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            raise TypeError(format_type_error(
+                net_neighbor.InterfaceIndex, int,  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            ))
         if not isinstance(net_neighbor.IPAddress, (str, type(None))):  # pyright: ignore[reportUnknownMemberType]
-            raise TypeError(format_type_error(net_neighbor.IPAddress, (str, type(None))))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            raise TypeError(format_type_error(
+                net_neighbor.IPAddress, (str, type(None)),  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            ))
         if not isinstance(net_neighbor.LinkLayerAddress, (str, type(None))):  # pyright: ignore[reportUnknownMemberType]
-            raise TypeError(format_type_error(net_neighbor.LinkLayerAddress, (str, type(None))))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            raise TypeError(format_type_error(
+                net_neighbor.LinkLayerAddress, (str, type(None)),  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            ))
 
         yield net_neighbor.InterfaceIndex, net_neighbor.IPAddress, net_neighbor.LinkLayerAddress
 
@@ -61,7 +70,10 @@ def iterate_project_network_adapter_details() -> Generator[tuple[int, str, str |
     Raises:
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
-    for net_adapter in standard_cimv2_namespace.query('SELECT InterfaceIndex, Name, InterfaceDescription, State FROM MSFT_NetAdapter'):  # pyright: ignore[reportUnknownMemberType] # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
+    for net_adapter in standard_cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
+        'SELECT InterfaceIndex, Name, InterfaceDescription, State FROM MSFT_NetAdapter',
+        # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
+    ):
         if not isinstance(net_adapter.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_adapter.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if not isinstance(net_adapter.Name, str):  # pyright: ignore[reportUnknownMemberType]
@@ -88,7 +100,9 @@ def iterate_project_legacy_network_adapter_details() -> Generator[tuple[int, str
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
     for net_adapter in cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
-        'SELECT InterfaceIndex, NetConnectionID, Description, MACAddress, Manufacturer FROM Win32_NetworkAdapter WHERE NetEnabled = True',  # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapter
+        'SELECT InterfaceIndex, NetConnectionID, Description, MACAddress, Manufacturer '
+        'FROM Win32_NetworkAdapter WHERE NetEnabled = True',
+        # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapter
     ):
         if not isinstance(net_adapter.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_adapter.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
@@ -115,7 +129,10 @@ def iterate_project_network_ip_details() -> Generator[tuple[int, str, str | None
     Raises:
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
-    for net_ip in standard_cimv2_namespace.query('SELECT InterfaceIndex, InterfaceAlias, IPv4Address FROM MSFT_NetIPAddress WHERE AddressFamily = 2'):  # pyright: ignore[reportUnknownMemberType] # https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/nettcpipprov/msft-netipaddress
+    for net_ip in standard_cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
+        'SELECT InterfaceIndex, InterfaceAlias, IPv4Address FROM MSFT_NetIPAddress WHERE AddressFamily = 2',
+        # https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/nettcpipprov/msft-netipaddress
+    ):
         if not isinstance(net_ip.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_ip.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if not isinstance(net_ip.InterfaceAlias, str):  # pyright: ignore[reportUnknownMemberType]
@@ -139,7 +156,11 @@ def iterate_project_legacy_network_ip_details() -> Generator[tuple[int, str | No
     Raises:
         TypeError: If any of the returned WMI object is of an unexpected type.
     """
-    for net_ip in cimv2_namespace.query('SELECT InterfaceIndex, Description, MACAddress, IPAddress, IPEnabled FROM Win32_NetworkAdapterConfiguration'):  # pyright: ignore[reportUnknownMemberType] # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapterconfiguration
+    for net_ip in cimv2_namespace.query(  # pyright: ignore[reportUnknownMemberType]
+        'SELECT InterfaceIndex, Description, MACAddress, IPAddress, IPEnabled '
+        'FROM Win32_NetworkAdapterConfiguration',
+        # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-networkadapterconfiguration
+    ):
         if not isinstance(net_ip.InterfaceIndex, int):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_ip.InterfaceIndex, int))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if not isinstance(net_ip.Description, (str, type(None))):  # pyright: ignore[reportUnknownMemberType]
@@ -149,7 +170,10 @@ def iterate_project_legacy_network_ip_details() -> Generator[tuple[int, str | No
         if not isinstance(net_ip.IPAddress, (tuple, type(None))):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             raise TypeError(format_type_error(net_ip.IPAddress, (tuple, type(None))))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
         if net_ip.IPAddress and not all(isinstance(ip, str) for ip in net_ip.IPAddress):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            raise TypeError(format_type_error(net_ip.IPAddress, (tuple[str], type(None))), "Expected all items in tuple 'IPAddress' to be of type 'str'")  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            raise TypeError(
+                format_type_error(net_ip.IPAddress, (tuple[str], type(None))),  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+                "Expected all items in tuple 'IPAddress' to be of type 'str'",
+            )
         if not isinstance(net_ip.IPEnabled, (bool, type(None))):  # pyright: ignore[reportUnknownMemberType]
             raise TypeError(format_type_error(net_ip.IPEnabled, (bool, type(None))))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
 
