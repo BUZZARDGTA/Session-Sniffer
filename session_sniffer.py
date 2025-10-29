@@ -2401,7 +2401,7 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
     ]
 
 
-def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData:
+def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData | None:
     """Select the best matching interface based on given settings.
 
     If no interface matches, show the selection dialog to prompt the user.
@@ -2448,22 +2448,20 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
         return None
 
     # First try to select the best matching interface based on settings
+    result = None
     if (
         # Check if the network interface prompt is disabled
         not Settings.CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT
         # Check if any capture setting is defined
         and any(setting is not None for setting in (Settings.CAPTURE_INTERFACE_NAME, Settings.CAPTURE_MAC_ADDRESS, Settings.CAPTURE_IP_ADDRESS))
     ):
-        selected_interface = select_best_settings_matching_interface()
-        if selected_interface is not None:
-            return selected_interface
+        result = select_best_settings_matching_interface()
 
     # If no suitable interface was found, prompt the user to select an interface
-    selected_interface = show_interface_selection_dialog(screen_width, screen_height, interfaces_selection_data)
-    if selected_interface is None:
-        sys.exit(0)  # Exit if no selection is made
+    if result is None:
+        result = show_interface_selection_dialog(screen_width, screen_height, interfaces_selection_data)
 
-    return selected_interface
+    return result
 
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
