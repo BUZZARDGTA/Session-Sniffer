@@ -152,6 +152,20 @@ section-order = [
 convention = "google"
 
 
+[tool.ty.environment]
+python-platform = "win32"
+python-version = "3.12"
+
+[tool.ty.src]
+exclude = [
+    ".history",
+]
+
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true
+
+
 [tool.vulture]
 exclude = [
     ".history",
