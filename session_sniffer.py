@@ -2763,6 +2763,8 @@ for interface in tshark_interfaces:
             ))
 
 selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
+if selected_interface is None:
+    sys.exit(0)
 
 clear_screen()
 set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
