@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, TypedDict
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, Self, TypedDict
 
 import colorama
 import geoip2.database
@@ -1317,7 +1317,7 @@ class PlayerPorts:
     last: int
 
     @classmethod
-    def from_packet_port(cls, port: int) -> PlayerPorts:
+    def from_packet_port(cls, port: int) -> Self:
         return cls(
             all=[port],
             first=port,
@@ -1340,7 +1340,7 @@ class PlayerDateTime:
     last_seen: datetime
 
     @classmethod
-    def from_packet_datetime(cls, packet_datetime: datetime) -> PlayerDateTime:
+    def from_packet_datetime(cls, packet_datetime: datetime) -> Self:
         return cls(
             first_seen=packet_datetime,
             last_rejoin=packet_datetime,
