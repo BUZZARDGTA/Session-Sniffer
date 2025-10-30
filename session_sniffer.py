@@ -1585,6 +1585,9 @@ class PlayersRegistry:
     def get_player_by_ip(cls, ip: str, /) -> Player | None:
         """Get a player by their IP address.
 
+        Note that `None` may also be returned if the user manually cleared the IP by
+        using the clear button.
+
         Args:
             ip (str): The IP address of the player.
 
@@ -1593,24 +1596,6 @@ class PlayersRegistry:
         """
         with cls._registry_lock:
             return cls._connected_players_registry.get(ip) or cls._disconnected_players_registry.get(ip)
-
-    @classmethod
-    def require_player_by_ip(cls, ip: str, /) -> Player:
-        """Get a player by IP, raise if not found.
-
-        Args:
-            ip (str): The IP address of the player.
-
-        Returns:
-            Player: The player object.
-
-        Raises:
-            PlayerNotFoundInRegistryError: If no player exists for the given IP.
-        """
-        player = cls.get_player_by_ip(ip)
-        if player is None:
-            raise PlayerNotFoundInRegistryError(ip)
-        return player
 
     @classmethod
     def get_default_sorted_players(
@@ -1778,9 +1763,9 @@ class UserIPDatabases:
 
     @classmethod
     def build(cls) -> None:
-        """Build the userip_infos_by_ip dictionary dynamically from the current databases.
+        """Rebuild the `ips_set` cache dynamically from the current databases.
 
-        This method updates the dictionaries without clearing their content entirely and avoids duplicates.
+        This method refreshes the cached data without clearing entire structures and avoids duplicates.
         """
         with cls._update_userip_database_lock:
             ips_set: set[str] = set()
@@ -3222,7 +3207,9 @@ def iplookup_core() -> None:
             iplookup_results = [IpApiResponse.model_validate(item) for item in iplookup_results_data]
 
             for iplookup in iplookup_results:
-                player = PlayersRegistry.require_player_by_ip(iplookup.query)
+                player = PlayersRegistry.get_player_by_ip(iplookup.query)
+                if player is None:
+                    continue
 
                 player.iplookup.ipapi.continent = iplookup.continent
                 player.iplookup.ipapi.continent_code = iplookup.continent_code
@@ -3281,7 +3268,10 @@ def hostname_core() -> None:
 
                 hostname = future.result()
 
-                player = PlayersRegistry.require_player_by_ip(ip)
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    continue
+
                 player.reverse_dns.hostname = hostname
                 player.reverse_dns.is_initialized = True
 
@@ -3321,7 +3311,10 @@ def pinger_core() -> None:
                 except AllEndpointsExhaustedError:
                     continue
 
-                player = PlayersRegistry.require_player_by_ip(ip)
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    continue
+
                 player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
                 player.ping.ping_times = ping_result.ping_times
                 player.ping.packets_transmitted = ping_result.packets_transmitted
@@ -4817,8 +4810,8 @@ class SessionTableModel(QAbstractTableModel):
             if self.get_column_index_by_name('Country') == col_idx:
                 ip = self.get_ip_from_data_safely(self._data[row_idx])
 
-                player = PlayersRegistry.require_player_by_ip(ip)
-                if player.country_flag is not None:
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is not None and player.country_flag is not None:
                     return player.country_flag.icon
 
         if role == Qt.ItemDataRole.DisplayRole:
@@ -4909,7 +4902,9 @@ class SessionTableModel(QAbstractTableModel):
             # Retrieve the player datetime object from the IP column
             def extract_datetime_for_ip(ip: str) -> datetime:
                 """Extract a datetime object for a given IP address."""
-                player = PlayersRegistry.require_player_by_ip(ip)
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    return datetime.min.replace(tzinfo=LOCAL_TZ)
 
                 # Retrieve the player datetime attribute name for the selected column
                 # Mapping column names to player datetime attributes
@@ -5256,8 +5251,8 @@ class SessionTableView(QTableView):
                 if model.get_column_index_by_name('Country') == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
-                        player = PlayersRegistry.require_player_by_ip(ip)
-                        if player.country_flag is not None:
+                        player = PlayersRegistry.get_player_by_ip(ip)
+                        if player is not None and player.country_flag is not None:
                             self.show_flag_tooltip(event, index, player)
 
         return super().eventFilter(object, event)
@@ -5556,16 +5551,19 @@ class SessionTableView(QTableView):
                     return
 
                 userip_database_filepaths = UserIPDatabases.get_userip_database_filepaths()
-                player = PlayersRegistry.require_player_by_ip(displayed_ip)
+                player = PlayersRegistry.get_player_by_ip(displayed_ip)
+                if player is None:
+                    return
 
-                # Create a local copy of displayed_ip to use in lambdas
+                # Create local copies to use in lambdas
                 ip_address = displayed_ip
+                player_obj = player
 
                 add_action(
                     context_menu,
                     'IP Lookup Details',
                     tooltip='Displays a notification with a detailed IP lookup report for selected player.',
-                    handler=lambda: self.show_detailed_ip_lookup_player_cell(ip_address),
+                    handler=lambda: self.show_detailed_ip_lookup_player_cell(player_obj),
                 )
 
                 ping_menu = add_menu(context_menu, 'Ping    ')
@@ -5717,9 +5715,7 @@ class SessionTableView(QTableView):
         # Set the formatted text in the system clipboard
         clipboard.setText(clipboard_content)
 
-    def show_detailed_ip_lookup_player_cell(self, ip: str) -> None:
-        player = PlayersRegistry.require_player_by_ip(ip)
-
+    def show_detailed_ip_lookup_player_cell(self, player: Player) -> None:
         QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
             ############ Player Infos #############
             IP Address: {player.ip}
