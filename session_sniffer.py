@@ -1894,12 +1894,9 @@ class MobileWarnings:
             int: The number of IPs that were actually removed
         """
         with cls.lock:
-            removed_count = 0
-            for ip in ips:
-                if ip in cls.notified_mobile_ips:
-                    cls.notified_mobile_ips.remove(ip)
-                    removed_count += 1
-            return removed_count
+            initial_count = len(cls.notified_mobile_ips)
+            cls.notified_mobile_ips -= ips
+            return initial_count - len(cls.notified_mobile_ips)
 
     @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
@@ -1988,12 +1985,9 @@ class VPNWarnings:
             int: The number of IPs that were actually removed
         """
         with cls.lock:
-            removed_count = 0
-            for ip in ips:
-                if ip in cls.notified_vpn_ips:
-                    cls.notified_vpn_ips.remove(ip)
-                    removed_count += 1
-            return removed_count
+            initial_count = len(cls.notified_vpn_ips)
+            cls.notified_vpn_ips -= ips
+            return initial_count - len(cls.notified_vpn_ips)
 
     @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
@@ -2082,12 +2076,9 @@ class HostingWarnings:
             int: The number of IPs that were actually removed
         """
         with cls.lock:
-            removed_count = 0
-            for ip in ips:
-                if ip in cls.notified_hosting_ips:
-                    cls.notified_hosting_ips.remove(ip)
-                    removed_count += 1
-            return removed_count
+            initial_count = len(cls.notified_hosting_ips)
+            cls.notified_hosting_ips -= ips
+            return initial_count - len(cls.notified_hosting_ips)
 
     @classmethod
     def get_notified_ips_copy(cls) -> set[str]:
