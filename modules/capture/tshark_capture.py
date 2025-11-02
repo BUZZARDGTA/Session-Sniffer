@@ -1,5 +1,6 @@
 """Module for packet capture using TShark, including packet processing and handling of TShark crashes."""
 import subprocess
+import threading
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self
 
@@ -18,6 +19,8 @@ from modules.networking.utils import is_ipv4_address
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
+
+    from modules.capture.interface_selection import InterfaceSelectionData
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 5
 
@@ -93,7 +96,7 @@ class Packet(NamedTuple):
         )
 
 
-class PacketCapture:  # pylint: disable=too-few-public-methods
+class PacketCapture:
     def __init__(
         self,
         *,
@@ -101,6 +104,7 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
         tshark_path: Path,
         capture_filter: str | None = None,
         display_filter: str | None = None,
+        callback: Callable[[Packet], None],
     ) -> None:
         """Initialize the PacketCapture class.
 
@@ -109,12 +113,16 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
             tshark_path (Path): The path to the TShark executable.
             capture_filter (str | None): Optional capture filter for TShark.
             display_filter (str | None): Optional display filter for TShark.
+            callback (Callable[[Packet], None]): A callback function to process each captured packet.
         """
         self.interface = interface
         self.tshark_path = tshark_path
         self.capture_filter = capture_filter
         self.display_filter = display_filter
+        self._callback: Callable[[Packet], None] = callback
 
+        self._control_lock = threading.RLock()
+        self._running_event = threading.Event()
         self._tshark_cmd = (
             str(tshark_path),
             '-l', '-n', '-Q',
@@ -131,12 +139,57 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
             '-e', 'udp.srcport',
             '-e', 'udp.dstport',
         )
+        self._capture_thread: threading.Thread | None = None
         self._tshark_process: subprocess.Popen[str] | None = None
 
-    def apply_on_packets(self, callback: Callable[[Packet], None]) -> None:
-        """Apply a callback function to each captured packet."""
+    def start(self) -> None:
+        """Start the packet capture by launching a new TShark process."""
+        with self._control_lock:
+            if not self._running_event.is_set():
+                self._running_event.set()
+
+                self._capture_thread = threading.Thread(
+                    target=self._run_capture_loop,
+                    name='TSharkCapture',
+                    daemon=True,
+                )
+                self._capture_thread.start()
+
+    def stop(self) -> None:
+        """Stop the packet capture by terminating the TShark process."""
+        def _async_stop() -> None:
+            with self._control_lock:
+                if self._running_event.is_set():
+                    self._running_event.clear()
+
+                    if self._tshark_process:
+                        self._tshark_process.terminate()
+                        try:
+                            self._tshark_process.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            self._tshark_process.kill()
+                            self._tshark_process.wait()
+                        self._tshark_process = None
+
+        # Run stop operation asynchronously to avoid UI blocking
+        threading.Thread(target=_async_stop, daemon=True).start()
+
+    def restart(self) -> None:
+        """Restart the packet capture by stopping and starting it again."""
+        self.stop()
+        self.start()
+
+    def is_stopped(self) -> bool:
+        """Check if the packet capture is currently stopped."""
+        return not self._running_event.is_set()
+
+    def _run_capture_loop(self) -> None:
+        """Main capture loop that processes captured packets."""
         for packet in self._capture_packets():
-            callback(packet)
+            if not self._running_event.is_set():
+                return
+
+            self._callback(packet)
 
     def _capture_packets(self) -> Generator[Packet]:
         """Capture packets using TShark and process the output.
@@ -170,7 +223,7 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
             # Displaying "None" in the Port column should be supported at some point in the future development.
             # Skip processing if source or destination port is missing (last two fields)
             if not fields[-2] or not fields[-1]:
-                print(f'Source or destination port is missing. Packet ignored: [{line}]')
+                print(f'[TShark] Skipping packet with missing port(s): {fields}')
                 return None
 
             return PacketFields(*fields)
@@ -187,6 +240,9 @@ class PacketCapture:  # pylint: disable=too-few-public-methods
             if process.stdout:
                 # Iterate over stdout line by line as it is being produced
                 for line in process.stdout:
+                    if not self._running_event.is_set():
+                        break
+
                     packet_fields = process_tshark_stdout(line.rstrip())
                     if packet_fields is None:
                         continue

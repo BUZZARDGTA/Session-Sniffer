@@ -89,8 +89,6 @@ from rich.text import Text
 from rich.traceback import Traceback
 
 from modules.capture.exceptions import (
-    PacketCaptureOverflowError,
-    TSharkCrashExceptionError,
     TSharkOutputParsingError,
 )
 from modules.capture.interface_selection import (
@@ -340,7 +338,7 @@ def terminate_script(
     exception_info: ExceptionInfo | None = None,
 ) -> None:
     def should_terminate_gracefully() -> bool:
-        for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread', 'capture_core__thread'):
+        for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread'):
             if thread_name in globals():
                 thread = globals()[thread_name]
                 if isinstance(thread, Thread) and thread.is_alive():
@@ -2174,7 +2172,7 @@ def check_for_updates() -> None:
             sys.exit(0)
 
 
-def populate_network_interfaces_info() -> None:
+def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
     """Populate the AllInterfaces collection with network interface details."""
     def validate_and_format_mac_address(mac_address: str | None) -> str | None:
         """Validate the MAC address, ensuring it is in the correct format."""
@@ -2630,212 +2628,6 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
     return geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
 
 
-colorama.init(autoreset=True)
-
-SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
-os.chdir(SCRIPT_DIR)
-
-if not is_pyinstaller_compiled():
-    clear_screen()
-    set_window_title(f'Checking that your Python packages versions matches with file "requirements.txt" - {TITLE}')
-    print('\nChecking that your Python packages versions matches with file "requirements.txt" ...\n')
-
-    if outdated_packages := check_packages_version(get_dependencies_from_pyproject() or get_dependencies_from_requirements()):
-        msgbox_message = 'The following packages have version mismatches:\n\n'  # pylint: disable=invalid-name
-
-        # Iterate over outdated packages and add each package's information to the message box text
-        for package_name, required_version, installed_version in outdated_packages:
-            msgbox_message += f'{package_name} (required {required_version}, installed {installed_version})\n'
-
-        # Add additional message box text
-        msgbox_message += f'\nKeeping your packages synced with "{TITLE}" ensures smooth script execution and prevents compatibility issues.'
-        msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
-
-        # Show message box
-        msgbox_style = MsgBox.Style.MB_YESNO | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
-        msgbox_title = TITLE  # pylint: disable=invalid-name
-        errorlevel = MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
-        if errorlevel != MsgBox.ReturnValues.IDYES:
-            sys.exit(0)
-
-clear_screen()
-set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
-print('\nApplying your custom settings from "Settings.ini" ...\n')
-Settings.load_from_settings_file(SETTINGS_PATH)
-
-clear_screen()
-set_window_title(f'Searching for a new update - {TITLE}')
-print('\nSearching for a new update ...\n')
-check_for_updates()
-
-clear_screen()
-set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')
-print('\nChecking that "Npcap" driver is installed on your system ...\n')
-ensure_npcap_installed()
-
-clear_screen()
-set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
-print('\nApplying your custom settings from "Settings.ini" ...\n')
-Settings.load_from_settings_file(SETTINGS_PATH)
-
-clear_screen()
-set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
-print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n")
-geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = update_and_initialize_geolite2_readers()
-
-clear_screen()
-set_window_title(f'Initializing MacLookup module - {TITLE}')
-print('\nInitializing MacLookup module ...\n')
-mac_lookup = MacLookup(load_on_init=True)
-
-clear_screen()
-set_window_title(f'Capture network interface selection - {TITLE}')
-print('\nCapture network interface selection ...\n')
-populate_network_interfaces_info()
-
-tshark_interfaces = [
-    i for _, _, name in get_filtered_tshark_interfaces()
-    if (i := AllInterfaces.get_interface_by_name(name)) and not i.is_interface_inactive()
-]
-
-screen_width, screen_height = get_screen_size()
-
-interfaces_selection_data: list[InterfaceSelectionData] = []
-
-for interface in tshark_interfaces:
-    if (
-        Settings.CAPTURE_INTERFACE_NAME is not None
-        and interface.name is not None
-        and interface.name.casefold() == Settings.CAPTURE_INTERFACE_NAME.casefold()
-        and interface.name != Settings.CAPTURE_INTERFACE_NAME
-    ):
-        Settings.CAPTURE_INTERFACE_NAME = interface.name
-        Settings.reconstruct_settings()
-
-    manufacturer = 'N/A' if interface.manufacturer is None else interface.manufacturer
-    packets_sent: Literal['N/A'] | int = 'N/A' if interface.packets_sent is None else interface.packets_sent
-    packets_recv: Literal['N/A'] | int = 'N/A' if interface.packets_recv is None else interface.packets_recv
-    interface_name = interface.name if interface.name is not None else 'Unknown Interface'
-    mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
-
-    if interface.ip_addresses:
-        for ip_address in interface.ip_addresses:
-            interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
-                packets_sent, packets_recv, ip_address, mac_address, manufacturer,
-            ))
-    else:
-        interfaces_selection_data.append(InterfaceSelectionData(
-            len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
-            packets_sent, packets_recv, 'N/A', mac_address, manufacturer,
-        ))
-
-    if Settings.CAPTURE_ARP:
-        for arp_entry in interface.get_arp_entries():
-            organization_name = 'N/A' if arp_entry.organization_name is None else arp_entry.organization_name
-
-            interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface_name, ', '.join(interface.descriptions),
-                'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, organization_name, is_arp=True,
-            ))
-
-selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
-if selected_interface is None:
-    sys.exit(0)
-
-clear_screen()
-set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
-print('\nInitializing addresses and establishing connection to your PC / Console ...\n')
-need_rewrite_settings = False  # pylint: disable=invalid-name
-fixed__capture_mac_address = selected_interface.mac_address
-fixed__capture_ip_address = selected_interface.ip_address
-
-if (
-    Settings.CAPTURE_INTERFACE_NAME is None
-    or selected_interface.name != Settings.CAPTURE_INTERFACE_NAME
-):
-    Settings.CAPTURE_INTERFACE_NAME = selected_interface.name
-    need_rewrite_settings = True  # pylint: disable=invalid-name
-
-if fixed__capture_mac_address != Settings.CAPTURE_MAC_ADDRESS:
-    Settings.CAPTURE_MAC_ADDRESS = fixed__capture_mac_address
-    need_rewrite_settings = True  # pylint: disable=invalid-name
-
-if fixed__capture_ip_address != Settings.CAPTURE_IP_ADDRESS:
-    Settings.CAPTURE_IP_ADDRESS = fixed__capture_ip_address
-    need_rewrite_settings = True  # pylint: disable=invalid-name
-
-if need_rewrite_settings:
-    Settings.reconstruct_settings()
-
-capture_filter: list[str] = ['ip', 'udp']
-display_filter: list[str] = []
-excluded_protocols: list[str] = []
-
-if Settings.CAPTURE_IP_ADDRESS:
-    capture_filter.append(
-        f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {RESERVED_NETWORKS_FILTER}))) or '
-        f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {RESERVED_NETWORKS_FILTER}))))',
-    )
-
-broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
-if broadcast_support and multicast_support:
-    capture_filter.append('not (broadcast or multicast)')
-    vpn_mode_enabled = False  # pylint: disable=invalid-name
-elif broadcast_support:
-    capture_filter.append('not broadcast')
-    vpn_mode_enabled = True  # pylint: disable=invalid-name
-elif multicast_support:
-    capture_filter.append('not multicast')
-    vpn_mode_enabled = True  # pylint: disable=invalid-name
-else:
-    vpn_mode_enabled = True  # pylint: disable=invalid-name
-
-capture_filter.append('not (portrange 0-1023 or port 5353)')
-
-if Settings.CAPTURE_PROGRAM_PRESET:
-    if Settings.CAPTURE_PROGRAM_PRESET == 'GTA5':
-        capture_filter.append('(len >= 71 and len <= 1032)')
-    elif Settings.CAPTURE_PROGRAM_PRESET == 'Minecraft':
-        capture_filter.append('(len >= 49 and len <= 1498)')
-
-    # If the <CAPTURE_PROGRAM_PRESET> setting is set, automatically blocks RTCP connections.
-    # In case RTCP can be useful to get someone IP, I decided not to block them without using a <CAPTURE_PROGRAM_PRESET>.
-    # RTCP is known to be for example the Discord's server IP while you are in a call there.
-    # The "not rtcp" Display Filter have been heavily tested and I can confirm that it's indeed working correctly.
-    # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.
-    # It filters RTCP but some connections are STILL made out of it, but those are not RTCP ¯\_(ツ)_/¯.
-    # And that's exactly why the "Discord" (`class ThirdPartyServers`) IP ranges Capture Filters are useful for.
-    excluded_protocols.append('rtcp')
-
-if Settings.CAPTURE_BLOCK_THIRD_PARTY_SERVERS:
-    capture_filter.append(f"not (net {' or '.join(ThirdPartyServers.get_all_ip_ranges())})")
-
-    # Here I'm trying to exclude various UDP protocols that are usefless for the srcipt.
-    # But there can be a lot more, those are just a couples I could find on my own usage.
-    excluded_protocols.extend(['ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'])
-
-if excluded_protocols:
-    display_filter.append(
-        f"not ({' or '.join(excluded_protocols)})",
-    )
-
-if Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
-    capture_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER})')
-
-if Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
-    display_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER})')
-
-CAPTURE_FILTER = ' and '.join(capture_filter) if capture_filter else None
-DISPLAY_FILTER = ' and '.join(display_filter) if display_filter else None
-
-capture = PacketCapture(
-    interface=selected_interface,
-    tshark_path=TSHARK_PATH,
-    capture_filter=CAPTURE_FILTER,
-    display_filter=DISPLAY_FILTER,
-)
-
 gui_closed__event = Event()
 _userip_logging_file_write_lock = Lock()
 
@@ -3019,8 +2811,12 @@ def process_userip_task(
         start_time = time.monotonic()
 
         while not isinstance(player.userip, UserIP):
+            if PlayersRegistry.get_player_by_ip(player.ip) is None:
+                return
+
             if time.monotonic() - start_time > timeout:
                 raise TypeError(format_type_error(player.userip, UserIP))
+
             time.sleep(0.01)  # Sleep to prevent high CPU usage
 
         def suspend_process_for_duration_or_mode(process_pid: int, duration_or_mode: float | Literal['Auto', 'Manual']) -> None:
@@ -3329,94 +3125,6 @@ class TsharkStats:
     restarted_times: ClassVar[int] = 0
 
 
-def capture_core() -> None:
-    with ThreadsExceptionHandler():
-        def packet_callback(packet: Packet) -> None:
-            packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
-            TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
-            if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
-                TsharkStats.restarted_times += 1
-                raise PacketCaptureOverflowError(Settings.CAPTURE_OVERFLOW_TIMER)
-
-            if Settings.CAPTURE_IP_ADDRESS:
-                if packet.ip.src == Settings.CAPTURE_IP_ADDRESS:
-                    target_ip = packet.ip.dst
-                    target_port = packet.port.dst
-                elif packet.ip.dst == Settings.CAPTURE_IP_ADDRESS:
-                    target_ip = packet.ip.src
-                    target_port = packet.port.src
-                else:
-                    return  # Neither source nor destination matches the specified `Settings.CAPTURE_IP_ADDRESS`.
-            else:
-                is_src_private_ip = is_private_device_ipv4(packet.ip.src)
-                is_dst_private_ip = is_private_device_ipv4(packet.ip.dst)
-
-                if is_src_private_ip and is_dst_private_ip:
-                    return  # Both source and destination are private IPs, no action needed.
-
-                if is_src_private_ip:
-                    target_ip = packet.ip.dst
-                    target_port = packet.port.dst
-                elif is_dst_private_ip:
-                    target_ip = packet.ip.src
-                    target_port = packet.port.src
-                else:
-                    return  # Neither source nor destination is a private IP address.
-
-            player = PlayersRegistry.get_player_by_ip(target_ip)
-            if player is None:
-                player = PlayersRegistry.add_connected_player(
-                    Player(
-                        ip=target_ip,
-                        port=target_port,
-                        packet_datetime=packet.datetime,
-                    ),
-                )
-
-                if GUIDetectionSettings.player_join_notifications_enabled:
-                    show_detection_warning_popup(player, 'player_joined')
-
-            elif player.left_event.is_set():
-                player.mark_as_rejoined(
-                    port=target_port,
-                    packet_datetime=packet.datetime,
-                )
-                PlayersRegistry.move_player_to_connected(player)
-
-                if GUIDetectionSettings.player_join_notifications_enabled:
-                    show_detection_warning_popup(player, 'player_joined')
-            else:
-                player.mark_as_seen(
-                    port=target_port,
-                    packet_datetime=packet.datetime,
-                )
-
-            if player.ip in UserIPDatabases.ips_set and (
-                not player.userip_detection
-                or not player.userip_detection.as_processed_task
-            ):
-                player.userip_detection = PlayerUserIPDetection(
-                    time=packet.datetime.strftime('%H:%M:%S'),
-                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
-                )
-                Thread(
-                    target=process_userip_task,
-                    name=f'ProcessUserIPTask-{player.ip}-connected',
-                    args=(player, 'connected'),
-                    daemon=True,
-                ).start()
-
-        while not gui_closed__event.is_set():
-            try:
-                capture.apply_on_packets(callback=packet_callback)
-            except TSharkCrashExceptionError:
-                if gui_closed__event.wait(3):
-                    break
-                raise
-            except PacketCaptureOverflowError:
-                continue
-
-
 class CellColor(NamedTuple):
     foreground: QColor
     background: QColor
@@ -3486,29 +3194,22 @@ class GUIrenderingData(AbstractGUIRenderingData, metaclass=ThreadSafeMeta):
     gui_rendering_ready_event: ClassVar = Event()
 
 
-def rendering_core(selected_interface: InterfaceSelectionData) -> None:
+@dataclass(frozen=True, slots=True)
+class GeoIP2Readers:
+    """Container for GeoIP2 database readers."""
+    enabled: bool
+    asn_reader: geoip2.database.Reader | None
+    city_reader: geoip2.database.Reader | None
+    country_reader: geoip2.database.Reader | None
+
+
+def rendering_core(
+    capture: PacketCapture,
+    geoip2_readers: GeoIP2Readers,
+    *,
+    vpn_mode_enabled: bool,
+) -> None:
     with ThreadsExceptionHandler():
-        def compile_tables_header_field_names() -> tuple[list[Any], list[Any], list[Any], list[Any]]:
-            gui_connected_players_table__field_names = [
-                field_name
-                for field_name in Settings.GUI_ALL_CONNECTED_FIELDS
-                if field_name not in GUIrenderingData.FIELDS_TO_HIDE
-            ]
-            gui_disconnected_players_table__field_names = [
-                field_name
-                for field_name in Settings.GUI_ALL_DISCONNECTED_FIELDS
-                if field_name not in GUIrenderingData.FIELDS_TO_HIDE
-            ]
-            logging_connected_players_table__field_names = list(Settings.GUI_ALL_CONNECTED_FIELDS)
-            logging_disconnected_players_table__field_names = list(Settings.GUI_ALL_DISCONNECTED_FIELDS)
-
-            return (
-                gui_connected_players_table__field_names,
-                gui_disconnected_players_table__field_names,
-                logging_connected_players_table__field_names,
-                logging_disconnected_players_table__field_names,
-            )
-
         def parse_userip_ini_file(ini_path: Path, unresolved_ip_invalid: set[str]) -> tuple[UserIPSettings | None, dict[str, list[str]] | None]:
             def process_ini_line_output(line: str) -> str:
                 return line.strip()
@@ -3915,9 +3616,9 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
             country_name = 'N/A'
             country_code = 'N/A'
 
-            if geoip2_enabled and geolite2_country_reader is not None:
+            if geoip2_readers.enabled and geoip2_readers.country_reader is not None:
                 try:
-                    response = geolite2_country_reader.country(ip_address)
+                    response = geoip2_readers.country_reader.country(ip_address)
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
@@ -3929,9 +3630,9 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
         def get_city_info(ip_address: str) -> str:
             city = 'N/A'
 
-            if geoip2_enabled and geolite2_city_reader is not None:
+            if geoip2_readers.enabled and geoip2_readers.city_reader is not None:
                 try:
-                    response = geolite2_city_reader.city(ip_address)
+                    response = geoip2_readers.city_reader.city(ip_address)
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
@@ -3942,9 +3643,9 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
         def get_asn_info(ip_address: str) -> str:
             asn = 'N/A'
 
-            if geoip2_enabled and geolite2_asn_reader is not None:
+            if geoip2_readers.enabled and geoip2_readers.asn_reader is not None:
                 try:
-                    response = geolite2_asn_reader.asn(ip_address)
+                    response = geoip2_readers.asn_reader.asn(ip_address)
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
@@ -4372,20 +4073,6 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
                 session_disconnected_table__compiled_colors,
             )
 
-        def generate_gui_header() -> str:
-            """Generate the GUI header with title, version, and tagline."""
-            return f"""
-            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px;
-                        border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
-                <div style="text-align: center;">
-                    <span style="font-size: 24px; color: #88c0d0; font-weight: bold;">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
-                </div>
-                <p style="font-size: 14px; margin: 8px 0 0 0; text-align: center; color: #d8dee9;">
-                    The best FREE and Open-Source packet sniffer, aka IP puller
-                </p>
-            </div>
-            """
-
         def generate_gui_status_text(global_pps_rate: int) -> tuple[str, str, str, str, str]:
             """Generate status bar text content for individual sections.
 
@@ -4414,7 +4101,7 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
                 avg_latency_rounded = 0.0
 
             is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-            is_arp_enabled = 'Enabled' if selected_interface.is_arp else 'Disabled'
+            is_arp_enabled = 'Enabled' if capture.interface.is_arp else 'Disabled'
             displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
 
             invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
@@ -4429,7 +4116,7 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
             # Capture section
             capture_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">📡 Capture:</span> '
-                f'<span style="color: #a3be8c;">{capture.interface}</span> '
+                f'<span style="color: #a3be8c;">{capture.interface.name}</span> '
                 f'<span style="color: #81a1c1;"> • </span>'
                 f'<span style="color: #d08770;">IP:</span> <span style="color: #a3be8c;">{displayed_capture_ip_address}</span>'
             )
@@ -4507,18 +4194,15 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
 
             return capture_section, config_section, discord_section, issues_section, performance_section
 
-        GUIrenderingData.FIELDS_TO_HIDE = set(Settings.GUI_FIELDS_TO_HIDE)
-        (
-            GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES,
-            GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES,
-            logging_connected_players_table__field_names,
-            logging_disconnected_players_table__field_names,
-        ) = compile_tables_header_field_names()
+        # Data structures already initialized before GUI - just get the values
+        gui_connected_players_table__field_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES
 
-        GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)
-        GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)
-        # Define the column name to index mapping for connected and disconnected players
-        connected_column_mapping = {header: index for index, header in enumerate(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
+        # Still need logging field names (not used by GUI)
+        logging_connected_players_table__field_names = list(Settings.GUI_ALL_CONNECTED_FIELDS)
+        logging_disconnected_players_table__field_names = list(Settings.GUI_ALL_DISCONNECTED_FIELDS)
+
+        # Column mapping for rendering
+        connected_column_mapping = {header: index for index, header in enumerate(gui_connected_players_table__field_names)}
         # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
 
         last_userip_parse_time = None
@@ -4662,7 +4346,7 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
                  (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0)):  # noqa: PLR2004
                 discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
 
-            GUIrenderingData.header_text = generate_gui_header()
+            GUIrenderingData.header_text = generate_gui_header_html(capture=capture)
             (GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text,
              GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text,
              GUIrenderingData.status_performance_text) = generate_gui_status_text(global_pps_rate)
@@ -4677,30 +4361,6 @@ def rendering_core(selected_interface: InterfaceSelectionData) -> None:
             GUIrenderingData.gui_rendering_ready_event.set()
 
             gui_closed__event.wait(1)
-
-
-clear_screen()
-set_window_title(f'DEBUG CONSOLE - {TITLE}')
-
-rendering_core__thread = Thread(
-    target=rendering_core,
-    name='rendering_core',
-    args=(selected_interface,),
-    daemon=True,
-)
-rendering_core__thread.start()
-
-hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
-hostname_core__thread.start()
-
-iplookup_core__thread = Thread(target=iplookup_core, name='iplookup_core', daemon=True)
-iplookup_core__thread.start()
-
-pinger_core__thread = Thread(target=pinger_core, name='pinger_core', daemon=True)
-pinger_core__thread.start()
-
-capture_core__thread = Thread(target=capture_core, name='capture_core', daemon=True)
-capture_core__thread.start()
 
 
 class SessionTableModel(QAbstractTableModel):
@@ -6093,9 +5753,45 @@ class PersistentMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
+def generate_gui_header_html(*, capture: PacketCapture) -> str:
+    """Generate the GUI header HTML based on capture state.
+
+    Args:
+        capture (PacketCapture): The PacketCapture instance to read state from.
+
+    Returns:
+        str: HTML string for the header.
+    """
+    if capture.is_stopped():
+        stop_status = """
+                <div style="background: linear-gradient(90deg, #bf616a, #d08770); padding: 10px;
+                            margin-top: 10px; border: 2px solid #bf616a; border-radius: 6px;
+                            box-shadow: 0px 3px 8px rgba(191, 97, 106, 0.4); text-align: center;">
+                    <span style="font-size: 18px; font-weight: bold; color: #ffeb3b;">⏸️ CAPTURE STOPPED</span>
+                </div>
+                """
+    else:
+        stop_status = ''
+
+    return f"""
+            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px;
+                        border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
+                <div style="text-align: center;">
+                    <span style="font-size: 24px; color: #88c0d0; font-weight: bold;">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
+                </div>
+                <p style="font-size: 14px; margin: 8px 0 0 0; text-align: center; color: #d8dee9;">
+                    The best FREE and Open-Source packet sniffer, aka IP puller
+                </p>
+                {stop_status}
+            </div>
+            """
+
+
 class MainWindow(QMainWindow):
-    def __init__(self, screen_width: int, screen_height: int) -> None:
+    def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
         super().__init__()
+
+        self.capture = capture
 
         # Set up the window
         self.setWindowTitle(TITLE)
@@ -6116,6 +5812,14 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(16, 16))
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+
+        # ----- Stop/Start Capture Button -----
+        self.toggle_capture_action = QAction('⏹️ Stop Capture', self)
+        self.toggle_capture_action.setToolTip('Stop packet capture')
+        self.toggle_capture_action.triggered.connect(self.toggle_capture)  # pyright: ignore[reportUnknownMemberType]
+        toolbar.addAction(self.toggle_capture_action)  # pyright: ignore[reportUnknownMemberType]
+
+        toolbar.addSeparator()
 
         # ----- Open Project Repository Button -----
         open_project_repo_action = QAction('Project Repository', self)
@@ -6430,6 +6134,36 @@ class MainWindow(QMainWindow):
         self.worker_thread.update_signal.connect(self.update_gui)  # pyright: ignore[reportUnknownMemberType]
         self.worker_thread.start()
 
+        # Track window movement for opacity effect
+        self._is_moving = False
+        self._last_window_pos = self.pos()
+
+        # Install event filter to detect window movement
+        self.installEventFilter(self)
+
+    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Filter events to detect when window starts/stops moving."""
+        if obj == self and event is not None:
+            # Detect when window move starts (non-client area mouse press - title bar)
+            if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
+                self._start_window_move()
+            # Detect when window move ends (non-client area mouse release)
+            elif event.type() == QEvent.Type.NonClientAreaMouseButtonRelease:
+                self._end_window_move()
+        return super().eventFilter(obj, event)
+
+    def _start_window_move(self) -> None:
+        """Called when window starts moving - apply transparency."""
+        if not self._is_moving:
+            self._is_moving = True
+            self.setWindowOpacity(0.85)
+
+    def _end_window_move(self) -> None:
+        """Called when window stops moving - restore opacity."""
+        if self._is_moving:
+            self._is_moving = False
+            self.setWindowOpacity(1.0)
+
     def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
         gui_closed__event.set()  # Signal the thread to stop
         self.worker_thread.quit()  # Stop the QThread
@@ -6643,6 +6377,27 @@ class MainWindow(QMainWindow):
         """Toggle player leave notifications on/off."""
         GUIDetectionSettings.player_leave_notifications_enabled = self.player_leave_notification_action.isChecked()
 
+    def _update_header_capture_status(self) -> None:
+        """Immediately update the header text to reflect current capture state."""
+        header_html = generate_gui_header_html(capture=self.capture)
+        self.header_text.setText(header_html)
+
+    def toggle_capture(self) -> None:
+        """Toggle the packet capture on/off."""
+        if self.capture.is_stopped():
+            # Start capture
+            self.capture.start()
+            self.toggle_capture_action.setText('⏹️ Stop Capture')
+            self.toggle_capture_action.setToolTip('Stop packet capture')
+        else:
+            # Stop capture
+            self.capture.stop()
+            self.toggle_capture_action.setText('▶️ Start Capture')
+            self.toggle_capture_action.setToolTip('Start packet capture')
+
+        # Immediately update header to show current status
+        self._update_header_capture_status()
+
     def clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
         connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
@@ -6848,9 +6603,358 @@ class DiscordIntro(QDialog):
 
 
 if __name__ == '__main__':
-    # Initialize the main application
-    window = MainWindow(screen_width, screen_height)
+    colorama.init(autoreset=True)
+
+    SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
+    os.chdir(SCRIPT_DIR)
+
+    if not is_pyinstaller_compiled():
+        clear_screen()
+        set_window_title(f'Checking that your Python packages versions matches with file "requirements.txt" - {TITLE}')
+        print('\nChecking that your Python packages versions matches with file "requirements.txt" ...\n')
+
+        if outdated_packages := check_packages_version(get_dependencies_from_pyproject() or get_dependencies_from_requirements()):
+            msgbox_message = 'The following packages have version mismatches:\n\n'  # pylint: disable=invalid-name
+
+            # Iterate over outdated packages and add each package's information to the message box text
+            for package_name, required_version, installed_version in outdated_packages:
+                msgbox_message += f'{package_name} (required {required_version}, installed {installed_version})\n'
+
+            # Add additional message box text
+            msgbox_message += f'\nKeeping your packages synced with "{TITLE}" ensures smooth script execution and prevents compatibility issues.'
+            msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
+
+            # Show message box
+            msgbox_style = MsgBox.Style.MB_YESNO | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
+            msgbox_title = TITLE  # pylint: disable=invalid-name
+            errorlevel = MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
+            if errorlevel != MsgBox.ReturnValues.IDYES:
+                sys.exit(0)
+
+    clear_screen()
+    set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
+    print('\nApplying your custom settings from "Settings.ini" ...\n')
+    Settings.load_from_settings_file(SETTINGS_PATH)
+
+    clear_screen()
+    set_window_title(f'Searching for a new update - {TITLE}')
+    print('\nSearching for a new update ...\n')
+    check_for_updates()
+
+    clear_screen()
+    set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')
+    print('\nChecking that "Npcap" driver is installed on your system ...\n')
+    ensure_npcap_installed()
+
+    clear_screen()
+    set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
+    print('\nApplying your custom settings from "Settings.ini" ...\n')
+    Settings.load_from_settings_file(SETTINGS_PATH)
+
+    clear_screen()
+    set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
+    print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n")
+    geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = update_and_initialize_geolite2_readers()
+
+    clear_screen()
+    set_window_title(f'Initializing MacLookup module - {TITLE}')
+    print('\nInitializing MacLookup module ...\n')
+    mac_lookup = MacLookup(load_on_init=True)
+
+    clear_screen()
+    set_window_title(f'Capture network interface selection - {TITLE}')
+    print('\nCapture network interface selection ...\n')
+    populate_network_interfaces_info(mac_lookup)
+
+    # Initialize global variables
+    screen_width, screen_height = get_screen_size()
+
+    # Initialize interface selection
+    interfaces_selection_data: list[InterfaceSelectionData] = []
+
+    tshark_interfaces = [
+        i for _, _, name in get_filtered_tshark_interfaces()
+        if (i := AllInterfaces.get_interface_by_name(name)) and not i.is_interface_inactive()
+    ]
+
+    for interface in tshark_interfaces:
+        if (
+            Settings.CAPTURE_INTERFACE_NAME is not None
+            and interface.name is not None
+            and interface.name.casefold() == Settings.CAPTURE_INTERFACE_NAME.casefold()
+            and interface.name != Settings.CAPTURE_INTERFACE_NAME
+        ):
+            Settings.CAPTURE_INTERFACE_NAME = interface.name
+            Settings.reconstruct_settings()
+
+        manufacturer = 'N/A' if interface.manufacturer is None else interface.manufacturer
+        packets_sent: Literal['N/A'] | int = 'N/A' if interface.packets_sent is None else interface.packets_sent
+        packets_recv: Literal['N/A'] | int = 'N/A' if interface.packets_recv is None else interface.packets_recv
+        interface_name = interface.name if interface.name is not None else 'Unknown Interface'
+        mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
+        DESCRIPTIONS_STR = 'N/A' if not interface.descriptions else ', '.join(interface.descriptions)
+
+        if interface.ip_addresses:
+            for ip_address in interface.ip_addresses:
+                interfaces_selection_data.append(InterfaceSelectionData(
+                    len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
+                    packets_sent, packets_recv, ip_address, mac_address, manufacturer,
+                ))
+        else:
+            interfaces_selection_data.append(InterfaceSelectionData(
+                len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
+                packets_sent, packets_recv, 'N/A', mac_address, manufacturer,
+            ))
+
+        if Settings.CAPTURE_ARP:
+            for arp_entry in interface.get_arp_entries():
+                organization_name = 'N/A' if arp_entry.organization_name is None else arp_entry.organization_name
+
+                interfaces_selection_data.append(InterfaceSelectionData(
+                    len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
+                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, organization_name, is_arp=True,
+                ))
+
+    selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
+    if selected_interface is None:
+        sys.exit(0)
+
+    clear_screen()
+    set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
+    print('\nInitializing addresses and establishing connection to your PC / Console ...\n')
+    need_rewrite_settings = False  # pylint: disable=invalid-name
+    fixed__capture_mac_address = selected_interface.mac_address
+    fixed__capture_ip_address = selected_interface.ip_address
+
+    if (
+        Settings.CAPTURE_INTERFACE_NAME is None
+        or selected_interface.name != Settings.CAPTURE_INTERFACE_NAME
+    ):
+        Settings.CAPTURE_INTERFACE_NAME = selected_interface.name
+        need_rewrite_settings = True  # pylint: disable=invalid-name
+
+    if fixed__capture_mac_address != Settings.CAPTURE_MAC_ADDRESS:
+        Settings.CAPTURE_MAC_ADDRESS = fixed__capture_mac_address
+        need_rewrite_settings = True  # pylint: disable=invalid-name
+
+    if fixed__capture_ip_address != Settings.CAPTURE_IP_ADDRESS:
+        Settings.CAPTURE_IP_ADDRESS = fixed__capture_ip_address
+        need_rewrite_settings = True  # pylint: disable=invalid-name
+
+    if need_rewrite_settings:
+        Settings.reconstruct_settings()
+
+    capture_filter: list[str] = ['ip', 'udp']
+
+    if Settings.CAPTURE_IP_ADDRESS:
+        capture_filter.append(
+            f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {RESERVED_NETWORKS_FILTER}))) or '
+            f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {RESERVED_NETWORKS_FILTER}))))',
+        )
+
+    broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
+    if broadcast_support and multicast_support:
+        capture_filter.append('not (broadcast or multicast)')
+        vpn_mode_enabled = False  # pylint: disable=invalid-name
+    elif broadcast_support:
+        capture_filter.append('not broadcast')
+        vpn_mode_enabled = True  # pylint: disable=invalid-name
+    elif multicast_support:
+        capture_filter.append('not multicast')
+        vpn_mode_enabled = True  # pylint: disable=invalid-name
+    else:
+        vpn_mode_enabled = True  # pylint: disable=invalid-name
+
+    capture_filter.append('not (portrange 0-1023 or port 5353)')
+
+    excluded_protocols: list[str] = []
+
+    if Settings.CAPTURE_PROGRAM_PRESET:
+        if Settings.CAPTURE_PROGRAM_PRESET == 'GTA5':
+            capture_filter.append('(len >= 71 and len <= 1032)')
+        elif Settings.CAPTURE_PROGRAM_PRESET == 'Minecraft':
+            capture_filter.append('(len >= 49 and len <= 1498)')
+
+        # If the <CAPTURE_PROGRAM_PRESET> setting is set, automatically blocks RTCP connections.
+        # In case RTCP can be useful to get someone IP, I decided not to block them without using a <CAPTURE_PROGRAM_PRESET>.
+        # RTCP is known to be for example the Discord's server IP while you are in a call there.
+        # The "not rtcp" Display Filter have been heavily tested and I can confirm that it's indeed working correctly.
+        # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.
+        # It filters RTCP but some connections are STILL made out of it, but those are not RTCP ¯\_(ツ)_/¯.
+        # And that's exactly why the "Discord" (`class ThirdPartyServers`) IP ranges Capture Filters are useful for.
+        excluded_protocols.append('rtcp')
+
+    if Settings.CAPTURE_BLOCK_THIRD_PARTY_SERVERS:
+        capture_filter.append(f"not (net {' or '.join(ThirdPartyServers.get_all_ip_ranges())})")
+
+        # Here I'm trying to exclude various UDP protocols that are usefless for the srcipt.
+        # But there can be a lot more, those are just a couples I could find on my own usage.
+        excluded_protocols.extend(['ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'])
+
+    display_filter: list[str] = []
+
+    if excluded_protocols:
+        display_filter.append(
+            f"not ({' or '.join(excluded_protocols)})",
+        )
+
+    if Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
+        capture_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER})')
+
+    if Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
+        display_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER})')
+
+    CAPTURE_FILTER_STR = ' and '.join(capture_filter) if capture_filter else None
+    DISPLAY_FILTER_STR = ' and '.join(display_filter) if display_filter else None
+
+    # Initialize console and prepare for GUI
+    clear_screen()
+    set_window_title(f'DEBUG CONSOLE - {TITLE}')
+
+    def packet_callback(packet: Packet) -> None:
+        """Callback function to process each captured packet."""
+        with ThreadsExceptionHandler():
+            packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
+            TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
+            if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
+                TsharkStats.restarted_times += 1
+                TsharkStats.packets_latencies.clear()
+                print(
+                    f'Packet capture overflow detected: latency {packet_latency.total_seconds():.2f}s '
+                    f'exceeds threshold of {Settings.CAPTURE_OVERFLOW_TIMER:.2f}s. '
+                    f'Restarting capture now (restart #{TsharkStats.restarted_times}).',
+                )
+                capture.restart()
+                return  # Skip processing this packet
+
+            if Settings.CAPTURE_IP_ADDRESS:
+                if packet.ip.src == Settings.CAPTURE_IP_ADDRESS:
+                    target_ip = packet.ip.dst
+                    target_port = packet.port.dst
+                elif packet.ip.dst == Settings.CAPTURE_IP_ADDRESS:
+                    target_ip = packet.ip.src
+                    target_port = packet.port.src
+                else:
+                    return  # Neither source nor destination matches the specified `Settings.CAPTURE_IP_ADDRESS`.
+            else:
+                is_src_private_ip = is_private_device_ipv4(packet.ip.src)
+                is_dst_private_ip = is_private_device_ipv4(packet.ip.dst)
+
+                if is_src_private_ip and is_dst_private_ip:
+                    return  # Both source and destination are private IPs, no action needed.
+
+                if is_src_private_ip:
+                    target_ip = packet.ip.dst
+                    target_port = packet.port.dst
+                elif is_dst_private_ip:
+                    target_ip = packet.ip.src
+                    target_port = packet.port.src
+                else:
+                    return  # Neither source nor destination is a private IP address.
+
+            player = PlayersRegistry.get_player_by_ip(target_ip)
+            if player is None:
+                player = PlayersRegistry.add_connected_player(
+                    Player(
+                        ip=target_ip,
+                        port=target_port,
+                        packet_datetime=packet.datetime,
+                    ),
+                )
+
+                if GUIDetectionSettings.player_join_notifications_enabled:
+                    show_detection_warning_popup(player, 'player_joined')
+
+            elif player.left_event.is_set():
+                player.mark_as_rejoined(
+                    port=target_port,
+                    packet_datetime=packet.datetime,
+                )
+                PlayersRegistry.move_player_to_connected(player)
+
+                if GUIDetectionSettings.player_join_notifications_enabled:
+                    show_detection_warning_popup(player, 'player_joined')
+            else:
+                player.mark_as_seen(
+                    port=target_port,
+                    packet_datetime=packet.datetime,
+                )
+
+            if player.ip in UserIPDatabases.ips_set and (
+                not player.userip_detection
+                or not player.userip_detection.as_processed_task
+            ):
+                player.userip_detection = PlayerUserIPDetection(
+                    time=packet.datetime.strftime('%H:%M:%S'),
+                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
+                )
+                Thread(
+                    target=process_userip_task,
+                    name=f'ProcessUserIPTask-{player.ip}-connected',
+                    args=(player, 'connected'),
+                    daemon=True,
+                ).start()
+
+    capture = PacketCapture(
+        interface=selected_interface,
+        tshark_path=TSHARK_PATH,
+        capture_filter=CAPTURE_FILTER_STR,
+        display_filter=DISPLAY_FILTER_STR,
+        callback=packet_callback,
+    )
+
+    capture.start()
+
+    # Initialize GUI data structures early so GUI can start immediately
+    GUIrenderingData.FIELDS_TO_HIDE = set(Settings.GUI_FIELDS_TO_HIDE)
+
+    # Compile table field names
+    gui_connected_players_table__field_names = [
+        field_name
+        for field_name in Settings.GUI_ALL_CONNECTED_FIELDS
+        if field_name not in GUIrenderingData.FIELDS_TO_HIDE
+    ]
+    gui_disconnected_players_table__field_names = [
+        field_name
+        for field_name in Settings.GUI_ALL_DISCONNECTED_FIELDS
+        if field_name not in GUIrenderingData.FIELDS_TO_HIDE
+    ]
+
+    GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES = gui_connected_players_table__field_names
+    GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES = gui_disconnected_players_table__field_names
+    GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(gui_connected_players_table__field_names)
+    GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(gui_disconnected_players_table__field_names)
+
+    # Initialize GUI first - now it has all the data it needs
+    window = MainWindow(screen_width, screen_height, capture)
     window.show()
+
+    # Start background processing threads FIRST
+    rendering_core__thread = Thread(
+        target=rendering_core,
+        name='rendering_core',
+        args=(
+            capture,
+            GeoIP2Readers(
+                enabled=geoip2_enabled,
+                asn_reader=geolite2_asn_reader,
+                city_reader=geolite2_city_reader,
+                country_reader=geolite2_country_reader,
+            ),
+        ),
+        kwargs={'vpn_mode_enabled': vpn_mode_enabled},
+        daemon=True,
+    )
+    rendering_core__thread.start()
+
+    hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
+    hostname_core__thread.start()
+
+    iplookup_core__thread = Thread(target=iplookup_core, name='iplookup_core', daemon=True)
+    iplookup_core__thread.start()
+
+    pinger_core__thread = Thread(target=pinger_core, name='pinger_core', daemon=True)
+    pinger_core__thread.start()
 
     if Settings.SHOW_DISCORD_POPUP:
         # Delay the popup opening by 3 seconds

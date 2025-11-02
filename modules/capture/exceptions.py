@@ -6,13 +6,6 @@ This module contains custom exception classes for packet capture operations.
 from modules.constants.standalone import MAX_PORT, MIN_PORT
 
 
-class PacketCaptureOverflowError(Exception):
-    """Raised when packet capture time exceeds the configured overflow timer."""
-
-    def __init__(self, timeout_seconds: float) -> None:
-        super().__init__(f'Packet capture time exceeded {timeout_seconds} seconds.')
-
-
 class TSharkOutputParsingError(Exception):
     """Raised when TShark output cannot be parsed correctly."""
 
