@@ -6407,6 +6407,10 @@ class MainWindow(QMainWindow):
         SessionHost.clear_session_host_data()
         self.connected_table_model.clear_all_data()
 
+        # Reset selection count and update header
+        self._connected_selected_count = 0
+        self._update_connected_header_with_selection()
+
         if connected_ips:
             MobileWarnings.remove_notified_ips_batch(connected_ips)
             VPNWarnings.remove_notified_ips_batch(connected_ips)
@@ -6419,6 +6423,10 @@ class MainWindow(QMainWindow):
 
         PlayersRegistry.clear_disconnected_players()
         self.disconnected_table_model.clear_all_data()
+
+        # Reset selection count and update header
+        self._disconnected_selected_count = 0
+        self._update_disconnected_header_with_selection()
 
         if disconnected_ips:
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
