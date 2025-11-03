@@ -6153,16 +6153,38 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _start_window_move(self) -> None:
-        """Called when window starts moving - apply transparency."""
+        """Called when window starts moving - apply transparency and disable UI elements."""
         if not self._is_moving:
             self._is_moving = True
             self.setWindowOpacity(0.85)
 
+            # Disable UI elements for performance during window move
+            self.header_text.setEnabled(False)
+            self.connected_header_container.setEnabled(False)
+            self.connected_table_view.setEnabled(False)
+            self.disconnected_header_container.setEnabled(False)
+            self.disconnected_table_view.setEnabled(False)
+            self.tables_separator.setEnabled(False)
+            self.status_bar.setEnabled(False)
+            self.connected_expand_button.setEnabled(False)
+            self.disconnected_expand_button.setEnabled(False)
+
     def _end_window_move(self) -> None:
-        """Called when window stops moving - restore opacity."""
+        """Called when window stops moving - restore opacity and re-enable UI elements."""
         if self._is_moving:
             self._is_moving = False
             self.setWindowOpacity(1.0)
+
+            # Re-enable UI elements in reverse order
+            self.header_text.setEnabled(True)
+            self.connected_header_container.setEnabled(True)
+            self.connected_table_view.setEnabled(True)
+            self.disconnected_header_container.setEnabled(True)
+            self.disconnected_table_view.setEnabled(True)
+            self.tables_separator.setEnabled(True)
+            self.status_bar.setEnabled(True)
+            self.connected_expand_button.setEnabled(True)
+            self.disconnected_expand_button.setEnabled(True)
 
     def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
         gui_closed__event.set()  # Signal the thread to stop
