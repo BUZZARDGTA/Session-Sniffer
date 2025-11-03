@@ -6400,30 +6400,65 @@ class MainWindow(QMainWindow):
 
     def clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
-        connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
-        connected_ips = {player.ip for player in connected_players}
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle('Clear Connected Players')
+        msg_box.setText('Do you want to also remove player data from memory?')
+        msg_box.setInformativeText(
+            'Yes: Clear table AND remove all player data from memory\n'
+            'No: Only clear the table display (data remains in memory)',
+        )
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
 
-        PlayersRegistry.clear_connected_players()
+        result = msg_box.exec()
+
+        if result == QMessageBox.StandardButton.Cancel:
+            return
+
         self.connected_table_model.clear_all_data()
-        SessionHost.clear_session_host_data()
 
-        if connected_ips:
-            MobileWarnings.remove_notified_ips_batch(connected_ips)
-            VPNWarnings.remove_notified_ips_batch(connected_ips)
-            HostingWarnings.remove_notified_ips_batch(connected_ips)
+        if result == QMessageBox.StandardButton.Yes:
+            connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
+            connected_ips = {player.ip for player in connected_players}
+
+            PlayersRegistry.clear_connected_players()
+            SessionHost.clear_session_host_data()
+
+            if connected_ips:
+                MobileWarnings.remove_notified_ips_batch(connected_ips)
+                VPNWarnings.remove_notified_ips_batch(connected_ips)
+                HostingWarnings.remove_notified_ips_batch(connected_ips)
 
     def clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
-        disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
-        disconnected_ips = {player.ip for player in disconnected_players}
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle('Clear Disconnected Players')
+        msg_box.setText('Do you want to also remove player data from memory?')
+        msg_box.setInformativeText(
+            'Yes: Clear table AND remove all player data from memory\n'
+            'No: Only clear the table display (data remains in memory)',
+        )
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
 
-        PlayersRegistry.clear_disconnected_players()
+        result = msg_box.exec()
+
+        if result == QMessageBox.StandardButton.Cancel:
+            return
+
+        # Always clear the table display
         self.disconnected_table_model.clear_all_data()
 
-        if disconnected_ips:
-            MobileWarnings.remove_notified_ips_batch(disconnected_ips)
-            VPNWarnings.remove_notified_ips_batch(disconnected_ips)
-            HostingWarnings.remove_notified_ips_batch(disconnected_ips)
+        if result == QMessageBox.StandardButton.Yes:
+            disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
+            disconnected_ips = {player.ip for player in disconnected_players}
+
+            PlayersRegistry.clear_disconnected_players()
+
+            if disconnected_ips:
+                MobileWarnings.remove_notified_ips_batch(disconnected_ips)
+                VPNWarnings.remove_notified_ips_batch(disconnected_ips)
+                HostingWarnings.remove_notified_ips_batch(disconnected_ips)
 
 
 class ClickableLabel(QLabel):
