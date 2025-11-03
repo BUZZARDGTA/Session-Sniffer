@@ -6147,8 +6147,8 @@ class MainWindow(QMainWindow):
             # Detect when window move starts (non-client area mouse press - title bar)
             if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
                 self._start_window_move()
-            # Detect when window move ends (non-client area mouse release)
-            elif event.type() == QEvent.Type.NonClientAreaMouseButtonRelease:
+            # Detect when window move ends (mouse release or window loses focus)
+            elif event.type() in (QEvent.Type.NonClientAreaMouseButtonRelease, QEvent.Type.WindowDeactivate):
                 self._end_window_move()
         return super().eventFilter(obj, event)
 
