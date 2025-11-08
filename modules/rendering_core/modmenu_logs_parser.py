@@ -74,7 +74,9 @@ class ModMenuLogsParser:
             if not cls._has_log_files_changed(current_log_files_mod_times):
                 return  # No changes
 
-            print('ModMenuLogsParser: Detected changes in log files, re-parsing...')
+            # Only print the message if this isn't the initial run
+            if cls._last_known_log_files_mod_times:
+                print('ModMenuLogsParser: Detected changes in log files, re-parsing...')
 
             # Full reparse since something changed
             ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)
