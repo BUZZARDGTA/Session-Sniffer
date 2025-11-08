@@ -6134,57 +6134,68 @@ class MainWindow(QMainWindow):
         self.worker_thread.update_signal.connect(self.update_gui)  # pyright: ignore[reportUnknownMemberType]
         self.worker_thread.start()
 
-        # Track window movement for opacity effect
-        self._is_moving = False
-        self._last_window_pos = self.pos()
+        # Track window movement/dragging for opacity effect
+        self._window_being_moved = False
 
-        # Install event filter to detect window movement
+        # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
     def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
-        """Filter events to detect when window starts/stops moving."""
+        """Filter events to detect window movement."""
         if obj == self and event is not None:
-            # Detect when window move starts (non-client area mouse press - title bar)
-            if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
+            event_type = event.type()
+
+            # Detect start of window movement/dragging
+            if (
+                event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange)
+                and not self._window_being_moved
+            ):
                 self._start_window_move()
-            # Detect when window move ends (mouse release or window loses focus)
-            elif event.type() in (QEvent.Type.NonClientAreaMouseButtonRelease, QEvent.Type.WindowDeactivate):
+
+            # Detect end of window movement/dragging
+            elif (
+                event_type in (
+                    QEvent.Type.WindowActivate,
+                    QEvent.Type.WindowDeactivate,
+                    QEvent.Type.NonClientAreaMouseButtonRelease,
+                    QEvent.Type.Enter,
+                    QEvent.Type.HoverEnter,
+                )
+                and self._window_being_moved
+            ):
                 self._end_window_move()
+
         return super().eventFilter(obj, event)
 
     def _start_window_move(self) -> None:
-        """Called when window starts moving - apply transparency and disable UI elements."""
-        if not self._is_moving:
-            self._is_moving = True
-            self.setWindowOpacity(0.85)
-
-            # Disable UI elements for performance during window move
-            self.header_text.setEnabled(False)
-            self.connected_header_container.setEnabled(False)
-            self.connected_table_view.setEnabled(False)
-            self.disconnected_header_container.setEnabled(False)
-            self.disconnected_table_view.setEnabled(False)
-            self.tables_separator.setEnabled(False)
-            self.status_bar.setEnabled(False)
-            self.connected_expand_button.setEnabled(False)
-            self.disconnected_expand_button.setEnabled(False)
+        """Apply transparency when window movement/dragging starts."""
+        self._window_being_moved = True
+        self.setWindowOpacity(0.85)
+        # Disable UI elements
+        self.header_text.setEnabled(False)
+        self.connected_header_container.setEnabled(False)
+        self.connected_table_view.setEnabled(False)
+        self.disconnected_header_container.setEnabled(False)
+        self.disconnected_table_view.setEnabled(False)
+        self.tables_separator.setEnabled(False)
+        self.status_bar.setEnabled(False)
+        self.connected_expand_button.setEnabled(False)
+        self.disconnected_expand_button.setEnabled(False)
 
     def _end_window_move(self) -> None:
-        """Called when window stops moving - restore opacity and re-enable UI elements."""
-        if self._is_moving:
-            self._is_moving = False
-            self.setWindowOpacity(1.0)
-
-            # Re-enable UI elements in reverse order
-            self.header_text.setEnabled(True)
-            self.connected_header_container.setEnabled(True)
-            self.connected_table_view.setEnabled(True)
-            self.disconnected_header_container.setEnabled(True)
-            self.disconnected_table_view.setEnabled(True)
-            self.tables_separator.setEnabled(True)
-            self.status_bar.setEnabled(True)
-            self.connected_expand_button.setEnabled(True)
-            self.disconnected_expand_button.setEnabled(True)
+        """Restore opacity and re-enable UI elements after window movement/dragging ends."""
+        self._window_being_moved = False
+        self.setWindowOpacity(1.0)
+        # Re-enable UI elements
+        self.header_text.setEnabled(True)
+        self.connected_header_container.setEnabled(True)
+        self.connected_table_view.setEnabled(True)
+        self.disconnected_header_container.setEnabled(True)
+        self.disconnected_table_view.setEnabled(True)
+        self.tables_separator.setEnabled(True)
+        self.status_bar.setEnabled(True)
+        self.connected_expand_button.setEnabled(True)
+        self.disconnected_expand_button.setEnabled(True)
 
     def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
         gui_closed__event.set()  # Signal the thread to stop
