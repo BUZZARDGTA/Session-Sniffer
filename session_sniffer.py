@@ -4632,7 +4632,7 @@ class SessionTableModel(QAbstractTableModel):
         """Get the table index of a specified column.
 
         Args:
-            column_name: The column name to look for.
+            column_name (str): The column name to look for.
 
         Returns:
             The table column index.
