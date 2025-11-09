@@ -48,6 +48,20 @@
             }
         },
         {
+            "label": "🔄 Update Dependencies",
+            "type": "shell",
+            "command": "powershell.exe",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/update_dependencies.ps1"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new",
+                "clear": true
+            }
+        },
+        {
             "label": "⚡ Ruff - Fast Python Linter",
             "type": "shell",
             "command": "powershell.exe",
