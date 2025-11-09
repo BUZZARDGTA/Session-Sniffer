@@ -1,6 +1,6 @@
 [project]
 name = "session_sniffer"
-version = "v1.4.2.pre1+20251108.2259"
+version = "v1.4.2.pre1+20251109.0919"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
@@ -8,7 +8,7 @@ dependencies = [
     "packaging==25.0",
     "prettytable==3.16.0",
     "psutil==7.1.3",
-    "pydantic==2.12.3",
+    "pydantic==2.12.4",
     "pypresence==4.6.1",
     "PyQt6==6.8.1",
     "pywin32==311; platform_system == 'Windows'",
