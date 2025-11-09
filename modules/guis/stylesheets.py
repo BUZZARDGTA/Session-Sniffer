@@ -124,6 +124,7 @@ QPushButton {
     min-height: 24px;
     max-height: 24px;
     margin-left: 5px;
+    margin-right: 2px;
 }
 
 QPushButton:hover {
