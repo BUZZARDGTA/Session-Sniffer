@@ -8,13 +8,8 @@ from queue import SimpleQueue
 from threading import Event, Thread
 
 import sentinel  # pyright: ignore[reportMissingTypeStubs]
-from pypresence import (  # pyright: ignore[reportMissingTypeStubs]
-    DiscordNotFound,
-    PipeClosed,
-    Presence,
-    ResponseTimeout,
-    exceptions,
-)
+from pypresence import exceptions
+from pypresence.presence import Presence
 
 from modules.utils import format_type_error
 
@@ -94,7 +89,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
         if not connection_status.is_set():
             try:
                 rpc.connect()
-            except (DiscordNotFound, exceptions.DiscordError):
+            except (exceptions.DiscordNotFound, exceptions.DiscordError):
                 continue
             else:
                 connection_status.set()
@@ -106,5 +101,5 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 start=START_TIME_INT,
                 buttons=DISCORD_RPC_BUTTONS,
             )
-        except (PipeClosed, ResponseTimeout):
+        except (exceptions.PipeClosed, exceptions.ResponseTimeout):
             connection_status.clear()
