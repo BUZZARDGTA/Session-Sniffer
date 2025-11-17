@@ -32,7 +32,7 @@ class InterfaceSelectionData(NamedTuple):
     ip_address: str
     mac_address: str
     organization_name: Literal['N/A'] | str  # noqa: PYI051
-    is_arp: bool = False
+    is_external_device: bool = False
 
 
 class SafeQTableWidget(QTableWidget):
@@ -114,7 +114,7 @@ class InterfaceSelectionDialog(QDialog):
         for idx, interface in enumerate(self.interfaces):
             self.table.insertRow(idx)
 
-            item = QTableWidgetItem(str(interface.name) if not interface.is_arp else f'{interface.name} (ARP)')
+            item = QTableWidgetItem(str(interface.name) if not interface.is_external_device else f'{interface.name} (External Device)')
             self.table.setItem(idx, 0, item)
 
             item = QTableWidgetItem(str(interface.description))

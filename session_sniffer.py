@@ -517,7 +517,7 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     CAPTURE_INTERFACE_NAME: str | None = None
     CAPTURE_IP_ADDRESS: str | None = None
     CAPTURE_MAC_ADDRESS: str | None = None
-    CAPTURE_ARP: bool = True
+    CAPTURE_EXTERNAL_DEVICES: bool = True
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: bool = True
     CAPTURE_PROGRAM_PRESET: str | None = None
     CAPTURE_OVERFLOW_TIMER: float = 3.0
@@ -546,7 +546,7 @@ class Settings(DefaultSettings):
         'CAPTURE_INTERFACE_NAME',
         'CAPTURE_IP_ADDRESS',
         'CAPTURE_MAC_ADDRESS',
-        'CAPTURE_ARP',
+        'CAPTURE_EXTERNAL_DEVICES',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_PROGRAM_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
@@ -836,9 +836,9 @@ class Settings(DefaultSettings):
                             Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address  # pyright: ignore[reportConstantRedefinition]
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_ARP':
+                elif setting_name == 'CAPTURE_EXTERNAL_DEVICES':
                     try:
-                        Settings.CAPTURE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.CAPTURE_EXTERNAL_DEVICES, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_BLOCK_THIRD_PARTY_SERVERS':
@@ -1010,7 +1010,7 @@ class Settings(DefaultSettings):
             cls.reconstruct_settings()
 
 
-class ARPEntry(NamedTuple):
+class ExternalDeviceEntry(NamedTuple):
     ip_address: str
     mac_address: str
     organization_name: str | None = None
@@ -1028,19 +1028,19 @@ class Interface:
     packets_recv: int | None = None
     descriptions: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    external_devices: list[ExternalDeviceEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
-    def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
-        """Add an ARP entry for the given interface."""
-        if arp_entry in self.arp_entries:
+    def add_external_device(self, external_device: ExternalDeviceEntry) -> bool:
+        """Add an external device entry for the given interface."""
+        if external_device in self.external_devices:
             return False
 
-        self.arp_entries.append(arp_entry)
+        self.external_devices.append(external_device)
         return True
 
-    def get_arp_entries(self) -> list[ARPEntry]:
-        """Get ARP entries for the given interface."""
-        return self.arp_entries
+    def get_external_devices(self) -> list[ExternalDeviceEntry]:
+        """Get external device entries for the given interface."""
+        return self.external_devices
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
@@ -1055,7 +1055,7 @@ class Interface:
             and self.packets_recv in {None, 0}
             and not self.descriptions
             and not self.ip_addresses
-            and not self.arp_entries
+            and not self.external_devices
         )
 
     # ─────────────────────────────────────────────────────────────
@@ -2312,8 +2312,8 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             interface.update_packets_sent(interface_stats.packets_sent)
             interface.update_packets_recv(interface_stats.packets_recv)
 
-    def _populate_arp_cache_details() -> None:
-        """Populate ARP cache information for each interface."""
+    def _populate_external_device_details() -> None:
+        """Populate external device information for each interface."""
         for interface_index, ip_address, mac_address in iterate_project_network_neighbor_details():
             interface = AllInterfaces.get_interface(interface_index)
             if not interface:
@@ -2325,12 +2325,12 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             if (
                 validated_ip_address is None
                 or validated_and_formatted_mac_address is None
-                or validated_and_formatted_mac_address in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Skip ARP entries with known placeholder MAC addresses
+                or validated_and_formatted_mac_address in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Skip external device entries with placeholder MAC addresses
                 or not is_valid_non_special_ipv4(validated_ip_address)
             ):
                 continue
 
-            interface.add_arp_entry(ARPEntry(
+            interface.add_external_device(ExternalDeviceEntry(
                 ip_address=validated_ip_address,
                 mac_address=validated_and_formatted_mac_address,
                 organization_name=mac_lookup.get_mac_address_organization_name(validated_and_formatted_mac_address) or 'N/A',
@@ -2341,8 +2341,8 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
     _populate_network_ip_details()
     _populate_legacy_network_ip_details()
     _update_network_io_stats()
-    if Settings.CAPTURE_ARP:
-        _populate_arp_cache_details()
+    if Settings.CAPTURE_EXTERNAL_DEVICES:
+        _populate_external_device_details()
 
 
 def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
@@ -4101,7 +4101,7 @@ def rendering_core(
                 avg_latency_rounded = 0.0
 
             is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-            is_arp_enabled = 'Enabled' if capture.interface.is_arp else 'Disabled'
+            is_external_device_capture_enabled = 'Enabled' if capture.interface.is_external_device else 'Disabled'
             displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
 
             invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
@@ -4122,11 +4122,11 @@ def rendering_core(
             )
 
             # Configuration section
-            arp_color = '#a3be8c' if is_arp_enabled == 'Enabled' else '#bf616a'
+            external_device_color = '#a3be8c' if is_external_device_capture_enabled == 'Enabled' else '#bf616a'
             vpn_color = '#a3be8c' if is_vpn_mode_enabled == 'Enabled' else '#bf616a'
             config_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">⚙️ Config:</span> '
-                f'<span style="color: #d08770;">ARP:</span> <span style="color: {arp_color};">{is_arp_enabled}</span> '
+                f'<span style="color: #d08770;">External Devices:</span> <span style="color: {external_device_color};">{is_external_device_capture_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">VPN:</span> <span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
@@ -6747,13 +6747,13 @@ if __name__ == '__main__':
                 packets_sent, packets_recv, 'N/A', mac_address, manufacturer,
             ))
 
-        if Settings.CAPTURE_ARP:
-            for arp_entry in interface.get_arp_entries():
-                organization_name = 'N/A' if arp_entry.organization_name is None else arp_entry.organization_name
+        if Settings.CAPTURE_EXTERNAL_DEVICES:
+            for external_device in interface.get_external_devices():
+                organization_name = 'N/A' if external_device.organization_name is None else external_device.organization_name
 
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
-                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, organization_name, is_arp=True,
+                    'N/A', 'N/A', external_device.ip_address, external_device.mac_address, organization_name, is_external_device=True,
                 ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
