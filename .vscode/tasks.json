@@ -48,10 +48,10 @@
             }
         },
         {
-            "label": "🔄 Update Dependencies",
+            "label": "🔄 Check Dependencies",
             "type": "shell",
             "command": "powershell.exe",
-            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/update_dependencies.ps1"],
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/check_dependencies.ps1"],
             "group": "build",
             "presentation": {
                 "echo": true,
