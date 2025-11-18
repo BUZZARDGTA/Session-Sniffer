@@ -70,7 +70,7 @@ ignore = [
 
 [tool.pylint.master]
 enable = "all"
-extension-pkg-whitelist = "PyQt6"
+extension-pkg-allow-list = ["PyQt6"]
 ignore = [
     ".dev",
     ".history",
