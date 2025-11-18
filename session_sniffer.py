@@ -1636,6 +1636,32 @@ class PlayersRegistry:
         with cls._registry_lock:
             cls._disconnected_players_registry.clear()
 
+    @classmethod
+    def remove_connected_player(cls, ip: str) -> Player | None:
+        """Remove a connected player from the registry by IP address.
+
+        Args:
+            ip (str): The IP address of the player to remove.
+
+        Returns:
+            Player|None: The removed player object if found, otherwise `None`.
+        """
+        with cls._registry_lock:
+            return cls._connected_players_registry.pop(ip, None)
+
+    @classmethod
+    def remove_disconnected_player(cls, ip: str) -> Player | None:
+        """Remove a disconnected player from the registry by IP address.
+
+        Args:
+            ip (str): The IP address of the player to remove.
+
+        Returns:
+            Player|None: The removed player object if found, otherwise `None`.
+        """
+        with cls._registry_lock:
+            return cls._disconnected_players_registry.pop(ip, None)
+
 
 class SessionHost:
     player: ClassVar[Player | None] = None
@@ -4811,6 +4837,24 @@ class SessionTableModel(QAbstractTableModel):
         self._compiled_colors = []
         self.endResetModel()
 
+    def remove_player_by_ip(self, ip: str) -> None:
+        """Remove a single player row from the table by IP address.
+
+        Args:
+            ip (str): The IP address of the player to remove.
+        """
+        # Find the row containing this IP address
+        for row_idx, row_data in enumerate(self._data):
+            row_ip = self.get_ip_from_data_safely(row_data)
+            if row_ip == ip:
+                # Remove the row
+                self.beginRemoveRows(QModelIndex(), row_idx, row_idx)
+                self._data.pop(row_idx)
+                if row_idx < len(self._compiled_colors):
+                    self._compiled_colors.pop(row_idx)
+                self.endRemoveRows()
+                break
+
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""
         self.layoutAboutToBeChanged.emit()
@@ -4818,9 +4862,10 @@ class SessionTableModel(QAbstractTableModel):
 
 
 class SessionTableView(QTableView):
-    def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder) -> None:
+    def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder, *, is_connected_table: bool) -> None:
         super().__init__()
 
+        self._is_connected_table = is_connected_table  # Store which table type this is
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
         self._previous_sort_section_index: int | None = None
@@ -5143,6 +5188,37 @@ class SessionTableView(QTableView):
         )
         context_menu.addSeparator()
 
+        # Add "Remove Player" action if all selected cells are in IP Address column
+        if selected_indexes and all(  # Check if all selected cells are in the IP Address column
+            selected_model.headerData(idx.column(), Qt.Orientation.Horizontal) == 'IP Address'
+            for idx in selected_indexes
+        ):
+            ips_to_remove: set[str] = set()
+            for idx in selected_indexes:
+                displayed_ip = selected_model.get_display_text(idx)
+                if displayed_ip and displayed_ip not in ips_to_remove:
+                    ips_to_remove.add(displayed_ip)
+
+            if ips_to_remove:
+                # Use singular or plural label based on count
+                if len(ips_to_remove) == 1:
+                    label = '🗑️ Remove Player'
+                    tooltip = 'Remove this player from the table and registry.'
+                else:
+                    label = f'🗑️ Remove {len(ips_to_remove)} Players'
+                    tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
+
+                def create_remove_handler(ip_list: set[str]) -> Callable[[], None]:
+                    return lambda: self.remove_players_by_ip_from_table(ip_list)
+
+                add_action(
+                    context_menu,
+                    label,
+                    tooltip=tooltip,
+                    handler=create_remove_handler(ips_to_remove),
+                )
+        context_menu.addSeparator()
+
         # "Select" submenu
         select_menu = add_menu(context_menu, 'Select  ')
         add_action(
@@ -5365,6 +5441,24 @@ class SessionTableView(QTableView):
 
         # Set the formatted text in the system clipboard
         clipboard.setText(clipboard_content)
+
+    def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
+        """Remove multiple players from the table by calling the appropriate `MainWindow` method.
+
+        Args:
+            ips (set[str]): Set of IP addresses of the players to remove.
+        """
+        # Get the MainWindow instance
+        main_window = self.window()
+        if not isinstance(main_window, MainWindow):
+            return
+
+        # Remove each player
+        for ip in ips:
+            if self._is_connected_table:
+                main_window.remove_player_from_connected(ip)
+            else:
+                main_window.remove_player_from_disconnected(ip)
 
     def show_detailed_ip_lookup_player_cell(self, player: Player) -> None:
         QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
@@ -5942,6 +6036,7 @@ class MainWindow(QMainWindow):
             self.connected_table_model,
             GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Rejoin'),
             Qt.SortOrder.DescendingOrder,
+            is_connected_table=True,
         )
         self.connected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.connected_table_view.setup_static_column_resizing()
@@ -6004,6 +6099,7 @@ class MainWindow(QMainWindow):
             self.disconnected_table_model,
             GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Seen'),
             Qt.SortOrder.AscendingOrder,
+            is_connected_table=False,
         )
         self.disconnected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.disconnected_table_view.setup_static_column_resizing()
@@ -6465,6 +6561,50 @@ class MainWindow(QMainWindow):
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
             VPNWarnings.remove_notified_ips_batch(disconnected_ips)
             HostingWarnings.remove_notified_ips_batch(disconnected_ips)
+
+    def remove_player_from_connected(self, ip: str) -> None:
+        """Remove a single player from connected table and registry by IP address."""
+        removed_player = PlayersRegistry.remove_connected_player(ip)
+        if removed_player is None:
+            return
+
+        # Remove from session host if this was the host
+        if SessionHost.player and SessionHost.player.ip == ip:
+            SessionHost.player = None
+            SessionHost.search_player = True
+
+        # Remove from pending disconnection list
+        SessionHost.players_pending_for_disconnection = [
+            p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
+        ]
+
+        # Remove from table model
+        self.connected_table_model.remove_player_by_ip(ip)
+
+        # Update header
+        self._update_connected_header_with_selection()
+
+        # Remove from warning tracking
+        MobileWarnings.remove_notified_ip(ip)
+        VPNWarnings.remove_notified_ip(ip)
+        HostingWarnings.remove_notified_ip(ip)
+
+    def remove_player_from_disconnected(self, ip: str) -> None:
+        """Remove a single player from disconnected table and registry by IP address."""
+        removed_player = PlayersRegistry.remove_disconnected_player(ip)
+        if removed_player is None:
+            return
+
+        # Remove from table model
+        self.disconnected_table_model.remove_player_by_ip(ip)
+
+        # Update header
+        self._update_disconnected_header_with_selection()
+
+        # Remove from warning tracking
+        MobileWarnings.remove_notified_ip(ip)
+        VPNWarnings.remove_notified_ip(ip)
+        HostingWarnings.remove_notified_ip(ip)
 
 
 class ClickableLabel(QLabel):
