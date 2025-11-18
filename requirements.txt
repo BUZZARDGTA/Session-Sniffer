@@ -2,7 +2,7 @@ colorama==0.4.6
 dnspython==2.8.0
 geoip2==5.1.0
 packaging==25.0
-prettytable==3.16.0
+prettytable==3.17.0
 psutil==7.1.3
 pydantic==2.12.4
 pypresence==4.6.1
