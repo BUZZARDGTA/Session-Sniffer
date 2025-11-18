@@ -31,7 +31,7 @@ class InterfaceSelectionData(NamedTuple):
     packets_recv: Literal['N/A'] | int
     ip_address: str
     mac_address: str
-    organization_name: Literal['N/A'] | str  # noqa: PYI051
+    vendor_name: Literal['N/A'] | str  # noqa: PYI051
     is_external_device: bool = False
 
 
@@ -88,7 +88,7 @@ class InterfaceSelectionDialog(QDialog):
         # Table widget for displaying interfaces
         self.table = SafeQTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(  # pyright: ignore[reportUnknownMemberType]
-            ['Name', 'Description', 'Packets Sent', 'Packets Received', 'IP Address', 'MAC Address', 'Organization Name'],
+            ['Name', 'Description', 'Packets Sent', 'Packets Received', 'IP Address', 'MAC Address', 'Vendor Name'],
         )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -114,7 +114,7 @@ class InterfaceSelectionDialog(QDialog):
         for idx, interface in enumerate(self.interfaces):
             self.table.insertRow(idx)
 
-            item = QTableWidgetItem(str(interface.name) if not interface.is_external_device else f'{interface.name} (External Device)')
+            item = QTableWidgetItem(str(interface.name) if not interface.is_external_device else f'{interface.name} (ARP)')
             self.table.setItem(idx, 0, item)
 
             item = QTableWidgetItem(str(interface.description))
@@ -135,7 +135,7 @@ class InterfaceSelectionDialog(QDialog):
             item = QTableWidgetItem(str(interface.mac_address))
             self.table.setItem(idx, 5, item)
 
-            item = QTableWidgetItem(str(interface.organization_name))
+            item = QTableWidgetItem(str(interface.vendor_name))
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(idx, 6, item)
 

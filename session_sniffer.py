@@ -156,13 +156,17 @@ from modules.models import (
     IpApiResponse,
 )
 from modules.msgbox import MsgBox
+from modules.networking.ctypes_adapters_info import (
+    GetAdaptersAddressesError,
+    get_adapters_info,
+)
 from modules.networking.endpoint_ping_manager import (
     PingResult,
     fetch_and_parse_ping,
 )
 from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
-    NetworkInterfaceStateMismatchError,
+    InterfaceAlreadyExistsError,
 )
 from modules.networking.http_session import s
 from modules.networking.manuf_lookup import MacLookup
@@ -173,13 +177,6 @@ from modules.networking.utils import (
     is_mac_address,
     is_private_device_ipv4,
     is_valid_non_special_ipv4,
-)
-from modules.networking.wmi_utils import (
-    iterate_project_legacy_network_adapter_details,
-    iterate_project_legacy_network_ip_details,
-    iterate_project_network_adapter_details,
-    iterate_project_network_ip_details,
-    iterate_project_network_neighbor_details,
 )
 from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from modules.utils import (
@@ -517,7 +514,7 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     CAPTURE_INTERFACE_NAME: str | None = None
     CAPTURE_IP_ADDRESS: str | None = None
     CAPTURE_MAC_ADDRESS: str | None = None
-    CAPTURE_EXTERNAL_DEVICES: bool = True
+    CAPTURE_ARP: bool = True
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: bool = True
     CAPTURE_PROGRAM_PRESET: str | None = None
     CAPTURE_OVERFLOW_TIMER: float = 3.0
@@ -546,7 +543,7 @@ class Settings(DefaultSettings):
         'CAPTURE_INTERFACE_NAME',
         'CAPTURE_IP_ADDRESS',
         'CAPTURE_MAC_ADDRESS',
-        'CAPTURE_EXTERNAL_DEVICES',
+        'CAPTURE_ARP',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_PROGRAM_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
@@ -836,9 +833,9 @@ class Settings(DefaultSettings):
                             Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address  # pyright: ignore[reportConstantRedefinition]
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_EXTERNAL_DEVICES':
+                elif setting_name == 'CAPTURE_ARP':
                     try:
-                        Settings.CAPTURE_EXTERNAL_DEVICES, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.CAPTURE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_BLOCK_THIRD_PARTY_SERVERS':
@@ -1010,37 +1007,37 @@ class Settings(DefaultSettings):
             cls.reconstruct_settings()
 
 
-class ExternalDeviceEntry(NamedTuple):
+class ARPEntry(NamedTuple):
     ip_address: str
     mac_address: str
-    organization_name: str | None = None
+    vendor_name: str | None = None
 
 
 @dataclass(kw_only=True, slots=True)
 class Interface:
     index: int
-    ip_enabled: bool | None = None
-    state: int | None = None
-    name: str | None = None
-    mac_address: str | None = None
-    manufacturer: str | None = None
-    packets_sent: int | None = None
-    packets_recv: int | None = None
-    descriptions: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    ip_enabled: bool
+    state: int
+    name: str
+    packets_sent: int
+    packets_recv: int
+    description: str
     ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    external_devices: list[ExternalDeviceEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    mac_address: str | None
+    vendor_name: str | None
 
-    def add_external_device(self, external_device: ExternalDeviceEntry) -> bool:
-        """Add an external device entry for the given interface."""
-        if external_device in self.external_devices:
+    def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
+        """Add an ARP entry for the given interface."""
+        if arp_entry in self.arp_entries:
             return False
 
-        self.external_devices.append(external_device)
+        self.arp_entries.append(arp_entry)
         return True
 
-    def get_external_devices(self) -> list[ExternalDeviceEntry]:
-        """Get external device entries for the given interface."""
-        return self.external_devices
+    def get_arp_entries(self) -> list[ARPEntry]:
+        """Get ARP entries for the given interface."""
+        return self.arp_entries
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
@@ -1050,101 +1047,12 @@ class Interface:
 
         # Check if all identifying details and traffic data are missing
         return (
-            self.mac_address is None
-            and self.packets_sent in {None, 0}
-            and self.packets_recv in {None, 0}
-            and not self.descriptions
+            not self.packets_sent
+            and not self.packets_recv
+            and not self.description
             and not self.ip_addresses
-            and not self.external_devices
+            and not self.arp_entries
         )
-
-    # ─────────────────────────────────────────────────────────────
-    # Update/Add Methods
-    # ─────────────────────────────────────────────────────────────
-
-    def update_ip_enabled(self, *, new_value: bool | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.ip_enabled is not None and self.ip_enabled != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='ip_enabled', existing_value=self.ip_enabled, new_value=new_value)
-        self.ip_enabled = new_value
-        return True
-
-    def update_state(self, new_value: int | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.state is not None and self.state != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='state', existing_value=self.state, new_value=new_value)
-        self.state = new_value
-        return True
-
-    def update_name(self, new_value: str | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.name is not None and self.name != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='name', existing_value=self.name, new_value=new_value)
-        self.name = new_value
-        return True
-
-    def update_mac_address(self, new_value: str | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.mac_address is not None and self.mac_address != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='mac_address', existing_value=self.mac_address, new_value=new_value)
-        self.mac_address = new_value
-        return True
-
-    def update_manufacturer(self, new_value: str | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.manufacturer is not None and self.manufacturer != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='manufacturer', existing_value=self.manufacturer, new_value=new_value)
-        self.manufacturer = new_value
-        return True
-
-    def update_packets_sent(self, new_value: int | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.packets_sent is not None and self.packets_sent != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='packets_sent', existing_value=self.packets_sent, new_value=new_value)
-        self.packets_sent = new_value
-        return True
-
-    def update_packets_recv(self, new_value: int | None) -> bool:
-        if new_value is None:
-            return False
-
-        if self.packets_recv is not None and self.packets_recv != new_value:
-            raise NetworkInterfaceStateMismatchError(field_name='packets_recv', existing_value=self.packets_recv, new_value=new_value)
-        self.packets_recv = new_value
-        return True
-
-    def add_description(self, new_value: str | None) -> bool:
-        if new_value is None:
-            return False
-
-        normalized_new = new_value.casefold()
-        if normalized_new not in {desc.casefold() for desc in self.descriptions}:
-            self.descriptions.append(new_value)
-            return True
-
-        return False
-
-    def add_ip_address(self, new_value: str | None) -> bool:
-        if new_value is None:
-            return False
-
-        if new_value not in self.ip_addresses:
-            self.ip_addresses.append(new_value)
-            return True
-
-        return False
 
 
 class AllInterfaces:
@@ -1192,21 +1100,25 @@ class AllInterfaces:
         return None
 
     @classmethod
-    def add_interface(cls, new_interface: Interface) -> bool:
-        """Add a new interface to the dictionary if it doesn't already exist.
+    def add_interface(cls, new_interface: Interface) -> Interface:
+        """Add a new interface to the registry or raise if it exists.
 
         Args:
             new_interface (Interface): The interface object to add.
 
         Returns:
-            bool: `True` if the interface was added, `False` if it already exists.
+            Interface: The added interface.
+
+        Raises:
+            InterfaceAlreadyExistsError: If an interface with the same index already exists.
         """
-        if new_interface.index not in cls.all_interfaces:
-            cls.all_interfaces[new_interface.index] = new_interface
-            if new_interface.name:
-                cls._name_map[new_interface.name.casefold()] = new_interface.index
-            return True
-        return False
+        if new_interface.index in cls.all_interfaces:
+            raise InterfaceAlreadyExistsError(new_interface.index, new_interface.name)
+
+        cls.all_interfaces[new_interface.index] = new_interface
+        if new_interface.name:
+            cls._name_map[new_interface.name.casefold()] = new_interface.index
+        return new_interface
 
     @classmethod
     def delete_interface(cls, index: int) -> bool:
@@ -2200,175 +2112,47 @@ def check_for_updates() -> None:
 
 def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
     """Populate the AllInterfaces collection with network interface details."""
-    def validate_and_format_mac_address(mac_address: str | None) -> str | None:
-        """Validate the MAC address, ensuring it is in the correct format."""
-        if mac_address is None or not mac_address:
-            return None
+    try:
+        adapters = list(get_adapters_info())
+    except GetAdaptersAddressesError as e:
+        print(f'Error retrieving adapter information: {e}', file=sys.stderr)
+        sys.exit(1)
 
-        formatted_mac_address = format_mac_address(mac_address)
-        if not is_mac_address(formatted_mac_address):
-            stdout_crash_text = format_triple_quoted_text(f"""
-                ERROR:
-                    Developer didn't expect this scenario to be possible.
+    if not adapters:
+        return
 
-                INFOS:
-                    The value does not appear to be a valid MAC address.
+    for adapter in adapters:
+        if adapter.mac_address is None:
+            continue
 
-                DEBUG:
-                    mac_address={mac_address}
-                    formatted_mac_address={formatted_mac_address}
-            """)
-            terminate_script('EXIT', stdout_crash_text, stdout_crash_text)
+        interface = AllInterfaces.add_interface(Interface(
+            index=adapter.interface_index,
+            ip_enabled=adapter.ip_enabled,
+            state=adapter.operational_status,
+            name=adapter.friendly_name,
+            mac_address=adapter.mac_address,
+            packets_sent=adapter.packets_sent,
+            packets_recv=adapter.packets_recv,
+            description=adapter.description,
+            ip_addresses=adapter.ipv4_addresses,
+            vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address),
+        ))
 
-        return formatted_mac_address
+        if Settings.CAPTURE_ARP:
+            for neighbor_ip, neighbor_mac in adapter.neighbors:
+                if (
+                    not neighbor_ip or not neighbor_mac
+                    or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
+                    or not is_valid_non_special_ipv4(neighbor_ip)
+                ):
+                    continue
 
-    def validate_ip_address(ip_address: str | None) -> str | None:
-        """Validate the IP address, ensuring it is a valid IPv4 address."""
-        if ip_address is None or not ip_address:
-            return None
-
-        if not is_ipv4_address(ip_address):
-            stdout_crash_text = format_triple_quoted_text(f"""
-                ERROR:
-                    Developer didn't expect this scenario to be possible.
-
-                INFOS:
-                    The value does not appear to be a valid IPv4 address.
-
-                DEBUG:
-                    ip_address={ip_address}
-            """)
-            terminate_script('EXIT', stdout_crash_text, stdout_crash_text)
-
-        return ip_address
-
-    def _populate_network_adapter_details() -> None:
-        """Populate AllInterfaces collection with network adapter details from MSFT_NetAdapter."""
-        for interface_index, name, interface_description, state in iterate_project_network_adapter_details():
-            interface = AllInterfaces.get_interface(interface_index)
-            if not interface:
-                AllInterfaces.add_interface(Interface(
-                    index=interface_index,
-                    state=state,
-                    name=name,
-                    descriptions=[interface_description] if interface_description is not None else [],
+                vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
+                interface.add_arp_entry(ARPEntry(
+                    ip_address=neighbor_ip,
+                    mac_address=neighbor_mac,
+                    vendor_name=vendor_name,
                 ))
-                continue
-
-            interface.update_state(state)
-            interface.update_name(name)
-            interface.add_description(interface_description)
-
-    def _populate_legacy_network_adapter_details() -> None:
-        """Populate AllInterfaces collection with legacy network adapter details."""
-        for interface_index, net_connection_id, description, mac_address, manufacturer in iterate_project_legacy_network_adapter_details():
-            validated_and_formatted_mac_address = validate_and_format_mac_address(mac_address)
-
-            interface = AllInterfaces.get_interface(interface_index)
-            if not interface:
-                AllInterfaces.add_interface(Interface(
-                    index=interface_index,
-                    name=net_connection_id,
-                    mac_address=validated_and_formatted_mac_address,
-                    manufacturer=manufacturer,
-                    descriptions=[description] if description is not None else [],
-                ))
-                continue
-
-            interface.update_name(net_connection_id)
-            interface.update_mac_address(validated_and_formatted_mac_address)
-            interface.update_manufacturer(manufacturer)
-            interface.add_description(description)
-
-    def _populate_network_ip_details() -> None:
-        """Populate AllInterfaces collection with network IP address details."""
-        for interface_index, interface_alias, ipv4_address in iterate_project_network_ip_details():
-            validated_ip_address = validate_ip_address(ipv4_address)
-
-            interface = AllInterfaces.get_interface(interface_index)
-            if not interface:
-                AllInterfaces.add_interface(Interface(
-                    index=interface_index,
-                    name=interface_alias,
-                    ip_addresses=[validated_ip_address] if validated_ip_address else [],
-                ))
-                continue
-
-            interface.update_name(interface_alias)
-            interface.add_ip_address(validated_ip_address)
-
-    def _populate_legacy_network_ip_details() -> None:
-        """Populate AllInterfaces collection with legacy network IP address details."""
-        for interface_index, description, mac_address, ip_address, ip_enabled in iterate_project_legacy_network_ip_details():
-            validated_ip_addresses = [
-                validated_ip_address
-                for ip in dedup_preserve_order(
-                    [ip for ip in ip_address if is_ipv4_address(ip)]
-                    if ip_address is not None else [],
-                )
-                if (validated_ip_address := validate_ip_address(ip))
-            ]
-            validated_and_formatted_mac_address = validate_and_format_mac_address(mac_address)
-
-            interface = AllInterfaces.get_interface(interface_index)
-            if not interface:
-                AllInterfaces.add_interface(Interface(
-                    index=interface_index,
-                    ip_enabled=ip_enabled,
-                    mac_address=validated_and_formatted_mac_address,
-                    ip_addresses=validated_ip_addresses,
-                    descriptions=[description] if description is not None else [],
-                ))
-                continue
-
-            interface.update_ip_enabled(new_value=ip_enabled)
-            interface.update_mac_address(validated_and_formatted_mac_address)
-            interface.add_description(description)
-            for ip in validated_ip_addresses:
-                interface.add_ip_address(ip)
-
-    def _update_network_io_stats() -> None:
-        """Update network interface statistics like packets sent and received."""
-        net_io_stats = psutil.net_io_counters(pernic=True)
-        for interface_name, interface_stats in net_io_stats.items():
-            interface = AllInterfaces.get_interface_by_name(interface_name)
-            if not interface:
-                continue
-
-            interface.update_packets_sent(interface_stats.packets_sent)
-            interface.update_packets_recv(interface_stats.packets_recv)
-
-    def _populate_external_device_details() -> None:
-        """Populate external device information for each interface."""
-        for interface_index, ip_address, mac_address in iterate_project_network_neighbor_details():
-            interface = AllInterfaces.get_interface(interface_index)
-            if not interface:
-                continue
-
-            validated_ip_address = validate_ip_address(ip_address)
-            validated_and_formatted_mac_address = validate_and_format_mac_address(mac_address)
-
-            if (
-                validated_ip_address is None
-                or validated_and_formatted_mac_address is None
-                or validated_and_formatted_mac_address in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Skip external device entries with placeholder MAC addresses
-                or not is_valid_non_special_ipv4(validated_ip_address)
-            ):
-                continue
-
-            interface.add_external_device(ExternalDeviceEntry(
-                ip_address=validated_ip_address,
-                mac_address=validated_and_formatted_mac_address,
-                organization_name=mac_lookup.get_mac_address_organization_name(validated_and_formatted_mac_address) or 'N/A',
-            ))
-
-    _populate_network_adapter_details()
-    _populate_legacy_network_adapter_details()
-    _populate_network_ip_details()
-    _populate_legacy_network_ip_details()
-    _update_network_io_stats()
-    if Settings.CAPTURE_EXTERNAL_DEVICES:
-        _populate_external_device_details()
 
 
 def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
@@ -4152,7 +3936,7 @@ def rendering_core(
             vpn_color = '#a3be8c' if is_vpn_mode_enabled == 'Enabled' else '#bf616a'
             config_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">⚙️ Config:</span> '
-                f'<span style="color: #d08770;">External Devices:</span> <span style="color: {external_device_color};">{is_external_device_capture_enabled}</span> '
+                f'<span style="color: #d08770;">ARP:</span> <span style="color: {external_device_color};">{is_external_device_capture_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">VPN:</span> <span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
@@ -6861,39 +6645,38 @@ if __name__ == '__main__':
     for interface in tshark_interfaces:
         if (
             Settings.CAPTURE_INTERFACE_NAME is not None
-            and interface.name is not None
             and interface.name.casefold() == Settings.CAPTURE_INTERFACE_NAME.casefold()
             and interface.name != Settings.CAPTURE_INTERFACE_NAME
         ):
             Settings.CAPTURE_INTERFACE_NAME = interface.name
             Settings.reconstruct_settings()
 
-        manufacturer = 'N/A' if interface.manufacturer is None else interface.manufacturer
-        packets_sent: Literal['N/A'] | int = 'N/A' if interface.packets_sent is None else interface.packets_sent
-        packets_recv: Literal['N/A'] | int = 'N/A' if interface.packets_recv is None else interface.packets_recv
-        interface_name = interface.name if interface.name is not None else 'Unknown Interface'
+        vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
+        packets_sent = interface.packets_sent
+        packets_recv = interface.packets_recv
+        interface_name = interface.name
         mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
-        DESCRIPTIONS_STR = 'N/A' if not interface.descriptions else ', '.join(interface.descriptions)
+        DESCRIPTION_STR = 'N/A' if not interface.description else interface.description
 
         if interface.ip_addresses:
             for ip_address in interface.ip_addresses:
                 interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
-                    packets_sent, packets_recv, ip_address, mac_address, manufacturer,
+                    len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
+                    packets_sent, packets_recv, ip_address, mac_address, vendor_name,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
-                packets_sent, packets_recv, 'N/A', mac_address, manufacturer,
+                len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
+                packets_sent, packets_recv, 'N/A', mac_address, vendor_name,
             ))
 
-        if Settings.CAPTURE_EXTERNAL_DEVICES:
-            for external_device in interface.get_external_devices():
-                organization_name = 'N/A' if external_device.organization_name is None else external_device.organization_name
+        if Settings.CAPTURE_ARP:
+            for arp_entry in interface.get_arp_entries():
+                vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
 
                 interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface_name, DESCRIPTIONS_STR,
-                    'N/A', 'N/A', external_device.ip_address, external_device.mac_address, organization_name, is_external_device=True,
+                    len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
+                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name, is_external_device=True,
                 ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)

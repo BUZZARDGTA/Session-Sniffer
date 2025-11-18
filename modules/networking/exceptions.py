@@ -8,20 +8,6 @@ if TYPE_CHECKING:
     from modules.networking.endpoint_ping_manager import PingResult
 
 
-class InterfaceStateError(Exception):
-    """Raised when there's a mismatch in interface state values."""
-
-    def __init__(self, field_name: str, existing_value: object, new_value: object) -> None:
-        super().__init__(f'{field_name} mismatch: existing={existing_value}, new={new_value}')
-
-
-class NetworkInterfaceStateMismatchError(Exception):
-    """Raised when there's a mismatch in network interface state values."""
-
-    def __init__(self, field_name: str, existing_value: object, new_value: object) -> None:
-        super().__init__(f'{field_name} mismatch: existing={existing_value}, new={new_value}')
-
-
 class InvalidMacAddressError(Exception):
     """Exception raised when an invalid MAC address is found."""
 
@@ -89,12 +75,12 @@ class InvalidManufacturerError(InvalidManufEntryFieldError):
         super().__init__('manufacturer', value)
 
 
-class InvalidOrganizationNameError(InvalidManufEntryFieldError):
-    """Exception raised when organization name is invalid."""
+class InvalidVendorNameError(InvalidManufEntryFieldError):
+    """Exception raised when vendor name is invalid."""
 
     def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid organization name."""
-        super().__init__('organization_name', value)
+        """Initialize the exception with the invalid vendor name."""
+        super().__init__('vendor_name', value)
 
 
 class InvalidPingResultError(Exception):
@@ -115,3 +101,11 @@ class AllEndpointsExhaustedError(Exception):
     def __init__(self) -> None:
         """Initialize the exception with a default message."""
         super().__init__('All ping endpoints have been exhausted')
+
+
+class InterfaceAlreadyExistsError(Exception):
+    """Raised when attempting to add a network interface that already exists."""
+
+    def __init__(self, index: int, name: str | None = None) -> None:
+        details = f'index={index}' + (f', name="{name}"' if name else '')
+        super().__init__(f'Interface already exists in registry ({details})')

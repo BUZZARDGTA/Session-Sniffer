@@ -10,7 +10,7 @@ from modules.networking.exceptions import (
     InvalidCidrError,
     InvalidMacPrefixError,
     InvalidManufacturerError,
-    InvalidOrganizationNameError,
+    InvalidVendorNameError,
     ManufLineParseError,
 )
 from modules.networking.utils import is_mac_address
@@ -38,7 +38,7 @@ class ManufEntry(NamedTuple):
     prefix_int: int
     cidr: int
     manufacturer: str
-    organization_name: str
+    vendor_name: str
 
 
 def _mac_str_to_int(mac: str) -> int:
@@ -72,7 +72,7 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not match:
             raise ManufLineParseError(line)
 
-        mac_prefix, cidr, manufacturer, organization_name = match.groups()
+        mac_prefix, cidr, manufacturer, vendor_name = match.groups()
 
         if not isinstance(mac_prefix, str):
             raise InvalidMacPrefixError(mac_prefix)
@@ -80,8 +80,8 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
             raise InvalidCidrError(cidr)
         if not isinstance(manufacturer, str):
             raise InvalidManufacturerError(manufacturer)
-        if not isinstance(organization_name, str):
-            raise InvalidOrganizationNameError(organization_name)
+        if not isinstance(vendor_name, str):
+            raise InvalidVendorNameError(vendor_name)
 
         cidr_int = int(cidr) if cidr else 24
         prefix_int = _mac_prefix_str_to_int(mac_prefix, cidr_int)
@@ -91,7 +91,7 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
             prefix_int=prefix_int,
             cidr=cidr_int,
             manufacturer=manufacturer,
-            organization_name=organization_name,
+            vendor_name=vendor_name,
         )
         manuf_database.setdefault(mac_prefix.upper(), [])
         if entry not in manuf_database[mac_prefix.upper()]:
@@ -147,9 +147,9 @@ class MacLookup:
 
         return self._find_best_match(mac_address)
 
-    def get_mac_address_organization_name(self, mac_address: str) -> str | None:
-        """Return the organization name for a given MAC address, if available."""
+    def get_mac_address_vendor_name(self, mac_address: str) -> str | None:
+        """Return the vendor name for a given MAC address, if available."""
         entry = self.lookup(mac_address)
         if entry is None:
             return None
-        return entry.organization_name or None
+        return entry.vendor_name or None
