@@ -5,22 +5,22 @@
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20251108.2259",
+        "local": "20251119.2122",
         "major": 1,
         "micro": 2,
         "minor": 4,
         "post": null,
         "pre": [
             "rc",
-            1
+            3
         ],
-        "public": "1.4.2rc1",
+        "public": "1.4.2rc3",
         "release": [
             1,
             4,
             2
         ],
-        "version": "1.4.2rc1+20251108.2259"
+        "version": "1.4.2rc3+20251119.2122"
     },
     "latest_stable": {
         "base_version": "1.4.1",
