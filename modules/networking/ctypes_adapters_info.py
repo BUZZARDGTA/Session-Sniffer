@@ -284,7 +284,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
 def get_adapters_info() -> Iterator[AdapterData]:
     """Retrieves information for all network adapters.
 
-    :return: A list of dictionaries containing network adapter information.
+    :return: An iterator of `AdapterData` objects containing network adapter information.
     """
     # Build neighbor map once to attach per adapter
     neighbors_by_if: dict[int, list[tuple[str | None, str | None]]] = {}
