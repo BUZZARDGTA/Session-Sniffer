@@ -8,6 +8,7 @@ from typing import Literal, NamedTuple
 from PyQt6.QtCore import QItemSelectionModel, Qt
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QHeaderView,
@@ -33,6 +34,7 @@ class InterfaceSelectionData(NamedTuple):
     mac_address: str
     vendor_name: Literal['N/A'] | str  # noqa: PYI051
     is_external_device: bool = False
+    is_inactive: bool = False
 
 
 class SafeQTableWidget(QTableWidget):
@@ -63,7 +65,15 @@ class SafeQTableWidget(QTableWidget):
 
 
 class InterfaceSelectionDialog(QDialog):
-    def __init__(self, screen_width: int, screen_height: int, interfaces: list[InterfaceSelectionData]) -> None:
+    def __init__(
+        self,
+        screen_width: int,
+        screen_height: int,
+        interfaces: list[InterfaceSelectionData],
+        *,
+        hide_inactive_default: bool,
+        hide_arp_default: bool,
+    ) -> None:
         super().__init__()
 
         # Set up the window
@@ -74,7 +84,8 @@ class InterfaceSelectionDialog(QDialog):
 
         # Custom variables
         self.selected_interface_data: InterfaceSelectionData | None = None
-        self.interfaces = interfaces  # Store the list of interface data
+        self.all_interfaces = interfaces  # Store the complete list of interface data
+        self.interfaces = interfaces  # Store the filtered list
 
         # Layout for the dialog
         layout = QVBoxLayout()
@@ -110,7 +121,86 @@ class InterfaceSelectionDialog(QDialog):
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
 
-        # Populate the table with interface data
+        # Add widgets to layout
+        layout.addWidget(self.table)
+
+        # Filter controls layout
+        filter_layout = QHBoxLayout()
+        filter_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
+        self.hide_inactive_checkbox.setChecked(hide_inactive_default)
+        self.hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
+        self.hide_inactive_checkbox.setStyleSheet('font-size: 12pt;')
+        self.hide_inactive_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
+        filter_layout.addWidget(self.hide_inactive_checkbox)
+
+        self.hide_arp_checkbox = QCheckBox('Hide ARP Entries')
+        self.hide_arp_checkbox.setChecked(hide_arp_default)
+        self.hide_arp_checkbox.setToolTip('Hide external devices discovered via ARP protocol')
+        self.hide_arp_checkbox.setStyleSheet('font-size: 12pt;')
+        self.hide_arp_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
+        filter_layout.addWidget(self.hide_arp_checkbox)
+
+        layout.addLayout(filter_layout)
+
+        # Bottom layout for buttons
+        bottom_layout = QHBoxLayout()
+        instruction_label = QLabel('Select the network interface you want to sniff.')
+        instruction_label.setStyleSheet('font-size: 15pt;')
+
+        self.select_button = QPushButton('Start Sniffing')
+        self.select_button.setStyleSheet('font-size: 18pt;')
+        self.select_button.setEnabled(False)  # Initially disabled
+
+        # Set fixed size for the button
+        self.select_button.setFixedSize(300, 50)  # Adjusted width and height for slightly larger button
+
+        self.select_button.clicked.connect(self.select_interface)  # pyright: ignore[reportUnknownMemberType]
+
+        bottom_layout.addWidget(instruction_label)
+        bottom_layout.addWidget(self.select_button)
+
+        # Center the button in the layout
+        bottom_layout.setAlignment(instruction_label, Qt.AlignmentFlag.AlignCenter)
+        bottom_layout.setAlignment(self.select_button, Qt.AlignmentFlag.AlignCenter)
+
+        layout.addLayout(bottom_layout)
+
+        # Populate the table with initial filtered data (after button is created)
+        self.apply_filters()
+        self.setLayout(layout)
+
+        # Raise and activate window to ensure it gets focus
+        self.raise_()
+        self.activateWindow()
+
+        # Connect selection change signal to enable/disable Select button
+        selection_model = self.table.selectionModel()
+        selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
+
+    # Custom Methods:
+    def apply_filters(self) -> None:
+        """Apply the selected filters and repopulate the table."""
+        hide_inactive = self.hide_inactive_checkbox.isChecked()
+        hide_arp = self.hide_arp_checkbox.isChecked()
+
+        # Filter the interfaces based on checkbox states
+        self.interfaces = [
+            interface for interface in self.all_interfaces
+            if not (hide_inactive and interface.is_inactive)
+            and not (hide_arp and interface.is_external_device)
+        ]
+
+        # Repopulate the table
+        self.populate_table()
+
+    def populate_table(self) -> None:
+        """Populate the table with the current filtered interface list."""
+        # Clear existing rows
+        self.table.setRowCount(0)
+
+        # Populate with filtered data
         for idx, interface in enumerate(self.interfaces):
             self.table.insertRow(idx)
 
@@ -139,41 +229,9 @@ class InterfaceSelectionDialog(QDialog):
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(idx, 6, item)
 
-        # Bottom layout for buttons
-        bottom_layout = QHBoxLayout()
-        instruction_label = QLabel('Select the network interface you want to sniff.')
-        instruction_label.setStyleSheet('font-size: 15pt;')
+        # Reset selection state
+        self.update_select_button_state()
 
-        self.select_button = QPushButton('Start Sniffing')
-        self.select_button.setStyleSheet('font-size: 18pt;')
-        self.select_button.setEnabled(False)  # Initially disabled
-
-        # Set fixed size for the button
-        self.select_button.setFixedSize(300, 50)  # Adjusted width and height for slightly larger button
-
-        self.select_button.clicked.connect(self.select_interface)  # pyright: ignore[reportUnknownMemberType]
-
-        bottom_layout.addWidget(instruction_label)
-        bottom_layout.addWidget(self.select_button)
-
-        # Center the button in the layout
-        bottom_layout.setAlignment(instruction_label, Qt.AlignmentFlag.AlignCenter)
-        bottom_layout.setAlignment(self.select_button, Qt.AlignmentFlag.AlignCenter)
-
-        # Add widgets to layout
-        layout.addWidget(self.table)
-        layout.addLayout(bottom_layout)
-        self.setLayout(layout)
-
-        # Raise and activate window to ensure it gets focus
-        self.raise_()
-        self.activateWindow()
-
-        # Connect selection change signal to enable/disable Select button
-        selection_model = self.table.selectionModel()
-        selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
-
-    # Custom Methods:
     def show_tooltip_if_elided(self, row: int, column: int) -> None:
         """Show tooltip if the text in the cell is elided."""
 
@@ -215,9 +273,22 @@ class InterfaceSelectionDialog(QDialog):
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
-def show_interface_selection_dialog(screen_width: int, screen_height: int, interfaces: list[InterfaceSelectionData]) -> InterfaceSelectionData | None:
+def show_interface_selection_dialog(
+    screen_width: int,
+    screen_height: int,
+    interfaces: list[InterfaceSelectionData],
+    *,
+    hide_inactive_default: bool,
+    hide_arp_default: bool,
+) -> InterfaceSelectionData | None:
     # Create and show the interface selection dialog
-    dialog = InterfaceSelectionDialog(screen_width, screen_height, interfaces)
+    dialog = InterfaceSelectionDialog(
+        screen_width,
+        screen_height,
+        interfaces,
+        hide_inactive_default=hide_inactive_default,
+        hide_arp_default=hide_arp_default,
+    )
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected
         return dialog.selected_interface_data
     return None

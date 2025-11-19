@@ -21,16 +21,19 @@ class GetAdaptersAddressesError(OSError):
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class AdapterData:  # pylint: disable=too-many-instance-attributes
-    interface_index:    int
-    friendly_name:      str
-    description:        str
-    mac_address:        str | None
-    ipv4_addresses:     list[str]
-    operational_status: int
-    ip_enabled:         bool
-    packets_sent:       int
-    packets_recv:       int
-    neighbors:          list[tuple[str | None, str | None]] = field(
+    interface_index:      int
+    friendly_name:        str
+    description:          str
+    mac_address:          str | None
+    ipv4_addresses:       list[str]
+    operational_status:   int
+    ip_enabled:           bool
+    packets_sent:         int
+    packets_recv:         int
+    media_connect_state:  int
+    transmit_link_speed:  int
+    receive_link_speed:   int
+    neighbors:            list[tuple[str | None, str | None]] = field(
         default_factory=lambda: cast('list[tuple[str | None, str | None]]', []),
     )
 
@@ -39,11 +42,9 @@ class AdapterData:  # pylint: disable=too-many-instance-attributes
 WORKING_BUFFER_SIZE = 15000
 AF_INET = 2
 
-GAA_FLAG_SKIP_UNICAST = 0x0001  # Do not return unicast addresses.
 GAA_FLAG_SKIP_ANYCAST = 0x0002  # Do not return IPv6 anycast addresses.
 GAA_FLAG_SKIP_MULTICAST = 0x0004  # Do not return multicast addresses.
 GAA_FLAG_SKIP_DNS_SERVER = 0x0008  # Do not return addresses of DNS servers.
-GAA_FLAG_INCLUDE_PREFIX = 0x0010
 IP_ADAPTER_FLAG_IPV4_ENABLED = 0x0080  # IPv4 is enabled on this adapter
 MAX_ADAPTER_ADDRESS_LENGTH = 8
 ERROR_BUFFER_OVERFLOW = 111
@@ -51,6 +52,15 @@ ERROR_SUCCESS = 0
 IF_MAX_STRING_SIZE = 256
 IF_MAX_PHYS_ADDRESS_LENGTH = 32
 ERROR_INSUFFICIENT_BUFFER = 122
+
+# OperStatus values (export only what's used externally)
+IF_OPER_STATUS_UP = 1  # Interface is up and operational
+IF_OPER_STATUS_NOT_PRESENT = 6  # Interface is not present
+
+# MediaConnectState values
+MEDIA_CONNECT_STATE_UNKNOWN = 0  # Unknown connection state
+MEDIA_CONNECT_STATE_CONNECTED = 1  # Media is connected
+MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
 
 
 # Structures
@@ -297,7 +307,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         buf = ctypes.create_string_buffer(size.value)
         ret = GetAdaptersAddresses(
             AF_INET,
-            GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_PREFIX,
+            GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
             None,
             ctypes.cast(buf, LP_IP_ADAPTER_ADDRESSES),
             ctypes.byref(size),
@@ -332,9 +342,15 @@ def get_adapters_info() -> Iterator[AdapterData]:
         row.InterfaceIndex = addr.IfIndex  # pylint: disable=attribute-defined-outside-init,invalid-name
         if GetIfEntry2(ctypes.byref(row)) != ERROR_SUCCESS:
             packets_sent = packets_recv = 0
+            media_connect_state = MEDIA_CONNECT_STATE_UNKNOWN
+            transmit_link_speed = 0
+            receive_link_speed = 0
         else:
             packets_sent = row.OutUcastPkts + row.OutNUcastPkts
             packets_recv = row.InUcastPkts + row.InNUcastPkts
+            media_connect_state = row.MediaConnectState
+            transmit_link_speed = row.TransmitLinkSpeed
+            receive_link_speed = row.ReceiveLinkSpeed
 
         yield AdapterData(
             interface_index=addr.IfIndex,
@@ -346,6 +362,9 @@ def get_adapters_info() -> Iterator[AdapterData]:
             ip_enabled=bool(addr.Flags & IP_ADAPTER_FLAG_IPV4_ENABLED),
             packets_sent=packets_sent,
             packets_recv=packets_recv,
+            media_connect_state=media_connect_state,
+            transmit_link_speed=transmit_link_speed,
+            receive_link_speed=receive_link_speed,
             neighbors=neighbors_by_if.get(int(addr.IfIndex), []),
         )
 

@@ -157,6 +157,8 @@ from modules.models import (
 )
 from modules.msgbox import MsgBox
 from modules.networking.ctypes_adapters_info import (
+    IF_OPER_STATUS_NOT_PRESENT,
+    MEDIA_CONNECT_STATE_DISCONNECTED,
     GetAdaptersAddressesError,
     get_adapters_info,
 )
@@ -520,6 +522,8 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     CAPTURE_OVERFLOW_TIMER: float = 3.0
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None = None
     CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None = None
+    GUI_INTERFACE_HIDE_INACTIVE: bool = True
+    GUI_INTERFACE_HIDE_ARP: bool = False
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_FIELDS_TO_HIDE: tuple[str, ...] = (
@@ -549,6 +553,8 @@ class Settings(DefaultSettings):
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
+        'GUI_INTERFACE_HIDE_INACTIVE',
+        'GUI_INTERFACE_HIDE_ARP',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_FIELDS_TO_HIDE',
@@ -946,6 +952,16 @@ class Settings(DefaultSettings):
                             Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
                         else:
                             need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_HIDE_INACTIVE':
+                    try:
+                        Settings.GUI_INTERFACE_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_HIDE_ARP':
+                    try:
+                        Settings.GUI_INTERFACE_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
                 elif setting_name == 'DISCORD_PRESENCE':
                     try:
                         Settings.DISCORD_PRESENCE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
@@ -1018,9 +1034,12 @@ class Interface:
     index: int
     ip_enabled: bool
     state: int
+    media_connect_state: int
     name: str
     packets_sent: int
     packets_recv: int
+    transmit_link_speed: int
+    receive_link_speed: int
     description: str
     ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
@@ -1041,8 +1060,26 @@ class Interface:
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
-        # Check if interface is disabled
-        if self.ip_enabled is False or self.state == NETWORK_ADAPTER_DISABLED:
+        # Check for obvious inactive states first
+        inactive_conditions = [
+            self.state in (NETWORK_ADAPTER_DISABLED, IF_OPER_STATUS_NOT_PRESENT),
+            self.media_connect_state == MEDIA_CONNECT_STATE_DISCONNECTED,
+            not self.ip_addresses,
+            not self.ip_enabled and not self.ip_addresses,
+            not self.transmit_link_speed and not self.receive_link_speed,
+        ]
+
+        if any(inactive_conditions):
+            return True
+
+        # Zero link speeds combined with no IP/traffic suggests inactive virtual adapters
+        if (
+            not self.transmit_link_speed
+            and not self.receive_link_speed
+            and not self.ip_addresses
+            and not self.packets_sent
+            and not self.packets_recv
+        ):
             return True
 
         # Check if all identifying details and traffic data are missing
@@ -2122,20 +2159,20 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
         return
 
     for adapter in adapters:
-        if adapter.mac_address is None:
-            continue
-
         interface = AllInterfaces.add_interface(Interface(
             index=adapter.interface_index,
             ip_enabled=adapter.ip_enabled,
             state=adapter.operational_status,
+            media_connect_state=adapter.media_connect_state,
             name=adapter.friendly_name,
             mac_address=adapter.mac_address,
             packets_sent=adapter.packets_sent,
             packets_recv=adapter.packets_recv,
+            transmit_link_speed=adapter.transmit_link_speed,
+            receive_link_speed=adapter.receive_link_speed,
             description=adapter.description,
             ip_addresses=adapter.ipv4_addresses,
-            vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address),
+            vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address) if adapter.mac_address else None,
         ))
 
         if Settings.CAPTURE_ARP:
@@ -2243,7 +2280,13 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
     # If no suitable interface was found, prompt the user to select an interface
     if result is None:
-        result = show_interface_selection_dialog(screen_width, screen_height, interfaces_selection_data)
+        result = show_interface_selection_dialog(
+            screen_width,
+            screen_height,
+            interfaces_selection_data,
+            hide_inactive_default=Settings.GUI_INTERFACE_HIDE_INACTIVE,
+            hide_arp_default=Settings.GUI_INTERFACE_HIDE_ARP,
+        )
 
     return result
 
@@ -6639,7 +6682,7 @@ if __name__ == '__main__':
 
     tshark_interfaces = [
         i for _, _, name in get_filtered_tshark_interfaces()
-        if (i := AllInterfaces.get_interface_by_name(name)) and not i.is_interface_inactive()
+        if (i := AllInterfaces.get_interface_by_name(name))
     ]
 
     for interface in tshark_interfaces:
@@ -6658,16 +6701,20 @@ if __name__ == '__main__':
         mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
         DESCRIPTION_STR = 'N/A' if not interface.description else interface.description
 
+        is_inactive = interface.is_interface_inactive()
+
         if interface.ip_addresses:
             for ip_address in interface.ip_addresses:
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
                     packets_sent, packets_recv, ip_address, mac_address, vendor_name,
+                    is_external_device=False, is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
                 len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
                 packets_sent, packets_recv, 'N/A', mac_address, vendor_name,
+                is_external_device=False, is_inactive=is_inactive,
             ))
 
         if Settings.CAPTURE_ARP:
@@ -6676,7 +6723,8 @@ if __name__ == '__main__':
 
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface_name, DESCRIPTION_STR,
-                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name, is_external_device=True,
+                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
+                    is_external_device=True, is_inactive=is_inactive,
                 ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
