@@ -6819,7 +6819,6 @@ if __name__ == '__main__':
     CAPTURE_FILTER_STR = ' and '.join(capture_filter) if capture_filter else None
     DISPLAY_FILTER_STR = ' and '.join(display_filter) if display_filter else None
 
-    # Initialize console and prepare for GUI
     clear_screen()
     set_window_title(f'DEBUG CONSOLE - {TITLE}')
 
