@@ -5742,32 +5742,8 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # ----- Open Project Repository Button -----
-        open_project_repo_action = QAction('Project Repository', self)
-        open_project_repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
-        open_project_repo_action.triggered.connect(self.open_project_repo)  # pyright: ignore[reportUnknownMemberType]
-        toolbar.addAction(open_project_repo_action)  # pyright: ignore[reportUnknownMemberType]
-
-        toolbar.addSeparator()
-
-        # ----- Open Documentation Button -----
-        open_documentation_action = QAction('Documentation', self)
-        open_documentation_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
-        open_documentation_action.triggered.connect(self.open_documentation)  # pyright: ignore[reportUnknownMemberType]
-        toolbar.addAction(open_documentation_action)  # pyright: ignore[reportUnknownMemberType]
-
-        toolbar.addSeparator()
-
-        # ----- Join Discord Button -----
-        discord_action = QAction('Discord Server', self)
-        discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
-        discord_action.triggered.connect(self.join_discord)  # pyright: ignore[reportUnknownMemberType]
-        toolbar.addAction(discord_action)  # pyright: ignore[reportUnknownMemberType]
-
-        toolbar.addSeparator()
-
         # ----- Detection Menu -----
-        detection_menu_button = QPushButton(' Detection Settings ', self)
+        detection_menu_button = QPushButton(' 🔔 Detection ', self)
         detection_menu_button.setToolTip('Configure notification settings for various player detection scenarios')
 
         detection_menu = PersistentMenu(self)
@@ -5817,6 +5793,36 @@ class MainWindow(QMainWindow):
 
         detection_menu_button.setMenu(detection_menu)
         toolbar.addWidget(detection_menu_button)
+
+        toolbar.addSeparator()
+
+        # ----- Help Menu -----
+        help_menu_button = QPushButton(' ❓ Help ', self)
+        help_menu_button.setToolTip('Access help resources, documentation, and community')
+
+        help_menu = PersistentMenu(self)
+        help_menu.setToolTipsVisible(True)
+
+        # Project Repository action
+        repo_action = QAction('📦 Project Repository', self)
+        repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
+        repo_action.triggered.connect(self.open_project_repo)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(repo_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Documentation action
+        docs_action = QAction('📚 Documentation', self)
+        docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
+        docs_action.triggered.connect(self.open_documentation)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(docs_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Discord action
+        discord_action = QAction('💬 Discord Server', self)
+        discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
+        discord_action.triggered.connect(self.join_discord)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(discord_action)  # pyright: ignore[reportUnknownMemberType]
+
+        help_menu_button.setMenu(help_menu)
+        toolbar.addWidget(help_menu_button)
 
         # Header text
         self.header_text = QLabel()
