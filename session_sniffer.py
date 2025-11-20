@@ -6695,25 +6695,20 @@ if __name__ == '__main__':
             Settings.reconstruct_settings()
 
         vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
-        packets_sent = interface.packets_sent
-        packets_recv = interface.packets_recv
-        interface_name = interface.name
         mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
-        description = interface.description
-
         is_inactive = interface.is_interface_inactive()
 
         if interface.ip_addresses:
             for ip_address in interface.ip_addresses:
                 interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface_name, description,
-                    packets_sent, packets_recv, ip_address, mac_address, vendor_name,
+                    len(interfaces_selection_data), interface.name, interface.description,
+                    interface.packets_sent, interface.packets_recv, ip_address, mac_address, vendor_name,
                     is_external_device=False, is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface_name, description,
-                packets_sent, packets_recv, 'N/A', mac_address, vendor_name,
+                len(interfaces_selection_data), interface.name, interface.description,
+                interface.packets_sent, interface.packets_recv, 'N/A', mac_address, vendor_name,
                 is_external_device=False, is_inactive=is_inactive,
             ))
 
@@ -6722,7 +6717,7 @@ if __name__ == '__main__':
                 vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
 
                 interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface_name, description,
+                    len(interfaces_selection_data), interface.name, interface.description,
                     'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
                     is_external_device=True, is_inactive=is_inactive,
                 ))
