@@ -3954,7 +3954,7 @@ def rendering_core(
                 avg_latency_rounded = 0.0
 
             is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-            is_external_device_capture_enabled = 'Enabled' if capture.interface.is_external_device else 'Disabled'
+            is_arp_capture_enabled = 'Enabled' if capture.interface.is_arp else 'Disabled'
             displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
 
             invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
@@ -3975,11 +3975,11 @@ def rendering_core(
             )
 
             # Configuration section
-            external_device_color = '#a3be8c' if is_external_device_capture_enabled == 'Enabled' else '#bf616a'
+            arp_color = '#a3be8c' if is_arp_capture_enabled == 'Enabled' else '#bf616a'
             vpn_color = '#a3be8c' if is_vpn_mode_enabled == 'Enabled' else '#bf616a'
             config_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">⚙️ Config:</span> '
-                f'<span style="color: #d08770;">ARP:</span> <span style="color: {external_device_color};">{is_external_device_capture_enabled}</span> '
+                f'<span style="color: #d08770;">ARP:</span> <span style="color: {arp_color};">{is_arp_capture_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">VPN:</span> <span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
@@ -6703,13 +6703,13 @@ if __name__ == '__main__':
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface.name, interface.description,
                     interface.packets_sent, interface.packets_recv, ip_address, mac_address, vendor_name,
-                    is_external_device=False, is_inactive=is_inactive,
+                    is_arp=False, is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
                 len(interfaces_selection_data), interface.name, interface.description,
                 interface.packets_sent, interface.packets_recv, 'N/A', mac_address, vendor_name,
-                is_external_device=False, is_inactive=is_inactive,
+                is_arp=False, is_inactive=is_inactive,
             ))
 
         if Settings.CAPTURE_ARP:
@@ -6719,7 +6719,7 @@ if __name__ == '__main__':
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface.name, interface.description,
                     'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
-                    is_external_device=True, is_inactive=is_inactive,
+                    is_arp=True, is_inactive=is_inactive,
                 ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)

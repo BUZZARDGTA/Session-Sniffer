@@ -33,7 +33,7 @@ class InterfaceSelectionData(NamedTuple):
     ip_address: str
     mac_address: str
     vendor_name: Literal['N/A'] | str  # noqa: PYI051
-    is_external_device: bool = False
+    is_arp: bool = False
     is_inactive: bool = False
 
 
@@ -189,7 +189,7 @@ class InterfaceSelectionDialog(QDialog):
         self.interfaces = [
             interface for interface in self.all_interfaces
             if not (hide_inactive and interface.is_inactive)
-            and not (hide_arp and interface.is_external_device)
+            and not (hide_arp and interface.is_arp)
         ]
 
         # Repopulate the table
@@ -204,7 +204,7 @@ class InterfaceSelectionDialog(QDialog):
         for idx, interface in enumerate(self.interfaces):
             self.table.insertRow(idx)
 
-            item = QTableWidgetItem(str(interface.name) if not interface.is_external_device else f'{interface.name} (ARP)')
+            item = QTableWidgetItem(str(interface.name) if not interface.is_arp else f'{interface.name} (ARP)')
             self.table.setItem(idx, 0, item)
 
             item = QTableWidgetItem(str(interface.description))
