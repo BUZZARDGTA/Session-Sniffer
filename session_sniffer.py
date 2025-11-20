@@ -884,6 +884,16 @@ class Settings(DefaultSettings):
                         Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
                         if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
                             need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_HIDE_INACTIVE':
+                    try:
+                        Settings.GUI_INTERFACE_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_HIDE_ARP':
+                    try:
+                        Settings.GUI_INTERFACE_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
                 elif setting_name == 'GUI_SESSIONS_LOGGING':
                     try:
                         Settings.GUI_SESSIONS_LOGGING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
@@ -952,16 +962,6 @@ class Settings(DefaultSettings):
                             Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_HIDE_INACTIVE':
-                    try:
-                        Settings.GUI_INTERFACE_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_HIDE_ARP':
-                    try:
-                        Settings.GUI_INTERFACE_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
                 elif setting_name == 'DISCORD_PRESENCE':
                     try:
                         Settings.DISCORD_PRESENCE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
