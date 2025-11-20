@@ -3475,8 +3475,8 @@ def rendering_core(
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
-                    country_name = str(response.country.name)
-                    country_code = str(response.country.iso_code)
+                    country_name = str(response.country.name) if response.country.name is not None else 'N/A'
+                    country_code = str(response.country.iso_code) if response.country.iso_code is not None else 'N/A'
 
             return country_name, country_code
 
@@ -3489,7 +3489,7 @@ def rendering_core(
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
-                    city = str(response.city.name)
+                    city = str(response.city.name) if response.city.name is not None else 'N/A'
 
             return city
 
