@@ -3502,7 +3502,7 @@ def rendering_core(
                 except geoip2.errors.AddressNotFoundError:
                     pass
                 else:
-                    asn = str(response.autonomous_system_organization)
+                    asn = str(response.autonomous_system_organization) if response.autonomous_system_organization is not None else 'N/A'
 
             return asn
 
