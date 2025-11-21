@@ -127,6 +127,7 @@ from modules.guis.exceptions import (
     InvalidDateFieldConfigurationError,
     PrimaryScreenNotFoundError,
     TableDataConsistencyError,
+    UnsupportedScreenResolutionError,
     UnsupportedSortColumnError,
 )
 from modules.guis.stylesheets import (
@@ -6622,6 +6623,17 @@ if __name__ == '__main__':
     SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
     os.chdir(SCRIPT_DIR)
 
+    # Check minimum screen resolution requirement early to avoid wasting user's time
+    try:
+        screen_width, screen_height = get_screen_size()
+    except UnsupportedScreenResolutionError as e:
+        MsgBox.show(
+            title='Unsupported Screen Resolution',
+            text=e.msgbox_text,
+            style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST,
+        )
+        sys.exit(1)
+
     if not is_pyinstaller_compiled():
         clear_screen()
         set_window_title(f'Checking that your Python packages versions matches with file "requirements.txt" - {TITLE}')
@@ -6679,9 +6691,6 @@ if __name__ == '__main__':
     set_window_title(f'Capture network interface selection - {TITLE}')
     print('\nCapture network interface selection ...\n')
     populate_network_interfaces_info(mac_lookup)
-
-    # Initialize global variables
-    screen_width, screen_height = get_screen_size()
 
     # Initialize interface selection
     interfaces_selection_data: list[InterfaceSelectionData] = []

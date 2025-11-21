@@ -36,3 +36,19 @@ class InvalidDateFieldConfigurationError(Exception):
 
     def __init__(self) -> None:
         super().__init__('Invalid settings: Both date and time are disabled.')
+
+
+class UnsupportedScreenResolutionError(Exception):
+    """Raised when screen resolution is below minimum requirements."""
+
+    def __init__(self, screen_width: int, screen_height: int, min_width: int, min_height: int) -> None:
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.min_width = min_width
+        self.min_height = min_height
+        self.msgbox_text = (
+            f'Session Sniffer requires a minimum screen resolution of {min_width}x{min_height} pixels.\n\n'
+            f'Your current screen resolution: {screen_width}x{screen_height}\n\n'
+            'Please increase your screen resolution or use a larger monitor to run Session Sniffer.'
+        )
+        super().__init__(self.msgbox_text)
