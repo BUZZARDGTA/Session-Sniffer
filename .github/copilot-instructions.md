@@ -61,3 +61,6 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 4. If resources/spec changed, dry‑run `pyinstaller Session_Sniffer.spec` locally (outside CI) if available.
 
 Provide feedback if any section needs deeper detail (e.g., capture filter extension or rendering payload structure).
+
+## Feature Addition & Backward Compatibility Preference
+When adding or expanding features, prefer clean replacements over backward compatibility. Replace older usage outright and remove obsolete code.
