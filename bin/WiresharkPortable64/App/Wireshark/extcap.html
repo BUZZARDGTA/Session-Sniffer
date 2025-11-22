@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.23">
+<title>extcap(4)</title>
+<link rel="stylesheet" href="./ws.css">
+</head>
+<body class="manpage">
+<div id="header">
+<h1>extcap(4) Manual Page</h1>
+<h2 id="_name">NAME</h2>
+<div class="sectionbody">
+<p>extcap - The extcap interface</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The extcap interface is a versatile plugin interface that allows external binaries
+to act as capture interfaces directly in Wireshark. It is used in scenarios, where
+the source of the capture is not a traditional capture model
+(live capture from an interface, from a pipe, from a file, etc). The typical
+example is connecting esoteric hardware of some kind to the main Wireshark application.</p>
+</div>
+<div class="paragraph">
+<p>Without extcap, a capture can always be achieved by directly writing to a capture file:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>the-esoteric-binary --the-strange-flag --interface=stream1 --file dumpfile.pcap &amp;
+wireshark dumpfile.pcap</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>but the extcap interface allows for such a connection to be easily established and
+configured using the Wireshark GUI.</p>
+</div>
+<div class="paragraph">
+<p>The extcap subsystem is made of multiple extcap binaries that are automatically
+called by the GUI in a row. In the following chapters we will refer to them as
+"the extcaps".</p>
+</div>
+<div class="paragraph">
+<p>Extcaps may be any binary or script within the extcap directory. Please note, that scripts
+need to be executable without prefacing a script interpreter before the call.</p>
+</div>
+<div class="paragraph">
+<p>WINDOWS USERS: Because of restrictions directly calling the script may not always work.
+In such a case, a batch file may be provided, which then in turn executes the script. Please
+refer to doc/extcap_example.py for more information.</p>
+</div>
+<div class="paragraph">
+<p>When Wireshark launches an extcap, it automatically adds its installation path (normally <em>C:\Program Files\Wireshark\</em>) to the DLL search path so that the extcap library dependencies can be found (it is not designed to be launched by hand).
+This is done on purpose. There should only be extcap programs (executables, Python scripts, &#8230;&#8203;) in the extcap folder to reduce the startup time and not have Wireshark trying to execute other file types.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_grammar_elements">GRAMMAR ELEMENTS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Grammar elements:</p>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">arg (options)</dt>
+<dd>
+<p>argument for CLI calling</p>
+</dd>
+<dt class="hdlist1">number</dt>
+<dd>
+<p>Reference # of argument for other values, display order</p>
+</dd>
+<dt class="hdlist1">call</dt>
+<dd>
+<p>Literal argument to call (--call=&#8230;&#8203;)</p>
+</dd>
+<dt class="hdlist1">display</dt>
+<dd>
+<p>Displayed name</p>
+</dd>
+<dt class="hdlist1">default</dt>
+<dd>
+<p>Default value, in proper form for type</p>
+</dd>
+<dt class="hdlist1">range</dt>
+<dd>
+<p>Range of valid values for UI checking (min,max) in proper form</p>
+</dd>
+<dt class="hdlist1">type</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>Argument type for UI filtering for raw, or UI type for selector:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>integer
+unsigned
+long (may include scientific / special notation)
+double
+string (display a textbox)
+selector (display selector table, all values as strings)
+editselector (selector table which can be overridden, all values as strings)
+boolean (display checkbox)
+booleanflag (display checkbox)
+radio (display group of radio buttons with provided values, all values as strings)
+fileselect (display a dialog to select a file from the filesystem, value as string)
+multicheck (display a textbox for selecting multiple options, values as strings)
+password (display a textbox with masked text)
+timestamp (display a calendar)</pre>
+</div>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">value (options)</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="literalblock">
+<div class="content">
+<pre>Values for argument selection
+arg     Argument # this value applies to</pre>
+</div>
+</div>
+</div>
+</div>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_examples">EXAMPLES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Example 1:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>arg {number=0}{call=--channel}{display=Wi-Fi Channel}{type=integer}{required=true}
+arg {number=1}{call=--chanflags}{display=Channel Flags}{type=radio}
+arg {number=2}{call=--interface}{display=Interface}{type=selector}
+value {arg=0}{range=1,11}
+value {arg=1}{value=ht40p}{display=HT40+}
+value {arg=1}{value=ht40m}{display=HT40-}
+value {arg=1}{value=ht20}{display=HT20}
+value {arg=2}{value=wlan0}{display=wlan0}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example 2:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>arg {number=0}{call=--usbdevice}{USB Device}{type=selector}
+value {arg=0}{call=/dev/sysfs/usb/foo/123}{display=Ubertooth One sn 1234}
+value {arg=0}{call=/dev/sysfs/usb/foo/456}{display=Ubertooth One sn 8901}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example 3:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>arg {number=0}{call=--usbdevice}{USB Device}{type=selector}
+arg {number=1}{call=--server}{display=IP address for log server}{type=string}{validation=(?:\d{1,3}\.){3}\d{1,3}}
+flag {failure=Permission denied opening Ubertooth device}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example 4:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>arg {number=0}{call=--username}{display=Username}{type=string}
+arg {number=1}{call=--password}{display=Password}{type=password}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example 5:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>arg {number=0}{call=--start}{display=Start Time}{type=timestamp}
+arg {number=1}{call=--end}{display=End Time}{type=timestamp}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_security_considerations">Security Considerations</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>If you&#8217;re running Wireshark as root, we can&#8217;t save you.</p>
+</li>
+<li>
+<p>Dumpcap retains suid/setgid and group execute permissions for users in the “wireshark” group only.</p>
+</li>
+<li>
+<p>Third-party capture programs run with whatever privileges they&#8217;re installed with.</p>
+</li>
+<li>
+<p>If an attacker can write to a system binary directory, it&#8217;s game over.</p>
+</li>
+<li>
+<p>You can find your local extcap directory in <span class="menuseq"><b class="menu">About</b>&#160;<b class="caret">&#8250;</b> <b class="menuitem">Folders</b></span>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see_also">SEE ALSO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="wireshark.html">wireshark</a>(1), <a href="tshark.html">tshark</a>(1), <a href="dumpcap.html">dumpcap</a>(1), <a href="androiddump.html">androiddump</a>(1), <a href="sshdump.html">sshdump</a>(1), <a href="randpktdump.html">randpktdump</a>(1)</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_notes">NOTES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Extcap</strong> is feature of <strong>Wireshark</strong>.
+The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
+</div>
+<div class="paragraph">
+<p>HTML versions of the Wireshark project man pages are available at
+<a href="https://www.wireshark.org/docs/man-pages" class="bare">https://www.wireshark.org/docs/man-pages</a>.</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

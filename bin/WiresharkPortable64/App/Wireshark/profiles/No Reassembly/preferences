@@ -77,12 +77,10 @@ laplink.desegment_laplink_over_tcp: FALSE
 ldap.desegment_ldap_messages: FALSE
 ldp.desegment_ldp_messages: FALSE
 ltp.reassemble_block: FALSE
-m3ua.desegment: FALSE
 memcache.desegment_headers: FALSE
 memcache.desegment_pdus: FALSE
 mbrtu.desegment: FALSE
 mbtcp.desegment: FALSE
-monero.desegment: FALSE
 mq.desegment: FALSE
 mq.reassembly: FALSE
 mysql.desegment_buffers: FALSE
@@ -94,7 +92,6 @@ ndmp.desegment: FALSE
 ndps.desegment_tcp: FALSE
 ndps.desegment_spx: FALSE
 netsync.desegment_netsync_messages: FALSE
-nmf.reassemble_nmf: FALSE
 opa.mad.reassemble_rmpp: FALSE
 openflow.desegment: FALSE
 openwire.desegment: FALSE
@@ -123,7 +120,6 @@ rtsp.desegment_headers: FALSE
 rtsp.desegment_body: FALSE
 sametime.reassemble: FALSE
 sapni.desegment: FALSE
-saprfc.table_reassembly: FALSE
 sasp.desegment_sasp_messages: FALSE
 sctp.reassembly: FALSE
 scylla.desegment: FALSE
@@ -136,7 +132,6 @@ smb.trans_reassembly: FALSE
 smb.dcerpc_reassembly: FALSE
 smb2.pipe_reassembly: FALSE
 smb_direct.reassemble_smb_direct: FALSE
-smb_direct.reassemble_smb_direct_infiniband: FALSE
 sml.reassemble: FALSE
 smp.desegment: FALSE
 smpp.reassemble_smpp_over_tcp: FALSE

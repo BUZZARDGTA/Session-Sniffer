@@ -1,9 +1,8 @@
 # -*- text -*-
-# Copyright (C) 2019 The FreeRADIUS Server project and contributors
-# This work is licensed under CC-BY version 4.0 https://creativecommons.org/licenses/by/4.0
+# Copyright (C) 2015 The FreeRADIUS Server project and contributors
 #
 #	http://www.digieurope.com/
-#	$Id: 0751f33731e5c95cafaa29a163cd59a64d2ea364 $
+#	$Id: 555ea3d7d02fc32a3367dff8e038c9da56cef47d $
 #
 VENDOR		ITK				1195
 

@@ -1,11 +1,10 @@
 # -*- text -*-
-# Copyright (C) 2019 The FreeRADIUS Server project and contributors
-# This work is licensed under CC-BY version 4.0 https://creativecommons.org/licenses/by/4.0
+# Copyright (C) 2015 The FreeRADIUS Server project and contributors
 #
 #	Attributes and values defined in RFC 5580.
 #	http://www.ietf.org/rfc/rfc5580.txt
 #
-#	$Id: 07de61e865e7a2d0c93592cafdb26eafb407b28b $
+#	$Id: 964ba2bab9bed5d7070865f5335fa09967190f90 $
 #
 
 # One ASCII character of Namespace ID

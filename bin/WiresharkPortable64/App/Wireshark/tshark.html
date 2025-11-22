@@ -32,6 +32,10 @@
 </div>
 <div class="paragraph">
 <p><span class="nowrap"><strong>tshark</strong></span>
+<span class="nowrap"><strong>-G</strong> [ &lt;report type&gt; ] [ --elastic-mapping-filter &lt;protocols&gt; ]</span></p>
+</div>
+<div class="paragraph">
+<p><span class="nowrap"><strong>tshark</strong></span>
 <span class="nowrap"><strong>-h|--help</strong></span></p>
 </div>
 <div class="paragraph">
@@ -64,7 +68,7 @@ from the file and displaying a summary line on the standard output for
 each packet read.  <strong>TShark</strong> is able to detect, read and write the same
 capture files that are supported by <strong>Wireshark</strong>.  The input file
 doesn&#8217;t need a specific filename extension; the file format and an
-optional gzip, Zstandard, or LZ4 compression will be automatically detected.  Near the
+optional gzip, zstd or lz4 compression will be automatically detected.  Near the
 beginning of the DESCRIPTION section of <a href="wireshark.html">wireshark</a>(1) or
 <a href="https://www.wireshark.org/docs/man-pages/wireshark.html" class="bare">https://www.wireshark.org/docs/man-pages/wireshark.html</a> is a detailed
 description of the way <strong>Wireshark</strong> handles this, which is the same way
@@ -74,8 +78,7 @@ description of the way <strong>Wireshark</strong> handles this, which is the sam
 <p>Compressed file support uses (and therefore requires) the zlib library.
 If the zlib library is not present when compiling <strong>TShark</strong>, it will be
 possible to compile it, but the resulting program will be unable to read
-compressed files. Similarly, LZ4 and ZStandard also require their respective
-libraries.</p>
+compressed files.</p>
 </div>
 <div class="paragraph">
 <p>When displaying packets on the standard output, <strong>TShark</strong> writes, by
@@ -156,15 +159,9 @@ will be displayed along with the detail lines.</p>
 <p>When writing packets to a file, <strong>TShark</strong>, by default, writes the file
 in <strong>pcapng</strong> format, and writes all of the packets it sees to the output
 file.  The <strong>-F</strong> option can be used to specify the format in which to
-write the file.  The list of available file formats is displayed by the
-<strong>-F</strong> option without a value.  However, for a live capture, you can only
-specify a file format supported by <a href="dumpcap.html">dumpcap</a>(1), viz.
-<strong>pcapng</strong> or <strong>pcap</strong>. The <strong>--compress</strong> option can be used to specify
-a compression method as well; the list of supported compression methods
-for writing can be displayed by the <strong>--compress</strong> method without an
-argument. If the <strong>--compress</strong> option is not given, then the desired
-compression method, if any, is deduced from the extension of the filename
-given as argument to the <strong>-w</strong> option.</p>
+write the file.  This list of available file formats is displayed by the
+<strong>-F</strong> option without a value.  However, you can&#8217;t specify a file format
+for a live capture.</p>
 </div>
 <div class="paragraph">
 <p>When capturing packets, <strong>TShark</strong> writes to the standard error an
@@ -205,9 +202,7 @@ to dump one of several types of internal glossaries and then exit.</p>
 <p>Perform a two-pass analysis. This causes <strong>TShark</strong> to buffer output until the
 entire first pass is done, but allows it to fill in fields that require future
 knowledge, such as 'response in frame #' fields. Also permits reassembly
-frame dependencies to be calculated correctly. This requires the ability
-to seek backwards on the input, and as such cannot be used with live captures
-or when reading from a pipe or FIFO.</p>
+frame dependencies to be calculated correctly.</p>
 </div>
 </div>
 </div>
@@ -236,8 +231,7 @@ will stop writing to the current capture file and switch to the next one if
 filesize is reached.  When reading a capture file, <strong>TShark</strong> will stop reading
 the file after the number of bytes read exceeds this number (the complete
 packet  will be read, so more bytes than this number may be read).  Note that
-the filesize is limited to a maximum value of 2 TB, although you might have
-problems before then if the number of packets exceeds exceeds 2<sup>32</sup> (4294967296).</p>
+the filesize is limited to a maximum value of 2 GiB.</p>
 </div>
 <div class="paragraph">
 <p><strong>packets</strong>:<em>value</em> switch to the next file after it contains <em>value</em>
@@ -305,9 +299,7 @@ preceded by the <strong>-b</strong> option.</p>
 </div>
 <div class="paragraph">
 <p><strong>filesize</strong>:<em>value</em> switch to the next file after it reaches a size of
-<em>value</em> kB.  Note that the filesize is limited to a maximum value of 2 TB,
-although you might have problems before then if the number of packets exceeds
-exceeds 2<sup>32</sup> (4294967296).</p>
+<em>value</em> kB.  Note that the filesize is limited to a maximum value of 2 GiB.</p>
 </div>
 <div class="paragraph">
 <p><strong>interval</strong>:<em>value</em> switch to the next file when the time is an exact
@@ -317,11 +309,6 @@ every hour on the hour.</p>
 <div class="paragraph">
 <p><strong>packets</strong>:<em>value</em> switch to the next file after it contains <em>value</em>
 packets.</p>
-</div>
-<div class="paragraph">
-<p><strong>printname</strong>:<em>filename</em> print the name of the most recently written file
-to <em>filename</em> after the file is closed. <em>filename</em> can be <code>stdout</code> or <code>-</code>
-for standard output, or <code>stderr</code> for standard error.</p>
 </div>
 <div class="paragraph">
 <p><strong>nametimenum</strong>:<em>value</em> Choose between two save filename templates.  If
@@ -390,14 +377,6 @@ may differ from <strong>-a packets:</strong>&lt;capture packet count&gt;.</p>
 <div class="paragraph">
 <p>Run with the given configuration profile.</p>
 </div>
-<div class="paragraph">
-<p>If used in conjunction with --global-profile, the specified profile will be loaded from the global configuration directory instead of the user&#8217;s personal configuration directory.
-(typically on UN*X'/usr/share/wireshark/profiles', On Windows, the directory is a profiles subdirectory of the directory in which Wireshark was installed, e.g., C:\Program Files\Wireshark\profiles.
-On macOS, when running from an app bundle, it is the Contents/Resources/share/wireshark/profiles subdirectory within the app bundle.)</p>
-</div>
-<div class="paragraph">
-<p>This option is useful in shared environments or automated testing setups where consistent configurations are needed, and user-specific settings should be avoided.</p>
-</div>
 </div>
 </div>
 </dd>
@@ -425,11 +404,10 @@ contain a GUID.</p>
 <p>Add a field to the list of fields to display if <strong>-T ek|fields|json|pdml</strong>
 is selected.  This option can be used multiple times on the command line.
 At least one field must be provided if the <strong>-T fields</strong> option is
-selected. Column types may be used prefixed with "_ws.col."
-Prefixing the field name with an at sign (@) will display the data as hex bytes.</p>
+selected. Column types may be used prefixed with "_ws.col."</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>tshark -T fields -e frame.number -e ip.addr -e udp -e _ws.col.info</strong></p>
+<p>Example: <strong>tshark -e frame.number -e ip.addr -e udp -e _ws.col.info</strong></p>
 </div>
 <div class="paragraph">
 <p>Fields are separated by tab characters by default.  <strong>-E</strong> controls the
@@ -484,16 +462,13 @@ option may be used.</p>
 </div>
 <div class="paragraph">
 <p><strong>quote=d|s|n</strong> Set the quote character to use to surround fields.  <strong>d</strong>
-uses double-quotes, <strong>s</strong> single-quotes, <strong>n</strong> no quotes (the default).
-If the quote character appears in a field value, it will be escaped
-by being duplicated.</p>
+uses double-quotes, <strong>s</strong> single-quotes, <strong>n</strong> no quotes (the default).</p>
 </div>
 <div class="paragraph">
 <p><strong>escape=y|n</strong> If <strong>y</strong>, the whitespace control characters (tab, line feed,
-carriage return, form feed, and vertical tab) backspace, and the
-backslash will be replaced in field values by C-style escapes, e.g.
-"\n" for line feed.  If <strong>n</strong>, field value strings will be printed as-is.
-Defaults to <strong>y</strong>.</p>
+carriage return, form feed, and vertical tab) and backspace will be
+replaced in field values by C-style escapes, e.g. "\n" for line feed.
+If <strong>n</strong>, field value strings will be printed as-is.  Defaults to <strong>y</strong>.</p>
 </div>
 </div>
 </div>
@@ -526,9 +501,7 @@ Example: <strong>tshark -f "predef:MyPredefinedHostOnlyFilter"</strong></p>
 <p>Set the file format of the output capture file written using the <strong>-w</strong>
 option.  The output written with the <strong>-w</strong> option is raw packet data, not
 text, so there is no <strong>-F</strong> option to request text output.  The option <strong>-F</strong>
-without a value will list the available formats. The default is the
-<strong>pcapng</strong> format (unless the default has been changed in preferences.)
-.</p>
+without a value will list the available formats.</p>
 </dd>
 <dt class="hdlist1">-g</dt>
 <dd>
@@ -536,16 +509,14 @@ without a value will list the available formats. The default is the
 (meaning that the output file(s) can be read by other members of the calling
 user&#8217;s group).</p>
 </dd>
-<dt class="hdlist1">-G  &lt;report type&gt;</dt>
+<dt class="hdlist1">-G  [ &lt;report type&gt; ]</dt>
 <dd>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
 <p>The <strong>-G</strong> option will cause <strong>TShark</strong> to dump one of several types of glossaries
-and then exit.  The glossary type is now mandatory; previous versions generated
-the <strong>fields</strong> report by default when no type was given. With one exception, the
-reports reflect the current configuration, including that given by a <strong>-C</strong> option
-or as modified by other command line options.
+and then exit.  If no specific glossary type is specified, then the <strong>fields</strong>
+report will be generated by default.
 Using the report type of <strong>help</strong> lists all the current report types.</p>
 </div>
 <div class="paragraph">
@@ -573,19 +544,7 @@ Field 2
 <p>text description of format string (e.g. "Dest port (resolved)")</p>
 </td>
 </tr>
-<tr>
-<td class="hdlist1">
-Field 3
-</td>
-<td class="hdlist2">
-<p>field abbreviation used for the column text (e.g. "_ws.col.res_dst_port")</p>
-</td>
-</tr>
 </table>
-</div>
-<div class="paragraph">
-<p>This report is followed by a usage example that demonstrates how to change
-the columns by overriding the <code>gui.column.format</code> preference value with <strong>-o</strong>.</p>
 </div>
 <div class="paragraph">
 <p><strong>currentprefs</strong>  Dumps a copy of the current preferences file to stdout.</p>
@@ -609,7 +568,7 @@ Field 1
 Field 2
 </td>
 <td class="hdlist2">
-<p>selector in the base for display</p>
+<p>selector in decimal</p>
 </td>
 </tr>
 <tr>
@@ -623,8 +582,7 @@ Field 3
 </table>
 </div>
 <div class="paragraph">
-<p><strong>defaultprefs</strong>  Dumps a default preferences file to stdout. This report
-is unaffected by other command line arguments.</p>
+<p><strong>defaultprefs</strong>  Dumps a default preferences file to stdout.</p>
 </div>
 <div class="paragraph">
 <p><strong>dissectors</strong>  Dumps a list of registered dissectors to stdout.  There is
@@ -677,7 +635,7 @@ Field 2
 Field 3
 </td>
 <td class="hdlist2">
-<p>type (textual representation of the ftenum type, or "heuristic")</p>
+<p>type (textual representation of the ftenum type)</p>
 </td>
 </tr>
 <tr>
@@ -701,24 +659,14 @@ Field 5
 Field 6
 </td>
 <td class="hdlist2">
-<p>"decode as" support (for non-heuristic tables)</p>
+<p>"decode as" support</p>
 </td>
 </tr>
 </table>
 </div>
 <div class="paragraph">
-<p><strong>elastic-mapping</strong>[,<em>filter</em>]  Dumps the ElasticSearch mapping file to stdout. Fields
+<p><strong>elastic-mapping</strong>  Dumps the ElasticSearch mapping file to stdout. Fields
 falling in the default case (string) won&#8217;t be mapped.</p>
-</div>
-<div class="paragraph">
-<p><em>filter</em> is an optional list of comma separated protocol filter names
-that limits the generated mapping file to the specified protocols,
-to avoid a huge mapping file that can choke some software (such as Kibana). E.g.,</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>tshark -G elastic-mapping,ip,udp,dns</pre>
-</div>
 </div>
 <div class="paragraph">
 <p><strong>enterprises</strong> Dumps the IANA Private Enterprise Number (PEN) table.</p>
@@ -727,7 +675,7 @@ to avoid a huge mapping file that can choke some software (such as Kibana). E.g.
 <p><strong>fieldcount</strong>  Dumps the number of header fields to stdout.</p>
 </div>
 <div class="paragraph">
-<p><strong>fields</strong>[,<em>prefix</em>]  Dumps the contents of the registration database to
+<p><strong>fields</strong>  Dumps the contents of the registration database to
 stdout.  An independent program can take this output and format it into nice
 tables or HTML or whatever.  There is one record per line.  Each record is
 either a protocol or a header field, differentiated by the first field.
@@ -917,7 +865,7 @@ There is one record per line.  The fields are tab-delimited.</p>
 Field 1
 </td>
 <td class="hdlist2">
-<p>heuristic dissector table name (e.g. "tcp")</p>
+<p>underlying dissector (e.g. "tcp")</p>
 </td>
 </tr>
 <tr>
@@ -1211,7 +1159,7 @@ to a capture file.  Implies <strong>-W n</strong>. Can be called multiple times.
 </div>
 <div class="paragraph">
 <p>The "hosts" file format is documented at
-<a href="https://en.wikipedia.org/wiki/Hosts_(file)" class="bare">https://en.wikipedia.org/wiki/Hosts_(file)</a>.</p>
+<a href="https://en.wikipedia.org/wiki/Hosts_(file" class="bare">https://en.wikipedia.org/wiki/Hosts_(file</a>).</p>
 </div>
 </div>
 </div>
@@ -1290,7 +1238,7 @@ Only the protocol&#8217;s parent node is included. Child nodes are only
 included if explicitly specified in the filter.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>tshark -T json -j "ip ip.flags http"</strong></p>
+<p>Example: <strong>tshark -j "ip ip.flags http"</strong></p>
 </div>
 </div>
 </div>
@@ -1305,7 +1253,7 @@ The protocol&#8217;s parent node and all child nodes are included.
 Lower-level protocols must be explicitly specified in the filter.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>tshark -T pdml -J "tcp http"</strong></p>
+<p>Example: <strong>tshark -J "tcp http"</strong></p>
 </div>
 </div>
 </div>
@@ -1323,7 +1271,7 @@ normally used when piping a live capture to a program or script, so that
 output for a packet shows up as soon as the packet is seen and
 dissected, it should work just as well as true line-buffering.  We do
 this as a workaround for a deficiency in the Microsoft Visual C++ C
-library.) This also sets <strong>--update-interval</strong> to 0 ms.</p>
+library.)</p>
 </div>
 <div class="paragraph">
 <p>This may be useful when piping the output of <strong>TShark</strong> to another
@@ -1350,22 +1298,6 @@ from a preference file.  The argument to the option is a string of the
 form <em>prefname:value</em>, where <em>prefname</em> is the name of the
 preference (which is the same name that would appear in the preference
 file), and <em>value</em> is the value to which it should be set.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<div class="title">Note</div>
-</td>
-<td class="content">
-<strong>TShark</strong> does not save preferences, so use this for temporary changes
-for a single execution. To permanently set a preference, change it in the
-<strong>Wireshark</strong> GUI or edit the preference file directly, creating multiple
-configuration profiles if you need different preference sets for different
-occasions.
-</td>
-</tr>
-</table>
 </div>
 </div>
 </div>
@@ -1472,23 +1404,9 @@ printed, just the statistics.</p>
 <div class="content">
 <div class="paragraph">
 <p>Read packet data from <em>infile</em>, can be any supported capture file format
-(including compressed files).  It is possible to use named pipes or stdin (-)
-here but only with certain capture file formats (in particular: those that
-can be read without seeking backwards.)</p>
-</div>
-<div class="admonitionblock tip">
-<table>
-<tr>
-<td class="icon">
-<div class="title">Tip</div>
-</td>
-<td class="content">
-Reading a live capture from the standard out of another process through
-a pipe can circumvent restrictions that apply to <strong>TShark</strong> during live capture,
-such as file formats or compression.
-</td>
-</tr>
-</table>
+(including gzipped files).  It is possible to use named pipes or stdin (-)
+here but only with certain (not compressed) capture file formats (in
+particular: those that can be read without seeking backwards).</p>
 </div>
 </div>
 </div>
@@ -1571,14 +1489,6 @@ the mapping file can be huge, protocols can be selected by using the option
 <div class="literalblock">
 <div class="content">
 <pre>tshark -G elastic-mapping --elastic-mapping-filter ip,udp,dns</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>or adding the filter directly to the <strong>-G elastic-mapping</strong> option:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>tshark -G elastic-mapping,ip,udp,dns</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1692,10 +1602,7 @@ names.</p>
 <div class="content">
 <div class="paragraph">
 <p>Write raw packet data to <em>outfile</em> or to the standard output if
-<em>outfile</em> is '-'. The <strong>-F</strong> and <strong>--compress</strong> options can be used
-to control the file format and compression method. If the latter is
-not given, then the extension may be used to deduce the desired
-compression algorithm, if supported, e.g. a gzip archive for '.gz'.</p>
+<em>outfile</em> is '-'.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -1754,15 +1661,18 @@ after printing the summary and/or details, if either are also being displayed.</
 <div class="content">
 <div class="paragraph">
 <p>Cause <strong>TShark</strong> to print a hex and ASCII dump of the packet data
-with the ability to select which data sources to dump, how to
-format or exclude the ASCII dump text, and whether to print the
-frame timestamp as preamble.</p>
+with the ability to select which data sources to dump and how to
+format or exclude the ASCII dump text.</p>
 </div>
 <div class="paragraph">
-<p>This option (and <strong>-x</strong>) can occur multiple times on the command line,
-and the hex dump will only be printed once. In the case of conflicting
-options, the last options given will be used. The possible <strong>&lt;hexoption&gt;</strong>
-values are:</p>
+<p>This option can be used multiple times where the data source <strong>&lt;hexoption&gt;</strong>
+is <strong>all</strong> or <strong>frames</strong> and the ASCII dump text <strong>&lt;hexoption&gt;</strong> is <strong>ascii</strong>,
+<strong>delimit</strong>, <strong>noascii</strong>.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Example:  tshark ... --hexdump frames --hexdump delimit ...</pre>
+</div>
 </div>
 <div class="dlist">
 <dl>
@@ -1775,7 +1685,7 @@ The <strong>-x</strong> option displays all data sources by default.</p>
 <dt class="hdlist1"><strong>frames</strong></dt>
 <dd>
 <p>Enable hexdump, generate hexdump blocks only for the frame data. Use
-this option to exclude from hexdump output any hexdump blocks for
+this option to exclude, from hexdump output, any hexdump blocks for
 secondary data sources such as 'Bitstring tvb', 'Reassembled TCP',
 'De-chunked entity body', etc.</p>
 </dd>
@@ -1795,15 +1705,6 @@ and start of the ASCII dump text.</p>
 <dd>
 <p>Enable hexdump without printing any ASCII dump text.</p>
 </dd>
-<dt class="hdlist1"><strong>time</strong></dt>
-<dd>
-<p>Enable hexdump and print each frame timestamp as preamble. The <strong>-t</strong>
-option can be used to change the timestamp format.</p>
-</dd>
-<dt class="hdlist1"><strong>notime</strong></dt>
-<dd>
-<p>Enable hexdump without print each frame timestamp as preamble.</p>
-</dd>
 <dt class="hdlist1"><strong>help</strong></dt>
 <dd>
 <p>Display <strong>--hexdump</strong> specific help then exit.</p>
@@ -1821,36 +1722,26 @@ directly do a "Save as" nor export packets from.</p>
 </div>
 <div class="paragraph">
 <p>Generate hexdump output, with only the frame data source, with delimited ASCII
-dump text, and with each frame hex block preceded by a human readable timestamp
-in the local time zone that is directly usable by the <strong>text2pcap</strong> utility:</p>
+dump text, with each frame hex block preceded by a human readable timestamp that
+is directly usable by the <strong>text2pcap</strong> utility:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>tshark ... --hexdump frames --hexdump delimit --hexdump time -t ad \
-    | text2pcap -t 'ISO' - MYNEWPCAPNG</pre>
+<pre>tshark ... --hexdump frames --hexdump delimit \
+    -P -t ad -o gui.column.format:"Time","%t" \
+    | text2pcap -n -t '%F %T.%f' - MYNEWPCAPNG</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Generate hexdump output, with only the frame data source, with the default
-ASCII dump text with no delimiter, and with each frame hex block preceded by a
-human readable timestamp in UTC that is directly usable by the <strong>text2pcap</strong>
-utility with the <strong>-a</strong> option:</p>
+<p>Generate hexdump output, with only the frame data source, with no ASCII dump text,
+with each frame hex block preceded by an epoch timestamp that is directly
+usable by the <strong>text2pcap</strong> utility:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>tshark ... --hexdump frames --hexdump time -t ud \
-    | text2pcap -a -t 'ISO' - MYNEWPCAPNG</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Generate hexdump output, with only the frame data source, with no ASCII dump
-text, and with each frame hex block preceded by an epoch timestamp that is
-directly usable by the <strong>text2pcap</strong> utility:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>tshark ... --hexdump frames --hexdump noascii --hexdump time -t e \
-    | text2pcap -t %s.%f - MYNEWPCAPNG</pre>
+<pre>tshark ... --hexdump frames --hexdump noascii \
+    -P -t e -o gui.column.format:"Time","%t" \
+    | text2pcap -n -t %s.%f - MYNEWPCAPNG</pre>
 </div>
 </div>
 </div>
@@ -2088,31 +1979,27 @@ want to generate the statistics; currently the supported ones are:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>"bluetooth"  Bluetooth addresses
-"bpv7"       Bundle Protocol Version 7 addresses
-"dccp"       DCCP/IP socket pairs Both IPv4 and IPv6 are supported
-"dnp3"       DNP3 addresses
-"eth"        Ethernet addresses
-"fc"         Fibre Channel addresses
-"fddi"       FDDI addresses
-"ip"         IPv4 addresses
-"ipv6"       IPv6 addresses
-"ipx"        IPX addresses
-"jxta"       JXTA message addresses
-"ltp"        LTP addresses
-"mptcp"      Multipath TCP connections
-"ncp"        NCP connections
-"openSAFETY" openSAFETY addresses
-"rsvp"       RSVP connections
-"sctp"       SCTP/IP socket pairs Both IPv4 and IPv6 are supported
-"sll"        Linux "cooked mode" capture addresses
-"tcp"        TCP/IP socket pairs  Both IPv4 and IPv6 are supported
-"tr"         Token Ring addresses
-"udp"        UDP/IP socket pairs  Both IPv4 and IPv6 are supported
-"usb"        USB addresses
-"wlan"       IEEE 802.11 addresses
-"wpan"       IEEE 802.15.4 addresses
-"zbee_nwk"   ZigBee Network Layer addresses</pre>
+<pre>"bluetooth" Bluetooth addresses
+"dccp"      DCCP/IP socket pairs Both IPv4 and IPv6 are supported
+"eth"       Ethernet addresses
+"fc"        Fibre Channel addresses
+"fddi"      FDDI addresses
+"ip"        IPv4 addresses
+"ipv6"      IPv6 addresses
+"ipx"       IPX addresses
+"jxta"      JXTA message addresses
+"mptcp"     Multipath TCP connections
+"ncp"       NCP connections
+"rsvp"      RSVP connections
+"sctp"      SCTP/IP socket pairs Both IPv4 and IPv6 are supported
+"sll"       Linux "cooked mode" capture addresses
+"tcp"       TCP/IP socket pairs  Both IPv4 and IPv6 are supported
+"tr"        Token Ring addresses
+"udp"       UDP/IP socket pairs  Both IPv4 and IPv6 are supported
+"usb"       USB addresses
+"wlan"      IEEE 802.11 addresses
+"wpan"      IEEE 802.15.4 addresses
+"zbee_nwk"  ZigBee Network Layer addresses</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -2255,31 +2142,27 @@ want to generate the statistics; currently the supported ones are:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>"bluetooth"  Bluetooth addresses
-"bpv7"       Bundle Protocol Version 7 addresses
-"dccp"       DCCP/IP socket pairs Both IPv4 and IPv6 are supported
-"dnp3"       DNP3 addresses
-"eth"        Ethernet addresses
-"fc"         Fibre Channel addresses
-"fddi"       FDDI addresses
-"ip"         IPv4 addresses
-"ipv6"       IPv6 addresses
-"ipx"        IPX addresses
-"jxta"       JXTA message addresses
-"ltp"        LTP addresses
-"mptcp"      Multipath TCP connections
-"ncp"        NCP connections
-"openSAFETY" openSAFETY addresses
-"rsvp"       RSVP connections
-"sctp"       SCTP/IP socket pairs Both IPv4 and IPv6 are supported
-"sll"        Linux "cooked mode" capture addresses
-"tcp"        TCP/IP socket pairs  Both IPv4 and IPv6 are supported
-"tr"         Token Ring addresses
-"udp"        UDP/IP socket pairs  Both IPv4 and IPv6 are supported
-"usb"        USB addresses
-"wlan"       IEEE 802.11 addresses
-"wpan"       IEEE 802.15.4 addresses
-"zbee_nwk"   ZigBee Network Layer addresses</pre>
+<pre>"bluetooth" Bluetooth addresses
+"dccp"      DCCP/IP socket pairs Both IPv4 and IPv6 are supported
+"eth"       Ethernet addresses
+"fc"        Fibre Channel addresses
+"fddi"      FDDI addresses
+"ip"        IPv4 addresses
+"ipv6"      IPv6 addresses
+"ipx"       IPX addresses
+"jxta"      JXTA message addresses
+"mptcp"     Multipath TCP connections
+"ncp"       NCP connections
+"rsvp"      RSVP connections
+"sctp"      SCTP/IP socket pairs Both IPv4 and IPv6 are supported
+"sll"       Linux "cooked mode" capture addresses
+"tcp"       TCP/IP socket pairs  Both IPv4 and IPv6 are supported
+"tr"        Token Ring addresses
+"udp"       UDP/IP socket pairs  Both IPv4 and IPv6 are supported
+"usb"       USB addresses
+"wlan"      IEEE 802.11 addresses
+"wpan"      IEEE 802.15.4 addresses
+"zbee_nwk"  ZigBee Network Layer addresses</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -2387,9 +2270,9 @@ network    Network address</pre>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>Displays the contents of a stream between two nodes. The data sent by the
-second node is prefixed with a tab to differentiate it from the data sent
-by the first node.</p>
+<p>Displays the contents of a TCP or UDP stream between two nodes. The data
+sent by the second node is prefixed with a tab to differentiate it from the
+data sent by the first node.</p>
 </div>
 <div class="paragraph">
 <p><em>prot</em> specifies the transport protocol.  It can be one of:</p>
@@ -2400,12 +2283,9 @@ by the first node.</p>
 udp   UDP
 dccp  DCCP
 tls   TLS or SSL
-dtls  DTLS
 http  HTTP streams
 http2 HTTP/2 streams
-quic  QUIC streams
-mp2t  MPEG-2 TS PIDs
-mpeg-pes MPEG-2 Packetized Element Stream</pre>
+quic  QUIC streams</pre>
 </div>
 </div>
 <div class="admonitionblock note">
@@ -2454,22 +2334,17 @@ stream-index,substream-index</pre>
 </div>
 <div class="paragraph">
 <p>The first format specifies IP addresses and TCP, UDP, or DCCP port pairs.
-(TCP ports are used for TLS, HTTP, and HTTP2; UDP ports are used for DTLS, QUIC,
-MP2T, and MPEG-PS.) Note that this format will include all streams multiplexed
-on the same address and port 5-tuple for transports with substreams such
-as HTTP/2, QUIC, and MP2T. In addition, for QUIC this format will include
-all connections sharing the same 5-tuple, and will not follow connection
-migration.</p>
+(TCP ports are used for TLS, HTTP, and HTTP2; QUIC does not support address
+and port matching because of connection migration.)</p>
 </div>
 <div class="paragraph">
 <p>The second format specifies stream indices, and is used for TCP, UDP, DCCP,
-TLS, DTLS, and HTTP. (HTTP uses TCP stream indices.)</p>
+TLS, and HTTP. (TLS and HTTP use TCP stream indices.)</p>
 </div>
 <div class="paragraph">
-<p>The third format, specifying streams and substreams, is used for HTTP/2,
-QUIC, MP2T, and MPEG-PES due to their use of multiplexing. (TCP stream and
-HTTP/2 stream indices for HTTP/2, QUIC connection number and stream ID for
-QUIC, MP2T stream and PID for MP2T and MPEG-PS.)</p>
+<p>The third format, specifying streams and substreams, is used for HTTP/2 and
+QUIC due to their use of multiplexing. (TCP stream and HTTP/2 stream indices
+for HTTP/2, QUIC connection number and stream ID for QUIC.)</p>
 </div>
 <div class="paragraph">
 <p><em>range</em> optionally specifies which "chunks" of the stream should be displayed.</p>
@@ -3095,24 +2970,24 @@ queries collated by receiver address and then topic name.</p>
 <p>Calculate statistics on LBM Topic Resolution Packets. Displays topic
 queries collated by topic name and then receiver address.</p>
 </dd>
-<dt class="hdlist1"><strong>-z</strong> mac-3gpp,stat[,<em>filter</em>]</dt>
+<dt class="hdlist1"><strong>-z</strong> mac-lte,stat[,<em>filter</em>]</dt>
 <dd>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>This option will activate a counter for LTE or NR MAC messages.  You will get
+<p>This option will activate a counter for LTE MAC messages.  You will get
 information about the maximum number of UEs/TTI, common messages and
 various counters for each UE that appears in the log.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>tshark -z mac-3gpp,stat</strong>.</p>
+<p>Example: <strong>tshark -z mac-lte,stat</strong>.</p>
 </div>
 <div class="paragraph">
 <p>This option can be used multiple times on the command line.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>-z "mac-3gpp,stat,mac-lte.rnti&gt;3000"</strong> will only collect stats for
-LTE UEs with an assigned RNTI whose value is more than 3000.</p>
+<p>Example: <strong>-z "mac-lte,stat,mac-lte.rnti&gt;3000"</strong> will only collect stats for
+UEs with an assigned RNTI whose value is more than 3000.</p>
 </div>
 </div>
 </div>
@@ -3174,23 +3049,12 @@ Core Protocol.  Minimum SRT, maximum SRT, average SRT, and sum SRT is
 displayed for request/response pairs, organized by group, function and
 subfunction, and verb.  No statistics are gathered on unpaired messages.</p>
 </dd>
-<dt class="hdlist1"><strong>-z</strong> oran-fh-cus,stat[,<em>filter</em>]</dt>
-<dd>
-<p>Collect flow summaries for ORAN FH CUS traffic.</p>
-</dd>
 <dt class="hdlist1"><strong>-z</strong> osmux,tree[,<em>filter</em>]</dt>
 <dd>
 <p>Calculate statistics for the OSmux voice/signaling multiplex protocol.
 Displays the total number of OSmux packets, and displays for each stream
 the number of packets, number of packets with the RTP market bit set,
 number of AMR frames, jitter analysis, and sequence number analysis.</p>
-</dd>
-<dt class="hdlist1"><strong>-z</strong> pfcp,srt[,<em>filter</em>]</dt>
-<dd>
-<p>Collect requests/response SRT (Service Response Time) data for PFCP.
-Data collected is the number of calls, minimum SRT, maximum SRT, average
-SRT, and sum SRT for certain commands.  Currently no statistics are gathered
-on unpaired messages.</p>
 </dd>
 <dt class="hdlist1"><strong>-z</strong> pingpongprotocol,stat[,<em>filter</em>]</dt>
 <dd>
@@ -3265,24 +3129,24 @@ Minimum RTD, Maximum RTD, Average RTD, Minimum in Frame, and Maximum in Frame,
 along with the number of Open Requests (Unresponded Requests), Discarded
 Responses (Responses without matching request) and Duplicate Messages.</p>
 </dd>
-<dt class="hdlist1"><strong>-z</strong> rlc-3gpp,stat[,<em>filter</em>]</dt>
+<dt class="hdlist1"><strong>-z</strong> rlc-lte,stat[,<em>filter</em>]</dt>
 <dd>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>This option will activate a counter for LTE or NR RLC messages.  You will get
+<p>This option will activate a counter for LTE RLC messages.  You will get
 information about common messages and various counters for each UE that appears
 in the log.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>tshark -z rlc-3gpp,stat</strong>.</p>
+<p>Example: <strong>tshark -z rlc-lte,stat</strong>.</p>
 </div>
 <div class="paragraph">
 <p>This option can be used multiple times on the command line.</p>
 </div>
 <div class="paragraph">
-<p>Example: <strong>-z "rlc-3gpp,stat,rlc-nr.ueid&gt;3000"</strong> will only collect stats for
-NR UEs with a UEId of more than 3000.</p>
+<p>Example: <strong>-z "rlc-lte,stat,rlc-lte.ueid&gt;3000"</strong> will only collect stats for
+UEs with a UEId of more than 3000.</p>
 </div>
 </div>
 </div>
@@ -3532,7 +3396,7 @@ The default value is 100ms.</p>
 filters. On Windows colors are limited to the standard console
 character attribute colors. Other platforms require a terminal that
 handles 24-bit "true color" terminal escape sequences. See
-<a href="https://wiki.wireshark.org/ColoringRules" class="bare">https://wiki.wireshark.org/ColoringRules</a> for more information on
+<a href="https://gitlab.com/wireshark/wireshark/-/wikis/ColoringRules" class="bare">https://gitlab.com/wireshark/wireshark/-/wikis/ColoringRules</a> for more information on
 configuring color filters.</p>
 </dd>
 <dt class="hdlist1">--no-duplicate-keys</dt>
@@ -3581,18 +3445,6 @@ before the file extension.</p>
 <p>Output JSON containing elapsed times for each pass tshark does to process a capture
 file and the sum elapsed time for all passes. The per-pass output contains the total
 elapsed time and aggregate counters for per-packet operations (dissection and filtering).</p>
-</dd>
-<dt class="hdlist1">--compress &lt;type&gt;</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>Compress the output file using the type compression format.
-<strong>--compress</strong> with no argument provides a list of the compression formats supported
-for writing. The type given takes precedence over the extension of <em>outfile</em>.</p>
-</div>
-</div>
-</div>
 </dd>
 </dl>
 </div>
@@ -3745,10 +3597,6 @@ MaxMind databases</p>
 resolution; no effect without <strong>n</strong> also enabled.</p>
 </div>
 <div class="paragraph">
-<p><strong>s</strong> to enable address resolution using SNI information found in captured
-handshake packets</p>
-</div>
-<div class="paragraph">
 <p><strong>t</strong> to enable transport-layer port number resolution</p>
 </div>
 <div class="paragraph">
@@ -3814,18 +3662,17 @@ previous displayed packet was captured</p>
 and the current packet</p>
 </div>
 <div class="paragraph">
-<p><strong>u</strong> UTC: The absolute time, as UTC with a "Z" suffix, is the actual time
-the packet was captured, with no date displayed</p>
+<p><strong>u</strong> UTC: The absolute time, as UTC, is the actual time the packet was
+captured, with no date displayed</p>
 </div>
 <div class="paragraph">
 <p><strong>ud</strong> UTC with date: The absolute date, displayed as YYYY-MM-DD,
-and time, as UTC with a "Z" suffix, is the actual time and date the packet
-was captured</p>
+and time, as UTC, is the actual time and date the packet was captured</p>
 </div>
 <div class="paragraph">
 <p><strong>udoy</strong> UTC with date using day of year: The absolute date, displayed
-as YYYY/DOY, and time, as UTC with a "Z" suffix, is the actual time and date
-the packet was captured</p>
+as YYYY/DOY, and time, as UTC, is the actual time and date the packet
+was captured</p>
 </div>
 <div class="paragraph">
 <p><strong>.[N]</strong> Set the precision: N is the number of decimals (0 through 9).
@@ -3915,7 +3762,7 @@ List of domains must be comma-separated.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>See the manual page of <a href="https://www.tcpdump.org/manpages/pcap-filter.7.html">pcap-filter</a>(7) or, if that doesn&#8217;t exist, <a href="https://www.tcpdump.org/manpages/tcpdump.1.html">tcpdump</a>(8),
-or, if that doesn&#8217;t exist, <a href="https://wiki.wireshark.org/CaptureFilters" class="bare">https://wiki.wireshark.org/CaptureFilters</a>.</p>
+or, if that doesn&#8217;t exist, <a href="https://gitlab.com/wireshark/wireshark/-/wikis/CaptureFilters" class="bare">https://gitlab.com/wireshark/wireshark/-/wikis/CaptureFilters</a>.</p>
 </div>
 </div>
 </div>
@@ -3932,7 +3779,7 @@ in <strong>TShark</strong> see the <a href="wireshark-filter.html">wireshark-fil
 <h2 id="_files">FILES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>These files contain various <strong>Wireshark</strong> configuration settings.</p>
+<p>These files contains various <strong>Wireshark</strong> configuration values.</p>
 </div>
 <div class="dlist">
 <dl>
@@ -3945,7 +3792,7 @@ in <strong>TShark</strong> see the <a href="wireshark-filter.html">wireshark-fil
 preference settings.  If the system-wide preference file exists, it is
 read first, overriding the default settings.  If the personal preferences
 file exists, it is read next, overriding any previous values.  Note: If
-the command line flag <strong>-o</strong> is used (possibly more than once), it will
+the command line option <strong>-o</strong> is used (possibly more than once), it will
 in turn override values from the preferences files.</p>
 </div>
 <div class="paragraph">
@@ -3960,9 +3807,9 @@ starts a comment that runs to the end of the line:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre># Vertical scrollbars should be on right side?
+<pre># Capture in promiscuous mode?
 # TRUE or FALSE (case-insensitive).
-gui.scrollbar_on_right: TRUE</pre>
+capture.prom_mode: TRUE</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -4007,52 +3854,11 @@ tcp     # a comment</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>If a protocol is listed in the global <em>disabled_protos</em> file it cannot
-be enabled by the user.</p>
-</div>
-<div class="paragraph">
 <p>The global <em>disabled_protos</em> file uses the same directory as the global
 preferences file.</p>
 </div>
 <div class="paragraph">
 <p>The personal <em>disabled_protos</em> file uses the same directory as the
-personal preferences file.</p>
-</div>
-<div class="paragraph">
-<p>The <em>disabled_protos</em> files list only protocols that are enabled by default
-but have been disabled; protocols that are disabled by default (such as some
-postdissectors) are not listed. There are analogous <em>enabled_protos</em> files
-for protocols that are disabled by default but have been enabled.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">Heuristic Dissectors</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>The <em>heuristic_protos</em> files contain system-wide and personal lists of
-heuristic dissectors and indicate whether they are enabled or disabled.
-The files contain heuristic dissector unique short names, one per line,
-followed by a comma and 0 for disabled and 1 for enabled:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>quic,1
-rtcp_stun,1
-rtcp_udp,1
-rtp_stun,0
-rtp_udp,0
-tls_tcp,1</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The global <em>heuristic_protos</em> file uses the same directory as the global
-preferences file.</p>
-</div>
-<div class="paragraph">
-<p>The personal <em>heuristic_protos</em> file uses the same directory as the
 personal preferences file.</p>
 </div>
 </div>
@@ -4063,17 +3869,17 @@ personal preferences file.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>Entries in <em>hosts</em> files in the global and personal preferences
-directory are used to resolve IPv4 and IPv6 addresses before any
-other attempts are made to resolve them.
-The file has the standard <em>hosts</em> file syntax; each line contains one
-IP address and name, separated by whitespace. The personal <em>hosts</em>
-file, if present, overrides the one in the global directory.</p>
+<p>If the personal <em>hosts</em> file exists, it is
+used to resolve IPv4 and IPv6 addresses before any other
+attempts are made to resolve them.  The file has the standard <em>hosts</em>
+file syntax; each line contains one IP address and name, separated by
+whitespace.  The same directory as for the personal preferences file is
+used.</p>
 </div>
 <div class="paragraph">
 <p>Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems, such as Linux, macOS, \*BSD, Solaris, and AIX, and Npcap
-on Windows.  As such the Wireshark personal <em>hosts</em> file will
+systems, such as Linux, macOS, \*BSD, Solaris, and AIX, and by Npcap or
+WinPcap on Windows.  As such the Wireshark personal <em>hosts</em> file will
 not be consulted for capture filter name resolution.</p>
 </div>
 </div>
@@ -4085,9 +3891,7 @@ not be consulted for capture filter name resolution.</p>
 <div class="content">
 <div class="paragraph">
 <p>If an IPv4 address cannot be translated via name resolution (no exact
-match is found) then a partial match is attempted via the <em>subnets</em> file.
-Both the global <em>subnets</em> file and personal <em>subnets</em> files are used
-if they exist.</p>
+match is found) then a partial match is attempted via the <em>subnets</em> file.</p>
 </div>
 <div class="paragraph">
 <p>Each line of this file consists of an IPv4 address, a subnet mask length
@@ -4106,7 +3910,7 @@ ignored.</p>
 <p>A partially matched name will be printed as "subnet-name.remaining-address".
 For example, "192.168.0.1" under the subnet above would be printed as
 "ws_test_network.1"; if the mask length above had been 16 rather than 24, the
-printed address would be "ws_test_network.0.1".</p>
+printed address would be ``ws_test_network.0.1".</p>
 </div>
 </div>
 </div>
@@ -4116,31 +3920,23 @@ printed address would be "ws_test_network.0.1".</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>The <em>ethers</em> files are consulted to correlate 6-byte EUI-48 and 8-byte EUI-64
-hardware addresses to names.  First the personal <em>ethers</em> file is tried and
-if an address is not found there the global <em>ethers</em> file is tried next.</p>
+<p>The <em>ethers</em> files are consulted to correlate 6-byte hardware addresses to
+names.  First the personal <em>ethers</em> file is tried and if an address is not
+found there the global <em>ethers</em> file is tried next.</p>
 </div>
 <div class="paragraph">
-<p>The file has a similar format to that defined by ethers(5) on some UNIX-like
-systems.  Each line contains one hardware address and name, separated by
-whitespace (tabs or spaces).  The hexadecimal digits of the hardware address
-are separated by colons (:), dashes (-) or periods (.).  The same separator
-character must be used consistently in an address.  A <code>#</code> indicates a comment
-that extends to the rest of the line. Both 6-byte MAC and 8-byte EUI-64
-addresses are supported.  The following four lines are valid lines of an
-<em>ethers</em> file:</p>
+<p>Each line contains one hardware address and name, separated by
+whitespace.  The digits of the hardware address are separated by colons
+(:), dashes (-) or periods (.).  The same separator character must be
+used consistently in an address.  The following three lines are valid
+lines of an <em>ethers</em> file:</p>
 </div>
 <div class="literalblock">
 <div class="content">
 <pre>ff:ff:ff:ff:ff:ff          Broadcast
 c0-00-ff-ff-ff-ff          TR_broadcast
-00.00.00.00.00.00          Zero_broadcast
-00:00:00:00:00:00:00:00    EUI64_zero_broadcast</pre>
+00.00.00.00.00.00          Zero_broadcast</pre>
 </div>
-</div>
-<div class="paragraph">
-<p>Note that this accepts a greater variety of formats than the file
-defined by ethers(5) on most UN*X systems.</p>
 </div>
 <div class="paragraph">
 <p>The global <em>ethers</em> file is looked for in the <em>/etc</em> directory on
@@ -4154,9 +3950,8 @@ preferences file.</p>
 </div>
 <div class="paragraph">
 <p>Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and Npcap on Windows.  As such the Wireshark personal
-<em>ethers</em> file will not be consulted for capture filter name
-resolution.</p>
+systems and Npcap or WinPcap on Windows.  As such the Wireshark personal
+<em>ethers</em> file will not be consulted for capture filter name resolution.</p>
 </div>
 </div>
 </div>
@@ -4169,16 +3964,16 @@ resolution.</p>
 <p>The <em>manuf</em> file is used to match the 3-byte vendor portion of a 6-byte
 hardware address with the manufacturer&#8217;s name; it can also contain well-known
 MAC addresses and address ranges specified with a netmask.  The format of the
-file is similar the <em>ethers</em> files, except that entries such as:</p>
+file is the same as the <em>ethers</em> files, except that entries of the form:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>00:00:0C      Cisco     Cisco Systems, Inc</pre>
+<pre>00:00:0C      Cisco</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>can be provided, with the 3-byte OUI and both an abbreviated and long name for
-a vendor, and entries such as:</p>
+<p>can be provided, with the 3-byte OUI and the name for a vendor, and
+entries such as:</p>
 </div>
 <div class="literalblock">
 <div class="content">
@@ -4193,22 +3988,8 @@ significant bits, or 5 bytes, and would match addresses from
 multiple of 8.</p>
 </div>
 <div class="paragraph">
-<p>A global <em>manuf</em> file is looked for in the same directory as the global
-preferences file, and a personal <em>manuf</em> file is looked for in the same
-directory as the personal preferences file.</p>
-</div>
-<div class="paragraph">
-<p>In earlier versions of Wireshark, official information from the IEEE
-Registration Authority was distributed in this format as the global
-<em>manuf</em> file. This information is now compiled in to speed program
-startup, but the internal information can be written out in this format
-with <strong>tshark -G manuf</strong>.</p>
-</div>
-<div class="paragraph">
-<p>In addition to the <em>manuf</em> file, another file with the same format,
-<em>wka</em>, is looked for in the global directory. This file is distributed
-with Wireshark, and contains data about well-known MAC adddresses and
-address ranges assembled from various non IEEE but respected sources.</p>
+<p>The <em>manuf</em> file is looked for in the same directory as the global
+preferences file.</p>
 </div>
 </div>
 </div>
@@ -4218,9 +3999,7 @@ address ranges assembled from various non IEEE but respected sources.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>The <em>services</em> file is used to translate port numbers into names.
-Both the global <em>services</em> file and personal <em>services</em> files are used
-if they exist.</p>
+<p>The <em>services</em> file is used to translate port numbers into names.</p>
 </div>
 <div class="paragraph">
 <p>The file has the standard <em>services</em> file syntax; each line contains one
@@ -4231,15 +4010,11 @@ transport identifier includes one port number and one transport protocol name
 <div class="paragraph">
 <p>An example is:</p>
 </div>
-<div class="paragraph">
-<p>mydns       5045/udp     # My own Domain Name Server
-mydns       5045/tcp     # My own Domain Name Server</p>
+<div class="literalblock">
+<div class="content">
+<pre>mydns       5045/udp     # My own Domain Name Server
+mydns       5045/tcp     # My own Domain Name Server</pre>
 </div>
-<div class="paragraph">
-<p>In earlier versions of Wireshark, official information from the IANA
-Registry was distributed in this format as the global <em>services</em> file.
-This information is now compiled in to speed program startup, but the
-internal information can be written out in this format with <strong>tshark -G services</strong>.</p>
 </div>
 </div>
 </div>
@@ -4277,141 +4052,6 @@ Files\Wireshark</em>) on Windows systems.</p>
 <div class="paragraph">
 <p>The personal <em>ipxnets</em> file is looked for in the same directory as the
 personal preferences file.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">Name Resolution (ss7pcs)</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>The <em>ss7pcs</em> file is used to translate SS7 point codes to names.
-It is read from the personal configuration directory.</p>
-</div>
-<div class="paragraph">
-<p>Each line in this file consists of one network indicator followed by a dash
-followed by a point code in decimal and a node name separated by whitespace.
-An example is:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>2-1234 MyPointCode1</pre>
-</div>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">Name Resolution (vlans)</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>The <em>vlans</em> file is used to translate VLAN tag IDs into names.
-It is read from the personal configuration directory.</p>
-</div>
-<div class="paragraph">
-<p>Each line in this file consists of one VLAN tag ID separated by whitespace
-from a name.  An example is:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>123    Server-Lan
-2049   HR-Client-LAN</pre>
-</div>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">Color Filters (Coloring Rules)</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>The <em>colorfilters</em> files contain system-wide and personal color filters.
-Each line contains one filter, starting with the string displayed in the
-dialog box, followed by the corresponding display filter.  Then the
-background and foreground colors are appended:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre># a comment
-@tcp@tcp@[59345,58980,65534][0,0,0]
-@udp@udp@[28834,57427,65533][0,0,0]</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The global <em>colorfilters</em> file uses the same directory as the
-global preferences file.</p>
-</div>
-<div class="paragraph">
-<p>The personal <em>colorfilters</em> file uses the same directory as the
-personal preferences file.  It is written through the View:Coloring Rules
-dialog.</p>
-</div>
-<div class="paragraph">
-<p>If the global <em>colorfilters</em> file exists, it is used only if the personal
-<em>colorfilters</em> file does not exist; global and personal color filters are
-not merged.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">Plugins</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>Wireshark looks for plugins in both a personal plugin folder and a
-global plugin folder.</p>
-</div>
-<div class="paragraph">
-<p>On UNIX-compatible systems, such as Linux, macOS, \*BSD, Solaris, and
-AIX, the global plugin directory is <em>lib/wireshark/plugins/</em> (on
-some systems substitute <em>lib64</em> for <em>lib</em>) under the main installation
-directory (for example, <em>/usr/local/lib/wireshark/plugins/</em>). The personal
-plugin directory is <em>$HOME/.local/lib/wireshark/plugins</em>.</p>
-</div>
-<div class="paragraph">
-<p>On macOS, if Wireshark is installed as an application bundle, the global plugin
-folder is instead <em>%APPDIR%/Contents/PlugIns/wireshark</em>.</p>
-</div>
-<div class="paragraph">
-<p>On Windows, the global plugin folder is <em>plugins/</em> under the main
-installation directory (for example, <em>C:\Program Files\Wireshark\plugins\</em>).
-The personal plugin folder is <em>%APPDATA%\Wireshark\plugins</em> (or, if
-%APPDATA% isn&#8217;t defined, <em>%USERPROFILE%\Application Data\Wireshark\plugins</em>).</p>
-</div>
-<div class="paragraph">
-<p>Lua plugins are stored in the plugin folders;
-compiled plugins are stored in subfolders of the plugin folders, with
-the subfolder name being the Wireshark minor version number (X.Y). There is
-another hierarchical level for each Wireshark plugin type (libwireshark,
-libwiretap and codecs).  For example, the location for a libwireshark plugin
-<em>foo.so</em> (<em>foo.dll</em> on Windows) would be <em>PLUGINDIR/X.Y/epan</em>
-(libwireshark used to be called libepan; the other folder names are <em>codecs</em>
-and <em>wiretap</em>).</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<div class="title">Note</div>
-</td>
-<td class="content">
-On UNIX-compatible systems, Lua plugins (but not binary plugins) may also
-be placed in <em>$XDG_CONFIG_HOME/wireshark/plugins</em>,
-(or, if <em>$XDG_CONFIG_HOME/wireshark</em> does not exist while <em>$HOME/.wireshark</em>
-does exist, <em>$HOME/.wireshark/plugins</em>.)
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p>Note that a dissector plugin module may support more than one protocol;
-there is not necessarily a one-to-one correspondence between dissector plugin
-modules and protocols.  Protocols supported by a dissector plugin module are
-enabled and disabled in the same way as protocols built into Wireshark.</p>
 </div>
 </div>
 </div>
@@ -4583,7 +4223,7 @@ by '!' this disables the <code>debug</code> level instead.</p>
 <h2 id="_notes">NOTES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the manual page for <strong>TShark</strong> 4.6.1.
+<p>This is the manual page for <strong>TShark</strong> 4.2.12.
 <strong>TShark</strong> is part of the <strong>Wireshark</strong> distribution.
 The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
 </div>

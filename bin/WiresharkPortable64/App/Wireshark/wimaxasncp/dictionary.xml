@@ -2381,7 +2381,7 @@
 
     <!-- ****************************************************************** -->
 
-    <tlv name="Service Class Name-229"
+    <tlv name="Service Class Name"
          type="229"
          decoder="WIMAXASNCP_TLV_STRING">
     </tlv>

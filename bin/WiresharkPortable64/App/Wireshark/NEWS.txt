@@ -1,0 +1,124 @@
+Wireshark 4.2.7 Release Notes
+
+ What is Wireshark?
+
+  Wireshark is the world’s most popular network protocol analyzer. It is
+  used for troubleshooting, analysis, development and education.
+
+  Wireshark is hosted by the Wireshark Foundation, a nonprofit which
+  promotes protocol analysis education. Wireshark and the foundation
+  depend on your contributions in order to do their work. If you or your
+  organization would like to contribute or become a sponsor, please
+  visit wiresharkfoundation.org[1].
+
+ What’s New
+
+  Bug Fixes
+
+   If you are upgrading Wireshark 4.2.0 or 4.2.1 on Windows you will
+   need to download and install[2] Wireshark 4.2.7 or later by hand.
+
+   The following vulnerabilities have been fixed:
+
+   The following bugs have been fixed:
+
+  New and Updated Features
+
+   There are no new or updated features in this release.
+
+  New Protocol Support
+
+   There are no new protocols in this release.
+
+  Updated Protocol Support
+
+  New and Updated Capture File Support
+
+   There is no new or updated capture file support in this release.
+
+  Updated File Format Decoding Support
+
+   There is no updated file format support in this release.
+
+ Prior Versions
+
+  This document only describes the changes introduced in Wireshark
+  4.2.7. You can find release notes for prior versions at the following
+  locations:
+
+    • Wireshark 4.2.6[3]
+
+    • Wireshark 4.2.5[4]
+
+    • Wireshark 4.2.4[5]
+
+    • Wireshark 4.2.3[6]
+
+    • Wireshark 4.2.2[7]
+
+    • Wireshark 4.2.1[8]
+
+    • Wireshark 4.2.0[9]
+
+ Getting Wireshark
+
+  Wireshark source code and installation packages are available from
+  https://www.wireshark.org/download.html.
+
+  Vendor-supplied Packages
+
+   Most Linux and Unix vendors supply their own Wireshark packages. You
+   can usually install or upgrade Wireshark using the package management
+   system specific to that platform. A list of third-party packages can
+   be found on the download page[10] on the Wireshark web site.
+
+ File Locations
+
+  Wireshark and TShark look in several different locations for
+  preference files, plugins, SNMP MIBS, and RADIUS dictionaries. These
+  locations vary from platform to platform. You can use "Help › About
+  Wireshark › Folders" or `tshark -G folders` to find the default
+  locations on your system.
+
+ Getting Help
+
+  The User’s Guide, manual pages and various other documentation can be
+  found at https://www.wireshark.org/docs/
+
+  Community support is available on Wireshark’s Q&A site[11] and on the
+  wireshark-users mailing list. Subscription information and archives
+  for all of Wireshark’s mailing lists can be found on the web site[12].
+
+  Bugs and feature requests can be reported on the issue tracker[13].
+
+  You can learn protocol analysis and meet Wireshark’s developers at
+  SharkFest[14].
+
+ How You Can Help
+
+  The Wireshark Foundation helps as many people as possible understand
+  their networks as much as possible. You can find out more and donate
+  at wiresharkfoundation.org[15].
+
+ Frequently Asked Questions
+
+  A complete FAQ is available on the Wireshark web site[16].
+
+ References
+
+   1. https://wiresharkfoundation.org
+   2. https://www.wireshark.org/download.html
+   3. https://www.wireshark.org/docs/relnotes/wireshark-4.2.6.html
+   4. https://www.wireshark.org/docs/relnotes/wireshark-4.2.5.html
+   5. https://www.wireshark.org/docs/relnotes/wireshark-4.2.4.html
+   6. https://www.wireshark.org/docs/relnotes/wireshark-4.2.3.html
+   7. https://www.wireshark.org/docs/relnotes/wireshark-4.2.2.html
+   8. https://www.wireshark.org/docs/relnotes/wireshark-4.2.1.html
+   9. https://www.wireshark.org/docs/relnotes/wireshark-4.2.0.html
+  10. https://www.wireshark.org/download.html
+  11. https://ask.wireshark.org/
+  12. https://www.wireshark.org/lists/
+  13. https://gitlab.com/wireshark/wireshark/-/issues
+  14. https://sharkfest.wireshark.org
+  15. https://wiresharkfoundation.org
+  16. https://www.wireshark.org/faq.html

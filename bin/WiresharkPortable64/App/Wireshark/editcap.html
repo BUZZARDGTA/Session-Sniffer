@@ -33,7 +33,6 @@
 <span class="nowrap">[ <strong>-o</strong> &lt;change offset&gt; ]</span>
 <span class="nowrap">[ <strong>-L</strong> ]</span>
 <span class="nowrap">[ <strong>-r</strong> ]</span>
-<span class="nowrap">[ <strong>-R</strong> &lt;frame:timestamp&gt; ]</span>
 <span class="nowrap">[ <strong>-s</strong> &lt;snaplen&gt; ]</span>
 <span class="nowrap">[ <strong>-S</strong> &lt;strict time adjustment&gt; ]</span>
 <span class="nowrap">[ <strong>-t</strong> &lt;time adjustment&gt; ]</span>
@@ -44,7 +43,6 @@
 <span class="nowrap">[ <strong>--capture-comment</strong> &lt;comment&gt; ]</span>
 <span class="nowrap">[ <strong>--discard-capture-comment</strong> ]</span>
 <span class="nowrap">[ <strong>--discard-packet-comments</strong> ]</span>
-<span class="nowrap">[ <strong>--preserve-packet-comments</strong> ]</span>
 <span class="nowrap"><em>infile</em></span>
 <span class="nowrap"><em>outfile</em></span>
 <span class="nowrap">[ <em>packet#</em>[-<em>packet#</em>] &#8230;&#8203; ]</span></p>
@@ -58,13 +56,6 @@
 <span class="nowrap">[ <strong>-I</strong> &lt;bytes to ignore&gt; ]</span>
 <span class="nowrap">[ <strong>--skip-radiotap-header</strong> ]</span>
 <span class="nowrap">[ <strong>--set-unused</strong> ]</span>
-<span class="nowrap"><em>infile</em></span>
-<span class="nowrap"><em>outfile</em></span></p>
-</div>
-<div class="paragraph">
-<p><span class="nowrap"><strong>editcap</strong></span>
-<span class="nowrap"><strong>--extract-secrets</strong></span>
-<span class="nowrap">[ <strong>-V</strong> ]</span>
 <span class="nowrap"><em>infile</em></span>
 <span class="nowrap"><em>outfile</em></span></p>
 </div>
@@ -125,15 +116,7 @@ the same way <strong>Editcap</strong> handles this.</p>
 <div class="paragraph">
 <p><strong>Editcap</strong> can write the file in several output formats. The <strong>-F</strong>
 flag can be used to specify the format in which to write the capture
-file; <strong>editcap -F</strong> provides a list of the available output formats.
-<strong>Editcap</strong> can also compress the output file. The <strong>--compress</strong> option
-can specify the compression type. If that option is not given, then the desired
-compression method, if any, is deduced from the extension of <em>outfile</em>;
-e.g., if the output filename has the .gz extension, then the gzip format is used.</p>
-</div>
-<div class="paragraph">
-<p><strong>Editcap</strong> can also be used to extract embedded decryption secrets from file
-formats like <strong>pcapng</strong> that contain them, in lieu of writing a capture file.</p>
+file; <strong>editcap -F</strong> provides a list of the available output formats.</p>
 </div>
 </div>
 </div>
@@ -148,15 +131,8 @@ formats like <strong>pcapng</strong> that contain them, in lieu of writing a cap
 <div class="content">
 <div class="paragraph">
 <p>For the specified frame number, assign the given comment string.
-Can be repeated for multiple frames.  Only the last comment
-string for each unique frame number specified in the command line
-will be saved. Quotes should be used with comment strings that
-include spaces.</p>
-</div>
-<div class="paragraph">
-<p>By default the <strong>-a</strong> option will replace any and all packet comments
-for the given frame number.  Add the <strong>--preserve-packet-comment</strong> option
-to the command line to preserve any pre-existing packet comments.</p>
+Can be repeated for multiple frames.  Quotes should be used with comment
+strings that include spaces.</p>
 </div>
 </div>
 </div>
@@ -457,48 +433,6 @@ line to be written to the output capture file, instead of discarding them.</p>
 </div>
 </div>
 </dd>
-<dt class="hdlist1">-R  &lt;framenum:timestamp&gt;</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>For the specified frame number, assign the given timestamp.
-Can be repeated for multiple frames.</p>
-</div>
-<div class="paragraph">
-<p>The time may be given either in ISO 8601 format or in Unix epoch
-timestamp format.</p>
-</div>
-<div class="paragraph">
-<p>ISO 8601 format is either</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>YYYY-MM-DD HH:MM:SS[.nnnnnnnnn][Z|±hh:mm]</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>or</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn][Z|±hh:mm]</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The fractional seconds are optional, as is the time zone offset from UTC
-(in which case local time is assumed).</p>
-</div>
-<div class="paragraph">
-<p>Unix epoch format is in seconds since the Unix epoch and nanoseconds,
-with either a period or a comma separating the seconds and nanoseconds.
-The nanoseconds are optional.
-The Unix epoch is 1970-01-01 00:00:00 UTC, so this format is not local
-time.</p>
-</div>
-</div>
-</div>
-</dd>
 <dt class="hdlist1">-s  &lt;snaplen&gt;</dt>
 <dd>
 <div class="openblock">
@@ -717,31 +651,12 @@ additional configuration in protocol preferences.</p>
 <p>The file format is described by &lt;secrets type&gt; which can be one of:</p>
 </div>
 <div class="paragraph">
-<p><em>opcua</em>  OPC UA Key Log, see <a href="https://ietf-opsawg-wg.github.io/draft-ietf-opsawg-pcap/draft-ietf-opsawg-pcapng.html#name-decryption-secrets-block" class="bare">https://ietf-opsawg-wg.github.io/draft-ietf-opsawg-pcap/draft-ietf-opsawg-pcapng.html#name-decryption-secrets-block</a><br>
-<em>ssh</em>  SSH Key Log, see <a href="https://wiki.wireshark.org/SSH#key-log-format" class="bare">https://wiki.wireshark.org/SSH#key-log-format</a><br>
-<em>tls</em>  TLS Key Log, see <a href="https://tlswg.org/sslkeylogfile/draft-ietf-tls-keylogfile.html" class="bare">https://tlswg.org/sslkeylogfile/draft-ietf-tls-keylogfile.html</a><br>
-<em>wg</em>   WireGuard Key Log, see <a href="https://wiki.wireshark.org/WireGuard#key-log-format" class="bare">https://wiki.wireshark.org/WireGuard#key-log-format</a></p>
+<p><em>tls</em>  TLS Key Log as described at <a href="https://developer.mozilla.org/NSS_Key_Log_Format" class="bare">https://developer.mozilla.org/NSS_Key_Log_Format</a><br>
+<em>wg</em>   WireGuard Key Log, see <a href="https://gitlab.com/wireshark/wireshark/-/wikis/WireGuard#key-log-format" class="bare">https://gitlab.com/wireshark/wireshark/-/wikis/WireGuard#key-log-format</a></p>
 </div>
 <div class="paragraph">
 <p>This option may be specified multiple times. The available options for
 &lt;secrets type&gt; can be listed with <strong>--inject-secrets help</strong>.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">--extract-secrets</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>Extracts each Decryption Secrets Block (DSB) contained within <em>infile</em>.
-If there is only one, it is written to <em>outfile</em> instead of a capture file.
-If there is more than one, they are each written to unique output files named
-with an infix _nnnnn before the file extension of <em>outfile</em> in a manner
-similar to the <strong>-c</strong> flag (unless writing to standard output.)</p>
-</div>
-<div class="paragraph">
-<p>Incompatible with other options except for <strong>-V</strong>.</p>
 </div>
 </div>
 </div>
@@ -806,41 +721,6 @@ for bonded interfaces on Linux for example.</p>
 <p>Discard all packet comments from the input file when writing the output
 file. Does not discard comments added by <strong>-a</strong> in the same
 command line.</p>
-</div>
-<div class="paragraph">
-<p>This option takes precedence over the <strong>--preserve-packet-comments</strong> option.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">--preserve-packet-comments</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>When adding a new packet comment with the <strong>-a</strong> option preserve from the input
-file any packet comments for the specified frame when writing the output file.
-Without this option, any <strong>-a</strong> options will replace any and all pre-existing
-packet comments for the given frame number.</p>
-</div>
-<div class="paragraph">
-<p>This option does not allow for the <strong>-a</strong> option to add multiple packet comments
-for same frame number in the same command line`.</p>
-</div>
-<div class="paragraph">
-<p>The <strong>--discard-packet-comments</strong> option takes precedence over this option.</p>
-</div>
-</div>
-</div>
-</dd>
-<dt class="hdlist1">--compress &lt;type&gt;</dt>
-<dd>
-<div class="openblock">
-<div class="content">
-<div class="paragraph">
-<p>Compress the output file using the type compression format.
-<strong>--compress</strong> with no argument provides a list of the compression formats supported
-for writing. The type given takes precedence over the extension of <em>outfile</em>.</p>
 </div>
 </div>
 </div>
@@ -1083,15 +963,6 @@ in a single pass, use any of the 8 possible methods provided below:</p>
 <pre>editcap -a "1:1st frame" -a 2:Second capture.pcapng capture-comments.pcapng</pre>
 </div>
 </div>
-<div class="paragraph">
-<p>To add an additional comment to the first frame, use:</p>
-</div>
-<div class="literalblock">
-<div class="content">
-<pre>editcap --preserve-packet-comments -a "1:This is another comment" \
-    capture-comments.pcapng more-capture-comments.pcapng</pre>
-</div>
-</div>
 </div>
 </div>
 <div class="sect1">
@@ -1107,7 +978,7 @@ in a single pass, use any of the 8 possible methods provided below:</p>
 <h2 id="_notes">NOTES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the manual page for <strong>Editcap</strong> 4.6.1.
+<p>This is the manual page for <strong>Editcap</strong> 4.2.12.
 <strong>Editcap</strong> is part of the <strong>Wireshark</strong> distribution.
 The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
 </div>
