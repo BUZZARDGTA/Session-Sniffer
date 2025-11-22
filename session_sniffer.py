@@ -527,7 +527,11 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_INTERFACE_HIDE_ARP: bool = False
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
-    GUI_FIELDS_TO_HIDE: tuple[str, ...] = (
+    GUI_CONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
+        'PPM', 'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
+        'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
+    )
+    GUI_DISCONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
         'PPM', 'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
@@ -558,7 +562,8 @@ class Settings(DefaultSettings):
         'GUI_INTERFACE_HIDE_ARP',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
-        'GUI_FIELDS_TO_HIDE',
+        'GUI_CONNECTED_FIELDS_TO_HIDE',
+        'GUI_DISCONNECTED_FIELDS_TO_HIDE',
         'GUI_DATE_FIELDS_SHOW_DATE',
         'GUI_DATE_FIELDS_SHOW_TIME',
         'GUI_DATE_FIELDS_SHOW_ELAPSED',
@@ -905,7 +910,7 @@ class Settings(DefaultSettings):
                         Settings.GUI_RESET_PORTS_ON_REJOINS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_FIELDS_TO_HIDE':
+                elif setting_name == 'GUI_CONNECTED_FIELDS_TO_HIDE':
                     try:
                         gui_fields_to_hide = ast.literal_eval(setting_value)
                     except (ValueError, SyntaxError):
@@ -925,7 +930,30 @@ class Settings(DefaultSettings):
                                 except NoMatchFoundError:
                                     need_rewrite_settings = True
 
-                            Settings.GUI_FIELDS_TO_HIDE = tuple(filtered_gui_fields_to_hide)
+                            Settings.GUI_CONNECTED_FIELDS_TO_HIDE = tuple(filtered_gui_fields_to_hide)
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'GUI_DISCONNECTED_FIELDS_TO_HIDE':
+                    try:
+                        gui_fields_to_hide = ast.literal_eval(setting_value)
+                    except (ValueError, SyntaxError):
+                        need_rewrite_settings = True
+                    else:
+                        if isinstance(gui_fields_to_hide, tuple) and all(isinstance(item, str) for item in gui_fields_to_hide):  # pyright: ignore[reportUnknownVariableType]
+                            filtered_gui_fields_to_hide: list[str] = []
+
+                            for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
+                                try:
+                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                        value, Settings.GUI_HIDEABLE_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                    )
+                                    filtered_gui_fields_to_hide.append(normalized_match)
+                                    if not case_sensitive_match:
+                                        need_rewrite_current_setting = True
+                                except NoMatchFoundError:
+                                    need_rewrite_settings = True
+
+                            Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE = tuple(filtered_gui_fields_to_hide)
                         else:
                             need_rewrite_settings = True
                 elif setting_name == 'GUI_DATE_FIELDS_SHOW_DATE':
@@ -3019,7 +3047,8 @@ class ThreadSafeMeta(type):
 
 
 class AbstractGUIRenderingData:
-    FIELDS_TO_HIDE: set[str]
+    CONNECTED_FIELDS_TO_HIDE: set[str]
+    DISCONNECTED_FIELDS_TO_HIDE: set[str]
     GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
     GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
 
@@ -3767,72 +3796,72 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
-                if 'PPS' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                         foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation),
                     )
                     row_texts.append(f'{player.pps.rate}')
-                if 'PPM' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'PPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
                         foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation),
                     )
                     row_texts.append(f'{player.ppm.rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
-                if 'Hostname' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Hostname' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Last Port' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Middle Ports' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{format_player_gui_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'First Port' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Continent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     if Settings.GUI_FIELD_SHOW_CONTINENT_CODE:
                         row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Country' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     if Settings.GUI_FIELD_SHOW_COUNTRY_CODE:
                         row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Region' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'R. Code' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'City' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'District' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ZIP Code' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Lat' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Lon' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Time Zone' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Offset' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Currency' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Organization' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ISP' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ASN / ISP' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'AS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ASN' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Mobile' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'VPN' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Hosting' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Pinging' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ping.is_pinging}')
 
                 session_connected_table__processed_data.append(row_texts)
@@ -3858,61 +3887,61 @@ def rendering_core(
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
                 row_texts.append(f'{player.ip}')
-                if 'Hostname' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Hostname' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Last Port' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{format_player_gui_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'First Port' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Continent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     if Settings.GUI_FIELD_SHOW_CONTINENT_CODE:
                         row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Country' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     if Settings.GUI_FIELD_SHOW_COUNTRY_CODE:
                         row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Region' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'R. Code' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'City' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'District' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ZIP Code' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Lat' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Lon' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Time Zone' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Offset' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Currency' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Organization' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ISP' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ASN / ISP' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'AS' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'ASN' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Mobile' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'VPN' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Hosting' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.FIELDS_TO_HIDE:
+                if 'Pinging' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.ping.is_pinging}')
 
                 session_disconnected_table__processed_data.append(row_texts)
@@ -6927,18 +6956,19 @@ if __name__ == '__main__':
     capture.start()
 
     # Initialize GUI data structures early so GUI can start immediately
-    GUIrenderingData.FIELDS_TO_HIDE = set(Settings.GUI_FIELDS_TO_HIDE)
+    GUIrenderingData.CONNECTED_FIELDS_TO_HIDE = set(Settings.GUI_CONNECTED_FIELDS_TO_HIDE)
+    GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE = set(Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE)
 
     # Compile table field names
     gui_connected_players_table__field_names = [
         field_name
         for field_name in Settings.GUI_ALL_CONNECTED_FIELDS
-        if field_name not in GUIrenderingData.FIELDS_TO_HIDE
+        if field_name not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE
     ]
     gui_disconnected_players_table__field_names = [
         field_name
         for field_name in Settings.GUI_ALL_DISCONNECTED_FIELDS
-        if field_name not in GUIrenderingData.FIELDS_TO_HIDE
+        if field_name not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE
     ]
 
     GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES = gui_connected_players_table__field_names

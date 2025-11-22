@@ -44,7 +44,7 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Exceptions: Use project‑specific ones from `modules/guis/exceptions.py`. For new GUI error states, subclass similarly.
 
 ## Safe Extension Examples
-- Adding a new player field: Append to `Settings.GUI_ALL_CONNECTED_FIELDS`, ensure not in `FIELDS_TO_HIDE`, update rendering_core mapping, and refresh header texts.
+- Adding a new player field: Append to `Settings.GUI_ALL_CONNECTED_FIELDS`, ensure not in `CONNECTED_FIELDS_TO_HIDE` or `DISCONNECTED_FIELDS_TO_HIDE`, update rendering_core mapping, and refresh header texts.
 - Adding a resource directory: Place under repo root, then append to `datas` in `Session_Sniffer.spec` with correct relative path mapping.
 - Adding a detection toggle: Create a flag in `GUIDetectionSettings`, add QAction in the Detection menu mirroring existing pattern, and integrate logic where warnings are issued.
 
