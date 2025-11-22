@@ -1,0 +1,107 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>D.4. dumpcap: Capturing with “dumpcap” for viewing with Wireshark</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="AppTools.html" title="Appendix D. Related command line tools"><link rel="prev" href="AppToolstcpdump.html" title="D.3. tcpdump: Capturing with “tcpdump” for viewing with Wireshark"><link rel="next" href="AppToolscapinfos.html" title="D.5. capinfos: Print information about capture files"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">D.4. <span class="emphasis"><em>dumpcap</em></span>: Capturing with “dumpcap” for viewing with Wireshark</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="AppToolstcpdump.html">Prev</a> </td><th width="60%" align="center">Appendix D. Related command line tools</th><td width="20%" align="right"> <a accesskey="n" href="AppToolscapinfos.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="AppToolsdumpcap"></a>D.4. <span class="emphasis"><em>dumpcap</em></span>: Capturing with “dumpcap” for viewing with Wireshark</h2></div></div></div><p>Dumpcap is a network traffic dump tool. It captures packet data from a live
+network and writes the packets to a file. Dumpcap’s native capture file format
+is pcapng, which is also the format used by Wireshark.</p><p>By default, Dumpcap uses the pcap library to capture traffic
+from the first available network interface and writes the received raw
+packet data, along with the packets’ time stamps into a pcapng file. The
+capture filter syntax follows the rules of the pcap library. For more
+information on <code class="literal">dumpcap</code> consult your local manual page (<code class="literal">man dumpcap</code>)
+or <a class="link" href="https://www.wireshark.org/docs/man-pages/dumpcap.html" target="_top">the online version</a>.</p><p><a name="AppToolsdumpcapEx"></a><b>Help information available from <code class="literal">dumpcap</code>. </b>
+</p><pre class="screen">Dumpcap (Wireshark) 4.6.1 (v4.6.1rc0-8-g239e58a64041)
+Capture network packets and dump them into a pcapng or pcap file.
+See https://www.wireshark.org for more information.
+
+Usage: dumpcap [options] ...
+
+Capture interface:
+  -i &lt;interface&gt;, --interface &lt;interface&gt;
+                           name or idx of interface (def: first non-loopback)
+                           or for remote capturing, use this format:
+                               TCP@&lt;host&gt;:&lt;port&gt;
+  --ifname &lt;name&gt;          name to use in the capture file for a pipe from which
+                           we're capturing
+  --ifdescr &lt;description&gt;
+                           description to use in the capture file for a pipe
+                           from which we're capturing
+  -f &lt;capture filter&gt;      packet filter in libpcap filter syntax
+  -s &lt;snaplen&gt;, --snapshot-length &lt;snaplen&gt;
+                           packet snapshot length (def: appropriate maximum)
+  -p, --no-promiscuous-mode
+                           don't capture in promiscuous mode
+  -I, --monitor-mode       capture in monitor mode, if available
+  -B &lt;buffer size&gt;, --buffer-size &lt;buffer size&gt;
+                           size of kernel buffer in MiB (def: 2MiB)
+  -y &lt;link type&gt;, --linktype &lt;link type&gt;
+                           link layer type (def: first appropriate)
+  --time-stamp-type &lt;type&gt; timestamp method for interface
+  -D, --list-interfaces    print list of interfaces and exit
+  -L, --list-data-link-types
+                           print list of link-layer types of iface and exit
+  --list-time-stamp-types  print list of timestamp types for iface and exit
+  --update-interval        interval between updates with new packets, in milliseconds (def: 100ms)
+  -d                       print generated BPF code for capture filter
+  -k &lt;freq&gt;,[&lt;type&gt;],[&lt;center_freq1&gt;],[&lt;center_freq2&gt;]
+                           set channel on wifi interface
+  -S                       print statistics for each interface once per second
+  -M                       for -D, -L, and -S, produce machine-readable output
+
+Stop conditions:
+  -c &lt;packet count&gt;        stop after n packets (def: infinite)
+  -a &lt;autostop cond.&gt; ..., --autostop &lt;autostop cond.&gt; ...
+                           duration:NUM - stop after NUM seconds
+                           filesize:NUM - stop this file after NUM kB
+                              files:NUM - stop after NUM files
+                            packets:NUM - stop after NUM packets
+Output (files):
+  -w &lt;filename&gt;            name of file to save (def: tempfile)
+  -g                       enable group read access on the output file(s)
+  -b &lt;ringbuffer opt.&gt; ..., --ring-buffer &lt;ringbuffer opt.&gt;
+                           duration:NUM - switch to next file after NUM secs
+                           filesize:NUM - switch to next file after NUM kB
+                              files:NUM - ringbuffer: replace after NUM files
+                            packets:NUM - ringbuffer: replace after NUM packets
+                           interval:NUM - switch to next file when the time is
+                                          an exact multiple of NUM secs
+                          printname:FILE - print filename to FILE when written
+                                           (can use 'stdout' or 'stderr')
+  -F                       output file type (default: pcapng)
+                           an empty "-F" option will list the file types
+  -n                       use pcapng format instead of pcap (default)
+  -P                       use libpcap format instead of pcapng
+  --capture-comment &lt;comment&gt;
+                           add a capture comment to the output file
+                           (only for pcapng)
+  --temp-dir &lt;directory&gt;   write temporary files to this directory
+                           (default: /tmp)
+
+Diagnostic output:
+  --log-level &lt;level&gt;      sets the active log level ("critical", "warning", etc.)
+  --log-fatal &lt;level&gt;      sets level to abort the program ("critical" or "warning")
+  --log-domains &lt;[!]list&gt;  comma-separated list of the active log domains
+  --log-fatal-domains &lt;list&gt;
+                           list of domains that cause the program to abort
+  --log-debug &lt;[!]list&gt;    list of domains with "debug" level
+  --log-noisy &lt;[!]list&gt;    list of domains with "noisy" level
+  --log-file &lt;path&gt;        file to output messages to (in addition to stderr)
+
+Miscellaneous:
+  -N &lt;packet_limit&gt;        maximum number of packets buffered within dumpcap
+  -C &lt;byte_limit&gt;          maximum number of bytes used for buffering packets
+                           within dumpcap
+  -t                       use a separate thread per interface
+  -q                       don't report packet capture counts
+  -Q                       suppress all non-error status messages to stderr
+  --application-flavor &lt;flavor&gt;
+                           set the application flavor
+  -v, --version            print version information and exit
+  -h, --help               display this help and exit
+
+Dumpcap can benefit from an enabled BPF JIT compiler if available.
+You might want to enable it by executing:
+ "echo 1 &gt; /proc/sys/net/core/bpf_jit_enable"
+Note that this can make your system less secure!
+
+Example: dumpcap -i eth0 -a duration:60 -w output.pcapng
+"Capture packets from interface eth0 until 60s passed into output.pcapng"
+
+Use Ctrl-C to stop capturing at any time.</pre><p>
+</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="AppToolstcpdump.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="AppTools.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="AppToolscapinfos.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">D.3. <span class="emphasis"><em>tcpdump</em></span>: Capturing with “tcpdump” for viewing with Wireshark </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> D.5. <span class="emphasis"><em>capinfos</em></span>: Print information about capture files</td></tr></table></div></body></html>

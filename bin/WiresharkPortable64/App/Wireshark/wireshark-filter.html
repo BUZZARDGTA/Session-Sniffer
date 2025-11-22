@@ -203,6 +203,11 @@ lower(string-field) - converts a string field to lowercase
 len(field)          - returns the byte length of a string or bytes field
 count(field)        - returns the number of field occurrences in a frame
 string(field)       - converts a non-string field to string
+vals(field)         - converts a field value to its value string
+dec(field)          - converts an unsigned integer to a decimal string
+hex(field)          - converts an unsigned integer to a hexadecimal string
+float(field)        - converts a field to single precision floating point
+double(field)       - converts a field to double precision floating point
 max(f1,...,fn)      - return the maximum value
 min(f1,...,fn)      - return the minimum value
 abs(field)          - return the absolute value of numeric fields</pre>
@@ -230,11 +235,114 @@ byte fields. For example:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>gives you all the odd packets.</p>
+<p>gives you all the odd packets. Note that the "matches" operator implicitly
+converts types of their value string representation; to match against the
+decimal representation of an integer field use string().</p>
+</div>
+<div class="paragraph">
+<p>vals() converts an integer or boolean field value to a string using the
+field&#8217;s associated value string, if it has one. This produces strings
+similar to those seen in custom columns. The resultant string can also
+be used with other operators. E.g.:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>vals(pfcp.msg_type) contains "Request"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>would match all packets which have a PFCP request, even if that request is not
+matched with a response.</p>
+</div>
+<div class="paragraph">
+<p>dec() and hex() convert unsigned integer fields to decimal or hexadecimal
+representation. Currently dec() and string() give same result for an unsigned
+integer, but it is possible that in the future string() will use the native
+base of the field.</p>
 </div>
 <div class="paragraph">
 <p>max() and min() take any number of arguments and returns one value, respectively
 the largest/smallest. The arguments must all have the same type.</p>
+</div>
+<div class="paragraph">
+<p>There is also a set of functions to test IP addresses:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>ip_special_name(ip)       - Returns the IP special-purpose block name as a string
+ip_special_mask(ip)       - Returns the IP special-purpose block flags as a mask. The bits are:
+                                4 3 2 1 0
+                                ---------
+                                S D F G R
+                            S = Source, D = Destination, F = Forwardable, G = Globally-reachable, R = Reserved-by-protocol</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>ip_linklocal(ip)          - true if the IPv4 or IPv6 address is link-local
+ip_multicast(ip)          - true if the IPv4 or IPv6 address is multicast
+ip_rfc1918(ipv4)          - true if the IPv4 address is private-use (from the allocation in RFC 1918)
+ip_ula(ipv6)              - true if the IPv6 address is unique-local (ULA) as in RFC 4193</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_macros">Macros</h3>
+<div class="paragraph">
+<p>It is possible to define display filter macros. Macro are names that are
+replaced with the associated expression, possibly performing argument substitution.
+Macro expansions are purely textual replacements and performed recursively before compilation.
+They allow replacing long and often used expressions with easy to use names.</p>
+</div>
+<div class="paragraph">
+<p>Macros are defined using the GUI or directly in the "dmacros" configuration
+file. For example the definition</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>"addplusone" {$1 + $2 + 1}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>creates a macro called <code>addplusone</code> that takes two arguments and expands to the given expression.
+Arguments in the replacement expression are given using the dollar sign.</p>
+</div>
+<div class="paragraph">
+<p>Macros are invoked like function but preceded with a dollar sign
+(sometimes also called a sigil):</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$addplusone(udp.src_port,udp.dst_port)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>results in the expression</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>{udp.src_port + udp.dst_port + 1}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>after argument substitution. There is an older alternative notation to invoke macros:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>${addplusone:udp.src_port;udp.dst_port}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>${addplusone;udp.src_port;udp.dst_port}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Both forms are equivalent and can be used interchangibly as a matter of
+preference.</p>
 </div>
 </div>
 <div class="sect2">
@@ -680,9 +788,11 @@ frame.time_delta in {10 .. 10.5}</pre>
 <div class="sect2">
 <h3 id="_implicit_type_conversions">Implicit type conversions</h3>
 <div class="paragraph">
-<p>Fields which are sequences of bytes, including protocols, are implicitly
-converted to strings for comparisons against (double quoted) literal strings
-and raw strings.</p>
+<p>When fields which are sequences of bytes, including protocols, are compared
+with (double quoted) literal strings and raw strings, the literals are converted
+to their byte representation using the UTF-8 encoding. (To be precise, the
+original byte sequence is used, not the canonical normalized forms, so the
+precomposed é (U+00E9) and decomposed é (U+0065 U+0301) can match differently.)</p>
 </div>
 <div class="paragraph">
 <p>So, for instance, the following filters are equivalent:</p>
@@ -724,6 +834,61 @@ can be convenient:</p>
 frame[1:4] contains 0x02</pre>
 </div>
 </div>
+<div class="paragraph">
+<p>An integer or boolean field that has a value string can be compared to
+to one of the strings that corresponds with a value.
+As with stringlike fields and comparisons, it is possible to perform
+the comparison with an unquoted literal, though this is deprecated and
+will not work if the literal contains a space (as with "Modify Bearer
+Response" above). Double quotes are recommended.</p>
+</div>
+<div class="paragraph">
+<p>If there is a unique reverse mapping from the string literal into a
+numeric value, the string is converted into that number and the
+comparison function is applied using arithmetic rules. If the mapping
+is not unique, then equality and inequality can be tested, but not the
+ordered comparisons.</p>
+</div>
+<div class="paragraph">
+<p>This is in contrast with the <code>string()</code> and <code>vals()</code> functions, which
+convert the field value to a string and applies string (lexicographic)
+comparisons, as well as work with all operators that take strings.
+Therefore the following two filters give the same result:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>gtpv2.message_type &lt;= 35
+gtpv2.message_type &lt;= "Modify Bearer Response"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>whereas</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>vals(gtpv2.message_type) &lt;= "Modify Bearer Response"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>matches all messages whose value string precedes "Modify Bearer Response"
+in lexicographical order, and</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>string(gtpv2.message_type) &lt;= "35"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>matches all messages such that the message type comes before "35" in
+lexicographical order, i.e. would also match "170" (the message type
+for "Release Access Bearers Request.")</p>
+</div>
+<div class="paragraph">
+<p>For the "contains" and "matches" operators, which operate on strings
+(or byte arrays in the case of "contains"), fields on the left hand
+side are implicitly converted to their value strings for comparison.
+(To compare a field with a byte array, use the raw/at (@) operator.)</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_bitwise_operators">Bitwise operators</h3>
@@ -733,7 +898,7 @@ following bitwise operator is supported:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>bitwise_and, &amp;	Bitwise AND</pre>
+<pre>bitand, bitwise_and, &amp;	Bitwise AND</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -785,6 +950,15 @@ have the same number of bytes as the slice itself, as in:</p>
 </div>
 </div>
 <div class="paragraph">
+<p>Arithmetic operations can be performed on numeric types. Numeric types are
+integers, floating point numbers and date and time values.</p>
+</div>
+<div class="paragraph">
+<p>Date and time values can only be multiplied by integers or floating point
+numbers (i.e: scalars) and furthermore the scalar multiplier must appear on
+the right-hand side of the arithmetic operation.</p>
+</div>
+<div class="paragraph">
 <p>For example it is possible to filter for UDP destination ports greater or
 equal by one to the source port with the expression:</p>
 </div>
@@ -814,7 +988,7 @@ or "A - B".</p>
 <div class="sect2">
 <h3 id="_protocol_field_references">Protocol field references</h3>
 <div class="paragraph">
-<p>A variable using a sigil with the form ${some.proto.field} is called a field
+<p>A variable using a sigil with the form $some.proto.field or ${some.proto.field} is called a field
 reference. A field reference is a field value read from the currently
 selected frame in the GUI. This is useful to build dynamic filters such as,
 frames since the last five minutes to the selected frame:</p>
@@ -822,6 +996,14 @@ frames since the last five minutes to the selected frame:</p>
 <div class="literalblock">
 <div class="content">
 <pre>frame.time_relative &gt;= ${frame.time_relative} - 300</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or more simply</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>frame.time_relative &gt;= $frame.time_relative - 300</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -937,7 +1119,7 @@ can find references and examples at the following locations:</p>
 <p><code>tshark -G fields</code> on the command line</p>
 </li>
 <li>
-<p>The Wireshark wiki: <a href="https://gitlab.com/wireshark/wireshark/-/wikis/DisplayFilters" class="bare">https://gitlab.com/wireshark/wireshark/-/wikis/DisplayFilters</a></p>
+<p>The Wireshark wiki: <a href="https://wiki.wireshark.org/DisplayFilters" class="bare">https://wiki.wireshark.org/DisplayFilters</a></p>
 </li>
 </ul>
 </div>
@@ -958,12 +1140,11 @@ See <a href="https://www.pcre.org/" class="bare">https://www.pcre.org/</a> for m
 <div class="paragraph">
 <p>This manpage does not describe the capture filter syntax, which is
 different. See the manual page of <a href="https://www.tcpdump.org/manpages/pcap-filter.7.html">pcap-filter</a>(7) or, if that doesn&#8217;t exist,
-<a href="https://www.tcpdump.org/manpages/tcpdump.1.html">tcpdump</a>(8), or, if that doesn&#8217;t exist, <a href="https://gitlab.com/wireshark/wireshark/-/wikis/CaptureFilters" class="bare">https://gitlab.com/wireshark/wireshark/-/wikis/CaptureFilters</a>
+<a href="https://www.tcpdump.org/manpages/tcpdump.1.html">tcpdump</a>(8), or, if that doesn&#8217;t exist, <a href="https://wiki.wireshark.org/CaptureFilters" class="bare">https://wiki.wireshark.org/CaptureFilters</a>
 for a description of capture filters.</p>
 </div>
 <div class="paragraph">
-<p>Display Filters are also described in the User&#8217;s Guide:
-<a href="https://www.wireshark.org/docs/wsug_html_chunked/ChWorkBuildDisplayFilterSection.html" class="bare">https://www.wireshark.org/docs/wsug_html_chunked/ChWorkBuildDisplayFilterSection.html</a></p>
+<p>Display Filters are also described in the <a href="https://www.wireshark.org/docs/wsug_html_chunked/ChWorkBuildDisplayFilterSection.html">Wireshark User&#8217;s Guide</a>.</p>
 </div>
 </div>
 </div>

@@ -1,0 +1,22 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>11.21. Protobuf Search Paths</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterCustomize.html" title="Chapter 11. Customizing Wireshark"><link rel="prev" href="ChUserDLTsSection.html" title="11.20. User DLTs dissector table"><link rel="next" href="ChProtobufUDPMessageTypes.html" title="11.22. Protobuf UDP Message Types"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">11.21. Protobuf Search Paths</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChUserDLTsSection.html">Prev</a> </td><th width="60%" align="center">Chapter 11. Customizing Wireshark</th><td width="20%" align="right"> <a accesskey="n" href="ChProtobufUDPMessageTypes.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChProtobufSearchPaths"></a>11.21. Protobuf Search Paths</h2></div></div></div><p>The
+<a class="link" href="https://developers.google.com/protocol-buffers/docs/encoding" target="_top">binary wire format</a>
+of Protocol Buffers (Protobuf) messages are not self-described protocol. For
+example, the <code class="literal">varint</code> wire type in protobuf packet may be converted to int32, int64,
+uint32, uint64, sint32, sint64, bool or enum field types of
+<a class="link" href="https://developers.google.com/protocol-buffers/docs/proto3" target="_top">protocol buffers language</a>.
+Wireshark should be configured with Protocol Buffers language files (*.proto) to
+enable proper dissection of protobuf data (which may be payload of
+<a class="link" href="https://grpc.io/" target="_top">gRPC</a>) based on the message, enum and field definitions.</p><p>You can specify protobuf search paths at the Protobuf protocol preferences.
+For example, if you defined a proto file with path <code class="literal">d:/my_proto_files/helloworld.proto</code>
+and the <code class="literal">helloworld.proto</code> contains a line of <code class="literal">import "google/protobuf/any.proto";</code>
+because the <code class="literal">any</code> type of official protobuf library is used. And the real path of
+<code class="literal">any.proto</code> is <code class="literal">d:/protobuf-3.4.1/include/google/protobuf/any.proto</code>. You should
+add the <code class="literal">d:/protobuf-3.4.1/include/</code> and <code class="literal">d:/my_proto_files</code> paths into protobuf
+search paths.</p><p>The configuration for the protobuf search paths is a user table, as described
+in <a class="xref" href="ChUserTable.html" title="11.7. User Accessible Tables">Section 11.7, “User Accessible Tables”</a>, with the following fields:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Protobuf source directory</span></dt><dd>This specifies a directory containing protobuf source files. For example,
+<code class="literal">d:/protobuf-3.4.1/include/</code> and <code class="literal">d:/my_proto_files</code> in Windows, or
+<code class="literal">/usr/include/</code> and <code class="literal">/home/alice/my_proto_files</code> in Linux/UNIX.</dd><dt><span class="term">Load all files</span></dt><dd>If this option is enabled, Wireshark will load all *.proto files in this directory
+and its subdirectories when Wireshark startup or protobuf search paths preferences
+changed. Note that the source directories that configured to protobuf official or third
+libraries path (like <code class="literal">d:/protobuf-3.4.1/include/</code>) should not be set to load all
+files, that may cause unnecessary memory use.</dd></dl></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChUserDLTsSection.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterCustomize.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChProtobufUDPMessageTypes.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">11.20. User DLTs dissector table </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 11.22. Protobuf UDP Message Types</td></tr></table></div></body></html>

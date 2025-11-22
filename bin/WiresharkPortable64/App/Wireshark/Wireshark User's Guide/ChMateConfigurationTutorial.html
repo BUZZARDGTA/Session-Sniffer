@@ -1,0 +1,120 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.5. MATE’s configuration tutorial</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="_mate_frame_analysis.html" title="12.4. MATE Frame Analysis"><link rel="next" href="ChMateConfigurationExamples.html" title="12.6. MATE configuration examples"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.5. MATE’s configuration tutorial</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="_mate_frame_analysis.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="ChMateConfigurationExamples.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChMateConfigurationTutorial"></a>12.5. MATE’s configuration tutorial</h2></div></div></div><p>We’ll show a MATE configuration that first creates GOPs for every DNS and HTTP
+request, then it ties the GOPs together in a GOG based on the host. Finally,
+we’ll separate into different GOGs request coming from different users.</p><p>With this MATE configuration loaded we can:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">use <span class="strong"><strong>mate.http_use.Duration &gt; 5.5</strong></span> to filter frames based on the time it takes
+to load a complete page from the DNS request to resolve its name until the last
+image gets loaded.</li><li class="listitem">use <span class="strong"><strong>mate.http_use.client == "10.10.10.20" &amp;&amp; mate.http_use.host == "www.example.com"</strong></span>
+to isolate DNS and HTTP packets related to a visit of a certain user.</li><li class="listitem">use <span class="strong"><strong>mate.http_req.Duration &gt; 1.5</strong></span> to filter all the packets of HTTP requests
+that take more than 1.5 seconds to complete.</li></ul></div><p>The complete config file is available on the Wireshark Wiki:
+<a class="link" href="https://wiki.wireshark.org/Mate/Tutorial" target="_top">https://wiki.wireshark.org/Mate/Tutorial</a></p><p>Note: This example uses <span class="emphasis"><em>dns.qry.name</em></span> which is defined since Wireshark
+version 0.10.9. Supposing you have a MATE plugin already installed you can test
+it with the current Wireshark version.</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_a_gop_for_dns_requests"></a>12.5.1. A GOP for DNS requests</h3></div></div></div><p>First we’ll tell MATE how to create a GOP for each DNS request/response.</p><p>MATE needs to know what makes a DNS PDU. We describe it using a <span class="emphasis"><em>Pdu</em></span>
+declaration:</p><pre class="screen">Pdu dns_pdu Proto dns Transport ip {
+    Extract addr From ip.addr;
+    Extract dns_id From dns.id;
+    Extract dns_resp From dns.flags.response;
+};</pre><p>Using <span class="emphasis"><em>Proto dns</em></span> we tell MATE to create PDUs every time it finds <span class="emphasis"><em>dns</em></span>. Using
+<span class="emphasis"><em>Transport ip</em></span> we inform MATE that some of the fields we are interested are
+in the <span class="emphasis"><em>ip</em></span> part of the frame. Finally, we tell MATE to import <span class="emphasis"><em>ip.addr</em></span> as
+<span class="emphasis"><em>addr</em></span>, <span class="emphasis"><em>dns.id</em></span> as <span class="emphasis"><em>dns_id</em></span> and <span class="emphasis"><em>dns.flags.response</em></span> as <span class="emphasis"><em>dns_resp</em></span>.</p><p>Once we’ve told MATE how to extract <span class="emphasis"><em>dns_pdus</em></span> we’ll tell it how to match
+requests and responses and group them into a GOP. For this we’ll use a <span class="emphasis"><em>Gop</em></span>
+declaration to define the GOP, and then, <span class="emphasis"><em>Start</em></span> and <span class="emphasis"><em>Stop</em></span> statements to
+tell it when the GOP starts and ends.</p><pre class="screen">Gop dns_req On dns_pdu Match (addr,addr,dns_id) {
+    Start (dns_resp="False");
+    Stop (dns_resp="True");
+};</pre><p>Using the <span class="strong"><strong>Gop</strong></span> declaration we tell MATE that the <span class="strong"><strong>Name</strong></span> of the GOP is <span class="emphasis"><em>dns_req</em></span>,
+that _dns_pdus_s can become members of the GOP, and what is the key used to match
+the PDUs to the GOP.</p><p>The key for this GOP is <span class="emphasis"><em>"addr, addr, dns_id"</em></span>. That means that in order to
+belong to the same GOP, <span class="emphasis"><em>dns_pdus</em></span> have to have both addresses and the
+<span class="emphasis"><em>request id</em></span> identical. We then instruct MATE that a <span class="emphasis"><em>dns_req</em></span> starts whenever
+a <span class="emphasis"><em>dns_pdu</em></span> matches <span class="emphasis"><em>"dns_resp="False""</em></span> and that it stops when another <span class="emphasis"><em>dns_pdu</em></span>
+matches <span class="emphasis"><em>"dns_resp="True""</em></span>.</p><p>At this point, if we open a capture file using this configuration, we are able
+to use a display filter <span class="strong"><strong>mate.dns_req.Time &gt; 1</strong></span> to see only the packets of
+DNS requests that take more than one second to complete.</p><p>We can use a display filter <span class="strong"><strong>mate.dns_req &amp;&amp; ! mate.dns_req.Time</strong></span> to find
+requests for which no response was given. <span class="strong"><strong>mate.xxx.Time</strong></span> is set only for GOPs
+that have being stopped.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_a_gop_for_http_requests"></a>12.5.2. A GOP for HTTP requests</h3></div></div></div><p>This other example creates a GOP for every HTTP request.</p><pre class="screen">Pdu http_pdu Proto http Transport tcp/ip {
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract http_rq From http.request.method;
+    Extract http_rs From http.response;
+    DiscardPduData true;
+};
+
+Gop http_req On http_pdu Match (addr, addr, port, port) {
+    Start (http_rq);
+    Stop (http_rs);
+};</pre><p>So, if we open a capture using this configuration</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">filtering with <span class="strong"><strong>mate.http_req.Time &gt; 1</strong></span> will give all the requests where the
+response header takes more than one second to come</li><li class="listitem">filtering with <span class="strong"><strong>mate.http_req.Duration &gt; 1.5</strong></span> will show those request that
+take more than 1.5 seconds to complete.</li></ul></div><p>You have to know that <span class="strong"><strong>mate.xxx.Time</strong></span> gives the time in seconds between the PDU
+matching the GOP <span class="strong"><strong>Start</strong></span> clause and the PDU matching the GOP <span class="strong"><strong>Stop</strong></span> clause (yes, you can create
+timers using this!). On the other hand, <span class="strong"><strong>mate.xxx.Duration</strong></span> gives you the time
+passed between the GOP <span class="strong"><strong>Start</strong></span> and the last PDU assigned to that GOP regardless
+whether it is a <span class="strong"><strong>Stop</strong></span> or not. After the GOP <span class="strong"><strong>Stop</strong></span>, PDUs matching the GOP’s Key will
+still be assigned to the same GOP as far as they don’t match the GOP <span class="strong"><strong>Start</strong></span>, in
+which case a new GOP with the same key will be created.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_getting_dns_and_http_together_into_a_gog"></a>12.5.3. Getting DNS and HTTP together into a GOG</h3></div></div></div><p>We’ll tie together to a single GOG all the HTTP packets belonging to requests
+and responses to a certain host and the DNS request and response used to resolve
+its domain name using the <span class="emphasis"><em>Pdu</em></span> and <span class="emphasis"><em>Gop</em></span> definitions of the previous examples</p><p>To be able to group DNS and HTTP requests together, we need to import into the
+PDUs and GOPs some part of information that both those protocols share. Once the
+PDUs and GOPs have been defined, we can use <span class="emphasis"><em>Extract</em></span> (for PDUs) and
+<span class="emphasis"><em>Extract</em></span> (for GOPs) statements to tell MATE what other protocol fields are to
+be added to PDU’s and GOP’s AVPLs. We add the following statements to the
+appropriate declarations:</p><pre class="screen">    Extract host From http.host; // to Pdu http_pdu as the last Extract in the list
+    Extra (host); // to Gop http_req after the Stop
+
+    Extract host From dns.qry.name; // to Pdu dns_pdu as the last Extract in the list
+    Extra (host); // to Gop dns_req after the Stop</pre><p>Here we’ve told MATE to import <span class="emphasis"><em>http.host</em></span> into <span class="emphasis"><em>http_pdu</em></span> and <span class="emphasis"><em>dns.qry.name</em></span>
+into <span class="emphasis"><em>dns_pdu</em></span> as <span class="emphasis"><em>host</em></span>. We also have to tell MATE to copy the <span class="emphasis"><em>host</em></span>
+attribute from the PDUs to the GOPs - we do this using <span class="emphasis"><em>Extra</em></span>.</p><p>Once we have all the data we need in PDUs and GOPs, we tell MATE what makes
+different GOPs belong to a certain GOG.</p><pre class="screen">Gog http_use {
+    Member http_req (host);
+    Member dns_req (host);
+    Expiration 0.75;
+};</pre><p>Using the <span class="emphasis"><em>Gog</em></span> declaration, we tell MATE to define a GOG type named
+<span class="emphasis"><em>http_use</em></span> whose expiration is 0.75 seconds after all the GOPs that belong to it
+had been stopped. After that time, an eventual new GOP with the same key match
+will create a new GOG instead of been added to the previous GOG.</p><p>Using the <span class="emphasis"><em>Member</em></span> statements, we tell MATE that <span class="strong"><strong>http_req*s with the same
+*host</strong></span> belong to the same GOG, same thing for *dns_req*s.</p><p>So far we have instructed MATE to group every packet related to sessions towards
+a certain host. At this point if we open a capture file and:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">a display filter <span class="strong"><strong>mate.http_use.Duration &gt; 5</strong></span> will show only those requests
+that have taken more than 5 seconds to complete starting from the DNS request
+and ending with the last packet of the HTTP responses.</li><li class="listitem">a display filter <span class="strong"><strong>mate.http_use.host == "www.w3c.org"</strong></span> will show all the
+packets (both DNS and HTTP) related to the requests directed to www.w3c.org</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_separating_requests_from_multiple_users"></a>12.5.4. Separating requests from multiple users</h3></div></div></div><p>"Houston: we’ve had a problem here."</p><p>This configuration works fine if used for captures taken at the client’s side
+but deeper in the network we’d got a real mess. Requests from many users get
+mixed together into <span class="emphasis"><em>http_uses</em></span>. GOGs are created and stopped almost randomly
+(depending on the timing in which GOPs start and stop). How do we get requests
+from individual users separated from each other?</p><p>MATE has a tool that can be used to resolve this kind of grouping issues. This
+tool are the <span class="emphasis"><em>Transforms</em></span>. Once defined, they can be applied against PDUs,
+GOPs and GOGs and they might replace or insert more attributes based on what’s
+there. We’ll use them to create an attribute named <span class="strong"><strong>client</strong></span>, using which we’ll
+separate different requests.</p><p>For DNS we need the ip.src of the request moved into the GOP only from the DNS
+request.</p><p>So we first tell MATE to import ip.src as client:</p><pre class="screen">    Extract client From ip.src;</pre><p>Next, we tell MATE to replace ( <span class="strong"><strong>dns_resp="True", client</strong></span> ) with just <span class="strong"><strong>dns_resp="True"</strong></span> in
+the PDU. That way, we’ll keep the attribute <span class="strong"><strong>client</strong></span> only in the DNS request
+PDUs (i.e., packets coming from the client).To do so, we have to add a
+<span class="emphasis"><em>Transform</em></span> declaration (in this case, with just one clause) before the <span class="emphasis"><em>Pdu</em></span>
+declaration which uses it:</p><pre class="screen">Transform rm_client_from_dns_resp {
+    Match (dns_resp="True", client) Replace (dns_resp="True");
+};</pre><p>Next, we invoke the transform by adding the following line after the <span class="emphasis"><em>Extract</em></span>
+list of the dns_pdu PDU:</p><pre class="screen">    Transform rm_client_from_dns_resp;</pre><p>HTTP is a little trickier. We have to remove the attribute carrying ip.src from
+both the response and the "continuations" of the response, but as there is
+nothing to filter on for the continuations, we have to add a fake attribute
+first. And then we have to remove <span class="strong"><strong>client</strong></span> when the fake attribute appears.
+This is possible due to the fact that the <span class="emphasis"><em>Match</em></span> clauses in the <span class="emphasis"><em>Transform</em></span>
+are executed one by one until one of them succeeds. First, we declare another
+two <span class="emphasis"><em>Transforms</em></span>:</p><pre class="screen">Transform rm_client_from_http_resp1 {
+    Match (http_rq); //first match wins so the request won't get the not_rq attribute inserted
+    Match Every (addr) Insert (not_rq); //this line won't be evaluated if the first one matched so not_rq won't be inserted to requests
+};
+
+Transform rm_client_from_http_resp2 {
+    Match (not_rq, client) Replace (); //replace "client and not_rq" with nothing (will happen only in the response and eventual parts of it)
+};</pre><p>Next, we add another <span class="emphasis"><em>Extract</em></span> statement to the <span class="emphasis"><em>http_pdu</em></span> declaration, and
+apply both <span class="emphasis"><em>Transforms</em></span> declared above in a proper order:</p><pre class="screen">    Extract client From ip.src;
+    Transform rm_client_from_http_resp1, rm_client_from_http_resp2;</pre><p>In MATE, all the <span class="emphasis"><em>Transform_s listed for an item will be evaluated, while
+inside a single _Transform</em></span>, the evaluation will stop at the first successful
+<span class="emphasis"><em>Match</em></span> clause. That’s why we first just match <span class="emphasis"><em>http_rq</em></span> to get out of the
+first sequence before adding the <span class="emphasis"><em>not_rq</em></span> attribute. Then we apply the second
+<span class="emphasis"><em>Transform</em></span> which removes both <span class="emphasis"><em>not_rq</em></span> and <span class="emphasis"><em>client</em></span> if both are there. Yes,
+_Transform_s are cumbersome, but they are very useful.</p><p>Once we got all what we need in the PDUs, we have to tell MATE to copy the
+attribute <span class="emphasis"><em>client</em></span> from the PDUs to the respective GOPs, by adding client to
+<span class="emphasis"><em>Extra</em></span> lists of both <span class="emphasis"><em>Gop</em></span> declarations:</p><pre class="screen">    Extra (host, client);</pre><p>On top of that, we need to modify the old declarations of GOP key to new ones
+that include both <span class="emphasis"><em>client</em></span> and <span class="emphasis"><em>host</em></span>. So we change the <span class="emphasis"><em>Gog</em></span> <span class="strong"><strong>Member</strong></span>
+declarations the following way:</p><pre class="screen">    Member http_req (host, client);
+    Member dns_req (host, client);</pre><p>Now we got it, every "usage" gets its own GOG.</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="_mate_frame_analysis.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChMateConfigurationExamples.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.4. MATE Frame Analysis </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 12.6. MATE configuration examples</td></tr></table></div></body></html>

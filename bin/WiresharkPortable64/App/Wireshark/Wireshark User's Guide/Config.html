@@ -1,0 +1,202 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.9. Configuration Reference (mate.config)</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="ChMateReferenceManual.html" title="12.8. MATE’s reference manual"><link rel="next" href="AppMessages.html" title="Appendix A. Wireshark Messages"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.9. Configuration Reference (mate.config)</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChMateReferenceManual.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="AppMessages.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="Config"></a>12.9. Configuration Reference (mate.config)</h2></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="Pdu"></a>12.9.1. PDU declaration block</h3></div></div></div><p>The following configuration AVPLs deal with PDU creation and data extraction.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_pdu_declaration_block_header"></a>12.9.1.1. <span class="emphasis"><em>Pdu</em></span> declaration block header</h4></div></div></div><p>In each frame of the capture, MATE will look for source <span class="emphasis"><em>proto_name</em></span>'s PDUs in
+the order in which the declarations appear in its configuration and will create
+PDUs of every type it can from that frame, unless specifically instructed that
+some PDU type is the last one to be looked for in the frame. If told so for a
+given type, MATE will extract all PDUs of that type and the previously declared
+types it finds in the frame but not those declared later.</p><p>The complete declaration of a <span class="emphasis"><em>Pdu</em></span> looks as below; the mandatory order of the
+diverse clauses is as shown.</p><pre class="screen">Pdu name Proto proto_name Transport {proto1[/proto2/proto3[/...]|mate}; {
+    Payload proto; //optional, no default value
+    Extract attribute From proto.field ; //may occur multiple times, at least once
+    Transform transform1[, transform2[, ...]]; //optional
+    Criteria {Accept|Reject} {Strict|Every|Loose} match_avpl; //optional
+    DropUnassigned {TRUE|FALSE}; //optional, default=FALSE
+    DiscardPduData {TRUE|FALSE}; //optional, default=FALSE
+    LastPdu {TRUE|FALSE}; //optional, default=FALSE
+};</pre><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_pdu_name"></a>12.9.1.1.1. Pdu name</h5></div></div></div><p>The <span class="emphasis"><em>name</em></span> is a mandatory attribute of a <span class="emphasis"><em>Pdu</em></span> declaration. It is chosen
+arbitrarily, except that each <span class="emphasis"><em>name</em></span> may only be used once in MATE’s
+configuration, regardless the class of an item it is used for. The <span class="emphasis"><em>name</em></span> is
+used to distinguish between different types of PDUs, GOPs, and GOGs. The <span class="emphasis"><em>name</em></span>
+is also used as part of the filterable fields' names related to this type of PDU
+which MATE creates.</p><p>However, several <span class="emphasis"><em>Pdu</em></span> declarations may share the same <span class="emphasis"><em>name</em></span>. In such case, all
+of them are created from each source PDU matching their <span class="emphasis"><em>Proto</em></span>, <span class="emphasis"><em>Transport</em></span>,
+and <span class="emphasis"><em>Payload</em></span> clauses, while the bodies of their declarations may be totally
+different from each other. Together with the <span class="emphasis"><em>Accept</em></span> (or <span class="emphasis"><em>Reject</em></span>) clauses,
+this feature is useful when it is necessary to build the PDU’s AVPL from
+different sets of source fields depending on contents (or mere presence) of
+other source fields.</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_proto_and_transport_clauses"></a>12.9.1.1.2. Proto and Transport clauses</h5></div></div></div><p>Every instance of the protocol <span class="emphasis"><em>proto_name</em></span> PDU in a frame will generate one
+PDU with the AVPs extracted from fields that are in the <span class="emphasis"><em>proto_name</em></span>'s range
+and/or the ranges of underlying protocols specified by the <span class="emphasis"><em>Transport</em></span> list.
+It is a mandatory attribute of a <span class="emphasis"><em>Pdu</em></span> declaration. The <span class="emphasis"><em>proto_name</em></span> is the name
+of the protocol as used in Wireshark display filter.</p><p>The PDU’s <span class="emphasis"><em>Proto</em></span>, and its <span class="emphasis"><em>Transport</em></span> list of protocols separated by / tell
+MATE which fields of a frame can get into the PDU’s AVPL. In order that MATE
+would extract an attribute from a frame’s protocol tree, the area representing
+the field in the hex display of the frame must be within the area of either the
+<span class="emphasis"><em>Proto</em></span> or its relative <span class="emphasis"><em>Transport</em></span>s. <span class="emphasis"><em>Transport</em></span>s are chosen moving backwards
+from the protocol area, in the order they are given.</p><p><span class="emphasis"><em>Proto http Transport tcp/ip</em></span> does what you’d expect it to - it selects the
+nearest tcp range that precedes the current http range, and the nearest ip range
+that precedes that tcp range. If there is another ip range before the nearest
+one (e.g., in case of IP tunneling), that one is not going to be selected.
+<span class="emphasis"><em>Transport</em></span> tcp/ip/ip that "logically" should select the encapsulating IP header
+too doesn’t work so far.</p><p>Once we’ve selected the <span class="emphasis"><em>Proto</em></span> and <span class="emphasis"><em>Transport</em></span> ranges, MATE will fetch those
+protocol fields belonging to them whose extraction is declared using the
+<span class="emphasis"><em>Extract</em></span> clauses for the PDU type. The <span class="emphasis"><em>Transport</em></span> list is also mandatory,
+if you actually don’t want to use any transport protocol, use <span class="emphasis"><em>Transport mate</em></span>.
+(This didn’t work until 0.10.9).</p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_payload_clause"></a>12.9.1.2. Payload clause</h4></div></div></div><p>Other than the PDU’s <span class="emphasis"><em>Proto</em></span> and its <span class="emphasis"><em>Transport</em></span> protocols, there is also a
+<span class="emphasis"><em>Payload</em></span> attribute to tell MATE from which ranges of <span class="emphasis"><em>Proto</em></span>'s payload to
+extract fields of a frame into the PDU. In order to extract an attribute from a
+frame’s tree the highlighted area of the field in the hex display must be within
+the area of the <span class="emphasis"><em>Proto</em></span>'s relative payload(s). <span class="emphasis"><em>Payload</em></span>s are chosen moving
+forward from the protocol area, in the order they are given.
+<span class="emphasis"><em>Proto http Transport tcp/ip Payload mmse</em></span> will select the first mmse range
+after the current http range. Once we’ve selected the <span class="emphasis"><em>Payload</em></span> ranges, MATE
+will fetch those protocol fields belonging to them whose extraction is declared
+using the <span class="emphasis"><em>Extract</em></span> clauses for the PDU type.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_extract_clause"></a>12.9.1.3. Extract clause</h4></div></div></div><p>Each <span class="emphasis"><em>Extract</em></span> clause tells MATE which protocol field value to extract as an AVP
+value and what string to use as the AVP name. The protocol fields are referred
+to using the names used in Wireshark display filters. If there is more than one
+such protocol field in the frame, each instance that fulfills the criteria
+stated above is extracted into its own AVP. The AVP names may be chosen
+arbitrarily, but to be able to match values originally coming from different
+PDUs (e.g., hostname from DNS query and a hostname from HTTP GET request) later
+in the analysis, identical AVP names must be assigned to them and the dissectors
+must provide the field values in identical format (which is not always the case).</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_transform_clause"></a>12.9.1.4. Transform clause</h4></div></div></div><p>The <span class="emphasis"><em>Transform</em></span> clause specifies a list of previously declared <span class="emphasis"><em>Transform</em></span>s to
+be performed on the PDU’s AVPL after all protocol fields have been extracted to
+it. The list is always executed completely, left to right. On the contrary, the
+list of Match clauses inside each individual <span class="emphasis"><em>Transform</em></span> is executed only until
+the first match succeeds.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="Criteria"></a>12.9.1.5. Criteria clause</h4></div></div></div><p>This clause tells MATE whether to use the PDU for analysis. It specifies a match
+AVPL, an AVPL <a class="link" href="ChMateReferenceManual.html#Match" title="12.8.4. Operations between AVPLs (Match)">Match type</a> (<span class="emphasis"><em>Strict</em></span>, <span class="emphasis"><em>Every</em></span>, or <span class="emphasis"><em>Loose</em></span>) and the action to be
+performed (<span class="emphasis"><em>Accept</em></span> or <span class="emphasis"><em>Reject</em></span>) if the match succeeds. Once every attribute has
+been extracted and eventual transform list has been executed, and if the
+<span class="emphasis"><em>Criteria</em></span> clause is present, the PDU’s AVPL is matched against the match AVPL;
+if the match succeeds, the action specified is executed, i.e., the PDU is
+accepted or rejected. The default behaviors used if the respective keywords are
+omitted are <span class="emphasis"><em>Strict</em></span> and <span class="emphasis"><em>Accept</em></span>. Accordingly, if the clause is omitted, all
+PDUs are accepted.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_dropunassigned_clause"></a>12.9.1.6. DropUnassigned clause</h4></div></div></div><p>If set to <span class="emphasis"><em>TRUE</em></span>, MATE will destroy the PDU if it cannot assign it to a GOP.
+If set to <span class="emphasis"><em>FALSE</em></span> (the default if not given), MATE will keep them.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_discardpdudata_clause"></a>12.9.1.7. DiscardPduData clause</h4></div></div></div><p>If set to <span class="emphasis"><em>TRUE</em></span>, MATE will delete the PDU’s AVPL once it has analyzed it and
+eventually extracted some AVPs from it into the GOP’s AVPL. This is useful to
+save memory (of which MATE uses a lot). If set to <span class="emphasis"><em>FALSE</em></span> (the default if not
+given), MATE will keep the PDU attributes.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_lastpdu_clause"></a>12.9.1.8. LastPdu clause</h4></div></div></div><p>If set to <span class="emphasis"><em>FALSE</em></span> (the default if not given), MATE will continue to look for
+PDUs of other types in the frame. If set to <span class="emphasis"><em>TRUE</em></span>, it will not try to create
+PDUs of other types from the current frame, yet it will continue to try for the
+current type.</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="Gop"></a>12.9.2. GOP declaration block</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gop_declaration_block_header"></a>12.9.2.1. <span class="emphasis"><em>Gop</em></span> declaration block header</h4></div></div></div><p>Declares a Gop type and its candidate key.</p><pre class="screen">Gop name On pduname Match key {
+    Start match_avpl; // optional
+    Stop match_avpl; // optional
+    Extra match_avpl; // optional
+    Transform transform_list; // optional
+    Expiration time; // optional
+    IdleTimeout time; // optional
+    Lifetime time; // optional
+    DropUnassigned [TRUE|FALSE]; //optional
+    ShowTree [NoTree|PduTree|FrameTree|BasicTree]; //optional
+    ShowTimes [TRUE|FALSE]; //optional, default TRUE
+};</pre><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_gop_name"></a>12.9.2.1.1. Gop name</h5></div></div></div><p>The <span class="emphasis"><em>name</em></span> is a mandatory attribute of a <span class="emphasis"><em>Gop</em></span> declaration. It is chosen
+arbitrarily, except that each <span class="emphasis"><em>name</em></span> may only be used once in MATE’s
+configuration, regardless the class of an item it is used for. The <span class="emphasis"><em>name</em></span> is
+used to distinguish between different types of PDUs, GOPs, and GOGs. The <span class="emphasis"><em>name</em></span>
+is also used as part of the filterable fields' names related to this type of
+GOP which MATE creates.</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_on_clause"></a>12.9.2.1.2. On clause</h5></div></div></div><p>The <span class="emphasis"><em>name</em></span> of PDUs which this type of GOP is supposed to be grouping. It is
+mandatory.</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_match_clause"></a>12.9.2.1.3. Match clause</h5></div></div></div><p>Defines what AVPs form up the <span class="emphasis"><em>key</em></span> part of the GOP’s AVPL (the GOP’s <span class="emphasis"><em>key</em></span> AVPL
+or simply the GOP’s <span class="emphasis"><em>key</em></span>). All PDUs matching the <span class="emphasis"><em>key</em></span> AVPL of an active GOP
+are assigned to that GOP; a PDU which contains the AVPs whose attribute names
+are listed in the GOP’s <span class="emphasis"><em>key</em></span> AVPL, but they do not strictly match any active
+GOP’s <span class="emphasis"><em>key</em></span> AVPL, will create a new GOP (unless a <span class="emphasis"><em>Start</em></span> clause is given).
+When a GOP is created, the elements of its key AVPL are copied from the creating
+PDU.</p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_start_clause"></a>12.9.2.2. Start clause</h4></div></div></div><p>If given, it tells MATE what match_avpl must a PDU’s AVPL match, in addition to
+matching the GOP’s <span class="emphasis"><em>key</em></span>, in order to start a GOP. If not given, any PDU whose
+AVPL matches the GOP’s <span class="emphasis"><em>key</em></span> AVPL will act as a start for a GOP. The PDU’s AVPs
+matching the match_avpl are not automatically copied into the GOP’s AVPL.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_stop_clause"></a>12.9.2.3. Stop clause</h4></div></div></div><p>If given, it tells MATE what match_avpl must a PDU’s AVPL match, in addition to
+matching the GOP’s <span class="emphasis"><em>key</em></span>, in order to stop a GOP. If omitted, the GOP is
+"auto-stopped" - that is, the GOP is marked as stopped as soon as it is created.
+The PDU’s AVPs matching the match_avpl are not automatically copied into the
+GOP’s AVPL.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_extra_clause"></a>12.9.2.4. Extra clause</h4></div></div></div><p>If given, tells MATE which AVPs from the PDU’s AVPL are to be copied into the
+GOP’s AVPL in addition to the GOP’s key.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_transform_clause_2"></a>12.9.2.5. Transform clause</h4></div></div></div><p>The <span class="emphasis"><em>Transform</em></span> clause specifies a list of previously declared <span class="emphasis"><em>Transform</em></span>s to
+be performed on the GOP’s AVPL after the AVPs from each new PDU, specified by
+the <span class="emphasis"><em>key</em></span> AVPL and the <span class="emphasis"><em>Extra</em></span> clause’s match_avpl, have been merged into it.
+The list is always executed completely, left to right. On the contrary, the list
+of <span class="emphasis"><em>Match</em></span> clauses inside each individual <span class="emphasis"><em>Transform</em></span> is executed only until
+the first match succeeds.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_expiration_clause"></a>12.9.2.6. Expiration clause</h4></div></div></div><p>A (floating) number of seconds after a GOP is <span class="emphasis"><em>Stop</em></span> ped during which further
+PDUs matching the <span class="emphasis"><em>Stop</em></span> ped GOP’s key but not the <span class="emphasis"><em>Start</em></span> condition will still
+be assigned to that GOP. The default value of zero has an actual meaning of
+infinity, as it disables this timer, so all PDUs matching the <span class="emphasis"><em>Stop</em></span> ped GOP’s
+key will be assigned to that GOP unless they match the <span class="emphasis"><em>Start</em></span> condition.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_idletimeout_clause"></a>12.9.2.7. IdleTimeout clause</h4></div></div></div><p>A (floating) number of seconds elapsed from the last PDU assigned to the GOP
+after which the GOP will be considered released. The default value of zero has
+an actual meaning of infinity, as it disables this timer, so the GOP won’t be
+released even if no PDUs arrive - unless the <span class="emphasis"><em>Lifetime</em></span> timer expires.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_lifetime_clause"></a>12.9.2.8. Lifetime clause</h4></div></div></div><p>A (floating) of seconds after the GOP <span class="emphasis"><em>Start</em></span> after which the GOP will be
+considered released regardless anything else. The default value of zero has an
+actual meaning of infinity.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_dropunassigned_clause_2"></a>12.9.2.9. DropUnassigned clause</h4></div></div></div><p>Whether or not a GOP that has not being assigned to any GOG should be discarded.
+If <span class="emphasis"><em>TRUE</em></span>, the GOP is discarded right after creation. If <span class="emphasis"><em>FALSE</em></span>, the default,
+the unassigned GOP is kept. Setting it to <span class="emphasis"><em>TRUE</em></span> helps save memory and speed up
+filtering.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_treemode_clause"></a>12.9.2.10. TreeMode clause</h4></div></div></div><p>Controls the display of PDUs subtree of the GOP:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><span class="emphasis"><em>NoTree</em></span>: completely suppresses showing the tree</li><li class="listitem"><span class="emphasis"><em>PduTree</em></span>: the tree is shown and shows the PDUs by PDU Id</li><li class="listitem"><span class="emphasis"><em>FrameTree</em></span>: the tree is shown and shows the PDUs by the frame number in which
+they are</li><li class="listitem"><span class="emphasis"><em>BasicTree</em></span>: needs investigation</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_showtimes_clause"></a>12.9.2.11. ShowTimes clause</h4></div></div></div><p>Whether or not to show the times subtree of the GOP. If <span class="emphasis"><em>TRUE</em></span>, the default,
+the subtree with the timers is added to the GOP’s tree. If <span class="emphasis"><em>FALSE</em></span>, the subtree
+is suppressed.</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="Gog"></a>12.9.3. GOG declaration block</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gog_declaration_block_header"></a>12.9.3.1. <span class="emphasis"><em>Gog</em></span> declaration block header</h4></div></div></div><p>Declares a Gog type and its candidate key.</p><pre class="screen">Gog name {
+    Member gopname (key); // mandatory, at least one
+    Extra match_avpl; // optional
+    Transform transform_list; // optional
+    Expiration time; // optional, default 2.0
+    GopTree [NoTree|PduTree|FrameTree|BasicTree]; // optional
+    ShowTimes [TRUE|FALSE]; // optional, default TRUE
+};</pre><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_gog_name"></a>12.9.3.1.1. Gog name</h5></div></div></div><p>The <span class="emphasis"><em>name</em></span> is a mandatory attribute of a <span class="emphasis"><em>Gog</em></span> declaration. It is chosen
+arbitrarily, except that each <span class="emphasis"><em>name</em></span> may only be used once in MATE’s
+configuration, regardless the class of an item it is used for. The <span class="emphasis"><em>name</em></span> is
+used to distinguish between different types of PDUs, GOPs, and GOGs. The <span class="emphasis"><em>name</em></span>
+is also used as part of the filterable fields' names related to this type of
+GOG which MATE creates.</p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_member_clause"></a>12.9.3.2. Member clause</h4></div></div></div><p>Defines the <span class="emphasis"><em>key</em></span> AVPL for the GOG individually for each GOP type <span class="emphasis"><em>gopname</em></span>.
+All <span class="emphasis"><em>gopname</em></span> type GOPs whose <span class="emphasis"><em>key</em></span> AVPL matches the corresponding <span class="emphasis"><em>key</em></span> AVPL
+of an active GOG are assigned to that GOG; a GOP which contains the AVPs whose
+attribute names are listed in the GOG’s corresponding <span class="emphasis"><em>key</em></span> AVPL, but they do
+not strictly match any active GOG’s <span class="emphasis"><em>key</em></span> AVPL, will create a new GOG. When a
+GOG is created, the elements of its <span class="emphasis"><em>key</em></span> AVPL are copied from the creating GOP.</p><p>Although the <span class="emphasis"><em>key</em></span> AVPLs are specified separately for each of the Member
+<span class="emphasis"><em>gopname</em></span>s, in most cases they are identical, as the very purpose of a GOG is
+to group together GOPs made of PDUs of different types.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_extra_clause_2"></a>12.9.3.3. Extra clause</h4></div></div></div><p>If given, tells MATE which AVPs from any of the GOP’s AVPL are to be copied
+into the GOG’s AVPL in addition to the GOG’s key.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_expiration_clause_2"></a>12.9.3.4. Expiration clause</h4></div></div></div><p>A (floating) number of seconds after all the GOPs assigned to a GOG have been
+released during which new GOPs matching any of the session keys should still be
+assigned to the existing GOG instead of creating a new one. Its value can range
+from 0.0 to infinite. Defaults to 2.0 seconds.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_transform_clause_3"></a>12.9.3.5. Transform clause</h4></div></div></div><p>The <span class="emphasis"><em>Transform</em></span> clause specifies a list of previously declared <span class="emphasis"><em>Transform</em></span>s to
+be performed on the GOG’s AVPL after the AVPs from each new GOP, specified by
+the <span class="emphasis"><em>key</em></span> AVPL and the <span class="emphasis"><em>Extra</em></span> clause’s match_avpl, have been merged into it.
+The list is always executed completely, left to right. On the contrary, the list
+of <span class="emphasis"><em>Match</em></span> clauses inside each individual <span class="emphasis"><em>Transform</em></span> is executed only until
+the first match succeeds.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_treemode_clause_2"></a>12.9.3.6. TreeMode clause</h4></div></div></div><p>Controls the display of GOPs subtree of the GOG:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><span class="emphasis"><em>NoTree</em></span>: completely suppresses showing the tree</li><li class="listitem"><span class="emphasis"><em>BasicTree</em></span>: needs investigation</li><li class="listitem"><span class="emphasis"><em>FullTree</em></span>: needs investigation</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_showtimes_clause_2"></a>12.9.3.7. ShowTimes clause</h4></div></div></div><p>Whether or not to show the times subtree of the GOG. If <span class="emphasis"><em>TRUE</em></span>, the default,
+the subtree with the timers is added to the GOG’s tree. If <span class="emphasis"><em>FALSE</em></span>, the subtree
+is suppressed.</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="Transform"></a>12.9.4. Transform declaration block</h3></div></div></div><p>A Transform is a sequence of Match rules optionally followed by an instruction
+how to modify the match result using an additional AVPL. Such modification may
+be an Insert (merge) or a Replace. The syntax is as follows:</p><pre class="screen">Transform name {
+    Match [Strict|Every|Loose] match_avpl [[Insert|Replace] modify_avpl] ; // may occur multiple times, at least once
+};</pre><p>For examples of Transforms, check the <a class="link" href="ChMateManual.html" title="12.3. MATE Overview">Manual</a> page.</p><p>TODO: migrate the examples here?</p><p>The list of Match rules inside a Transform is processed top to bottom;
+the processing ends as soon as either a Match rule succeeds or all have been
+tried in vain.</p><p>Transforms can be used as helpers to manipulate an item’s AVPL before the item
+is processed further. An item declaration may contain a Transform clause
+indicating a list of previously declared Transforms. Regardless whether the
+individual transforms succeed or fail, the list is always executed completely
+and in the order given, i.e., left to right.</p><p>In MATE configuration file, a Transform must be declared before declaring any
+item which uses it.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_settings_configuration_avpl"></a>12.9.5. Settings configuration AVPL</h3></div></div></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>The <span class="strong"><strong>Settings</strong></span> parameters have been moved to other configuration parameters
+or deprecated. Leave for now until rest of document is updated for current syntax.</p></td></tr></table></div><p>The <span class="strong"><strong>Settings</strong></span> config element is used to pass to MATE various operational
+parameters. the possible parameters are</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gogexpiration"></a>12.9.5.1. GogExpiration</h4></div></div></div><p>How long in seconds after all the GOPs assigned to a GOG have been released new
+GOPs matching any of the session keys should create a new GOG instead of being
+assigned to the previous one. Its value can range from 0.0 to infinite.
+Defaults to 2.0 seconds.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_discardpdudata"></a>12.9.5.2. DiscardPduData</h4></div></div></div><p>Whether or not the AVPL of every PDU should be deleted after it was being
+processed (saves memory). It can be either <span class="emphasis"><em>TRUE</em></span> or <span class="emphasis"><em>FALSE</em></span>. Defaults to <span class="emphasis"><em>TRUE</em></span>.
+Setting it to <span class="emphasis"><em>FALSE</em></span> can save you from a headache if your config does not work.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_discardunassignedpdu"></a>12.9.5.3. DiscardUnassignedPdu</h4></div></div></div><p>Whether PDUs should be deleted if they are not assigned to any GOP. It can be
+either <span class="emphasis"><em>TRUE</em></span> or <span class="emphasis"><em>FALSE</em></span>. Defaults to <span class="emphasis"><em>FALSE</em></span>. Set it to <span class="emphasis"><em>TRUE</em></span> to save memory
+if unassigned PDUs are useless.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_discardunassignedgop"></a>12.9.5.4. DiscardUnassignedGop</h4></div></div></div><p>Whether GOPs should be deleted if they are not assigned to any session. It can
+be either <span class="emphasis"><em>TRUE</em></span> or <span class="emphasis"><em>FALSE</em></span>. Defaults to <span class="emphasis"><em>FALSE</em></span>. Setting it to <span class="emphasis"><em>TRUE</em></span> saves
+memory.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_showpdutree"></a>12.9.5.5. ShowPduTree</h4></div></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_showgoptimes"></a>12.9.5.6. ShowGopTimes</h4></div></div></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_debugging_stuff"></a>12.9.6. Debugging Stuff</h3></div></div></div><p>The following settings are used to debug MATE and its configuration. All levels
+are integers ranging from 0 (print only errors) to 9 (flood me with junk),
+defaulting to 0.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_debug_declaration_block_header"></a>12.9.6.1. Debug declaration block header</h4></div></div></div><pre class="screen">Debug {
+    Filename "path/name"; //optional, no default value
+    Level [0-9]; //optional, generic debug level
+    Pdu Level [0-9]; //optional, specific debug level for Pdu handling
+    Gop Level [0-9]; //optional, specific debug level for Gop handling
+    Gog Level [0-9]; //optional, specific debug level for Gog handling
+};</pre><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_filename_clause"></a>12.9.6.1.1. Filename clause</h5></div></div></div><p>The  {{{path/name}}} is a full path to the file to which debug output is to be
+written. Non-existent file will be created, existing file will be overwritten
+at each opening of a capture file. If the statement is missing, debug messages
+are written to console, which means they are invisible on Windows.</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_level_clause"></a>12.9.6.1.2. Level clause</h5></div></div></div><p>Sets the level of debugging for generic debug messages. It is an integer
+ranging from 0 (print only errors) to 9 (flood me with junk).</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_pdu_level_clause"></a>12.9.6.1.3. Pdu Level clause</h5></div></div></div><p>Sets the level of debugging for messages regarding PDU creation. It is an
+integer ranging from 0 (print only errors) to 9 (flood me with junk).</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_gop_level_clause"></a>12.9.6.1.4. Gop Level clause</h5></div></div></div><p>Sets the level of debugging for messages regarding PDU analysis (that is how do
+they fit into ?GOPs). It is an integer ranging from 0 (print only errors) to 9
+(flood me with junk).</p></div><div class="section"><div class="titlepage"><div><div><h5 class="title"><a name="_gog_level_clause"></a>12.9.6.1.5. Gog Level clause</h5></div></div></div><p>Sets the level of debugging for messages regarding GOP analysis (that is how do
+they fit into ?GOGs). It is an integer ranging from 0 (print only errors) to 9
+(flood me with junk).</p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_settings_example"></a>12.9.6.2. Settings Example</h4></div></div></div><pre class="screen">Action=Settings; SessionExpiration=3.5; DiscardPduData=FALSE;</pre></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_actioninclude"></a>12.9.7. Action=Include</h3></div></div></div><p>Will include a file to the configuration.</p><pre class="screen">Action=Include; {Filename=filename;|Lib=libname;}</pre><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_filename"></a>12.9.7.1. Filename</h4></div></div></div><p>The filename of the file to include. If it does not begin with '/' it will look
+for the file in the current path.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_lib"></a>12.9.7.2. Lib</h4></div></div></div><p>The name of the lib config to include. will look for libname.mate in
+wiresharks_dir/matelib.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_include_example"></a>12.9.7.3. Include Example</h4></div></div></div><pre class="screen">Action=Include; Filename=rtsp.mate;</pre><p>This will include the file called "rtsp.mate" into the current config.</p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChMateReferenceManual.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="AppMessages.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.8. MATE’s reference manual </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Appendix A. Wireshark Messages</td></tr></table></div></body></html>

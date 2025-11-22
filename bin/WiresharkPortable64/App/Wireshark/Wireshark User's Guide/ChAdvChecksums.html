@@ -1,0 +1,62 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>7.10. Checksums</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterAdvanced.html" title="Chapter 7. Advanced Topics"><link rel="prev" href="ChAdvNameResolutionSection.html" title="7.9. Name Resolution"><link rel="next" href="ChStatistics.html" title="Chapter 8. Statistics"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">7.10. Checksums</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChAdvNameResolutionSection.html">Prev</a> </td><th width="60%" align="center">Chapter 7. Advanced Topics</th><td width="20%" align="right"> <a accesskey="n" href="ChStatistics.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChAdvChecksums"></a>7.10. Checksums</h2></div></div></div><p>Several network protocols use checksums to ensure data integrity. Applying
+checksums as described here is also known as <span class="emphasis"><em>redundancy checking</em></span>.</p><div class="sidebar"><div class="titlepage"><div><div><p class="title"><b>What are checksums for?</b></p></div></div></div><p>Checksums are used to ensure the integrity of data portions for data
+transmission or storage. A checksum is basically a calculated summary of such a
+data portion.</p><p>Network data transmissions often produce errors, such as toggled, missing or
+duplicated bits. As a result, the data received might not be identical to the
+data transmitted, which is obviously a bad thing.</p><p>Because of these transmission errors, network protocols very often use checksums
+to detect such errors. The transmitter will calculate a checksum of the data and
+transmits the data together with the checksum. The receiver will calculate the
+checksum of the received data with the same algorithm as the transmitter. If the
+received and calculated checksums don’t match a transmission error has occurred.</p><p>Some checksum algorithms are able to recover (simple) errors by calculating
+where the expected error must be and repairing it.</p><p>If there are errors that cannot be recovered, the receiving side throws away the
+packet. Depending on the network protocol, this data loss is simply ignored or
+the sending side needs to detect this loss somehow and retransmits the required
+packet(s).</p><p>Using a checksum drastically reduces the number of undetected transmission
+errors. However, the usual checksum algorithms cannot guarantee an error
+detection of 100%, so a very small number of transmission errors may remain
+undetected.</p><p>There are several different kinds of checksum algorithms; an example of an often
+used checksum algorithm is CRC32. The checksum algorithm actually chosen for a
+specific network protocol will depend on the expected error rate of the network
+medium, the importance of error detection, the processor load to perform the
+calculation, the performance needed and many other things.</p><p>Further information about checksums can be found at:
+<a class="link" href="https://en.wikipedia.org/wiki/Checksum" target="_top">https://en.wikipedia.org/wiki/Checksum</a>.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_wireshark_checksum_validation"></a>7.10.1. Wireshark Checksum Validation</h3></div></div></div><p>Wireshark will validate the checksums of many protocols, e.g., IP, TCP, UDP, etc.</p><p>It will do the same calculation as a “normal receiver” would do, and shows the
+checksum fields in the packet details with a comment, e.g., [correct] or
+[invalid, must be 0x12345678].</p><p>Checksum validation can be switched off for various protocols in the Wireshark
+protocol preferences, e.g., to (very slightly) increase performance.</p><p>If the checksum validation is enabled and it detected an invalid checksum,
+features like packet reassembly won’t be processed. This is avoided as
+incorrect connection data could “confuse” the internal database.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_checksum_offloading"></a>7.10.2. Checksum Offloading</h3></div></div></div><p>The checksum calculation might be done by the network driver, protocol driver or
+even in hardware.</p><p>For example: The Ethernet transmitting hardware calculates the Ethernet CRC32
+checksum and the receiving hardware validates this checksum. If the received
+checksum is wrong Wireshark won’t even see the packet, as the Ethernet hardware
+internally throws away the packet.</p><p>Higher-level checksums are “traditionally” calculated by the protocol
+implementation and the completed packet is then handed over to the hardware.</p><p>Recent network hardware can perform advanced features such as IP checksum
+calculation, also known as checksum offloading. The network driver won’t
+calculate the checksum itself but will simply hand over an empty (zero or
+garbage filled) checksum field to the hardware.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>Checksum offloading often causes confusion as network packets to be
+transmitted are given to Wireshark before they are handed over to the
+hardware. Wireshark gets these “empty” checksums and displays them as
+invalid, even though the packets will contain valid checksums when they
+transit the network.</p><p>This only applies to packets that are locally generated by the capture
+point. Received packets will have traveled through network hardware
+and should have correct checksums.</p></td></tr></table></div><p>Checksum offloading can be confusing and having a lot of [invalid] messages on
+the screen can be quite annoying. As mentioned above, invalid checksums may lead
+to unreassembled packets, making the analysis of the packet data much harder.</p><p>You can do two things to avoid this checksum offloading problem:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">Turn off the checksum offloading in the network driver, if this option is available.</li><li class="listitem">Turn off checksum validation of the specific protocol in the Wireshark preferences.
+Recent releases of Wireshark disable checksum validation by default due to the
+prevalence of offloading in modern hardware and operating systems.</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_partial_checksums"></a>7.10.3. Partial Checksums</h3></div></div></div><p>TCP and UDP checksums are calculated over both the payload and from selected
+elements from the IPv4 or IPv6 header, known as the pseudo header. Linux
+and Windows, when offloading checksums, will calculate the contribution from
+the pseudo header and place it in the checksum field. The driver then directs
+the hardware to calculate the checksum over the payload area, which will
+produce the correct result including the pseudo header’s portion of the sum
+as a matter of mathematics.</p><p>This precomputation speeds up the hardware checksum calculation later,
+allows the driver to direct the hardware to do checksums over encapsulated
+payloads (<span class="emphasis"><em>Local Checksum Offload</em></span>), and allows applications to send
+the kernel large "superpacket" buffers that will be later divided by
+the hardware into multiple maximum size packets when sent on the network
+(<span class="emphasis"><em>TCP Segmentation Offload (TSO)</em></span> and <span class="emphasis"><em>Generic Segmentation Offload (GSO)</em></span>).</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>Wireshark 4.2.0 and later can calculate the partial checksum contribution
+from the pseudo header, and when validating TCP and UDP checksums will
+mark partial checksums as valid but partial. The packets with partial
+checksums will not be colored as Bad Checksums by the default coloring rules,
+and will still be used for reassembly. This eliminates spurious checksum
+errors seen on packets transmitted from the capturing host on those platforms
+that use partial checksums when offloading.</p></td></tr></table></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChAdvNameResolutionSection.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterAdvanced.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChStatistics.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">7.9. Name Resolution </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 8. Statistics</td></tr></table></div></body></html>

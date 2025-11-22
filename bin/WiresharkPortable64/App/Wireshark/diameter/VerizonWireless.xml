@@ -11,10 +11,18 @@
   </avp>
 
   <avp name="Charging-Gateway-Function-Host" vendor-id="VerizonWireless" code="6068" >
-    <type type-name="OctetString"/>
+    <type type-name="UTF8String"/>
   </avp>
 
   <avp name="Charging-Group-ID" vendor-id="VerizonWireless" code="6069" >
+    <type type-name="OctetString"/>
+  </avp>
+
+  <avp name="Originating-User-Location-Info" vendor-id="VerizonWireless" code="6080" >
+    <type type-name="OctetString"/>
+  </avp>
+
+  <avp name="Originating-BSID" vendor-id="VerizonWireless" code="6081" >
     <type type-name="OctetString"/>
   </avp>
 

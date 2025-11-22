@@ -1,0 +1,158 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>5.7. Exporting Data</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterIO.html" title="Chapter 5. File Input, Output, And Printing"><link rel="prev" href="ChIOFileSetSection.html" title="5.6. File Sets"><link rel="next" href="ChIOPrintSection.html" title="5.8. Printing Packets"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">5.7. Exporting Data</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChIOFileSetSection.html">Prev</a> </td><th width="60%" align="center">Chapter 5. File Input, Output, And Printing</th><td width="20%" align="right"> <a accesskey="n" href="ChIOPrintSection.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChIOExportSection"></a>5.7. Exporting Data</h2></div></div></div><p>Wireshark provides a variety of options for exporting packet data.
+This section describes general ways to export data from the main Wireshark application.
+There are many other ways to export or extract data from capture files, including processing <a class="link" href="AppToolstshark.html" title="D.2. tshark: Terminal-based Wireshark">tshark</a> output and customizing Wireshark and TShark using Lua scripts.</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportSpecifiedPacketsDialog"></a>5.7.1. The “Export Specified Packets” Dialog Box</h3></div></div></div><div class="figure"><a name="idm1597224880"></a><p class="title"><b>Figure 5.10. The “Export Specified Packets” dialog box</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="60%"><tr><td><img src="images/ws-export-specified-packets.png" width="100%" alt="ws export specified packets"></td></tr></table></div></div></div><br class="figure-break"><p>This is similar to the “<a class="link" href="ChIOSaveSection.html#ChIOSaveAs" title="5.3.1. The “Save Capture File As” Dialog Box">Save</a>” dialog box, but it lets you save specific packets.
+This can be useful for trimming irrelevant or unwanted packets from a capture file.
+See <a class="link" href="ChIOPacketRangeSection.html" title="5.9. The “Packet Range” Frame">Packet Range</a> for details on the range controls.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportPacketDissectionsDialog"></a>5.7.2. The “Export Packet Dissections” Dialog Box</h3></div></div></div><p>This lets you save the packet list, packet details, and packet bytes as plain text, CSV, JSON, and other formats.</p><div class="figure"><a name="idm1597219632"></a><p class="title"><b>Figure 5.11. The “Export Packet Dissections” dialog box</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="60%"><tr><td><img src="images/ws-export-packet-dissections.png" width="100%" alt="ws export packet dissections"></td></tr></table></div></div></div><br class="figure-break"><p>The format can be selected from the “Export As” drop-down and further customized using the “<a class="link" href="ChIOPacketRangeSection.html" title="5.9. The “Packet Range” Frame">Packet Range</a>” and “<a class="link" href="ChIOPacketRangeSection.html" title="5.9. The “Packet Range” Frame">Packet Format</a>” controls.
+Some controls are unavailable for some formats, notably CSV and JSON.
+The following formats are supported:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">Plain text as shown in the main window</li><li class="listitem"><a class="link" href="https://en.wikipedia.org/wiki/Comma-separated_values" target="_top">Comma-separated values (CSV)</a></li><li class="listitem"><a class="link" href="https://en.wikipedia.org/wiki/C_(programming_language)" target="_top">C-compatible</a> byte arrays</li><li class="listitem"><a class="link" href="https://web.archive.org/web/20141115200425/http://www.nbee.org/doku.php?id=netpdl:psml_specification" target="_top">PSML</a> (summary XML)</li><li class="listitem"><a class="link" href="https://web.archive.org/web/20140416072301/http://www.nbee.org/doku.php?id=netpdl:pdml_specification" target="_top">PDML</a> (detailed XML)</li><li class="listitem"><a class="link" href="https://en.wikipedia.org/wiki/JSON" target="_top">JavaScript Object Notation (JSON)</a></li></ul></div><p>Here are some examples of exported data:</p><p><b>Plain text. </b>
+</p><pre class="screen">No.     Time           Source                Destination           Protocol Length SSID       Info
+      1 0.000000       200.121.1.131         172.16.0.122          TCP      1454              10554 → 80 [ACK] Seq=1 Ack=1 Win=65535 Len=1400 [TCP segment of a reassembled PDU]
+
+Frame 1: 1454 bytes on wire (11632 bits), 1454 bytes captured (11632 bits)
+Ethernet II, Src: 00:50:56:c0:00:01, Dst: 00:0c:29:42:12:13
+Internet Protocol Version 4, Src: 200.121.1.131 (200.121.1.131), Dst: 172.16.0.122 (172.16.0.122)
+    0100 .... = Version: 4
+    .... 0101 = Header Length: 20 bytes (5)
+    Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)
+    Total Length: 1440
+    Identification: 0x0141 (321)
+    Flags: 0x0000
+    ...0 0000 0000 0000 = Fragment offset: 0
+    Time to live: 106
+    Protocol: TCP (6)
+    Header checksum: 0xd390 [validation disabled]
+    [Header checksum status: Unverified]
+    Source: 200.121.1.131 (200.121.1.131)
+    Destination: 172.16.0.122 (172.16.0.122)
+    [Source GeoIP: PE, ASN 6147, Telefonica del Peru S.A.A.]
+Transmission Control Protocol, Src Port: 10554, Dst Port: 80, Seq: 1, Ack: 1, Len: 1400</pre><p>
+</p><div class="tip" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Tip"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Tip]" src="images/tip.svg"></td><th align="left">Tip</th></tr><tr><td align="left" valign="top"><p>If you would like to be able to <a class="link" href="ChIOImportSection.html" title="5.5. Import Hex Dump">import</a> any previously exported packets from a plain text file it is recommended that you do the following:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">Add the “Absolute date and time” column.</li><li class="listitem">Temporarily hide all other columns.</li><li class="listitem">Disable the <span class="guimenu">Edit</span> → <span class="guisubmenu">Preferences</span> → <span class="guisubmenu">Protocols</span> → <span class="guimenuitem">Data</span> “Show not dissected data
+on new Packet Bytes pane” preference. More details are provided in
+<a class="xref" href="ChCustPreferencesSection.html" title="11.5. Preferences">Section 11.5, “Preferences”</a></li><li class="listitem">Include the packet summary line.</li><li class="listitem">Exclude column headings.</li><li class="listitem">Exclude packet details.</li><li class="listitem">Include the packet bytes.</li></ul></div></td></tr></table></div><p><b>CSV. </b>
+</p><pre class="screen">"No.","Time","Source","Destination","Protocol","Length","SSID","Info","Win Size"
+"1","0.000000","200.121.1.131","172.16.0.122","TCP","1454","","10554  &gt;  80 [ACK] Seq=1 Ack=1 Win=65535 Len=1400 [TCP segment of a reassembled PDU]","65535"
+"2","0.000011","172.16.0.122","200.121.1.131","TCP","54","","[TCP ACKed unseen segment] 80  &gt;  10554 [ACK] Seq=1 Ack=11201 Win=53200 Len=0","53200"
+"3","0.025738","200.121.1.131","172.16.0.122","TCP","1454","","[TCP Spurious Retransmission] 10554  &gt;  80 [ACK] Seq=1401 Ack=1 Win=65535 Len=1400 [TCP segment of a reassembled PDU]","65535"
+"4","0.025749","172.16.0.122","200.121.1.131","TCP","54","","[TCP Window Update] [TCP ACKed unseen segment] 80  &gt;  10554 [ACK] Seq=1 Ack=11201 Win=63000 Len=0","63000"
+"5","0.076967","200.121.1.131","172.16.0.122","TCP","1454","","[TCP Previous segment not captured] [TCP Spurious Retransmission] 10554  &gt;  80 [ACK] Seq=4201 Ack=1 Win=65535 Len=1400 [TCP segment of a reassembled PDU]","65535"</pre><p>
+</p><p><b>JSON. </b>
+</p><pre class="screen">{
+    "_index": "packets-2014-06-22",
+    "_type": "doc",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "frame.encap_type": "1",
+          "frame.time": "Jun 22, 2014 13:29:41.834477000 PDT",
+          "frame.offset_shift": "0.000000000",
+          "frame.time_epoch": "1403468981.834477000",
+          "frame.time_delta": "0.450535000",
+          "frame.time_delta_displayed": "0.450535000",
+          "frame.time_relative": "0.450535000",
+          "frame.number": "2",
+          "frame.len": "86",
+          "frame.cap_len": "86",
+          "frame.marked": "0",
+          "frame.ignored": "0",
+          "frame.protocols": "eth:ethertype:ipv6:icmpv6",
+          "frame.coloring_rule.name": "ICMP",
+          "frame.coloring_rule.string": "icmp || icmpv6"
+        },
+        "eth": {
+          "eth.dst": "33:33:ff:9e:e3:8e",
+          "eth.dst_tree": {
+            "eth.dst_resolved": "33:33:ff:9e:e3:8e",
+            "eth.dst.oui": "3355647",
+            "eth.addr": "33:33:ff:9e:e3:8e",
+            "eth.addr_resolved": "33:33:ff:9e:e3:8e",
+            "eth.addr.oui": "3355647",
+            "eth.dst.lg": "1",
+            "eth.lg": "1",
+            "eth.dst.ig": "1",
+            "eth.ig": "1"
+          },
+          "eth.src": "00:01:5c:62:8c:46",
+          "eth.src_tree": {
+            "eth.src_resolved": "00:01:5c:62:8c:46",
+            "eth.src.oui": "348",
+            "eth.src.oui_resolved": "Cadant Inc.",
+            "eth.addr": "00:01:5c:62:8c:46",
+            "eth.addr_resolved": "00:01:5c:62:8c:46",
+            "eth.addr.oui": "348",
+            "eth.addr.oui_resolved": "Cadant Inc.",
+            "eth.src.lg": "0",
+            "eth.lg": "0",
+            "eth.src.ig": "0",
+            "eth.ig": "0"
+          },
+          "eth.type": "0x000086dd"
+        },
+        "ipv6": {
+          "ipv6.version": "6",
+          "ip.version": "6",
+          "ipv6.tclass": "0x00000000",
+          "ipv6.tclass_tree": {
+            "ipv6.tclass.dscp": "0",
+            "ipv6.tclass.ecn": "0"
+          },
+          "ipv6.flow": "0x00000000",
+          "ipv6.plen": "32",
+          "ipv6.nxt": "58",
+          "ipv6.hlim": "255",
+          "ipv6.src": "2001:558:4080:16::1",
+          "ipv6.addr": "2001:558:4080:16::1",
+          "ipv6.src_host": "2001:558:4080:16::1",
+          "ipv6.host": "2001:558:4080:16::1",
+          "ipv6.dst": "ff02::1:ff9e:e38e",
+          "ipv6.addr": "ff02::1:ff9e:e38e",
+          "ipv6.dst_host": "ff02::1:ff9e:e38e",
+          "ipv6.host": "ff02::1:ff9e:e38e",
+          "ipv6.geoip.src_summary": "US, ASN 7922, Comcast Cable Communications, LLC",
+          "ipv6.geoip.src_summary_tree": {
+            "ipv6.geoip.src_country": "United States",
+            "ipv6.geoip.country": "United States",
+            "ipv6.geoip.src_country_iso": "US",
+            "ipv6.geoip.country_iso": "US",
+            "ipv6.geoip.src_asnum": "7922",
+            "ipv6.geoip.asnum": "7922",
+            "ipv6.geoip.src_org": "Comcast Cable Communications, LLC",
+            "ipv6.geoip.org": "Comcast Cable Communications, LLC",
+            "ipv6.geoip.src_lat": "37.751",
+            "ipv6.geoip.lat": "37.751",
+            "ipv6.geoip.src_lon": "-97.822",
+            "ipv6.geoip.lon": "-97.822"
+          }
+        },
+        "icmpv6": {
+          "icmpv6.type": "135",
+          "icmpv6.code": "0",
+          "icmpv6.checksum": "0x00005b84",
+          "icmpv6.checksum.status": "1",
+          "icmpv6.reserved": "00:00:00:00",
+          "icmpv6.nd.ns.target_address": "2001:558:4080:16:be36:e4ff:fe9e:e38e",
+          "icmpv6.opt": {
+            "icmpv6.opt.type": "1",
+            "icmpv6.opt.length": "1",
+            "icmpv6.opt.linkaddr": "00:01:5c:62:8c:46",
+            "icmpv6.opt.src_linkaddr": "00:01:5c:62:8c:46"
+          }
+        }
+      }
+    }
+  }
+]</pre><p>
+</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportSelectedDialog"></a>5.7.3. The “Export Selected Packet Bytes” Dialog Box</h3></div></div></div><p>Export the bytes selected in the “Packet Bytes” pane into a raw binary file.</p><div class="figure"><a name="idm1597191088"></a><p class="title"><b>Figure 5.12. The “Export Selected Packet Bytes” dialog box</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="60%"><tr><td><img src="images/ws-export-selected.png" width="100%" alt="ws export selected"></td></tr></table></div></div></div><br class="figure-break"><div class="variablelist"><dl class="variablelist"><dt><span class="term">File name</span></dt><dd>The file name to export the packet data to.</dd><dt><span class="term">Save as type</span></dt><dd>The file extension.</dd></dl></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportPDUSDialog"></a>5.7.4. The “Export PDUs to File…​” Dialog Box</h3></div></div></div><p>The “Export PDUs to File…​” dialog box allows you to filter the captured Protocol Data Units (PDUs) and export them into the file. It allows you to export reassembled PDUs avoiding lower layers such as HTTP without TCP, and decrypted PDUs without the lower protocols such as HTTP without TLS and TCP.</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p class="simpara">In the main menu select <span class="guimenu">File</span> → <span class="guimenuitem">Export PDUs to File…​</span>. Wireshark will open a corresponding dialog <a class="xref" href="ChIOExportSection.html#ExportPDUsToFile" title="Figure 5.13. Export PDUs to File window">Figure 5.13, “Export PDUs to File window”</a>.</p><div class="figure"><a name="ExportPDUsToFile"></a><p class="title"><b>Figure 5.13. Export PDUs to File window</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="85%"><tr><td><img src="images/ws-export-pdus-to-file.png" width="100%" alt="ws export pdus to file"></td></tr></table></div></div></div><br class="figure-break"></li><li class="listitem">To select the data according to your needs, optionally type a filter value into the <code class="literal">Display Filter</code> field. For more information about filter syntax, see the <a class="link" href="https://www.wireshark.org/docs/man-pages/wireshark-filter.html" target="_top">Wireshark Filters</a> man page.</li><li class="listitem"><p class="simpara">In the field below the <code class="literal">Display Filter</code> field you can choose the level from which you want to export the PDUs to the file. There are seven levels:</p><div class="orderedlist"><ol class="orderedlist" type="a"><li class="listitem"><code class="literal">DLT User</code>. You can export a protocol, which is framed in the user data link type table without the need to reconfigure the DLT user table. For more information, see the <a class="link" href="https://gitlab.com/wireshark/wireshark/-/wikis/HowToDissectAnything" target="_top">How to Dissect Anything</a> page.</li><li class="listitem"><code class="literal">DVB-CI</code>. You can use it for the Digital Video Broadcasting (DVB) protocol.</li><li class="listitem"><code class="literal">Logcat</code> and <code class="literal">Logcat Text</code>. You can use them for the Android logs.</li><li class="listitem"><code class="literal">OSI layer 3</code>. You can use it to export PDUs encapsulated in the IPSec or SCTP protocols.</li><li class="listitem"><code class="literal">OSI layer 4</code>. You can use it to export PDUs encapsulated in the TCP or UDP protocols.</li><li class="listitem"><p class="simpara"><code class="literal">OSI layer 7</code>. You can use it to export the following protocols: CredSSP over TLS, Diameter, protocols encapsulated in TLS and DTLS, H.248, Megaco, RELOAD framing, SIP, SMPP.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>As a developer you can add any dissector to the existing list or define a new entry in the list by using the functions in <code class="literal">epan/exported_pdu.h</code>.</p></td></tr></table></div></li></ol></div></li><li class="listitem">To finish exporting PDUs to file, click the <span class="guibutton">OK</span> button in the bottom-right corner. This will close the originally captured file and open the exported results instead as a temporary file in the main Wireshark window.</li><li class="listitem"><p class="simpara">You may save the temporary file just like any captured file. See <a class="xref" href="ChIOSaveSection.html" title="5.3. Saving Captured Packets">Section 5.3, “Saving Captured Packets”</a> for details.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>The file produced has a <code class="literal">Wireshark Upper PDU</code> encapsulation type that has somewhat limited support outside of Wireshark, but is very flexible and can contain PDUs for any protocol for which there is a Wireshark dissector.</p></td></tr></table></div></li></ol></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOStripHeadersDialog"></a>5.7.5. The “Strip Headers…​” Dialog Box</h3></div></div></div><p>The “Strip Headers…​” dialog box allows you to filter known encapsulation types on whatever protocol layer they appear and export them into a new capture file, removing lower-level protocols. It allows you to export reassembled packets and frames without lower layers such as GPF, GRE, GSE, GTP-U, MPLS, MPE, PPP, and more. If Wireshark has performed decryption, then you can export decrypted IP from protocols like IEEE 802.11 or IPSec without having to save encryption keys.</p><p>The procedure is similar to that of <a class="xref" href="ChIOExportSection.html#ChIOExportPDUSDialog" title="5.7.4. The “Export PDUs to File…​” Dialog Box">Section 5.7.4, “The “Export PDUs to File…​” Dialog Box”</a>:</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem">In the main menu select <span class="guimenu">File</span> → <span class="guimenuitem">Strip Headers…​</span>. Wireshark will open a corresponding dialog.</li><li class="listitem">To select the data according to your needs, optionally type a filter value into the <code class="literal">Display Filter</code> field. For more information about filter syntax, see the <a class="link" href="https://www.wireshark.org/docs/man-pages/wireshark-filter.html" target="_top">Wireshark Filters</a> man page.</li><li class="listitem"><p class="simpara">In the field below the <code class="literal">Display Filter</code> field you can choose the encapsulation type you want to find and export to the file. There are two encapsulations supported:</p><div class="orderedlist"><ol class="orderedlist" type="a"><li class="listitem"><code class="literal">Ethernet</code>. You can use it to export Ethernet encapsulated in other protocols.</li><li class="listitem"><p class="simpara"><code class="literal">IP</code>. You can use it to export IPv4 and IPv6 encapsulated in other protocols.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>As a developer you can add encapsulations to the list by using the functions in <code class="literal">epan/exported_pdu.h</code>.</p></td></tr></table></div></li></ol></div></li><li class="listitem">To finish exporting to file, click the <span class="guibutton">OK</span> button in the bottom-right corner. This will close the originally captured file and open the exported results instead as a temporary file in the main Wireshark window.</li><li class="listitem"><p class="simpara">You may save the temporary file just like any captured file. See <a class="xref" href="ChIOSaveSection.html" title="5.3. Saving Captured Packets">Section 5.3, “Saving Captured Packets”</a> for details.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>The new capture files produced have standard encapsulation types and can be read in nearly any tool.</p></td></tr></table></div></li></ol></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportTLSSessionKeys"></a>5.7.6. The “Export TLS Session Keys…​” Dialog Box</h3></div></div></div><p>Transport Layer Security (TLS) encrypts the communication between a client and a server. The most common use for it is web browsing via HTTPS.</p><p>Decryption of TLS traffic requires TLS secrets. You can get them in the form of stored session keys in a "key log file", or by using an RSA private key file. For more details, see the <a class="link" href="https://wiki.wireshark.org/TLS" target="_top">TLS wiki page</a>.</p><p>The <span class="guimenu">File</span> → <span class="guimenuitem">Export TLS Session Keys…</span> menu option generates a new "key log file" which contains TLS session secrets known by Wireshark. This feature is useful if you typically decrypt TLS sessions using the RSA private key file. The RSA private key is very sensitive because it can be used to decrypt other TLS sessions and impersonate the server. Session keys can be used only to decrypt sessions from the packet capture file. However, session keys are the preferred mechanism for sharing data over the Internet.</p><p>To export captured TLS session keys, follow the steps below:</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p class="simpara">In the main menu select <span class="guimenu">File</span> → <span class="guimenuitem">Export TLS Session Keys…​</span>. Wireshark will open a corresponding dialog <a class="xref" href="ChIOExportSection.html#TlsSessionKeys" title="Figure 5.14. Export TLS Session Keys window">Figure 5.14, “Export TLS Session Keys window”</a>.</p><div class="figure"><a name="TlsSessionKeys"></a><p class="title"><b>Figure 5.14. Export TLS Session Keys window</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="85%"><tr><td><img src="images/ws-tls-session-keys.png" width="100%" alt="ws tls session keys"></td></tr></table></div></div></div><br class="figure-break"></li><li class="listitem">Type the desired file name in the <code class="literal">Save As</code> field.</li><li class="listitem">Choose the destination folder for your file in the <code class="literal">Where</code> field.</li><li class="listitem">Press the <span class="guibutton">Save</span> button to complete the export file procedure.</li></ol></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChIOExportObjectsDialog"></a>5.7.7. The “Export Objects” Dialog Box</h3></div></div></div><p>This feature scans through the selected protocol’s streams in the currently
+open capture file or running capture and allows the user to export reassembled
+objects to the disk. For example, if you select HTTP, you can export HTML
+documents, images, executables, and any other files transferred over HTTP
+to the disk. If you have a capture running, this list is automatically
+updated every few seconds with any new objects seen. The saved objects can then
+be opened or examined independently of Wireshark.</p><div class="figure"><a name="idm1597134896"></a><p class="title"><b>Figure 5.15. The “Export Objects” dialog box</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="85%"><tr><td><img src="images/ws-export-objects.png" width="100%" alt="ws export objects"></td></tr></table></div></div></div><br class="figure-break"><p>Columns:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Packet</span></dt><dd>The packet number in which this object was found. In some
+cases, there can be multiple objects in the same packet.</dd><dt><span class="term">Hostname</span></dt><dd>The hostname of the server that sent this object.</dd><dt><span class="term">Content Type</span></dt><dd>The content type of this object.</dd><dt><span class="term">Size</span></dt><dd>The size of this object in bytes.</dd></dl></div><p>Filename:
+The filename for this object. Each protocol generates
+the filename differently. For example, HTTP uses the
+final part of the URI and IMF uses the subject of the email.</p><p>Inputs:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">Text Filter</span></dt><dd>Only displays objects containing the specified text string.</dd><dt><span class="term">Help</span></dt><dd>Opens this section of the “User’s Guide”.</dd><dt><span class="term">Save All</span></dt><dd>Saves all objects (including those not displayed) using the filename from the
+filename column. You will be asked what directory or folder to save them in.</dd><dt><span class="term">Close</span></dt><dd>Closes the dialog without exporting.</dd><dt><span class="term">Save</span></dt><dd>Saves the currently selected object as a filename you specify. The
+default filename to save as is taken from the filename column of the objects
+list.</dd></dl></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChIOFileSetSection.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterIO.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChIOPrintSection.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">5.6. File Sets </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 5.8. Printing Packets</td></tr></table></div></body></html>

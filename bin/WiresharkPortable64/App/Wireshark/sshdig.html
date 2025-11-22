@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.23">
+<title>sshdig(1)</title>
+<link rel="stylesheet" href="./ws.css">
+</head>
+<body class="manpage">
+<div id="header">
+<h1>sshdig(1) Manual Page</h1>
+<h2 id="_name">NAME</h2>
+<div class="sectionbody">
+<p>sshdig - Provide interfaces to capture system calls from a remote host through SSH using a remote capture binary.</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><span class="nowrap"><strong>sshdig</strong></span>
+<span class="nowrap">[ <strong>--help</strong> ]</span>
+<span class="nowrap">[ <strong>--version</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-interfaces</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-dlts</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-interface</strong>=&lt;interface&gt; ]</span>
+<span class="nowrap">[ <strong>--extcap-config</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-capture-filter</strong>=&lt;capture filter&gt; ]</span>
+<span class="nowrap">[ <strong>--capture</strong> ]</span>
+<span class="nowrap">[ <strong>--fifo</strong>=&lt;path to file or pipe&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-host</strong>=&lt;IP address&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-port</strong>=&lt;TCP port&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-username</strong>=&lt;username&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-password</strong>=&lt;password&gt; ]</span>
+<span class="nowrap">[ <strong>--sshkey</strong>=&lt;private key path&gt; ]</span>
+<span class="nowrap">[ <strong>--sshkey-passphrase</strong>=&lt;private key passphrase&gt; ]</span>
+<span class="nowrap">[ <strong>--proxycommand</strong>=&lt;SSH proxy command&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-capture-command-select</strong>=&lt;capture command selection&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-capture-command</strong>=&lt;capture command&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-priv</strong>=&lt;privilege elevation command selection&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-priv-user</strong>=&lt;privileged user name&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-filter</strong>=&lt;remote capture filter&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-count</strong>=&lt;number&gt; ]</span>
+<span class="nowrap">[ <strong>--remote-modern-bpf</strong> ]</span>
+<span class="nowrap">[ <strong>--remote-io-snaplen</strong>=&lt;snapshot length&gt; ]</span></p>
+</div>
+<div class="paragraph">
+<p><span class="nowrap"><strong>sshdig</strong></span>
+<span class="nowrap"><strong>--extcap-interfaces</strong></span></p>
+</div>
+<div class="paragraph">
+<p><span class="nowrap"><strong>sshdig</strong></span>
+<span class="nowrap"><strong>--extcap-interface</strong>=&lt;interface&gt;</span>
+<span class="nowrap"><strong>--extcap-dlts</strong></span></p>
+</div>
+<div class="paragraph">
+<p><span class="nowrap"><strong>sshdig</strong></span>
+<span class="nowrap"><strong>--extcap-interface</strong>=&lt;interface&gt;</span>
+<span class="nowrap"><strong>--extcap-config</strong></span></p>
+</div>
+<div class="paragraph">
+<p><span class="nowrap"><strong>sshdig</strong></span>
+<span class="nowrap"><strong>--extcap-interface</strong>=&lt;interface&gt;</span>
+<span class="nowrap"><strong>--fifo</strong>=&lt;path to file or pipe&gt;</span>
+<span class="nowrap"><strong>--capture</strong></span>
+<span class="nowrap"><strong>--remote-host=myremotehost</strong></span>
+<span class="nowrap"><strong>--remote-port=22</strong></span>
+<span class="nowrap"><strong>--remote-username=user</strong></span>
+<span class="nowrap"><strong>--remote-capture-command='sysdig --unbuffered --write=-'</strong></span></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Sshdig</strong> is an extcap tool that allows one to capture system calls over a SSH connection.
+You must have permission to capture system calls on the remote system.</p>
+</div>
+<div class="paragraph">
+<p>The feature is functionally equivalent to</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ ssh remoteuser@remotehost -p 22222 'sysdig --unbuffered -w -' &gt; FILE &amp;
+$ stratoshark FILE</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Typically sshdig is not invoked directly. Instead it can be configured through
+the Stratoshark graphical user interface or its command line. The following will
+start Stratoshark and start capturing from host <strong>remotehost</strong>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ stratoshark '-oextcap.sshdig.remotehost:myserver.home.arpa' -i sshdig -k</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Supported interfaces:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>sshdig</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_options">OPTIONS</h2>
+<div class="sectionbody">
+<div class="dlist">
+<dl>
+<dt class="hdlist1">--help</dt>
+<dd>
+<p>Print program arguments.</p>
+</dd>
+<dt class="hdlist1">--version</dt>
+<dd>
+<p>Print program version.</p>
+</dd>
+<dt class="hdlist1">--extcap-interfaces</dt>
+<dd>
+<p>List available interfaces.</p>
+</dd>
+<dt class="hdlist1">--extcap-interface=&lt;interface&gt;</dt>
+<dd>
+<p>Use specified interfaces.</p>
+</dd>
+<dt class="hdlist1">--extcap-dlts</dt>
+<dd>
+<p>List DLTs of specified interface.</p>
+</dd>
+<dt class="hdlist1">--extcap-config</dt>
+<dd>
+<p>List configuration options of specified interface.</p>
+</dd>
+<dt class="hdlist1">--extcap-capture-filter=&lt;capture filter&gt;</dt>
+<dd>
+<p>The capture filter. It corresponds to the value provided via the <strong>tshark -f</strong>
+option, and the Capture Filter field next to the interfaces list in the
+Stratoshark interface.</p>
+</dd>
+<dt class="hdlist1">--capture</dt>
+<dd>
+<p>Start capturing from specified interface and write raw packet data to the location specified by --fifo.</p>
+</dd>
+<dt class="hdlist1">--fifo=&lt;path to file or pipe&gt;</dt>
+<dd>
+<p>Save captured packet to file or send it through pipe.</p>
+</dd>
+<dt class="hdlist1">--remote-host=&lt;remote host&gt;</dt>
+<dd>
+<p>The address of the remote host for capture.</p>
+</dd>
+<dt class="hdlist1">--remote-port=&lt;remote port&gt;</dt>
+<dd>
+<p>The SSH port of the remote host.</p>
+</dd>
+<dt class="hdlist1">--remote-username=&lt;username&gt;</dt>
+<dd>
+<p>The username for SSH authentication.</p>
+</dd>
+<dt class="hdlist1">--remote-password=&lt;password&gt;</dt>
+<dd>
+<p>The password to use (if not ssh-agent and pubkey are used). WARNING: the
+passwords are stored in plaintext and visible to all users on this system. It is
+recommended to use keyfiles with a SSH agent.</p>
+</dd>
+<dt class="hdlist1">--sshkey=&lt;SSH private key path&gt;</dt>
+<dd>
+<p>The path to a private key for authentication. NOTE: Only OPENSSH key/value pair format is supported.</p>
+</dd>
+<dt class="hdlist1">--sshkey-passphrase=&lt;SSH private key passphrase&gt;</dt>
+<dd>
+<p>The passphrase for the private key for authentication.</p>
+</dd>
+<dt class="hdlist1">--proxycommand=&lt;proxy command&gt;</dt>
+<dd>
+<p>The command to use as proxy for the SSH connection.</p>
+</dd>
+<dt class="hdlist1">--remote-capture-command-select=&lt;capture command-selection&gt;</dt>
+<dd>
+<p>The command to run on the remote system.
+Either <strong>sysdig</strong> for a remote capture command using sysdig, or <strong>other</strong>, where the remote capture command must be provided with the <strong>--remote-capture-command</strong> option.</p>
+</dd>
+<dt class="hdlist1">--remote-capture-command=&lt;capture command&gt;</dt>
+<dd>
+<p>A custom remote capture command that produces the remote stream that is shown in Stratoshark.
+The command must be able to produce a .scap stream written to STDOUT.</p>
+</dd>
+<dt class="hdlist1">--remote-priv=&lt;privilege elevation command selection&gt;</dt>
+<dd>
+<p>The command to use to achieve privilege elevation to capture on the remote host. Either none, sudo or doas.</p>
+</dd>
+<dt class="hdlist1">--remote-priv-user=&lt;privileged user name&gt;</dt>
+<dd>
+<p>If a command is used to achieve privilege elevation to capture on the remote host requires a user name it may be provided here.</p>
+</dd>
+<dt class="hdlist1">--remote-filter=&lt;capture filter&gt;</dt>
+<dd>
+<p>The remote capture filter.
+This is passed to the remote capture program, and must comply with its syntax rules.</p>
+</dd>
+<dt class="hdlist1">--remote-count=&lt;number&gt;</dt>
+<dd>
+<p>The number of events to capture.</p>
+</dd>
+<dt class="hdlist1">--remote-modern-bpf</dt>
+<dd>
+<p>Capture using an eBPF probe instead of the kernel module.</p>
+</dd>
+<dt class="hdlist1">--remote-io-snaplen=&lt;snapshot length&gt;</dt>
+<dd>
+<p>The number of bytes to capture in each I/O event.</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_examples">EXAMPLES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To see program arguments:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --help</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see program version:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --version</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interfaces:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --extcap-interfaces</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Only one interface (sshdig) is supported.</p>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>interface {value=sshdig}{display=SSH remote syscall capture}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interface DLTs:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --extcap-interface=sshdig --extcap-dlts</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>dlt {number=147}{name=sshdig}{display=Remote capture dependent DLT}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interface configuration options:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --extcap-interface=sshdig --extcap-config</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>arg {number=0}{call=--remote-host}{display=Remote SSH server address}{type=string}{tooltip=The remote SSH host. It can be both an IP address or a hostname}{required=true}{group=Server}
+arg {number=1}{call=--remote-port}{display=Remote SSH server port}{type=unsigned}{default=22}{tooltip=The remote SSH host port (1-65535)}{range=1,65535}{group=Server}
+arg {number=2}{call=--remote-username}{display=Remote SSH server username}{type=string}{tooltip=The remote SSH username. If not provided, the current user will be used}{group=Authentication}
+arg {number=3}{call=--remote-password}{display=Remote SSH server password}{type=password}{tooltip=The SSH password, used when other methods (SSH agent or key files) are unavailable.}{group=Authentication}
+arg {number=4}{call=--sshkey}{display=Path to SSH private key}{type=fileselect}{tooltip=The path on the local filesystem of the private SSH key (OpenSSH format)}{mustexist=true}{group=Authentication}
+arg {number=5}{call=--sshkey-passphrase}{display=SSH key passphrase}{type=password}{tooltip=Passphrase to unlock the SSH private key}{group=Authentication}
+arg {number=6}{call=--proxycommand}{display=ProxyCommand}{type=string}{tooltip=The command to use as proxy for the SSH connection}{group=Authentication}
+arg {number=7}{call=--ssh-sha1}{display=Support SHA-1 keys (deprecated)}{type=boolflag}{tooltip=Support keys and key exchange algorithms using SHA-1 (deprecated)}{group=Authentication}
+arg {number=8}{call=--remote-capture-command-select}{display=Remote capture command selection}{type=radio}{tooltip=The remote capture command to build a command line for}{group=Capture}
+value {arg=8}{value=sysdig}{display=sysdig}
+value {arg=8}{value=other}{display=Other:}
+arg {number=9}{call=--remote-capture-command}{display=Remote capture command}{type=string}{tooltip=The remote command used to capture}{group=Capture}
+arg {number=10}{call=--remote-priv}{display=Gain capture privilege on the remote machine}{type=radio}{tooltip=Optionally prepend the capture command with sudo or doas on the remote machine}{group=Capture}
+value {arg=10}{value=none}{display=none}{default=true}
+value {arg=10}{value=sudo}{display=sudo}
+value {arg=10}{value=doas -n}{display=doas}
+arg {number=11}{call=--remote-priv-user}{display=Privileged user name for sudo or doas}{type=string}{tooltip=User name of privileged user to execute the capture command on the remote machine}{group=Capture}
+{group=Capture}
+arg {number=12}{call=--remote-count}{display=Packets to capture}{type=unsigned}{default=0}{tooltip=The number of remote packets to capture. (Default: inf)}{group=Capture}
+arg {number=13}{call=--log-level}{display=Set the log level}{type=selector}{tooltip=Set the log level}{required=false}{group=Debug}
+value {arg=13}{value=message}{display=Message}{default=true}
+value {arg=13}{value=info}{display=Info}
+value {arg=13}{value=debug}{display=Debug}
+value {arg=13}{value=noisy}{display=Noisy}
+arg {number=14}{call=--log-file}{display=Use a file for logging}{type=fileselect}{tooltip=Set a file where log messages are written}{required=false}{group=Debug}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To capture:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sshdig --extcap-interface=sshdig --fifo=/tmp/ssh.scap --capture --remote-host 192.168.1.10
+--remote-username user</pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<span class="keyseq"><kbd>CTRL</kbd>+<kbd>C</kbd></span> should be used to stop the capture in order to ensure clean termination.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>The sshdig binary can be renamed to support multiple instances. For instance if we want sshdig
+to show up twice in Stratoshark (for instance to handle multiple profiles), we can copy sshdig to
+sshdig-host1 and sshdig-host2. Each binary will show up an interface name same as the executable
+name. Those executables not being "sshdig" will show up as "custom version" in the capture source description.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see_also">SEE ALSO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="stratoshark.html">stratoshark</a>(1), <a href="strato.html">strato</a>(1), <a href="dumpcap.html">dumpcap</a>(1), <a href="extcap.html">extcap</a>(4)</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_notes">NOTES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Sshdig</strong> is part of the <strong>Stratoshark</strong> distribution.  The latest version
+of <strong>Stratoshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
+</div>
+<div class="paragraph">
+<p>HTML versions of the Stratoshark project man pages are available at
+<a href="https://www.wireshark.org/docs/man-pages" class="bare">https://www.wireshark.org/docs/man-pages</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_authors">AUTHORS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<div class="title">Original Author</div>
+<p>Dario Lombardo &lt;lomato[AT]gmail.com&gt;</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

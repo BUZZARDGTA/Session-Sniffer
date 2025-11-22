@@ -1,0 +1,60 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>7.8. Packet Reassembly</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterAdvanced.html" title="Chapter 7. Advanced Topics"><link rel="prev" href="ChAdvTimezones.html" title="7.7. Time Zones"><link rel="next" href="ChAdvNameResolutionSection.html" title="7.9. Name Resolution"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">7.8. Packet Reassembly</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChAdvTimezones.html">Prev</a> </td><th width="60%" align="center">Chapter 7. Advanced Topics</th><td width="20%" align="right"> <a accesskey="n" href="ChAdvNameResolutionSection.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChAdvReassemblySection"></a>7.8. Packet Reassembly</h2></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_what_is_it"></a>7.8.1. What Is It?</h3></div></div></div><p>Network protocols often need to transport large chunks of data which are
+complete in themselves, e.g., when transferring a file. The underlying protocol
+might not be able to handle that chunk size (e.g., limitation of the network
+packet size), or is stream-based like TCP, which doesn’t know data chunks at
+all.</p><p>In that case the network protocol has to handle the chunk boundaries itself and
+(if required) spread the data over multiple packets. It obviously also needs a
+mechanism to determine the chunk boundaries on the receiving side.</p><p>Wireshark calls this mechanism reassembly, although a specific protocol
+specification might use a different term for this (e.g., desegmentation,
+defragmentation, etc.).</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_how_wireshark_handles_it"></a>7.8.2. How Wireshark Handles It</h3></div></div></div><p>For some of the network protocols Wireshark knows of, a mechanism is implemented
+to find, decode and display these chunks of data. Wireshark will try to find the
+corresponding packets of this chunk, and will show the combined data as
+additional tabs in the “Packet Bytes” pane (for information about this pane.
+See <a class="xref" href="ChUsePacketBytesPaneSection.html" title="3.20. The “Packet Bytes” Pane">Section 3.20, “The “Packet Bytes” Pane”</a>).</p><div class="figure"><a name="ChAdvWiresharkBytesPaneTabs"></a><p class="title"><b>Figure 7.8. The “Packet Bytes” pane with a reassembled tab</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="85%"><tr><td><img src="images/ws-bytes-pane-tabs.png" width="100%" alt="ws bytes pane tabs"></td></tr></table></div></div></div><br class="figure-break"><p>Reassembly might take place at several protocol layers, so it’s possible that
+multiple tabs in the “Packet Bytes” pane appear.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>You will find the reassembled data in the last packet of the chunk.</p></td></tr></table></div><p>For example, in a <span class="emphasis"><em>HTTP</em></span> GET response, the requested data (e.g., an HTML page) is
+returned. Wireshark will show the hex dump of the data in a new tab
+“Uncompressed entity body” in the “Packet Bytes” pane.</p><p>Reassembly is enabled in the preferences by default but can be disabled in the
+preferences for the protocol in question. Enabling or disabling reassembly
+settings for a protocol typically requires two things:</p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem">The lower-level protocol (e.g., TCP) must support reassembly. Often this
+reassembly can be enabled or disabled via the protocol preferences.</li><li class="listitem">The higher-level protocol (e.g., HTTP) must use the reassembly mechanism to
+reassemble fragmented protocol data. This too can often be enabled or disabled
+via the protocol preferences.</li></ol></div><p>The tooltip of the higher-level protocol setting will notify you if and which
+lower-level protocol setting also has to be considered.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="ChAdvReassemblyTcp"></a>7.8.3. TCP Reassembly</h3></div></div></div><p>Protocols such as HTTP or TLS are likely to span multiple TCP segments. The
+TCP protocol preference “Allow subdissector to reassemble TCP streams” (enabled
+by default) makes it possible for Wireshark to collect a contiguous sequence of
+TCP segments and hand them over to the higher-level protocol (for example, to
+reconstruct a full HTTP message). All but the final segment will be marked with
+“[TCP segment of a reassembled PDU]” in the packet list.</p><p>Disable this preference to reduce memory and processing overhead if you are only
+interested in TCP sequence number analysis (<a class="xref" href="ChAdvTCPAnalysis.html" title="7.5. TCP Analysis">Section 7.5, “TCP Analysis”</a>). Keep in mind,
+though, that higher-level protocols might be wrongly dissected. For example,
+HTTP messages could be shown as “Continuation” and TLS records could be shown as
+“Ignored Unknown Record”. Such results can also be observed if you start
+capturing while a TCP connection was already started or when TCP segments
+are lost or delivered out-of-order.</p><p>To reassemble of out-of-order TCP segments, the TCP protocol preference
+“Reassemble out-of-order segments” (currently disabled by default) must be
+enabled in addition to the previous preference.
+If all packets are received in-order, this preference will not have any effect.
+Otherwise (if missing segments are encountered while sequentially processing a
+packet capture), it is assuming that the new and missing segments belong to the
+same PDU. Caveats:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">Lost packets are assumed to be received out-of-order or retransmitted later.
+Applications usually retransmit segments until these are acknowledged, but if
+the packet capture drops packets, then Wireshark will not be able to
+reconstruct the TCP stream. In such cases, you can try to disable this
+preference and hopefully have a partial dissection instead of seeing just
+“[TCP segment of a reassembled PDU]” for every TCP segment.</li><li class="listitem">When doing a capture in monitor mode (IEEE 802.11), packets are more likely to
+get lost due to signal reception issues. In that case it is recommended to
+disable the option.</li><li class="listitem">If the new and missing segments are in fact part of different PDUs,
+then processing is currently delayed until no more segments are missing, even
+if the begin of the missing segments completed a PDU. For example, assume six
+segments forming two PDUs <code class="literal">ABC</code> and <code class="literal">DEF</code>. When received as <code class="literal">ABECDF</code>, an
+application can start processing the first PDU after receiving <code class="literal">ABEC</code>.
+Wireshark however requires the missing segment <code class="literal">D</code> to be received as well.
+This issue will be addressed in the future.</li><li class="listitem">In the GUI and during a two-pass dissection (<code class="literal">tshark -2</code>), the previous
+scenario will display both PDUs in the packet with last segment (<code class="literal">F</code>) rather
+than displaying it in the first packet that has the final missing segment of a
+PDU. This issue will be addressed in the future.</li><li class="listitem">When enabled, fields such as the SMB “Time from request” (<code class="literal">smb.time</code>) might be
+smaller if the request follows other out-of-order segments (this reflects
+application behavior). If the previous scenario however occurs, then the time
+of the request is based on the frame where all missing segments are received.</li></ul></div><p>Regardless of the setting of these two reassembly-related preferences, you can
+always use the “Follow TCP Stream” option (<a class="xref" href="ChAdvFollowStreamSection.html" title="7.2. Following Protocol Streams">Section 7.2, “Following Protocol Streams”</a>) which
+displays segments in the expected order.</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChAdvTimezones.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterAdvanced.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChAdvNameResolutionSection.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">7.7. Time Zones </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 7.9. Name Resolution</td></tr></table></div></body></html>

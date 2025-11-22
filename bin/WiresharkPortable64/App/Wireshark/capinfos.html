@@ -116,11 +116,10 @@ the same way <strong>Capinfos</strong> handles this.</p>
 <dl>
 <dt class="hdlist1">-a</dt>
 <dd>
-<p>Displays the start time of the capture.  <strong>Capinfos</strong> considers
-the earliest timestamp seen to be the start time, so the
-first packet in the capture is not necessarily the earliest -
-if packets exist "out-of-order", time-wise, in the capture,
-<strong>Capinfos</strong> detects this.</p>
+<p>Displays the timestamp of the earliest packet in the capture. The
+earliest packet in the capture is not necessarily the first packet in
+the capture - if packets exist "out-of-order", time-wise, in the
+capture, <strong>Capinfos</strong> detects this.</p>
 </dd>
 <dt class="hdlist1">-A</dt>
 <dd>
@@ -210,11 +209,16 @@ is not available in table format.</p>
 </dd>
 <dt class="hdlist1">-e</dt>
 <dd>
-<p>Displays the end time of the capture.  <strong>Capinfos</strong> considers
-the latest timestamp seen to be the end time, so the
-last packet in the capture is not necessarily the latest -
-if packets exist "out-of-order", time-wise, in the capture,
-<strong>Capinfos</strong> detects this.</p>
+<p>Displays the timestamp of the latest packet in the capture. The latest
+packet in the capture is not necessarily the last packet in the capture</p>
+<div class="ulist">
+<ul>
+<li>
+<p>if packets exist "out-of-order", time-wise, in the capture, <strong>Capinfos</strong>
+detects this.</p>
+</li>
+</ul>
+</div>
 </dd>
 <dt class="hdlist1">-E</dt>
 <dd>
@@ -356,8 +360,8 @@ the size of the capture file itself.</p>
 </dd>
 <dt class="hdlist1">-S</dt>
 <dd>
-<p>Display the start and end times as seconds since January
-1, 1970. Handy for synchronizing dumps using <strong>editcap -t</strong>.</p>
+<p>Display the earliest and latest packet timestamps as seconds since
+January 1, 1970. Handy for synchronizing dumps using <strong>editcap -t</strong>.</p>
 </dd>
 <dt class="hdlist1">-t</dt>
 <dd>
@@ -543,7 +547,7 @@ into spreadsheet applications.</p>
 <h2 id="_notes">NOTES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the manual page for <strong>Capinfos</strong> 4.2.12.
+<p>This is the manual page for <strong>Capinfos</strong> 4.6.1.
 <strong>Capinfos</strong> is part of the <strong>Wireshark</strong> distribution.
 The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
 </div>

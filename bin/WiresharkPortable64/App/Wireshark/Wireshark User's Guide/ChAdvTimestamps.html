@@ -1,0 +1,42 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>7.6. Time Stamps</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterAdvanced.html" title="Chapter 7. Advanced Topics"><link rel="prev" href="ChAdvTCPAnalysis.html" title="7.5. TCP Analysis"><link rel="next" href="ChAdvTimezones.html" title="7.7. Time Zones"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">7.6. Time Stamps</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChAdvTCPAnalysis.html">Prev</a> </td><th width="60%" align="center">Chapter 7. Advanced Topics</th><td width="20%" align="right"> <a accesskey="n" href="ChAdvTimezones.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChAdvTimestamps"></a>7.6. Time Stamps</h2></div></div></div><p>Time stamps, their precisions and all that can be quite confusing. This section
+will provide you with information about what’s going on while Wireshark
+processes time stamps.</p><p>While packets are captured, each packet is time stamped as it comes in. These
+time stamps will be saved to the capture file, so they also will be available
+for (later) analysis.</p><p>So where do these time stamps come from? While capturing, Wireshark gets the
+time stamps from the libpcap (Npcap) library, which in turn gets them from the
+operating system kernel. If the capture data is loaded from a capture file,
+Wireshark obviously gets the data from that file.</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_wireshark_internals"></a>7.6.1. Wireshark Internals</h3></div></div></div><p>The internal format that Wireshark uses to keep a packet time stamp consists of
+the date (in days since 1.1.1970) and the time of day (in nanoseconds since
+midnight). You can adjust the way Wireshark displays the time stamp data in the
+packet list, see the “Time Display Format” item in the
+<a class="xref" href="ChUseViewMenuSection.html" title="3.7. The “View” Menu">Section 3.7, “The “View” Menu”</a> for details.</p><p>While reading or writing capture files, Wireshark converts the time stamp data
+between the capture file format and the internal format as required.</p><p>While capturing, Wireshark uses the libpcap (Npcap) capture library which
+supports nanosecond resolution for both pcapng and pcap files, though some
+devices may only provide microsecond resolution, in which case that will be
+used. Unless you are working with specialized capturing hardware, this
+resolution should be adequate.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_capture_file_formats"></a>7.6.2. Capture File Formats</h3></div></div></div><p>The vast majority of capture file formats that Wireshark knows support time
+stamps.  The time stamp precision supported by a specific capture file format
+differs widely and varies from one second “0” to one nanosecond “0.123456789”.
+Most file formats store the time stamps with a fixed precision (e.g., microseconds,
+“0.123456”), while some file formats are capable of storing the time stamp
+precision itself or even having a different precision for different records
+in the file (whatever the benefit may be).</p><p>The pcapng capture file format supports a wide range of time stamp resolutions,
+which can be different for each interface in the file, as well as records without
+time stamps. The common libpcap capture file format, which is widely supported by
+many other tools, supports two possible fixed resolutions, microsecond or
+nanosecond, indicated by a magic number at the start of the file. Wireshark and
+tools like editcap can convert pcap files with nanosecond resolution to microsecond
+resolution for use with tools that only support the original time stamp precision.</p><p>Writing data into a capture file format that doesn’t provide the capability to
+store the actual precision will lead to loss of information. For example, if you
+load a capture file with nanosecond resolution and store the capture data in a
+libpcap file (with microsecond resolution) Wireshark obviously must reduce the
+precision from nanosecond to microsecond.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_accuracy"></a>7.6.3. Accuracy</h3></div></div></div><p>People often ask “Which time stamp accuracy is provided by Wireshark?”. Well,
+Wireshark doesn’t create any time stamps itself but simply gets them from
+“somewhere else” and displays them. So accuracy will depend on the capture
+system (operating system, performance, etc.) that you use. Because of this, the
+above question is difficult to answer in a general way.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>USB connected network adapters often provide a very bad time stamp accuracy. The
+incoming packets have to take “a long and winding road” to travel through the
+USB cable until they actually reach the kernel. As the incoming packets are time
+stamped when they are processed by the kernel, this time stamping mechanism
+becomes very inaccurate.</p><p>Don’t use USB connected NICs when you need precise time stamp
+accuracy.</p></td></tr></table></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChAdvTCPAnalysis.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterAdvanced.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChAdvTimezones.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">7.5. TCP Analysis </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 7.7. Time Zones</td></tr></table></div></body></html>

@@ -1,0 +1,62 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>3.18. The “Packet List” Pane</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterUsing.html" title="Chapter 3. User Interface"><link rel="prev" href="ChUseFilterToolbarSection.html" title="3.17. The “Filter” Toolbar"><link rel="next" href="ChUsePacketDetailsPaneSection.html" title="3.19. The “Packet Details” Pane"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">3.18. The “Packet List” Pane</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChUseFilterToolbarSection.html">Prev</a> </td><th width="60%" align="center">Chapter 3. User Interface</th><td width="20%" align="right"> <a accesskey="n" href="ChUsePacketDetailsPaneSection.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChUsePacketListPaneSection"></a>3.18. The “Packet List” Pane</h2></div></div></div><p>The packet list pane displays all the packets in the current capture file.</p><div class="figure"><a name="ChUseWiresharkListPane"></a><p class="title"><b>Figure 3.16. The “Packet List” pane</b></p><div class="figure-contents"><div class="mediaobject"><table border="0" summary="manufactured viewport for HTML img" style="cellpadding: 0; cellspacing: 0;" width="85%"><tr><td><img src="images/ws-list-pane.png" width="100%" alt="ws list pane"></td></tr></table></div></div></div><br class="figure-break"><p>Each line in the packet list corresponds to one packet in the capture file. If
+you select a line in this pane, more details will be displayed in the “Packet
+Details” and “Packet Bytes” panes.</p><p>While dissecting a packet, Wireshark will place information from the protocol
+dissectors into the columns. As higher-level protocols might overwrite
+information from lower levels, you will typically see the information from the
+highest possible level only.</p><p>For example, let’s look at a packet containing TCP inside IP inside an Ethernet
+packet. The Ethernet dissector will write its data (such as the Ethernet
+addresses), the IP dissector will overwrite this by its own (such as the IP
+addresses), the TCP dissector will overwrite the IP information, and so on.</p><p>There are many different columns available. You can choose which columns are
+displayed in the preferences. See <a class="xref" href="ChCustPreferencesSection.html" title="11.5. Preferences">Section 11.5, “Preferences”</a>.</p><p>The default columns will show:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><span class="guibutton">No.</span> The number of the packet in the capture file. This number won’t
+change, even if a display filter is used.</li><li class="listitem"><span class="guibutton">Time</span> The timestamp of the packet. The presentation format of this
+timestamp can be changed, see <a class="xref" href="ChWorkTimeFormatsSection.html" title="6.12. Time Display Formats And Time References">Section 6.12, “Time Display Formats And Time References”</a>.</li><li class="listitem"><span class="guibutton">Source</span> The address where this packet is coming from.</li><li class="listitem"><span class="guibutton">Destination</span> The address where this packet is going to.</li><li class="listitem"><span class="guibutton">Protocol</span> The protocol name in a short (perhaps abbreviated) version.</li><li class="listitem"><span class="guibutton">Length</span> The length of each packet.</li><li class="listitem"><span class="guibutton">Info</span> Additional information about the packet content.</li></ul></div><p>The first column shows how each packet is related to the selected packet. For
+example, in the image above the first packet is selected, which is a DNS
+request. Wireshark shows a rightward arrow for the request itself, followed by a
+leftward arrow for the response in packet 2. Why is there a dashed line? There
+are more DNS packets further down that use the same port numbers. Wireshark
+treats them as belonging to the same conversation and draws a line connecting
+them.</p><div class="horizontal"><a name="idm1597925840"></a><p class="title"><b>Table 3.16. Related packet symbols</b></p><div class="horizontal-contents"><table class="horizontal" summary="Related packet symbols" border="0"><colgroup><col><col></colgroup><tbody valign="top"><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-first.png" height="18" alt="related first"></span></p>
+</td><td valign="top">
+<p>First packet in a conversation.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-current.png" height="18" alt="related current"></span></p>
+</td><td valign="top">
+<p>Part of the selected conversation.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-other.png" height="18" alt="related other"></span></p>
+</td><td valign="top">
+<p><span class="emphasis"><em>Not</em></span> part of the selected conversation.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-last.png" height="18" alt="related last"></span></p>
+</td><td valign="top">
+<p>Last packet in a conversation.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-request.png" height="18" alt="related request"></span></p>
+</td><td valign="top">
+<p>Request.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-response.png" height="18" alt="related response"></span></p>
+</td><td valign="top">
+<p>Response.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-ack.png" height="18" alt="related ack"></span></p>
+</td><td valign="top">
+<p>The selected packet acknowledges this packet.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-dup-ack.png" height="18" alt="related dup ack"></span></p>
+</td><td valign="top">
+<p>The selected packet is a duplicate acknowledgement of this packet.</p>
+</td></tr><tr><td valign="top">
+<p><span class="inlinemediaobject"><img src="images/related-segment.png" height="18" alt="related segment"></span></p>
+</td><td valign="top">
+<p>The selected packet is related to this packet in some other way, e.g., as part
+of reassembly.</p>
+</td></tr></tbody></table></div></div><br class="horizontal-break"><p>The packet list has an <span class="emphasis"><em>Intelligent Scrollbar</em></span> which shows a miniature map of
+nearby packets. Each <a class="link" href="https://en.wikipedia.org/wiki/Raster_graphics" target="_top">raster line</a>
+of the scrollbar corresponds to a single packet, so the number of packets shown
+in the map depends on your physical display and the height of the packet list. A
+tall packet list on a high-resolution (“Retina”) display will show you quite a
+few packets. In the image above the scrollbar shows the status of more than 500
+packets along with the 15 shown in the packet list itself.</p><p>Right clicking will show a context menu, described in
+<a class="xref" href="ChWorkDisplayPopUpSection.html#ChWorkPacketListPanePopUpMenu" title="Figure 6.4. Pop-up menu of the “Packet List” pane">Figure 6.4, “Pop-up menu of the “Packet List” pane”</a>.</p></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChUseFilterToolbarSection.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterUsing.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChUsePacketDetailsPaneSection.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">3.17. The “Filter” Toolbar </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 3.19. The “Packet Details” Pane</td></tr></table></div></body></html>

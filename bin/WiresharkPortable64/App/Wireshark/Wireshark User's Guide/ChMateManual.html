@@ -1,0 +1,88 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.3. MATE Overview</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="ChMateGettingStarted.html" title="12.2. Getting Started"><link rel="next" href="_mate_frame_analysis.html" title="12.4. MATE Frame Analysis"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.3. MATE Overview</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChMateGettingStarted.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="_mate_frame_analysis.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChMateManual"></a>12.3. MATE Overview</h2></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_introduction"></a>12.3.1. Introduction</h3></div></div></div><p>MATE creates a filterable tree based on information contained in frames that
+share some relationship with information obtained from other frames. The way
+these relationships are made is described in a configuration file. The
+configuration file tells MATE what makes a PDU and how to relate it to other
+PDUs.</p><p>MATE analyzes each frame to extract relevant information from the "protocol"
+tree of that frame. The extracted information is contained in MATE PDUs;
+these contain a list of relevant attributes taken from the tree. From now on, I
+will use the term "PDU" to refer to the objects created by MATE containing the
+relevant information extracted from the frame; I’ll use "frame" to refer to the
+"raw" information extracted by the various dissectors that pre-analyzed the frame.</p><p>For every PDU, MATE checks if it belongs to an existing "Group of PDUs" (GOP).
+If it does, it assigns the PDU to that GOP and moves any new relevant attributes
+to the GOP’s attribute list. How and when do PDUs belong to GOPs is described
+in the configuration file as well.</p><p>Every time a GOP is assigned a new PDU, MATE will check if it matches the
+conditions to make it belong to a "Group of Groups" (GOG). Naturally the
+conditions that make a GOP belong to a GOG are taken from the configuration
+file as well.</p><p>Once MATE is done analyzing the frame it will be able to create a "protocol"
+tree for each frame based on the PDUs, the GOPs they belong to and naturally any
+GOGs the former belongs to.</p><p>How to tell MATE what to extract, how to group it and then how to relate those
+groups is made using AVPs and AVPLs.</p><p>Information in MATE is contained in Attribute Value Pairs (AVPs). AVPs are made
+of two strings: the name and the value. AVPs are used in the configuration and
+there they have an operator as well. There are various ways AVPs can be matched
+against each other using those operators.</p><p>AVPs are grouped into AVP Lists (AVPLs). PDUs, GOPs and GOGs have an AVPL each.
+Their AVPLs will be matched in various ways against others coming from the
+configuration file.</p><p>MATE will be instructed how to extract AVPs from frames in order to create a PDU
+with an AVPL. It will be instructed as well, how to match that AVPL against the
+AVPLs of other similar PDUs in order to relate them. In MATE the relationship
+between PDUs is a GOP, it has an AVPL as well. MATE will be configured with other
+AVPLs to operate against the GOP’s AVPL to relate GOPs together into GOGs.</p><p>A good understanding on how AVPs and AVPLs work is fundamental to understand how
+MATE works.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_about_mate"></a>12.3.1.1. About MATE</h4></div></div></div><p>MATE was originally written by Luis Ontanon, a Telecommunications systems
+troubleshooter, as a way to save time filtering out the packets of a single call
+from huge capture files using just the calling number. Later he used the time he
+had saved to make it flexible enough to work with protocols other than the ones
+he was directly involved with.</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="AVP"></a>12.3.2. Attribute Value Pairs (AVP)</h3></div></div></div><p>Information used by MATE to relate different frames is contained in Attribute
+Value Pairs (AVPs). AVPs are made of two strings - the name and the value. When
+AVPs are used in the configuration, an operator is defined as well. There are
+various ways AVPs can be matched against each other using those operators.</p><pre class="screen">  avp_name="avp's value"
+  another_name= "1234 is the value"</pre><p>The name is a string used to refer to a "type" of an AVP. Two AVPs won’t match
+unless their names are identical.</p><p>The name must start with a lowercase letter (a-z) and can contain only alphanumeric characters
+(a-zA-Z0-9) and the special characters "_", "-", and ".". The name ends with an operator.</p><p>You should not use uppercase characters in names, or names that start with “.” or
+“_”. Capitalized names are reserved for configuration parameters (we’ll call them
+keywords); nothing forbids you from using capitalized strings for other things as
+well but it probably would be confusing. I’ll avoid using capitalized words for
+anything but the keywords in this document, the reference manual, the examples
+and the base library. Names that start with a “.” would be very confusing as well
+because in the old grammar, AVPL transforms use names starting with a “.” to
+indicate they belong to the replacement AVPL.</p><p>The value is a string that is either set in the configuration (for configuration
+AVPs) or by Wireshark while extracting interesting fields from a frame’s tree.
+The values extracted from fields use the same representation as they do in filter
+strings except that no quotes are used.</p><p><span class="strong"><strong>The value will be dealt with as a string even if it is a number.</strong></span> If there are
+any spaces in the value, the value must be between quotes "".
+Values that are also keywords such as True and False should also be wrapped
+in quotes ("True", "False").</p><pre class="screen">   ip_addr=10.10.10.11
+   tcp_port=1234
+   binary_data=01:23:45:67:89:ab:cd:ef
+   parameter12=0x23aa
+   parameter_with_spaces="this value has spaces"</pre><p>The way two AVPs with the same name might match is described by the operator.
+Remember two AVPs won’t match unless their names are identical. In MATE, match
+operations are always made between the AVPs extracted from frames (called data
+AVPs) and the configuration’s AVPs.</p><p>Currently defined MATE AVP match operators are:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Equal" title="12.8.2.1. Equal AVP Operator (=)">Equal</a> <span class="emphasis"><em>=</em></span> will match if the string given completely matches the data
+AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#NotEqual" title="12.8.2.2. Not equal AVP operator (!)">Not Equal</a> <span class="emphasis"><em>!</em></span> will match only if the given value string is not equal to
+the data AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#OneOf" title='12.8.2.3. "One of" AVP operator ({})'>One Of</a> <span class="emphasis"><em>{}</em></span> will match if one of the possible strings listed is equal to
+the data AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#StartsWith" title='12.8.2.4. "Starts with" AVP operator (^)'>Starts With</a> <span class="emphasis"><em>^</em></span> will match if the string given matches the first
+characters of the data AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#EndsWith" title='12.8.2.5. "Ends with" operator ($)'>Ends With</a> <span class="emphasis"><em>$</em></span> will match if the string given matches the last characters
+of the data AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Contains" title="12.8.2.6. Contains operator (~)">Contains</a> <span class="emphasis"><em>~</em></span> will match if the string given matches any substring of the
+data AVP’s value string</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#LowerThan" title='12.8.2.7. "Lower than" operator (&lt;)'>Lower Than</a> <span class="emphasis"><em>&lt;</em></span> will match if the data AVP’s value string is semantically
+lower than the string given</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#HigherThan" title='12.8.2.8. "Higher than" operator (&gt;)'>Higher Than</a> <span class="emphasis"><em>&gt;</em></span> will match if the data AVP’s value string is semantically
+higher than the string given</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Exists" title="12.8.2.9. Exists operator (?)">Exists</a> <span class="emphasis"><em>?</em></span> (the ? can be omitted) will match as far as a data AVP of the
+given name exists</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_avp_lists_avpl"></a>12.3.3. AVP lists (AVPL)</h3></div></div></div><p>An AVPL is a set of diverse AVPs that can be matched against other AVPLs. Every
+PDU, GOP and GOG has an AVPL that contains the information regarding it. The
+rules that MATE uses to group PDUs and GOPs are AVPL operations.</p><p><span class="strong"><strong>There will never be two identical AVPs in a given AVPL.</strong></span> However, we can have
+more than one AVP with the same name in an AVPL as long as their values are
+different.</p><p>Some AVPL examples:</p><pre class="screen">  ( addr=10.20.30.40, addr=192.168.0.1, tcp_port=21, tcp_port=32534, user_cmd=PORT,
+        data_port=12344, data_addr=192.168.0.1 )
+  ( addr=10.20.30.40, addr=192.168.0.1, channel_id=22:23, message_type=Setup,
+        calling_number=1244556673 )
+  ( addr=10.20.30.40, addr=192.168.0.1, ses_id=01:23:45:67:89:ab:cd:ef )
+  ( user_id=pippo, calling_number=1244556673, assigned_ip=10.23.22.123 )</pre><p>In MATE there are two types of AVPLs:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">data AVPLs that contain information extracted from frames.</li><li class="listitem">configuration AVPLs that come from the configuration and are used to tell MATE how
+to relate items based on their data AVPLs.</li></ul></div><p>Data AVPLs can be operated against configuration AVPLs in various ways:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Loose" title="12.8.4.1. Loose Match">Loose Match</a>: Will match if at least one of the AVPs of each AVPL
+match. If it matches it will return an AVPL containing all AVPs from the data
+AVPL that did match the configuration AVPs.</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Every" title="12.8.4.2. Every Match">"Every" Match</a>: Will match if none of the AVPs of the configuration AVPL
+fails to match a present AVP in the data AVPL, even if not all of the
+configuration AVPs have a match. If it matches it will return an AVPL containing
+all AVPs from the data AVPL that did match one AVP in the configuration AVPL.</li><li class="listitem"><a class="link" href="ChMateReferenceManual.html#Strict" title="12.8.4.3. Strict Match">Strict Match</a>: Will match if and only if every one of the configuration
+AVPs have at least one match in the data AVPL. If it matches it will return
+an AVPL containing the AVPs from the data AVPL that matched.</li><li class="listitem">There’s also a <a class="link" href="ChMateReferenceManual.html#Merge" title="12.8.5. AVPL Merge">Merge</a> operation that is to be performed between AVPLs
+where all the AVPs that don’t exist in the data AVPL but exist in the configuration
+will be added to the data AVPL.</li><li class="listitem">Other than that, there are <a class="link" href="Config.html#Transform" title="12.9.4. Transform declaration block">Transforms</a> - a combination
+of a match AVPL and an AVPL to merge.</li></ul></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChMateGettingStarted.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="_mate_frame_analysis.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.2. Getting Started </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 12.4. MATE Frame Analysis</td></tr></table></div></body></html>

@@ -1,0 +1,348 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.4. MATE Frame Analysis</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="ChMateManual.html" title="12.3. MATE Overview"><link rel="next" href="ChMateConfigurationTutorial.html" title="12.5. MATE’s configuration tutorial"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.4. MATE Frame Analysis</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChMateManual.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="ChMateConfigurationTutorial.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="_mate_frame_analysis"></a>12.4. MATE Frame Analysis</h2></div></div></div><p>MATE’s analysis of a frame is performed in three phases:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">In the first phase, MATE attempts to extract a MATE PDU from the frame’s
+protocol tree. MATE will create a PDU if MATE’s config has a <span class="emphasis"><em>Pdu</em></span> declaration
+whose <span class="emphasis"><em>Proto</em></span> is contained in the frame.</li><li class="listitem">In the second phase, if a PDU has been extracted from the frame, MATE will try
+to group it to other PDUs into a GOP (Group of PDUs) by matching the key
+criteria given by a <span class="emphasis"><em>Gop</em></span> declaration. If there is no GOP yet with the key
+criteria for the PDU, MATE will try to create a new GOP for it if it matches the
+<span class="emphasis"><em>Start</em></span> criteria given in the <span class="emphasis"><em>Gop</em></span> declaration.</li><li class="listitem">In the third phase, if there’s a GOP for the PDU, MATE will try to group this
+GOP with other GOPs into a GOG (Group of Groups) using the criteria given by the
+<span class="emphasis"><em>Member</em></span> criteria of a <span class="emphasis"><em>Gog</em></span> declaration.</li></ul></div><div class="figure"><a name="idm1593347280"></a><p class="title"><b>Figure 12.2. MATE Analysis (PDU→GOP→GOG) flowchart</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-analysis.png" alt="ws mate analysis"></div></div></div><br class="figure-break"><p>The extraction and matching logic comes from MATE’s configuration; MATE’s
+configuration file is specified by the <span class="emphasis"><em>mate.config</em></span> preference. By default it is
+an empty string which means: do not configure MATE.</p><p>The config file tells MATE what to look for in frames; How to make PDUs out of
+it; How will PDUs be related to other similar PDUs into GOPs; And how GOPs
+relate into GOGs.</p><p>The MATE configuration file is a list of declarations. There are 4 types of
+declarations: <span class="emphasis"><em>Transform</em></span>, <span class="emphasis"><em>Pdu</em></span>, <span class="emphasis"><em>Gop</em></span>, and <span class="emphasis"><em>Gog</em></span>. A <span class="emphasis"><em>Transform</em></span> block must be
+before any of the other block declarations that may use it.</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_create_pdus_phase_1"></a>12.4.1. Create PDUs (Phase 1)</h3></div></div></div><p>MATE will look in the tree of every frame to see if there is useful data to
+extract, and if there is, it will create one or more PDU objects containing the
+useful information.</p><p>The first part of MATE’s analysis is the "PDU extraction".</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_pdu_data_extraction"></a>12.4.1.1. PDU data extraction</h4></div></div></div><p>MATE will make a PDU for each different proto field of <span class="emphasis"><em>Proto</em></span> type present in the
+frame. MATE will fetch from the field’s tree those fields that are defined in
+the <a class="xref" href="Config.html#Pdu" title="12.9.1. PDU declaration block">Section 12.9.1, “PDU declaration block”</a> declaration whose initial offset in the frame is within the
+boundaries of the current <span class="emphasis"><em>Proto</em></span> and those of the given <span class="emphasis"><em>Transport</em></span> and <span class="emphasis"><em>Payload</em></span>
+statements.</p><pre class="screen">Pdu dns_pdu Proto dns Transport ip {
+    Extract addr From ip.addr;
+    Extract dns_id From dns.id;
+    Extract dns_resp From dns.flags.response;
+};</pre><div class="figure"><a name="idm1593337936"></a><p class="title"><b>Figure 12.3. Wireshark window - fields for PDU extraction</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-dns_pane.png" alt="ws mate dns pane"></div></div></div><br class="figure-break"><p>Once MATE has found a <span class="emphasis"><em>Proto</em></span> field for which to create a PDU from the frame it
+will move backwards in the frame looking for the respective <span class="emphasis"><em>Transport</em></span> fields.
+After that it will create AVPs named as each of those given in the rest of the
+AVPL for every instance of the fields declared as its values.</p><div class="figure"><a name="idm1593327952"></a><p class="title"><b>Figure 12.4. Frame fields mapped to PDU attributes</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-dns_pdu.png" alt="ws mate dns pdu"></div></div></div><br class="figure-break"><p>Sometimes we need information from more than one <span class="emphasis"><em>Transport</em></span> protocol. In that
+case MATE will check the frame looking backwards to look for the various
+<span class="emphasis"><em>Transport</em></span> protocols in the given stack. MATE will choose only the closest
+transport boundary per "protocol" in the frame.</p><p>This way we’ll have all PDUs for every <span class="emphasis"><em>Proto</em></span> that appears in a frame match its
+relative transports.</p><pre class="screen">Pdu isup_pdu Proto isup Transport mtp3/ip {
+    Extract addr From ip.addr;
+
+    Extract m3pc From mtp3.dpc;
+    Extract m3pc From mtp3.opc;
+
+    Extract cic From isup.cic;
+    Extract isup_msg From isup.message_type;
+};</pre><div class="figure"><a name="idm1593326416"></a><p class="title"><b>Figure 12.5. Frame containing multiple PDUs</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-isup_over_mtp3_over_ip.png" alt="ws mate isup over mtp3 over ip"></div></div></div><br class="figure-break"><p>This allows to assign the right <span class="emphasis"><em>Transport</em></span> to the PDU avoiding duplicate
+transport protocol entries (in case of tunneled ip over ip for example).</p><pre class="screen">Pdu ftp_pdu Proto ftp Transport tcp/ip {
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract ftp_cmd From ftp.command;
+};</pre><div class="figure"><a name="idm1593320272"></a><p class="title"><b>Figure 12.6. Frame with encapsulated (tunneled) fields</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-ftp_over_gre.png" alt="ws mate ftp over gre"></div></div></div><br class="figure-break"><p>Other than the mandatory <span class="emphasis"><em>Transport</em></span> there is also an optional <span class="emphasis"><em>Payload</em></span>
+statement, which works pretty much as <span class="emphasis"><em>Transport</em></span> but refers to elements after
+the <span class="emphasis"><em>Proto</em></span>'s range. It is useful in those cases where the payload protocol
+might not appear in a PDU but nevertheless the PDU belongs to the same category.</p><pre class="screen">Pdu mmse_over_http_pdu Proto http Transport tcp/ip {
+
+    Payload mmse;
+
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+
+    Extract content From http.content_type;
+    Extract host From http.host;
+    Extract http_rq From http.request;
+    Extract method From http.request.method;
+    Extract resp From http.response.code;
+
+    Extract msg_type From mmse.message_type;
+    Extract notify_status From mmse.status;
+    Extract send_status From mmse.response_status;
+    Extract trx From mmse.transaction_id;
+};</pre><div class="figure"><a name="idm1593315152"></a><p class="title"><b>Figure 12.7. Extract from Payload fields</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-mmse_over_http.png" alt="ws mate mmse over http"></div></div></div><br class="figure-break"></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_conditions_on_which_to_create_pdus"></a>12.4.1.2. Conditions on which to create PDUs</h4></div></div></div><p>There might be cases in which we won’t want MATE to create a PDU unless some of
+its extracted attributes meet or do not meet some criteria. For that we use the
+<span class="emphasis"><em>Criteria</em></span> statements of the <span class="emphasis"><em>Pdu</em></span> declarations.</p><pre class="screen">Pdu isup_pdu Proto isup Transport mtp3/ip {
+    ...
+
+    // MATE will create isup_pdu PDUs only when there is not a point code '1234'
+    Criteria Reject Strict (m3pc=1234);
+};
+
+Pdu ftp_pdu Proto ftp Transport tcp/ip {
+    ...
+
+    // MATE will create ftp_pdu PDUs only when they go to port 21 of our ftp_server
+    Criteria Accept Strict (addr=10.10.10.10, port=21);
+};</pre><p>The <span class="emphasis"><em>Criteria</em></span> statement is given an action (<span class="emphasis"><em>Accept</em></span> or <span class="emphasis"><em>Reject</em></span>), a match type
+(<span class="emphasis"><em>Strict</em></span>, <span class="emphasis"><em>Loose</em></span> or <span class="emphasis"><em>Every</em></span>) and an AVPL against which to match the currently
+extracted one.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_transforming_the_attributes_of_a_pdu"></a>12.4.1.3. Transforming the attributes of a PDU</h4></div></div></div><p>Once the fields have been extracted into the PDU’s AVPL, MATE will apply any
+declared <span class="emphasis"><em>Transform</em></span> to it. The way transforms are applied and how they work
+is described later on. However, it’s useful to know that once the AVPL for the
+PDU is created, it may be transformed before being analyzed. That way we can
+massage the data to simplify the analysis.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_mates_pdu_tree"></a>12.4.1.4. MATE’s PDU tree</h4></div></div></div><p>Every successfully created PDU will add a MATE tree to the frame dissection. If
+the PDU is not related to any GOP, the tree for the PDU will contain just the
+PDU’s info. If it is assigned to a GOP, the tree will also contain the GOP items,
+and the same applies for the GOG level.</p><pre class="screen">mate dns_pdu:1
+    dns_pdu: 1
+        dns_pdu time: 3.750000
+        dns_pdu Attributes
+            dns_resp: False
+            dns_id: 0x8cac
+            addr: 10.194.4.11
+            addr: 10.194.24.35</pre><p>The PDU’s tree contains some filterable fields</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><span class="emphasis"><em>mate.dns_pdu</em></span> will contain the number of the "dns_pdu" PDU</li><li class="listitem"><span class="emphasis"><em>mate.dns_pdu.RelativeTime</em></span> will contain the time passed since the beginning
+of the capture in seconds</li><li class="listitem"><p class="simpara">the tree will contain the various attributes of the PDU as well, these will
+all be strings (to be used in filters as "10.0.0.1", not as 10.0.0.1)</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: circle; "><li class="listitem">mate.dns_pdu.dns_resp</li><li class="listitem">mate.dns_pdu.dns_id</li><li class="listitem">mate.dns_pdu.addr</li></ul></div></li></ul></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_grouping_pdus_together_gop_phase_2"></a>12.4.2. Grouping PDUs together (GOP) (Phase 2)</h3></div></div></div><p>Once MATE has created the PDUs it passes to the PDU analysis phase. During the
+PDU analysis phase MATE will try to group PDUs of the same type into 'Groups of
+PDUs' (aka <span class="strong"><strong>GOP</strong></span>s) and copy some AVPs from the PDU’s AVPL to the GOP’s AVPL.</p><div class="figure"><a name="idm1593298128"></a><p class="title"><b>Figure 12.8. Grouping PDUs (GOP) flowchart</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-pdu_analysis.png" alt="ws mate pdu analysis"></div></div></div><br class="figure-break"><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_what_can_belong_to_a_gop"></a>12.4.2.1. What can belong to a GOP</h4></div></div></div><p>Given a PDU, the first thing MATE will do is to check if there is any GOP
+declaration in the configuration for the given PDU type. If so, it will use its
+<span class="emphasis"><em>Match</em></span> AVPL to match it against the PDU’s AVPL; if they don’t match, the
+analysis phase is done. If there is a match, the AVPL is the GOP’s candidate key
+which will be used to search the index of GOPs for the GOP to which to assign
+the current PDU. If there is no such GOP and this PDU does not match the
+<span class="emphasis"><em>Start</em></span> criteria of a <span class="emphasis"><em>Gop</em></span> declaration for the PDU type, the PDU will remain
+unassigned and only the analysis phase will be done.</p><pre class="screen">Gop ftp_ses On ftp_pdu Match (addr, addr, port, port) {...};
+Gop dns_req On dns_pdu Match (addr, addr, dns_id) {...};
+Gop isup_leg On isup_pdu Match (m3pc, m3pc, cic) {...};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_start_of_a_gop"></a>12.4.2.2. Start of a GOP</h4></div></div></div><p>If there was a match, the candidate key will be used to search the index of GOPs
+to see if there is already a GOP matching the GOP’s key the same way. If there
+is such a match in the GOPs collection, and the PDU doesn’t match the <span class="emphasis"><em>Start</em></span>
+AVPL for its type, the PDU will be assigned to the matching GOP. If it is a
+<span class="emphasis"><em>Start</em></span> match, MATE will check whether or not that GOP has been already
+stopped. If the GOP has been stopped, a new GOP will be created and will replace
+the old one in the index of GOPs.</p><pre class="screen">Gop ftp_ses On ftp_pdu Match (addr, addr, port, port) {
+    Start (ftp_cmd=USER);
+};
+
+Gop dns_req On dns_pdu Match (addr, addr, dns_id) {
+    Start (dns_resp="True");
+};
+
+Gop isup_leg On isup_pdu Match (m3pc, m3pc, cic) {
+    Start (isup_msg=1);
+};</pre><p>If no <span class="emphasis"><em>Start</em></span> is given for a GOP, a PDU whose AVPL matches an existing GOP’s
+key will act as the start of a GOP.</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_what_goes_into_the_gops_avpl"></a>12.4.2.3. What goes into the GOP’s AVPL</h4></div></div></div><p>Once we know a GOP exists and the PDU has been assigned to it, MATE will copy
+into the GOP’s AVPL all the attributes matching the key plus any AVPs of the
+PDU’s AVPL matching the <span class="emphasis"><em>Extra</em></span> AVPL.</p><pre class="screen">Gop ftp_ses On ftp_pdu Match (addr, addr, port, port) {
+    Start (ftp_cmd=USER);
+    Extra (pasv_prt, pasv_addr);
+};
+
+Gop isup_leg On isup_pdu Match (m3pc, m3pc, cic) {
+    Start (isup_msg=1);
+    Extra (calling, called);
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_end_of_a_gop"></a>12.4.2.4. End of a GOP</h4></div></div></div><p>Once the PDU has been assigned to the GOP, MATE will check whether or not the
+PDU matches the <span class="emphasis"><em>Stop</em></span>, if it happens, MATE will mark the GOP as stopped. Even
+after stopped, a GOP may get assigned new PDUs matching its key, unless such
+PDU matches <span class="emphasis"><em>Start</em></span>. If it does, MATE will instead create a new GOP starting
+with that PDU.</p><pre class="screen">Gop ftp_ses On ftp_pdu Match (addr, addr, port, port) {
+    Start (ftp_cmd=USER);
+    Stop (ftp_cmd=QUIT); // The response to the QUIT command will be assigned to the same GOP
+    Extra (pasv_prt, pasv_addr);
+};
+
+Gop dns_req On dns_pdu Match (addr, addr, dns_id) {
+    Start (dns_resp="False");
+    Stop (dns_resp="True");
+};
+
+Gop isup_leg On isup_pdu Match (m3pc, m3pc, cic) {
+    Start (isup_msg=1); // IAM
+    Stop (isup_msg=16); // RLC
+    Extra (calling, called);
+};</pre><p>If no <span class="emphasis"><em>Stop</em></span> criterium is stated for a given GOP, the GOP will be stopped as
+soon as it is created. However, as with any other GOP, PDUs matching the GOP’s
+key will still be assigned to the GOP unless they match a <span class="emphasis"><em>Start</em></span> condition,
+in which case a new GOP using the same key will be created. To group multiple
+PDUs that match the <span class="emphasis"><em>Start</em></span>, add a bogus <span class="emphasis"><em>Stop</em></span> such as</p><pre class="screen">Gop frame_ses On frame_pdu Match (frame_time) {
+    Start (frame_time);
+    Stop (frame_time="FOO");
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gops_tree"></a>12.4.2.5. GOP’s tree</h4></div></div></div><p>For every frame containing a PDU that belongs to a GOP, MATE will create a tree
+for that GOP.</p><p>The example below represents the tree created by the <span class="emphasis"><em>dns_pdu</em></span> and <span class="emphasis"><em>dns_req</em></span>
+examples.</p><pre class="screen">...
+MATE dns_pdu:6-&gt;dns_req:1
+    dns_pdu: 6
+        dns_pdu time: 2.103063
+        dns_pdu time since beginning of Gop: 2.103063
+        dns_pdu Attributes
+            dns_resp: True
+            dns_id: 0x8cac
+            addr: 10.194.4.11
+            addr: 10.194.24.35
+    dns_req: 1
+        GOP Key:  addr=10.194.4.11; addr=10.194.24.35; dns_id=0x8cac;
+        dns_req Attributes
+            dns_id: 0x8cac
+            addr: 10.194.4.11
+            addr: 10.194.24.35
+        dns_req Times
+            dns_req start time: 0.000000
+            dns_req hold time: 2.103063
+            dns_req duration: 2.103063
+        dns_req number of PDUs: 2
+            Start PDU: in frame 1
+            Stop PDU: in frame 6 (2.103063 : 2.103063)</pre><p>Other than the PDU’s tree, this one contains information regarding the
+relationship between the PDUs that belong to the GOP. That way we have:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">mate.dns_req which contains the id of this dns_req GOP. This will be present
+in frames that belong to dns_req GOPs.</li><li class="listitem">mate.dns_req.dns_id and mate.dns_req.addr which represent the values of the
+attributes copied into the GOP.</li><li class="listitem"><p class="simpara">the timers of the GOP</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: circle; "><li class="listitem">mate.dns_req.StartTime time (in seconds) passed since beginning of capture
+until GOP’s start.</li><li class="listitem">mate.dns_req.Time time passed between the start PDU and the stop PDU assigned
+to this GOP (only created if a Stop criterion has been declared for the GOP and
+a matching PDU has arrived).</li><li class="listitem">mate.dns_req.Duration time passed between the start PDU and the last PDU
+assigned to this GOP.</li></ul></div></li><li class="listitem"><p class="simpara">mate.dns_req.NumOfPdus the number of PDUs that belong to this GOP</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: circle; "><li class="listitem">mate.dns_req.Pdu a filterable list of frame numbers of the PDUs of this GOP</li></ul></div></li></ul></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gops_timers"></a>12.4.2.6. GOP’s timers</h4></div></div></div><p>Note that there are two "timers" for a GOP:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><span class="strong"><strong>Time</strong></span>, which is defined only for GOPs that have been Stopped, and gives the
+time passed between the <span class="emphasis"><em>Start</em></span> and the <span class="emphasis"><em>Stop</em></span> PDUs.</li><li class="listitem"><span class="strong"><strong>Duration</strong></span>, which is defined for every GOP regardless of its state, and give
+the time passed between its <span class="emphasis"><em>Start</em></span> PDU and the last PDU that was assigned to
+that GOP.</li></ul></div><p>So:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">we can filter for PDUs that belong to GOPs that have been Stopped with
+<span class="strong"><strong>mate.xxx.Time</strong></span></li><li class="listitem">we can filter for PDUs that belong to unstopped GOPs with <span class="strong"><strong>mate.xxx &amp;&amp;
+!mate.xxx.Time</strong></span></li><li class="listitem">we can filter for PDUs that belong to stopped GOPs using <span class="strong"><strong>mate.xxx.Duration</strong></span></li><li class="listitem">we can filter for PDUs that belong to GOPs that have taken more (or less) time
+that 0.5s to complete with <span class="strong"><strong>mate.xxx.Time &gt; 0.5</strong></span> (you can try these also as
+color filters to find out when response times start to grow)</li></ul></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_grouping_gops_together_gog_phase_3"></a>12.4.3. Grouping GOPs together (GOG) (Phase 3)</h3></div></div></div><p>When GOPs are created, or whenever their AVPL changes, GOPs are (re)analyzed to
+check if they match an existent group of groups (GOG) or can create a new one.
+The GOP analysis is divided into two phases. In the first phase, the still
+unassigned GOP is checked to verify whether it belongs to an already existing
+GOG or may create a new one. The second phase eventually checks the GOG and
+registers its keys in the index of GOGs.</p><div class="figure"><a name="idm1593264592"></a><p class="title"><b>Figure 12.9. Grouping GOPs (GOG) flowchart</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-gop_analysis.png" alt="ws mate gop analysis"></div></div></div><br class="figure-break"><p>There are several reasons for the author to believe that this feature needs to
+be reimplemented, so probably there will be deep changes in the way this is done
+in the near future. This section of the documentation reflects the version of
+MATE as of Wireshark 0.10.9; in future releases this will change.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_declaring_a_group_of_groups_gog"></a>12.4.3.1. Declaring a Group Of Groups (GOG)</h4></div></div></div><p>The first thing we have to do configuring a GOG is to tell MATE that it exists.</p><pre class="screen">Gog http_use {
+   ...
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_telling_mate_what_could_be_a_gog_member"></a>12.4.3.2. Telling MATE what could be a GOG member</h4></div></div></div><p>Then we have to tell MATE what to look for a match in the candidate GOPs.</p><pre class="screen">Gog http_use {
+    Member http_ses (host);
+    Member dns_req (host);
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_getting_interesting_data_into_the_gog"></a>12.4.3.3. Getting interesting data into the GOG</h4></div></div></div><p>Most often, also other attributes than those used for matching would be
+interesting. In order to copy from GOP to GOG other interesting attributes, we
+might use <span class="emphasis"><em>Extra</em></span> like we do for GOPs.</p><pre class="screen">Gog http_use {
+    ...
+    Extra (cookie);
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_gogs_tree"></a>12.4.3.4. GOG’s tree</h4></div></div></div><pre class="screen">mate http_pdu:4-&gt;http_req:2-&gt;http_use:1
+    http_pdu: 4
+        http_pdu time: 1.309847
+        http_pdu time since beginning of Gop: 0.218930
+        http_req: 2
+            ... (the gop's tree for http_req: 2) ..
+        http_use: 1
+            http_use Attributes
+                host: www.example.com
+            http_use Times
+                http_use start time: 0.000000
+                http_use duration: 1.309847
+            number of GOPs: 3
+                dns_req: 1
+                    ... (the gop's tree for dns_req: 1) ..
+                http_req: 1
+                    ... (the gop's tree for http_req: 1) ..
+                http_req of current frame: 2</pre><p>We can filter on:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p class="simpara">the timers of the GOG</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: circle; "><li class="listitem"><span class="strong"><strong>mate.http_use.StartTime</strong></span> time (in seconds) passed since beginning of capture until GOG’s start.</li><li class="listitem"><span class="strong"><strong>mate.http_use.Duration</strong></span> time elapsed between the first frame of a GOG and the last one assigned to it.</li></ul></div></li><li class="listitem"><p class="simpara">the attributes passed to the GOG</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: circle; "><li class="listitem"><span class="strong"><strong>mate.http_use.host</strong></span></li></ul></div></li><li class="listitem"><span class="strong"><strong>mate.http_use.NumOfGops</strong></span> the number of GOPs that belong to this GOG</li><li class="listitem"><span class="strong"><strong>mate.http_use.GopStart</strong></span> the start frame of a GOP</li><li class="listitem"><span class="strong"><strong>mate.http_use.GopStop</strong></span> the stop frame of a GOP</li></ul></div></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_adjust_data_avpl_transforms"></a>12.4.4. Adjust data (AVPL Transforms)</h3></div></div></div><p>A Transform is a sequence of Match rules optionally completed with modification
+of the match result by an additional AVPL. Such modification may be an Insert
+(merge) or a Replace. Transforms can be used as helpers to manipulate an item’s
+AVPL before it is processed further. They come to be very helpful in several
+cases.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_syntax"></a>12.4.4.1. Syntax</h4></div></div></div><p>AVPL Transforms are declared in the following way:</p><pre class="screen">Transform name {
+    Match [Strict|Every|Loose] match_avpl [Insert|Replace] modify_avpl;
+    ...
+};</pre><p>The <span class="strong"><strong>name</strong></span> is the handle to the AVPL transform. It is used to refer to the
+transform when invoking it later.</p><p>The <span class="emphasis"><em>Match</em></span> declarations instruct MATE what and how to match against the data
+AVPL and how to modify the data AVPL if the match succeeds. They will be
+executed in the order they appear in the config file whenever they are invoked.</p><p>The optional match type qualifier (<span class="emphasis"><em>Strict</em></span>, <span class="emphasis"><em>Every</em></span>, or <span class="emphasis"><em>Loose</em></span>) is used
+to choose the <a class="link" href="ChMateReferenceManual.html#Match" title="12.8.4. Operations between AVPLs (Match)">Match type</a>; <span class="emphasis"><em>Strict</em></span> is the default value which
+may be omitted.</p><p>The optional modification mode qualifier instructs MATE how the modify AVPL
+should be used:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">the default value <span class="emphasis"><em>Insert</em></span> (which may be omitted) causes the <span class="emphasis"><em>modify_avpl</em></span>
+to be <span class="strong"><strong>merged</strong></span> to the existing data AVPL,</li><li class="listitem"><span class="emphasis"><em>Replace</em></span> causes all the matching AVPs from the data AVPL to be
+<span class="strong"><strong>replaced</strong></span> by the <span class="emphasis"><em>modify_avpl</em></span>.</li></ul></div><p>The <span class="emphasis"><em>modify_avpl</em></span> may be an empty one; this comes useful in some cases for
+both <span class="emphasis"><em>Insert</em></span> and <span class="emphasis"><em>Replace</em></span> modification modes.</p><pre class="screen">Transform rm_client_from_http_resp1 {
+    Match (http_rq); //first match wins so the request won't get the not_rq attribute inserted
+    Match Every (addr) Insert (not_rq); //this line won't be evaluated if the first one matched so not_rq won't be inserted to requests
+};
+
+Transform rm_client_from_http_resp2 {
+    Match (not_rq, client) Replace (); //replace "client and not_rq" with nothing
+};</pre><p>Examples:</p><pre class="screen">Transform insert_name_and {
+    Match Strict (host=10.10.10.10, port=2345) Insert (name=JohnDoe);
+};</pre><p>adds name=JohnDoe to the data AVPL if it contains host=10.10.10.10 <span class="strong"><strong>and</strong></span>
+port=2345</p><pre class="screen">Transform insert_name_or {
+    Match Loose (host=10.10.10.10, port=2345) Insert (name=JohnDoe);
+};</pre><p>adds name=JohnDoe to the data AVPL if it contains host=10.10.10.10 <span class="strong"><strong>or</strong></span>
+port=2345</p><pre class="screen">Transform replace_ip_address {
+    Match (host=10.10.10.10) Replace (host=192.168.10.10);
+};</pre><p>replaces the original host=10.10.10.10 by host=192.168.10.10</p><pre class="screen">Transform add_ip_address {
+    Match (host=10.10.10.10) (host=192.168.10.10);
+};</pre><p>adds (inserts) host=192.168.10.10 to the AVPL, keeping the original
+host=10.10.10.10 in it too</p><pre class="screen"> Transform replace_may_be_surprising {
+    Match Loose (a=aaaa, b=bbbb) Replace (c=cccc, d=dddd);
+ };</pre><p>gives the following results:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">(a=aaaa, b=eeee) gets transformed to (b=eeee, c=cccc, d=dddd) because a=aaaa
+did match so it got replaced while b=eeee did not match so it has been left
+intact,</li><li class="listitem">(a=aaaa, b=bbbb) gets transformed to (c=cccc, d=dddd) because both a=aaaa and
+b=bbbb did match.</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_usage"></a>12.4.4.2. Usage</h4></div></div></div><p>Once declared, Transforms can be added to the declarations of PDUs, GOPs or
+GOGs. This is done by adding the <span class="emphasis"><em>Transform name_list</em></span> statement to the
+declaration:</p><pre class="screen">Pdu my_proto_pdu Proto my_proto Transport ip {
+    Extract addr From ip.addr;
+    ...
+    Transform my_pdu_transform[, other_pdu_transform[, yet_another_pdu_transform]];
+};</pre><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">In case of PDU, the list of transforms is applied against the PDU’s AVPL
+after its creation.</li><li class="listitem">In case of GOP and GOG, the list of transforms is applied against their
+respective AVPLs when they are created and every time they change.</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_operation"></a>12.4.4.3. Operation</h4></div></div></div><div class="figure"><a name="idm1593045504"></a><p class="title"><b>Figure 12.10. Applying Transform flowchart</b></p><div class="figure-contents"><div class="mediaobject"><img src="images/ws-mate-transform.png" alt="ws mate transform"></div></div></div><br class="figure-break"><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">A list of previously declared Transforms may be given to every Item (<span class="emphasis"><em>Pdu</em></span>, <span class="emphasis"><em>Gop</em></span>,
+or <span class="emphasis"><em>Gog</em></span>), using the <span class="emphasis"><em>Transform</em></span> statement.</li><li class="listitem">Every time the AVPL of an item changes, it will be operated against <span class="strong"><strong>all</strong></span> the
+Transforms on the list given to that item. The Transforms on the list are
+applied left to right.</li><li class="listitem">Inside each of the Transforms, the item’s AVPL will be operated against the
+Transform’s Match clauses starting from the topmost one, until all have been
+tried or until one of them succeeds.</li></ul></div><p>MATE’s Transforms can be used for many different things, like:</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_multiple_startstop_conditions_for_a_gop"></a>12.4.4.4. Multiple Start/Stop conditions for a GOP</h4></div></div></div><p>Using <span class="emphasis"><em>Transforms</em></span> we can add more than one start or stop condition to a GOP.</p><pre class="screen">Transform start_cond {
+    Match (attr1=aaa,attr2=bbb) (msg_type=start);
+    Match (attr3=www,attr2=bbb) (msg_type=start);
+    Match (attr5^a) (msg_type=stop);
+    Match (attr6$z) (msg_type=stop);
+};
+
+Pdu pdu ... {
+    ...
+    Transform start_cond;
+}
+
+Gop gop ... {
+    Start (msg_type=start);
+    Stop (msg_type=stop);
+    ...
+}</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_marking_gops_and_gogs_to_filter_them_easily"></a>12.4.4.5. Marking GOPs and GOGs to filter them easily</h4></div></div></div><pre class="screen">Transform marks {
+    Match (addr=10.10.10.10, user=john) (john_at_host);
+    Match (addr=10.10.10.10, user=tom) (tom_at_host);
+}
+
+...
+
+Gop my_gop ... {
+    ...
+    Transform marks;
+}</pre><p>After that we can use a display filter <span class="strong"><strong>mate.my_gop.john_at_host</strong></span> or
+<span class="strong"><strong>mate.my_gop.tom_at_host</strong></span></p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_adding_insert_direction_knowledge_to_mate"></a>12.4.4.6. Adding (Insert) direction knowledge to MATE</h4></div></div></div><pre class="screen">Transform direction_as_text {
+    Match (src=192.168.0.2, dst=192.168.0.3) Insert (direction=from_2_to_3);
+    Match (src=192.168.0.3, dst=192.168.0.2) Insert (direction=from_3_to_2);
+};
+
+Pdu my_pdu Proto my_proto Transport tcp/ip {
+    Extract src From ip.src;
+    Extract dst From ip.dst;
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract start From tcp.flags.syn;
+    Extract stop From tcp.flags.fin;
+    Extract stop From tcp.flags.rst;
+    Transform direction_as_text;
+}
+
+Gop my_gop On my_pdu Match (addr,addr,port,port) {
+    ...
+    Extra (direction);
+}</pre><p>The original example (below) would delete <span class="emphasis"><em>src</em></span> and <span class="emphasis"><em>dst</em></span> then add <span class="emphasis"><em>direction</em></span>.</p><pre class="screen">Transform direction_as_text {
+    Match (src=192.168.0.2, dst=192.168.0.3) Replace (direction=from_2_to_3);
+    Match (src=192.168.0.3, dst=192.168.0.2) Replace (direction=from_3_to_2);
+};</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_nat"></a>12.4.4.7. NAT</h4></div></div></div><p>NAT can create problems when tracing, but we can easily work around it by
+Transforming the NATed IP address and the Ethernet address of the router into
+the non-NAT address:</p><pre class="screen">Transform denat {
+    Match (addr=192.168.0.5, ether=01:02:03:04:05:06) Replace (addr=123.45.67.89);
+    Match (addr=192.168.0.6, ether=01:02:03:04:05:06) Replace (addr=123.45.67.90);
+    Match (addr=192.168.0.7, ether=01:02:03:04:05:06) Replace (addr=123.45.67.91);
+}
+
+Pdu my_pdu Proto my_proto transport tcp/ip/eth {
+    Extract ether From eth.addr;
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Transform denat;
+}</pre></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChMateManual.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChMateConfigurationTutorial.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.3. MATE Overview </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 12.5. MATE’s configuration tutorial</td></tr></table></div></body></html>

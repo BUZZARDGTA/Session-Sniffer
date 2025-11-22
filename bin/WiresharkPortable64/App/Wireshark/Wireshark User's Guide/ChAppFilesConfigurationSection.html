@@ -1,0 +1,162 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>B.3. Configuration Files</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="_files_and_folders.html" title="Appendix B. Files and Folders"><link rel="prev" href="ChConfigurationPluginFolders.html" title="B.2. Configuration File and Plugin Folders"><link rel="next" href="ChPluginFolders.html" title="B.4. Plugin folders"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">B.3. Configuration Files</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChConfigurationPluginFolders.html">Prev</a> </td><th width="60%" align="center">Appendix B. Files and Folders</th><td width="20%" align="right"> <a accesskey="n" href="ChPluginFolders.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChAppFilesConfigurationSection"></a>B.3. Configuration Files</h2></div></div></div><p>Wireshark uses a number of configuration files while it is running. Some of these
+reside in the personal configuration folder and are used to maintain information
+between runs of Wireshark, while some of them are maintained in system areas.</p><p>The content format of the configuration files is the same on all platforms.</p><p>On Windows:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">The personal configuration folder for Wireshark is the
+<span class="emphasis"><em>Wireshark</em></span> sub-folder of that folder, i.e., <span class="emphasis"><em>%APPDATA%\Wireshark</em></span>.</li><li class="listitem">The global configuration folder for Wireshark is the Wireshark program
+folder and is also used as the system configuration folder.</li></ul></div><p>On Unix-like systems:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">The personal configuration folder is
+<span class="emphasis"><em>$XDG_CONFIG_HOME/wireshark</em></span>.  For backwards compatibility with
+Wireshark before 2.2, if <span class="emphasis"><em>$XDG_CONFIG_HOME/wireshark</em></span> does not
+exist and <span class="emphasis"><em>$HOME/.wireshark</em></span> is present, then the latter will be used.</li><li class="listitem">If you are using macOS and you are running a copy of Wireshark
+installed as an application bundle, the global configuration folder is
+<span class="emphasis"><em>APPDIR/Contents/Resources/share/wireshark</em></span>.  Otherwise, the
+global configuration folder is <span class="emphasis"><em>INSTALLDIR/share/wireshark</em></span>.</li><li class="listitem">The <span class="emphasis"><em>/etc</em></span> folder is the system configuration folder.  The folder
+actually used on your system may vary, maybe something like:
+<span class="emphasis"><em>/usr/local/etc</em></span>.</li></ul></div><div class="table"><a name="AppFilesTabFolders"></a><p class="title"><b>Table B.1. Configuration files overview</b></p><div class="table-contents"><table class="table" summary="Configuration files overview" border="1"><colgroup><col class="col_1"><col class="col_2"></colgroup><thead><tr><th align="left" valign="top">File/Folder</th><th align="left" valign="top">Description</th></tr></thead><tbody><tr><td align="left" valign="top"><p><span class="emphasis"><em>cfilters</em></span></p></td><td align="left" valign="top"><p>Capture filters.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>colorfilters</em></span></p></td><td align="left" valign="top"><p>Coloring rules.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>dfilter_buttons</em></span></p></td><td align="left" valign="top"><p>Display filter buttons.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>dfilters</em></span></p></td><td align="left" valign="top"><p>Display filters.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>disabled_protos</em></span></p></td><td align="left" valign="top"><p>Disabled protocols.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>dmacros</em></span></p></td><td align="left" valign="top"><p>Display filter macros.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>ethers</em></span></p></td><td align="left" valign="top"><p>Ethernet name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>hosts</em></span></p></td><td align="left" valign="top"><p>IPv4 and IPv6 name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>ipxnets</em></span></p></td><td align="left" valign="top"><p>IPX name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>manuf</em></span></p></td><td align="left" valign="top"><p>Ethernet name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>preferences</em></span></p></td><td align="left" valign="top"><p>Settings from the Preferences dialog box.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>recent</em></span></p></td><td align="left" valign="top"><p>Per-profile GUI settings.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>recent_common</em></span></p></td><td align="left" valign="top"><p>Common GUI settings.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>services</em></span></p></td><td align="left" valign="top"><p>Network services.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>ss7pcs</em></span></p></td><td align="left" valign="top"><p>SS7 point code resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>subnets</em></span></p></td><td align="left" valign="top"><p>IPv4 subnet name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>vlans</em></span></p></td><td align="left" valign="top"><p>VLAN ID name resolution.</p></td></tr><tr><td align="left" valign="top"><p><span class="emphasis"><em>wka</em></span></p></td><td align="left" valign="top"><p>Well-known MAC addresses.</p></td></tr></tbody></table></div></div><br class="table-break"><h5><a name="_file_contents"></a>File contents</h5><div class="variablelist"><dl class="variablelist"><dt><span class="term">cfilters</span></dt><dd><p class="simpara">This file contains all the capture filters that you have defined and saved. It
+consists of one or more lines, where each line has the following format:</p><pre class="screen">"&lt;filter name&gt;" &lt;filter string&gt;</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>cfilters</em></span> file in the personal
+configuration folder, it is read.  If there isn’t a <span class="emphasis"><em>cfilters</em></span> file in
+the personal configuration folder, then, if there is a <span class="emphasis"><em>cfilters</em></span> file
+in the global configuration folder, it is read.</p><p class="simpara">When you press the Save button in the “Capture Filters” dialog box,
+all the current capture filters are written to the personal capture
+filters file.</p></dd><dt><span class="term">colorfilters</span></dt><dd><p class="simpara">This file contains all the color filters that you have defined and saved. It
+consists of one or more lines, where each line has the following format:</p><pre class="screen">@&lt;filter name&gt;@&lt;filter string&gt;@[&lt;bg RGB(16-bit)&gt;][&lt;fg RGB(16-bit)&gt;]</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>colorfilters</em></span> file in the personal
+configuration folder, it is read.  If there isn’t a <span class="emphasis"><em>colorfilters</em></span> file
+in the personal configuration folder, then, if there is a <span class="emphasis"><em>colorfilters</em></span>
+file in the global configuration folder, it is read.</p><p class="simpara">When you press the Save button in the “Coloring Rules” dialog box,
+all the current color filters are written to the personal color filters
+file.</p></dd><dt><span class="term">dfilter_buttons</span></dt><dd><p class="simpara">This file contains all the display filter buttons that you have defined and
+saved. It consists of one or more lines, where each line has the following
+format:</p><pre class="screen">"TRUE/FALSE","&lt;button label&gt;","&lt;filter string&gt;","&lt;comment string&gt;"</pre><p class="simpara">where the first field is TRUE if the button is enabled (shown).</p><p class="simpara">At program start, if there is a <span class="emphasis"><em>dfilter_buttons</em></span> file in the personal
+configuration folder, it is read. If there isn’t a <span class="emphasis"><em>dfilter_buttons</em></span> file
+in the personal configuration folder, then, if there is a <span class="emphasis"><em>dfilter_buttons</em></span>
+file in the global configuration folder, it is read.</p><p class="simpara">When you save any changes to the filter buttons, all the current display
+filter buttons are written to the personal display filter buttons file.</p></dd><dt><span class="term">dfilters</span></dt><dd><p class="simpara">This file contains all the display filters that you have defined and saved. It
+consists of one or more lines, where each line has the following format:</p><pre class="screen">"&lt;filter name&gt;" &lt;filter string&gt;</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>dfilters</em></span> file in the personal
+configuration folder, it is read.  If there isn’t a <span class="emphasis"><em>dfilters</em></span> file in
+the personal configuration folder, then, if there is a <span class="emphasis"><em>dfilters</em></span> file
+in the global configuration folder, it is read.</p><p class="simpara">When you press the Save button in the “Display Filters” dialog box,
+all the current display filters are written to the personal display
+filters file.</p></dd><dt><span class="term">disabled_protos</span></dt><dd><p class="simpara">Each line in this file specifies a disabled protocol name. The following are
+some examples:</p><pre class="screen">tcp
+udp</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>disabled_protos</em></span> file in the global
+configuration folder, it is read first.  Then, if there is a
+<span class="emphasis"><em>disabled_protos</em></span> file in the personal configuration folder, that is
+read; if there is an entry for a protocol set in both files, the setting
+in the personal disabled protocols file overrides the setting in the
+global disabled protocols file.</p><p class="simpara">When you press the Save button in the “Enabled Protocols” dialog box,
+the current set of disabled protocols is written to the personal
+disabled protocols file.</p></dd><dt><span class="term">dmacros</span></dt><dd><p class="simpara">This file contains all the display filter macros that you have defined and saved.
+It consists of one or more lines, where each line has the following format:</p><pre class="screen">"&lt;macro name&gt;" &lt;macro expression&gt;</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>dmacros</em></span> file in the personal
+configuration folder, it is read. If there isn’t a <span class="emphasis"><em>dmacros</em></span> file
+in the personal configuration folder, then, if there is a <span class="emphasis"><em>dmacros</em></span>
+file in the global configuration folder, it is read.</p><p class="simpara">In versions of Wireshark prior to 4.4, the display filter macros were
+stored in a <span class="emphasis"><em>dfilter_macros</em></span> file with a somewhat different format,
+a <a class="link" href="ChUserTable.html" title="11.7. User Accessible Tables">UAT</a>. At program start if the <span class="emphasis"><em>dmacros</em></span> file
+is not found a <span class="emphasis"><em>dfilter_macros</em></span> file is looked for in the personal and
+global configuration folders and converted to the new format.</p><p class="simpara">When you press the Save button in the "Display Filter Macros" dialog box,
+all the current display filter macros are written to the personal display
+filter macros file.</p><p class="simpara">More information about Display Filter Macros is available in
+<a class="xref" href="ChWorkDefineFilterMacrosSection.html" title="6.7. Defining And Saving Filter Macros">Section 6.7, “Defining And Saving Filter Macros”</a></p></dd><dt><span class="term">ethers</span></dt><dd><p class="simpara">When Wireshark is trying to translate a hardware MAC or EUI-64 address to
+a name, it consults the <span class="emphasis"><em>ethers</em></span> file in the personal configuration
+folder first.  If the address is not found in that file, Wireshark
+consults the <span class="emphasis"><em>ethers</em></span> file in the system configuration folder.</p><p class="simpara">This file has a similar format to the <span class="emphasis"><em>/etc/ethers</em></span> file on some UNIX-like systems.
+Each line in these files consists of one hardware address and name separated by
+whitespace (tabs or spaces). The hardware addresses are expressed as pairs
+of hexadecimal digits separated by colons (:), dashes (-), or periods(.), with
+the same separator used in the entire address. A <code class="literal">#</code> can be used to indicate
+a comment that extends to the rest of the line. NIS lookups, as in some
+UNIX-like systems, are not supported. Both 6 byte MAC and 8 byte EUI-64 addresses
+are supported. The following are some examples:</p><pre class="screen">ff-ff-ff-ff-ff-ff    Broadcast
+c0-00-ff-ff-ff-ff    TR_broadcast
+00.2b.08.93.4b.a1    Freds_machine
+00:00:00:00:00:00:00:00    zb_zero_broadcast</pre><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p></dd><dt><span class="term">hosts</span></dt><dd><p class="simpara">Wireshark uses the entries in the <span class="emphasis"><em>hosts</em></span> files to translate IPv4 and
+IPv6 addresses into names.</p><p class="simpara">At program start, if there is a <span class="emphasis"><em>hosts</em></span> file in the global configuration
+folder, it is read first.  Then, if there is a <span class="emphasis"><em>hosts</em></span> file in the
+personal configuration folder, that is read; if there is an entry for a
+given IP address in both files, the setting in the personal hosts file
+overrides the entry in the global hosts file.</p><p class="simpara">This file has the same format as the usual <span class="emphasis"><em>/etc/hosts</em></span> file on Unix systems.</p><p class="simpara">An example is:</p><pre class="screen"># Comments must be prepended by the # sign!
+192.168.0.1 homeserver</pre><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p></dd><dt><span class="term">ipxnets</span></dt><dd><p class="simpara">When Wireshark is trying to translate an IPX network number to
+a name, it consults the <span class="emphasis"><em>ipxnets</em></span> file in the personal configuration
+folder first.  If the address is not found in that file, Wireshark
+consults the <span class="emphasis"><em>ipxnets</em></span> file in the system configuration folder.</p><p class="simpara">An example is:</p><pre class="screen">C0.A8.2C.00      HR
+c0-a8-1c-00      CEO
+00:00:BE:EF      IT_Server1
+110f             FileServer3</pre><p class="simpara">The settings from this file are read in when an IPX network number is to
+be translated to a name, and never written by Wireshark.</p></dd><dt><span class="term">manuf</span></dt><dd><p class="simpara">At program start, if there is a <span class="emphasis"><em>manuf</em></span> file in the global configuration
+folder, it is read first.  Then, if there is a <span class="emphasis"><em>manuf</em></span> file in the personal
+configuration folder, that is read; if there is an entry for a given address
+prefix in both files, the setting in the personal file overrides the entry
+in the global file.</p><p class="simpara">The entries in this file are used to translate MAC address prefixes into short and long manufacturer names.
+Each line consists of a MAC address prefix followed by an abbreviated manufacturer name and the full manufacturer name.
+Prefixes 24 bits long by default and may be followed by an optional length.
+Note that this is not the same format as the <span class="emphasis"><em>ethers</em></span> file, which does not
+allow prefix lengths.</p><p class="simpara">Examples are:</p><pre class="screen">00:00:01        Xerox   Xerox Corporation
+00:50:C2:00:30:00/36      Microsof        Microsoft</pre><p class="simpara">In earlier versions of Wireshark, official information from the IEEE
+Registration Authority was distributed in this format as the <span class="emphasis"><em>manuf</em></span> file
+in the global configuration folder. In current versions of Wireshark, this
+information is compiled into the program to speed startup, but if a file
+is present in the global configuration folder it is still read, and can
+be used to supplement or replace the official data just as the personal
+file does. The compiled-in information can be written out in this format
+as a report with <code class="literal">tshark -G manuf</code>.</p><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p></dd><dt><span class="term">preferences</span></dt><dd><p class="simpara">This file contains your Wireshark preferences, including defaults for capturing
+and displaying packets. It is a simple text file containing statements of the
+form:</p><pre class="screen">variable: value</pre><p class="simpara">At program start, if there is a <span class="emphasis"><em>preferences</em></span> file in the global
+configuration folder, it is read first.  Then, if there is a
+<span class="emphasis"><em>preferences</em></span> file in the personal configuration folder, that is read;
+if there is a preference set in both files, the setting in the personal
+preferences file overrides the setting in the global preference file.</p><p class="simpara">If you press the Save button in the “Preferences” dialog box, all the
+current settings are written to the personal preferences file.</p></dd><dt><span class="term">recent</span></dt><dd><p class="simpara">This file contains GUI settings that are specific to the current profile, such as column widths and toolbar visibility.
+It is a simple text file containing statements of the form:</p><pre class="screen">variable: value</pre><p class="simpara">It is read at program start and written when preferences are saved and at program exit.
+It is also written and read whenever you switch to a different profile.</p></dd><dt><span class="term">recent_common</span></dt><dd><p class="simpara">This file contains common GUI settings, such as recently opened capture files, recently used filters, and window geometries.
+It is a simple text file containing statements of the form:</p><pre class="screen">variable: value</pre><p class="simpara">It is read at program start and written when preferences are saved and at program exit.</p></dd><dt><span class="term">services</span></dt><dd><p class="simpara">Wireshark uses the <span class="emphasis"><em>services</em></span> files to translate port numbers into names.</p><p class="simpara">At program start, if there is a <span class="emphasis"><em>services</em></span> file in the global
+configuration folder, it is read first.  Then, if there is a <span class="emphasis"><em>services</em></span>
+file in the personal configuration folder, that is read; if there is an
+entry for a given port number in both files, the setting in the personal
+<span class="emphasis"><em>services</em></span> file overrides the entry in the global <span class="emphasis"><em>services</em></span> file.
+The format is that of the standard <span class="emphasis"><em>services(5)</em></span> file on UNIX-compatible
+systems.</p><p class="simpara">An example is:</p><pre class="screen">mydns       5045/udp     # My own Domain Name Server
+mydns       5045/tcp     # My own Domain Name Server</pre><p class="simpara">In earlier versions of Wireshark, official information from the IANA
+Service Name and Transport Protocol Port Number Registry was distributed
+in this format as the <span class="emphasis"><em>services</em></span> file in the global configuration folder.
+In current versions of Wireshark, this information is compiled into the
+program to speed startup, but if a file is present in the global configuration
+folder it is still read, and can be used to supplement or replace the official
+data just as the personal file does. The compiled-in information can be
+written out in this format as a report with <code class="literal">tshark -G services</code>.</p><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p></dd><dt><span class="term">ss7pcs</span></dt><dd><p class="simpara">Wireshark uses the <span class="emphasis"><em>ss7pcs</em></span> file to translate SS7 point codes to node names.</p><p class="simpara">At program start, if there is a <span class="emphasis"><em>ss7pcs</em></span> file in the personal
+configuration folder, it is read.</p><p class="simpara">Each line in this file consists of one network indicator followed by a dash followed by a point code in decimal and a node name separated by whitespace or tab.</p><p class="simpara">An example is:</p><pre class="screen">2-1234 MyPointCode1</pre><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file opens or changing the configuration profile,
+and never written by Wireshark.</p></dd><dt><span class="term">subnets</span></dt><dd><p class="simpara">Wireshark uses the <span class="emphasis"><em>subnets</em></span> file to translate an IPv4 address into a
+subnet name.  If no exact match from a <span class="emphasis"><em>hosts</em></span> file or from DNS is
+found, Wireshark will attempt a partial match for the subnet of the
+address.</p><p class="simpara">At program start, if there is a <span class="emphasis"><em>subnets</em></span> file in the personal
+configuration folder, it is read first.  Then, if there is a <span class="emphasis"><em>subnets</em></span>
+file in the global configuration folder, that is read; if there is a
+preference set in both files, the setting in the global preferences file
+overrides the setting in the personal preference file.</p><p class="simpara">Each line in one of these files consists of an IPv4 address, a subnet
+mask length separated only by a “/” and a name separated by whitespace.
+While the address must be a full IPv4 address, any values beyond the
+mask length are subsequently ignored.</p><p class="simpara">An example is:</p><pre class="screen"># Comments must be prepended by the # sign!
+192.168.0.0/24 ws_test_network</pre><p class="simpara">A partially matched name will be printed as “subnet-name.remaining-address”.
+For example, “192.168.0.1” under the subnet above would be printed as
+“ws_test_network.1”; if the mask length above had been 16 rather than 24, the
+printed address would be “ws_test_network.0.1”.</p><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p><p class="simpara">The <span class="emphasis"><em>subnets</em></span> file also changes the behavior of the Endpoints and
+Conversations Statistics dialogs for the IPv4 protocol when the IPv4 user
+preference <span class="emphasis"><em>Aggregate subnets in Statistics Dialogs</em></span> is enabled. In this
+case, when an IPv4 address matches a subnet, the statistics dialog will
+show this subnet instead of the IPv4 address.</p></dd><dt><span class="term">vlans</span></dt><dd><p class="simpara">Wireshark uses the <span class="emphasis"><em>vlans</em></span> file to translate VLAN tag IDs into names.</p><p class="simpara">If there is a <span class="emphasis"><em>vlans</em></span> file in the currently active profile folder, it is used. Otherwise, the <span class="emphasis"><em>vlans</em></span> file in the personal configuration folder is used.</p><p class="simpara">Each line in this file consists of one VLAN tag ID and a describing name separated by whitespace or tab.</p><p class="simpara">An example is:</p><pre class="screen">123     Server-LAN
+2049    HR-Client-LAN</pre><p class="simpara">The settings from this file are read in when a VLAN ID is to be translated
+to a name, and never written by Wireshark.</p></dd><dt><span class="term">wka</span></dt><dd><p class="simpara">At program start, if there is a <span class="emphasis"><em>wka</em></span> file in the global configuration folder,
+it is read.</p><p class="simpara">The entries in this file are used to translate MAC addresses and MAC address
+prefixes into names. The format is that of the <span class="emphasis"><em>manuf</em></span> file. This file is
+distributed with Wireshark, and contains data assembled from various non IEEE
+but respected sources.</p><p class="simpara">The settings from this file are read in at program start, and reloaded when
+opening a new capture file or changing the configuration profile, and never
+written by Wireshark.</p></dd></dl></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChConfigurationPluginFolders.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="_files_and_folders.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChPluginFolders.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">B.2. Configuration File and Plugin Folders </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> B.4. Plugin folders</td></tr></table></div></body></html>

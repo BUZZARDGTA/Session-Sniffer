@@ -1,0 +1,198 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.6. MATE configuration examples</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="ChMateConfigurationTutorial.html" title="12.5. MATE’s configuration tutorial"><link rel="next" href="ChMateConfigurationLibrary.html" title="12.7. MATE’s configuration library"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.6. MATE configuration examples</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChMateConfigurationTutorial.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="ChMateConfigurationLibrary.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChMateConfigurationExamples"></a>12.6. MATE configuration examples</h2></div></div></div><p>The following is a collection of various configuration examples for MATE. Many
+of them are useless because the "conversations" facility does a better job.
+Anyway they are meant to help users understanding how to configure MATE.</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="File_tcp_mate"></a>12.6.1. TCP session (tcp.mate)</h3></div></div></div><p>The following example creates a GOP out of every TCP session.</p><pre class="screen">Transform add_tcp_stop {
+    Match (tcp_flags_reset="True") Insert (tcp_stop="True");
+    Match (tcp_flags_fin="True") Insert (tcp_stop="True");
+};
+
+Pdu tcp_pdu Proto tcp Transport ip {
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract tcp_start From tcp.flags.syn;
+    Extract tcp_flags_reset From tcp.flags.reset;
+    Extract tcp_flags_fin From tcp.flags.fin;
+    Transform add_tcp_stop;
+};
+
+Gop tcp_ses On tcp_pdu Match (addr, addr, port, port) {
+    Start (tcp_start="True");
+    Stop (tcp_stop="True");
+};
+
+Done;</pre><p>This probably would do fine in 99.9% of the cases but 10.0.0.1:20→10.0.0.2:22 and 10.0.0.1:22→10.0.0.2:20 would both fall into the same gop if they happen to overlap in time.</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">filtering with <span class="strong"><strong>mate.tcp_ses.Time &gt; 1</strong></span> will give all the sessions that last more than one second</li><li class="listitem">filtering with <span class="strong"><strong>mate.tcp_ses.NumOfPdus &lt; 5</strong></span> will show all tcp sessions that have less than 5 packets.</li><li class="listitem">filtering with <span class="strong"><strong>mate.tcp_ses.Id == 3</strong></span> will show all the packets for the third tcp session MATE has found</li></ul></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_a_gog_for_a_complete_ftp_session"></a>12.6.2. a GOG for a complete FTP session</h3></div></div></div><p>This configuration allows to tie a complete passive FTP session (including the
+data transfer) in a single GOG.</p><pre class="screen">Pdu ftp_pdu Proto ftp Transport tcp/ip {
+    Extract ftp_addr From ip.addr;
+    Extract ftp_port From tcp.port;
+    Extract ftp_resp From ftp.response.code;
+    Extract ftp_req From ftp.request.command;
+    Extract server_addr From ftp.passive.ip;
+    Extract server_port From ftp.passive.port;
+
+    LastPdu true;
+};
+
+Pdu ftp_data_pdu Proto ftp-data Transport tcp/ip{
+    Extract server_addr From ip.src;
+    Extract server_port From tcp.srcport;
+
+};
+
+Gop ftp_data On ftp_data_pdu Match (server_addr, server_port) {
+    Start (server_addr);
+};
+
+Gop ftp_ctl On ftp_pdu Match (ftp_addr, ftp_addr, ftp_port, ftp_port) {
+    Start (ftp_resp=220);
+    Stop (ftp_resp=221);
+    Extra (server_addr, server_port);
+};
+
+Gog ftp_ses {
+    Member ftp_ctl (ftp_addr, ftp_addr, ftp_port, ftp_port);
+    Member ftp_data (server_addr, server_port);
+};
+
+Done;</pre><p>Note: not having anything to distinguish between ftp-data packets makes this
+config to create one GOP for every ftp-data packet instead of each transfer.
+Pre-started GOPs would avoid this.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_using_radius_to_filter_smtp_traffic_of_a_specific_user"></a>12.6.3. using RADIUS to filter SMTP traffic of a specific user</h3></div></div></div><p>Spying on people, in addition to being immoral, is illegal in many countries.
+This is an example meant to explain how to do it not an invitation to do so.
+It’s up to the police to do this kind of job when there is a good reason to do
+so.</p><pre class="screen">Pdu radius_pdu On radius Transport udp/ip {
+    Extract addr From ip.addr;
+    Extract port From udp.port;
+    Extract radius_id From radius.id;
+    Extract radius_code From radius.code;
+    Extract user_ip From radius.framed_addr;
+    Extract username From radius.username;
+}
+
+Gop radius_req On radius_pdu (radius_id, addr, addr, port, port) {
+    Start (radius_code {1|4|7} );
+    Stop (radius_code {2|3|5|8|9} );
+    Extra (user_ip, username);
+}
+
+// we define the smtp traffic we want to filter
+Pdu user_smtp Proto smtp Transport tcp/ip {
+    Extract user_ip From ip.addr;
+    Extract smtp_port From tcp.port;
+    Extract tcp_start From tcp.flags.syn;
+    Extract tcp_stop From tcp.flags.reset;
+}
+
+Gop user_smtp_ses On user_smtp (user_ip, user_ip, smtp_port!25) {
+    Start (tcp_start=1);
+    Stop (tcp_stop=1);
+}
+
+// with the following group of groups we'll group together the radius and the smtp
+// we set a long expiration to avoid the session expire on long pauses.
+Gog user_mail {
+    Expiration 1800;
+    Member radius_req (user_ip);
+    Member user_smtp_ses (user_ip);
+    Extra (username);
+}
+
+Done;</pre><p>Filtering the capture file with <span class="strong"><strong>mate.user_mail.username == "theuser"</strong></span> will
+filter the RADIUS packets and SMTP traffic for <span class="emphasis"><em>"theuser"</em></span>.</p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_h323_calls"></a>12.6.4. H323 Calls</h3></div></div></div><p>This configuration will create a GOG out of every call.</p><pre class="screen">Pdu q931 Proto q931 Transport ip {
+    Extract addr From ip.addr;
+    Extract call_ref From q931.call_ref;
+    Extract q931_msg From q931.message_type;
+    Extract calling From q931.calling_party_number.digits;
+    Extract called From q931.called_party_number.digits;
+    Extract guid From h225.guid;
+    Extract q931_cause From q931.cause_value;
+};
+
+Gop q931_leg On q931 Match (addr, addr, call_ref) {
+    Start (q931_msg=5);
+    Stop (q931_msg=90);
+    Extra (calling, called, guid, q931_cause);
+};
+
+Pdu ras Proto h225.RasMessage Transport ip {
+    Extract addr From ip.addr;
+    Extract ras_sn From h225.requestSeqNum;
+    Extract ras_msg From h225.RasMessage;
+    Extract guid From h225.guid;
+};
+
+Gop ras_req On ras Match (addr, addr, ras_sn) {
+    Start (ras_msg {0|3|6|9|12|15|18|21|26|30} );
+    Stop (ras_msg {1|2|4|5|7|8|10|11|13|14|16|17|19|20|22|24|27|28|29|31});
+    Extra (guid);
+};
+
+Gog call {
+    Member ras_req (guid);
+    Member q931_leg (guid);
+    Extra (called,calling,q931_cause);
+};
+
+Done;</pre><p>with this we can:</p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem">filter all signalling for a specific caller: <span class="strong"><strong>mate.call.caller == "123456789"</strong></span></li><li class="listitem">filter all signalling for calls with a specific release cause: <span class="strong"><strong>mate.call.q931_cause == 31</strong></span></li><li class="listitem">filter all signalling for very short calls: <span class="strong"><strong>mate.q931_leg.Time &lt; 5</strong></span></li></ul></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_mms"></a>12.6.5. MMS</h3></div></div></div><p>With this example, all the components of an MMS send or receive will be tied
+into a single GOG. Note that this example uses the <span class="emphasis"><em>Payload</em></span> clause because
+MMS delivery uses MMSE over either HTTP or WSP. As it is not possible to relate
+the retrieve request to a response by the means of MMSE only (the request is
+just an HTTP GET without any MMSE), a GOP is made of HTTP PDUs but MMSE data
+need to be extracted from the bodies.</p><pre class="screen">## WARNING: this example has been blindly translated from the "old" MATE syntax
+## and it has been verified that Wireshark accepts it. However, it has not been
+## tested against any capture file due to lack of the latter.
+
+Transform rm_client_from_http_resp1 {
+    Match (http_rq);
+    Match Every (addr) Insert (not_rq);
+};
+
+Transform rm_client_from_http_resp2 {
+    Match (not_rq,ue) Replace ();
+};
+
+Pdu mmse_over_http_pdu Proto http Transport tcp/ip {
+    Payload mmse;
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract http_rq From http.request;
+    Extract content From http.content_type;
+    Extract resp From http.response.code;
+    Extract method From http.request.method;
+    Extract host From http.host;
+    Extract content From http.content_type;
+    Extract trx From mmse.transaction_id;
+    Extract msg_type From mmse.message_type;
+    Extract notify_status From mmse.status;
+    Extract send_status From mmse.response_status;
+    Transform rm_client_from_http_resp1, rm_client_from_http_resp2;
+};
+
+Gop mmse_over_http On mmse_over_http_pdu Match (addr, addr, port, port) {
+    Start (http_rq);
+    Stop (http_rs);
+    Extra (host, ue, resp, notify_status, send_status, trx);
+};
+
+Transform mms_start {
+    Match Loose() Insert (mms_start);
+};
+
+Pdu mmse_over_wsp_pdu Proto wsp Transport ip {
+    Payload mmse;
+    Extract trx From mmse.transaction_id;
+    Extract msg_type From mmse.message_type;
+    Extract notify_status From mmse.status;
+    Extract send_status From mmse.response_status;
+    Transform mms_start;
+};
+
+Gop mmse_over_wsp On mmse_over_wsp_pdu Match (trx) {
+    Start (mms_start);
+    Stop (never);
+    Extra (ue, notify_status, send_status);
+};
+
+Gog mms {
+    Member mmse_over_http (trx);
+    Member mmse_over_wsp (trx);
+    Extra (ue, notify_status, send_status, resp, host, trx);
+    Expiration 60.0;
+};</pre></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChMateConfigurationTutorial.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChMateConfigurationLibrary.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.5. MATE’s configuration tutorial </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 12.7. MATE’s configuration library</td></tr></table></div></body></html>

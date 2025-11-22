@@ -1,18 +1,18 @@
 # -*- text -*-
-# Copyright (C) 2015 The FreeRADIUS Server project and contributors
+# Copyright (C) 2019 The FreeRADIUS Server project and contributors
+# This work is licensed under CC-BY version 4.0 https://creativecommons.org/licenses/by/4.0
 #
 #	Mostly values which have been allocated by IANA under
 #	"expert review", but which don't have an RFC associated with them.
 #
-#	$Id: 989cd0b75728ba5e00e0fd53143c584bb54186cd $
+#	$Id: 9f936c5d2ef03f3c05dfc2445e534a09c9f7074a $
 #
-
-#	RFC 4005
-ATTRIBUTE	Originating-Line-Info			94	string
 
 #	draft-sterman-aaa-sip-00.txt
 #
 #	This is bad... at some point the IETF will allocate these.
+#	[wireshark: These are the experimental values from 00 of the draft RFC,
+#	later registered in RFC 5090 with real values. Comment out?]
 #
 ATTRIBUTE	Digest-Response				206	string
 ATTRIBUTE	Digest-Attributes			207	octets	# stupid format
@@ -42,3 +42,9 @@ VALUE	NAS-Port-Type			xPON			35
 VALUE	NAS-Port-Type			Wireless-XGP		36
 
 VALUE	Framed-Protocol			PPTP			9
+
+#
+#  https://freeradius.org/rfc/acct_status_type_subsystem.html
+#
+VALUE	Acct-Status-Type		Subsystem-On		18
+VALUE	Acct-Status-Type		Subsystem-Off		19

@@ -1,0 +1,240 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>11.2. Start Wireshark from the command line</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChapterCustomize.html" title="Chapter 11. Customizing Wireshark"><link rel="prev" href="ChapterCustomize.html" title="Chapter 11. Customizing Wireshark"><link rel="next" href="ChCustColorizationSection.html" title="11.3. Packet colorization"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">11.2. Start Wireshark from the command line</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChapterCustomize.html">Prev</a> </td><th width="60%" align="center">Chapter 11. Customizing Wireshark</th><td width="20%" align="right"> <a accesskey="n" href="ChCustColorizationSection.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChCustCommandLine"></a>11.2. Start Wireshark from the command line</h2></div></div></div><p>You can start Wireshark from the command line, but it can also be started from
+most Window managers as well. In this section we will look at starting it from
+the command line.</p><p>Wireshark supports a large number of command line parameters. To see what they
+are, simply enter the command <span class="emphasis"><em>wireshark -h</em></span> and the help information shown in
+<a class="xref" href="ChCustCommandLine.html#ChCustEx1" title="Help information available from Wireshark">Help information available from Wireshark</a> (or something similar) should be printed.</p><p><a name="ChCustEx1"></a><b>Help information available from Wireshark. </b>
+</p><pre class="screen">Wireshark 4.5.0 (v4.5.0rc0-1896-g8ec46c963ceb)
+Interactively dump and analyze network traffic.
+See https://www.wireshark.org for more information.
+
+Usage: wireshark [options] ... [ &lt;infile&gt; ]
+
+Capture interface:
+  -i &lt;interface&gt;, --interface &lt;interface&gt;
+                           name or idx of interface (def: first non-loopback)
+  -f &lt;capture filter&gt;      packet filter in libpcap filter syntax
+  -s &lt;snaplen&gt;, --snapshot-length &lt;snaplen&gt;
+                           packet snapshot length (def: appropriate maximum)
+  -p, --no-promiscuous-mode
+                           don't capture in promiscuous mode
+  -I, --monitor-mode       capture in monitor mode, if available
+  -B &lt;buffer size&gt;, --buffer-size &lt;buffer size&gt;
+                           size of kernel buffer in MiB (def: 2MiB)
+  -y &lt;link type&gt;, --linktype &lt;link type&gt;
+                           link layer type (def: first appropriate)
+  --time-stamp-type &lt;type&gt; timestamp method for interface
+  -D, --list-interfaces    print list of interfaces and exit
+  -L, --list-data-link-types
+                           print list of link-layer types of iface and exit
+  --list-time-stamp-types  print list of timestamp types for iface and exit
+
+Capture display:
+  -k                       start capturing immediately (def: do nothing)
+  -S                       update display when new items are captured
+  -l                       turn on automatic scrolling while -S is in use
+  --update-interval        interval between updates with new items, in milliseconds (def: 100ms)
+Capture stop conditions:
+  -c &lt;item count&gt;          stop after n items (def: infinite)
+  -a &lt;autostop cond.&gt; ..., --autostop &lt;autostop cond.&gt; ...
+                           duration:NUM - stop after NUM seconds
+                           filesize:NUM - stop this file after NUM KB
+                              files:NUM - stop after NUM files
+                            packets:NUM - stop after NUM packets
+Capture output:
+  -b &lt;ringbuffer opt.&gt; ..., --ring-buffer &lt;ringbuffer opt.&gt;
+                           duration:NUM - switch to next file after NUM secs
+                           filesize:NUM - switch to next file after NUM KB
+                              files:NUM - ringbuffer: replace after NUM files
+                            packets:NUM - switch to next file after NUM packets
+                           interval:NUM - switch to next file when the time is
+                                          an exact multiple of NUM secs
+Input file:
+  -r &lt;infile&gt;, --read-file &lt;infile&gt;
+                           set the filename to read from (no pipes or stdin!)
+
+Processing:
+  -R &lt;read filter&gt;, --read-filter &lt;read filter&gt;
+                           filter in display filter (wireshark-filter(4)) syntax
+  -n                       disable all name resolutions (def: all enabled)
+  -N &lt;name resolve flags&gt;  enable specific name resolution(s): "mtndsNvg"
+  -d &lt;layer_type&gt;==&lt;selector&gt;,&lt;decode_as_protocol&gt; ...
+                           "Decode As", see the man page for details
+                           Example: tcp.port==8888,http
+  --enable-protocol &lt;proto_name&gt;
+                           enable dissection of proto_name
+  --disable-protocol &lt;proto_name&gt;
+                           disable dissection of proto_name
+  --only-protocols &lt;protocols&gt;
+                           Only enable dissection of these protocols, comma
+                           separated. Disable everything else
+  --disable-all-protocols
+                           Disable dissection of all protocols
+  --enable-heuristic &lt;short_name&gt;
+                           enable dissection of heuristic protocol
+  --disable-heuristic &lt;short_name&gt;
+                           disable dissection of heuristic protocol
+
+User interface:
+  -C &lt;config profile&gt;      start with specified configuration profile
+  -H                       hide the capture info dialog during capture
+  -Y &lt;display filter&gt;, --display-filter &lt;display filter&gt;
+                           start with the given display filter
+  -g &lt;item number&gt;         go to specified item number after "-r"
+  -J &lt;jump filter&gt;         jump to the first item matching the display
+                           filter
+  -j                       search backwards for a matching item after "-J"
+  -t (a|ad|adoy|d|dd|e|r|u|ud|udoy)[.[N]]|.[N]
+                           format of time stamps (def: r: rel. to first)
+  -u s|hms                 output format of seconds (def: s: seconds)
+  -X &lt;key&gt;:&lt;value&gt;         eXtension options, see man page for details
+  -z &lt;statistics&gt;          show various statistics, see man page for details
+
+Output:
+  -w &lt;outfile|-&gt;           set the output filename (or '-' for stdout)
+  -F &lt;capture type&gt;        set the output file type; default is pcapng.
+                           an empty "-F" option will list the file types.
+  --capture-comment &lt;comment&gt;
+                           add a capture file comment, if supported
+  --temp-dir &lt;directory&gt;   write temporary files to this directory
+                           (default: /tmp)
+
+Diagnostic output:
+  --log-level &lt;level&gt;      sets the active log level ("critical", "warning", etc.)
+  --log-fatal &lt;level&gt;      sets level to abort the program ("critical" or "warning")
+  --log-domains &lt;[!]list&gt;  comma-separated list of the active log domains
+  --log-fatal-domains &lt;list&gt;
+                           list of domains that cause the program to abort
+  --log-debug &lt;[!]list&gt;    list of domains with "debug" level
+  --log-noisy &lt;[!]list&gt;    list of domains with "noisy" level
+  --log-file &lt;path&gt;        file to output messages to (in addition to stderr)
+
+Miscellaneous:
+  -h, --help               display this help and exit
+  -v, --version            display version info and exit
+  -P &lt;key&gt;:&lt;path&gt;          persconf:path - personal configuration files
+                           persdata:path - personal data files
+  -o &lt;name&gt;:&lt;value&gt; ...    override preference or recent setting
+  -K &lt;keytab&gt;              keytab file to use for kerberos decryption
+  --display &lt;X display&gt;    X display to use
+  --fullscreen             start Wireshark in full screen</pre><p>
+</p><p>We will examine each of the command line options in turn.</p><p>The first thing to notice is that issuing the command <code class="literal">wireshark</code> by itself will
+launch Wireshark. However, you can include as many of the command line
+parameters as you like. Their meanings are as follows ( in alphabetical order ):</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">-a &lt;capture autostop condition&gt;, </span><span class="term">--autostop &lt;capture autostop condition&gt;</span></dt><dd><p class="simpara">Specify a criterion that specifies when Wireshark is to stop writing
+to a capture file. The criterion is of the form test:value, where test
+is one of:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">duration:value</span></dt><dd>Stop writing to a capture file after value of seconds have elapsed.</dd><dt><span class="term">filesize:value</span></dt><dd>Stop writing to a capture file after it reaches a size of value
+kilobytes (where a kilobyte is 1000 bytes, not 1024 bytes). If
+this option is used together with the -b option, Wireshark will
+stop writing to the current capture file and switch to the next
+one if filesize is reached.</dd><dt><span class="term">files:value</span></dt><dd>Stop writing to capture files after value number of files were
+written.</dd><dt><span class="term">packets:value</span></dt><dd>Stop writing to a capture file after value number of packets were written.</dd></dl></div></dd><dt><span class="term">-b &lt;capture ring buffer option&gt;</span></dt><dd><p class="simpara">If a maximum capture file size was specified, this option causes Wireshark to
+run in “ring buffer” mode, with the specified number of files. In “ring
+buffer” mode, Wireshark will write to several capture files. Their
+name is based on the number of the file and on the creation date and
+time.</p><p class="simpara">When the first capture file fills up Wireshark will switch to writing
+to the next file, and so on.  With the files option it’s
+also possible to form a “ring buffer.”  This will fill up new files until the
+number of files specified, at which point the data in the first file will be
+discarded so a new file can be written.</p><p class="simpara">If the optional duration is specified, Wireshark will also
+switch to the next file when the specified number of seconds has elapsed even
+if the current file is not completely filled up.</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">duration:value</span></dt><dd>Switch to the next file after value seconds have elapsed, even
+if the current file is not completely filled up.</dd><dt><span class="term">filesize:value</span></dt><dd>Switch to the next file after it reaches a size of value kilobytes
+(where a kilobyte is 1000 bytes, not 1024 bytes).</dd><dt><span class="term">files:value</span></dt><dd>Begin again with the first file after value number of files were
+written (form a ring buffer).</dd><dt><span class="term">packets:value</span></dt><dd>Switch to the next file after value number of packets were written, even
+if the current file is not completely filled up.</dd><dt><span class="term">interval:value</span></dt><dd>Switch to the next file when the time is an exact multiple of value seconds.</dd></dl></div></dd><dt><span class="term">-B &lt;capture buffer size&gt;, </span><span class="term">--buffer-size &lt;capture buffer size&gt;</span></dt><dd>Set capture buffer size (in MB, default is 2MB). This is used by the capture
+driver to buffer packet data until that data can be written to disk. If you
+encounter packet drops while capturing, try to increase this size. Not supported
+on some platforms.</dd><dt><span class="term">-C &lt;config profile&gt;</span></dt><dd>Start with the specified configuration profile.</dd><dt><span class="term">-c &lt;capture packet count&gt;</span></dt><dd>This option specifies the maximum number of packets to capture when capturing
+live data. It would be used in conjunction with the <code class="literal">-k</code> option.</dd><dt><span class="term">--capture-comment &lt;comment&gt;</span></dt><dd>Add the comment string to the capture file, if supported by the file format.</dd><dt><span class="term">-d &lt;layer_type&gt;==&lt;selector&gt;,&lt;decode_as_dissector&gt;</span></dt><dd><p class="simpara">"Decode As": override what protocol is called under specific circumstances.
+See <a class="xref" href="ChCustProtocolDissectionSection.html#ChAdvDecodeAs" title="11.4.2. User Specified Decodes">Section 11.4.2, “User Specified Decodes”</a> for details about how this feature works.</p><p class="simpara">An example of causing TCP traffic on port 8888 to be decoded as HTTP:</p><pre class="screen">wireshark -d tcp.port==8888,http</pre><p class="simpara">To see all possible values for &lt;layer_type&gt;, run Wireshark or tshark with <code class="literal">-d help</code>.
+You can see all possible values for &lt;decode_as_dissectors&gt; by running
+<code class="literal">tshark -G dissectors</code> but note that not all dissectors can be used at all layers.</p></dd><dt><span class="term">-D, </span><span class="term">--list-interfaces</span></dt><dd><p class="simpara">Print a list of the interfaces on which Wireshark can capture, then exit. For
+each network interface, a number and an interface name, possibly followed by a
+text description of the interface, is printed. The interface name or the number
+can be supplied to the <code class="literal">-i</code> flag to specify an interface on which to capture.</p><p class="simpara">This can be useful on systems that don’t have a command to list them (e.g.,
+Windows systems, or UNIX systems lacking <code class="literal">ifconfig -a</code>). The number can be
+especially useful on Windows, where the interface name is a GUID.</p><p class="simpara">Note that “can capture” means that Wireshark was able to open that device to
+do a live capture. If, on your system, a program doing a network capture must be
+run from an account with special privileges, then, if
+Wireshark is run with the <code class="literal">-D</code> flag and is not run from such an account, it will
+not list any interfaces.</p></dd><dt><span class="term">--display &lt;DISPLAY&gt;</span></dt><dd>Set the X display to use, instead of the one defined in the environment, or
+the default display.</dd><dt><span class="term">--enable-protocol &lt;proto_name&gt;, </span><span class="term">--disable-protocol &lt;proto_name&gt;</span></dt><dd>Enable and disable the dissection of the protocol.</dd><dt><span class="term">--enable-heuristic &lt;short_name&gt;, </span><span class="term">--disable-heuristic &lt;short_name&gt;</span></dt><dd>Enable and disable the dissection of the heuristic protocol.</dd><dt><span class="term">-f &lt;capture filter&gt;</span></dt><dd>This option sets the initial capture filter expression to be used when capturing
+packets.</dd><dt><span class="term">--fullscreen</span></dt><dd>Start Wireshark in full screen.</dd><dt><span class="term">-g &lt;packet number&gt;</span></dt><dd>After reading in a capture file using the -r flag, go to the given packet
+number.</dd><dt><span class="term">-h, </span><span class="term">--help</span></dt><dd>This option requests Wireshark to print its version and usage instructions
+(as shown here) and exit.</dd><dt><span class="term">-H</span></dt><dd>Hide the capture info dialog during live packet capture.</dd><dt><span class="term">-i &lt;capture interface&gt;, </span><span class="term">--interface &lt;capture interface&gt;</span></dt><dd><p class="simpara">Set the name of the network interface or pipe to use for live packet capture.</p><p class="simpara">Network interface names should match one of the names listed in <code class="literal">wireshark -D</code>
+(described above). A number, as reported by <code class="literal">wireshark -D</code>, can also be used. If
+you’re using UNIX, <code class="literal">netstat -i</code>, <code class="literal">ifconfig -a</code> or <code class="literal">ip link</code> might also work to
+list interface names, although not all versions of UNIX support the <code class="literal">-a</code> flag to
+<code class="literal">ifconfig</code>.</p><p class="simpara">If no interface is specified, Wireshark searches the list of interfaces,
+choosing the first non-loopback interface if there are any non-loopback
+interfaces, and choosing the first loopback interface if there are no
+non-loopback interfaces; if there are no interfaces, Wireshark reports an error
+and doesn’t start the capture.</p><p class="simpara">Pipe names should be either the name of a FIFO (named pipe) or “-” to read
+data from the standard input. Data read from pipes must be in standard libpcap
+format.</p></dd><dt><span class="term">-J &lt;jump filter&gt;</span></dt><dd>After reading in a capture file using the <code class="literal">-r</code> flag, jump to the first packet
+which matches the filter expression. The filter expression is in display filter
+format. If an exact match cannot be found the first packet afterwards is
+selected.</dd><dt><span class="term">-I, </span><span class="term">--monitor-mode</span></dt><dd>Capture wireless packets in monitor mode if available.</dd><dt><span class="term">-j</span></dt><dd>Use this option after the <code class="literal">-J</code> option to search backwards for a first packet to
+go to.</dd><dt><span class="term">-k</span></dt><dd>The <code class="literal">-k</code> option specifies that Wireshark should start capturing packets
+immediately. This option requires the use of the <code class="literal">-i</code> parameter to specify the
+interface that packet capture will occur from.</dd><dt><span class="term">-K &lt;keytab file&gt;</span></dt><dd>Use the specified file for Kerberos decryption.</dd><dt><span class="term">-l</span></dt><dd>This option turns on automatic scrolling if the packet list pane is being
+updated automatically as packets arrive during a capture (as specified by the
+<code class="literal">-S</code> flag).</dd><dt><span class="term">-L, </span><span class="term">--list-data-link-types</span></dt><dd>List the data link types supported by the interface and exit.</dd><dt><span class="term">--list-time-stamp-types</span></dt><dd>List timestamp types configurable for the interface and exit.</dd><dt><span class="term">-m &lt;font&gt;</span></dt><dd>This option sets the name of the font used for most text displayed by Wireshark.</dd></dl></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">-n</span></dt><dd>Disable network object name resolution (such as hostname, TCP and UDP port
+names).</dd><dt><span class="term">-N &lt;name resolving flags&gt;</span></dt><dd><p class="simpara">Turns on name resolving for particular types of addresses and port numbers. The
+argument is a string that may contain the following letters:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">N</span></dt><dd>Use external name resolver.</dd><dt><span class="term">d</span></dt><dd>Enable name resolution from captured DNS packets.</dd><dt><span class="term">m</span></dt><dd>Enable MAC address resolution.</dd><dt><span class="term">n</span></dt><dd>Enable network address resolution.</dd><dt><span class="term">t</span></dt><dd>Enable transport layer port number resolution.</dd><dt><span class="term">v</span></dt><dd>Enable VLAN ID resolution.</dd></dl></div></dd><dt><span class="term">-o &lt;preference or recent settings&gt;</span></dt><dd><p class="simpara">Sets a preference or recent value, overriding the default value and any value
+read from a preference or recent file. The argument to the flag is a string of
+the form <span class="emphasis"><em>prefname:value</em></span>, where <span class="emphasis"><em>prefname</em></span> is the name of the preference (which
+is the same name that would appear in the <code class="literal">preferences</code> or <code class="literal">recent</code> file), and
+<span class="emphasis"><em>value</em></span> is the value to which it should be set. Multiple instances of `-o
+&lt;preference settings&gt; ` can be given on a single command line.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note: Preferences and Profiles"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Preferences and Profiles</th></tr><tr><td align="left" valign="top"><p>The preferences you specify on the command line will override any settings
+you have changed in any of your profiles; this includes when switching from
+one profile to another.</p><p>If you change a setting using the Preferences dialog
+(see <a class="xref" href="ChCustPreferencesSection.html" title="11.5. Preferences">Section 11.5, “Preferences”</a>) that you have also set on the command line,
+the command line option will then be ignored, and the setting will change
+as normal when you switch profiles.</p></td></tr></table></div><p class="simpara">An example of setting a single preference would be:</p><pre class="screen">wireshark -o mgcp.display_dissect_tree:TRUE</pre><p class="simpara">An example of setting multiple preferences would be:</p><pre class="screen">wireshark -o mgcp.display_dissect_tree:TRUE -o mgcp.udp.callagent_port:2627</pre><p class="simpara">You can get a list of all available preference strings from the
+preferences file. See <a class="xref" href="AppMessagesDetails.html#AppFiles">Section A.2.4, “[Stream setup by PROTOCOL (frame 123)]”</a> for details.</p><p class="simpara"><a class="link" href="ChUserTable.html" title="11.7. User Accessible Tables">User Accessible Tables (UATs)</a> can be overridden using “uat:”
+followed by the UAT file name (<span class="emphasis"><em>not</em></span> the preference name)
+and a valid record for the file:</p><pre class="screen">wireshark -o "uat:user_dlts:\"User 0 (DLT=147)\",\"http\",\"0\",\"\",\"0\",\"\""</pre><p class="simpara">The example above would dissect packets with a libpcap data link type 147 as
+HTTP, just as if you had configured it in the DLT_USER protocol preferences.</p></dd></dl></div><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>You can only <span class="emphasis"><em>add</em></span> UAT entries from the command line. You can not
+modify or remove existing entries in a UAT in this way.</p></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">-p, </span><span class="term">--no-promiscuous-mode</span></dt><dd>Don’t put the interface into promiscuous mode. Note that the interface might be
+in promiscuous mode for some other reason. Hence, <code class="literal">-p</code> cannot be used to ensure
+that the only traffic that is captured is traffic sent to or from the machine on
+which Wireshark is running, broadcast traffic, and multicast traffic to
+addresses received by that machine.</dd><dt><span class="term">-P &lt;path setting&gt;</span></dt><dd><p class="simpara">Special path settings usually detected automatically. This is used for special
+cases, e.g., starting Wireshark from a known location on an USB stick.</p><p class="simpara">The criterion is of the form key:path, where key is one of:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">persconf:path</span></dt><dd>Path of personal configuration files, like the preferences files.</dd><dt><span class="term">persdata:path</span></dt><dd>Path of personal data files, it’s the folder initially opened. After the
+initialization, the recent file will keep the folder last used.</dd></dl></div></dd><dt><span class="term">-r &lt;infile&gt;, </span><span class="term">--read-file &lt;infile&gt;</span></dt><dd>This option provides the name of a capture file for Wireshark to read and
+display. This capture file can be in one of the formats Wireshark understands.</dd><dt><span class="term">-R &lt;read (display) filter&gt;, </span><span class="term">--read-filter &lt;read (display) filter&gt;</span></dt><dd>This option specifies a display filter to be applied when reading packets from a
+capture file. The syntax of this filter is that of the display filters discussed
+in <a class="xref" href="ChWorkDisplayFilterSection.html" title="6.3. Filtering Packets While Viewing">Section 6.3, “Filtering Packets While Viewing”</a>. Packets not matching the filter
+are discarded.</dd><dt><span class="term">-s &lt;capture snapshot length&gt;, </span><span class="term">--snapshot-length &lt;capture snapshot length&gt;</span></dt><dd>This option specifies the snapshot length to use when capturing packets.
+Wireshark will only capture <span class="emphasis"><em>snaplen</em></span> bytes of data for each packet.</dd><dt><span class="term">-S</span></dt><dd>This option specifies that Wireshark will display packets as it captures them.
+This is done by capturing in one process and displaying them in a separate
+process. This is the same as “Update list of packets in real time” in the
+“Capture Options” dialog box.</dd><dt><span class="term">-t &lt;time stamp format&gt;</span></dt><dd><p class="simpara">This option sets the format of packet timestamps that are displayed in the
+packet list window. The format can be one of:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">r</span></dt><dd>Relative, which specifies timestamps are
+displayed relative to the first packet captured.</dd><dt><span class="term">a</span></dt><dd>Absolute, which specifies that actual times
+be displayed for all packets.</dd><dt><span class="term">ad</span></dt><dd>Absolute with date, which specifies that
+actual dates and times be displayed for all packets.</dd><dt><span class="term">adoy</span></dt><dd>Absolute with YYYY/DOY date, which specifies that
+actual dates and times be displayed for all packets.</dd><dt><span class="term">d</span></dt><dd>Delta, which specifies that timestamps
+are relative to the previous packet.</dd></dl></div><p class="simpara">dd: Delta,  which specifies that timestamps
+are relative to the previous displayed packet.</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">e</span></dt><dd>Epoch, which specifies that timestamps
+are seconds since epoch (Jan 1, 1970 00:00:00)</dd><dt><span class="term">u</span></dt><dd>Absolute, which specifies that actual times
+be displayed for all packets in UTC.</dd><dt><span class="term">ud</span></dt><dd>Absolute with date, which specifies that
+actual dates and times be displayed for all packets in UTC.</dd><dt><span class="term">udoy</span></dt><dd>Absolute with YYYY/DOY date, which specifies that
+actual dates and times be displayed for all packets in UTC.</dd></dl></div></dd><dt><span class="term">-u &lt;s | hms&gt;</span></dt><dd>Show timesamps as seconds (“s”, the default) or hours, minutes, and seconds (“hms”)</dd><dt><span class="term">-v, </span><span class="term">--version</span></dt><dd>This option requests Wireshark to print out its version information and
+exit.</dd><dt><span class="term">-w &lt;savefile&gt;</span></dt><dd>This option sets the name of the file to be used to save captured packets.
+This can be '-' for stdout.</dd><dt><span class="term">-y &lt;capture link type&gt;, </span><span class="term">--link-type &lt;capture like types&gt;</span></dt><dd>If a capture is started from the command line with <code class="literal">-k</code>, set the data
+link type to use while capturing packets. The values reported by <code class="literal">-L</code>
+are the values that can be used.</dd><dt><span class="term">--time-stamp-type &lt;type&gt;</span></dt><dd>If a capture is started from the command line with <code class="literal">-k</code>, set the time
+stamp type to use while capturing packets. The values reported by
+<code class="literal">--list-time-stamp-types</code> are the values that can be used.</dd><dt><span class="term">-X &lt;eXtension option&gt;</span></dt><dd><p class="simpara">Specify an option to be passed to a Wireshark/TShark module. The eXtension
+option is in the form extension_key:value, where extension_key can be:</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">lua_script:&lt;lua_script_filename&gt;</span></dt><dd>Tells Wireshark to load the given script in addition to the default Lua scripts.</dd><dt><span class="term">lua_script[num]:argument</span></dt><dd>Tells Wireshark to pass the given argument to the Lua script identified by
+<span class="emphasis"><em>num</em></span>, which is the number indexed order of the <span class="emphasis"><em>lua_script</em></span> command. For
+example, if only one script was loaded with <code class="literal">-X lua_script:my.lua</code>, then <code class="literal">-X
+lua_script1:foo</code> will pass the string <span class="emphasis"><em>foo</em></span> to the <span class="emphasis"><em>my.lua</em></span> script. If two
+scripts were loaded, such as <code class="literal">-X lua_script:my.lua -X lua_script:other.lua</code>
+in that order, then a <code class="literal">-X lua_script2:bar</code> would pass the
+string <span class="emphasis"><em>bar</em></span> to the second Lua script, ie., <span class="emphasis"><em>other.lua</em></span>.</dd><dt><span class="term">read_format:&lt;file_type&gt;</span></dt><dd>Tells Wireshark to use a specific input file type, instead of determining it
+automatically.</dd><dt><span class="term">stdin_descr:&lt;description&gt;</span></dt><dd>Define a description for the standard input interface, instead of the default:
+"Standard input".</dd></dl></div></dd><dt><span class="term">-Y &lt;display filter&gt;, </span><span class="term">--display-filter &lt;display filter&gt;</span></dt><dd>Start with the given display filter.</dd><dt><span class="term">-z &lt;statistics-string&gt;</span></dt><dd>Get Wireshark to collect various types of statistics and display the
+result in a window that updates in semi-real time. For the currently
+implemented statistics consult the Wireshark manual page.</dd></dl></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChapterCustomize.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChapterCustomize.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChCustColorizationSection.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 11. Customizing Wireshark </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 11.3. Packet colorization</td></tr></table></div></body></html>

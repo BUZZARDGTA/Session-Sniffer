@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.23">
+<title>falcodump(1)</title>
+<link rel="stylesheet" href="./ws.css">
+</head>
+<body class="manpage">
+<div id="header">
+<h1>falcodump(1) Manual Page</h1>
+<h2 id="_name">NAME</h2>
+<div class="sectionbody">
+<p>falcodump - Dump log data to a file using a Falco source plugin.</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<div class="title">Common options</div>
+<p><span class="nowrap"><strong>falcodump</strong></span>
+<span class="nowrap">[ <strong>--help</strong> ]</span>
+<span class="nowrap">[ <strong>--version</strong> ]</span>
+<span class="nowrap">[ <strong>--plugin-api-version</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-interfaces</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-dlts</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-interface</strong>=&lt;interface&gt; ]</span>
+<span class="nowrap">[ <strong>--extcap-config</strong> ]</span>
+<span class="nowrap">[ <strong>--extcap-capture-filter</strong>=&lt;capture filter&gt; ]</span>
+<span class="nowrap">[ <strong>--capture</strong> ]</span>
+<span class="nowrap">[ <strong>--fifo</strong>=&lt;path to file or pipe&gt; ]</span>
+<span class="nowrap">[ <strong>--plugin-source</strong>=&lt;source path or URL&gt; ]</span>
+<span class="nowrap">[ <strong>--log-level</strong>=&lt;log level&gt; ]</span>
+<span class="nowrap">[ <strong>--log-file</strong>=&lt;path to file&gt; ]</span></p>
+</div>
+<div class="paragraph">
+<div class="title">System call options</div>
+<p><span class="nowrap">[ *--include-capture-processes=&lt;TRUE or FALSE&gt; ]</span>
+<span class="nowrap">[ *--include-switch-calls=&lt;TRUE or FALSE&gt; ]</span></p>
+</div>
+<div class="paragraph">
+<div class="title">CloudTrail plugin options</div>
+<p><span class="nowrap">[ <strong>--cloudtrail-s3downloadconcurrency</strong>=&lt;number of concurrent downloads&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-s3interval</strong>=&lt;timeframe&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-s3accountlist</strong>=&lt;comma separated account IDs&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-sqsdelete</strong>=&lt;true or false&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-useasync</strong>=&lt;true or false&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-uses3sns</strong>=&lt;true or false&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-aws-region</strong>=&lt;AWS region&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-aws-profile</strong>=&lt;AWS profile&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-aws-config</strong>=&lt;path&gt; ]</span>
+<span class="nowrap">[ <strong>--cloudtrail-aws-credentials</strong>=&lt;path to file&gt; ]</span></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>falcodump</strong> is an extcap tool that allows one to capture log messages from cloud providers.</p>
+</div>
+<div class="paragraph">
+<p>Each plugin is listed as a separate interface.
+For example, the AWS CloudTrail plugin is listed as “cloudtrail”.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_options">OPTIONS</h2>
+<div class="sectionbody">
+<div class="dlist">
+<dl>
+<dt class="hdlist1">--help</dt>
+<dd>
+<p>Print program arguments.
+This will also list the configuration arguments for each plugin.</p>
+</dd>
+<dt class="hdlist1">--version</dt>
+<dd>
+<p>Print the program version.</p>
+</dd>
+<dt class="hdlist1">--plugin-api-version</dt>
+<dd>
+<p>Print the Falco plugin API version.</p>
+</dd>
+<dt class="hdlist1">--extcap-interfaces</dt>
+<dd>
+<p>List the available interfaces.</p>
+</dd>
+<dt class="hdlist1">--extcap-interface=&lt;interface&gt;</dt>
+<dd>
+<p>Use the specified interface.</p>
+</dd>
+<dt class="hdlist1">--extcap-dlts</dt>
+<dd>
+<p>List the DLTs of the specified interface.</p>
+</dd>
+<dt class="hdlist1">--extcap-config</dt>
+<dd>
+<p>List the configuration options of specified interface.</p>
+</dd>
+<dt class="hdlist1">--extcap-capture-filter=&lt;capture filter&gt;</dt>
+<dd>
+<p>The capture filter.
+Must be a valid Sysdig / Falco filter.</p>
+</dd>
+<dt class="hdlist1">--capture</dt>
+<dd>
+<p>Start capturing from the source specified by --plugin-source via the specified interface and write raw packet data to the location specified by --fifo.</p>
+</dd>
+<dt class="hdlist1">--fifo=&lt;path to file or pipe&gt;</dt>
+<dd>
+<p>Save captured packet to file or send it through pipe.</p>
+</dd>
+<dt class="hdlist1">--plugin-source=&lt;source path or URL&gt;</dt>
+<dd>
+<p>Capture from the specified location.</p>
+</dd>
+<dt class="hdlist1">--log-level</dt>
+<dd>
+<p>Set the log level</p>
+</dd>
+<dt class="hdlist1">--log-file</dt>
+<dd>
+<p>Set a log file to log messages in addition to the console</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_system_call_options">SYSTEM CALL OPTIONS</h2>
+<div class="sectionbody">
+<div class="dlist">
+<dl>
+<dt class="hdlist1">--include-capture-processes</dt>
+<dd>
+<p>Include system calls for capture processes (falcodump, dumpcap, and Stratoshark) if TRUE.
+Defaults to FALSE.</p>
+</dd>
+<dt class="hdlist1">--include-switch-calls</dt>
+<dd>
+<p>Include "switch" calls if TRUE.
+Defaults to FALSE.</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_plugins">PLUGINS</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_cloudtrail_aws_cloudtrail">cloudtrail (AWS CloudTrail)</h3>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">--cloudtrail-s3downloadconcurrency</dt>
+<dd>
+<p>Controls the number of background goroutines used to download S3 files (Default: 32)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-s3interval</dt>
+<dd>
+<p>Download log files over the specified interval (Default: no interval)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-s3accountlist</dt>
+<dd>
+<p>If source is an organization CloudTrail S3 bucket download log files for all specified account IDs (Default: no account IDs)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-sqsdelete</dt>
+<dd>
+<p>If true then the plugin will delete SQS messages from the queue immediately after receiving them (Default: true)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-useasync</dt>
+<dd>
+<p>If true then async extraction optimization is enabled (Default: true)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-uses3sns</dt>
+<dd>
+<p>If true then the plugin will expect SNS messages to originate from S3 instead of directly from Cloudtrail (Default: false)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-aws-profile</dt>
+<dd>
+<p>If non-empty overrides the AWS shared configuration profile (e.g. 'default') and environment variables such as AWS_PROFILE (Default: empty)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-aws-region</dt>
+<dd>
+<p>If non-empty overrides the AWS region specified in the profile (e.g. 'us-east-1') and environment variables such as AWS_REGION (Default: empty)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-aws-config</dt>
+<dd>
+<p>If non-empty overrides the AWS shared configuration filepath (e.g. ~/.aws/config) and env variables such as AWS_CONFIG_FILE (Default: empty)</p>
+</dd>
+<dt class="hdlist1">--cloudtrail-aws-credentials</dt>
+<dd>
+<p>If non-empty overrides the AWS shared credentials filepath (e.g. ~/.aws/credentials) and env variables such as AWS_SHARED_CREDENTIALS_FILE (Default: empty)</p>
+</dd>
+</dl>
+</div>
+<div class="paragraph">
+<p>CloudTrail sources can be S3 buckets or SQS queue URLs. S3 bucket URLs have the form</p>
+</div>
+<div class="paragraph">
+<p>'s3://<em>bucket_name</em>/<em>prefix</em>/AWSLogs/<em>account-id</em>/CloudTrail/<em>region</em>/<em>year</em>/<em>month</em>/<em>day</em>'</p>
+</div>
+<div class="paragraph">
+<p>For organization CloudTrail the S3 bucket URL can be</p>
+</div>
+<div class="paragraph">
+<p>'s3://<em>bucket_name</em>/<em>prefix</em>/AWSLogs/<em>org-id</em>/<em>account-id</em>/CloudTrail/<em>region</em>/<em>year</em>/<em>month</em>/<em>day</em>'</p>
+</div>
+<div class="paragraph">
+<p>The <em>region</em>, <em>year</em>, <em>month</em>, and <em>day</em> components can be omitted in order to fetch more or less data.
+For example, the source 's3://mybucket/AWSLogs/012345678/CloudTrail/us-west-2/2023' will fetch all CloudWatch logs for the year 2023.</p>
+</div>
+<div class="paragraph">
+<p>If the URL ends with '<em>account-id</em>/' or '<em>account-id</em>/CloudTrail/' (for example 's3://mybucket/AWSLOGS/012345678912/') the option '--cloudtrail-s3interval' can be used to define the time frame. A s3interval of '1d' for example would get all events of the last 24 hours from all available regions. A s3interval of '2w-1w' would get all events from all regions from two weeks ago up to one week ago. The s3invterval can also be defined as a RFC 3339-style timestamp like '2024-02-29T18:07:17Z' or '2024-02-29T00:00:00Z-2024-03-01T23:59:59Z'.</p>
+</div>
+<div class="paragraph">
+<p>If the URL ends with 'AWSLogs/<em>org-id</em>' option '--cloudtrail-s3accountlist' can be used to specify account IDs. This can be combined with '--cloudtrail-s3interval'. A source like 's3://my-org-bucket/AWSLogs/o-123abc/' with '--cloudstrail-s3accountlist' set to '123456789012,987654321098' and '--cloudtrail-s3interval' set to '30m' would get all events of the last 30min from all regions for accounts 123456789012 and 987654321098.</p>
+</div>
+<div class="paragraph">
+<p>If source URL is the organization CloudTrail bucket (like 's3://my-org-bucket/AWSLogs/o-123abc') and '--s3accountlist' is not set the plugin iterates over all accounts (limited by '--s3interval' if set). Attention: Depending on the size of the organization and the time interval, this can take a long time.</p>
+</div>
+<div class="paragraph">
+<p>The cloudtrail plugin uses the AWS SDK for Go, which can obtain profile, region, and credential settings from a set of standard <a href="https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/">environment variables and configuration files</a>.
+Falcodump will show a list of locally configured profiles and the current regions, and will let you supply a custom value as well.</p>
+</div>
+<div class="paragraph">
+<p>More information is available in the <a href="https://github.com/falcosecurity/plugins/blob/master/plugins/cloudtrail/README.md">README</a> of the CloudTrail plugin.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_examples">EXAMPLES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To see program arguments:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --help</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see program version:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --version</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interfaces:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --extcap-interfaces</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Only one interface (falcodump) is supported.</p>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>interface {value=cloudtrail}{display=Falco plugin}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interface DLTs:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --extcap-interface=cloudtrail --extcap-dlts</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>dlt {number=147}{name=cloudtrail}{display=USER0}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To see interface configuration options:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --extcap-interface=cloudtrail --extcap-config</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="title">Example output</div>
+<div class="content">
+<pre>arg {number=0}{call=--plugin-source}{display=Plugin source}{type=string}{tooltip=The plugin data source. This us usually a URL.}{placeholder=Enter a source URL…}{required=true}{group=Capture}
+arg {number=1}{call=cloudtrail-s3downloadconcurrency}{display=s3DownloadConcurrency}{type=integer}{default=1}{tooltip=Controls the number of background goroutines used to download S3 files (Default: 1)}{group=Capture}
+arg {number=2}{call=cloudtrail-sqsdelete}{display=sqsDelete}{type=boolean}{default=true}{tooltip=If true then the plugin will delete sqs messages from the queue immediately after receiving them (Default: true)}{group=Capture}
+arg {number=3}{call=cloudtrail-useasync}{display=useAsync}{type=boolean}{default=true}{tooltip=If true then async extraction optimization is enabled (Default: true)}{group=Capture}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To capture AWS CloudTrail events from an S3 bucket:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --extcap-interface=cloudtrail --fifo=/tmp/cloudtrail.pcap --plugin-source=s3://aws-cloudtrail-logs.../CloudTrail/us-east-2/... --capture</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>falcodump --capture --extcap-interface cloudtrail --fifo ~/cloudtrail.pcap --plugin-source s3://my-cloudtrail-bucket/AWSLogs/o-abc12345/123456789012/ --cloudtrail-s3downloadconcurrency 32 --cloudtrail-s3interval 5d-2d --cloudtrail-aws-region eu-west-1</pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<span class="keyseq"><kbd>CTRL</kbd>+<kbd>C</kbd></span> should be used to stop the capture in order to ensure clean termination.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see_also">SEE ALSO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="stratoshark.html">stratoshark</a>(1), <a href="strato.html">strato</a>(1), <a href="dumpcap.html">dumpcap</a>(1), <a href="extcap.html">extcap</a>(4)</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_notes">NOTES</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>falcodump</strong> is part of the <strong>Stratoshark</strong> distribution.
+The latest version of <strong>Stratoshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
+</div>
+<div class="paragraph">
+<p>HTML versions of the Wireshark project man pages are available at
+<a href="https://www.wireshark.org/docs/man-pages" class="bare">https://www.wireshark.org/docs/man-pages</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_authors">AUTHORS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<div class="title">Original Author</div>
+<p>Gerald Combs &lt;gerald[AT]wireshark.org&gt;</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

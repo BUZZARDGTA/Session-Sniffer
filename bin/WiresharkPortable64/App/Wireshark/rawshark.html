@@ -83,7 +83,7 @@ file on disk.</p>
 <div class="paragraph">
 <p>If <strong>-p</strong> is supplied <strong>rawshark</strong> expects the following format.  This
 matches the <em>struct pcap_pkthdr</em> structure and packet data used in
-libpcap, Npcap, or WinPcap.  This structure&#8217;s format is platform-dependent; the
+libpcap or Npcap.  This structure&#8217;s format is platform-dependent; the
 size of the <em>tv_sec</em> field in the <em>struct timeval</em> structure could be
 32 bits or 64 bits.  For <strong>rawshark</strong> to work, the layout of the
 structure in the input must match the layout of the structure in
@@ -162,14 +162,14 @@ form <em>type:value</em>, where <em>type</em> is one of:</p>
 </div>
 <div class="paragraph">
 <p><strong>encap</strong>:<em>name</em> Packet data should be dissected using the
-libpcap/Npcap/WinPcap data link type (DLT) <em>name</em>, e.g. <strong>encap:EN10MB</strong> for
+libpcap/Npcap data link type (DLT) <em>name</em>, e.g. <strong>encap:EN10MB</strong> for
 Ethernet.  Names are converted using pcap_datalink_name_to_val().
 A complete list of DLTs can be found at
 <a href="https://www.tcpdump.org/linktypes.html" class="bare">https://www.tcpdump.org/linktypes.html</a>.</p>
 </div>
 <div class="paragraph">
 <p><strong>encap</strong>:<em>number</em> Packet data should be dissected using the
-libpcap/Npcap/WinPcap LINKTYPE_ <em>number</em>, e.g. <strong>encap:105</strong> for raw IEEE
+libpcap/Npcap LINKTYPE_ <em>number</em>, e.g. <strong>encap:105</strong> for raw IEEE
 802.11 or <strong>encap:101</strong> for raw IP.</p>
 </div>
 <div class="paragraph">
@@ -270,13 +270,14 @@ the C runtime might trigger an exception.</p>
 </div>
 </div>
 </dd>
-<dt class="hdlist1">-R  &lt;read (display) filter&gt;</dt>
+<dt class="hdlist1">-R|--read-filter &lt;read (display) filter&gt;</dt>
 <dd>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
 <p>Cause the specified filter (which uses the syntax of read/display filters,
-rather than that of capture filters) to be applied before printing the output.</p>
+rather than that of capture filters) to be applied before printing the output.
+Read filters and display filters are synonymous in <strong>rawshark</strong>.</p>
 </div>
 </div>
 </div>
@@ -313,6 +314,18 @@ could use <strong>%D: %S (%N)</strong>.</p>
 <dt class="hdlist1">-v|--version</dt>
 <dd>
 <p>Print the full version information and exit.</p>
+</dd>
+<dt class="hdlist1">-Y|--display-filter &lt;read (display) filter&gt;</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>Cause the specified filter (which uses the syntax of read/display filters,
+rather than that of capture filters) to be applied before printing the output.
+Read filters and display filters are synonymous in <strong>rawshark</strong>.</p>
+</div>
+</div>
+</div>
 </dd>
 </dl>
 </div>
@@ -414,6 +427,10 @@ MaxMind databases</p>
 resolution; no effect without <strong>n</strong> also enabled.</p>
 </div>
 <div class="paragraph">
+<p><strong>s</strong> to enable address resolution using SNI information found in captured
+handshake packets</p>
+</div>
+<div class="paragraph">
 <p><strong>t</strong> to enable transport-layer port number resolution</p>
 </div>
 <div class="paragraph">
@@ -464,17 +481,18 @@ previous displayed packet was captured</p>
 and the current packet</p>
 </div>
 <div class="paragraph">
-<p><strong>u</strong> UTC: The absolute time, as UTC, is the actual time the packet was
-captured, with no date displayed</p>
+<p><strong>u</strong> UTC: The absolute time, as UTC with a "Z" suffix, is the actual time
+the packet was captured, with no date displayed</p>
 </div>
 <div class="paragraph">
 <p><strong>ud</strong> UTC with date: The absolute date, displayed as YYYY-MM-DD,
-and time, as UTC, is the actual time and date the packet was captured</p>
+and time, as UTC with a "Z" suffix, is the actual time and date the packet
+was captured</p>
 </div>
 <div class="paragraph">
 <p><strong>udoy</strong> UTC with date using day of year: The absolute date, displayed
-as YYYY/DOY, and time, as UTC, is the actual time and date the packet
-was captured</p>
+as YYYY/DOY, and time, as UTC with a "Z" suffix, is the actual time and date
+the packet was captured</p>
 </div>
 <div class="paragraph">
 <p><strong>.[N]</strong> Set the precision: N is the number of decimals (0 through 9).
@@ -564,7 +582,7 @@ List of domains must be comma-separated.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>For a complete table of protocol and protocol fields that are filterable
-in <strong>TShark</strong> see the <a href="wireshark-filter.html">wireshark-filter</a>(4) manual page.</p>
+in <strong>Rawshark</strong> see the <a href="wireshark-filter.html">wireshark-filter</a>(4) manual page.</p>
 </div>
 </div>
 </div>
@@ -572,7 +590,7 @@ in <strong>TShark</strong> see the <a href="wireshark-filter.html">wireshark-fil
 <h2 id="_files">FILES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>These files contains various <strong>Wireshark</strong> configuration values.</p>
+<p>These files contain various <strong>Wireshark</strong> configuration settings.</p>
 </div>
 <div class="dlist">
 <dl>
@@ -582,10 +600,10 @@ in <strong>TShark</strong> see the <a href="wireshark-filter.html">wireshark-fil
 <div class="content">
 <div class="paragraph">
 <p>The <em>preferences</em> files contain global (system-wide) and personal
-preference settings. If the system-wide preference file exists, it is
-read first, overriding the default settings. If the personal preferences
-file exists, it is read next, overriding any previous values. Note: If
-the command line option <strong>-o</strong> is used (possibly more than once), it will
+preference settings.  If the system-wide preference file exists, it is
+read first, overriding the default settings.  If the personal preferences
+file exists, it is read next, overriding any previous values.  Note: If
+the command line flag <strong>-o</strong> is used (possibly more than once), it will
 in turn override values from the preferences files.</p>
 </div>
 <div class="paragraph">
@@ -600,9 +618,9 @@ starts a comment that runs to the end of the line:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre># Capture in promiscuous mode?
+<pre># Vertical scrollbars should be on right side?
 # TRUE or FALSE (case-insensitive).
-capture.prom_mode: TRUE</pre>
+gui.scrollbar_on_right: TRUE</pre>
 </div>
 </div>
 <div class="paragraph">
@@ -647,11 +665,52 @@ tcp     # a comment</pre>
 </div>
 </div>
 <div class="paragraph">
+<p>If a protocol is listed in the global <em>disabled_protos</em> file it cannot
+be enabled by the user.</p>
+</div>
+<div class="paragraph">
 <p>The global <em>disabled_protos</em> file uses the same directory as the global
 preferences file.</p>
 </div>
 <div class="paragraph">
 <p>The personal <em>disabled_protos</em> file uses the same directory as the
+personal preferences file.</p>
+</div>
+<div class="paragraph">
+<p>The <em>disabled_protos</em> files list only protocols that are enabled by default
+but have been disabled; protocols that are disabled by default (such as some
+postdissectors) are not listed. There are analogous <em>enabled_protos</em> files
+for protocols that are disabled by default but have been enabled.</p>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">Heuristic Dissectors</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The <em>heuristic_protos</em> files contain system-wide and personal lists of
+heuristic dissectors and indicate whether they are enabled or disabled.
+The files contain heuristic dissector unique short names, one per line,
+followed by a comma and 0 for disabled and 1 for enabled:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>quic,1
+rtcp_stun,1
+rtcp_udp,1
+rtp_stun,0
+rtp_udp,0
+tls_tcp,1</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The global <em>heuristic_protos</em> file uses the same directory as the global
+preferences file.</p>
+</div>
+<div class="paragraph">
+<p>The personal <em>heuristic_protos</em> file uses the same directory as the
 personal preferences file.</p>
 </div>
 </div>
@@ -662,17 +721,17 @@ personal preferences file.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>If the personal <em>hosts</em> file exists, it is
-used to resolve IPv4 and IPv6 addresses before any other
-attempts are made to resolve them.  The file has the standard <em>hosts</em>
-file syntax; each line contains one IP address and name, separated by
-whitespace. The same directory as for the personal preferences file is
-used.</p>
+<p>Entries in <em>hosts</em> files in the global and personal preferences
+directory are used to resolve IPv4 and IPv6 addresses before any
+other attempts are made to resolve them.
+The file has the standard <em>hosts</em> file syntax; each line contains one
+IP address and name, separated by whitespace. The personal <em>hosts</em>
+file, if present, overrides the one in the global directory.</p>
 </div>
 <div class="paragraph">
 <p>Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems, such as Linux, macOS, \*BSD, Solaris, and AIX, and by Npcap or
-WinPcap on Windows.  As such the Wireshark personal <em>hosts</em> file will
+systems, such as Linux, macOS, \*BSD, Solaris, and AIX, and Npcap
+on Windows.  As such the Wireshark personal <em>hosts</em> file will
 not be consulted for capture filter name resolution.</p>
 </div>
 </div>
@@ -684,7 +743,9 @@ not be consulted for capture filter name resolution.</p>
 <div class="content">
 <div class="paragraph">
 <p>If an IPv4 address cannot be translated via name resolution (no exact
-match is found) then a partial match is attempted via the <em>subnets</em> file.</p>
+match is found) then a partial match is attempted via the <em>subnets</em> file.
+Both the global <em>subnets</em> file and personal <em>subnets</em> files are used
+if they exist.</p>
 </div>
 <div class="paragraph">
 <p>Each line of this file consists of an IPv4 address, a subnet mask length
@@ -703,7 +764,7 @@ ignored.</p>
 <p>A partially matched name will be printed as "subnet-name.remaining-address".
 For example, "192.168.0.1" under the subnet above would be printed as
 "ws_test_network.1"; if the mask length above had been 16 rather than 24, the
-printed address would be ``ws_test_network.0.1".</p>
+printed address would be "ws_test_network.0.1".</p>
 </div>
 </div>
 </div>
@@ -713,23 +774,31 @@ printed address would be ``ws_test_network.0.1".</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>The <em>ethers</em> files are consulted to correlate 6-byte hardware addresses to
-names. First the personal <em>ethers</em> file is tried and if an address is not
-found there the global <em>ethers</em> file is tried next.</p>
+<p>The <em>ethers</em> files are consulted to correlate 6-byte EUI-48 and 8-byte EUI-64
+hardware addresses to names.  First the personal <em>ethers</em> file is tried and
+if an address is not found there the global <em>ethers</em> file is tried next.</p>
 </div>
 <div class="paragraph">
-<p>Each line contains one hardware address and name, separated by
-whitespace.  The digits of the hardware address are separated by colons
-(:), dashes (-) or periods (.).  The same separator character must be
-used consistently in an address. The following three lines are valid
-lines of an <em>ethers</em> file:</p>
+<p>The file has a similar format to that defined by ethers(5) on some UNIX-like
+systems.  Each line contains one hardware address and name, separated by
+whitespace (tabs or spaces).  The hexadecimal digits of the hardware address
+are separated by colons (:), dashes (-) or periods (.).  The same separator
+character must be used consistently in an address.  A <code>#</code> indicates a comment
+that extends to the rest of the line. Both 6-byte MAC and 8-byte EUI-64
+addresses are supported.  The following four lines are valid lines of an
+<em>ethers</em> file:</p>
 </div>
 <div class="literalblock">
 <div class="content">
 <pre>ff:ff:ff:ff:ff:ff          Broadcast
 c0-00-ff-ff-ff-ff          TR_broadcast
-00.00.00.00.00.00          Zero_broadcast</pre>
+00.00.00.00.00.00          Zero_broadcast
+00:00:00:00:00:00:00:00    EUI64_zero_broadcast</pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Note that this accepts a greater variety of formats than the file
+defined by ethers(5) on most UN*X systems.</p>
 </div>
 <div class="paragraph">
 <p>The global <em>ethers</em> file is looked for in the <em>/etc</em> directory on
@@ -743,8 +812,9 @@ preferences file.</p>
 </div>
 <div class="paragraph">
 <p>Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and Npcap or WinPcap on Windows.  As such the Wireshark personal
-<em>ethers</em> file will not be consulted for capture filter name resolution.</p>
+systems and Npcap on Windows.  As such the Wireshark personal
+<em>ethers</em> file will not be consulted for capture filter name
+resolution.</p>
 </div>
 </div>
 </div>
@@ -757,16 +827,16 @@ systems and Npcap or WinPcap on Windows.  As such the Wireshark personal
 <p>The <em>manuf</em> file is used to match the 3-byte vendor portion of a 6-byte
 hardware address with the manufacturer&#8217;s name; it can also contain well-known
 MAC addresses and address ranges specified with a netmask.  The format of the
-file is the same as the <em>ethers</em> files, except that entries of the form:</p>
+file is similar the <em>ethers</em> files, except that entries such as:</p>
 </div>
 <div class="literalblock">
 <div class="content">
-<pre>00:00:0C      Cisco</pre>
+<pre>00:00:0C      Cisco     Cisco Systems, Inc</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>can be provided, with the 3-byte OUI and the name for a vendor, and
-entries such as:</p>
+<p>can be provided, with the 3-byte OUI and both an abbreviated and long name for
+a vendor, and entries such as:</p>
 </div>
 <div class="literalblock">
 <div class="content">
@@ -775,14 +845,28 @@ entries such as:</p>
 </div>
 <div class="paragraph">
 <p>can be specified, with a MAC address and a mask indicating how many bits
-of the address must match. The above entry, for example, has 40
+of the address must match.  The above entry, for example, has 40
 significant bits, or 5 bytes, and would match addresses from
-00-00-0C-07-AC-00 through 00-00-0C-07-AC-FF. The mask need not be a
+00-00-0C-07-AC-00 through 00-00-0C-07-AC-FF.  The mask need not be a
 multiple of 8.</p>
 </div>
 <div class="paragraph">
-<p>The <em>manuf</em> file is looked for in the same directory as the global
-preferences file.</p>
+<p>A global <em>manuf</em> file is looked for in the same directory as the global
+preferences file, and a personal <em>manuf</em> file is looked for in the same
+directory as the personal preferences file.</p>
+</div>
+<div class="paragraph">
+<p>In earlier versions of Wireshark, official information from the IEEE
+Registration Authority was distributed in this format as the global
+<em>manuf</em> file. This information is now compiled in to speed program
+startup, but the internal information can be written out in this format
+with <strong>tshark -G manuf</strong>.</p>
+</div>
+<div class="paragraph">
+<p>In addition to the <em>manuf</em> file, another file with the same format,
+<em>wka</em>, is looked for in the global directory. This file is distributed
+with Wireshark, and contains data about well-known MAC adddresses and
+address ranges assembled from various non IEEE but respected sources.</p>
 </div>
 </div>
 </div>
@@ -792,7 +876,9 @@ preferences file.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>The <em>services</em> file is used to translate port numbers into names.</p>
+<p>The <em>services</em> file is used to translate port numbers into names.
+Both the global <em>services</em> file and personal <em>services</em> files are used
+if they exist.</p>
 </div>
 <div class="paragraph">
 <p>The file has the standard <em>services</em> file syntax; each line contains one
@@ -803,11 +889,15 @@ transport identifier includes one port number and one transport protocol name
 <div class="paragraph">
 <p>An example is:</p>
 </div>
-<div class="literalblock">
-<div class="content">
-<pre>mydns       5045/udp     # My own Domain Name Server
-mydns       5045/tcp     # My own Domain Name Server</pre>
+<div class="paragraph">
+<p>mydns       5045/udp     # My own Domain Name Server
+mydns       5045/tcp     # My own Domain Name Server</p>
 </div>
+<div class="paragraph">
+<p>In earlier versions of Wireshark, official information from the IANA
+Registry was distributed in this format as the global <em>services</em> file.
+This information is now compiled in to speed program startup, but the
+internal information can be written out in this format with <strong>tshark -G services</strong>.</p>
 </div>
 </div>
 </div>
@@ -818,7 +908,7 @@ mydns       5045/tcp     # My own Domain Name Server</pre>
 <div class="content">
 <div class="paragraph">
 <p>The <em>ipxnets</em> files are used to correlate 4-byte IPX network numbers to
-names. First the global <em>ipxnets</em> file is tried and if that address is not
+names.  First the global <em>ipxnets</em> file is tried and if that address is not
 found there the personal one is tried next.</p>
 </div>
 <div class="paragraph">
@@ -845,6 +935,141 @@ Files\Wireshark</em>) on Windows systems.</p>
 <div class="paragraph">
 <p>The personal <em>ipxnets</em> file is looked for in the same directory as the
 personal preferences file.</p>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">Name Resolution (ss7pcs)</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The <em>ss7pcs</em> file is used to translate SS7 point codes to names.
+It is read from the personal configuration directory.</p>
+</div>
+<div class="paragraph">
+<p>Each line in this file consists of one network indicator followed by a dash
+followed by a point code in decimal and a node name separated by whitespace.
+An example is:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>2-1234 MyPointCode1</pre>
+</div>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">Name Resolution (vlans)</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The <em>vlans</em> file is used to translate VLAN tag IDs into names.
+It is read from the personal configuration directory.</p>
+</div>
+<div class="paragraph">
+<p>Each line in this file consists of one VLAN tag ID separated by whitespace
+from a name.  An example is:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>123    Server-Lan
+2049   HR-Client-LAN</pre>
+</div>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">Color Filters (Coloring Rules)</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The <em>colorfilters</em> files contain system-wide and personal color filters.
+Each line contains one filter, starting with the string displayed in the
+dialog box, followed by the corresponding display filter.  Then the
+background and foreground colors are appended:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre># a comment
+@tcp@tcp@[59345,58980,65534][0,0,0]
+@udp@udp@[28834,57427,65533][0,0,0]</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The global <em>colorfilters</em> file uses the same directory as the
+global preferences file.</p>
+</div>
+<div class="paragraph">
+<p>The personal <em>colorfilters</em> file uses the same directory as the
+personal preferences file.  It is written through the View:Coloring Rules
+dialog.</p>
+</div>
+<div class="paragraph">
+<p>If the global <em>colorfilters</em> file exists, it is used only if the personal
+<em>colorfilters</em> file does not exist; global and personal color filters are
+not merged.</p>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">Plugins</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>Wireshark looks for plugins in both a personal plugin folder and a
+global plugin folder.</p>
+</div>
+<div class="paragraph">
+<p>On UNIX-compatible systems, such as Linux, macOS, \*BSD, Solaris, and
+AIX, the global plugin directory is <em>lib/wireshark/plugins/</em> (on
+some systems substitute <em>lib64</em> for <em>lib</em>) under the main installation
+directory (for example, <em>/usr/local/lib/wireshark/plugins/</em>). The personal
+plugin directory is <em>$HOME/.local/lib/wireshark/plugins</em>.</p>
+</div>
+<div class="paragraph">
+<p>On macOS, if Wireshark is installed as an application bundle, the global plugin
+folder is instead <em>%APPDIR%/Contents/PlugIns/wireshark</em>.</p>
+</div>
+<div class="paragraph">
+<p>On Windows, the global plugin folder is <em>plugins/</em> under the main
+installation directory (for example, <em>C:\Program Files\Wireshark\plugins\</em>).
+The personal plugin folder is <em>%APPDATA%\Wireshark\plugins</em> (or, if
+%APPDATA% isn&#8217;t defined, <em>%USERPROFILE%\Application Data\Wireshark\plugins</em>).</p>
+</div>
+<div class="paragraph">
+<p>Lua plugins are stored in the plugin folders;
+compiled plugins are stored in subfolders of the plugin folders, with
+the subfolder name being the Wireshark minor version number (X.Y). There is
+another hierarchical level for each Wireshark plugin type (libwireshark,
+libwiretap and codecs).  For example, the location for a libwireshark plugin
+<em>foo.so</em> (<em>foo.dll</em> on Windows) would be <em>PLUGINDIR/X.Y/epan</em>
+(libwireshark used to be called libepan; the other folder names are <em>codecs</em>
+and <em>wiretap</em>).</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+On UNIX-compatible systems, Lua plugins (but not binary plugins) may also
+be placed in <em>$XDG_CONFIG_HOME/wireshark/plugins</em>,
+(or, if <em>$XDG_CONFIG_HOME/wireshark</em> does not exist while <em>$HOME/.wireshark</em>
+does exist, <em>$HOME/.wireshark/plugins</em>.)
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Note that a dissector plugin module may support more than one protocol;
+there is not necessarily a one-to-one correspondence between dissector plugin
+modules and protocols.  Protocols supported by a dissector plugin module are
+enabled and disabled in the same way as protocols built into Wireshark.</p>
 </div>
 </div>
 </div>
@@ -995,7 +1220,7 @@ troubleshoot a problem with a protocol dissector.</p>
 <h2 id="_notes">NOTES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the manual page for <strong>Rawshark</strong> 4.2.12.
+<p>This is the manual page for <strong>Rawshark</strong> 4.6.1.
 <strong>Rawshark</strong> is part of the <strong>Wireshark</strong> distribution.
 The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
 </div>

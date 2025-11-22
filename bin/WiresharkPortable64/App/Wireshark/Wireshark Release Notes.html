@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.23">
+<title>Wireshark 4.6.1 Release Notes</title>
+<link rel="stylesheet" href="./ws.css">
+</head>
+<body class="article">
+<div id="header">
+<h1>Wireshark 4.6.1 Release Notes</h1>
+</div>
+<div id="content">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is the first release of the 4.6 branch.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_what_is_wireshark">What is Wireshark?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Wireshark is the world’s most popular network protocol analyzer.
+It is used for troubleshooting, analysis, development and education.</p>
+</div>
+<div class="paragraph">
+<p>Wireshark is hosted by the Wireshark Foundation, a nonprofit which promotes protocol analysis education.
+Wireshark and the foundation depend on your contributions in order to do their work.
+If you or your organization would like to contribute or become a sponsor, please visit <a href="https://wiresharkfoundation.org">wiresharkfoundation.org</a>.</p>
+</div>
+<div class="paragraph">
+<p>If you use Wireshark professionally or you just want to learn more about protocol analysis, you should join us at <a href="https://sharkfest.wireshark.org/">SharkFest</a>, the Wireshark developer and user conference.</p>
+</div>
+<div class="paragraph">
+<p>You can also become a Wireshark Certified Analyst! Official Wireshark training and certification are available from
+<a href="https://www.wireshark.org/certifications">the Wireshark Foundation</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_whats_new">What’s New</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_bug_fixes">Bug Fixes</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.wireshark.org/security/wnpa-sec-2025-05">wnpa-sec-2025-05</a> <!-- notable -->
+BPv7 dissector crash.
+<a href="https://gitlab.com/wireshark/wireshark/-/issues/20770">Issue 20770</a>.</p>
+</li>
+<li>
+<p><a href="https://www.wireshark.org/security/wnpa-sec-2025-06">wnpa-sec-2025-06</a> <!-- notable -->
+Kafka dissector crash.
+<a href="https://gitlab.com/wireshark/wireshark/-/issues/20823">Issue 20823</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following bugs have been fixed:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>L2CAP dissector doesn&#8217;t understand retransmission mode. <a href="https://gitlab.com/wireshark/wireshark/-/issues/2241">Issue 2241</a>.</p>
+</li>
+<li>
+<p>DNS HIP dissector labels PK algorithm as HIT length. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20768">Issue 20768</a>.</p>
+</li>
+<li>
+<p>clang-cl error in "packet-zbee-direct.c" <a href="https://gitlab.com/wireshark/wireshark/-/issues/20776">Issue 20776</a>.</p>
+</li>
+<li>
+<p>Writing to an LZ4-compressed output file might fail. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20779">Issue 20779</a>.</p>
+</li>
+<li>
+<p>endian.h conflics with libc for building plugins. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20786">Issue 20786</a>.</p>
+</li>
+<li>
+<p>TShark crash caused by Lua plugin. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20794">Issue 20794</a>.</p>
+</li>
+<li>
+<p>Wireshark stalls for a few seconds when selecting specific messages. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20797">Issue 20797</a>. <!-- notable --></p>
+</li>
+<li>
+<p>TLS Abbreviated Handshake Using New Session Ticket. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20802">Issue 20802</a>.</p>
+</li>
+<li>
+<p>Custom websocket dissector does not run. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20803">Issue 20803</a>.</p>
+</li>
+<li>
+<p>WINREG QueryValue triggers dissector bug in packet-dcerpc.c. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20813">Issue 20813</a>.</p>
+</li>
+<li>
+<p>Lua: FileHandler causing crash when reading packets. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20817">Issue 20817</a>.</p>
+</li>
+<li>
+<p>Apply As Filter for field with FT_NONE and BASE_NONE for a single byte does not use the hex value. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20818">Issue 20818</a>.</p>
+</li>
+<li>
+<p>Layout preference Pane 3 problem with selecting Packet Diagram or None. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20819">Issue 20819</a>.</p>
+</li>
+<li>
+<p>TCP dissector creates invalid packet diagram. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20820">Issue 20820</a>. <!-- notable --></p>
+</li>
+<li>
+<p>Too many nested VLAN tags when opening as File Format. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20831">Issue 20831</a>.</p>
+</li>
+<li>
+<p>Omnipeek files not working in 4.6.0. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20842">Issue 20842</a>. <!-- notable --></p>
+</li>
+<li>
+<p>Support UTF-16 strings in the IsoBus dissector for the string operations. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20845">Issue 20845</a>.</p>
+</li>
+<li>
+<p>SNMP getBulkRequest request-id does not get filtered for correctly. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20849">Issue 20849</a>.</p>
+</li>
+<li>
+<p>Fuzz job issue: fuzz-2025-11-12-12064814316.pcap. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20852">Issue 20852</a>.</p>
+</li>
+<li>
+<p>UDP Port 853 (DoQ) should be decoded as QUIC. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20856">Issue 20856</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_new_protocol_support">New Protocol Support</h3>
+<div class="paragraph">
+<p>There are no new protocols in this release.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_updated_protocol_support">Updated Protocol Support</h3>
+<div class="paragraph">
+<p>802.11 Radiotap, AC DR, ASN.1 BER, ASN.1 PER, BPv7, BT L2CAP, CFM, Darwin, DNS, DTLS, EAPOL-MKA, HTTP, HTTP3, ISObus VT, KRB5, LTP, NAS-EPS, NETDFS, NMEA 0183, P1, RPC_NETLOGON, RTSE, SGP.22, SGP.32, SMB, SNMP, TCP, TECMP, TFTP, VLAN, WINREG, X509AF, X509SAT, and ZBD</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_new_and_updated_capture_file_support">New and Updated Capture File Support</h3>
+<div class="paragraph">
+<p>Peektagged</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_new_and_updated_file_format_decoding_support">New and Updated File Format Decoding Support</h3>
+<div class="paragraph">
+<p>There is no new or updated file format support in this release.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_prior_versions">Prior Versions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Wireshark 4.6.0 included the following changes.
+See the
+<a href="https://www.wireshark.org/docs/relnotes/wireshark-4.6.0.html">release notes</a>
+for details:</p>
+</div>
+<div class="paragraph">
+<p>Wireshark can dissect process information, packet metadata, flow IDs, drop information, and other information provided by <code>tcpdump</code> on macOS.</p>
+</div>
+<div class="paragraph">
+<p>We now ship universal macOS installers instead of separate packages for Arm64 and Intel. <a href="https://gitlab.com/wireshark/wireshark/-/issues/17294">Issue 17294</a></p>
+</div>
+<div class="paragraph">
+<p>WinPcap is no longer supported. On Windows, use Npcap instead, uninstalling WinPcap if necessary.
+The final release of WinPcap was version 4.1.3 in 2013.
+It only supports up to Windows 8, which is no longer supported by Microsoft or Wireshark.</p>
+</div>
+<div class="paragraph">
+<p>A new “Plots” dialog has been added, which provides scatter plots in contrast to the “I/O Graphs” dialog, which provides histograms.
+The Plots dialog window supports multiple plots, markers, and automatic scrolling.</p>
+</div>
+<div class="paragraph">
+<p>Live captures can be compressed while writing. (Previously there was
+support for compressing when performing multiple file capture, at file
+rotation time.) The <code>--compress</code> option in TShark works on live captures
+as well. <a href="https://gitlab.com/wireshark/wireshark/-/issues/9311">Issue 9311</a></p>
+</div>
+<div class="paragraph">
+<p>Wireshark can now decrypt NTP packets using NTS (Network Time Security). To decrypt packets,
+the NTS-KE (Network Time Security Key Establishment Protocol) packets need to be present,
+alongside the TLS client and exporter secrets.</p>
+</div>
+<div class="paragraph">
+<p>Wireshark’s ability to decrypt MACsec packets has been expanded to either
+use the SAK unwrapped by the MKA dissector, or the PSK configured in the
+MACsec dissector.</p>
+</div>
+<div class="paragraph">
+<p>The TCP Stream Graph axes now use units with SI prefixes. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20197">Issue 20197</a></p>
+</div>
+<div class="paragraph">
+<p>Display filter functions <code>float</code> and <code>double</code> are added to allow explicitly
+converting field types like integers and times to single and double precision
+floats.</p>
+</div>
+<div class="paragraph">
+<p>A <span class="menuseq"><b class="menu">Edit</b>&#160;<b class="caret">&#8250;</b> <b class="submenu">Copy</b>&#160;<b class="caret">&#8250;</b> <b class="menuitem">as HTML</b></span> menu item has been added, along with associated context menu items and a keyboard shortcut.</p>
+</div>
+<div class="paragraph">
+<p>The Conversations and Endpoints dialogs have an option to display byte counts and bit rates in exact counts instead of human-readable numbers with SI units.</p>
+</div>
+<div class="paragraph">
+<p>The color scheme can be set to Light or Dark mode independently of the current OS default on Windows and macOS, if Wireshark is built with Qt 6.8 or later as the official installers are. <a href="https://gitlab.com/wireshark/wireshark/-/issues/19328">Issue 19328</a></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_getting_wireshark">Getting Wireshark</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Wireshark source code and installation packages are available from
+<a href="https://www.wireshark.org/download.html" class="bare">https://www.wireshark.org/download.html</a>.</p>
+</div>
+<div class="sect2">
+<h3 id="_vendor_supplied_packages">Vendor-supplied Packages</h3>
+<div class="paragraph">
+<p>Most Linux and Unix vendors supply their own Wireshark packages.
+You can usually install or upgrade Wireshark using the package management system specific to that platform.
+A list of third-party packages can be found on the
+<a href="https://www.wireshark.org/download.html">download page</a>
+on the Wireshark web site.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_file_locations">File Locations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Wireshark and TShark look in several different locations for preference files, plugins, SNMP MIBS, and RADIUS dictionaries.
+These locations vary from platform to platform.
+You can use <span class="menuseq"><b class="menu">Help</b>&#160;<b class="caret">&#8250;</b> <b class="submenu">About Wireshark</b>&#160;<b class="caret">&#8250;</b> <b class="menuitem">Folders</b></span> or <code>tshark -G folders</code> to find the default locations on your system.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_getting_help">Getting Help</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The User’s Guide, manual pages and various other documentation can be found at
+<a href="https://www.wireshark.org/docs/" class="bare">https://www.wireshark.org/docs/</a></p>
+</div>
+<div class="paragraph">
+<p>Community support is available on
+<a href="https://ask.wireshark.org/">Wireshark’s Q&amp;A site</a>
+and on the wireshark-users mailing list.
+Subscription information and archives for all of Wireshark’s mailing lists can be found on <a href="https://lists.wireshark.org/lists/">the mailing list site</a>.</p>
+</div>
+<div class="paragraph">
+<p>Bugs and feature requests can be reported on
+<a href="https://gitlab.com/wireshark/wireshark/-/issues">the issue tracker</a>.</p>
+</div>
+<div class="paragraph">
+<p>You can learn protocol analysis and meet Wireshark’s developers at
+<a href="https://sharkfest.wireshark.org">SharkFest</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_you_can_help">How You Can Help</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The Wireshark Foundation helps as many people as possible understand their networks as much as possible.
+You can find out more and donate at <a href="https://wiresharkfoundation.org">wiresharkfoundation.org</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_frequently_asked_questions">Frequently Asked Questions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A complete FAQ is available on the
+<a href="https://www.wireshark.org/faq.html">Wireshark web site</a>.</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

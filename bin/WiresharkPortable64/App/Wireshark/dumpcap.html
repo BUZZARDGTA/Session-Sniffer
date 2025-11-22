@@ -30,6 +30,7 @@
 <span class="nowrap">[ <strong>-d</strong> ]</span>
 <span class="nowrap">[ <strong>-D</strong>|<strong>--list-interfaces</strong> ]</span>
 <span class="nowrap">[ <strong>-f</strong> &lt;capture filter&gt; ]</span>
+<span class="nowrap">[ <strong>-F</strong> &lt;file format&gt; ]</span>
 <span class="nowrap">[ <strong>-g</strong> ]</span>
 <span class="nowrap">[ <strong>-i</strong>|<strong>--interface</strong> &lt;capture interface&gt;|rpcap://&lt;host&gt;:&lt;port&gt;/&lt;capture interface&gt;|TCP@&lt;host&gt;:&lt;port&gt;|- ]</span>
 <span class="nowrap">[ <strong>-I</strong>|<strong>--monitor-mode</strong> ]</span>
@@ -43,12 +44,14 @@
 <span class="nowrap">[ <strong>--ifname</strong> &lt;name&gt; ]</span>
 <span class="nowrap">[ <strong>-P</strong> ]</span>
 <span class="nowrap">[ <strong>-q</strong> ]</span>
+<span class="nowrap">[ <strong>-Q</strong> ]</span>
 <span class="nowrap">[ <strong>-s</strong>|<strong>--snapshot-length</strong> &lt;capture snaplen&gt; ]</span>
 <span class="nowrap">[ <strong>-S</strong> ]</span>
 <span class="nowrap">[ <strong>-t</strong> ]</span>
 <span class="nowrap">[ <strong>--temp-dir</strong> &lt;directory&gt; ]</span>
 <span class="nowrap">[ <strong>-w</strong> &lt;outfile&gt; ]</span>
 <span class="nowrap">[ <strong>-y</strong>|<strong>--linktype</strong> &lt;capture link type&gt; ]</span>
+<span class="nowrap">[ <strong>--application-flavor</strong> [wireshark|stratoshark] ]</span>
 <span class="nowrap">[ <strong>--capture-comment</strong> &lt;comment&gt; ]</span>
 <span class="nowrap">[ <strong>--list-time-stamp-types</strong> ]</span>
 <span class="nowrap">[ <strong>--time-stamp-type</strong> &lt;type&gt; ]</span>
@@ -70,12 +73,11 @@
 <div class="paragraph">
 <p><strong>Dumpcap</strong> is a network traffic dump tool.  It lets you capture packet
 data from a live network and write the packets to a file.  <strong>Dumpcap</strong>'s
-default capture file format is <strong>pcapng</strong> format.
-When the <strong>-P</strong> option is specified, the output file is written in the
-<strong>pcap</strong> format.</p>
+default capture file format is <strong>pcapng</strong> format. The <strong>-F</strong> option can
+be specified to write the output file in the <strong>pcap</strong> format instead.</p>
 </div>
 <div class="paragraph">
-<p>Without any options set it will use the libpcap, Npcap, or WinPcap library to
+<p>Without any options set it will use the libpcap or Npcap library to
 capture traffic from the first available network interface and writes
 the received raw packet data, along with the packets' time stamps into a
 capture file.</p>
@@ -118,7 +120,7 @@ were written.</p>
 <p><strong>filesize</strong>:<em>value</em> Stop writing to a capture file after it reaches a size of
 <em>value</em> kB. If this option is used together with the -b option, dumpcap will
 stop writing to the current capture file and switch to the next one if filesize
-is reached.  Note that the filesize is limited to a maximum value of 2 GiB.</p>
+is reached.  Note that the filesize is limited to a maximum value of 2 TB.</p>
 </div>
 <div class="paragraph">
 <p><strong>packets</strong>:<em>value</em> Stop writing to a capture file after <em>value</em> packets
@@ -171,7 +173,7 @@ preceded by the <strong>-b</strong> option.</p>
 </div>
 <div class="paragraph">
 <p><strong>filesize</strong>:<em>value</em> switch to the next file after it reaches a size of
-<em>value</em> kB.  Note that the filesize is limited to a maximum value of 2 GiB.</p>
+<em>value</em> kB.  Note that the filesize is limited to a maximum value of 2 TB.</p>
 </div>
 <div class="paragraph">
 <p><strong>interval</strong>:<em>value</em> switch to the next file when the time is an exact
@@ -273,6 +275,23 @@ the default capture filter expression is used if provided.</p>
 </div>
 </div>
 </dd>
+<dt class="hdlist1">-F  &lt;file format&gt;</dt>
+<dd>
+<p>Set the file format of the output capture file written using the <strong>-w</strong>
+option. In situations that require the <strong>pcapng</strong> format, such as capturing
+from multiple interfaces, this option will be overridden. The option <strong>-F</strong>
+without a value will list the available formats. The default is the
+<strong>pcapng</strong> format.</p>
+</dd>
+</dl>
+</div>
+<div class="paragraph">
+<p>Fewer formats are supported than by <a href="tshark.html">tshark</a>(1); this is
+intentional for security reasons. Use <strong>tshark</strong> or capture and then convert
+the file with <a href="editcap.html">editcap</a>(1) if another format is needed.</p>
+</div>
+<div class="dlist">
+<dl>
 <dt class="hdlist1">-g</dt>
 <dd>
 <p>This option causes the output file(s) to be created with group-read permission
@@ -368,14 +387,14 @@ this option.</p>
 </div>
 <div class="paragraph">
 <p><em>freq</em> is the frequency of the channel.  <em>type</em> is the type of the
-channel, for 802.11n and 802.11ac.  The values for <em>type</em> are</p>
+channel for 802.11n and later.  The values for <em>type</em> are</p>
 </div>
 </div>
 </div>
 </dd>
 <dt class="hdlist1">NOHT</dt>
 <dd>
-<p>Used for non-802.11n/non-802.1ac channels</p>
+<p>Used for 802.11b/g channels</p>
 </dd>
 <dt class="hdlist1">HT20</dt>
 <dd>
@@ -389,6 +408,10 @@ channel, for 802.11n and 802.11ac.  The values for <em>type</em> are</p>
 <dd>
 <p>40 MHz primary channel and a higher secondary channel</p>
 </dd>
+<dt class="hdlist1">HE40</dt>
+<dd>
+<p>40 MHz channel, with <em>centerfreq1</em> as its center frequency</p>
+</dd>
 <dt class="hdlist1">HT80</dt>
 <dd>
 <p>80 MHz channel, with <em>centerfreq1</em> as its center frequency</p>
@@ -401,6 +424,10 @@ the center frequencies of the two channels</p>
 <dt class="hdlist1">VHT160</dt>
 <dd>
 <p>160 MHz channel, with <em>centerfreq1</em> as its center frequency</p>
+</dd>
+<dt class="hdlist1">EHT320</dt>
+<dd>
+<p>320 MHz channel, with <em>centerfreq1</em> as its center frequency</p>
 </dd>
 <dt class="hdlist1">-L|--list-data-link-types</dt>
 <dd>
@@ -422,7 +449,8 @@ The machine-readable output is intended to be read by <strong>Wireshark</strong>
 </dd>
 <dt class="hdlist1">-n</dt>
 <dd>
-<p>Save files as pcapng. This is the default.</p>
+<p>Save files as pcapng. This is the default. This option is deprecated
+and may be removed.</p>
 </dd>
 <dt class="hdlist1">-N  &lt;packet limit&gt;</dt>
 <dd>
@@ -464,7 +492,8 @@ promiscuous mode.</p>
 <dd>
 <p>Save files as pcap instead of the default pcapng. In situations that require
 pcapng, such as capturing from multiple interfaces, this option will be
-overridden.</p>
+overridden. This option is deprecated in favor of the <strong>-F</strong> option and
+may be removed.</p>
 </dd>
 <dt class="hdlist1">-q</dt>
 <dd>
@@ -479,6 +508,28 @@ BSDs, you can cause the current count to be displayed by typing your
 "status" character (typically control-T, although it
 might be set to "disabled" by default on at least some BSDs, so you&#8217;d
 have to explicitly set it to use it).</p>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">-Q</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>When capturing packets, don&#8217;t display, on the standard error, the initial
+message indicating on what interfaces the capture is being done, the
+messages indicating to what file a capture is being written, the continuous
+count of packets captured that is normally shown when saving a capture to
+a file, and the message at the end of the capture giving a count of packets
+captured.  This outputs less than the <strong>-q</strong> option; only true errors are
+displayed on the standard error.</p>
+</div>
+<div class="paragraph">
+<p>On systems that support the SIGINFO signal, such as various BSDs, you can
+cause the current count to be displayed by typing your "status" character
+(typically control-T, although it might be set to "disabled" by default on
+at least some BSDs, so you&#8217;d have to explicitly set it to use it).</p>
 </div>
 </div>
 </div>
@@ -554,6 +605,12 @@ the default capture link type is used if provided.</p>
 </div>
 </div>
 </dd>
+<dt class="hdlist1">--application-flavor [wireshark|stratoshark]</dt>
+<dd>
+<p>Set the application flavor.
+Make the <strong>-D</strong> option output and other behavior suitable for packet capture or system call and log capture.
+The default flavor is "wireshark".</p>
+</dd>
 <dt class="hdlist1">--capture-comment  &lt;comment&gt;</dt>
 <dd>
 <div class="openblock">
@@ -573,6 +630,10 @@ currently only displays the first comment of a capture file.</p>
 </div>
 </div>
 </dd>
+</dl>
+</div>
+<div class="dlist">
+<dl>
 <dt class="hdlist1">--list-time-stamp-types</dt>
 <dd>
 <p>List time stamp types supported for the interface. If no time stamp type can be
@@ -663,7 +724,7 @@ or, if that doesn&#8217;t exist, <a href="https://gitlab.com/wireshark/wireshark
 <h2 id="_notes">NOTES</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the manual page for <strong>Dumpcap</strong> 4.2.12.
+<p>This is the manual page for <strong>Dumpcap</strong> 4.6.1.
 <strong>Dumpcap</strong> is part of the <strong>Wireshark</strong> distribution.
 The latest version of <strong>Wireshark</strong> can be found at <a href="https://www.wireshark.org" class="bare">https://www.wireshark.org</a>.</p>
 </div>

@@ -1,0 +1,68 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>12.7. MATE’s configuration library</title><link rel="stylesheet" type="text/css" href="ws.css"><meta name="generator" content="DocBook XSL Stylesheets V1.79.2"><link rel="home" href="index.html" title="Wireshark User’s Guide"><link rel="up" href="ChMate.html" title="Chapter 12. MATE"><link rel="prev" href="ChMateConfigurationExamples.html" title="12.6. MATE configuration examples"><link rel="next" href="ChMateReferenceManual.html" title="12.8. MATE’s reference manual"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">12.7. MATE’s configuration library</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="ChMateConfigurationExamples.html">Prev</a> </td><th width="60%" align="center">Chapter 12. MATE</th><td width="20%" align="right"> <a accesskey="n" href="ChMateReferenceManual.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="ChMateConfigurationLibrary"></a>12.7. MATE’s configuration library</h2></div></div></div><p>The MATE library (will) contains GOP definitions for several protocols. Library
+protocols are included in your MATE config using: _Action=Include;
+Lib=proto_name;_.</p><p>For Every protocol with a library entry, we’ll find defined what from the PDU is
+needed to create a GOP for that protocol, eventually any criteria and the very
+essential GOP definition (i.e., <span class="emphasis"><em>Gop</em></span>, <span class="emphasis"><em>Start</em></span> and <span class="emphasis"><em>Stop</em></span>).</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="images/note.svg"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>It seems that this code is written in the old syntax of MATE. So far it has not
+been transcribed into the new format. It may still form the basis to recreate
+these in the new format.</p></td></tr></table></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_general_use_protocols"></a>12.7.1. General use protocols</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_tcp"></a>12.7.1.1. TCP</h4></div></div></div><p>It will create a GOP for every TCP session. If it is used it should be the last
+one in the list. And every other proto on top of TCP should be declared with
+<span class="emphasis"><em>LastPdu=TRUE;</em></span> so that a TCP PDU is not created where another pdu type exists.</p><pre class="screen">Transform add_tcp_stop {
+    Match (tcp_flags_reset="True") Insert (tcp_stop="True");
+    Match (tcp_flags_fin="True") Insert (tcp_stop="True");
+};
+
+Pdu tcp_pdu Proto tcp Transport ip {
+    Extract addr From ip.addr;
+    Extract port From tcp.port;
+    Extract tcp_start From tcp.flags.syn;
+    Extract tcp_flags_reset From tcp.flags.reset;
+    Extract tcp_flags_fin From tcp.flags.fin;
+    Transform add_tcp_stop;
+};
+
+Gop tcp_ses On tcp_pdu Match (addr, addr, port, port) {
+    Start (tcp_start="True");
+    Stop (tcp_stop="True");
+};
+
+Done;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_dns"></a>12.7.1.2. DNS</h4></div></div></div><p>will create a GOP containing every request and its response (eventually
+retransmissions too).</p><pre class="screen">Action=PduDef; Name=dns_pdu; Proto=dns; Transport=udp/ip; addr=ip.addr; port=udp.port; dns_id=dns.id; dns_rsp=dns.flags.response;
+
+Action=GopDef; Name=dns_req; On=dns_pdu; addr; addr; port!53; dns_id;
+Action=GopStart; For=dns_req; dns_rsp=0;
+Action=GopStop; For=dns_req; dns_rsp=1;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_radius"></a>12.7.1.3. RADIUS</h4></div></div></div><p>A GOP for every transaction.</p><pre class="screen">Action=PduDef; Name=radius_pdu; Proto=radius; Transport=udp/ip; addr=ip.addr; port=udp.port; radius_id=radius.id; radius_code=radius.code;
+
+Action=GopDef; Name=radius_req; On=radius_pdu; radius_id; addr; addr; port; port;
+Action=GopStart; For=radius_req; radius_code|1|4|7;
+Action=GopStop; For=radius_req; radius_code|2|3|5|8|9;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_rtsp"></a>12.7.1.4. RTSP</h4></div></div></div><pre class="screen">Action=PduDef; Name=rtsp_pdu; Proto=rtsp; Transport=tcp/ip; addr=ip.addr; port=tcp.port; rtsp_method=rtsp.method;
+Action=PduExtra; For=rtsp_pdu; rtsp_ses=rtsp.session; rtsp_url=rtsp.url;
+
+Action=GopDef; Name=rtsp_ses; On=rtsp_pdu; addr; addr; port; port;
+Action=GopStart; For=rtsp_ses; rtsp_method=DESCRIBE;
+Action=GopStop; For=rtsp_ses; rtsp_method=TEARDOWN;
+Action=GopExtra; For=rtsp_ses; rtsp_ses; rtsp_url;</pre></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="_voiptelephony"></a>12.7.2. VoIP/Telephony</h3></div></div></div><p>Most protocol definitions here will create one GOP for every Call Leg unless
+stated.</p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_isup"></a>12.7.2.1. ISUP</h4></div></div></div><pre class="screen">Action=PduDef; Name=isup_pdu; Proto=isup; Transport=mtp3; mtp3pc=mtp3.dpc; mtp3pc=mtp3.opc; cic=isup.cic; isup_msg=isup.message_type;
+
+Action=GopDef; Name=isup_leg; On=isup_pdu; ShowPduTree=TRUE; mtp3pc; mtp3pc; cic;
+Action=GopStart; For=isup_leg; isup_msg=1;
+Action=GopStop; For=isup_leg; isup_msg=16;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_q931"></a>12.7.2.2. Q931</h4></div></div></div><pre class="screen">Action=PduDef; Name=q931_pdu; Proto=q931; Stop=TRUE; Transport=tcp/ip; addr=ip.addr; call_ref=q931.call_ref; q931_msg=q931.message_type;
+
+Action=GopDef; Name=q931_leg; On=q931_pdu; addr; addr; call_ref;
+Action=GopStart; For=q931_leg; q931_msg=5;
+Action=GopStop; For=q931_leg; q931_msg=90;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_h225_ras"></a>12.7.2.3. H225 RAS</h4></div></div></div><pre class="screen">Action=PduDef; Name=ras_pdu; Proto=h225.RasMessage; Transport=udp/ip; addr=ip.addr; ras_sn=h225.RequestSeqNum; ras_msg=h225.RasMessage;
+Action=PduExtra; For=ras_pdu; guid=h225.guid;
+
+Action=GopDef; Name=ras_leg; On=ras_pdu; addr; addr; ras_sn;
+Action=GopStart; For=ras_leg; ras_msg|0|3|6|9|12|15|18|21|26|30;
+Action=GopStop; For=ras_leg; ras_msg|1|2|4|5|7|8|10|11|13|14|16|17|19|20|22|24|27|28|29|31;
+Action=GopExtra; For=ras_leg; guid;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_sip"></a>12.7.2.4. SIP</h4></div></div></div><pre class="screen">Action=PduDef; Proto=sip_pdu; Transport=tcp/ip; addr=ip.addr; port=tcp.port; sip_method=sip.Method; sip_callid=sip.Call-ID; calling=sdp.owner.username;
+
+Action=GopDef; Name=sip_leg; On=sip_pdu; addr; addr; port; port;
+Action=GopStart; For=sip; sip_method=INVITE;
+Action=GopStop; For=sip; sip_method=BYE;</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="_megaco"></a>12.7.2.5. MEGACO</h4></div></div></div><p>Will create a GOP out of every transaction.</p><p>To "tie" them to your call’s GoG use: <span class="emphasis"><em>Action=GogKey; Name=your_call; On=mgc_tr;
+addr!mgc_addr; megaco_ctx;</em></span></p><pre class="screen">Action=PduDef; Name=mgc_pdu; Proto=megaco; Transport=ip; addr=ip.addr; megaco_ctx=megaco.context; megaco_trx=megaco.transid; megaco_msg=megaco.transaction; term=megaco.termid;
+
+Action=GopDef; Name=mgc_tr; On=mgc_pdu; addr; addr; megaco_trx;
+Action=GopStart; For=mgc_tr; megaco_msg|Request|Notify;
+Action=GopStop; For=mgc_tr; megaco_msg=Reply;
+Action=GopExtra; For=mgc_tr; term^DS1; megaco_ctx!Choose one;</pre></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="ChMateConfigurationExamples.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="ChMate.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ChMateReferenceManual.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">12.6. MATE configuration examples </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> 12.8. MATE’s reference manual</td></tr></table></div></body></html>
