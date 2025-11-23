@@ -4,7 +4,7 @@ version = "v1.4.2.pre3+20251119.2132"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
-    "geoip2==5.1.0",
+    "geoip2==5.2.0",
     "packaging==25.0",
     "prettytable==3.17.0",
     "psutil==7.1.3",
