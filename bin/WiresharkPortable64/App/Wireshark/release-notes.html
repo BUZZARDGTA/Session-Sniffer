@@ -5,12 +5,12 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.23">
-<title>Wireshark 4.2.12 Release Notes</title>
+<title>Wireshark 4.2.14 Release Notes</title>
 <link rel="stylesheet" href="./ws.css">
 </head>
 <body class="article">
 <div id="header">
-<h1>Wireshark 4.2.12 Release Notes</h1>
+<h1>Wireshark 4.2.14 Release Notes</h1>
 </div>
 <div id="content">
 <div class="sect1">
@@ -30,15 +30,21 @@ If you or your organization would like to contribute or become a sponsor, please
 <div class="sect1">
 <h2 id="_whats_new">What’s New</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>This is expected to be the final release of the 4.2 branch.</p>
+</div>
+<div class="paragraph">
+<p>This is the last release branch with official support for macOS 10.14 and 10.15.</p>
+</div>
 <div class="sect2">
 <h3 id="_bug_fixes">Bug Fixes</h3>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://www.wireshark.org/security/wnpa-sec-2025-02">wnpa-sec-2025-02</a> {notable}
-Dissection engine crash.
-<a href="https://gitlab.com/wireshark/wireshark/-/issues/20509">Issue 20509</a>.
-<a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-5601">CVE-2025-5601</a>.</p>
+<p><a href="https://www.wireshark.org/security/wnpa-sec-2025-04">wnpa-sec-2025-04</a> {notable}
+MONGO dissector infinite loop.
+<a href="https://gitlab.com/wireshark/wireshark/-/issues/20724">Issue 20724</a>.
+<a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-xxx">CVE-2025-xxx</a>.</p>
 </li>
 </ul>
 </div>
@@ -48,25 +54,16 @@ Dissection engine crash.
 <div class="ulist">
 <ul>
 <li>
-<p>GRPC: protobuf_json only displays the truncated string value. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20392">Issue 20392</a>.</p>
+<p>Using wslog parameters in command line applications leads to freeing invalid memory. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20500">Issue 20500</a>.</p>
 </li>
 <li>
-<p>Trailing octet after IPv4 packet end is not detected or displayed in raw bytes. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20423">Issue 20423</a>.</p>
+<p>On macOS a lower resolution Wireshark icon is displayed in the App Switcher and Launchpad. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20544">Issue 20544</a>.</p>
 </li>
 <li>
-<p>Wireshark does not correctly decode LIN "go to sleep" in TECMP and CMP. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20463">Issue 20463</a>.</p>
+<p>Fuzz job crash: fuzz-2025-08-06-10932469456.pcap. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20666">Issue 20666</a>.</p>
 </li>
 <li>
-<p>Fuzz job crash: fuzz-2025-04-25-7554.pcap. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20509">Issue 20509</a>.</p>
-</li>
-<li>
-<p>WebSocket per-message compression extentions: fail to decompress server messages (from the 2nd) due to parameter handling. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20531">Issue 20531</a>.</p>
-</li>
-<li>
-<p>null. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20539">Issue 20539</a>.</p>
-</li>
-<li>
-<p>The LL_PERIODIC_SYNC_WR_IND packet is not properly dissected (packet-btle.c) <a href="https://gitlab.com/wireshark/wireshark/-/issues/20554">Issue 20554</a>.</p>
+<p>Encoding on NAS5GS- NASDL Transport Message-Multiple Container contains inconsistencies. <a href="https://gitlab.com/wireshark/wireshark/-/issues/20679">Issue 20679</a>.</p>
 </li>
 </ul>
 </div>
@@ -86,7 +83,7 @@ Dissection engine crash.
 <div class="sect2">
 <h3 id="_updated_protocol_support">Updated Protocol Support</h3>
 <div class="paragraph">
-<p>ASAM CMP, F1AP, genl, LIN, Logcat Text, net_dm, netfilter, nvme, ProtoBuf, Quake, TECMP, and WebSocket</p>
+<p>H.248E, HTTP2, IAX2, MONGO, NAS-5GS, and XML</p>
 </div>
 </div>
 <div class="sect2">
@@ -107,11 +104,17 @@ Dissection engine crash.
 <h2 id="_prior_versions">Prior Versions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This document only describes the changes introduced in Wireshark 4.2.12.
+<p>This document only describes the changes introduced in Wireshark 4.2.14.
 You can find release notes for prior versions at the following locations:</p>
 </div>
 <div class="ulist">
 <ul>
+<li>
+<p><a href="https://www.wireshark.org/docs/relnotes/wireshark-4.2.13.html">Wireshark 4.2.13</a></p>
+</li>
+<li>
+<p><a href="https://www.wireshark.org/docs/relnotes/wireshark-4.2.12.html">Wireshark 4.2.12</a></p>
+</li>
 <li>
 <p><a href="https://www.wireshark.org/docs/relnotes/wireshark-4.2.11.html">Wireshark 4.2.11</a></p>
 </li>
@@ -202,6 +205,10 @@ Subscription information and archives for all of Wireshark’s mailing lists can
 <div class="paragraph">
 <p>You can learn protocol analysis and meet Wireshark’s developers at
 <a href="https://sharkfest.wireshark.org">SharkFest</a>.</p>
+</div>
+<div class="paragraph">
+<p>Official Wireshark training and certification are available from
+<a href="https://www.wireshark.org/certifications">the Wireshark Foundation</a>.</p>
 </div>
 </div>
 </div>
