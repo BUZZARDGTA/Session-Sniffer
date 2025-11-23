@@ -32,6 +32,7 @@ authors = [
     {name = "BUZZARDGTA"},
 ]
 description = "A packet sniffer (also known as an IP sniffer/puller) specifically designed for Peer-To-Peer (P2P) video games on PC and consoles (PlayStation and Xbox)."
+license = { file = "COPYING" }
 readme = "README.md"
 
 
