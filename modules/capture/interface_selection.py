@@ -33,6 +33,7 @@ class InterfaceSelectionData(NamedTuple):
     ip_address: str
     mac_address: str
     vendor_name: Literal['N/A'] | str  # noqa: PYI051
+    device_name: str
     is_arp: bool = False
     is_inactive: bool = False
 
@@ -65,7 +66,7 @@ class SafeQTableWidget(QTableWidget):
 
 
 class InterfaceSelectionDialog(QDialog):
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments  # noqa: PLR0913
         self,
         screen_width: int,
         screen_height: int,
@@ -73,6 +74,7 @@ class InterfaceSelectionDialog(QDialog):
         *,
         hide_inactive_default: bool,
         hide_arp_default: bool,
+        arp_spoofing_default: bool,
     ) -> None:
         super().__init__()
 
@@ -140,7 +142,19 @@ class InterfaceSelectionDialog(QDialog):
         self.hide_arp_checkbox.setToolTip('Hide external devices discovered via ARP protocol')
         self.hide_arp_checkbox.setStyleSheet('font-size: 12pt;')
         self.hide_arp_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
+        self.hide_arp_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
         filter_layout.addWidget(self.hide_arp_checkbox)
+
+        self.arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
+        self.arp_spoofing_checkbox.setChecked(arp_spoofing_default)
+        self.arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network, not just this computer')
+        self.arp_spoofing_checkbox.setStyleSheet('font-size: 12pt;')
+        self.arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
+        self.arp_spoofing_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
+        filter_layout.addWidget(self.arp_spoofing_checkbox)
+
+        # Will be set on accept
+        self.arp_spoofing_enabled: bool = arp_spoofing_default
 
         layout.addLayout(filter_layout)
 
@@ -171,17 +185,27 @@ class InterfaceSelectionDialog(QDialog):
         self.apply_filters()
         self.setLayout(layout)
 
+        # Connect selection change signal to enable/disable Select button
+        selection_model = self.table.selectionModel()
+        selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
+        selection_model.selectionChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
+
+        # Apply initial constraints
+        self.enforce_spoofing_constraints()
+
         # Raise and activate window to ensure it gets focus
         self.raise_()
         self.activateWindow()
 
-        # Connect selection change signal to enable/disable Select button
-        selection_model = self.table.selectionModel()
-        selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
-
     # Custom Methods:
     def apply_filters(self) -> None:
-        """Apply the selected filters and repopulate the table."""
+        """Apply the selected filters and populate the table."""
+        # Preserve currently selected interface (object identity) before filtering/rebuilding table
+        previously_selected: InterfaceSelectionData | None = None
+        current_row = self.table.currentRow()
+        if current_row != -1 and 0 <= current_row < len(self.interfaces):
+            previously_selected = self.interfaces[current_row]
+
         hide_inactive = self.hide_inactive_checkbox.isChecked()
         hide_arp = self.hide_arp_checkbox.isChecked()
 
@@ -192,41 +216,75 @@ class InterfaceSelectionDialog(QDialog):
             and not (hide_arp and interface.is_arp)
         ]
 
-        # Repopulate the table
+        # Populate the table
         self.populate_table()
+
+        # Attempt to restore previous selection if still present & logically allowed
+        if (
+            previously_selected is not None
+            # If ARP spoofing enabled and previous selection is NOT an ARP entry, do not restore (it becomes greyed out)
+            and not (self.arp_spoofing_checkbox.isChecked() and not previously_selected.is_arp)
+        ):
+            for idx, interface in enumerate(self.interfaces):
+                if interface is previously_selected:
+                    self.table.selectRow(idx)
+                    break
+
+        # Ensure select button state reflects restored selection
+        self.update_select_button_state()
 
     def populate_table(self) -> None:
         """Populate the table with the current filtered interface list."""
         # Clear existing rows
         self.table.setRowCount(0)
 
+        # Check if ARP spoofing is enabled to grey out non-ARP interfaces
+        arp_spoofing_enabled = self.arp_spoofing_checkbox.isChecked()
+
         # Populate with filtered data
         for idx, interface in enumerate(self.interfaces):
             self.table.insertRow(idx)
 
+            # Determine if this row should be disabled (greyed out)
+            should_disable = arp_spoofing_enabled and not interface.is_arp
+
             item = QTableWidgetItem(str(interface.name) if not interface.is_arp else f'{interface.name} (ARP)')
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 0, item)
 
             item = QTableWidgetItem(str(interface.description))
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 1, item)
 
             item = QTableWidgetItem(str(interface.packets_sent))
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 2, item)
 
             item = QTableWidgetItem(str(interface.packets_recv))
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 3, item)
 
             item = QTableWidgetItem(str(interface.ip_address))
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 4, item)
 
             item = QTableWidgetItem(str(interface.mac_address))
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 5, item)
 
             item = QTableWidgetItem(str(interface.vendor_name))
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 6, item)
 
         # Reset selection state
@@ -265,22 +323,61 @@ class InterfaceSelectionDialog(QDialog):
         else:
             self.select_button.setEnabled(False)
 
+    def enforce_spoofing_constraints(self) -> None:
+        """Enforce logical constraints between ARP spoofing, ARP visibility, and selected interface.
+
+        Rules:
+        - If ARP entries are hidden, ARP spoofing must be disabled.
+        - If ARP entries are visible and an ARP interface is selected, force-enable spoofing.
+        - If a non-ARP interface is selected, spoofing must be disabled.
+        - If ARP spoofing is enabled and a non-ARP interface is selected, clear the selection.
+        """
+        # If ARP entries are hidden -> disable and uncheck spoofing
+        if self.hide_arp_checkbox.isChecked():
+            self.arp_spoofing_checkbox.setChecked(False)
+            self.arp_spoofing_checkbox.setEnabled(False)
+            return
+
+        # ARP entries are visible -> allow spoofing checkbox, evaluate selection
+        self.arp_spoofing_checkbox.setEnabled(True)
+
+        selected_row = self.table.currentRow()
+        if selected_row == -1:
+            # No selection yet; do not force any state
+            return
+
+        try:
+            interface = self.interfaces[selected_row]
+        except IndexError:
+            return
+
+        # If ARP spoofing is enabled and selected interface is not ARP, clear selection
+        if self.arp_spoofing_checkbox.isChecked() and not interface.is_arp:
+            self.table.clearSelection()
+            return
+
+        # If a non-ARP interface is selected and spoofing is enabled, turn off spoofing
+        if not interface.is_arp and self.arp_spoofing_checkbox.isChecked():
+            self.arp_spoofing_checkbox.setChecked(False)
+
     def select_interface(self) -> None:
         selected_row = self.table.currentRow()
         if selected_row != -1:
             # Retrieve the selected interface data
             self.selected_interface_data = self.interfaces[selected_row]  # Get the selected interface data
+            self.arp_spoofing_enabled = self.arp_spoofing_checkbox.isChecked()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
-def show_interface_selection_dialog(
+def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # noqa: PLR0913
     screen_width: int,
     screen_height: int,
     interfaces: list[InterfaceSelectionData],
     *,
     hide_inactive_default: bool,
     hide_arp_default: bool,
-) -> InterfaceSelectionData | None:
+    arp_spoofing_default: bool,
+) -> tuple[InterfaceSelectionData | None, bool]:
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_width,
@@ -288,7 +385,8 @@ def show_interface_selection_dialog(
         interfaces,
         hide_inactive_default=hide_inactive_default,
         hide_arp_default=hide_arp_default,
+        arp_spoofing_default=arp_spoofing_default,
     )
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected
-        return dialog.selected_interface_data
-    return None
+        return dialog.selected_interface_data, dialog.arp_spoofing_enabled
+    return None, arp_spoofing_default

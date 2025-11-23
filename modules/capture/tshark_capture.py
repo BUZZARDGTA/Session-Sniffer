@@ -183,6 +183,11 @@ class PacketCapture:
         """Check if the packet capture is currently stopped."""
         return not self._running_event.is_set()
 
+    def wait(self) -> None:
+        """Block until the packet capture is stopped."""
+        while self._running_event.is_set():
+            self._running_event.wait(timeout=0.1)
+
     def _run_capture_loop(self) -> None:
         """Main capture loop that processes captured packets."""
         for packet in self._capture_packets():

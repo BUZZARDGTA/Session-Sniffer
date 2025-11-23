@@ -118,6 +118,7 @@ from modules.constants.standalone import (
 from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
 from modules.exceptions import (
+    ARPSpoofingFailedError,
     PlayerAlreadyExistsError,
     PlayerNotFoundInRegistryError,
     UnexpectedPlayerCountError,
@@ -321,6 +322,7 @@ SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).str
 SETTINGS_PATH = Path('Settings.ini')
 SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
 TSHARK_PATH = BIN_FOLDER_PATH / 'WiresharkPortable64/App/Wireshark/tshark.exe'
+ARPSPOOF_PATH = BIN_FOLDER_PATH / 'arpspoof.exe'
 USERIP_DATABASES_PATH = Path('UserIP Databases')
 USERIP_LOGGING_PATH = Path('UserIP_Logging.log')
 
@@ -513,18 +515,18 @@ class ThreadsExceptionHandler:
 @dataclass
 class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-name
     """Class containing default setting values."""
-    CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT: bool = True
     CAPTURE_INTERFACE_NAME: str | None = None
     CAPTURE_IP_ADDRESS: str | None = None
     CAPTURE_MAC_ADDRESS: str | None = None
-    CAPTURE_ARP: bool = True
+    CAPTURE_ARP_SPOOFING: bool = False
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: bool = True
     CAPTURE_PROGRAM_PRESET: str | None = None
     CAPTURE_OVERFLOW_TIMER: float = 3.0
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None = None
     CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None = None
-    GUI_INTERFACE_HIDE_INACTIVE: bool = True
-    GUI_INTERFACE_HIDE_ARP: bool = False
+    GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool = False
+    GUI_INTERFACE_SELECTION_HIDE_INACTIVE: bool = True
+    GUI_INTERFACE_SELECTION_HIDE_ARP: bool = False
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_CONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
@@ -548,18 +550,18 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
 
 class Settings(DefaultSettings):
     ALL_SETTINGS: ClassVar = (
-        'CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT',
         'CAPTURE_INTERFACE_NAME',
         'CAPTURE_IP_ADDRESS',
         'CAPTURE_MAC_ADDRESS',
-        'CAPTURE_ARP',
+        'CAPTURE_ARP_SPOOFING',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_PROGRAM_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
-        'GUI_INTERFACE_HIDE_INACTIVE',
-        'GUI_INTERFACE_HIDE_ARP',
+        'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
+        'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
+        'GUI_INTERFACE_SELECTION_HIDE_ARP',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_CONNECTED_FIELDS_TO_HIDE',
@@ -816,12 +818,7 @@ class Settings(DefaultSettings):
                 matched_settings_count += 1
                 need_rewrite_current_setting = False
 
-                if setting_name == 'CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT':
-                    try:
-                        Settings.CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_INTERFACE_NAME':
+                if setting_name == 'CAPTURE_INTERFACE_NAME':
                     try:
                         Settings.CAPTURE_INTERFACE_NAME, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
                     except InvalidNoneTypeValueError:
@@ -845,9 +842,9 @@ class Settings(DefaultSettings):
                             Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address  # pyright: ignore[reportConstantRedefinition]
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_ARP':
+                elif setting_name == 'CAPTURE_ARP_SPOOFING':
                     try:
-                        Settings.CAPTURE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.CAPTURE_ARP_SPOOFING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_BLOCK_THIRD_PARTY_SERVERS':
@@ -890,16 +887,6 @@ class Settings(DefaultSettings):
                         Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
                         if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
                             need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_HIDE_INACTIVE':
-                    try:
-                        Settings.GUI_INTERFACE_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_HIDE_ARP':
-                    try:
-                        Settings.GUI_INTERFACE_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
                 elif setting_name == 'GUI_SESSIONS_LOGGING':
                     try:
                         Settings.GUI_SESSIONS_LOGGING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
@@ -991,6 +978,21 @@ class Settings(DefaultSettings):
                             Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
                         else:
                             need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_AUTO_CONNECT':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_INACTIVE':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_ARP':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
                 elif setting_name == 'DISCORD_PRESENCE':
                     try:
                         Settings.DISCORD_PRESENCE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
@@ -1073,6 +1075,7 @@ class Interface:
     ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     mac_address: str | None
+    device_name: str | None
     vendor_name: str | None
 
     def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
@@ -2201,24 +2204,24 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             receive_link_speed=adapter.receive_link_speed,
             description=adapter.description,
             ip_addresses=adapter.ipv4_addresses,
+            device_name=None,
             vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address) if adapter.mac_address else None,
         ))
 
-        if Settings.CAPTURE_ARP:
-            for neighbor_ip, neighbor_mac in adapter.neighbors:
-                if (
-                    not neighbor_ip or not neighbor_mac
-                    or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
-                    or not is_valid_non_special_ipv4(neighbor_ip)
-                ):
-                    continue
+        for neighbor_ip, neighbor_mac in adapter.neighbors:
+            if (
+                not neighbor_ip or not neighbor_mac
+                or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
+                or not is_valid_non_special_ipv4(neighbor_ip)
+            ):
+                continue
 
-                vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
-                interface.add_arp_entry(ARPEntry(
-                    ip_address=neighbor_ip,
-                    mac_address=neighbor_mac,
-                    vendor_name=vendor_name,
-                ))
+            vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
+            interface.add_arp_entry(ARPEntry(
+                ip_address=neighbor_ip,
+                mac_address=neighbor_mac,
+                vendor_name=vendor_name,
+            ))
 
 
 def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
@@ -2251,7 +2254,7 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
     ]
 
 
-def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData | None:
+def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> tuple[InterfaceSelectionData | None, bool]:
     """Select the best matching interface based on given settings.
 
     If no interface matches, show the selection dialog to prompt the user.
@@ -2298,10 +2301,11 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
         return None
 
     # First try to select the best matching interface based on settings
-    result = None
+    result: InterfaceSelectionData | None = None
+    arp_spoofing_enabled: bool = Settings.CAPTURE_ARP_SPOOFING
     if (
         # Check if the network interface prompt is disabled
-        not Settings.CAPTURE_NETWORK_INTERFACE_CONNECTION_PROMPT
+        Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT
         # Check if any capture setting is defined
         and any(setting is not None for setting in (Settings.CAPTURE_INTERFACE_NAME, Settings.CAPTURE_MAC_ADDRESS, Settings.CAPTURE_IP_ADDRESS))
     ):
@@ -2309,15 +2313,15 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
     # If no suitable interface was found, prompt the user to select an interface
     if result is None:
-        result = show_interface_selection_dialog(
+        result, arp_spoofing_enabled = show_interface_selection_dialog(
             screen_width,
             screen_height,
             interfaces_selection_data,
-            hide_inactive_default=Settings.GUI_INTERFACE_HIDE_INACTIVE,
-            hide_arp_default=Settings.GUI_INTERFACE_HIDE_ARP,
+            hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
+            hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
+            arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
         )
-
-    return result
+    return result, arp_spoofing_enabled
 
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
@@ -5704,6 +5708,90 @@ class PersistentMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
+def arp_spoofing_task(interface_device_name: str, interface_ip: str, capture_obj: PacketCapture) -> None:
+    """Manage ARP spoofing process lifecycle synchronized with packet capture state.
+
+    Credit: https://github.com/alandau/arpspoof
+    """
+    with ThreadsExceptionHandler():
+        if not ARPSPOOF_PATH.is_file():
+            print(f'[ARP Spoof] Executable not found at: {ARPSPOOF_PATH}')
+            return
+
+        proc: subprocess.Popen[str] | None = None
+        consecutive_failures = 0
+        max_consecutive_failures = 5
+
+        while not gui_closed__event.is_set():
+            # Wait for capture to be running
+            while capture_obj.is_stopped() and not gui_closed__event.is_set():
+                time.sleep(0.5)
+
+            if gui_closed__event.is_set():
+                break
+
+            # Start arpspoof process
+            if proc is None or proc.poll() is not None:
+                if consecutive_failures >= max_consecutive_failures:
+                    print(f'[ARP Spoof] Failed to start {max_consecutive_failures} times consecutively. Cannot continue.')
+                    raise ARPSpoofingFailedError(max_consecutive_failures)
+
+                try:
+                    proc = subprocess.Popen(
+                        [str(ARPSPOOF_PATH), '-i', interface_device_name, interface_ip],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    print(f'[ARP Spoof] Started spoofing on interface {interface_ip}')
+                    time.sleep(1.0)
+
+                    if proc.poll() is not None:
+                        _, stderr = proc.communicate()
+                        print(f'[ARP Spoof] Process failed to start. Exit code: {proc.returncode}')
+                        if stderr:
+                            print(f'[ARP Spoof] Error: {stderr.strip()}')
+                        consecutive_failures += 1
+                        time.sleep(2.0)
+                        continue
+
+                    consecutive_failures = 0
+                except (OSError, subprocess.SubprocessError) as e:
+                    print(f'[ARP Spoof] Failed to start process: {e}')
+                    consecutive_failures += 1
+                    time.sleep(2.0)
+                    continue
+
+            # Wait for capture to stop or process to die
+            while not capture_obj.is_stopped() and not gui_closed__event.is_set():
+                if proc and proc.poll() is not None:
+                    print('[ARP Spoof] Process died unexpectedly, respawning...')
+                    time.sleep(1.0)
+                    break
+                time.sleep(0.5)
+
+            # Stop the process if capture stopped
+            if proc and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                print('[ARP Spoof] Stopped spoofing.')
+                proc = None
+
+        # Final cleanup
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        print('[ARP Spoof] Task terminated.')
+
+
 def generate_gui_header_html(*, capture: PacketCapture) -> str:
     """Generate the GUI header HTML based on capture state.
 
@@ -6725,11 +6813,14 @@ if __name__ == '__main__':
     interfaces_selection_data: list[InterfaceSelectionData] = []
 
     tshark_interfaces = [
-        i for _, _, name in get_filtered_tshark_interfaces()
+        (i, device_name) for _, device_name, name in get_filtered_tshark_interfaces()
         if (i := AllInterfaces.get_interface_by_name(name))
     ]
 
-    for interface in tshark_interfaces:
+    for interface, device_name in tshark_interfaces:
+        # Populate the device_name from tshark
+        interface.device_name = device_name
+
         if (
             Settings.CAPTURE_INTERFACE_NAME is not None
             and interface.name.casefold() == Settings.CAPTURE_INTERFACE_NAME.casefold()
@@ -6747,28 +6838,32 @@ if __name__ == '__main__':
                 interfaces_selection_data.append(InterfaceSelectionData(
                     len(interfaces_selection_data), interface.name, interface.description,
                     interface.packets_sent, interface.packets_recv, ip_address, mac_address, vendor_name,
-                    is_arp=False, is_inactive=is_inactive,
+                    device_name, is_arp=False, is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
                 len(interfaces_selection_data), interface.name, interface.description,
                 interface.packets_sent, interface.packets_recv, 'N/A', mac_address, vendor_name,
-                is_arp=False, is_inactive=is_inactive,
+                device_name, is_arp=False, is_inactive=is_inactive,
             ))
 
-        if Settings.CAPTURE_ARP:
-            for arp_entry in interface.get_arp_entries():
-                vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
+        for arp_entry in interface.get_arp_entries():
+            vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
 
-                interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface.name, interface.description,
-                    'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
-                    is_arp=True, is_inactive=is_inactive,
-                ))
+            interfaces_selection_data.append(InterfaceSelectionData(
+                len(interfaces_selection_data), interface.name, interface.description,
+                'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
+                device_name, is_arp=True, is_inactive=is_inactive,
+            ))
 
-    selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
+    selected_interface, arp_spoofing_enabled = select_interface(interfaces_selection_data, screen_width, screen_height)
     if selected_interface is None:
         sys.exit(0)
+
+    # Update ARP Spoofing setting if changed by user in dialog
+    if arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING:
+        Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
+        Settings.reconstruct_settings()
 
     clear_screen()
     set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
@@ -6954,6 +7049,14 @@ if __name__ == '__main__':
     )
 
     capture.start()
+
+    if Settings.CAPTURE_ARP_SPOOFING:
+        Thread(
+            target=arp_spoofing_task,
+            name=f'ARPSpoofingTask-{selected_interface.ip_address}',
+            args=(selected_interface.device_name, selected_interface.ip_address, capture),
+            daemon=True,
+        ).start()
 
     # Initialize GUI data structures early so GUI can start immediately
     GUIrenderingData.CONNECTED_FIELDS_TO_HIDE = set(Settings.GUI_CONNECTED_FIELDS_TO_HIDE)

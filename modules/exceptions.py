@@ -45,3 +45,10 @@ class DataConsistencyError(Exception):
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
+
+
+class ARPSpoofingFailedError(Exception):
+    """Raised when ARP spoofing fails to start after multiple attempts."""
+
+    def __init__(self, attempts: int) -> None:
+        super().__init__(f'ARP Spoofing failed to start after {attempts} consecutive attempts. Cannot continue.')
