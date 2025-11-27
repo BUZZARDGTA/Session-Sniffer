@@ -21,33 +21,20 @@ class TSharkProcessingError(ValueError):
         super().__init__(message)
 
 
-class UnexpectedFieldCountError(TSharkProcessingError):
-    """Raised when the number of fields in TShark output is unexpected."""
-
-    def __init__(self, actual: int, fields: tuple[str, ...]) -> None:
-        """Initialize the UnexpectedFieldCountError exception."""
-        super().__init__(
-            f'Unexpected number of fields in TShark output. '
-            f'Expected "5", got "{actual}": "{fields}"',
-        )
-
-
-class MissingRequiredFieldsError(TSharkProcessingError):
-    """Raised when required fields are missing in TShark output."""
-
-    def __init__(self, fields: tuple[str, ...]) -> None:
-        """Initialize the MissingRequiredFieldsError exception."""
-        super().__init__(
-            f'One of the required first three fields is empty. Fields: {fields}',
-        )
-
-
-class InvalidIPv4AddressInCaptureError(TSharkProcessingError):
+class InvalidIPv4AddressError(TSharkProcessingError):
     """Raised when the source or destination IP addresses are not valid IPv4 addresses."""
 
     def __init__(self, ip: str) -> None:
         """Initialize the InvalidIPv4AddressError exception."""
         super().__init__(f'Invalid IPv4 address: {ip}. IP must be a valid IPv4 address.')
+
+
+class InvalidIPv4AddressMultipleError(InvalidIPv4AddressError):
+    """Raised when an IP field contains multiple comma-separated values."""
+
+
+class InvalidIPv4AddressFormatError(InvalidIPv4AddressError):
+    """Raised when an IP field is not a valid IPv4 format."""
 
 
 class InvalidPortFormatError(TSharkProcessingError):
@@ -56,6 +43,14 @@ class InvalidPortFormatError(TSharkProcessingError):
     def __init__(self, port: str) -> None:
         """Initialize the InvalidPortFormatError exception."""
         super().__init__(f'Invalid port format: {port}. Port must be a number.')
+
+
+class InvalidPortMultipleError(InvalidPortFormatError):
+    """Raised when a port field contains multiple comma-separated values."""
+
+
+class InvalidPortNumericError(InvalidPortFormatError):
+    """Raised when a port field is not a valid numeric format."""
 
 
 class InvalidPortNumberError(TSharkProcessingError):

@@ -5,12 +5,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self
 
 from modules.capture.exceptions import (
-    InvalidIPv4AddressInCaptureError,
-    InvalidPortFormatError,
+    InvalidIPv4AddressFormatError,
+    InvalidIPv4AddressMultipleError,
+    InvalidPortMultipleError,
     InvalidPortNumberError,
-    MissingRequiredFieldsError,
+    InvalidPortNumericError,
     TSharkCrashExceptionError,
-    UnexpectedFieldCountError,
 )
 from modules.constants.external import LOCAL_TZ
 from modules.constants.standalone import MAX_PORT, MIN_PORT
@@ -26,17 +26,28 @@ _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 5
 
 
 def _parse_and_validate_port(port_str: str, /) -> int:
+    if ',' in port_str:
+        print(f'[Tshark] Invalid port (multiple): {port_str}. Skipped.')
+        raise InvalidPortMultipleError(port_str)
+
     if not port_str.isascii() or not port_str.isdecimal():
-        raise InvalidPortFormatError(port_str)
+        print(f'[Tshark] Invalid port (not numeric): {port_str}. Skipped.')
+        raise InvalidPortNumericError(port_str)
     port = int(port_str)
     if not MIN_PORT <= port <= MAX_PORT:
+        print(f'[Tshark] Invalid port (out of range): {port}. Skipped.')
         raise InvalidPortNumberError(port)
     return port
 
 
 def _parse_and_validate_ip(ip: str, /) -> str:
+    if ',' in ip:
+        print(f'[Tshark] Invalid IP (multiple): {ip}. Skipped.')
+        raise InvalidIPv4AddressMultipleError(ip)
+
     if not is_ipv4_address(ip):
-        raise InvalidIPv4AddressInCaptureError(ip)
+        print(f'[Tshark] Invalid IP format: {ip}. Skipped.')
+        raise InvalidIPv4AddressFormatError(ip)
     return ip
 
 
@@ -218,11 +229,13 @@ class PacketCapture:
             # Split the line into fields and limit the split based on the expected number of fields
             fields = tuple(field.strip() for field in line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
             if len(fields) != _EXPECTED_TSHARK_PACKET_FIELD_COUNT:
-                raise UnexpectedFieldCountError(len(fields), fields)
+                print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
+                return None
 
             # Ensure the first three fields are not empty
             if any(not field for field in fields[:3]):
-                raise MissingRequiredFieldsError(fields)
+                print(f'[TShark] One of the required first three fields is empty. Fields: {fields}')
+                return None
 
             # TODO(BUZZARDGTA): It would be ideal to retain these packets instead of discarding them.
             # Displaying "None" in the Port column should be supported at some point in the future development.
@@ -252,7 +265,18 @@ class PacketCapture:
                     if packet_fields is None:
                         continue
 
-                    yield Packet.from_fields(packet_fields)
+                    try:
+                        yield Packet.from_fields(packet_fields)
+                    except InvalidIPv4AddressMultipleError:
+                        continue
+                    except InvalidIPv4AddressFormatError:
+                        continue
+                    except InvalidPortMultipleError:
+                        continue
+                    except InvalidPortNumericError:
+                        continue
+                    except InvalidPortNumberError:
+                        continue
 
             # After stdout is done, check if there were any errors in stderr
             if process.stderr:
