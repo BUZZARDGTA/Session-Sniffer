@@ -6735,10 +6735,11 @@ class DiscordIntro(QDialog):
         self.fade_out.start()
 
 
-if __name__ == '__main__':
-    colorama.init(autoreset=True)
+SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
 
-    SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
+
+def main() -> None:
+    colorama.init(autoreset=True)
     os.chdir(SCRIPT_DIR)
 
     # Check minimum screen resolution requirement early to avoid wasting user's time
@@ -6758,7 +6759,7 @@ if __name__ == '__main__':
         print('\nChecking that your Python packages versions matches with file "requirements.txt" ...\n')
 
         if outdated_packages := check_packages_version(get_dependencies_from_pyproject() or get_dependencies_from_requirements()):
-            msgbox_message = 'The following packages have version mismatches:\n\n'  # pylint: disable=invalid-name
+            msgbox_message = 'The following packages have version mismatches:\n\n'
 
             # Iterate over outdated packages and add each package's information to the message box text
             for package_name, required_version, installed_version in outdated_packages:
@@ -6770,7 +6771,7 @@ if __name__ == '__main__':
 
             # Show message box
             msgbox_style = MsgBox.Style.MB_YESNO | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
-            msgbox_title = TITLE  # pylint: disable=invalid-name
+            msgbox_title = TITLE
             errorlevel = MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
             if errorlevel != MsgBox.ReturnValues.IDYES:
                 sys.exit(0)
@@ -6869,7 +6870,7 @@ if __name__ == '__main__':
     clear_screen()
     set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
     print('\nInitializing addresses and establishing connection to your PC / Console ...\n')
-    need_rewrite_settings = False  # pylint: disable=invalid-name
+    need_rewrite_settings = False
     fixed__capture_mac_address = selected_interface.mac_address
     fixed__capture_ip_address = selected_interface.ip_address
 
@@ -6878,15 +6879,15 @@ if __name__ == '__main__':
         or selected_interface.name != Settings.CAPTURE_INTERFACE_NAME
     ):
         Settings.CAPTURE_INTERFACE_NAME = selected_interface.name
-        need_rewrite_settings = True  # pylint: disable=invalid-name
+        need_rewrite_settings = True
 
     if fixed__capture_mac_address != Settings.CAPTURE_MAC_ADDRESS:
         Settings.CAPTURE_MAC_ADDRESS = fixed__capture_mac_address
-        need_rewrite_settings = True  # pylint: disable=invalid-name
+        need_rewrite_settings = True
 
     if fixed__capture_ip_address != Settings.CAPTURE_IP_ADDRESS:
         Settings.CAPTURE_IP_ADDRESS = fixed__capture_ip_address
-        need_rewrite_settings = True  # pylint: disable=invalid-name
+        need_rewrite_settings = True
 
     if need_rewrite_settings:
         Settings.reconstruct_settings()
@@ -6902,15 +6903,15 @@ if __name__ == '__main__':
     broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
     if broadcast_support and multicast_support:
         capture_filter.append('not (broadcast or multicast)')
-        vpn_mode_enabled = False  # pylint: disable=invalid-name
+        vpn_mode_enabled = False
     elif broadcast_support:
         capture_filter.append('not broadcast')
-        vpn_mode_enabled = True  # pylint: disable=invalid-name
+        vpn_mode_enabled = True
     elif multicast_support:
         capture_filter.append('not multicast')
-        vpn_mode_enabled = True  # pylint: disable=invalid-name
+        vpn_mode_enabled = True
     else:
-        vpn_mode_enabled = True  # pylint: disable=invalid-name
+        vpn_mode_enabled = True
 
     capture_filter.append('not (portrange 0-1023 or port 5353)')
 
@@ -6951,8 +6952,8 @@ if __name__ == '__main__':
     if Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
         display_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER})')
 
-    CAPTURE_FILTER_STR = ' and '.join(capture_filter) if capture_filter else None
-    DISPLAY_FILTER_STR = ' and '.join(display_filter) if display_filter else None
+    capture_filter_str = ' and '.join(capture_filter) if capture_filter else None
+    display_filter_str = ' and '.join(display_filter) if display_filter else None
 
     clear_screen()
     set_window_title(f'DEBUG CONSOLE - {TITLE}')
@@ -7044,8 +7045,8 @@ if __name__ == '__main__':
     capture = PacketCapture(
         interface=selected_interface,
         tshark_path=TSHARK_PATH,
-        capture_filter=CAPTURE_FILTER_STR,
-        display_filter=DISPLAY_FILTER_STR,
+        capture_filter=capture_filter_str,
+        display_filter=display_filter_str,
         callback=packet_callback,
     )
 
@@ -7117,3 +7118,7 @@ if __name__ == '__main__':
 
     # Start the application's event loop
     sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()
