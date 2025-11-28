@@ -1,6 +1,7 @@
 """Module for packet capture using TShark, including packet processing and handling of TShark crashes."""
 import subprocess
 import threading
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self
 
@@ -265,18 +266,14 @@ class PacketCapture:
                     if packet_fields is None:
                         continue
 
-                    try:
+                    with suppress(
+                        InvalidIPv4AddressMultipleError,
+                        InvalidIPv4AddressFormatError,
+                        InvalidPortMultipleError,
+                        InvalidPortNumericError,
+                        InvalidPortNumberError,
+                    ):
                         yield Packet.from_fields(packet_fields)
-                    except InvalidIPv4AddressMultipleError:
-                        continue
-                    except InvalidIPv4AddressFormatError:
-                        continue
-                    except InvalidPortMultipleError:
-                        continue
-                    except InvalidPortNumericError:
-                        continue
-                    except InvalidPortNumberError:
-                        continue
 
             # After stdout is done, check if there were any errors in stderr
             if process.stderr:
