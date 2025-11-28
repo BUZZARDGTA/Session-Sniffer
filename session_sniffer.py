@@ -4399,7 +4399,7 @@ class SessionTableModel(QAbstractTableModel):
                 return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
 
         return None
-    # pylint enable=invalid-name
+    # pylint: enable=invalid-name
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
