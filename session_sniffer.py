@@ -2255,7 +2255,7 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
     ]
 
 
-def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> tuple[InterfaceSelectionData | None, bool]:
+def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData | None:
     """Select the best matching interface based on given settings.
 
     If no interface matches, show the selection dialog to prompt the user.
@@ -2303,7 +2303,6 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
     # First try to select the best matching interface based on settings
     result: InterfaceSelectionData | None = None
-    arp_spoofing_enabled: bool = Settings.CAPTURE_ARP_SPOOFING
     if (
         # Check if the network interface prompt is disabled
         Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT
@@ -2314,7 +2313,7 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
     # If no suitable interface was found, prompt the user to select an interface
     if result is None:
-        result, arp_spoofing_enabled = show_interface_selection_dialog(
+        result, arp_spoofing_enabled, hide_inactive_enabled, hide_arp_enabled = show_interface_selection_dialog(
             screen_width,
             screen_height,
             interfaces_selection_data,
@@ -2322,7 +2321,21 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
             hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
             arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
         )
-    return result, arp_spoofing_enabled
+
+        if result is not None:
+            settings_changed = (
+                arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING
+                or hide_inactive_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE
+                or hide_arp_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_ARP
+            )
+
+            if settings_changed:
+                Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
+                Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
+                Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
+                Settings.reconstruct_settings()
+
+    return result
 
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
@@ -6915,14 +6928,9 @@ def main() -> None:
                 device_name, is_arp=True, is_inactive=is_inactive,
             ))
 
-    selected_interface, arp_spoofing_enabled = select_interface(interfaces_selection_data, screen_width, screen_height)
+    selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
     if selected_interface is None:
         sys.exit(0)
-
-    # Update ARP Spoofing setting if changed by user in dialog
-    if arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING:
-        Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
-        Settings.reconstruct_settings()
 
     clear_screen()
     set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')

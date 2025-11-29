@@ -87,6 +87,9 @@ class InterfaceSelectionDialog(QDialog):
         # Custom variables
         self.selected_interface_data: InterfaceSelectionData | None = None
         self.all_interfaces = interfaces  # Store the complete list of interface data
+        self.arp_spoofing_enabled = arp_spoofing_default
+        self.hide_inactive_enabled = hide_inactive_default
+        self.hide_arp_enabled = hide_arp_default
         self.interfaces: list[InterfaceSelectionData] = []  # Will be populated by apply_filters()
 
         # Layout for the dialog
@@ -366,6 +369,8 @@ class InterfaceSelectionDialog(QDialog):
             # Retrieve the selected interface data
             self.selected_interface_data = self.interfaces[selected_row]  # Get the selected interface data
             self.arp_spoofing_enabled = self.arp_spoofing_checkbox.isChecked()
+            self.hide_inactive_enabled = self.hide_inactive_checkbox.isChecked()
+            self.hide_arp_enabled = self.hide_arp_checkbox.isChecked()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
@@ -377,7 +382,7 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
     hide_inactive_default: bool,
     hide_arp_default: bool,
     arp_spoofing_default: bool,
-) -> tuple[InterfaceSelectionData | None, bool]:
+) -> tuple[InterfaceSelectionData | None, bool, bool, bool]:
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_width,
@@ -388,5 +393,5 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
         arp_spoofing_default=arp_spoofing_default,
     )
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected
-        return dialog.selected_interface_data, dialog.arp_spoofing_enabled
-    return None, arp_spoofing_default
+        return dialog.selected_interface_data, dialog.arp_spoofing_enabled, dialog.hide_inactive_enabled, dialog.hide_arp_enabled
+    return None, arp_spoofing_default, hide_inactive_default, hide_arp_default
