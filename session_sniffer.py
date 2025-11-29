@@ -117,8 +117,8 @@ from modules.constants.standalone import (
 )
 from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
+from modules.error_messages import format_arp_spoofing_failed_message
 from modules.exceptions import (
-    ARPSpoofingFailedError,
     PlayerAlreadyExistsError,
     PlayerNotFoundInRegistryError,
     UnexpectedPlayerCountError,
@@ -5709,7 +5709,15 @@ class PersistentMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
-def arp_spoofing_task(interface_device_name: str, interface_ip: str, capture_obj: PacketCapture) -> None:
+def arp_spoofing_task(  # noqa: PLR0913
+    interface_device_name: str,
+    interface_name: str,
+    interface_description: str,
+    interface_ip: str,
+    interface_mac: str | None,
+    vendor_name: str | None,
+    capture_obj: PacketCapture,
+) -> None:
     """Manage ARP spoofing process lifecycle synchronized with packet capture state.
 
     Credit: https://github.com/alandau/arpspoof
@@ -5720,8 +5728,61 @@ def arp_spoofing_task(interface_device_name: str, interface_ip: str, capture_obj
             return
 
         proc: subprocess.Popen[str] | None = None
-        consecutive_failures = 0
-        max_consecutive_failures = 5
+        startup_probe_timeout = 3.0
+
+        def terminate_process(proc: subprocess.Popen[str]) -> None:
+            """Terminate the ARP spoofing process gracefully, or forcefully if needed."""
+            proc.terminate()
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+
+        def report_failure(
+            stage: str,
+            *,
+            exit_code: int | None = None,
+            error_output: str | None = None,
+            msgbox_style: MsgBox.Style | None = None,
+            spawn_msgbox_thread: bool = False,
+        ) -> None:
+            """Log, notify, and terminate the ARP spoofing task on failure."""
+            stage_msg = f'[ARP Spoof] Task terminated due to {stage}.'
+            if exit_code is not None:
+                print(f'[ARP Spoof] {stage.capitalize()}. Exit code: {exit_code}.')
+            else:
+                print(f'[ARP Spoof] {stage.capitalize()}.')
+            if error_output:
+                print(f'[ARP Spoof] Error: {error_output}')
+
+            error_message = format_arp_spoofing_failed_message(
+                interface_name=interface_name,
+                interface_description=interface_description,
+                interface_ip=interface_ip,
+                interface_mac=interface_mac,
+                vendor_name=vendor_name,
+                exit_code=exit_code,
+                error_details=error_output,
+            )
+            final_style = msgbox_style or (MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST)
+
+            def show_msgbox() -> None:
+                MsgBox.show(
+                    title='ARP Spoofing Failed',
+                    text=error_message,
+                    style=final_style,
+                )
+
+            if spawn_msgbox_thread:
+                Thread(
+                    target=show_msgbox,
+                    name=f'ARPSpoof-{stage}-MsgBox',
+                    daemon=True,
+                ).start()
+            else:
+                show_msgbox()
+            print(stage_msg)
 
         while not gui_closed__event.is_set():
             # Wait for capture to be running
@@ -5733,63 +5794,59 @@ def arp_spoofing_task(interface_device_name: str, interface_ip: str, capture_obj
 
             # Start arpspoof process
             if proc is None or proc.poll() is not None:
-                if consecutive_failures >= max_consecutive_failures:
-                    print(f'[ARP Spoof] Failed to start {max_consecutive_failures} times consecutively. Cannot continue.')
-                    raise ARPSpoofingFailedError(max_consecutive_failures)
+                proc = subprocess.Popen(
+                    [str(ARPSPOOF_PATH), '-i', interface_device_name, interface_ip],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                print(f'[ARP Spoof] Started spoofing on interface {interface_ip}')
 
                 try:
-                    proc = subprocess.Popen(
-                        [str(ARPSPOOF_PATH), '-i', interface_device_name, interface_ip],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                    print(f'[ARP Spoof] Started spoofing on interface {interface_ip}')
-                    time.sleep(1.0)
-
-                    if proc.poll() is not None:
-                        _, stderr = proc.communicate()
-                        print(f'[ARP Spoof] Process failed to start. Exit code: {proc.returncode}')
-                        if stderr:
-                            print(f'[ARP Spoof] Error: {stderr.strip()}')
-                        consecutive_failures += 1
-                        time.sleep(2.0)
-                        continue
-
-                    consecutive_failures = 0
-                except (OSError, subprocess.SubprocessError) as e:
-                    print(f'[ARP Spoof] Failed to start process: {e}')
-                    consecutive_failures += 1
-                    time.sleep(2.0)
-                    continue
+                    proc.wait(timeout=startup_probe_timeout)
+                except subprocess.TimeoutExpired:
+                    pass  # Process continues to run
+                else:
+                    exit_code = proc.returncode
+                    stdout_data, stderr_data = proc.communicate()
+                    error_output = (stderr_data or stdout_data or '').strip() or None
+                    proc = None
+                    report_failure('startup failure', exit_code=exit_code, error_output=error_output)
+                    return
 
             # Wait for capture to stop or process to die
-            while not capture_obj.is_stopped() and not gui_closed__event.is_set():
-                if proc and proc.poll() is not None:
-                    print('[ARP Spoof] Process died unexpectedly, respawning...')
-                    time.sleep(1.0)
-                    break
-                time.sleep(0.5)
+            while proc and not capture_obj.is_stopped() and not gui_closed__event.is_set():
+                try:
+                    proc.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    continue  # Process still healthy; keep monitoring
+
+                exit_code = proc.returncode
+                stdout_data, stderr_data = proc.communicate()
+                error_output = (stderr_data or stdout_data or '').strip() or None
+                proc = None
+
+                if exit_code:
+                    report_failure(
+                        'unexpected process exit',
+                        exit_code=exit_code,
+                        error_output=error_output,
+                        msgbox_style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONWARNING | MsgBox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=True,
+                    )
+
+                print('[ARP Spoof] Process died unexpectedly, respawning...')
+                break
 
             # Stop the process if capture stopped
             if proc and proc.poll() is None:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=1.0)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
+                terminate_process(proc)
                 print('[ARP Spoof] Stopped spoofing.')
                 proc = None
 
         # Final cleanup
         if proc and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
+            terminate_process(proc)
         print('[ARP Spoof] Task terminated.')
 
 
@@ -7056,7 +7113,15 @@ def main() -> None:
         Thread(
             target=arp_spoofing_task,
             name=f'ARPSpoofingTask-{selected_interface.ip_address}',
-            args=(selected_interface.device_name, selected_interface.ip_address, capture),
+            args=(
+                selected_interface.device_name,
+                selected_interface.name,
+                selected_interface.description,
+                selected_interface.ip_address,
+                selected_interface.mac_address,
+                selected_interface.vendor_name,
+                capture,
+            ),
             daemon=True,
         ).start()
 
