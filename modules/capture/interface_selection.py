@@ -87,7 +87,7 @@ class InterfaceSelectionDialog(QDialog):
         # Custom variables
         self.selected_interface_data: InterfaceSelectionData | None = None
         self.all_interfaces = interfaces  # Store the complete list of interface data
-        self.interfaces = interfaces  # Store the filtered list
+        self.interfaces: list[InterfaceSelectionData] = []  # Will be populated by apply_filters()
 
         # Layout for the dialog
         layout = QVBoxLayout()
