@@ -735,8 +735,9 @@ class Settings(DefaultSettings):
         return setting_name in cls._ALL_SETTINGS_SET
 
     @classmethod
-    def reconstruct_settings(cls) -> None:
-        print('\nCorrect reconstruction of "Settings.ini" ...')
+    def rewrite_settings_file(cls) -> None:
+        print('\nRewriting "Settings.ini" file ...')
+
         text = format_triple_quoted_text(f"""
             ;;-----------------------------------------------------------------------------
             ;; {TITLE} Configuration Settings
@@ -747,8 +748,10 @@ class Settings(DefaultSettings):
             ;; https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration
             ;;-----------------------------------------------------------------------------
         """, add_trailing_newline=True)
+
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
+
         SETTINGS_PATH.write_text(text, encoding='utf-8')
 
     @staticmethod
@@ -1051,7 +1054,7 @@ class Settings(DefaultSettings):
                 setattr(Settings, setting_name, getattr(DefaultSettings, setting_name))
 
         if need_rewrite_settings:
-            cls.reconstruct_settings()
+            cls.rewrite_settings_file()
 
 
 class ARPEntry(NamedTuple):
@@ -2333,7 +2336,7 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
                 Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
                 Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
                 Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
-                Settings.reconstruct_settings()
+                Settings.rewrite_settings_file()
 
     return result
 
@@ -6786,13 +6789,13 @@ class DiscordIntro(QDialog):
         webbrowser.open(DISCORD_INVITE_URL)
 
         Settings.SHOW_DISCORD_POPUP = False
-        Settings.reconstruct_settings()
+        Settings.rewrite_settings_file()
 
         self.close_popup()
 
     def dont_remind_me(self) -> None:
         Settings.SHOW_DISCORD_POPUP = False
-        Settings.reconstruct_settings()
+        Settings.rewrite_settings_file()
 
         self.close_popup()
 
@@ -6900,7 +6903,7 @@ def main() -> None:
             and interface.name != Settings.CAPTURE_INTERFACE_NAME
         ):
             Settings.CAPTURE_INTERFACE_NAME = interface.name
-            Settings.reconstruct_settings()
+            Settings.rewrite_settings_file()
 
         vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
         mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
@@ -6956,7 +6959,7 @@ def main() -> None:
         need_rewrite_settings = True
 
     if need_rewrite_settings:
-        Settings.reconstruct_settings()
+        Settings.rewrite_settings_file()
 
     capture_filter: list[str] = ['ip', 'udp']
 
