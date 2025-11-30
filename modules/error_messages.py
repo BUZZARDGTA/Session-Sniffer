@@ -15,15 +15,6 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
 ) -> str:
     """Format an ARP spoofing failure message for display in a message box.
 
-    Args:
-        interface_name: The name of the network interface.
-        interface_description: The description of the network interface.
-        interface_ip: The IP address of the interface.
-        interface_mac: The MAC address of the interface (optional).
-        vendor_name: The vendor name associated with the MAC address (optional).
-        exit_code: The exit code from the ARP spoofing process (optional).
-        error_details: Additional error details from stderr/stdout (optional).
-
     Returns:
         A formatted error message string ready for display.
     """
