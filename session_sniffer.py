@@ -6942,8 +6942,6 @@ def main() -> None:
     set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
     print('\nInitializing addresses and establishing connection to your PC / Console ...\n')
     need_rewrite_settings = False
-    fixed__capture_mac_address = selected_interface.mac_address
-    fixed__capture_ip_address = selected_interface.ip_address
 
     if (
         Settings.CAPTURE_INTERFACE_NAME is None
@@ -6952,12 +6950,12 @@ def main() -> None:
         Settings.CAPTURE_INTERFACE_NAME = selected_interface.name
         need_rewrite_settings = True
 
-    if fixed__capture_mac_address != Settings.CAPTURE_MAC_ADDRESS:
-        Settings.CAPTURE_MAC_ADDRESS = fixed__capture_mac_address
+    if selected_interface.mac_address != Settings.CAPTURE_MAC_ADDRESS:
+        Settings.CAPTURE_MAC_ADDRESS = selected_interface.mac_address
         need_rewrite_settings = True
 
-    if fixed__capture_ip_address != Settings.CAPTURE_IP_ADDRESS:
-        Settings.CAPTURE_IP_ADDRESS = fixed__capture_ip_address
+    if selected_interface.ip_address != Settings.CAPTURE_IP_ADDRESS:
+        Settings.CAPTURE_IP_ADDRESS = selected_interface.ip_address
         need_rewrite_settings = True
 
     if need_rewrite_settings:
