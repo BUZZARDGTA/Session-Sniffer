@@ -6788,14 +6788,16 @@ class DiscordIntro(QDialog):
     def open_discord(self) -> None:
         webbrowser.open(DISCORD_INVITE_URL)
 
-        Settings.SHOW_DISCORD_POPUP = False
-        Settings.rewrite_settings_file()
+        if Settings.SHOW_DISCORD_POPUP:
+            Settings.SHOW_DISCORD_POPUP = False
+            Settings.rewrite_settings_file()
 
         self.close_popup()
 
     def dont_remind_me(self) -> None:
-        Settings.SHOW_DISCORD_POPUP = False
-        Settings.rewrite_settings_file()
+        if Settings.SHOW_DISCORD_POPUP:
+            Settings.SHOW_DISCORD_POPUP = False
+            Settings.rewrite_settings_file()
 
         self.close_popup()
 
