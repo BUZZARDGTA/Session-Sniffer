@@ -2952,6 +2952,7 @@ def hostname_core() -> None:
                     continue
 
                 futures.pop(future)
+                pending_ips.remove(ip)
 
                 hostname = future.result()
 
