@@ -617,9 +617,36 @@ class Settings(DefaultSettings):
         'Pinging': 'ping.is_pinging',
     }
     GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address')
-    GUI_HIDEABLE_FIELDS: ClassVar = (
+    GUI_HIDEABLE_CONNECTED_FIELDS: ClassVar = (
         'PPS',
         'PPM',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_HIDEABLE_DISCONNECTED_FIELDS: ClassVar = (
         'Hostname',
         'Last Port',
         'Middle Ports',
@@ -912,7 +939,7 @@ class Settings(DefaultSettings):
                             for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                        value, Settings.GUI_HIDEABLE_CONNECTED_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
                                     filtered_gui_fields_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
@@ -935,7 +962,7 @@ class Settings(DefaultSettings):
                             for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                        value, Settings.GUI_HIDEABLE_DISCONNECTED_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
                                     filtered_gui_fields_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
