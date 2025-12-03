@@ -4280,7 +4280,7 @@ def rendering_core(
                     SessionHost.player = None
                     SessionHost.search_player = True
                     SessionHost.players_pending_for_disconnection.clear()
-                elif len(session_connected) >= 1 and all(not player.pps.is_first_calculation and not player.pps.rate for player in session_connected):
+                elif len(session_connected) >= 1 and all(not player.pps.is_first_calculation and not player.pps.calculated_rate for player in session_connected):
                     SessionHost.players_pending_for_disconnection = session_connected
                 elif SessionHost.search_player:
                     SessionHost.get_host_player(session_connected)
