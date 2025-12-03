@@ -237,9 +237,8 @@ GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite
 # TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
 ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
 NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
-RATE_ZERO = 0
-RATE_LOW = 1
-RATE_MAX = 3
+PPS_MAX_THRESHOLD = 10  # Maximum PPS for gradient calculation (lime green)
+PPM_MAX_THRESHOLD = 600  # Maximum PPM for gradient calculation (lime green)
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
@@ -1254,7 +1253,7 @@ class ThirdPartyServers(enum.Enum):
     PS_SONY_INTERACTIVE = ('104.142.128.0/17',)
     PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
     GTAV_TAKETWO = ('104.255.104.0/22', '185.56.64.0/22', '192.81.240.0/21')
-    GTAV_PC_MICROSOFT = ('20.40.176.0/20', '20.193.0.0/18', '52.139.128.0/18')
+    GTAV_PC_MICROSOFT = ('52.139.128.0/18',)
     GTAV_PC_DOD_NETWORK_INFORMATION_CENTER = ('26.0.0.0/8',)
     GTAV_PC_BATTLEYE = ('51.89.97.102/32', '51.89.99.255/32')
     GTAV_XBOXONE_MICROSOFT = ('40.74.0.0/18', '52.159.128.0/17', '52.160.0.0/16')
@@ -3825,14 +3824,27 @@ def rendering_core(
                     return ', '.join(map(str, reversed(player.ports.middle)))
                 return ''
 
-            def get_player_rate_color(color: QColor, rate: int, *, is_first_calculation: bool) -> QColor:
-                """Determine the color for player rates based on given thresholds."""
-                if not is_first_calculation:
-                    if rate == RATE_ZERO:
-                        return QColor('red')
-                    if RATE_LOW <= rate <= RATE_MAX:
-                        return QColor('yellow')
-                return color
+            def get_player_pps_gradient_color(default_color: QColor, player_calculated_pps_rate: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for PPS value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on PPS_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_calculated_pps_rate, 0), PPS_MAX_THRESHOLD) * 0xFF // PPS_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            def get_player_ppm_gradient_color(default_color: QColor, player_calculated_ppm_rate: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for PPM value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on PPM_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_calculated_ppm_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
 
             row_texts: list[str] = []
             session_connected_table__processed_data: list[list[str]] = []
@@ -3863,12 +3875,12 @@ def rendering_core(
                 row_texts.append(f'{player.packets}')
                 if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
-                        foreground=get_player_rate_color(row_fg_color, player.pps.calculated_rate, is_first_calculation=player.pps.is_first_calculation),
+                        foreground=get_player_pps_gradient_color(row_fg_color, player.pps.calculated_rate, is_first_calculation=player.pps.is_first_calculation),
                     )
                     row_texts.append(f'{player.pps.calculated_rate}')
                 if 'PPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
-                        foreground=get_player_rate_color(row_fg_color, player.ppm.calculated_rate, is_first_calculation=player.ppm.is_first_calculation),
+                        foreground=get_player_ppm_gradient_color(row_fg_color, player.ppm.calculated_rate, is_first_calculation=player.ppm.is_first_calculation),
                     )
                     row_texts.append(f'{player.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
