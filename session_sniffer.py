@@ -587,8 +587,8 @@ class Settings(DefaultSettings):
         'Rejoins': 'rejoins',
         'T. Packets': 'total_packets',
         'Packets': 'packets',
-        'PPS': 'pps.rate',
-        'PPM': 'ppm.rate',
+        'PPS': 'pps.calculated_rate',
+        'PPM': 'ppm.calculated_rate',
         'IP Address': 'ip',
         'Hostname': 'reverse_dns.hostname',
         'Last Port': 'ports.last',
@@ -1275,48 +1275,62 @@ class PlayerReverseDNS:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerPPS:
-    """Class to manage player packets per second (PPS) calculations."""
+    """Class to manage player Packets Per Second (PPS) calculations.
+
+    Attributes:
+        is_first_calculation (bool): True until the first rate calculation completes
+        last_update_time (float): Timestamp of the last rate calculation
+        accumulated_packets (int): Number of packets counted since last calculation
+        calculated_rate (int): The final PPS value to display (packets per second)
+    """
     is_first_calculation: bool = True
     last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-    counter: int = 0
-    rate: int = 0
+    accumulated_packets: int = 0
+    calculated_rate: int = 0
 
-    def update_rate(self, counter: int) -> None:
-        """Update the current rate."""
+    def calculate_and_update_rate(self) -> None:
+        """Calculate rate from accumulated packets and reset counter."""
         self.is_first_calculation = False
+        self.calculated_rate = self.accumulated_packets
+        self.accumulated_packets = 0
         self.last_update_time = time.monotonic()
-        self.counter = 0
-        self.rate = counter
 
     def reset(self) -> None:
         """Resets the PlayerPPS to its initial state."""
         self.is_first_calculation = True
         self.last_update_time = time.monotonic()
-        self.counter = 0
-        self.rate = 0
+        self.accumulated_packets = 0
+        self.calculated_rate = 0
 
 
 @dataclass(kw_only=True, slots=True)
 class PlayerPPM:
-    """Class to manage player packets per second (PPM) calculations."""
+    """Class to manage player Packets Per Minute (PPM) calculations.
+
+    Attributes:
+        is_first_calculation (bool): True until the first rate calculation completes
+        last_update_time (float): Timestamp of the last rate calculation
+        accumulated_packets (int): Number of packets counted since last calculation
+        calculated_rate (int): The final PPM value to display (packets per minute)
+    """
     is_first_calculation: bool = True
     last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-    counter: int = 0
-    rate: int = 0
+    accumulated_packets: int = 0
+    calculated_rate: int = 0
 
-    def update_rate(self, counter: int) -> None:
-        """Update the current rate."""
+    def calculate_and_update_rate(self) -> None:
+        """Calculate rate from accumulated packets and reset counter."""
         self.is_first_calculation = False
+        self.calculated_rate = self.accumulated_packets
+        self.accumulated_packets = 0
         self.last_update_time = time.monotonic()
-        self.counter = 0
-        self.rate = counter
 
     def reset(self) -> None:
-        """Resets the PlayerPPS to its initial state."""
+        """Resets the PlayerPPM to its initial state."""
         self.is_first_calculation = True
         self.last_update_time = time.monotonic()
-        self.counter = 0
-        self.rate = 0
+        self.accumulated_packets = 0
+        self.calculated_rate = 0
 
 
 @dataclass(kw_only=True, slots=True)
@@ -1464,8 +1478,8 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.datetime.last_seen = packet_datetime
         self.total_packets += 1
         self.packets += 1
-        self.pps.counter += 1
-        self.ppm.counter += 1
+        self.pps.accumulated_packets += 1
+        self.ppm.accumulated_packets += 1
 
         if port != self.ports.last:
             if port not in self.ports.all:
@@ -1483,8 +1497,10 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.left_event.clear()
         self.datetime.last_rejoin = packet_datetime
         self.packets = 1
-        self.pps.counter = 1
-        self.ppm.counter = 1
+        self.pps.reset()
+        self.pps.accumulated_packets = 1
+        self.ppm.reset()
+        self.ppm.accumulated_packets = 1
         self.rejoins += 1
         self.total_packets += 1
 
@@ -3670,8 +3686,8 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
-                row_texts.append(f'{player.pps.rate}')
-                row_texts.append(f'{player.ppm.rate}')
+                row_texts.append(f'{player.pps.calculated_rate}')
+                row_texts.append(f'{player.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_logging_ip(player.ip)}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3847,14 +3863,14 @@ def rendering_core(
                 row_texts.append(f'{player.packets}')
                 if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
-                        foreground=get_player_rate_color(row_fg_color, player.pps.rate, is_first_calculation=player.pps.is_first_calculation),
+                        foreground=get_player_rate_color(row_fg_color, player.pps.calculated_rate, is_first_calculation=player.pps.is_first_calculation),
                     )
-                    row_texts.append(f'{player.pps.rate}')
+                    row_texts.append(f'{player.pps.calculated_rate}')
                 if 'PPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
-                        foreground=get_player_rate_color(row_fg_color, player.ppm.rate, is_first_calculation=player.ppm.is_first_calculation),
+                        foreground=get_player_rate_color(row_fg_color, player.ppm.calculated_rate, is_first_calculation=player.ppm.is_first_calculation),
                     )
-                    row_texts.append(f'{player.ppm.rate}')
+                    row_texts.append(f'{player.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4172,13 +4188,13 @@ def rendering_core(
 
                 # Calculate PPS every second
                 if (time.monotonic() - player.pps.last_update_time) >= 1.0:
-                    player.pps.update_rate(player.pps.counter)
+                    player.pps.calculate_and_update_rate()
 
                 # Calculate PPM every minute
                 if (time.monotonic() - player.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
-                    player.ppm.update_rate(player.ppm.counter)
+                    player.ppm.calculate_and_update_rate()
 
-                global_pps_rate += player.pps.rate
+                global_pps_rate += player.pps.calculated_rate
 
             for player in session_connected + session_disconnected:
                 if player.userip and player.ip not in UserIPDatabases.ips_set:
