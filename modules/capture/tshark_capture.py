@@ -194,13 +194,7 @@ class PacketCapture:
                 return
 
             self._running_event.set()
-
-            self._capture_thread = threading.Thread(
-                target=self._run_capture_loop,
-                name='TSharkCapture',
-                daemon=True,
-            )
-            self._capture_thread.start()
+            self._start_thread()
 
     def stop(self) -> None:
         """Stop the packet capture by terminating the TShark process."""
@@ -209,16 +203,16 @@ class PacketCapture:
                 return
 
             self._running_event.clear()
-
-            if self._tshark_process:
-                self._tshark_process.terminate()
-                self._tshark_process.wait()
-                self._tshark_process = None
+            self._terminate_process()
 
     def restart(self) -> None:
         """Restart the packet capture by stopping and starting it again."""
-        self.stop()
-        self.start()
+        with self._control_lock:
+            self._running_event.clear()
+            self._terminate_process()
+
+            self._running_event.set()
+            self._start_thread()
 
     def is_running(self) -> bool:
         """Check if the packet capture is currently running."""
@@ -228,6 +222,24 @@ class PacketCapture:
         """Block until the packet capture is stopped."""
         while self._running_event.is_set():
             self._running_event.wait(timeout=0.1)
+
+    def _terminate_process(self) -> None:
+        """Terminate the TShark process and wait for it to exit."""
+        if not self._tshark_process:
+            return
+
+        self._tshark_process.terminate()
+        self._tshark_process.wait()
+        self._tshark_process = None
+
+    def _start_thread(self) -> None:
+        """Create and start a new capture thread."""
+        self._capture_thread = threading.Thread(
+            target=self._run_capture_loop,
+            name='TSharkCapture',
+            daemon=True,
+        )
+        self._capture_thread.start()
 
     def _run_capture_loop(self) -> None:
         """Main capture loop that processes captured packets."""
