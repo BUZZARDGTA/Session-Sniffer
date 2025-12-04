@@ -77,3 +77,15 @@ class TSharkCrashExceptionError(Exception):
             stderr_output (str): The standard error output from TShark.
         """
         super().__init__(f'TShark crashed with return code {returncode}: {stderr_output}')
+
+
+class TSharkProcessInitializationError(Exception):
+    """Exception raised when TShark process initialization fails.
+
+    This exception is raised when the TShark subprocess is created but its
+    stdout or stderr streams are not available despite being configured with PIPE.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('TShark process stdout/stderr not available')

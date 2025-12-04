@@ -12,6 +12,7 @@ from modules.capture.exceptions import (
     InvalidPortNumberError,
     InvalidPortNumericError,
     TSharkCrashExceptionError,
+    TSharkProcessInitializationError,
 )
 from modules.constants.external import LOCAL_TZ
 from modules.constants.standalone import MAX_PORT, MIN_PORT
@@ -264,29 +265,32 @@ class PacketCapture:
         ) as process:
             self._tshark_process = process
 
-            if process.stdout:
-                for line in process.stdout:  # Iterate over stdout line by line as it is being produced
-                    if not self._running_event.is_set():
-                        return
+            # stdout and stderr are always set when PIPE is used
+            if not process.stdout or not process.stderr:
+                raise TSharkProcessInitializationError
 
-                    packet_fields = _process_tshark_stdout(line.rstrip())
-                    if packet_fields is None:
-                        continue
+            # Iterate over stdout line by line as it is being produced
+            for line in process.stdout:
+                if not self._running_event.is_set():
+                    return
 
-                    with suppress(
-                        InvalidIPv4AddressMultipleError,
-                        InvalidIPv4AddressFormatError,
-                        InvalidPortMultipleError,
-                        InvalidPortNumericError,
-                        InvalidPortNumberError,
-                    ):
-                        yield Packet.from_fields(packet_fields)
+                packet_fields = _process_tshark_stdout(line.rstrip())
+                if packet_fields is None:
+                    continue
+
+                with suppress(
+                    InvalidIPv4AddressMultipleError,
+                    InvalidIPv4AddressFormatError,
+                    InvalidPortMultipleError,
+                    InvalidPortNumericError,
+                    InvalidPortNumberError,
+                ):
+                    yield Packet.from_fields(packet_fields)
 
             if not self._running_event.is_set():
                 return
 
             # After stdout is done, check if there were any errors in stderr
-            if process.stderr:
-                stderr_output = process.stderr.read()
-                if isinstance(process.returncode, int) and process.returncode:
-                    raise TSharkCrashExceptionError(process.returncode, stderr_output)
+            stderr_output = process.stderr.read()
+            if isinstance(process.returncode, int) and process.returncode:
+                raise TSharkCrashExceptionError(process.returncode, stderr_output)
