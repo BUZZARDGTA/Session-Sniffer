@@ -190,26 +190,30 @@ class PacketCapture:
     def start(self) -> None:
         """Start the packet capture by launching a new TShark process."""
         with self._control_lock:
-            if not self._running_event.is_set():
-                self._running_event.set()
+            if self._running_event.is_set():
+                return
 
-                self._capture_thread = threading.Thread(
-                    target=self._run_capture_loop,
-                    name='TSharkCapture',
-                    daemon=True,
-                )
-                self._capture_thread.start()
+            self._running_event.set()
+
+            self._capture_thread = threading.Thread(
+                target=self._run_capture_loop,
+                name='TSharkCapture',
+                daemon=True,
+            )
+            self._capture_thread.start()
 
     def stop(self) -> None:
         """Stop the packet capture by terminating the TShark process."""
         with self._control_lock:
-            if self._running_event.is_set():
-                self._running_event.clear()
+            if not self._running_event.is_set():
+                return
 
-                if self._tshark_process:
-                    self._tshark_process.terminate()
-                    self._tshark_process.wait()
-                    self._tshark_process = None
+            self._running_event.clear()
+
+            if self._tshark_process:
+                self._tshark_process.terminate()
+                self._tshark_process.wait()
+                self._tshark_process = None
 
     def restart(self) -> None:
         """Restart the packet capture by stopping and starting it again."""
