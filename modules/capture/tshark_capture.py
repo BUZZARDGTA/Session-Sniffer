@@ -255,7 +255,7 @@ class PacketCapture:
             if process.stdout:
                 for line in process.stdout:  # Iterate over stdout line by line as it is being produced
                     if not self._running_event.is_set():
-                        break
+                        return
 
                     packet_fields = _process_tshark_stdout(line.rstrip())
                     if packet_fields is None:
@@ -269,6 +269,9 @@ class PacketCapture:
                         InvalidPortNumberError,
                     ):
                         yield Packet.from_fields(packet_fields)
+
+            if not self._running_event.is_set():
+                return
 
             # After stdout is done, check if there were any errors in stderr
             if process.stderr:
