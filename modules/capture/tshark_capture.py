@@ -253,8 +253,7 @@ class PacketCapture:
             self._tshark_process = process
 
             if process.stdout:
-                # Iterate over stdout line by line as it is being produced
-                for line in process.stdout:
+                for line in process.stdout:  # Iterate over stdout line by line as it is being produced
                     if not self._running_event.is_set():
                         break
 
