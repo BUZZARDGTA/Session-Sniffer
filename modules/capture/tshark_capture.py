@@ -57,6 +57,39 @@ def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
     return dt_utc.astimezone(LOCAL_TZ)
 
 
+def _process_tshark_stdout(line: str, /) -> PacketFields | None:
+    """Process a line of TShark output and return a PacketFields object.
+
+    Args:
+        line (str): A line of TShark output.
+
+    Returns:
+        (PacketFields | None): A named tuple containing the packet fields., or `None` if the packet is invalid.
+
+    Raises:
+        TSharkProcessingError: If IPs or ports are invalid or the number of fields in the line is unexpected.
+    """
+    # Split the line into fields and limit the split based on the expected number of fields
+    fields = tuple(field.strip() for field in line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
+    if len(fields) != _EXPECTED_TSHARK_PACKET_FIELD_COUNT:
+        print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
+        return None
+
+    # Ensure the first three fields are not empty
+    if any(not field for field in fields[:3]):
+        print(f'[TShark] One of the required first three fields is empty. Fields: {fields}')
+        return None
+
+    # TODO(BUZZARDGTA): It would be ideal to retain these packets instead of discarding them.
+    # Displaying "None" in the Port column should be supported at some point in the future development.
+    # Skip processing if source or destination port is missing (last two fields)
+    if not fields[-2] or not fields[-1]:
+        print(f'[TShark] Skipping packet with missing port(s): {fields}')
+        return None
+
+    return PacketFields(*fields)
+
+
 class PacketFields(NamedTuple):
     time_epoch: str
     src_ip: str
@@ -210,39 +243,6 @@ class PacketCapture:
         Yields:
             Packet: A packet object containing the captured packet data.
         """
-
-        def process_tshark_stdout(line: str) -> PacketFields | None:
-            """Process a line of TShark output and return a PacketFields object.
-
-            Args:
-                line (str): A line of TShark output.
-
-            Returns:
-                (PacketFields | None): A named tuple containing the packet fields., or `None` if the packet is invalid.
-
-            Raises:
-                TSharkProcessingError: If IPs or ports are invalid or the number of fields in the line is unexpected.
-            """
-            # Split the line into fields and limit the split based on the expected number of fields
-            fields = tuple(field.strip() for field in line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
-            if len(fields) != _EXPECTED_TSHARK_PACKET_FIELD_COUNT:
-                print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
-                return None
-
-            # Ensure the first three fields are not empty
-            if any(not field for field in fields[:3]):
-                print(f'[TShark] One of the required first three fields is empty. Fields: {fields}')
-                return None
-
-            # TODO(BUZZARDGTA): It would be ideal to retain these packets instead of discarding them.
-            # Displaying "None" in the Port column should be supported at some point in the future development.
-            # Skip processing if source or destination port is missing (last two fields)
-            if not fields[-2] or not fields[-1]:
-                print(f'[TShark] Skipping packet with missing port(s): {fields}')
-                return None
-
-            return PacketFields(*fields)
-
         with subprocess.Popen(
             self._tshark_cmd,
             stdout=subprocess.PIPE,
@@ -258,7 +258,7 @@ class PacketCapture:
                     if not self._running_event.is_set():
                         break
 
-                    packet_fields = process_tshark_stdout(line.rstrip())
+                    packet_fields = _process_tshark_stdout(line.rstrip())
                     if packet_fields is None:
                         continue
 
