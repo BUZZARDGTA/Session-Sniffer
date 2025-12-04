@@ -133,7 +133,7 @@ class PacketCapture:
         self.display_filter = display_filter
         self._callback: Callable[[Packet], None] = callback
 
-        self._control_lock = threading.RLock()
+        self._control_lock = threading.Lock()
         self._running_event = threading.Event()
         self._tshark_cmd = (
             str(tshark_path),
@@ -169,22 +169,18 @@ class PacketCapture:
 
     def stop(self) -> None:
         """Stop the packet capture by terminating the TShark process."""
-        def _async_stop() -> None:
-            with self._control_lock:
-                if self._running_event.is_set():
-                    self._running_event.clear()
+        with self._control_lock:
+            if self._running_event.is_set():
+                self._running_event.clear()
 
-                    if self._tshark_process:
-                        self._tshark_process.terminate()
-                        try:
-                            self._tshark_process.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            self._tshark_process.kill()
-                            self._tshark_process.wait()
-                        self._tshark_process = None
-
-        # Run stop operation asynchronously to avoid UI blocking
-        threading.Thread(target=_async_stop, daemon=True).start()
+                if self._tshark_process:
+                    self._tshark_process.terminate()
+                    try:
+                        self._tshark_process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        self._tshark_process.kill()
+                        self._tshark_process.wait()
+                    self._tshark_process = None
 
     def restart(self) -> None:
         """Restart the packet capture by stopping and starting it again."""
