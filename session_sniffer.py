@@ -5854,7 +5854,7 @@ def arp_spoofing_task(  # noqa: PLR0913
 
         while not gui_closed__event.is_set():
             # Wait for capture to be running
-            while capture_obj.is_stopped() and not gui_closed__event.is_set():
+            while not capture_obj.is_running() and not gui_closed__event.is_set():
                 time.sleep(0.5)
 
             if gui_closed__event.is_set():
@@ -5883,7 +5883,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                     return
 
             # Wait for capture to stop or process to die
-            while proc and not capture_obj.is_stopped() and not gui_closed__event.is_set():
+            while proc and capture_obj.is_running() and not gui_closed__event.is_set():
                 try:
                     proc.wait(timeout=0.5)
                 except subprocess.TimeoutExpired:
@@ -5927,7 +5927,9 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
     Returns:
         str: HTML string for the header.
     """
-    if capture.is_stopped():
+    if capture.is_running():
+        stop_status = ''
+    else:
         stop_status = """
                 <div style="background: linear-gradient(90deg, #bf616a, #d08770); padding: 10px;
                             margin-top: 10px; border: 2px solid #bf616a; border-radius: 6px;
@@ -5935,8 +5937,6 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
                     <span style="font-size: 18px; font-weight: bold; color: #ffeb3b;">⏸️ CAPTURE STOPPED</span>
                 </div>
                 """
-    else:
-        stop_status = ''
 
     return f"""
             <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px;
@@ -6590,16 +6590,14 @@ class MainWindow(QMainWindow):
 
     def toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
-        if self.capture.is_stopped():
-            # Start capture
-            self.capture.start()
-            self.toggle_capture_action.setText('⏹️ Stop Capture')
-            self.toggle_capture_action.setToolTip('Stop packet capture')
-        else:
-            # Stop capture
+        if self.capture.is_running():
             self.capture.stop()
             self.toggle_capture_action.setText('▶️ Start Capture')
             self.toggle_capture_action.setToolTip('Start packet capture')
+        else:
+            self.capture.start()
+            self.toggle_capture_action.setText('⏹️ Stop Capture')
+            self.toggle_capture_action.setToolTip('Stop packet capture')
 
         # Immediately update header to show current status
         self._update_header_capture_status()

@@ -220,9 +220,9 @@ class PacketCapture:
         self.stop()
         self.start()
 
-    def is_stopped(self) -> bool:
-        """Check if the packet capture is currently stopped."""
-        return not self._running_event.is_set()
+    def is_running(self) -> bool:
+        """Check if the packet capture is currently running."""
+        return self._running_event.is_set()
 
     def wait(self) -> None:
         """Block until the packet capture is stopped."""
