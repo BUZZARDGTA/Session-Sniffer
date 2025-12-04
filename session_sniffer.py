@@ -5803,13 +5803,9 @@ def arp_spoofing_task(  # noqa: PLR0913
         startup_probe_timeout = 3.0
 
         def terminate_process(proc: subprocess.Popen[str]) -> None:
-            """Terminate the ARP spoofing process gracefully, or forcefully if needed."""
+            """Terminate the ARP spoofing process."""
             proc.terminate()
-            try:
-                proc.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
+            proc.wait()
 
         def report_failure(
             stage: str,

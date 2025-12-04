@@ -208,11 +208,7 @@ class PacketCapture:
 
                 if self._tshark_process:
                     self._tshark_process.terminate()
-                    try:
-                        self._tshark_process.wait(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        self._tshark_process.kill()
-                        self._tshark_process.wait()
+                    self._tshark_process.wait()
                     self._tshark_process = None
 
     def restart(self) -> None:
