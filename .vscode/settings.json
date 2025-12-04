@@ -23,5 +23,6 @@
     "python.defaultInterpreterPath": "./.venv/Scripts/python.exe",
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
-    "search.useIgnoreFiles": false
+    "search.useIgnoreFiles": false,
+    "extensions.ignoreRecommendations": false
 }
