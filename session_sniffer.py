@@ -7169,7 +7169,6 @@ def main() -> None:
         display_filter=display_filter_str,
         callback=packet_callback,
     )
-
     capture.start()
 
     if Settings.CAPTURE_ARP_SPOOFING:
