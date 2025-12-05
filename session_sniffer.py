@@ -7087,7 +7087,7 @@ def main() -> None:
                 print(
                     f'[Tshark] Packet capture overflow detected: latency {packet_latency.total_seconds():.2f}s '
                     f'exceeds threshold of {Settings.CAPTURE_OVERFLOW_TIMER:.2f}s. '
-                    f'Restarting capture now (restart #{TsharkStats.restarted_times}).',
+                    f'Restarting capture now (restart #{TsharkStats.restarted_times}). Skipping this packet.',
                 )
                 capture.request_restart()
                 return  # Skip processing this packet
