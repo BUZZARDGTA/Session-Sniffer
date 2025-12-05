@@ -7085,11 +7085,11 @@ def main() -> None:
                 TsharkStats.restarted_times += 1
                 TsharkStats.packets_latencies.clear()
                 print(
-                    f'Packet capture overflow detected: latency {packet_latency.total_seconds():.2f}s '
+                    f'[Tshark] Packet capture overflow detected: latency {packet_latency.total_seconds():.2f}s '
                     f'exceeds threshold of {Settings.CAPTURE_OVERFLOW_TIMER:.2f}s. '
                     f'Restarting capture now (restart #{TsharkStats.restarted_times}).',
                 )
-                capture.restart()
+                capture.request_restart()
                 return  # Skip processing this packet
 
             if Settings.CAPTURE_IP_ADDRESS:

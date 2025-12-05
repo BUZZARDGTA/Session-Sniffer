@@ -11,8 +11,12 @@ from modules.capture.exceptions import (
     InvalidPortMultipleError,
     InvalidPortNumberError,
     InvalidPortNumericError,
+    TSharkAlreadyRunningError,
     TSharkCrashExceptionError,
+    TSharkNoProcessError,
+    TSharkNotRunningError,
     TSharkProcessInitializationError,
+    TSharkThreadAlreadyRunningError,
 )
 from modules.constants.external import LOCAL_TZ
 from modules.constants.standalone import MAX_PORT, MIN_PORT
@@ -169,6 +173,7 @@ class PacketCapture:
 
         self._control_lock = threading.Lock()
         self._running_event = threading.Event()
+        self._restart_requested = threading.Event()
         self._tshark_cmd = (
             str(tshark_path),
             '-l', '-n', '-Q',
@@ -192,7 +197,7 @@ class PacketCapture:
         """Start the packet capture by launching a new TShark process."""
         with self._control_lock:
             if self._running_event.is_set():
-                return
+                raise TSharkAlreadyRunningError
 
             self._running_event.set()
             self._start_thread()
@@ -201,19 +206,18 @@ class PacketCapture:
         """Stop the packet capture by terminating the TShark process."""
         with self._control_lock:
             if not self._running_event.is_set():
-                return
+                raise TSharkNotRunningError
 
             self._running_event.clear()
             self._terminate_process()
 
-    def restart(self) -> None:
-        """Restart the packet capture by stopping and starting it again."""
-        with self._control_lock:
-            self._running_event.clear()
-            self._terminate_process()
+    def request_restart(self) -> None:
+        """Request an async restart of the packet capture.
 
-            self._running_event.set()
-            self._start_thread()
+        This method is safe to call from within the packet callback.
+        It signals the capture thread to restart itself at the next opportunity.
+        """
+        self._restart_requested.set()
 
     def is_running(self) -> bool:
         """Check if the packet capture is currently running."""
@@ -227,7 +231,7 @@ class PacketCapture:
     def _terminate_process(self) -> None:
         """Terminate the TShark process and wait for it to exit."""
         if not self._tshark_process:
-            return
+            raise TSharkNoProcessError
 
         self._tshark_process.terminate()
         self._tshark_process.wait()
@@ -235,6 +239,9 @@ class PacketCapture:
 
     def _start_thread(self) -> None:
         """Create and start a new capture thread."""
+        if self._capture_thread and self._capture_thread.is_alive():
+            raise TSharkThreadAlreadyRunningError
+
         self._capture_thread = threading.Thread(
             target=self._run_capture_loop,
             name='TSharkCapture',
@@ -244,11 +251,16 @@ class PacketCapture:
 
     def _run_capture_loop(self) -> None:
         """Main capture loop that processes captured packets."""
-        for packet in self._capture_packets():
-            if not self._running_event.is_set():
-                return
+        while self._running_event.is_set():
+            self._restart_requested.clear()  # Clear any previous restart request before starting new capture iteration
 
-            self._callback(packet)
+            for packet in self._capture_packets():
+                self._callback(packet)
+
+                if self._restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
+                    break
+
+        self._capture_thread = None
 
     def _capture_packets(self) -> Generator[Packet]:
         """Capture packets using TShark and process the output.
@@ -271,9 +283,6 @@ class PacketCapture:
 
             # Iterate over stdout line by line as it is being produced
             for line in process.stdout:
-                if not self._running_event.is_set():
-                    return
-
                 packet_fields = _process_tshark_stdout(line.rstrip())
                 if packet_fields is None:
                     continue
@@ -286,9 +295,6 @@ class PacketCapture:
                     InvalidPortNumberError,
                 ):
                     yield Packet.from_fields(packet_fields)
-
-            if not self._running_event.is_set():
-                return
 
             # After stdout is done, check if there were any errors in stderr
             stderr_output = process.stderr.read()

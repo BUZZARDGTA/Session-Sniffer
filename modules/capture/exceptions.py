@@ -6,14 +6,18 @@ This module contains custom exception classes for packet capture operations.
 from modules.constants.standalone import MAX_PORT, MIN_PORT
 
 
-class TSharkOutputParsingError(Exception):
+class TSharkError(Exception):
+    """Base exception for all TShark-related errors."""
+
+
+class TSharkOutputParsingError(TSharkError):
     """Raised when TShark output cannot be parsed correctly."""
 
     def __init__(self, expected_parts: int, actual_parts: int, output_line: str) -> None:
         super().__init__(f'Expected "{expected_parts}" parts, got "{actual_parts}" in "{output_line}"')
 
 
-class TSharkProcessingError(ValueError):
+class TSharkProcessingError(TSharkError, ValueError):
     """Base class for TShark packet parsing errors."""
 
     def __init__(self, message: str) -> None:
@@ -61,7 +65,7 @@ class InvalidPortNumberError(TSharkProcessingError):
         super().__init__(f'Invalid port number: {port}. Port must be a number between {MIN_PORT} and {MAX_PORT}.')
 
 
-class TSharkCrashExceptionError(Exception):
+class TSharkCrashExceptionError(TSharkError):
     """Exception raised when TShark crashes.
 
     Attributes:
@@ -79,7 +83,7 @@ class TSharkCrashExceptionError(Exception):
         super().__init__(f'TShark crashed with return code {returncode}: {stderr_output}')
 
 
-class TSharkProcessInitializationError(Exception):
+class TSharkProcessInitializationError(TSharkError):
     """Exception raised when TShark process initialization fails.
 
     This exception is raised when the TShark subprocess is created but its
@@ -89,3 +93,35 @@ class TSharkProcessInitializationError(Exception):
     def __init__(self) -> None:
         """Initialize the exception."""
         super().__init__('TShark process stdout/stderr not available')
+
+
+class TSharkAlreadyRunningError(TSharkError):
+    """Exception raised when attempting to start capture while it's already running."""
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('Capture is already running')
+
+
+class TSharkNotRunningError(TSharkError):
+    """Exception raised when attempting to stop capture that is not running."""
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('Capture is not running')
+
+
+class TSharkNoProcessError(TSharkError):
+    """Exception raised when attempting to terminate a non-existent TShark process."""
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('No TShark process to terminate')
+
+
+class TSharkThreadAlreadyRunningError(TSharkError):
+    """Exception raised when attempting to start a capture thread that is already running."""
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('Capture thread is already running')
