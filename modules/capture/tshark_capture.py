@@ -176,19 +176,24 @@ class PacketCapture:
         self._restart_requested = threading.Event()
         self._tshark_cmd = (
             str(tshark_path),
-            '-l', '-n', '-Q',
-            '--log-level', 'critical',
-            '-B', '1',
+            # Capture interface
             '-i', interface.name,
             *(('-f', capture_filter) if capture_filter else ()),
+            # Processing
             *(('-Y', display_filter) if display_filter else ()),
+            '-n',
+            # Output
             '-T', 'fields',
-            '-E', 'separator=|',
             '-e', 'frame.time_epoch',
             '-e', 'ip.src',
             '-e', 'ip.dst',
             '-e', 'udp.srcport',
             '-e', 'udp.dstport',
+            '-E', 'separator=|',
+            '-l',
+            '-Q',
+            # Diagnostic output
+            '--log-level', 'critical',
         )
         self._capture_thread: threading.Thread | None = None
         self._tshark_process: subprocess.Popen[str] | None = None
