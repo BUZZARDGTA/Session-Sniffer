@@ -237,8 +237,8 @@ GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite
 # TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
 ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
 NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
-PPS_MAX_THRESHOLD = 10  # Maximum PPS for gradient calculation (lime green)
-PPM_MAX_THRESHOLD = 600  # Maximum PPM for gradient calculation (lime green)
+PPS_MAX_THRESHOLD = 10
+PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
