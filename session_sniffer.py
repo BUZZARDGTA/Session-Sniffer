@@ -538,7 +538,7 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
     GUI_DISCONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
-        'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
+        'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
