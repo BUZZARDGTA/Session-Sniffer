@@ -1,26 +1,26 @@
 {
     "latest_prerelease": {
-        "base_version": "1.4.2",
+        "base_version": "1.4.3",
         "epoch": 0,
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20251119.2132",
+        "local": "20251207.1949",
         "major": 1,
-        "micro": 2,
+        "micro": 3,
         "minor": 4,
         "post": null,
         "pre": [
             "rc",
-            3
+            1
         ],
-        "public": "1.4.2rc3",
+        "public": "1.4.3rc1",
         "release": [
             1,
             4,
-            2
+            3
         ],
-        "version": "1.4.2rc3+20251119.2132"
+        "version": "1.4.3rc1+20251207.1949"
     },
     "latest_stable": {
         "base_version": "1.4.2",
