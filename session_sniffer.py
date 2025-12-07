@@ -625,8 +625,10 @@ class Settings(DefaultSettings):
         'Hosting': 'iplookup.ipapi.hosting',
         'Pinging': 'ping.is_pinging',
     }
-    GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address')
+    GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
     GUI_HIDEABLE_CONNECTED_FIELDS: ClassVar = (
+        'T. Packets',
+        'Packets',
         'T. Packets Received',
         'Packets Received',
         'T. Packets Sent',
@@ -660,6 +662,8 @@ class Settings(DefaultSettings):
         'Pinging',
     )
     GUI_HIDEABLE_DISCONNECTED_FIELDS: ClassVar = (
+        'T. Packets',
+        'Packets',
         'T. Packets Received',
         'Packets Received',
         'T. Packets Sent',
@@ -3929,8 +3933,10 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.total_packets}')
-                row_texts.append(f'{player.packets}')
+                if 'T. Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets}')
+                if 'Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets}')
                 if 'T. Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.total_packets_received}')
                 if 'Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
@@ -4027,8 +4033,10 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
                 row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.total_packets}')
-                row_texts.append(f'{player.packets}')
+                if 'T. Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets}')
+                if 'Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets}')
                 if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.total_packets_received}')
                 if 'Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
