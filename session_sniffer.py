@@ -261,6 +261,10 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
     'T. Packets': 'The total number of packets exchanged by the player across all sessions.',
     'Packets': 'The number of packets exchanged (Received + Sent) by the player during the current session.',
+    'T. Packets Received': 'The total number of packets received by the player across all sessions.',
+    'Packets Received': 'The number of packets received by the player during the current session.',
+    'T. Packets Sent': 'The total number of packets sent by the player across all sessions.',
+    'Packets Sent': 'The number of packets sent by the player during the current session.',
     'PPS': 'The number of Packets exchanged (Received + Sent) by the player Per Second during the current session.',
     'PPM': 'The number of packets exchanged (Received + Sent) by the player per Minute during the current session.',
     'IP Address': 'The IP address of the player.',
@@ -529,10 +533,12 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_CONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
-        'PPM', 'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
+        'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
+        'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
     GUI_DISCONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
+        'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
@@ -586,6 +592,10 @@ class Settings(DefaultSettings):
         'Rejoins': 'rejoins',
         'T. Packets': 'total_packets',
         'Packets': 'packets',
+        'T. Packets Received': 'total_packets_received',
+        'Packets Received': 'packets_received',
+        'T. Packets Sent': 'total_packets_sent',
+        'Packets Sent': 'packets_sent',
         'PPS': 'pps.calculated_rate',
         'PPM': 'ppm.calculated_rate',
         'IP Address': 'ip',
@@ -617,6 +627,10 @@ class Settings(DefaultSettings):
     }
     GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'IP Address')
     GUI_HIDEABLE_CONNECTED_FIELDS: ClassVar = (
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
         'PPS',
         'PPM',
         'Hostname',
@@ -646,6 +660,10 @@ class Settings(DefaultSettings):
         'Pinging',
     )
     GUI_HIDEABLE_DISCONNECTED_FIELDS: ClassVar = (
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
         'Hostname',
         'Last Port',
         'Middle Ports',
@@ -679,6 +697,10 @@ class Settings(DefaultSettings):
         'Rejoins',
         'T. Packets',
         'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
         'PPS',
         'PPM',
         'IP Address',
@@ -716,6 +738,10 @@ class Settings(DefaultSettings):
         'Rejoins',
         'T. Packets',
         'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
         'IP Address',
         'Hostname',
         'Last Port',
@@ -1451,7 +1477,7 @@ class PlayerModMenus:
 
 
 class Player:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, *, ip: str, port: int, packet_datetime: datetime) -> None:
+    def __init__(self, *, ip: str, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
         self.left_event = Event()
 
         self.ip = ip
@@ -1459,6 +1485,17 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.packets = 1
         self.total_packets = 1
         self.usernames: list[str] = []
+
+        if sent_by_local_host:
+            self.total_packets_received = 0
+            self.packets_received = 0
+            self.total_packets_sent = 1
+            self.packets_sent = 1
+        else:
+            self.total_packets_received = 1
+            self.packets_received = 1
+            self.total_packets_sent = 0
+            self.packets_sent = 0
 
         self.reverse_dns = PlayerReverseDNS()
         self.pps = PlayerPPS()
@@ -1473,12 +1510,19 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.userip_detection: PlayerUserIPDetection | None = None
         self.mod_menus: PlayerModMenus | None = None
 
-    def mark_as_seen(self, *, port: int, packet_datetime: datetime) -> None:
+    def mark_as_seen(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
         self.datetime.last_seen = packet_datetime
         self.total_packets += 1
         self.packets += 1
         self.pps.accumulated_packets += 1
         self.ppm.accumulated_packets += 1
+
+        if sent_by_local_host:
+            self.packets_sent += 1
+            self.total_packets_sent += 1
+        else:
+            self.packets_received += 1
+            self.total_packets_received += 1
 
         if port != self.ports.last:
             if port not in self.ports.all:
@@ -1492,10 +1536,16 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
             self.ports.last = port
 
-    def mark_as_rejoined(self, *, port: int, packet_datetime: datetime) -> None:
+    def mark_as_rejoined(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
         self.left_event.clear()
         self.datetime.last_rejoin = packet_datetime
         self.packets = 1
+        if sent_by_local_host:
+            self.packets_sent = 1
+            self.packets_received = 0
+        else:
+            self.packets_sent = 0
+            self.packets_received = 1
         self.pps.reset()
         self.pps.accumulated_packets = 1
         self.ppm.reset()
@@ -3685,6 +3735,10 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
+                row_texts.append(f'{player.total_packets_received}')
+                row_texts.append(f'{player.packets_received}')
+                row_texts.append(f'{player.total_packets_sent}')
+                row_texts.append(f'{player.packets_sent}')
                 row_texts.append(f'{player.pps.calculated_rate}')
                 row_texts.append(f'{player.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_logging_ip(player.ip)}')
@@ -3729,6 +3783,10 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
+                row_texts.append(f'{player.total_packets_received}')
+                row_texts.append(f'{player.packets_received}')
+                row_texts.append(f'{player.total_packets_sent}')
+                row_texts.append(f'{player.packets_sent}')
                 row_texts.append(f'{player.ip}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3873,6 +3931,14 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
+                if 'T. Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets_received}')
+                if 'Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets_received}')
+                if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets_sent}')
+                if 'Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets_sent}')
                 if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                         foreground=get_player_pps_gradient_color(row_fg_color, player.pps.calculated_rate, is_first_calculation=player.pps.is_first_calculation),
@@ -3963,6 +4029,14 @@ def rendering_core(
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.total_packets}')
                 row_texts.append(f'{player.packets}')
+                if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets_received}')
+                if 'Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets_received}')
+                if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.total_packets_sent}')
+                if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(f'{player.packets_sent}')
                 row_texts.append(f'{player.ip}')
                 if 'Hostname' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4542,7 +4616,11 @@ class SessionTableModel(QAbstractTableModel):
                 key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
                 reverse=sort_order_bool,
             )
-        elif sorted_column_name in {'Rejoins', 'T. Packets', 'Packets', 'PPS', 'PPM', 'Last Port', 'First Port'}:
+        elif sorted_column_name in {
+            'Rejoins',
+            'T. Packets', 'Packets', 'T. Packets Sent', 'Packets Sent', 'T. Packets Received', 'Packets Received', 'PPS', 'PPM',
+            'Last Port', 'First Port',
+        }:
             # Sort by integer/float value of the column value
             combined.sort(
                 key=lambda row: float(row[0][column]),
@@ -4984,9 +5062,12 @@ class SessionTableView(QTableView):
         for column in range(model.columnCount()):
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
 
-            if header_label in {'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'T. Packets', 'Packets', 'PPS', 'PPM',
-                                'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',
-                                'R. Code', 'ZIP Code', 'Lat', 'Lon', 'Offset', 'Currency', 'Time Zone'}:
+            if header_label in {
+                'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins',
+                'T. Packets', 'Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPS', 'PPM',
+                'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',
+                'R. Code', 'ZIP Code', 'Lat', 'Lon', 'Offset', 'Currency', 'Time Zone',
+            }:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
             else:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
@@ -7096,9 +7177,11 @@ def main() -> None:
                 if packet.ip.src == Settings.CAPTURE_IP_ADDRESS:
                     target_ip = packet.ip.dst
                     target_port = packet.port.dst
+                    sent_by_local_host = True
                 elif packet.ip.dst == Settings.CAPTURE_IP_ADDRESS:
                     target_ip = packet.ip.src
                     target_port = packet.port.src
+                    sent_by_local_host = False
                 else:
                     return  # Neither source nor destination matches the specified `Settings.CAPTURE_IP_ADDRESS`.
             else:
@@ -7111,9 +7194,11 @@ def main() -> None:
                 if is_src_private_ip:
                     target_ip = packet.ip.dst
                     target_port = packet.port.dst
+                    sent_by_local_host = True
                 elif is_dst_private_ip:
                     target_ip = packet.ip.src
                     target_port = packet.port.src
+                    sent_by_local_host = False
                 else:
                     return  # Neither source nor destination is a private IP address.
 
@@ -7124,6 +7209,7 @@ def main() -> None:
                         ip=target_ip,
                         port=target_port,
                         packet_datetime=packet.datetime,
+                        sent_by_local_host=sent_by_local_host,
                     ),
                 )
 
@@ -7134,6 +7220,7 @@ def main() -> None:
                 player.mark_as_rejoined(
                     port=target_port,
                     packet_datetime=packet.datetime,
+                    sent_by_local_host=sent_by_local_host,
                 )
                 PlayersRegistry.move_player_to_connected(player)
 
@@ -7143,6 +7230,7 @@ def main() -> None:
                 player.mark_as_seen(
                     port=target_port,
                     packet_datetime=packet.datetime,
+                    sent_by_local_host=sent_by_local_host,
                 )
 
             if player.ip in UserIPDatabases.ips_set and (
