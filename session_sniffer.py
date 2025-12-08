@@ -1303,63 +1303,164 @@ class PlayerReverseDNS:
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerPPS:
-    """Class to manage player Packets Per Second (PPS) calculations.
+class PlayerPackets:  # pylint: disable=too-many-instance-attributes
+    """Class to manage player packet counts and statistics.
 
     Attributes:
-        is_first_calculation (bool): True until the first rate calculation completes
-        last_update_time (float): Timestamp of the last rate calculation
-        accumulated_packets (int): Number of packets counted since last calculation
-        calculated_rate (int): The final PPS value to display (packets per second)
+        total_exchanged (int): Total packets exchanged across all sessions
+        exchanged (int): Packets exchanged in current session (received + sent)
+        total_received (int): Total packets received across all sessions
+        received (int): Packets received in current session
+        total_sent (int): Total packets sent across all sessions
+        sent (int): Packets sent in current session
+        pps (PPS): Packets Per Second rate calculator
+        ppm (PPM): Packets Per Minute rate calculator
     """
-    is_first_calculation: bool = True
-    last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-    accumulated_packets: int = 0
-    calculated_rate: int = 0
 
-    def calculate_and_update_rate(self) -> None:
-        """Calculate rate from accumulated packets and reset counter."""
-        self.is_first_calculation = False
-        self.calculated_rate = self.accumulated_packets
-        self.accumulated_packets = 0
-        self.last_update_time = time.monotonic()
+    @dataclass(kw_only=True, slots=True)
+    class PPS:
+        """Class to manage player Packets Per Second (PPS) calculations.
 
-    def reset(self) -> None:
-        """Resets the PlayerPPS to its initial state."""
-        self.is_first_calculation = True
-        self.last_update_time = time.monotonic()
-        self.accumulated_packets = 0
-        self.calculated_rate = 0
+        Attributes:
+            is_first_calculation (bool): True until the first rate calculation completes
+            last_update_time (float): Timestamp of the last rate calculation
+            accumulated_packets (int): Number of packets counted since last calculation
+            calculated_rate (int): The final PPS value to display (packets per second)
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_packets: int = 0
+        calculated_rate: int = 0
 
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated packets and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_packets
+            self.accumulated_packets = 0
+            self.last_update_time = time.monotonic()
 
-@dataclass(kw_only=True, slots=True)
-class PlayerPPM:
-    """Class to manage player Packets Per Minute (PPM) calculations.
+        def reset(self) -> None:
+            """Resets the PlayerPPS to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_packets = 0
+            self.calculated_rate = 0
 
-    Attributes:
-        is_first_calculation (bool): True until the first rate calculation completes
-        last_update_time (float): Timestamp of the last rate calculation
-        accumulated_packets (int): Number of packets counted since last calculation
-        calculated_rate (int): The final PPM value to display (packets per minute)
-    """
-    is_first_calculation: bool = True
-    last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-    accumulated_packets: int = 0
-    calculated_rate: int = 0
+    @dataclass(kw_only=True, slots=True)
+    class PPM:
+        """Class to manage player Packets Per Minute (PPM) calculations.
 
-    def calculate_and_update_rate(self) -> None:
-        """Calculate rate from accumulated packets and reset counter."""
-        self.is_first_calculation = False
-        self.calculated_rate = self.accumulated_packets
-        self.accumulated_packets = 0
-        self.last_update_time = time.monotonic()
+        Attributes:
+            is_first_calculation (bool): True until the first rate calculation completes
+            last_update_time (float): Timestamp of the last rate calculation
+            accumulated_packets (int): Number of packets counted since last calculation
+            calculated_rate (int): The final PPM value to display (packets per minute)
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_packets: int = 0
+        calculated_rate: int = 0
 
-    def reset(self) -> None:
-        """Resets the PlayerPPM to its initial state."""
-        self.is_first_calculation = True
-        self.last_update_time = time.monotonic()
-        self.accumulated_packets = 0
-        self.calculated_rate = 0
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated packets and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_packets
+            self.accumulated_packets = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the PlayerPPM to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_packets = 0
+            self.calculated_rate = 0
+
+    total_exchanged: int = 1
+    exchanged: int = 1
+
+    total_received: int = 0
+    received: int = 0
+    total_sent: int = 0
+    sent: int = 0
+
+    pps: PPS = dataclasses.field(default_factory=PPS)
+    ppm: PPM = dataclasses.field(default_factory=PPM)
+
+    @classmethod
+    def from_packet_direction(cls, *, sent_by_local_host: bool) -> Self:
+        """Create PlayerPackets from initial packet direction.
+
+        Args:
+            sent_by_local_host: Whether the initial packet was sent by local host
+
+        Returns:
+            PlayerPackets: New instance initialized for the packet direction
+        """
+        if sent_by_local_host:
+            return cls(
+                total_exchanged=1,
+                exchanged=1,
+
+                total_received=0,
+                received=0,
+                total_sent=1,
+                sent=1,
+
+                pps=cls.PPS(accumulated_packets=1),
+                ppm=cls.PPM(accumulated_packets=1),
+            )
+        return cls(
+            total_exchanged=1,
+            exchanged=1,
+
+            total_received=1,
+            received=1,
+            total_sent=0,
+            sent=0,
+
+            pps=cls.PPS(accumulated_packets=1),
+            ppm=cls.PPM(accumulated_packets=1),
+        )
+
+    def increment(self, *, sent_by_local_host: bool) -> None:
+        """Increment packet counts based on packet direction.
+
+        Args:
+            sent_by_local_host: Whether the packet was sent by local host
+        """
+        self.total_exchanged += 1
+        self.exchanged += 1
+
+        if sent_by_local_host:
+            self.total_sent += 1
+            self.sent += 1
+        else:
+            self.total_received += 1
+            self.received += 1
+
+        self.pps.accumulated_packets += 1
+        self.ppm.accumulated_packets += 1
+
+    def reset_current_session(self, *, sent_by_local_host: bool) -> None:
+        """Reset current session packet counts (for rejoins).
+
+        Args:
+            sent_by_local_host: Whether the rejoin packet was sent by local host
+        """
+        self.total_exchanged += 1
+        self.exchanged = 1
+
+        if sent_by_local_host:
+            self.sent = 1
+            self.received = 0
+        else:
+            self.sent = 0
+            self.received = 1
+
+        self.pps.reset()
+        self.pps.accumulated_packets = 1
+        self.ppm.reset()
+        self.ppm.accumulated_packets = 1
 
 
 @dataclass(kw_only=True, slots=True)
@@ -1486,24 +1587,10 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
         self.ip = ip
         self.rejoins = 0
-        self.packets = 1
-        self.total_packets = 1
         self.usernames: list[str] = []
 
-        if sent_by_local_host:
-            self.total_packets_received = 0
-            self.packets_received = 0
-            self.total_packets_sent = 1
-            self.packets_sent = 1
-        else:
-            self.total_packets_received = 1
-            self.packets_received = 1
-            self.total_packets_sent = 0
-            self.packets_sent = 0
-
+        self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
         self.reverse_dns = PlayerReverseDNS()
-        self.pps = PlayerPPS()
-        self.ppm = PlayerPPM()
         self.ports = PlayerPorts.from_packet_port(port)
         self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
         self.iplookup = PlayerIPLookup()
@@ -1516,17 +1603,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
     def mark_as_seen(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
         self.datetime.last_seen = packet_datetime
-        self.total_packets += 1
-        self.packets += 1
-        self.pps.accumulated_packets += 1
-        self.ppm.accumulated_packets += 1
-
-        if sent_by_local_host:
-            self.packets_sent += 1
-            self.total_packets_sent += 1
-        else:
-            self.packets_received += 1
-            self.total_packets_received += 1
+        self.packets.increment(sent_by_local_host=sent_by_local_host)
 
         if port != self.ports.last:
             if port not in self.ports.all:
@@ -1543,27 +1620,16 @@ class Player:  # pylint: disable=too-many-instance-attributes
     def mark_as_rejoined(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
         self.left_event.clear()
         self.datetime.last_rejoin = packet_datetime
-        self.packets = 1
-        if sent_by_local_host:
-            self.packets_sent = 1
-            self.packets_received = 0
-        else:
-            self.packets_sent = 0
-            self.packets_received = 1
-        self.pps.reset()
-        self.pps.accumulated_packets = 1
-        self.ppm.reset()
-        self.ppm.accumulated_packets = 1
+        self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         self.rejoins += 1
-        self.total_packets += 1
 
         if Settings.GUI_RESET_PORTS_ON_REJOINS:
             self.ports.reset(port)
 
     def mark_as_left(self) -> None:
         self.left_event.set()
-        self.pps.reset()
-        self.ppm.reset()
+        self.packets.pps.reset()
+        self.packets.ppm.reset()
 
         PlayersRegistry.move_player_to_disconnected(self)
 
@@ -1778,7 +1844,7 @@ class SessionHost:
             # The lower this value, the riskier it becomes, as it could potentially flag a player who ultimately isn't part of the newly discovered session.
             # In such scenarios, a better approach might involve checking around 25-100 packets.
             # However, increasing this value also increases the risk, as the host may have already disconnected.
-            or potential_session_host_player.packets < MINIMUM_PACKETS_FOR_SESSION_HOST
+            or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_SESSION_HOST
         ):
             return None
 
@@ -2760,8 +2826,8 @@ def show_detection_warning_popup(
                 Last Port: {player.ports.last}
                 Middle Ports: {", ".join(map(str, reversed(player.ports.middle)))}
                 First Port: {player.ports.first}
-                Total Packets Exchanged: {player.total_packets}
-                Current Session Packets: {player.packets}
+                Total Packets Exchanged: {player.packets.total_exchanged}
+                Current Session Packets: {player.packets.exchanged}
                 Rejoins: {player.rejoins}
 
                 ############ LOCATION DETAILS ############
@@ -3737,14 +3803,14 @@ def rendering_core(
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.total_packets}')
-                row_texts.append(f'{player.packets}')
-                row_texts.append(f'{player.total_packets_received}')
-                row_texts.append(f'{player.packets_received}')
-                row_texts.append(f'{player.total_packets_sent}')
-                row_texts.append(f'{player.packets_sent}')
-                row_texts.append(f'{player.pps.calculated_rate}')
-                row_texts.append(f'{player.ppm.calculated_rate}')
+                row_texts.append(f'{player.packets.total_exchanged}')
+                row_texts.append(f'{player.packets.exchanged}')
+                row_texts.append(f'{player.packets.total_received}')
+                row_texts.append(f'{player.packets.received}')
+                row_texts.append(f'{player.packets.total_sent}')
+                row_texts.append(f'{player.packets.sent}')
+                row_texts.append(f'{player.packets.pps.calculated_rate}')
+                row_texts.append(f'{player.packets.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_logging_ip(player.ip)}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3785,12 +3851,12 @@ def rendering_core(
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
                 row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.total_packets}')
-                row_texts.append(f'{player.packets}')
-                row_texts.append(f'{player.total_packets_received}')
-                row_texts.append(f'{player.packets_received}')
-                row_texts.append(f'{player.total_packets_sent}')
-                row_texts.append(f'{player.packets_sent}')
+                row_texts.append(f'{player.packets.total_exchanged}')
+                row_texts.append(f'{player.packets.exchanged}')
+                row_texts.append(f'{player.packets.total_received}')
+                row_texts.append(f'{player.packets.received}')
+                row_texts.append(f'{player.packets.total_sent}')
+                row_texts.append(f'{player.packets.sent}')
                 row_texts.append(f'{player.ip}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3934,27 +4000,35 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets}')
+                    row_texts.append(f'{player.packets.total_exchanged}')
                 if 'Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets}')
+                    row_texts.append(f'{player.packets.exchanged}')
                 if 'T. Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets_received}')
+                    row_texts.append(f'{player.packets.total_received}')
                 if 'Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets_received}')
+                    row_texts.append(f'{player.packets.received}')
                 if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets_sent}')
+                    row_texts.append(f'{player.packets.total_sent}')
                 if 'Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets_sent}')
+                    row_texts.append(f'{player.packets.sent}')
                 if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
-                        foreground=get_player_pps_gradient_color(row_fg_color, player.pps.calculated_rate, is_first_calculation=player.pps.is_first_calculation),
+                        foreground=get_player_pps_gradient_color(
+                            row_fg_color,
+                            player.packets.pps.calculated_rate,
+                            is_first_calculation=player.packets.pps.is_first_calculation,
+                        ),
                     )
-                    row_texts.append(f'{player.pps.calculated_rate}')
+                    row_texts.append(f'{player.packets.pps.calculated_rate}')
                 if 'PPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
-                        foreground=get_player_ppm_gradient_color(row_fg_color, player.ppm.calculated_rate, is_first_calculation=player.ppm.is_first_calculation),
+                        foreground=get_player_ppm_gradient_color(
+                            row_fg_color,
+                            player.packets.ppm.calculated_rate,
+                            is_first_calculation=player.packets.ppm.is_first_calculation,
+                        ),
                     )
-                    row_texts.append(f'{player.ppm.calculated_rate}')
+                    row_texts.append(f'{player.packets.ppm.calculated_rate}')
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4034,17 +4108,17 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
                 row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets}')
+                    row_texts.append(f'{player.packets.total_exchanged}')
                 if 'Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets}')
+                    row_texts.append(f'{player.packets.exchanged}')
                 if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets_received}')
+                    row_texts.append(f'{player.packets.total_received}')
                 if 'Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets_received}')
+                    row_texts.append(f'{player.packets.received}')
                 if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.total_packets_sent}')
+                    row_texts.append(f'{player.packets.total_sent}')
                 if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    row_texts.append(f'{player.packets_sent}')
+                    row_texts.append(f'{player.packets.sent}')
                 row_texts.append(f'{player.ip}')
                 if 'Hostname' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4281,14 +4355,14 @@ def rendering_core(
                     continue
 
                 # Calculate PPS every second
-                if (time.monotonic() - player.pps.last_update_time) >= 1.0:
-                    player.pps.calculate_and_update_rate()
+                if (time.monotonic() - player.packets.pps.last_update_time) >= 1.0:
+                    player.packets.pps.calculate_and_update_rate()
 
                 # Calculate PPM every minute
-                if (time.monotonic() - player.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
-                    player.ppm.calculate_and_update_rate()
+                if (time.monotonic() - player.packets.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.packets.ppm.calculate_and_update_rate()
 
-                global_pps_rate += player.pps.calculated_rate
+                global_pps_rate += player.packets.pps.calculated_rate
 
             for player in session_connected + session_disconnected:
                 if player.userip and player.ip not in UserIPDatabases.ips_set:
@@ -4374,7 +4448,9 @@ def rendering_core(
                     SessionHost.player = None
                     SessionHost.search_player = True
                     SessionHost.players_pending_for_disconnection.clear()
-                elif len(session_connected) >= 1 and all(not player.pps.is_first_calculation and not player.pps.calculated_rate for player in session_connected):
+                elif len(session_connected) >= 1 and all(
+                    not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
+                ):
                     SessionHost.players_pending_for_disconnection = session_connected
                 elif SessionHost.search_player:
                     SessionHost.get_host_player(session_connected)
