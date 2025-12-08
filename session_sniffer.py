@@ -1388,7 +1388,7 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
 
     @classmethod
     def from_packet_direction(cls, *, sent_by_local_host: bool) -> Self:
-        """Create PlayerPackets from initial packet direction.
+        """Create `PlayerPackets` from initial packet direction.
 
         Args:
             sent_by_local_host: Whether the initial packet was sent by local host
