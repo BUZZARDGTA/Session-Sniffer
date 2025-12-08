@@ -1628,6 +1628,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
     def mark_as_left(self) -> None:
         self.left_event.set()
+
         self.packets.pps.reset()
         self.packets.ppm.reset()
 
