@@ -4261,8 +4261,6 @@ def rendering_core(
             latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#a3be8c')
-            pps_color = ('#bf616a' if global_pps_rate >= pps_critical
-                         else '#ebcb8b' if global_pps_rate >= pps_warning
             pps_color = ('#bf616a' if TsharkStats.global_pps_rate >= pps_critical
                          else '#ebcb8b' if TsharkStats.global_pps_rate >= pps_warning
                          else '#a3be8c')
