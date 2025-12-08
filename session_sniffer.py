@@ -1583,15 +1583,14 @@ class PlayerModMenus:
 
 class Player:  # pylint: disable=too-many-instance-attributes
     def __init__(self, *, ip: str, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
-        self.left_event = Event()
-
         self.ip = ip
+        self.left_event = Event()
         self.rejoins = 0
         self.usernames: list[str] = []
 
+        self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
         self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
         self.ports = PlayerPorts.from_packet_port(port)
-        self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
         self.reverse_dns = PlayerReverseDNS()
         self.iplookup = PlayerIPLookup()
         self.ping = PlayerPing()
@@ -1618,11 +1617,12 @@ class Player:  # pylint: disable=too-many-instance-attributes
             self.ports.last = port
 
     def mark_as_rejoined(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
+    def mark_as_rejoined(self, *, packet_datetime: datetime, port: int, sent_by_local_host: bool) -> None:
         self.left_event.clear()
-        self.datetime.last_rejoin = packet_datetime
-        self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         self.rejoins += 1
 
+        self.datetime.last_rejoin = packet_datetime
+        self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         if Settings.GUI_RESET_PORTS_ON_REJOINS:
             self.ports.reset(port)
 
