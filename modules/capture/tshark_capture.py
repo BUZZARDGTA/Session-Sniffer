@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple, Self
 from modules.capture.exceptions import (
     InvalidIPv4AddressFormatError,
     InvalidIPv4AddressMultipleError,
+    InvalidLengthNumericError,
     InvalidPortMultipleError,
     InvalidPortNumberError,
     InvalidPortNumericError,
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 
     from modules.capture.interface_selection import InterfaceSelectionData
 
-_EXPECTED_TSHARK_PACKET_FIELD_COUNT = 5
+_EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
 
 
 def _parse_and_validate_port(port_str: str, /) -> int:
@@ -57,6 +58,13 @@ def _parse_and_validate_ip(ip: str, /) -> str:
     return ip
 
 
+def _parse_and_validate_length(length_str: str, /) -> int:
+    if not length_str.isascii() or not length_str.isdecimal():
+        print(f'[Tshark] Invalid length (not numeric): {length_str}. Skipped.')
+        raise InvalidLengthNumericError(length_str)
+    return int(length_str)
+
+
 def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
     dt_utc = datetime.fromtimestamp(time_epoch, tz=UTC)
     return dt_utc.astimezone(LOCAL_TZ)
@@ -80,9 +88,9 @@ def _process_tshark_stdout(line: str, /) -> PacketFields | None:
         print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
         return None
 
-    # Ensure the first three fields are not empty
-    if any(not field for field in fields[:3]):
-        print(f'[TShark] One of the required first three fields is empty. Fields: {fields}')
+    # Ensure required fields are not empty: time_epoch, length, src_ip, dst_ip
+    if any(not field for field in fields[:4]):
+        print(f'[TShark] One or more required fields (time_epoch, length, src_ip, dst_ip) are empty. Fields: {fields}')
         return None
 
     # TODO(BUZZARDGTA): It would be ideal to retain these packets instead of discarding them.
@@ -97,6 +105,7 @@ def _process_tshark_stdout(line: str, /) -> PacketFields | None:
 
 class PacketFields(NamedTuple):
     time_epoch: str
+    length: str
     src_ip: str
     dst_ip: str
     src_port: str
@@ -117,6 +126,7 @@ class Packet(NamedTuple):
     datetime: datetime
     ip: IP
     port: Port
+    length: int
 
     @classmethod
     def from_fields(cls, fields: PacketFields) -> Self:
@@ -143,6 +153,7 @@ class Packet(NamedTuple):
                 src=_parse_and_validate_port(fields.src_port),
                 dst=_parse_and_validate_port(fields.dst_port),
             ),
+            length=_parse_and_validate_length(fields.length),
         )
 
 
@@ -185,6 +196,7 @@ class PacketCapture:
             # Output
             '-T', 'fields',
             '-e', 'frame.time_epoch',
+            '-e', 'frame.len',
             '-e', 'ip.src',
             '-e', 'ip.dst',
             '-e', 'udp.srcport',
@@ -295,6 +307,7 @@ class PacketCapture:
                 with suppress(
                     InvalidIPv4AddressMultipleError,
                     InvalidIPv4AddressFormatError,
+                    InvalidLengthNumericError,
                     InvalidPortMultipleError,
                     InvalidPortNumericError,
                     InvalidPortNumberError,

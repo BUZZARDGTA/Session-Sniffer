@@ -239,6 +239,8 @@ ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32
 NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
 PPS_MAX_THRESHOLD = 10
 PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
+BPS_MAX_THRESHOLD = 1024
+BPM_MAX_THRESHOLD = BPS_MAX_THRESHOLD * 60
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
@@ -267,6 +269,14 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Packets Sent': 'The number of packets sent by the player during the current session.',
     'PPS': 'The number of Packets exchanged (Received + Sent) by the player Per Second during the current session.',
     'PPM': 'The number of packets exchanged (Received + Sent) by the player per Minute during the current session.',
+    'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) by the player across all sessions.',
+    'Bandwith': 'The amount of bytes transferred (Download + Upload) by the player during the current session.',
+    'T. Download': 'The total amount of bytes downloaded by the player across all sessions.',
+    'Download': 'The amount of bytes downloaded by the player during the current session.',
+    'T. Upload': 'The total amount of bytes uploaded by the player across all sessions.',
+    'Upload': 'The amount of bytes uploaded by the player during the current session.',
+    'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) by the player Per Second during the current session.',
+    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) by the player per Minute during the current session.',
     'IP Address': 'The IP address of the player.',
     'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
     'Last Port': "The port used by the player's last captured packet.",
@@ -534,11 +544,13 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_CONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
+        'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
     GUI_DISCONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
+        'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
@@ -598,6 +610,14 @@ class Settings(DefaultSettings):
         'Packets Sent': 'packets_sent',
         'PPS': 'pps.calculated_rate',
         'PPM': 'ppm.calculated_rate',
+        'T. Bandwith': 'bandwidth.total_exchanged',
+        'Bandwith': 'bandwidth.exchanged',
+        'T. Download': 'bandwidth.total_download',
+        'Download': 'bandwidth.download',
+        'T. Upload': 'bandwidth.total_upload',
+        'Upload': 'bandwidth.upload',
+        'BPS': 'bps.calculated_rate',
+        'BPM': 'bpm.calculated_rate',
         'IP Address': 'ip',
         'Hostname': 'reverse_dns.hostname',
         'Last Port': 'ports.last',
@@ -635,6 +655,14 @@ class Settings(DefaultSettings):
         'Packets Sent',
         'PPS',
         'PPM',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'BPS',
+        'BPM',
         'Hostname',
         'Last Port',
         'Middle Ports',
@@ -668,6 +696,12 @@ class Settings(DefaultSettings):
         'Packets Received',
         'T. Packets Sent',
         'Packets Sent',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
         'Hostname',
         'Last Port',
         'Middle Ports',
@@ -707,6 +741,14 @@ class Settings(DefaultSettings):
         'Packets Sent',
         'PPS',
         'PPM',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'BPS',
+        'BPM',
         'IP Address',
         'Hostname',
         'Last Port',
@@ -746,6 +788,12 @@ class Settings(DefaultSettings):
         'Packets Received',
         'T. Packets Sent',
         'Packets Sent',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
         'IP Address',
         'Hostname',
         'Last Port',
@@ -1463,6 +1511,183 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
         self.ppm.accumulated_packets = 1
 
 
+BANDWIDTH_MB_THRESHOLD = 1_048_576  # 1 MB in bytes
+BANDWIDTH_KB_THRESHOLD = 1024  # 1 KB in bytes
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
+    """Class to manage player bandwidth (upload/download) totals and rate calculations.
+
+    Attributes:
+        total_exchanged (int): Total bytes exchanged across all sessions
+        exchanged (int): Bytes exchanged in current session (download + upload)
+        total_download (int): Total bytes downloaded across all sessions
+        download (int): Bytes downloaded in current session
+        total_upload (int): Total bytes uploaded across all sessions
+        upload (int): Bytes uploaded in current session
+        bps (BPS): Bytes Per Second rate calculator
+        bpm (BPM): Bytes Per Minute rate calculator
+    """
+
+    @dataclass(kw_only=True, slots=True)
+    class BPS:
+        """Class to manage player Bytes Per Second (BPS) calculations.
+
+        Attributes:
+            is_first_calculation (bool): True until the first rate calculation completes
+            last_update_time (float): Timestamp of the last rate calculation
+            accumulated_bytes (int): Number of bytes counted since last calculation
+            calculated_rate (int): The final BPS value to display (bytes per second)
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_bytes: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated bytes and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_bytes
+            self.accumulated_bytes = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the BPS to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_bytes = 0
+            self.calculated_rate = 0
+
+    @dataclass(kw_only=True, slots=True)
+    class BPM:
+        """Class to manage player Bytes Per Minute (BPM) calculations.
+
+        Attributes:
+            is_first_calculation (bool): True until the first rate calculation completes
+            last_update_time (float): Timestamp of the last rate calculation
+            accumulated_bytes (int): Number of bytes counted since last calculation
+            calculated_rate (int): The final BPM value to display (bytes per minute)
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_bytes: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated bytes and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_bytes
+            self.accumulated_bytes = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the BPM to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_bytes = 0
+            self.calculated_rate = 0
+
+    total_exchanged: int = 0
+    exchanged: int = 0
+
+    total_download: int = 0
+    download: int = 0
+    total_upload: int = 0
+    upload: int = 0
+
+    bps: BPS = dataclasses.field(default_factory=BPS)
+    bpm: BPM = dataclasses.field(default_factory=BPM)
+
+    @classmethod
+    def from_packet_direction(cls, *, packet_length: int, sent_by_local_host: bool) -> Self:
+        """Create `PlayerBandwidth` from initial packet direction.
+
+        Args:
+            packet_length: The length of the initial packet in bytes
+            sent_by_local_host: Whether the initial packet was sent by local host
+
+        Returns:
+            PlayerBandwidth: New instance initialized for the packet direction
+        """
+        if sent_by_local_host:
+            return cls(
+                total_exchanged=packet_length,
+                exchanged=packet_length,
+
+                total_download=0,
+                download=0,
+                total_upload=packet_length,
+                upload=packet_length,
+
+                bps=cls.BPS(accumulated_bytes=packet_length),
+                bpm=cls.BPM(accumulated_bytes=packet_length),
+            )
+        return cls(
+            total_exchanged=packet_length,
+            exchanged=packet_length,
+
+            total_download=packet_length,
+            download=packet_length,
+            total_upload=0,
+            upload=0,
+
+            bps=cls.BPS(accumulated_bytes=packet_length),
+            bpm=cls.BPM(accumulated_bytes=packet_length),
+        )
+
+    def increment(self, *, packet_length: int, sent_by_local_host: bool) -> None:
+        """Increment bandwidth counts based on packet direction.
+
+        Args:
+            packet_length: The length of the packet in bytes
+            sent_by_local_host: Whether the packet was sent by local host
+        """
+        self.total_exchanged += packet_length
+        self.exchanged += packet_length
+
+        if sent_by_local_host:
+            self.total_upload += packet_length
+            self.upload += packet_length
+        else:
+            self.total_download += packet_length
+            self.download += packet_length
+
+        self.bps.accumulated_bytes += packet_length
+        self.bpm.accumulated_bytes += packet_length
+
+    def reset_current_session(self, *, packet_length: int, sent_by_local_host: bool) -> None:
+        """Reset current session bandwidth counts (for rejoins).
+
+        Args:
+            packet_length: The length of the rejoin packet in bytes
+            sent_by_local_host: Whether the rejoin packet was sent by local host
+        """
+        self.total_exchanged += packet_length
+        self.exchanged = packet_length
+
+        if sent_by_local_host:
+            self.upload = packet_length
+            self.download = 0
+        else:
+            self.upload = 0
+            self.download = packet_length
+
+        self.bps.reset()
+        self.bps.accumulated_bytes = packet_length
+        self.bpm.reset()
+        self.bpm.accumulated_bytes = packet_length
+
+    @staticmethod
+    def format_bytes(total_bytes: int) -> str:
+        """Format bytes to human-readable string."""
+        if total_bytes >= BANDWIDTH_MB_THRESHOLD:
+            return f'{total_bytes / BANDWIDTH_MB_THRESHOLD:.1f} MB'
+        if total_bytes >= BANDWIDTH_KB_THRESHOLD:
+            return f'{total_bytes / BANDWIDTH_KB_THRESHOLD:.1f} KB'
+        return f'{total_bytes} B'
+
+
 @dataclass(kw_only=True, slots=True)
 class PlayerPorts:
     all: list[int]
@@ -1582,7 +1807,7 @@ class PlayerModMenus:
 
 
 class Player:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, *, ip: str, packet_datetime: datetime, port: int, sent_by_local_host: bool) -> None:
+    def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
         self.ip = ip
         self.left_event = Event()
         self.rejoins = 0
@@ -1590,6 +1815,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
         self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
         self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
+        self.bandwidth = PlayerBandwidth.from_packet_direction(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
         self.ports = PlayerPorts.from_packet_port(port)
         self.reverse_dns = PlayerReverseDNS()
         self.iplookup = PlayerIPLookup()
@@ -1600,9 +1826,10 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.userip_detection: PlayerUserIPDetection | None = None
         self.mod_menus: PlayerModMenus | None = None
 
-    def mark_as_seen(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
+    def mark_as_seen(self, *, port: int, packet_datetime: datetime, packet_length: int, sent_by_local_host: bool) -> None:
         self.datetime.last_seen = packet_datetime
         self.packets.increment(sent_by_local_host=sent_by_local_host)
+        self.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
         if port != self.ports.last:
             if port not in self.ports.all:
@@ -1616,12 +1843,13 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
             self.ports.last = port
 
-    def mark_as_rejoined(self, *, packet_datetime: datetime, port: int, sent_by_local_host: bool) -> None:
+    def mark_as_rejoined(self, *, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
         self.left_event.clear()
         self.rejoins += 1
 
         self.datetime.last_rejoin = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
+        self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
         if Settings.GUI_RESET_PORTS_ON_REJOINS:
             self.ports.reset(port)
@@ -1631,6 +1859,8 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
         self.packets.pps.reset()
         self.packets.ppm.reset()
+        self.bandwidth.bps.reset()
+        self.bandwidth.bpm.reset()
 
         PlayersRegistry.move_player_to_disconnected(self)
 
@@ -3190,6 +3420,10 @@ class TsharkStats:
     """Statistics and data tracking for TShark packet capture performance."""
     packets_latencies: ClassVar[list[tuple[datetime, timedelta]]] = []
     restarted_times: ClassVar[int] = 0
+    global_bandwidth: ClassVar[int] = 0
+    global_download: ClassVar[int] = 0
+    global_upload: ClassVar[int] = 0
+    global_bps_rate: ClassVar[int] = 0
     global_pps_rate: ClassVar[int] = 0
 
 
@@ -3813,6 +4047,14 @@ def rendering_core(
                 row_texts.append(f'{player.packets.sent}')
                 row_texts.append(f'{player.packets.pps.calculated_rate}')
                 row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate)}')
                 row_texts.append(f'{format_player_logging_ip(player.ip)}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3859,6 +4101,12 @@ def rendering_core(
                 row_texts.append(f'{player.packets.received}')
                 row_texts.append(f'{player.packets.total_sent}')
                 row_texts.append(f'{player.packets.sent}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
                 row_texts.append(f'{player.ip}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
@@ -3976,6 +4224,28 @@ def rendering_core(
                 val = min(max(player_ppm_calculated_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
                 return QColor(0xFF - val, val, 0)
 
+            def get_player_bps_gradient_color(default_color: QColor, player_bps_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for BPS value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on BPS_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_bps_calculated_bytes, 0), BPS_MAX_THRESHOLD) * 0xFF // BPS_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            def get_player_bpm_gradient_color(default_color: QColor, player_bpm_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for BPM value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on BPM_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_bpm_calculated_bytes, 0), BPM_MAX_THRESHOLD) * 0xFF // BPM_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
             row_texts: list[str] = []
             session_connected_table__processed_data: list[list[str]] = []
             session_connected_table__compiled_colors: list[list[CellColor]] = []
@@ -4031,6 +4301,36 @@ def rendering_core(
                         ),
                     )
                     row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                if 'T. Bandwith' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                if 'Bandwith' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                if 'T. Download' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                if 'Download' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                if 'T. Upload' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                if 'Upload' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
+                if 'BPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
+                        foreground=get_player_bps_gradient_color(
+                            row_fg_color,
+                            player.bandwidth.bps.calculated_rate,
+                            is_first_calculation=player.bandwidth.bps.is_first_calculation,
+                        ),
+                    )
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
+                if 'BPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                    row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
+                        foreground=get_player_bpm_gradient_color(
+                            row_fg_color,
+                            player.bandwidth.bpm.calculated_rate,
+                            is_first_calculation=player.bandwidth.bpm.is_first_calculation,
+                        ),
+                    )
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4121,6 +4421,18 @@ def rendering_core(
                     row_texts.append(f'{player.packets.total_sent}')
                 if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.packets.sent}')
+                if 'T. Bandwith' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                if 'Bandwith' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                if 'T. Download' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                if 'Download' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                if 'T. Upload' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                if 'Upload' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
                 row_texts.append(f'{player.ip}')
                 if 'Hostname' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
                     row_texts.append(f'{player.reverse_dns.hostname}')
@@ -4255,12 +4567,33 @@ def rendering_core(
 
             # Define memory thresholds for color coding
             memory_high = 500  # MB - High usage (red)
-            memory_medium = 250  # MB - Medium usage (yellow)
+            memory_medium = 300  # MB - Medium usage (yellow)
 
+            # Define bandwidth thresholds for color coding
+            bps_critical = 3_000_000  # 3 MB/s - Critical bandwidth (red)
+            bps_warning = 1_000_000   # 1 MB/s - Warning bandwidth (yellow)
+            bandwidth_critical = 10_000_000  # 10 MB - Critical total bandwidth (red)
+            bandwidth_warning = 5_000_000   # 5 MB - Warning total bandwidth (yellow)
+            download_critical = bandwidth_critical // 2  # 5 MB - Critical download (red)
+            download_warning = bandwidth_warning // 2   # 2.5 MB - Warning download (yellow)
+            upload_critical = bandwidth_critical // 2    # 5 MB - Critical upload (red)
+            upload_warning = bandwidth_warning // 2      # 2.5 MB - Warning upload (yellow)
             # Performance section with color-coded values
             latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#a3be8c')
+            bandwidth_color = ('#bf616a' if TsharkStats.global_bandwidth >= bandwidth_critical
+                               else '#ebcb8b' if TsharkStats.global_bandwidth >= bandwidth_warning
+                               else '#a3be8c')
+            download_color = ('#bf616a' if TsharkStats.global_download >= download_critical
+                              else '#ebcb8b' if TsharkStats.global_download >= download_warning
+                              else '#a3be8c')
+            upload_color = ('#bf616a' if TsharkStats.global_upload >= upload_critical
+                            else '#ebcb8b' if TsharkStats.global_upload >= upload_warning
+                            else '#a3be8c')
+            bps_color = ('#bf616a' if TsharkStats.global_bps_rate >= bps_critical
+                         else '#ebcb8b' if TsharkStats.global_bps_rate >= bps_warning
+                         else '#a3be8c')
             pps_color = ('#bf616a' if TsharkStats.global_pps_rate >= pps_critical
                          else '#ebcb8b' if TsharkStats.global_pps_rate >= pps_warning
                          else '#a3be8c')
@@ -4272,6 +4605,14 @@ def rendering_core(
             performance_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
                 f'<span style="color: #d08770;">Latency:</span> <span style="color: {latency_color};">{avg_latency_rounded}/{Settings.CAPTURE_OVERFLOW_TIMER}s</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Total:</span> <span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bandwidth)}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Download:</span> <span style="color: {download_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_download)}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">Upload:</span> <span style="color: {upload_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_upload)}</span> '
+                f'<span style="color: #81a1c1;">•</span> '
+                f'<span style="color: #d08770;">BPS:</span> <span style="color: {bps_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bps_rate)}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{TsharkStats.global_pps_rate}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
@@ -4336,6 +4677,10 @@ def rendering_core(
 
             ModMenuLogsParser.refresh()
 
+            global_bandwidth = 0
+            global_download = 0
+            global_upload = 0
+            global_bps_rate = 0
             global_pps_rate = 0
 
             session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
@@ -4361,9 +4706,26 @@ def rendering_core(
                 if (time.monotonic() - player.packets.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
                     player.packets.ppm.calculate_and_update_rate()
 
+                # Calculate BPS every second
+                if (time.monotonic() - player.bandwidth.bps.last_update_time) >= 1.0:
+                    player.bandwidth.bps.calculate_and_update_rate()
+
+                # Calculate BPM every minute
+                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.bandwidth.bpm.calculate_and_update_rate()
+
+                # Track current session bandwidth across all connected players
+                global_bandwidth += player.bandwidth.exchanged
+                global_download += player.bandwidth.download
+                global_upload += player.bandwidth.upload
+                global_bps_rate += player.bandwidth.bps.calculated_rate
                 global_pps_rate += player.packets.pps.calculated_rate
 
             # Update global stats once after all calculations
+            TsharkStats.global_bandwidth = global_bandwidth
+            TsharkStats.global_download = global_download
+            TsharkStats.global_upload = global_upload
+            TsharkStats.global_bps_rate = global_bps_rate
             TsharkStats.global_pps_rate = global_pps_rate
 
             for player in session_connected + session_disconnected:
@@ -4701,6 +5063,32 @@ class SessionTableModel(QAbstractTableModel):
             # Sort by integer/float value of the column value
             combined.sort(
                 key=lambda row: float(row[0][column]),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {
+            'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
+        }:
+            # Sort by raw bandwidth integer values from player objects
+            def extract_bandwidth_for_ip(ip: str) -> int:
+                """Extract bandwidth value for a given IP address."""
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    return 0
+
+                bandwidth_mapping = {
+                    'T. Bandwith': player.bandwidth.total_exchanged,
+                    'Bandwith': player.bandwidth.exchanged,
+                    'T. Download': player.bandwidth.total_download,
+                    'Download': player.bandwidth.download,
+                    'T. Upload': player.bandwidth.total_upload,
+                    'Upload': player.bandwidth.upload,
+                    'BPS': player.bandwidth.bps.calculated_rate,
+                    'BPM': player.bandwidth.bpm.calculated_rate,
+                }
+                return bandwidth_mapping[sorted_column_name]
+
+            combined.sort(
+                key=lambda row: extract_bandwidth_for_ip(self.get_ip_from_data_safely(row[0])),
                 reverse=sort_order_bool,
             )
         elif sorted_column_name == 'Middle Ports':
@@ -5142,6 +5530,7 @@ class SessionTableView(QTableView):
             if header_label in {
                 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins',
                 'T. Packets', 'Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPS', 'PPM',
+                'Bandwith', 'T. Bandwith', 'Download', 'T. Download', 'Upload', 'T. Upload', 'BPS', 'BPM',
                 'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',
                 'R. Code', 'ZIP Code', 'Lat', 'Lon', 'Offset', 'Currency', 'Time Zone',
             }:
@@ -7286,6 +7675,7 @@ def main() -> None:
                         ip=target_ip,
                         port=target_port,
                         packet_datetime=packet.datetime,
+                        packet_length=packet.length,
                         sent_by_local_host=sent_by_local_host,
                     ),
                 )
@@ -7297,6 +7687,7 @@ def main() -> None:
                 player.mark_as_rejoined(
                     port=target_port,
                     packet_datetime=packet.datetime,
+                    packet_length=packet.length,
                     sent_by_local_host=sent_by_local_host,
                 )
                 PlayersRegistry.move_player_to_connected(player)
@@ -7307,6 +7698,7 @@ def main() -> None:
                 player.mark_as_seen(
                     port=target_port,
                     packet_datetime=packet.datetime,
+                    packet_length=packet.length,
                     sent_by_local_host=sent_by_local_host,
                 )
 

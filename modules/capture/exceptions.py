@@ -65,6 +65,18 @@ class InvalidPortNumberError(TSharkProcessingError):
         super().__init__(f'Invalid port number: {port}. Port must be a number between {MIN_PORT} and {MAX_PORT}.')
 
 
+class InvalidLengthFormatError(TSharkProcessingError):
+    """Raised when frame length is not in the expected format."""
+
+    def __init__(self, length: str) -> None:
+        """Initialize the InvalidLengthFormatError exception."""
+        super().__init__(f'Invalid length format: {length}. Length must be a number.')
+
+
+class InvalidLengthNumericError(InvalidLengthFormatError):
+    """Raised when a length field is not a valid numeric format."""
+
+
 class TSharkCrashExceptionError(TSharkError):
     """Exception raised when TShark crashes.
 
