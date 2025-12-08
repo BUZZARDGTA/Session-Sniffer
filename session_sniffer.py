@@ -4572,8 +4572,8 @@ def rendering_core(
             # Define bandwidth thresholds for color coding
             bps_critical = 3_000_000  # 3 MB/s - Critical bandwidth (red)
             bps_warning = 1_000_000   # 1 MB/s - Warning bandwidth (yellow)
-            bandwidth_critical = 10_000_000  # 10 MB - Critical total bandwidth (red)
-            bandwidth_warning = 5_000_000   # 5 MB - Warning total bandwidth (yellow)
+            bandwidth_critical = 100_000_000  # 10 MB - Critical total bandwidth (red)
+            bandwidth_warning = 10_000_000   # 5 MB - Warning total bandwidth (yellow)
             download_critical = bandwidth_critical // 2  # 5 MB - Critical download (red)
             download_warning = bandwidth_warning // 2   # 2.5 MB - Warning download (yellow)
             upload_critical = bandwidth_critical // 2    # 5 MB - Critical upload (red)
