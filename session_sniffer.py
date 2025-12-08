@@ -3953,7 +3953,7 @@ def rendering_core(
                     return ', '.join(map(str, reversed(player.ports.middle)))
                 return ''
 
-            def get_player_pps_gradient_color(default_color: QColor, player_calculated_pps_rate: int, *, is_first_calculation: bool = False) -> QColor:
+            def get_player_pps_gradient_color(default_color: QColor, player_pps_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
                 """Calculate gradient color for PPS value using simple linear interpolation.
 
                 Red (low) -> Green (high) gradient based on PPS_MAX_THRESHOLD.
@@ -3961,10 +3961,10 @@ def rendering_core(
                 if is_first_calculation:
                     return default_color
 
-                val = min(max(player_calculated_pps_rate, 0), PPS_MAX_THRESHOLD) * 0xFF // PPS_MAX_THRESHOLD
+                val = min(max(player_pps_calculated_rate, 0), PPS_MAX_THRESHOLD) * 0xFF // PPS_MAX_THRESHOLD
                 return QColor(0xFF - val, val, 0)
 
-            def get_player_ppm_gradient_color(default_color: QColor, player_calculated_ppm_rate: int, *, is_first_calculation: bool = False) -> QColor:
+            def get_player_ppm_gradient_color(default_color: QColor, player_ppm_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
                 """Calculate gradient color for PPM value using simple linear interpolation.
 
                 Red (low) -> Green (high) gradient based on PPM_MAX_THRESHOLD.
@@ -3972,7 +3972,7 @@ def rendering_core(
                 if is_first_calculation:
                     return default_color
 
-                val = min(max(player_calculated_ppm_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
+                val = min(max(player_ppm_calculated_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
                 return QColor(0xFF - val, val, 0)
 
             row_texts: list[str] = []
