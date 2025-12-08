@@ -4681,7 +4681,7 @@ class SessionTableModel(QAbstractTableModel):
                     'Last Rejoin': player.datetime.last_rejoin,
                     'Last Seen': player.datetime.last_seen,
                 }
-                return datetime_mapping.get(sorted_column_name, datetime.min.replace(tzinfo=LOCAL_TZ))
+                return datetime_mapping[sorted_column_name]
 
             combined.sort(
                 key=lambda row: extract_datetime_for_ip(self.get_ip_from_data_safely(row[0])),
