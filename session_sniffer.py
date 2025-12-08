@@ -4264,10 +4264,10 @@ def rendering_core(
             pps_color = ('#bf616a' if TsharkStats.global_pps_rate >= pps_critical
                          else '#ebcb8b' if TsharkStats.global_pps_rate >= pps_warning
                          else '#a3be8c')
-            restart_color = '#a3be8c' if not TsharkStats.restarted_times else '#bf616a'
             memory_color = ('#bf616a' if memory_mb >= memory_high
                             else '#ebcb8b' if memory_mb >= memory_medium
                             else '#a3be8c')
+            restart_color = '#a3be8c' if not TsharkStats.restarted_times else '#bf616a'
 
             performance_section = (
                 f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
