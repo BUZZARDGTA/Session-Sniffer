@@ -1590,9 +1590,9 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.usernames: list[str] = []
 
         self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
-        self.reverse_dns = PlayerReverseDNS()
         self.ports = PlayerPorts.from_packet_port(port)
         self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
+        self.reverse_dns = PlayerReverseDNS()
         self.iplookup = PlayerIPLookup()
         self.ping = PlayerPing()
 
