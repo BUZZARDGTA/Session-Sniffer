@@ -1582,7 +1582,7 @@ class PlayerModMenus:
 
 
 class Player:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, *, ip: str, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
+    def __init__(self, *, ip: str, packet_datetime: datetime, port: int, sent_by_local_host: bool) -> None:
         self.ip = ip
         self.left_event = Event()
         self.rejoins = 0
@@ -1616,13 +1616,13 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
             self.ports.last = port
 
-    def mark_as_rejoined(self, *, port: int, packet_datetime: datetime, sent_by_local_host: bool) -> None:
     def mark_as_rejoined(self, *, packet_datetime: datetime, port: int, sent_by_local_host: bool) -> None:
         self.left_event.clear()
         self.rejoins += 1
 
         self.datetime.last_rejoin = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
+
         if Settings.GUI_RESET_PORTS_ON_REJOINS:
             self.ports.reset(port)
 
