@@ -3190,6 +3190,7 @@ class TsharkStats:
     """Statistics and data tracking for TShark packet capture performance."""
     packets_latencies: ClassVar[list[tuple[datetime, timedelta]]] = []
     restarted_times: ClassVar[int] = 0
+    global_pps_rate: ClassVar[int] = 0
 
 
 class CellColor(NamedTuple):
@@ -4190,11 +4191,8 @@ def rendering_core(
                 session_disconnected_table__compiled_colors,
             )
 
-        def generate_gui_status_text(global_pps_rate: int) -> tuple[str, str, str, str, str]:
+        def generate_gui_status_text() -> tuple[str, str, str, str, str]:
             """Generate status bar text content for individual sections.
-
-            Args:
-                global_pps_rate (int): The current global packets per second rate.
 
             Returns:
                 A tuple of (capture, config, discord, issues, performance) containing HTML formatted text
@@ -4265,6 +4263,8 @@ def rendering_core(
                              else '#a3be8c')
             pps_color = ('#bf616a' if global_pps_rate >= pps_critical
                          else '#ebcb8b' if global_pps_rate >= pps_warning
+            pps_color = ('#bf616a' if TsharkStats.global_pps_rate >= pps_critical
+                         else '#ebcb8b' if TsharkStats.global_pps_rate >= pps_warning
                          else '#a3be8c')
             restart_color = '#a3be8c' if not TsharkStats.restarted_times else '#bf616a'
             memory_color = ('#bf616a' if memory_mb >= memory_high
@@ -4275,7 +4275,7 @@ def rendering_core(
                 f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
                 f'<span style="color: #d08770;">Latency:</span> <span style="color: {latency_color};">{avg_latency_rounded}/{Settings.CAPTURE_OVERFLOW_TIMER}s</span> '
                 f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{global_pps_rate}</span> '
+                f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{TsharkStats.global_pps_rate}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f} MB</span> '
                 f'<span style="color: #81a1c1;">•</span> '
@@ -4364,6 +4364,9 @@ def rendering_core(
                     player.packets.ppm.calculate_and_update_rate()
 
                 global_pps_rate += player.packets.pps.calculated_rate
+
+            # Update global stats once after all calculations
+            TsharkStats.global_pps_rate = global_pps_rate
 
             for player in session_connected + session_disconnected:
                 if player.userip and player.ip not in UserIPDatabases.ips_set:
@@ -4468,7 +4471,7 @@ def rendering_core(
             GUIrenderingData.header_text = generate_gui_header_html(capture=capture)
             (GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text,
              GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text,
-             GUIrenderingData.status_performance_text) = generate_gui_status_text(global_pps_rate)
+             GUIrenderingData.status_performance_text) = generate_gui_status_text()
             (
                 GUIrenderingData.session_connected_table__num_rows,
                 GUIrenderingData.session_connected_table__processed_data,
