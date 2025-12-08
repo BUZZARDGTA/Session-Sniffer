@@ -4696,7 +4696,6 @@ class SessionTableModel(QAbstractTableModel):
                 reverse=not sort_order_bool,
             )
         elif sorted_column_name == 'IP Address':
-            # Sort by IP address
             combined.sort(
                 key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
                 reverse=sort_order_bool,
