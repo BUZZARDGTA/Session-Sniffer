@@ -4669,27 +4669,19 @@ class SessionTableModel(QAbstractTableModel):
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
-            # Retrieve the player datetime object from the IP column
+            # Sort by raw datetime values from player objects
             def extract_datetime_for_ip(ip: str) -> datetime:
-                """Extract a datetime object for a given IP address."""
+                """Extract datetime value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
                     return datetime.min.replace(tzinfo=LOCAL_TZ)
 
-                # Retrieve the player datetime attribute name for the selected column
-                # Mapping column names to player datetime attributes
-                datetime_attribute = {
-                    'First Seen': 'first_seen',
-                    'Last Rejoin': 'last_rejoin',
-                    'Last Seen': 'last_seen',
-                }.get(self._headers[column])
-                if datetime_attribute is None:
-                    raise TypeError(format_type_error(datetime_attribute, str))
-
-                player_datetime = getattr(player.datetime, datetime_attribute, None)
-                if not isinstance(player_datetime, datetime):
-                    raise TypeError(format_type_error(player_datetime, datetime))
-                return player_datetime
+                datetime_mapping = {
+                    'First Seen': player.datetime.first_seen,
+                    'Last Rejoin': player.datetime.last_rejoin,
+                    'Last Seen': player.datetime.last_seen,
+                }
+                return datetime_mapping.get(sorted_column_name, datetime.min.replace(tzinfo=LOCAL_TZ))
 
             combined.sort(
                 key=lambda row: extract_datetime_for_ip(self.get_ip_from_data_safely(row[0])),
