@@ -4277,7 +4277,7 @@ def rendering_core(
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{global_pps_rate}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f}MB</span> '
+                f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f} MB</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{TsharkStats.restarted_times}</span>'
             )
