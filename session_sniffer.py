@@ -4945,7 +4945,7 @@ class SessionTableModel(QAbstractTableModel):
             return None  # Return None for invalid index
 
         if role == Qt.ItemDataRole.DecorationRole:  # noqa: SIM102
-            if self.get_column_index_by_name('Country') == col_idx:
+            if self.has_column('Country') and self.get_column_index('Country') == col_idx:
                 ip = self.get_ip_from_data_safely(self._data[row_idx])
 
                 player = PlayersRegistry.get_player_by_ip(ip)
@@ -5136,14 +5136,28 @@ class SessionTableModel(QAbstractTableModel):
     # Custom / internal management methods
     # --------------------------------------------------------------------------
 
-    def get_column_index_by_name(self, column_name: str, /) -> int:
+    def has_column(self, column_name: str, /) -> bool:
+        """Check if a column is visible in the table.
+
+        Args:
+            column_name (str): The column name to check.
+
+        Returns:
+            `True` if column exists, `False` otherwise.
+        """
+        return column_name in self._headers
+
+    def get_column_index(self, column_name: str, /) -> int:
         """Get the table index of a specified column.
 
         Args:
             column_name (str): The column name to look for.
 
         Returns:
-            The table column index.
+            The column index.
+
+        Raises:
+            ValueError: If the column is not visible.
         """
         return self._headers.index(column_name)
 
@@ -5426,7 +5440,7 @@ class SessionTableView(QTableView):
             if index.isValid():
                 model = self.model()
 
-                if model.get_column_index_by_name('Country') == index.column():
+                if model.has_column('Country') and model.get_column_index('Country') == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
                         player = PlayersRegistry.get_player_by_ip(ip)
