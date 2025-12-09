@@ -1024,7 +1024,17 @@ class Settings(DefaultSettings):
                                 except NoMatchFoundError:
                                     need_rewrite_settings = True
 
-                            Settings.GUI_CONNECTED_FIELDS_TO_HIDE = tuple(filtered_gui_fields_to_hide)
+                            # Sort fields according to internal order
+                            sorted_gui_fields_to_hide = [
+                                field for field in Settings.GUI_HIDEABLE_CONNECTED_FIELDS
+                                if field in filtered_gui_fields_to_hide
+                            ]
+
+                            # Check if sorting changed the order
+                            if filtered_gui_fields_to_hide != sorted_gui_fields_to_hide:
+                                need_rewrite_current_setting = True
+
+                            Settings.GUI_CONNECTED_FIELDS_TO_HIDE = tuple(sorted_gui_fields_to_hide)
                         else:
                             need_rewrite_settings = True
                 elif setting_name == 'GUI_DISCONNECTED_FIELDS_TO_HIDE':
@@ -1047,7 +1057,17 @@ class Settings(DefaultSettings):
                                 except NoMatchFoundError:
                                     need_rewrite_settings = True
 
-                            Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE = tuple(filtered_gui_fields_to_hide)
+                            # Sort fields according to internal order
+                            sorted_gui_fields_to_hide = [
+                                field for field in Settings.GUI_HIDEABLE_DISCONNECTED_FIELDS
+                                if field in filtered_gui_fields_to_hide
+                            ]
+
+                            # Check if sorting changed the order
+                            if filtered_gui_fields_to_hide != sorted_gui_fields_to_hide:
+                                need_rewrite_current_setting = True
+
+                            Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE = tuple(sorted_gui_fields_to_hide)
                         else:
                             need_rewrite_settings = True
                 elif setting_name == 'GUI_DATE_FIELDS_SHOW_DATE':
