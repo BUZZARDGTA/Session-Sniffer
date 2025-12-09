@@ -4606,7 +4606,7 @@ def rendering_core(
                 f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
                 f'<span style="color: #d08770;">Latency:</span> <span style="color: {latency_color};">{avg_latency_rounded}/{Settings.CAPTURE_OVERFLOW_TIMER}s</span> '
                 f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Total:</span> <span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bandwidth)}</span> '
+                f'<span style="color: #d08770;">Bandwidth:</span> <span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bandwidth)}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">Download:</span> <span style="color: {download_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_download)}</span> '
                 f'<span style="color: #81a1c1;">•</span> '
