@@ -1499,10 +1499,12 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
         self.exchanged = 1
 
         if sent_by_local_host:
+            self.total_sent += 1
             self.sent = 1
             self.received = 0
         else:
             self.sent = 0
+            self.total_received += 1
             self.received = 1
 
         self.pps.reset()
@@ -1667,9 +1669,11 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
         self.exchanged = packet_length
 
         if sent_by_local_host:
+            self.total_upload += packet_length
             self.upload = packet_length
             self.download = 0
         else:
+            self.total_download += packet_length
             self.upload = 0
             self.download = packet_length
 
