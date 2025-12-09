@@ -4578,6 +4578,7 @@ def rendering_core(
             download_warning = bandwidth_warning // 2   # 250 MB - Warning download (yellow)
             upload_critical = bandwidth_critical // 2    # 500 MB - Critical upload (red)
             upload_warning = bandwidth_warning // 2      # 250 MB - Warning upload (yellow)
+
             # Performance section with color-coded values
             latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
