@@ -4572,12 +4572,12 @@ def rendering_core(
             # Define bandwidth thresholds for color coding
             bps_critical = 3_000_000  # 3 MB/s - Critical bandwidth (red)
             bps_warning = 1_000_000   # 1 MB/s - Warning bandwidth (yellow)
-            bandwidth_critical = 100_000_000  # 10 MB - Critical total bandwidth (red)
-            bandwidth_warning = 10_000_000   # 5 MB - Warning total bandwidth (yellow)
-            download_critical = bandwidth_critical // 2  # 5 MB - Critical download (red)
-            download_warning = bandwidth_warning // 2   # 2.5 MB - Warning download (yellow)
-            upload_critical = bandwidth_critical // 2    # 5 MB - Critical upload (red)
-            upload_warning = bandwidth_warning // 2      # 2.5 MB - Warning upload (yellow)
+            bandwidth_critical = 1_000_000_000  # 1 GB - Critical total bandwidth (red)
+            bandwidth_warning = 500_000_000   # 500 MB - Warning total bandwidth (yellow)
+            download_critical = bandwidth_critical // 2  # 500 MB - Critical download (red)
+            download_warning = bandwidth_warning // 2   # 250 MB - Warning download (yellow)
+            upload_critical = bandwidth_critical // 2    # 500 MB - Critical upload (red)
+            upload_warning = bandwidth_warning // 2      # 250 MB - Warning upload (yellow)
             # Performance section with color-coded values
             latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
                              else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
