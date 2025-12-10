@@ -3490,7 +3490,7 @@ class ThreadSafeMeta(type):
             super().__setattr__(name, value)
 
 
-class AbstractGUIRenderingData:
+class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
     CONNECTED_FIELDS_TO_HIDE: set[str]
     DISCONNECTED_FIELDS_TO_HIDE: set[str]
     GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
