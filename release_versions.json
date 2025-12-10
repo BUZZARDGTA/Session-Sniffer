@@ -5,7 +5,7 @@
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20251210.2129",
+        "local": "20251210.2140",
         "major": 1,
         "micro": 3,
         "minor": 4,
@@ -20,7 +20,7 @@
             4,
             3
         ],
-        "version": "1.4.3rc4+20251210.2129"
+        "version": "1.4.3rc4+20251210.2140"
     },
     "latest_stable": {
         "base_version": "1.4.2",
