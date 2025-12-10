@@ -3117,6 +3117,7 @@ def show_detection_warning_popup(
         'vpn': 'VPNWarning',
         'hosting': 'HostingWarning',
         'player_joined': 'PlayerJoined',
+        'player_rejoined': 'PlayerRejoined',
         'player_left': 'PlayerLeft',
     }
 
