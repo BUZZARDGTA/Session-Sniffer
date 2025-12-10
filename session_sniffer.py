@@ -268,7 +268,7 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'T. Packets Sent': 'The total number of packets sent by the player across all sessions.',
     'Packets Sent': 'The number of packets sent by the player during the current session.',
     'PPS': 'The number of Packets exchanged (Received + Sent) by the player Per Second during the current session.',
-    'PPM': 'The number of packets exchanged (Received + Sent) by the player per Minute during the current session.',
+    'PPM': 'The number of Packets exchanged (Received + Sent) by the player Per Minute during the current session.',
     'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) by the player across all sessions.',
     'Bandwith': 'The amount of bytes transferred (Download + Upload) by the player during the current session.',
     'T. Download': 'The total amount of bytes downloaded by the player across all sessions.',
@@ -276,7 +276,7 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'T. Upload': 'The total amount of bytes uploaded by the player across all sessions.',
     'Upload': 'The amount of bytes uploaded by the player during the current session.',
     'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) by the player Per Second during the current session.',
-    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) by the player per Minute during the current session.',
+    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) by the player Per Minute during the current session.',
     'IP Address': 'The IP address of the player.',
     'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
     'Last Port': "The port used by the player's last captured packet.",
@@ -1393,7 +1393,7 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
             is_first_calculation (bool): True until the first rate calculation completes
             last_update_time (float): Timestamp of the last rate calculation
             accumulated_packets (int): Number of packets counted since last calculation
-            calculated_rate (int): The final PPS value to display (packets per second)
+            calculated_rate (int): The final PPS value to display (Packets Per Second)
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1422,7 +1422,7 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
             is_first_calculation (bool): True until the first rate calculation completes
             last_update_time (float): Timestamp of the last rate calculation
             accumulated_packets (int): Number of packets counted since last calculation
-            calculated_rate (int): The final PPM value to display (packets per minute)
+            calculated_rate (int): The final PPM value to display (Packets Per Minute)
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1560,7 +1560,7 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
             is_first_calculation (bool): True until the first rate calculation completes
             last_update_time (float): Timestamp of the last rate calculation
             accumulated_bytes (int): Number of bytes counted since last calculation
-            calculated_rate (int): The final BPS value to display (bytes per second)
+            calculated_rate (int): The final BPS value to display (Bytes Per Second)
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1589,7 +1589,7 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
             is_first_calculation (bool): True until the first rate calculation completes
             last_update_time (float): Timestamp of the last rate calculation
             accumulated_bytes (int): Number of bytes counted since last calculation
-            calculated_rate (int): The final BPM value to display (bytes per minute)
+            calculated_rate (int): The final BPM value to display (Bytes Per Minute)
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
