@@ -31,8 +31,8 @@ class TableDataConsistencyError(Exception):
         super().__init__(error_messages[case])
 
 
-class InvalidDateFieldConfigurationError(Exception):
-    """Raised when GUI date field settings are invalid (both date and time disabled)."""
+class InvalidDateColumnConfigurationError(Exception):
+    """Raised when GUI date column settings are invalid (both date and time disabled)."""
 
     def __init__(self) -> None:
         super().__init__('Invalid settings: Both date and time are disabled.')

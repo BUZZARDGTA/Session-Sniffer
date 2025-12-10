@@ -39,12 +39,12 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Avoid blocking operations or high‑latency lookups in the packet callback; offload to threads as done for user IP tasks.
 - GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `clear_all_data`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
-- Settings mutation: After changing any `Settings.<FIELD>` that persists, call `Settings.reconstruct_settings()` once per batch.
+- Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.reconstruct_settings()` once per batch.
 - Capture filters: Compose lists then join with `and`; preserve conditional ordering (custom prepend filters first). When adding filters ensure symmetry with display filter logic if exclusion is related.
 - Exceptions: Use project‑specific ones from `modules/guis/exceptions.py`. For new GUI error states, subclass similarly.
 
 ## Safe Extension Examples
-- Adding a new player field: Append to `Settings.GUI_ALL_CONNECTED_FIELDS`, ensure not in `CONNECTED_FIELDS_TO_HIDE` or `DISCONNECTED_FIELDS_TO_HIDE`, update rendering_core mapping, and refresh header texts.
+- Adding a new player column: Append to `Settings.GUI_ALL_CONNECTED_COLUMNS`, ensure not in `CONNECTED_HIDDEN_COLUMNS` or `DISCONNECTED_HIDDEN_COLUMNS`, update rendering_core mapping, and refresh header texts.
 - Adding a resource directory: Place under repo root, then append to `datas` in `Session_Sniffer.spec` with correct relative path mapping.
 - Adding a detection toggle: Create a flag in `GUIDetectionSettings`, add QAction in the Detection menu mirroring existing pattern, and integrate logic where warnings are issued.
 

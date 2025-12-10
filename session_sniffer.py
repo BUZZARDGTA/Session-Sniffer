@@ -125,7 +125,7 @@ from modules.exceptions import (
 )
 from modules.guis.app import app
 from modules.guis.exceptions import (
-    InvalidDateFieldConfigurationError,
+    InvalidDateColumnConfigurationError,
     PrimaryScreenNotFoundError,
     TableDataConsistencyError,
     UnsupportedScreenResolutionError,
@@ -542,23 +542,23 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_INTERFACE_SELECTION_HIDE_ARP: bool = False
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
-    GUI_CONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
+    GUI_COLUMNS_CONNECTED_HIDDEN: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
         'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
-    GUI_DISCONNECTED_FIELDS_TO_HIDE: tuple[str, ...] = (
+    GUI_COLUMNS_DISCONNECTED_HIDDEN: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
         'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
-    GUI_DATE_FIELDS_SHOW_DATE: bool = False
-    GUI_DATE_FIELDS_SHOW_TIME: bool = False
-    GUI_DATE_FIELDS_SHOW_ELAPSED: bool = True
-    GUI_FIELD_SHOW_COUNTRY_CODE: bool = True
-    GUI_FIELD_SHOW_CONTINENT_CODE: bool = True
+    GUI_COLUMNS_DATETIME_SHOW_DATE: bool = False
+    GUI_COLUMNS_DATETIME_SHOW_TIME: bool = False
+    GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME: bool = True
+    GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2: bool = True
+    GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2: bool = True
     GUI_DISCONNECTED_PLAYERS_TIMER: float = 10.0
     DISCORD_PRESENCE: bool = True
     SHOW_DISCORD_POPUP: bool = True
@@ -581,13 +581,13 @@ class Settings(DefaultSettings):
         'GUI_INTERFACE_SELECTION_HIDE_ARP',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
-        'GUI_CONNECTED_FIELDS_TO_HIDE',
-        'GUI_DISCONNECTED_FIELDS_TO_HIDE',
-        'GUI_DATE_FIELDS_SHOW_DATE',
-        'GUI_DATE_FIELDS_SHOW_TIME',
-        'GUI_DATE_FIELDS_SHOW_ELAPSED',
-        'GUI_FIELD_SHOW_COUNTRY_CODE',
-        'GUI_FIELD_SHOW_CONTINENT_CODE',
+        'GUI_COLUMNS_CONNECTED_HIDDEN',
+        'GUI_COLUMNS_DISCONNECTED_HIDDEN',
+        'GUI_COLUMNS_DATETIME_SHOW_DATE',
+        'GUI_COLUMNS_DATETIME_SHOW_TIME',
+        'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
+        'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
+        'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'DISCORD_PRESENCE',
         'SHOW_DISCORD_POPUP',
@@ -596,7 +596,7 @@ class Settings(DefaultSettings):
 
     _ALL_SETTINGS_SET: ClassVar = frozenset(ALL_SETTINGS)
 
-    GUI_FIELDS_MAPPING: ClassVar = {
+    GUI_COLUMNS_MAPPING: ClassVar = {
         'Usernames': 'usernames',
         'First Seen': 'datetime.first_seen',
         'Last Rejoin': 'datetime.last_rejoin',
@@ -645,8 +645,8 @@ class Settings(DefaultSettings):
         'Hosting': 'iplookup.ipapi.hosting',
         'Pinging': 'ping.is_pinging',
     }
-    GUI_FORCED_FIELDS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
-    GUI_HIDEABLE_CONNECTED_FIELDS: ClassVar = (
+    GUI_FORCED_COLUMNS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
+    GUI_HIDEABLE_CONNECTED_COLUMNS: ClassVar = (
         'T. Packets',
         'Packets',
         'T. Packets Received',
@@ -689,7 +689,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_HIDEABLE_DISCONNECTED_FIELDS: ClassVar = (
+    GUI_HIDEABLE_DISCONNECTED_COLUMNS: ClassVar = (
         'T. Packets',
         'Packets',
         'T. Packets Received',
@@ -728,7 +728,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_ALL_CONNECTED_FIELDS: ClassVar = (
+    GUI_ALL_CONNECTED_COLUMNS: ClassVar = (
         'Usernames',
         'First Seen',
         'Last Rejoin',
@@ -776,7 +776,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_ALL_DISCONNECTED_FIELDS: ClassVar = (
+    GUI_ALL_DISCONNECTED_COLUMNS: ClassVar = (
         'Usernames',
         'First Seen',
         'Last Rejoin',
@@ -1004,95 +1004,95 @@ class Settings(DefaultSettings):
                         Settings.GUI_RESET_PORTS_ON_REJOINS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_CONNECTED_FIELDS_TO_HIDE':
+                elif setting_name == 'GUI_COLUMNS_CONNECTED_HIDDEN':
                     try:
-                        gui_fields_to_hide = ast.literal_eval(setting_value)
+                        gui_columns_to_hide = ast.literal_eval(setting_value)
                     except (ValueError, SyntaxError):
                         need_rewrite_settings = True
                     else:
-                        if isinstance(gui_fields_to_hide, tuple) and all(isinstance(item, str) for item in gui_fields_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_gui_fields_to_hide: list[str] = []
+                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
+                            filtered_gui_columns_to_hide: list[str] = []
 
-                            for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
+                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_CONNECTED_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                        value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
-                                    filtered_gui_fields_to_hide.append(normalized_match)
+                                    filtered_gui_columns_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
                                         need_rewrite_current_setting = True
                                 except NoMatchFoundError:
                                     need_rewrite_settings = True
 
-                            # Sort fields according to internal order
-                            sorted_gui_fields_to_hide = [
-                                field for field in Settings.GUI_HIDEABLE_CONNECTED_FIELDS
-                                if field in filtered_gui_fields_to_hide
+                            # Sort columns according to internal order
+                            sorted_gui_columns_to_hide = [
+                                column for column in Settings.GUI_HIDEABLE_CONNECTED_COLUMNS
+                                if column in filtered_gui_columns_to_hide
                             ]
 
                             # Check if sorting changed the order
-                            if filtered_gui_fields_to_hide != sorted_gui_fields_to_hide:
+                            if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
                                 need_rewrite_current_setting = True
 
-                            Settings.GUI_CONNECTED_FIELDS_TO_HIDE = tuple(sorted_gui_fields_to_hide)
+                            Settings.GUI_COLUMNS_CONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'GUI_DISCONNECTED_FIELDS_TO_HIDE':
+                elif setting_name == 'GUI_COLUMNS_DISCONNECTED_HIDDEN':
                     try:
-                        gui_fields_to_hide = ast.literal_eval(setting_value)
+                        gui_columns_to_hide = ast.literal_eval(setting_value)
                     except (ValueError, SyntaxError):
                         need_rewrite_settings = True
                     else:
-                        if isinstance(gui_fields_to_hide, tuple) and all(isinstance(item, str) for item in gui_fields_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_gui_fields_to_hide: list[str] = []
+                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
+                            filtered_gui_columns_to_hide: list[str] = []
 
-                            for value in gui_fields_to_hide:  # pyright: ignore[reportUnknownVariableType]
+                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_DISCONNECTED_FIELDS,  # pyright: ignore[reportUnknownArgumentType]
+                                        value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
-                                    filtered_gui_fields_to_hide.append(normalized_match)
+                                    filtered_gui_columns_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
                                         need_rewrite_current_setting = True
                                 except NoMatchFoundError:
                                     need_rewrite_settings = True
 
-                            # Sort fields according to internal order
-                            sorted_gui_fields_to_hide = [
-                                field for field in Settings.GUI_HIDEABLE_DISCONNECTED_FIELDS
-                                if field in filtered_gui_fields_to_hide
+                            # Sort columns according to internal order
+                            sorted_gui_columns_to_hide = [
+                                column for column in Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS
+                                if column in filtered_gui_columns_to_hide
                             ]
 
                             # Check if sorting changed the order
-                            if filtered_gui_fields_to_hide != sorted_gui_fields_to_hide:
+                            if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
                                 need_rewrite_current_setting = True
 
-                            Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE = tuple(sorted_gui_fields_to_hide)
+                            Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
                         else:
                             need_rewrite_settings = True
-                elif setting_name == 'GUI_DATE_FIELDS_SHOW_DATE':
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_DATE':
                     try:
-                        Settings.GUI_DATE_FIELDS_SHOW_DATE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_DATE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_DATE_FIELDS_SHOW_TIME':
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_TIME':
                     try:
-                        Settings.GUI_DATE_FIELDS_SHOW_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_DATE_FIELDS_SHOW_ELAPSED':
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME':
                     try:
-                        Settings.GUI_DATE_FIELDS_SHOW_ELAPSED, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_FIELD_SHOW_CONTINENT_CODE':
+                elif setting_name == 'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2':
                     try:
-                        Settings.GUI_FIELD_SHOW_CONTINENT_CODE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
-                elif setting_name == 'GUI_FIELD_SHOW_COUNTRY_CODE':
+                elif setting_name == 'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2':
                     try:
-                        Settings.GUI_FIELD_SHOW_COUNTRY_CODE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                        Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
                 elif setting_name == 'GUI_DISCONNECTED_PLAYERS_TIMER':
@@ -1149,9 +1149,9 @@ class Settings(DefaultSettings):
                 need_rewrite_settings = True
 
         if (
-            Settings.GUI_DATE_FIELDS_SHOW_DATE is False
-            and Settings.GUI_DATE_FIELDS_SHOW_TIME is False
-            and Settings.GUI_DATE_FIELDS_SHOW_ELAPSED is False
+            Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False
+            and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False
+            and Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False
         ):
             need_rewrite_settings = True
 
@@ -1161,9 +1161,9 @@ class Settings(DefaultSettings):
                     ERROR in your custom "Settings.ini" file:
 
                     At least one of these settings must be set to "True" value:
-                    <GUI_DATE_FIELDS_SHOW_DATE>
-                    <GUI_DATE_FIELDS_SHOW_TIME>
-                    <GUI_DATE_FIELDS_SHOW_ELAPSED>
+                    <GUI_COLUMNS_DATETIME_SHOW_DATE>
+                    <GUI_COLUMNS_DATETIME_SHOW_TIME>
+                    <GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME>
 
                     Default values will be applied to fix this issue.
                 """),
@@ -1171,9 +1171,9 @@ class Settings(DefaultSettings):
             )
 
             for setting_name in (
-                'GUI_DATE_FIELDS_SHOW_DATE',
-                'GUI_DATE_FIELDS_SHOW_TIME',
-                'GUI_DATE_FIELDS_SHOW_ELAPSED',
+                'GUI_COLUMNS_DATETIME_SHOW_DATE',
+                'GUI_COLUMNS_DATETIME_SHOW_TIME',
+                'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
             ):
                 setattr(Settings, setting_name, getattr(DefaultSettings, setting_name))
 
@@ -2933,7 +2933,7 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
     if exception__initialize_geolite2_readers:
         msgbox_message += f'Exception Error: {exception__initialize_geolite2_readers}\n\n'
         msgbox_message += "Now disabling MaxMind's GeoLite2 IP to Country, City and ASN resolutions feature.\n"
-        msgbox_message += "Countrys, Citys and ASN from players won't shows up from the players fields."
+        msgbox_message += "Countrys, Citys and ASN from players won't shows up from the players columns."
         geoip2_enabled = False
         show_error = True
     else:
@@ -3491,10 +3491,10 @@ class ThreadSafeMeta(type):
 
 
 class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
-    CONNECTED_FIELDS_TO_HIDE: set[str]
-    DISCONNECTED_FIELDS_TO_HIDE: set[str]
-    GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
-    GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES: list[str]
+    CONNECTED_HIDDEN_COLUMNS: set[str]
+    DISCONNECTED_HIDDEN_COLUMNS: set[str]
+    GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES: list[str]
+    GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES: list[str]
 
     header_text: str
     status_capture_text: str
@@ -3997,11 +3997,11 @@ def rendering_core(
                     return ', '.join(map(str, reversed(player.ports.middle)))
                 return ''
 
-            def add_sort_arrow_char_to_sorted_logging_table_field(field_names: Sequence[str], sorted_field: str, sort_order: Qt.SortOrder) -> list[str]:
+            def add_sort_arrow_char_to_sorted_logging_table_column(column_names: Sequence[str], sorted_column: str, sort_order: Qt.SortOrder) -> list[str]:
                 arrow = ' \u2193' if sort_order == Qt.SortOrder.DescendingOrder else ' \u2191'  # Down arrow for descending, up arrow for ascending
                 return [
-                    field + arrow if field == sorted_field else field
-                    for field in field_names
+                    column + arrow if column == sorted_column else column
+                    for column in column_names
                 ]
 
             def calculate_table_padding(connected_players: list[Player], disconnected_players: list[Player]) -> tuple[int, int, int, int]:
@@ -4038,11 +4038,11 @@ def rendering_core(
 
                 return connected_country_padding, connected_continent_padding, disconnected_country_padding, disconnected_continent_padding
 
-            logging_connected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(
-                logging_connected_players_table__field_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder,
+            logging_connected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
+                logging_connected_players_table__column_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder,
             )
-            logging_disconnected_players__field_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_field(
-                logging_disconnected_players_table__field_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
+            logging_disconnected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
+                logging_disconnected_players_table__column_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
             )
             row_texts: list[str] = []
 
@@ -4055,7 +4055,7 @@ def rendering_core(
             logging_connected_players_table = PrettyTable()
             logging_connected_players_table.set_style(TableStyle.SINGLE_BORDER)
             logging_connected_players_table.title = f'Player{pluralize(len(session_connected))} connected in your session ({len(session_connected)}):'
-            logging_connected_players_table.field_names = logging_connected_players__field_names__with_down_arrow
+            logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
             logging_connected_players_table.align = 'l'
             for player in session_connected:
                 row_texts = []
@@ -4110,7 +4110,7 @@ def rendering_core(
             logging_disconnected_players_table = PrettyTable()
             logging_disconnected_players_table.set_style(TableStyle.SINGLE_BORDER)
             logging_disconnected_players_table.title = f"Player{pluralize(len(session_disconnected))} who've left your session ({len(session_disconnected)}):"
-            logging_disconnected_players_table.field_names = logging_disconnected_players__field_names__with_down_arrow
+            logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
             logging_disconnected_players_table.align = 'l'
             for player in session_disconnected:
                 row_texts = []
@@ -4176,7 +4176,7 @@ def rendering_core(
             def format_player_gui_datetime(datetime_object: datetime) -> str:
                 formatted_elapsed = None
 
-                if Settings.GUI_DATE_FIELDS_SHOW_ELAPSED:
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME:
                     elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
 
                     hours, remainder = divmod(elapsed_time.total_seconds(), 3600)
@@ -4195,16 +4195,16 @@ def rendering_core(
 
                     formatted_elapsed = ' '.join(elapsed_parts)
 
-                    if Settings.GUI_DATE_FIELDS_SHOW_DATE is False and Settings.GUI_DATE_FIELDS_SHOW_TIME is False:
+                    if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
                         return formatted_elapsed
 
                 parts: list[str] = []
-                if Settings.GUI_DATE_FIELDS_SHOW_DATE:
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE:
                     parts.append(datetime_object.strftime('%m/%d/%Y'))
-                if Settings.GUI_DATE_FIELDS_SHOW_TIME:
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_TIME:
                     parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
                 if not parts:
-                    raise InvalidDateFieldConfigurationError
+                    raise InvalidDateColumnConfigurationError
 
                 formatted_datetime = ' '.join(parts)
 
@@ -4295,19 +4295,19 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
-                if 'T. Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_exchanged}')
-                if 'Packets' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.exchanged}')
-                if 'T. Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_received}')
-                if 'Packets Received' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.received}')
-                if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_sent}')
-                if 'Packets Sent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.sent}')
-                if 'PPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'PPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                         foreground=get_player_pps_gradient_color(
                             row_fg_color,
@@ -4316,7 +4316,7 @@ def rendering_core(
                         ),
                     )
                     row_texts.append(f'{player.packets.pps.calculated_rate}')
-                if 'PPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'PPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
                         foreground=get_player_ppm_gradient_color(
                             row_fg_color,
@@ -4325,19 +4325,19 @@ def rendering_core(
                         ),
                     )
                     row_texts.append(f'{player.packets.ppm.calculated_rate}')
-                if 'T. Bandwith' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-                if 'Bandwith' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-                if 'T. Download' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-                if 'Download' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-                if 'T. Upload' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'T. Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-                if 'Upload' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-                if 'BPS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'BPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
                         foreground=get_player_bps_gradient_color(
                             row_fg_color,
@@ -4346,7 +4346,7 @@ def rendering_core(
                         ),
                     )
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
-                if 'BPM' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'BPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
                         foreground=get_player_bpm_gradient_color(
                             row_fg_color,
@@ -4356,61 +4356,61 @@ def rendering_core(
                     )
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
                 row_texts.append(f'{format_player_gui_ip(player.ip)}')
-                if 'Hostname' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Hostname' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Last Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Middle Ports' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{format_player_gui_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'First Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    if Settings.GUI_FIELD_SHOW_CONTINENT_CODE:
+                if 'Continent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                    if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
                         row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
-                    if Settings.GUI_FIELD_SHOW_COUNTRY_CODE:
+                if 'Country' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                    if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
                         row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Region' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'R. Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'City' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'District' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'ZIP Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Lat' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Lon' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Time Zone' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Offset' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Currency' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Organization' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'ASN / ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'AS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'ASN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Mobile' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'VPN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Hosting' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE:
+                if 'Pinging' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ping.is_pinging}')
 
                 session_connected_table__processed_data.append(row_texts)
@@ -4433,86 +4433,86 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
                 row_texts.append(f'{player.rejoins}')
-                if 'T. Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_exchanged}')
-                if 'Packets' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.exchanged}')
-                if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_received}')
-                if 'Packets Received' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.received}')
-                if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_sent}')
-                if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.sent}')
-                if 'T. Bandwith' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-                if 'Bandwith' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-                if 'T. Download' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-                if 'Download' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-                if 'T. Upload' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'T. Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-                if 'Upload' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
                 row_texts.append(f'{player.ip}')
-                if 'Hostname' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Hostname' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Last Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{format_player_gui_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'First Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    if Settings.GUI_FIELD_SHOW_CONTINENT_CODE:
+                if 'Continent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                    if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
                         row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
-                    if Settings.GUI_FIELD_SHOW_COUNTRY_CODE:
+                if 'Country' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                    if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
                         row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Region' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'R. Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'City' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'District' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'ZIP Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Lat' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Lon' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Time Zone' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Offset' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Currency' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Organization' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'ASN / ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'AS' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'ASN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Mobile' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'VPN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Hosting' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE:
+                if 'Pinging' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ping.is_pinging}')
 
                 session_disconnected_table__processed_data.append(row_texts)
@@ -4566,7 +4566,7 @@ def rendering_core(
 
             # Capture section
             capture_section = (
-                f'<span style="color: #88c0d0; font-weight: bold;">📡 Capture:</span> '
+                f'<span style="color: #88c0d0; font-weight: bold;">ðŸ“¡ Capture:</span> '
                 f'<span style="color: #a3be8c;">{capture.interface.name}</span> '
                 f'<span style="color: #81a1c1;"> • </span>'
                 f'<span style="color: #d08770;">IP:</span> <span style="color: #a3be8c;">{displayed_capture_ip_address}</span>'
@@ -4676,15 +4676,15 @@ def rendering_core(
             return capture_section, config_section, discord_section, issues_section, performance_section
 
         # Data structures already initialized before GUI - just get the values
-        gui_connected_players_table__field_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES
+        gui_connected_players_table__column_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES
 
-        # Still need logging field names (not used by GUI)
-        logging_connected_players_table__field_names = list(Settings.GUI_ALL_CONNECTED_FIELDS)
-        logging_disconnected_players_table__field_names = list(Settings.GUI_ALL_DISCONNECTED_FIELDS)
+        # Still need logging column names (not used by GUI)
+        logging_connected_players_table__column_names = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
+        logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
 
         # Column mapping for rendering
-        connected_column_mapping = {header: index for index, header in enumerate(gui_connected_players_table__field_names)}
-        # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)}
+        connected_column_mapping = {header: index for index, header in enumerate(gui_connected_players_table__column_names)}
+        # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES)}
 
         last_userip_parse_time = None
         last_session_logging_processing_time = None
@@ -6692,12 +6692,12 @@ class MainWindow(QMainWindow):
         self.connected_header_layout.addWidget(self.connected_collapse_button)
 
         # Create the table model and view
-        while not GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES:  # Wait for the GUI rendering data to be ready
+        while not GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES:  # Wait for the GUI rendering data to be ready
             gui_closed__event.wait(0.1)
-        self.connected_table_model = SessionTableModel(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES)
+        self.connected_table_model = SessionTableModel(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES)
         self.connected_table_view = SessionTableView(
             self.connected_table_model,
-            GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Rejoin'),
+            GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES.index('Last Rejoin'),
             Qt.SortOrder.DescendingOrder,
             is_connected_table=True,
         )
@@ -6755,12 +6755,12 @@ class MainWindow(QMainWindow):
         self.disconnected_expand_button.setVisible(False)
 
         # Create the table model and view
-        while not GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES:  # Wait for the GUI rendering data to be ready
+        while not GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES:  # Wait for the GUI rendering data to be ready
             gui_closed__event.wait(0.1)
-        self.disconnected_table_model = SessionTableModel(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES)
+        self.disconnected_table_model = SessionTableModel(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES)
         self.disconnected_table_view = SessionTableView(
             self.disconnected_table_model,
-            GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES.index('Last Seen'),
+            GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES.index('Last Seen'),
             Qt.SortOrder.AscendingOrder,
             is_connected_table=False,
         )
@@ -7782,25 +7782,25 @@ def main() -> None:
         ).start()
 
     # Initialize GUI data structures early so GUI can start immediately
-    GUIrenderingData.CONNECTED_FIELDS_TO_HIDE = set(Settings.GUI_CONNECTED_FIELDS_TO_HIDE)
-    GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE = set(Settings.GUI_DISCONNECTED_FIELDS_TO_HIDE)
+    GUIrenderingData.CONNECTED_HIDDEN_COLUMNS = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+    GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
 
-    # Compile table field names
-    gui_connected_players_table__field_names = [
-        field_name
-        for field_name in Settings.GUI_ALL_CONNECTED_FIELDS
-        if field_name not in GUIrenderingData.CONNECTED_FIELDS_TO_HIDE
+    # Compile table column names
+    gui_connected_players_table__column_names = [
+        column_name
+        for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+        if column_name not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS
     ]
-    gui_disconnected_players_table__field_names = [
-        field_name
-        for field_name in Settings.GUI_ALL_DISCONNECTED_FIELDS
-        if field_name not in GUIrenderingData.DISCONNECTED_FIELDS_TO_HIDE
+    gui_disconnected_players_table__column_names = [
+        column_name
+        for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+        if column_name not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS
     ]
 
-    GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__FIELD_NAMES = gui_connected_players_table__field_names
-    GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__FIELD_NAMES = gui_disconnected_players_table__field_names
-    GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(gui_connected_players_table__field_names)
-    GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(gui_disconnected_players_table__field_names)
+    GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES = gui_connected_players_table__column_names
+    GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES = gui_disconnected_players_table__column_names
+    GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(gui_connected_players_table__column_names)
+    GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(gui_disconnected_players_table__column_names)
 
     # Initialize GUI first - now it has all the data it needs
     window = MainWindow(screen_width, screen_height, capture)
