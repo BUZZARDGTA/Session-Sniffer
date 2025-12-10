@@ -2524,6 +2524,7 @@ class GUIDetectionSettings:
     vpn_detection_enabled: ClassVar[bool] = False
     hosting_detection_enabled: ClassVar[bool] = False
     player_join_notifications_enabled: ClassVar[bool] = False
+    player_rejoin_notifications_enabled: ClassVar[bool] = False
     player_leave_notifications_enabled: ClassVar[bool] = False
 
 
@@ -3011,17 +3012,17 @@ class NotificationConfig(TypedDict):
 
 def show_detection_warning_popup(
     player: Player,
-    notification_type: Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_left'],
+    notification_type: Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_rejoined', 'player_left'],
 ) -> None:
     """Show a notification popup for detections or player connection events.
 
     Args:
         player: The player object with detection data
-        notification_type: Type of notification - `mobile`, `vpn`, `hosting`, `player_joined`, or `player_left`
+        notification_type: Type of notification - `mobile`, `vpn`, `hosting`, `player_joined`, `player_rejoined`, or `player_left`
     """
     def show_popup_thread() -> None:
         """Thread function to show popup after ensuring data is ready."""
-        notification_configs: dict[Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_left'], NotificationConfig] = {
+        notification_configs: dict[Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_rejoined', 'player_left'], NotificationConfig] = {
             'mobile': {
                 'emoji': '📱',
                 'title': 'MOBILE CONNECTION DETECTED!',
@@ -3049,6 +3050,13 @@ def show_detection_warning_popup(
                 'description': 'A new player has joined your session!',
                 'icon': MsgBox.Style.MB_ICONINFORMATION,
                 'thread_name': 'PlayerJoined',
+            },
+            'player_rejoined': {
+                'emoji': '🔄',
+                'title': 'PLAYER REJOINED SESSION!',
+                'description': 'A player has rejoined your session after disconnecting!',
+                'icon': MsgBox.Style.MB_ICONINFORMATION,
+                'thread_name': 'PlayerRejoined',
             },
             'player_left': {
                 'emoji': '🔴',
@@ -6613,6 +6621,14 @@ class MainWindow(QMainWindow):
         self.player_join_notification_action.triggered.connect(self.toggle_player_join_notifications)  # pyright: ignore[reportUnknownMemberType]
         detection_menu.addAction(self.player_join_notification_action)  # pyright: ignore[reportUnknownMemberType]
 
+        # Player Rejoin Notification action
+        self.player_rejoin_notification_action = QAction('Player rejoin notifications', self)
+        self.player_rejoin_notification_action.setToolTip('Get notified whenever any player rejoins your session after disconnecting')
+        self.player_rejoin_notification_action.setCheckable(True)
+        self.player_rejoin_notification_action.setChecked(GUIDetectionSettings.player_rejoin_notifications_enabled)
+        self.player_rejoin_notification_action.triggered.connect(self.toggle_player_rejoin_notifications)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.player_rejoin_notification_action)  # pyright: ignore[reportUnknownMemberType]
+
         # Player Leave Notification action
         self.player_leave_notification_action = QAction('Player leave notifications', self)
         self.player_leave_notification_action.setToolTip('Get notified whenever any player leaves your session')
@@ -7164,6 +7180,10 @@ class MainWindow(QMainWindow):
     def toggle_player_join_notifications(self) -> None:
         """Toggle player join notifications on/off."""
         GUIDetectionSettings.player_join_notifications_enabled = self.player_join_notification_action.isChecked()
+
+    def toggle_player_rejoin_notifications(self) -> None:
+        """Toggle player rejoin notifications on/off."""
+        GUIDetectionSettings.player_rejoin_notifications_enabled = self.player_rejoin_notification_action.isChecked()
 
     def toggle_player_leave_notifications(self) -> None:
         """Toggle player leave notifications on/off."""
@@ -7733,6 +7753,9 @@ def main() -> None:
 
                 if GUIDetectionSettings.player_join_notifications_enabled:
                     show_detection_warning_popup(player, 'player_joined')
+
+                if GUIDetectionSettings.player_rejoin_notifications_enabled:
+                    show_detection_warning_popup(player, 'player_rejoined')
             else:
                 player.mark_as_seen(
                     port=target_port,
