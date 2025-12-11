@@ -4575,10 +4575,10 @@ def rendering_core(
 
             # Capture section
             capture_section = (
-                f'<span style="color: #88c0d0; font-weight: bold;">ðŸ“¡ Capture:</span> '
                 f'<span style="color: #a3be8c;">{capture.interface.name}</span> '
                 f'<span style="color: #81a1c1;"> • </span>'
                 f'<span style="color: #d08770;">IP:</span> <span style="color: #a3be8c;">{displayed_capture_ip_address}</span>'
+                f'<span style="color: #88c0d0; font-weight: bold;">📡 Capture:</span> '
             )
 
             # Configuration section
