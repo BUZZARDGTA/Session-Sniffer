@@ -4609,6 +4609,7 @@ def rendering_core(
                     f'<span style="color: #bf616a; font-weight: bold;">⚠️ Issues:</span> '
                     f'{" <span style=\"color: #81a1c1;\">•</span> ".join(issues)}'
                 )
+
             # Get current process memory usage
             process = psutil.Process()
             memory_info = process.memory_info()
