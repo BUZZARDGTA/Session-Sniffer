@@ -4971,13 +4971,18 @@ class SessionTableModel(QAbstractTableModel):
         row_idx = index.row()
         col_idx = index.column()
 
-        # Check bounds
-        if row_idx >= len(self._data) or col_idx >= len(self._data[row_idx]):
-            return None  # Return None for invalid index
+        # Check bounds - optimize by checking data length once
+        num_rows = len(self._data)
+        if row_idx >= num_rows:
+            return None
+        
+        row_data = self._data[row_idx]
+        if col_idx >= len(row_data):
+            return None
 
         if role == Qt.ItemDataRole.DecorationRole:  # noqa: SIM102
             if self.has_column('Country') and self.get_column_index('Country') == col_idx:
-                ip = self.get_ip_from_data_safely(self._data[row_idx])
+                ip = self.get_ip_from_data_safely(row_data)
 
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is not None and player.country_flag is not None:
@@ -4985,17 +4990,18 @@ class SessionTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
-            return self._data[row_idx][col_idx]
+            return row_data[col_idx]
 
-        if role == Qt.ItemDataRole.ForegroundRole:  # noqa: SIM102
-            # Return the cell's foreground color
-            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
-                return QBrush(self._compiled_colors[row_idx][col_idx].foreground)
-
-        if role == Qt.ItemDataRole.BackgroundRole:  # noqa: SIM102
-            # Return the cell's background color
-            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
-                return QBrush(self._compiled_colors[row_idx][col_idx].background)
+        # Optimize color lookup by checking bounds once
+        if role in (Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.BackgroundRole):
+            if row_idx < len(self._compiled_colors):
+                row_colors = self._compiled_colors[row_idx]
+                if col_idx < len(row_colors):
+                    cell_color = row_colors[col_idx]
+                    if role == Qt.ItemDataRole.ForegroundRole:
+                        return QBrush(cell_color.foreground)
+                    else:  # BackgroundRole
+                        return QBrush(cell_color.background)
 
         if role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
@@ -6359,6 +6365,8 @@ class GUIWorkerThread(QThread):
             GUIrenderingData.session_disconnected_sorted_column_name, GUIrenderingData.session_disconnected_sort_order = self.disconnected_table_view.get_sorted_column()
 
             if not GUIrenderingData.gui_rendering_ready_event.is_set():
+                # Small sleep to prevent CPU spinning when waiting for rendering data
+                gui_closed__event.wait(0.05)  # 50ms delay
                 continue
             GUIrenderingData.gui_rendering_ready_event.clear()
 
