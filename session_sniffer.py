@@ -3470,7 +3470,6 @@ class GUIUpdatePayload(NamedTuple):
     header_text: str
     status_capture_text: str
     status_config_text: str
-    status_discord_text: str
     status_issues_text: str
     status_performance_text: str
     connected_rows: list[tuple[list[str], list[CellColor]]]
@@ -3508,7 +3507,6 @@ class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
     header_text: str
     status_capture_text: str
     status_config_text: str
-    status_discord_text: str
     status_issues_text: str
     status_performance_text: str
     SESSION_CONNECTED_TABLE__NUM_COLS: int
@@ -4536,11 +4534,11 @@ def rendering_core(
                 session_disconnected_table__compiled_colors,
             )
 
-        def generate_gui_status_text() -> tuple[str, str, str, str, str]:
+        def generate_gui_status_text() -> tuple[str, str, str, str]:
             """Generate status bar text content for individual sections.
 
             Returns:
-                A tuple of (capture, config, discord, issues, performance) containing HTML formatted text
+                A tuple of (capture, config, issues, performance) containing HTML formatted text
                 for each individual status bar section.
             """
             one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
@@ -4593,6 +4591,17 @@ def rendering_core(
                 f'<span style="color: #d08770;">Preset:</span> <span style="color: #b48ead;">{Settings.CAPTURE_PROGRAM_PRESET}</span>'
             )
 
+            # Discord RPC status (displayed in the config section when enabled)
+            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
+                rpc_connected = discord_rpc_manager.connection_status.is_set()
+                rpc_color = '#a3be8c' if rpc_connected else '#ebcb8b'
+                rpc_status = 'Connected' if rpc_connected else 'Waiting'
+                config_section = (
+                    f'{config_section} '
+                    f'<span style="color: #81a1c1;">•</span> '
+                    f'<span style="color: #d08770;">Discord:</span> '
+                    f'<span style="color: {rpc_color};">{rpc_status}</span>'
+                )
 
             # Issues section (if any)
             issues_section = ''
@@ -4671,19 +4680,7 @@ def rendering_core(
                 f'<span style="color: #81a1c1;">•</span> '
                 f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{TsharkStats.restarted_times}</span>'
             )
-
-            # Discord RPC section (if enabled)
-            discord_section = ''
-            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
-                rpc_connected = discord_rpc_manager.connection_status.is_set()
-                rpc_color = '#a3be8c' if rpc_connected else '#ebcb8b'
-                rpc_status = 'Connected' if rpc_connected else 'Waiting'
-                discord_section = (
-                    f'<span style="color: #88c0d0; font-weight: bold;">💬 Discord:</span> '
-                    f'<span style="color: {rpc_color};">{rpc_status}</span>'
-                )
-
-            return capture_section, config_section, discord_section, issues_section, performance_section
+            return capture_section, config_section, issues_section, performance_section
 
         # Data structures already initialized before GUI - just get the values
         gui_connected_players_table__column_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES
@@ -4865,8 +4862,7 @@ def rendering_core(
 
             GUIrenderingData.header_text = generate_gui_header_html(capture=capture)
             (GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text,
-             GUIrenderingData.status_discord_text, GUIrenderingData.status_issues_text,
-             GUIrenderingData.status_performance_text) = generate_gui_status_text()
+             GUIrenderingData.status_issues_text, GUIrenderingData.status_performance_text) = generate_gui_status_text()
             (
                 GUIrenderingData.session_connected_table__num_rows,
                 GUIrenderingData.session_connected_table__processed_data,
@@ -6327,7 +6323,6 @@ class GUIWorkerThread(QThread):
             header_text = GUIrenderingData.header_text
             status_capture_text = GUIrenderingData.status_capture_text
             status_config_text = GUIrenderingData.status_config_text
-            status_discord_text = GUIrenderingData.status_discord_text
             status_issues_text = GUIrenderingData.status_issues_text
             status_performance_text = GUIrenderingData.status_performance_text
 
@@ -6346,7 +6341,6 @@ class GUIWorkerThread(QThread):
                 header_text=header_text,
                 status_capture_text=status_capture_text,
                 status_config_text=status_config_text,
-                status_discord_text=status_discord_text,
                 status_issues_text=status_issues_text,
                 status_performance_text=status_performance_text,
                 connected_rows=connected_rows,
@@ -6858,17 +6852,6 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        self.status_discord_label = QLabel()
-        self.status_discord_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_discord_label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                color: #d8dee9;
-                border: none;
-                padding: 4px 8px;
-            }
-        """)
-
         self.status_issues_label = QLabel()
         self.status_issues_label.setTextFormat(Qt.TextFormat.RichText)
         self.status_issues_label.setStyleSheet("""
@@ -6895,7 +6878,6 @@ class MainWindow(QMainWindow):
         # Add labels to status bar with proper spacing
         self.status_bar.addWidget(self.status_capture_label)
         self.status_bar.addWidget(self.status_config_label)
-        self.status_bar.addWidget(self.status_discord_label)
         self.status_bar.addWidget(self.status_issues_label)
         self.status_bar.addPermanentWidget(self.status_performance_label)  # Right-aligned performance
 
@@ -7084,7 +7066,6 @@ class MainWindow(QMainWindow):
         # Update individual status bar sections
         self.status_capture_label.setText(payload.status_capture_text)
         self.status_config_label.setText(payload.status_config_text)
-        self.status_discord_label.setText(payload.status_discord_text)
         self.status_issues_label.setText(payload.status_issues_text)
         self.status_performance_label.setText(payload.status_performance_text)
 
