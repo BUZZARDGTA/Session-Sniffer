@@ -4593,6 +4593,22 @@ def rendering_core(
                 f'<span style="color: #d08770;">Preset:</span> <span style="color: #b48ead;">{Settings.CAPTURE_PROGRAM_PRESET}</span>'
             )
 
+
+            # Issues section (if any)
+            issues_section = ''
+            if any([invalid_ip_count, conflict_ip_count, corrupted_settings_count]):
+                issues: list[str] = []
+                if invalid_ip_count:
+                    issues.append(f'<span style="color: #bf616a;">❌ Invalid IPs: {invalid_ip_count}</span>')
+                if conflict_ip_count:
+                    issues.append(f'<span style="color: #bf616a;">⚠️ Conflicts: {conflict_ip_count}</span>')
+                if corrupted_settings_count:
+                    issues.append(f'<span style="color: #bf616a;">🔧 Corrupted: {corrupted_settings_count}</span>')
+
+                issues_section = (
+                    f'<span style="color: #bf616a; font-weight: bold;">⚠️ Issues:</span> '
+                    f'{" <span style=\"color: #81a1c1;\">•</span> ".join(issues)}'
+                )
             # Get current process memory usage
             process = psutil.Process()
             memory_info = process.memory_info()
@@ -4664,22 +4680,6 @@ def rendering_core(
                 discord_section = (
                     f'<span style="color: #88c0d0; font-weight: bold;">💬 Discord:</span> '
                     f'<span style="color: {rpc_color};">{rpc_status}</span>'
-                )
-
-            # Issues section (if any)
-            issues_section = ''
-            if any([invalid_ip_count, conflict_ip_count, corrupted_settings_count]):
-                issues: list[str] = []
-                if invalid_ip_count:
-                    issues.append(f'<span style="color: #bf616a;">❌ Invalid IPs: {invalid_ip_count}</span>')
-                if conflict_ip_count:
-                    issues.append(f'<span style="color: #bf616a;">⚠️ Conflicts: {conflict_ip_count}</span>')
-                if corrupted_settings_count:
-                    issues.append(f'<span style="color: #bf616a;">🔧 Corrupted: {corrupted_settings_count}</span>')
-
-                issues_section = (
-                    f'<span style="color: #bf616a; font-weight: bold;">⚠️ Issues:</span> '
-                    f'{" <span style=\"color: #81a1c1;\">•</span> ".join(issues)}'
                 )
 
             return capture_section, config_section, discord_section, issues_section, performance_section
