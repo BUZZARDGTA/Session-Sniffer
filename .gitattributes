@@ -1,2 +1,31 @@
 bin/** linguist-vendored
 code-quality-checks.ps1 linguist-vendored
+
+# Auto detect text files and normalize line endings to CRLF
+* text=auto eol=crlf
+
+# Python files - UTF-8 without BOM
+*.py text eol=crlf diff=python
+
+# Configuration/Data files
+*.json text eol=crlf
+*.toml text eol=crlf
+*.yml text eol=crlf
+*.txt text eol=crlf
+*.ini text eol=crlf
+*.flake8 text eol=crlf
+
+# Documentation
+*.md text eol=crlf
+
+# Scripts
+*.ps1 text eol=crlf
+*.spec text eol=crlf
+
+# Binary files - no conversion
+*.exe binary
+*.dll binary
+*.png binary
+*.wav binary
+*.ico binary
+*.mmdb binary
