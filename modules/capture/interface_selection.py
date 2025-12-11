@@ -222,7 +222,6 @@ class InterfaceSelectionDialog(QDialog):
             and not (hide_arp and interface.is_arp)
         ]
 
-        # Populate the table
         self.populate_table()
 
         # Attempt to restore previous selection if still present & logically allowed
