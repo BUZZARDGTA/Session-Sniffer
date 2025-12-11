@@ -2741,6 +2741,9 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
             hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
             hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
             arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
+            saved_interface_name=Settings.CAPTURE_INTERFACE_NAME,
+            saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
+            saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
         )
 
         if result is not None:

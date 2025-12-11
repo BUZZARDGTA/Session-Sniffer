@@ -24,6 +24,52 @@ from modules.guis.utils import resize_window_for_screen
 from modules.utils import format_type_error
 
 
+def _find_best_matching_interface_index(
+    interfaces: list[InterfaceSelectionData],
+    saved_interface_name: str | None,
+    saved_ip_address: str | None,
+    saved_mac_address: str | None,
+) -> int | None:
+    """Return the row index of the best matching interface, or None if ambiguous.
+
+    Weighted scoring favors name > MAC > IP to reduce ties while still rejecting
+    ambiguous top scores (e.g., duplicate adapters).
+    """
+    if not any((saved_interface_name, saved_ip_address, saved_mac_address)):
+        return None
+
+    def calculate_score(interface: InterfaceSelectionData) -> int:
+        score = 0
+        if saved_interface_name is not None and interface.name == saved_interface_name:
+            score += 4
+        if saved_mac_address is not None and interface.mac_address == saved_mac_address:
+            score += 2
+        if saved_ip_address is not None and interface.ip_address == saved_ip_address:
+            score += 1
+        return score
+
+    best_score = 0
+    best_index: int | None = None
+    ambiguous = False
+
+    for idx, interface in enumerate(interfaces):
+        score = calculate_score(interface)
+        if not score:
+            continue
+
+        if score > best_score:
+            best_score = score
+            best_index = idx
+            ambiguous = False
+        elif score == best_score:
+            ambiguous = True
+
+    if best_index is None or ambiguous:
+        return None
+
+    return best_index
+
+
 class InterfaceSelectionData(NamedTuple):
     selection_index: int
     name: str
@@ -238,6 +284,31 @@ class InterfaceSelectionDialog(QDialog):
         # Ensure select button state reflects restored selection
         self.update_select_button_state()
 
+    def restore_saved_interface_selection(
+        self,
+        saved_interface_name: str | None,
+        saved_ip_address: str | None = None,
+        saved_mac_address: str | None = None,
+    ) -> None:
+        """Restore the previously saved interface selection from settings.
+
+        Args:
+            saved_interface_name (str | None): The name of the previously selected interface from settings (optional).
+            saved_ip_address (str | None): The IP address of the previously selected interface (optional).
+            saved_mac_address (str | None): The MAC address of the previously selected interface (optional).
+        """
+        best_match_index = _find_best_matching_interface_index(
+            self.interfaces,
+            saved_interface_name,
+            saved_ip_address,
+            saved_mac_address,
+        )
+        if best_match_index is None:
+            return
+
+        self.table.selectRow(best_match_index)
+        self.update_select_button_state()
+
     def populate_table(self) -> None:
         """Populate the table with the current filtered interface list."""
         # Clear existing rows
@@ -399,6 +470,9 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
     hide_inactive_default: bool,
     hide_arp_default: bool,
     arp_spoofing_default: bool,
+    saved_interface_name: str | None = None,
+    saved_ip_address: str | None = None,
+    saved_mac_address: str | None = None,
 ) -> tuple[InterfaceSelectionData | None, bool, bool, bool]:
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
@@ -409,6 +483,9 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
         hide_arp_default=hide_arp_default,
         arp_spoofing_default=arp_spoofing_default,
     )
+    # Restore the previously saved interface selection
+    dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
+
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected
         return dialog.selected_interface_data, dialog.arp_spoofing_enabled, dialog.hide_inactive_enabled, dialog.hide_arp_enabled
     return None, arp_spoofing_default, hide_inactive_default, hide_arp_default
