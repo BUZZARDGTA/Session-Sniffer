@@ -124,6 +124,7 @@ from modules.exceptions import (
     UnexpectedPlayerCountError,
 )
 from modules.guis.app import app
+from modules.guis.colors import StatusBarColors, TableColors, ThresholdColors
 from modules.guis.exceptions import (
     InvalidDateColumnConfigurationError,
     PrimaryScreenNotFoundError,
@@ -4288,10 +4289,10 @@ def rendering_core(
 
             for player in session_connected:
                 if player.userip and player.userip.usernames:
-                    row_fg_color = QColor('white')
+                    row_fg_color = QColor(TableColors.CONNECTED_USERIP_TEXT)
                     row_bg_color = player.userip.settings.COLOR
                 else:
-                    row_fg_color = QColor('lime')
+                    row_fg_color = QColor(TableColors.CONNECTED_TEXT)
                     row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
 
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
@@ -4428,10 +4429,10 @@ def rendering_core(
 
             for player in session_disconnected:
                 if player.userip and player.userip.usernames:
-                    row_fg_color = QColor('white')
+                    row_fg_color = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
                     row_bg_color = player.userip.settings.COLOR
                 else:
-                    row_fg_color = QColor('red')
+                    row_fg_color = QColor(TableColors.DISCONNECTED_TEXT)
                     row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
 
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
@@ -4544,6 +4545,95 @@ def rendering_core(
                 A tuple of (capture, config, issues, performance) containing HTML formatted text
                 for each individual status bar section.
             """
+            # Create rich status bar text with emojis, colors, and visual organization
+
+            # Capture section
+            displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
+            capture_section = (
+                f'<span style="font-size: 11px;">'
+                f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">📡 Capture:</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Interface:</span> '
+                f'<span style="color: {StatusBarColors.ENABLED};">{capture.interface.name}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">IP:</span> '
+                f'<span style="color: {StatusBarColors.ENABLED};">{displayed_capture_ip_address}</span>'
+                f'</span>'
+            )
+
+            # Configuration section
+            is_arp_capture_enabled = 'Enabled' if capture.interface.is_arp else 'Disabled'
+            is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
+            arp_color = StatusBarColors.ENABLED if is_arp_capture_enabled == 'Enabled' else StatusBarColors.DISABLED
+            vpn_color = StatusBarColors.ENABLED if is_vpn_mode_enabled == 'Enabled' else StatusBarColors.DISABLED
+
+            # Build Discord status for config section
+            discord_status_display = ''
+            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
+                rpc_connected = discord_rpc_manager.connection_status.is_set()
+                rpc_color = StatusBarColors.ENABLED if rpc_connected else StatusBarColors.DISABLED
+                rpc_status = 'Connected' if rpc_connected else 'Waiting'
+                discord_status_display = (
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> '
+                    f'<span style="color: {rpc_color};">{rpc_status}</span>'
+                )
+
+            config_section = (
+                f'<span style="font-size: 11px;">'
+                f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> '
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> '
+                f'<span style="color: {arp_color};">{is_arp_capture_enabled}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> '
+                f'<span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Preset:</span> '
+                f'<span style="color: {StatusBarColors.SECONDARY_ACCENT};">{Settings.CAPTURE_PROGRAM_PRESET}</span>'
+                f'{discord_status_display}'
+                f'</span>'
+            )
+
+            userip_invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
+            userip_conflict_ip_count = len(UserIPDatabases.notified_ip_conflicts)
+            userip_corrupted_settings_count = len(UserIPDatabases.notified_settings_corrupted)
+
+            # UserIP Issues section (if any)
+            userip_issues_section = ''
+            if any([userip_invalid_ip_count, userip_conflict_ip_count, userip_corrupted_settings_count]):
+                userip_issues: list[str] = []
+                if userip_invalid_ip_count:
+                    userip_issues.append(f'<span style="color: {StatusBarColors.DISABLED};">❌ Invalid IPs: {userip_invalid_ip_count}</span>')
+                if userip_conflict_ip_count:
+                    userip_issues.append(f'<span style="color: {StatusBarColors.DISABLED};">⚠️ Conflicts: {userip_conflict_ip_count}</span>')
+                if userip_corrupted_settings_count:
+                    userip_issues.append(f'<span style="color: {StatusBarColors.DISABLED};">🔧 Corrupted: {userip_corrupted_settings_count}</span>')
+
+                userip_issues_divider = f' <span style="color: {StatusBarColors.DIVIDER};"> • </span> '
+
+                userip_issues_section = (
+                    f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">📜 UserIP Issues:</span> '
+                    f'{userip_issues_divider.join(userip_issues)}'
+                )
+
+            # Define bandwith color thresholds for color coding
+            bandwidth_critical = 1_000_000_000  # 1 GB - Critical total bandwidth (red)
+            bandwidth_warning = 500_000_000   # 500 MB - Warning total bandwidth (yellow)
+            download_critical = bandwidth_critical // 2  # 500 MB - Critical download (red)
+            download_warning = bandwidth_warning // 2   # 250 MB - Warning download (yellow)
+            upload_critical = bandwidth_critical // 2    # 500 MB - Critical upload (red)
+            upload_warning = bandwidth_warning // 2      # 250 MB - Warning upload (yellow)
+            bps_critical = 3_000_000  # 3 MB/s - Critical bandwidth (red)
+            bps_warning = 1_000_000   # 1 MB/s - Warning bandwidth (yellow)
+
+            # Define packet color thresholds for color coding
+            pps_critical = 1500
+            pps_warning = 1000
+
+            # Define memory thresholds for color coding
+            memory_high = 500  # MB - High usage (red)
+            memory_medium = 300  # MB - Medium usage (yellow)
+
             one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
 
             # Filter packets received in the last second
@@ -4561,129 +4651,65 @@ def rendering_core(
                 avg_latency_seconds = 0.0
                 avg_latency_rounded = 0.0
 
-            is_vpn_mode_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-            is_arp_capture_enabled = 'Enabled' if capture.interface.is_arp else 'Disabled'
-            displayed_capture_ip_address = Settings.CAPTURE_IP_ADDRESS if Settings.CAPTURE_IP_ADDRESS else 'N/A'
-
-            invalid_ip_count = len(UserIPDatabases.notified_ip_invalid)
-            conflict_ip_count = len(UserIPDatabases.notified_ip_conflicts)
-            corrupted_settings_count = len(UserIPDatabases.notified_settings_corrupted)
-
-            # Create rich status bar text with emojis, colors, and visual organization
-            # Define color thresholds
-            pps_critical = 1500
-            pps_warning = 1000
-
-            # Capture section
-            capture_section = (
-                f'<span style="color: #d08770;">Interface:</span> <span style="color: #a3be8c;">{capture.interface.name}</span> '
-                f'<span style="color: #81a1c1;"> • </span>'
-                f'<span style="color: #d08770;">IP:</span> <span style="color: #a3be8c;">{displayed_capture_ip_address}</span>'
-                f'<span style="color: #88c0d0; font-weight: bold;">📡 Capture:</span> '
-            )
-
-            # Configuration section
-            arp_color = '#a3be8c' if is_arp_capture_enabled == 'Enabled' else '#bf616a'
-            vpn_color = '#a3be8c' if is_vpn_mode_enabled == 'Enabled' else '#bf616a'
-            config_section = (
-                f'<span style="color: #88c0d0; font-weight: bold;">⚙️ Config:</span> '
-                f'<span style="color: #d08770;">ARP:</span> <span style="color: {arp_color};">{is_arp_capture_enabled}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">VPN:</span> <span style="color: {vpn_color};">{is_vpn_mode_enabled}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Preset:</span> <span style="color: #b48ead;">{Settings.CAPTURE_PROGRAM_PRESET}</span>'
-            )
-
-            # Discord RPC status (displayed in the config section when enabled)
-            if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
-                rpc_connected = discord_rpc_manager.connection_status.is_set()
-                rpc_color = '#a3be8c' if rpc_connected else '#ebcb8b'
-                rpc_status = 'Connected' if rpc_connected else 'Waiting'
-                config_section = (
-                    f'{config_section} '
-                    f'<span style="color: #81a1c1;">•</span> '
-                    f'<span style="color: #d08770;">Discord:</span> '
-                    f'<span style="color: {rpc_color};">{rpc_status}</span>'
-                )
-
-            # Issues section (if any)
-            issues_section = ''
-            if any([invalid_ip_count, conflict_ip_count, corrupted_settings_count]):
-                issues: list[str] = []
-                if invalid_ip_count:
-                    issues.append(f'<span style="color: #bf616a;">❌ Invalid IPs: {invalid_ip_count}</span>')
-                if conflict_ip_count:
-                    issues.append(f'<span style="color: #bf616a;">⚠️ Conflicts: {conflict_ip_count}</span>')
-                if corrupted_settings_count:
-                    issues.append(f'<span style="color: #bf616a;">🔧 Corrupted: {corrupted_settings_count}</span>')
-
-                issues_section = (
-                    f'<span style="color: #bf616a; font-weight: bold;">⚠️ Issues:</span> '
-                    f'{" <span style=\"color: #81a1c1;\">•</span> ".join(issues)}'
-                )
-
             # Get current process memory usage
             process = psutil.Process()
             memory_info = process.memory_info()
             memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
 
-            # Define memory thresholds for color coding
-            memory_high = 500  # MB - High usage (red)
-            memory_medium = 300  # MB - Medium usage (yellow)
-
-            # Define bandwidth thresholds for color coding
-            bps_critical = 3_000_000  # 3 MB/s - Critical bandwidth (red)
-            bps_warning = 1_000_000   # 1 MB/s - Warning bandwidth (yellow)
-            bandwidth_critical = 1_000_000_000  # 1 GB - Critical total bandwidth (red)
-            bandwidth_warning = 500_000_000   # 500 MB - Warning total bandwidth (yellow)
-            download_critical = bandwidth_critical // 2  # 500 MB - Critical download (red)
-            download_warning = bandwidth_warning // 2   # 250 MB - Warning download (yellow)
-            upload_critical = bandwidth_critical // 2    # 500 MB - Critical upload (red)
-            upload_warning = bandwidth_warning // 2      # 250 MB - Warning upload (yellow)
-
             # Performance section with color-coded values
-            latency_color = ('#bf616a' if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
-                             else '#ebcb8b' if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
-                             else '#a3be8c')
-            bandwidth_color = ('#bf616a' if TsharkStats.global_bandwidth >= bandwidth_critical
-                               else '#ebcb8b' if TsharkStats.global_bandwidth >= bandwidth_warning
-                               else '#a3be8c')
-            download_color = ('#bf616a' if TsharkStats.global_download >= download_critical
-                              else '#ebcb8b' if TsharkStats.global_download >= download_warning
-                              else '#a3be8c')
-            upload_color = ('#bf616a' if TsharkStats.global_upload >= upload_critical
-                            else '#ebcb8b' if TsharkStats.global_upload >= upload_warning
-                            else '#a3be8c')
-            bps_color = ('#bf616a' if TsharkStats.global_bps_rate >= bps_critical
-                         else '#ebcb8b' if TsharkStats.global_bps_rate >= bps_warning
-                         else '#a3be8c')
-            pps_color = ('#bf616a' if TsharkStats.global_pps_rate >= pps_critical
-                         else '#ebcb8b' if TsharkStats.global_pps_rate >= pps_warning
-                         else '#a3be8c')
-            memory_color = ('#bf616a' if memory_mb >= memory_high
-                            else '#ebcb8b' if memory_mb >= memory_medium
-                            else '#a3be8c')
-            restart_color = '#a3be8c' if not TsharkStats.restarted_times else '#bf616a'
+            latency_color = (ThresholdColors.CRITICAL if avg_latency_seconds >= 0.90 * Settings.CAPTURE_OVERFLOW_TIMER
+                             else ThresholdColors.WARNING if avg_latency_seconds >= 0.75 * Settings.CAPTURE_OVERFLOW_TIMER
+                             else ThresholdColors.HEALTHY)
+            bandwidth_color = (ThresholdColors.CRITICAL if TsharkStats.global_bandwidth >= bandwidth_critical
+                               else ThresholdColors.WARNING if TsharkStats.global_bandwidth >= bandwidth_warning
+                               else ThresholdColors.HEALTHY)
+            download_color = (ThresholdColors.CRITICAL if TsharkStats.global_download >= download_critical
+                              else ThresholdColors.WARNING if TsharkStats.global_download >= download_warning
+                              else ThresholdColors.HEALTHY)
+            upload_color = (ThresholdColors.CRITICAL if TsharkStats.global_upload >= upload_critical
+                            else ThresholdColors.WARNING if TsharkStats.global_upload >= upload_warning
+                            else ThresholdColors.HEALTHY)
+            bps_color = (ThresholdColors.CRITICAL if TsharkStats.global_bps_rate >= bps_critical
+                         else ThresholdColors.WARNING if TsharkStats.global_bps_rate >= bps_warning
+                         else ThresholdColors.HEALTHY)
+            pps_color = (ThresholdColors.CRITICAL if TsharkStats.global_pps_rate >= pps_critical
+                         else ThresholdColors.WARNING if TsharkStats.global_pps_rate >= pps_warning
+                         else ThresholdColors.HEALTHY)
+            memory_color = (ThresholdColors.CRITICAL if memory_mb >= memory_high
+                            else ThresholdColors.WARNING if memory_mb >= memory_medium
+                            else ThresholdColors.HEALTHY)
+            restart_color = ThresholdColors.HEALTHY if not TsharkStats.restarted_times else ThresholdColors.CRITICAL
 
             performance_section = (
-                f'<span style="color: #88c0d0; font-weight: bold;">⚡ Performance:</span> '
-                f'<span style="color: #d08770;">Latency:</span> <span style="color: {latency_color};">{avg_latency_rounded}/{Settings.CAPTURE_OVERFLOW_TIMER}s</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Bandwidth:</span> <span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bandwidth)}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Download:</span> <span style="color: {download_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_download)}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Upload:</span> <span style="color: {upload_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_upload)}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">BPS:</span> <span style="color: {bps_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bps_rate)}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">PPS:</span> <span style="color: {pps_color};">{TsharkStats.global_pps_rate}</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Memory:</span> <span style="color: {memory_color};">{memory_mb:.1f} MB</span> '
-                f'<span style="color: #81a1c1;">•</span> '
-                f'<span style="color: #d08770;">Restarts:</span> <span style="color: {restart_color};">{TsharkStats.restarted_times}</span>'
+                f'<span style="font-size: 11px;">'
+                f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚡ Performance:</span> '
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Latency:</span> '
+                f'<span style="color: {latency_color};">{avg_latency_rounded}s</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓↑:</span> '
+                f'<span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bandwidth)}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓:</span> '
+                f'<span style="color: {download_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_download)}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↑:</span> '
+                f'<span style="color: {upload_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_upload)}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">BPS:</span> '
+                f'<span style="color: {bps_color};">{PlayerBandwidth.format_bytes(TsharkStats.global_bps_rate)}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">PPS:</span> '
+                f'<span style="color: {pps_color};">{TsharkStats.global_pps_rate}</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">RAM:</span> '
+                f'<span style="color: {memory_color};">{int(memory_mb)} MB</span> '
+                f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Restarts:</span> '
+                f'<span style="color: {restart_color};">{TsharkStats.restarted_times}</span>'
+                f'</span>'
             )
-            return capture_section, config_section, issues_section, performance_section
+
+            return capture_section, config_section, userip_issues_section, performance_section
 
         # Data structures already initialized before GUI - just get the values
         gui_connected_players_table__column_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES
