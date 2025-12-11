@@ -4975,7 +4975,7 @@ class SessionTableModel(QAbstractTableModel):
         num_rows = len(self._data)
         if row_idx >= num_rows:
             return None
-        
+
         row_data = self._data[row_idx]
         if col_idx >= len(row_data):
             return None
@@ -5400,7 +5400,7 @@ class SessionTableModel(QAbstractTableModel):
 
     def begin_batch_update(self) -> None:
         """Enter batch update mode to defer expensive operations.
-        
+
         This prevents emitting signals and performing sorts for each individual update,
         allowing multiple updates to be batched together efficiently.
         """
@@ -5409,7 +5409,7 @@ class SessionTableModel(QAbstractTableModel):
 
     def end_batch_update(self) -> None:
         """Exit batch update mode and perform deferred operations.
-        
+
         This will sort the table if any updates were made during batch mode,
         and emit the necessary signals to update the view.
         """
@@ -5622,7 +5622,7 @@ class SessionTableView(QTableView):
 
     def adjust_username_column_width(self, *, force_check: bool = False) -> None:
         """Adjust the 'Usernames' column width based on whether any username is non-empty.
-        
+
         Args:
             force_check: If True, always scan all rows. If False, use cached state when possible.
         """
@@ -5640,7 +5640,7 @@ class SessionTableView(QTableView):
             if data and data.strip():  # Check for non-empty, non-whitespace
                 found_username = True
                 break
-        
+
         # Update cached state
         self._username_column_has_data = found_username
 
