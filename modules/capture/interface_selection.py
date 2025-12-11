@@ -444,7 +444,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Check if this row is disabled (greyed out due to ARP spoofing)
         item = self.table.item(row, 0)
-        if item is None or not (item.flags() & Qt.ItemFlag.ItemIsEnabled):
+        if item is None or not (item.flags() & Qt.ItemFlag.ItemIsEnabled):  # pylint: disable=superfluous-parens
             return
 
         # Select the row and trigger selection
