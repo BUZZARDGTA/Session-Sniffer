@@ -4891,6 +4891,8 @@ class SessionTableModel(QAbstractTableModel):
         self._headers = headers  # The column headers
         self._ip_column_index = self._headers.index('IP Address')
         self._username_column_index = self._headers.index('Usernames')
+        self._batch_update_mode = False  # Track if we're in batch update mode
+        self._needs_sort = False  # Track if sorting is needed after batch update
 
     # --------------------------------------------------------------------------
     # Public properties
@@ -5261,6 +5263,11 @@ class SessionTableModel(QAbstractTableModel):
 
         Ensures sorting reflects the current state of the header.
         """
+        # If in batch update mode, just mark that we need sorting later
+        if self._batch_update_mode:
+            self._needs_sort = True
+            return
+
         # Retrieve the current sort column and order
         horizontal_header = self.view.horizontalHeader()
         sort_column = horizontal_header.sortIndicatorSection()
@@ -5385,6 +5392,26 @@ class SessionTableModel(QAbstractTableModel):
         self.layoutAboutToBeChanged.emit()
         self.layoutChanged.emit()
 
+    def begin_batch_update(self) -> None:
+        """Enter batch update mode to defer expensive operations.
+        
+        This prevents emitting signals and performing sorts for each individual update,
+        allowing multiple updates to be batched together efficiently.
+        """
+        self._batch_update_mode = True
+        self._needs_sort = False
+
+    def end_batch_update(self) -> None:
+        """Exit batch update mode and perform deferred operations.
+        
+        This will sort the table if any updates were made during batch mode,
+        and emit the necessary signals to update the view.
+        """
+        self._batch_update_mode = False
+        if self._needs_sort:
+            self.sort_current_column()
+            self._needs_sort = False
+
 
 class SessionTableView(QTableView):
     def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder, *, is_connected_table: bool) -> None:
@@ -5394,6 +5421,7 @@ class SessionTableView(QTableView):
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
         self._previous_sort_section_index: int | None = None
+        self._username_column_has_data: bool = False  # Cache whether username column has data
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -5586,10 +5614,18 @@ class SessionTableView(QTableView):
             else:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
 
-    def adjust_username_column_width(self) -> None:
-        """Adjust the 'Usernames' column width based on whether any username is non-empty."""
+    def adjust_username_column_width(self, *, force_check: bool = False) -> None:
+        """Adjust the 'Usernames' column width based on whether any username is non-empty.
+        
+        Args:
+            force_check: If True, always scan all rows. If False, use cached state when possible.
+        """
         model = self.model()
         header = self.horizontalHeader()
+
+        # If we already know there's username data and not forcing, skip the scan
+        if self._username_column_has_data and not force_check:
+            return
 
         found_username = False
         for row in range(model.rowCount()):
@@ -5598,6 +5634,9 @@ class SessionTableView(QTableView):
             if data and data.strip():  # Check for non-empty, non-whitespace
                 found_username = True
                 break
+        
+        # Update cached state
+        self._username_column_has_data = found_username
 
         if found_username:
             header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Stretch)
@@ -7043,6 +7082,7 @@ class MainWindow(QMainWindow):
         self.connected_collapse_button.setVisible(True)
 
         self.connected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
+        self.connected_table_view.adjust_username_column_width(force_check=True)  # Force check username column when re-showing table
 
     def expand_disconnected_section(self) -> None:
         """Handle the expand button click to show the disconnected section."""
@@ -7054,6 +7094,7 @@ class MainWindow(QMainWindow):
         self.disconnected_collapse_button.setVisible(True)
 
         self.disconnected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
+        self.disconnected_table_view.adjust_username_column_width(force_check=True)  # Force check username column when re-showing table
 
     def minimize_connected_section(self) -> None:
         """Minimize the connected table completely."""
@@ -7095,6 +7136,9 @@ class MainWindow(QMainWindow):
             self._last_connected_count = payload.connected_num
             self._update_connected_header_with_selection()
 
+        # Enter batch update mode for connected table to defer expensive operations
+        self.connected_table_model.begin_batch_update()
+
         # Process connected players data
         for processed_data, compiled_colors in payload.connected_rows:
             ip = self.connected_table_model.get_ip_from_data_safely(processed_data)
@@ -7111,16 +7155,23 @@ class MainWindow(QMainWindow):
             else:
                 self.connected_table_model.update_row_without_refresh(connected_row_index, processed_data, compiled_colors)
 
+        # Exit batch update mode and perform deferred operations if table is visible
+        self.connected_table_model.end_batch_update()
+
         # Only perform expensive UI operations if tables are visible
         if self.connected_table_view.isVisible():
-            self.connected_table_model.sort_current_column()
-            self.connected_table_view.adjust_username_column_width()
+            # Only adjust username column width if count changed (new data might have usernames)
+            if connected_count_changed:
+                self.connected_table_view.adjust_username_column_width()
         elif connected_count_changed:
             self.connected_expand_button.setText(f'▲  Show Connected Players ({payload.connected_num})')
 
         if disconnected_count_changed:
             self._last_disconnected_count = payload.disconnected_num
             self._update_disconnected_header_with_selection()
+
+        # Enter batch update mode for disconnected table to defer expensive operations
+        self.disconnected_table_model.begin_batch_update()
 
         # Process disconnected players data
         for processed_data, compiled_colors in payload.disconnected_rows:
@@ -7138,10 +7189,14 @@ class MainWindow(QMainWindow):
             else:
                 self.disconnected_table_model.update_row_without_refresh(disconnected_row_index, processed_data, compiled_colors)
 
+        # Exit batch update mode and perform deferred operations if table is visible
+        self.disconnected_table_model.end_batch_update()
+
         # Only perform expensive UI operations if tables are visible
         if self.disconnected_table_view.isVisible():
-            self.disconnected_table_model.sort_current_column()
-            self.disconnected_table_view.adjust_username_column_width()
+            # Only adjust username column width if count changed (new data might have usernames)
+            if disconnected_count_changed:
+                self.disconnected_table_view.adjust_username_column_width()
         elif disconnected_count_changed:
             self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
 
@@ -7222,6 +7277,9 @@ class MainWindow(QMainWindow):
         self._connected_selected_count = 0
         self._update_connected_header_with_selection()
 
+        # Reset username column cache since table is now empty
+        self.connected_table_view._username_column_has_data = False
+
         if connected_ips:
             MobileWarnings.remove_notified_ips_batch(connected_ips)
             VPNWarnings.remove_notified_ips_batch(connected_ips)
@@ -7238,6 +7296,9 @@ class MainWindow(QMainWindow):
         # Reset selection count and update header
         self._disconnected_selected_count = 0
         self._update_disconnected_header_with_selection()
+
+        # Reset username column cache since table is now empty
+        self.disconnected_table_view._username_column_has_data = False
 
         if disconnected_ips:
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
