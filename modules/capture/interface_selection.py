@@ -193,6 +193,9 @@ class InterfaceSelectionDialog(QDialog):
         selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
         selection_model.selectionChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
 
+        # Connect double-click signal to select interface (simulates Start button)
+        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)  # pyright: ignore[reportUnknownMemberType]
+
         # Apply initial constraints
         self.enforce_spoofing_constraints()
 
@@ -362,6 +365,21 @@ class InterfaceSelectionDialog(QDialog):
         # If a non-ARP interface is selected and spoofing is enabled, turn off spoofing
         if not interface.is_arp and self.arp_spoofing_checkbox.isChecked():
             self.arp_spoofing_checkbox.setChecked(False)
+
+    def on_cell_double_clicked(self, row: int, _column: int) -> None:
+        """Handle double-click on table cell - simulates clicking the Start button."""
+        # Validate row index
+        if row < 0 or row >= len(self.interfaces):
+            return
+
+        # Check if this row is disabled (greyed out due to ARP spoofing)
+        item = self.table.item(row, 0)
+        if item is None or not (item.flags() & Qt.ItemFlag.ItemIsEnabled):
+            return
+
+        # Select the row and trigger selection
+        self.table.selectRow(row)
+        self.select_interface()
 
     def select_interface(self) -> None:
         selected_row = self.table.currentRow()
