@@ -545,13 +545,13 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_COLUMNS_CONNECTED_HIDDEN: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
-        'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
+        'T. Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
     GUI_COLUMNS_DISCONNECTED_HIDDEN: tuple[str, ...] = (
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
-        'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload',
+        'T. Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
         'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
     )
