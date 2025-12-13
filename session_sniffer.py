@@ -3992,11 +3992,11 @@ def rendering_core(
             return asn
 
         def process_session_logging() -> None:
+            def format_player_logging_usernames(player: Player) -> str:
+                return ', '.join(player.usernames) if player.usernames else ''
             def format_player_logging_datetime(datetime_object: datetime) -> str:
                 return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
 
-            def format_player_logging_usernames(player: Player) -> str:
-                return ', '.join(player.usernames) if player.usernames else ''
 
             def format_player_logging_ip(player_ip: str) -> str:
                 if SessionHost.player and SessionHost.player.ip == player_ip:
