@@ -4090,7 +4090,7 @@ def rendering_core(
             logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
             logging_connected_players_table.align = 'l'
             for player in session_connected:
-                row_texts = []
+                row_texts: list[str] = []
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
@@ -4145,7 +4145,7 @@ def rendering_core(
             logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
             logging_disconnected_players_table.align = 'l'
             for player in session_disconnected:
-                row_texts = []
+                row_texts: list[str] = []
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
@@ -4294,7 +4294,7 @@ def rendering_core(
                     for _ in range(GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS)
                 ]
 
-                row_texts = []
+                row_texts: list[str] = []
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
@@ -4431,7 +4431,7 @@ def rendering_core(
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
                 row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS)]
 
-                row_texts = []
+                row_texts: list[str] = []
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
