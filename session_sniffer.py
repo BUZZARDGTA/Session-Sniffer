@@ -3991,22 +3991,43 @@ def rendering_core(
 
             return asn
 
-        def process_session_logging() -> None:
-            def format_player_logging_usernames(player: Player) -> str:
-                return ', '.join(player.usernames) if player.usernames else ''
+        def format_session_duration(session_time: timedelta) -> str:
+            """Format a session duration timedelta into a compact human-readable string."""
+            hours, remainder = divmod(session_time.total_seconds(), 3600)
+            minutes, remainder = divmod(remainder, 60)
+            seconds, milliseconds = divmod(remainder * 1000, 1000)
 
+            parts: list[str] = []
+            if hours >= 1:
+                parts.append(f'{int(hours):02}h')
+            if parts or minutes >= 1:
+                parts.append(f'{int(minutes):02}m')
+            if parts or seconds >= 1:
+                parts.append(f'{int(seconds):02}s')
+            if not parts and milliseconds > 0:
+                parts.append(f'{int(milliseconds):03}ms')
+
+            return ' '.join(parts)
+
+        def format_player_usernames(player: Player) -> str:
+            """Format player usernames as comma-separated string."""
+            return ', '.join(player.usernames) if player.usernames else ''
+
+        def format_player_ip(player_ip: str) -> str:
+            """Format player IP with crown emoji if session host."""
+            if SessionHost.player and SessionHost.player.ip == player_ip:
+                return f'{player_ip} 👑'
+            return player_ip
+
+        def format_player_middle_ports(player: Player) -> str:
+            """Format player middle ports as comma-separated string in reverse order."""
+            if player.ports.middle:
+                return ', '.join(map(str, reversed(player.ports.middle)))
+            return ''
+
+        def process_session_logging() -> None:
             def format_player_logging_datetime(datetime_object: datetime) -> str:
                 return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
-
-            def format_player_logging_ip(player_ip: str) -> str:
-                if SessionHost.player and SessionHost.player.ip == player_ip:
-                    return f'{player_ip} 👑'
-                return player_ip
-
-            def format_player_logging_middle_ports(player: Player) -> str:
-                if player.ports.middle:
-                    return ', '.join(map(str, reversed(player.ports.middle)))
-                return ''
 
             def add_sort_arrow_char_to_sorted_logging_table_column(column_names: Sequence[str], sorted_column: str, sort_order: Qt.SortOrder) -> list[str]:
                 arrow = ' \u2193' if sort_order == Qt.SortOrder.DescendingOrder else ' \u2191'  # Down arrow for descending, up arrow for ascending
@@ -4070,7 +4091,7 @@ def rendering_core(
             logging_connected_players_table.align = 'l'
             for player in session_connected:
                 row_texts = []
-                row_texts.append(f'{format_player_logging_usernames(player)}')
+                row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
@@ -4090,10 +4111,10 @@ def rendering_core(
                 row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
                 row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)}')
                 row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate)}')
-                row_texts.append(f'{format_player_logging_ip(player.ip)}')
+                row_texts.append(f'{format_player_ip(player.ip)}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
-                row_texts.append(f'{format_player_logging_middle_ports(player)}')
+                row_texts.append(f'{format_player_middle_ports(player)}')
                 row_texts.append(f'{player.ports.first}')
                 row_texts.append(f'{player.iplookup.ipapi.continent:<{session_connected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
                 row_texts.append(f'{player.iplookup.geolite2.country:<{session_connected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
@@ -4125,7 +4146,7 @@ def rendering_core(
             logging_disconnected_players_table.align = 'l'
             for player in session_disconnected:
                 row_texts = []
-                row_texts.append(f'{format_player_logging_usernames(player)}')
+                row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
@@ -4145,7 +4166,7 @@ def rendering_core(
                 row_texts.append(f'{player.ip}')
                 row_texts.append(f'{player.reverse_dns.hostname}')
                 row_texts.append(f'{player.ports.last}')
-                row_texts.append(f'{format_player_logging_middle_ports(player)}')
+                row_texts.append(f'{format_player_middle_ports(player)}')
                 row_texts.append(f'{player.ports.first}')
                 row_texts.append(f'{player.iplookup.ipapi.continent:<{session_disconnected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
                 row_texts.append(f'{player.iplookup.geolite2.country:<{session_disconnected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
@@ -4184,30 +4205,12 @@ def rendering_core(
             )
 
         def process_gui_session_tables_rendering() -> tuple[int, list[list[str]], list[list[CellColor]], int, list[list[str]], list[list[CellColor]]]:
-            def format_player_gui_usernames(player: Player) -> str:
-                return ', '.join(player.usernames) if player.usernames else ''
-
             def format_player_gui_datetime(datetime_object: datetime) -> str:
                 formatted_elapsed = None
 
                 if Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME:
                     elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
-
-                    hours, remainder = divmod(elapsed_time.total_seconds(), 3600)
-                    minutes, remainder = divmod(remainder, 60)
-                    seconds, milliseconds = divmod(remainder * 1000, 1000)
-
-                    elapsed_parts: list[str] = []
-                    if hours >= 1:
-                        elapsed_parts.append(f'{int(hours):02}h')
-                    if elapsed_parts or minutes >= 1:
-                        elapsed_parts.append(f'{int(minutes):02}m')
-                    if elapsed_parts or seconds >= 1:
-                        elapsed_parts.append(f'{int(seconds):02}s')
-                    if not elapsed_parts and milliseconds > 0:
-                        elapsed_parts.append(f'{int(milliseconds):03}ms')
-
-                    formatted_elapsed = ' '.join(elapsed_parts)
+                    formatted_elapsed = format_session_duration(elapsed_time)
 
                     if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
                         return formatted_elapsed
@@ -4226,16 +4229,6 @@ def rendering_core(
                     formatted_datetime += f' ({formatted_elapsed})'
 
                 return formatted_datetime
-
-            def format_player_gui_ip(player_ip: str) -> str:
-                if SessionHost.player and SessionHost.player.ip == player_ip:
-                    return f'{player_ip} 👑'
-                return player_ip
-
-            def format_player_gui_middle_ports(player: Player) -> str:
-                if player.ports.middle:
-                    return ', '.join(map(str, reversed(player.ports.middle)))
-                return ''
 
             def get_player_pps_gradient_color(default_color: QColor, player_pps_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
                 """Calculate gradient color for PPS value using simple linear interpolation.
@@ -4302,7 +4295,7 @@ def rendering_core(
                 ]
 
                 row_texts = []
-                row_texts.append(f'{format_player_gui_usernames(player)}')
+                row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{player.rejoins}')
@@ -4366,13 +4359,13 @@ def rendering_core(
                         ),
                     )
                     row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
-                row_texts.append(f'{format_player_gui_ip(player.ip)}')
+                row_texts.append(f'{format_player_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.reverse_dns.hostname}')
                 if 'Last Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.last}')
                 if 'Middle Ports' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{format_player_gui_middle_ports(player)}')
+                    row_texts.append(f'{format_player_middle_ports(player)}')
                 if 'First Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.first}')
                 if 'Continent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
@@ -4439,7 +4432,7 @@ def rendering_core(
                 row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS)]
 
                 row_texts = []
-                row_texts.append(f'{format_player_gui_usernames(player)}')
+                row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
@@ -4474,7 +4467,7 @@ def rendering_core(
                 if 'Last Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.last}')
                 if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{format_player_gui_middle_ports(player)}')
+                    row_texts.append(f'{format_player_middle_ports(player)}')
                 if 'First Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.ports.first}')
                 if 'Continent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
