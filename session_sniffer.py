@@ -3997,17 +3997,17 @@ def rendering_core(
             minutes, remainder = divmod(remainder, 60)
             seconds, milliseconds = divmod(remainder * 1000, 1000)
 
-            parts: list[str] = []
+            duration_parts: list[str] = []
             if hours >= 1:
-                parts.append(f'{int(hours):02}h')
-            if parts or minutes >= 1:
-                parts.append(f'{int(minutes):02}m')
-            if parts or seconds >= 1:
-                parts.append(f'{int(seconds):02}s')
-            if not parts and milliseconds > 0:
-                parts.append(f'{int(milliseconds):03}ms')
+                duration_parts.append(f'{int(hours):02}h')
+            if duration_parts or minutes >= 1:
+                duration_parts.append(f'{int(minutes):02}m')
+            if duration_parts or seconds >= 1:
+                duration_parts.append(f'{int(seconds):02}s')
+            if not duration_parts and milliseconds > 0:
+                duration_parts.append(f'{int(milliseconds):03}ms')
 
-            return ' '.join(parts)
+            return ' '.join(duration_parts) if duration_parts else '000ms'
 
         def format_player_usernames(player: Player) -> str:
             """Format player usernames as comma-separated string."""
