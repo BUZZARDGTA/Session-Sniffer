@@ -3998,7 +3998,6 @@ def rendering_core(
             def format_player_logging_datetime(datetime_object: datetime) -> str:
                 return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
 
-
             def format_player_logging_ip(player_ip: str) -> str:
                 if SessionHost.player and SessionHost.player.ip == player_ip:
                     return f'{player_ip} 👑'
