@@ -4184,6 +4184,9 @@ def rendering_core(
             )
 
         def process_gui_session_tables_rendering() -> tuple[int, list[list[str]], list[list[CellColor]], int, list[list[str]], list[list[CellColor]]]:
+            def format_player_gui_usernames(player: Player) -> str:
+                return ', '.join(player.usernames) if player.usernames else ''
+
             def format_player_gui_datetime(datetime_object: datetime) -> str:
                 formatted_elapsed = None
 
@@ -4223,9 +4226,6 @@ def rendering_core(
                     formatted_datetime += f' ({formatted_elapsed})'
 
                 return formatted_datetime
-
-            def format_player_gui_usernames(player: Player) -> str:
-                return ', '.join(player.usernames) if player.usernames else ''
 
             def format_player_gui_ip(player_ip: str) -> str:
                 if SessionHost.player and SessionHost.player.ip == player_ip:
