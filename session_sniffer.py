@@ -120,6 +120,7 @@ from modules.discord.rpc import DiscordRPC
 from modules.error_messages import format_arp_spoofing_failed_message
 from modules.exceptions import (
     PlayerAlreadyExistsError,
+    PlayerDateTimeCorruptionError,
     PlayerNotFoundInRegistryError,
     UnexpectedPlayerCountError,
 )
@@ -261,6 +262,8 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'First Seen': 'The very first time the player was observed across all sessions.',
     'Last Rejoin': 'The most recent time the player rejoined your session.',
     'Last Seen': 'The most recent time the player was active in your session.',
+    'Session Time': 'The amount of time the player was playing in the last session before disconnecting.',
+    'T. Session Time': 'The total amount of time the player has been playing across all sessions.',
     'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
     'T. Packets': 'The total number of packets exchanged by the player across all sessions.',
     'Packets': 'The number of packets exchanged (Received + Sent) by the player during the current session.',
@@ -544,6 +547,7 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
     GUI_SESSIONS_LOGGING: bool = True
     GUI_RESET_PORTS_ON_REJOINS: bool = True
     GUI_COLUMNS_CONNECTED_HIDDEN: tuple[str, ...] = (
+        'T. Session Time', 'Session Time',
         'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
         'T. Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
         'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
@@ -602,6 +606,8 @@ class Settings(DefaultSettings):
         'First Seen': 'datetime.first_seen',
         'Last Rejoin': 'datetime.last_rejoin',
         'Last Seen': 'datetime.last_seen',
+        'T. Session Time': 'datetime.total_session_time',
+        'Session Time': 'datetime.session_time',
         'Rejoins': 'rejoins',
         'T. Packets': 'total_packets',
         'Packets': 'packets',
@@ -648,6 +654,8 @@ class Settings(DefaultSettings):
     }
     GUI_FORCED_COLUMNS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
     GUI_HIDEABLE_CONNECTED_COLUMNS: ClassVar = (
+        'T. Session Time',
+        'Session Time',
         'T. Packets',
         'Packets',
         'T. Packets Received',
@@ -691,6 +699,8 @@ class Settings(DefaultSettings):
         'Pinging',
     )
     GUI_HIDEABLE_DISCONNECTED_COLUMNS: ClassVar = (
+        'T. Session Time',
+        'Session Time',
         'T. Packets',
         'Packets',
         'T. Packets Received',
@@ -733,6 +743,8 @@ class Settings(DefaultSettings):
         'Usernames',
         'First Seen',
         'Last Rejoin',
+        'T. Session Time',
+        'Session Time',
         'Rejoins',
         'T. Packets',
         'Packets',
@@ -782,6 +794,8 @@ class Settings(DefaultSettings):
         'First Seen',
         'Last Rejoin',
         'Last Seen',
+        'T. Session Time',
+        'Session Time',
         'Rejoins',
         'T. Packets',
         'Packets',
@@ -1742,13 +1756,79 @@ class PlayerDateTime:
     first_seen: datetime
     last_rejoin: datetime
     last_seen: datetime
+    total_session_time: timedelta | None
+    session_time: timedelta | None
+
+    def set_session_time(self) -> None:
+        """Finalize and store the session duration.
+
+        Calculates the duration between when the player last joined and was last seen,
+        then stores it. Called when a player disconnects to freeze their session duration.
+        """
+        self.session_time = self.last_seen - self.last_rejoin
+
+    def accumulate_session_to_total(self) -> None:
+        """Add finalized session duration to the cumulative total and clear current session.
+
+        Transfers the completed session duration into the running total across all sessions,
+        then clears the current session duration to prepare for tracking a new session.
+        Only accumulates if a session has been finalized.
+        """
+        if self.session_time is not None:
+            if self.total_session_time is None:
+                self.total_session_time = self.session_time
+            else:
+                self.total_session_time += self.session_time
+            self.session_time = None
+
+    def get_session_time(self) -> timedelta:
+        """Return current session duration.
+
+        Returns:
+            timedelta: The session duration. For disconnected players, returns the stored
+                duration from their last session. For connected players, calculates the
+                live duration from when they joined until their last activity.
+        """
+        if self.last_rejoin > self.last_seen:
+            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        if self.session_time is None:
+            return self.last_seen - self.last_rejoin
+        return self.session_time
+
+    def get_total_session_time(self) -> timedelta:
+        """Return total cumulative session duration across all sessions.
+
+        Returns:
+            timedelta: Sum of all completed sessions plus the current session.
+                For connected players, includes their ongoing session time.
+                For disconnected players, includes their completed final session.
+        """
+        if self.last_rejoin > self.last_seen:
+            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        if self.total_session_time is None:
+            if self.session_time is None:
+                return self.last_seen - self.last_rejoin
+            return self.session_time
+        if self.session_time is None:
+            return self.total_session_time + (self.last_seen - self.last_rejoin)
+        return self.total_session_time + self.session_time
 
     @classmethod
     def from_packet_datetime(cls, packet_datetime: datetime) -> Self:
+        """Create a PlayerDateTime instance from a packet timestamp.
+
+        Args:
+            packet_datetime (datetime): The timestamp of the first packet from the player.
+
+        Returns:
+            PlayerDateTime: New instance initialized with packet timestamp values.
+        """
         return cls(
             first_seen=packet_datetime,
             last_rejoin=packet_datetime,
             last_seen=packet_datetime,
+            total_session_time=None,
+            session_time=None,
         )
 
 
@@ -1872,6 +1952,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.left_event.clear()
         self.rejoins += 1
 
+        self.datetime.accumulate_session_to_total()
         self.datetime.last_rejoin = packet_datetime
         self.datetime.last_seen = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
@@ -1883,6 +1964,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
     def mark_as_left(self) -> None:
         self.left_event.set()
 
+        self.datetime.set_session_time()
         self.packets.pps.reset()
         self.packets.ppm.reset()
         self.bandwidth.bps.reset()
@@ -4095,6 +4177,8 @@ def rendering_core(
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
+                row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.packets.total_exchanged}')
                 row_texts.append(f'{player.packets.exchanged}')
@@ -4151,6 +4235,8 @@ def rendering_core(
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
+                row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
                 row_texts.append(f'{player.rejoins}')
                 row_texts.append(f'{player.packets.total_exchanged}')
                 row_texts.append(f'{player.packets.exchanged}')
@@ -4299,6 +4385,10 @@ def rendering_core(
                 row_texts.append(f'{format_player_usernames(player)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
+                if 'T. Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                    row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                if 'Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                    row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
                 row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_exchanged}')
@@ -4437,6 +4527,10 @@ def rendering_core(
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
+                if 'T. Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                    row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                if 'Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                    row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
                 row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     row_texts.append(f'{player.packets.total_exchanged}')
@@ -5162,6 +5256,32 @@ class SessionTableModel(QAbstractTableModel):
                 key=lambda row: extract_datetime_for_ip(self.get_ip_from_data_safely(row[0])),
                 reverse=not sort_order_bool,
             )
+        elif sorted_column_name == 'T. Session Time':
+            # Sort by total session time duration from player objects
+            def extract_total_session_time_for_ip(ip: str) -> timedelta:
+                """Extract total session time value for a given IP address."""
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    raise PlayerNotFoundInRegistryError(ip)
+                return player.datetime.get_total_session_time()
+
+            combined.sort(
+                key=lambda row: extract_total_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name == 'Session Time':
+            # Sort by session time duration from player objects
+            def extract_session_time_for_ip(ip: str) -> timedelta:
+                """Extract session time value for a given IP address."""
+                player = PlayersRegistry.get_player_by_ip(ip)
+                if player is None:
+                    raise PlayerNotFoundInRegistryError(ip)
+                return player.datetime.get_session_time()
+
+            combined.sort(
+                key=lambda row: extract_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
         elif sorted_column_name == 'IP Address':
             combined.sort(
                 key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
@@ -5654,7 +5774,7 @@ class SessionTableView(QTableView):
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
 
             if header_label in {
-                'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins',
+                'First Seen', 'Last Rejoin', 'Last Seen', 'T. Session Time', 'Session Time', 'Rejoins',
                 'T. Packets', 'Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPS', 'PPM',
                 'Bandwith', 'T. Bandwith', 'Download', 'T. Download', 'Upload', 'T. Upload', 'BPS', 'BPM',
                 'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',

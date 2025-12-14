@@ -45,3 +45,10 @@ class DataConsistencyError(Exception):
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
+
+
+class PlayerDateTimeCorruptionError(Exception):
+    """Raised when player datetime fields are in an invalid state (e.g., last_rejoin > last_seen)."""
+
+    def __init__(self, last_rejoin: str, last_seen: str) -> None:
+        super().__init__(f'Player data corruption: last_rejoin ({last_rejoin}) > last_seen ({last_seen})')
