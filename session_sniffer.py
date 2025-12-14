@@ -4216,15 +4216,15 @@ def rendering_core(
                     if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
                         return formatted_elapsed
 
-                parts: list[str] = []
+                datetime_parts: list[str] = []
                 if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE:
-                    parts.append(datetime_object.strftime('%m/%d/%Y'))
+                    datetime_parts.append(datetime_object.strftime('%m/%d/%Y'))
                 if Settings.GUI_COLUMNS_DATETIME_SHOW_TIME:
-                    parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
-                if not parts:
+                    datetime_parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
+                if not datetime_parts:
                     raise InvalidDateColumnConfigurationError
 
-                formatted_datetime = ' '.join(parts)
+                formatted_datetime = ' '.join(datetime_parts)
 
                 if formatted_elapsed:
                     formatted_datetime += f' ({formatted_elapsed})'
