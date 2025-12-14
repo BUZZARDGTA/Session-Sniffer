@@ -4613,7 +4613,7 @@ def rendering_core(
                 )
 
             def calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> tuple[float, float]:
-                """Calculate average latency from packet latencies snapshot."""
+                """Calculate average packets latency from packets latencies snapshot."""
                 one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
                 recent_packets = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in packets_latencies if pkt_time >= one_second_ago]
 
