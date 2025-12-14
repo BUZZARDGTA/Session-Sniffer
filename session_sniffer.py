@@ -1873,6 +1873,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.rejoins += 1
 
         self.datetime.last_rejoin = packet_datetime
+        self.datetime.last_seen = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
