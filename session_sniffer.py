@@ -3992,9 +3992,9 @@ def rendering_core(
 
             return asn
 
-        def format_session_duration(session_time: timedelta) -> str:
-            """Format a session duration timedelta into a compact human-readable string."""
-            hours, remainder = divmod(session_time.total_seconds(), 3600)
+        def format_elapsed_time(duration: timedelta) -> str:
+            """Format a timedelta duration into a compact human-readable string."""
+            hours, remainder = divmod(duration.total_seconds(), 3600)
             minutes, remainder = divmod(remainder, 60)
             seconds, milliseconds = divmod(remainder * 1000, 1000)
 
@@ -4211,7 +4211,7 @@ def rendering_core(
 
                 if Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME:
                     elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
-                    formatted_elapsed = format_session_duration(elapsed_time)
+                    formatted_elapsed = format_elapsed_time(elapsed_time)
 
                     if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
                         return formatted_elapsed
