@@ -1832,7 +1832,7 @@ class PlayerModMenus:
 
 
 class Player:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
+    def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
         self.ip = ip
         self.left_event = Event()
         self.rejoins = 0
