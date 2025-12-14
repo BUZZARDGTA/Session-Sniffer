@@ -5149,7 +5149,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract datetime value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    return datetime.min.replace(tzinfo=LOCAL_TZ)
+                    raise PlayerNotFoundInRegistryError(ip)
 
                 datetime_mapping = {
                     'First Seen': player.datetime.first_seen,
@@ -5185,7 +5185,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract bandwidth value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    return 0
+                    raise PlayerNotFoundInRegistryError(ip)
 
                 bandwidth_mapping = {
                     'T. Bandwith': player.bandwidth.total_exchanged,
