@@ -265,22 +265,22 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'T. Session Time': 'The total amount of time the player has been playing across all sessions.',
     'Session Time': 'The amount of time the player was playing in the last session before disconnecting.',
     'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
-    'T. Packets': 'The total number of packets exchanged by the player across all sessions.',
-    'Packets': 'The number of packets exchanged (Received + Sent) by the player during the current session.',
-    'T. Packets Received': 'The total number of packets received by the player across all sessions.',
-    'Packets Received': 'The number of packets received by the player during the current session.',
-    'T. Packets Sent': 'The total number of packets sent by the player across all sessions.',
-    'Packets Sent': 'The number of packets sent by the player during the current session.',
-    'PPS': 'The number of Packets exchanged (Received + Sent) by the player Per Second during the current session.',
-    'PPM': 'The number of Packets exchanged (Received + Sent) by the player Per Minute during the current session.',
-    'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) by the player across all sessions.',
-    'Bandwith': 'The amount of bytes transferred (Download + Upload) by the player during the current session.',
-    'T. Download': 'The total amount of bytes downloaded by the player across all sessions.',
-    'Download': 'The amount of bytes downloaded by the player during the current session.',
-    'T. Upload': 'The total amount of bytes uploaded by the player across all sessions.',
-    'Upload': 'The amount of bytes uploaded by the player during the current session.',
-    'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) by the player Per Second during the current session.',
-    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) by the player Per Minute during the current session.',
+    'T. Packets': 'The total number of packets exchanged with the player across all sessions.',
+    'Packets': 'The number of packets exchanged (Received + Sent) with the player during the current session.',
+    'T. Packets Received': 'The total number of packets received from the player across all sessions.',
+    'Packets Received': 'The number of packets received from the player during the current session.',
+    'T. Packets Sent': 'The total number of packets sent to the player across all sessions.',
+    'Packets Sent': 'The number of packets sent to the player during the current session.',
+    'PPS': 'The number of Packets exchanged (Received + Sent) with the player Per Second during the current session.',
+    'PPM': 'The number of Packets exchanged (Received + Sent) with the player Per Minute during the current session.',
+    'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
+    'Bandwith': 'The amount of bytes transferred (Download + Upload) with the player during the current session.',
+    'T. Download': 'The total amount of bytes downloaded from the player across all sessions.',
+    'Download': 'The amount of bytes downloaded from the player during the current session.',
+    'T. Upload': 'The total amount of bytes uploaded to the player across all sessions.',
+    'Upload': 'The amount of bytes uploaded to the player during the current session.',
+    'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Second during the current session.',
+    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Minute during the current session.',
     'IP Address': 'The IP address of the player.',
     'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
     'Last Port': "The port used by the player's last captured packet.",
@@ -1390,12 +1390,12 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
     """Class to manage player packet counts and statistics.
 
     Attributes:
-        total_exchanged (int): Total packets exchanged across all sessions
-        exchanged (int): Packets exchanged in current session (received + sent)
-        total_received (int): Total packets received across all sessions
-        received (int): Packets received in current session
-        total_sent (int): Total packets sent across all sessions
-        sent (int): Packets sent in current session
+        total_exchanged (int): Total packets exchanged with the player across all sessions
+        exchanged (int): Packets exchanged with the player in current session (received + sent)
+        total_received (int): Total packets received from the player across all sessions
+        received (int): Packets received from the player in current session
+        total_sent (int): Total packets sent to the player across all sessions
+        sent (int): Packets sent to the player in current session
         pps (PPS): Packets Per Second rate calculator
         ppm (PPM): Packets Per Minute rate calculator
     """
@@ -1563,6 +1563,12 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
         download (int): Bytes downloaded in current session
         total_upload (int): Total bytes uploaded across all sessions
         upload (int): Bytes uploaded in current session
+        total_exchanged (int): Total bytes exchanged with the player across all sessions
+        exchanged (int): Bytes exchanged with the player in current session (download + upload)
+        total_download (int): Total bytes downloaded from the player across all sessions
+        download (int): Bytes downloaded from the player in current session
+        total_upload (int): Total bytes uploaded to the player across all sessions
+        upload (int): Bytes uploaded to the player in current session
         bps (BPS): Bytes Per Second rate calculator
         bpm (BPM): Bytes Per Minute rate calculator
     """
