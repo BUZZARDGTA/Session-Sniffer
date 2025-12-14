@@ -1557,12 +1557,6 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
     """Class to manage player bandwidth (upload/download) totals and rate calculations.
 
     Attributes:
-        total_exchanged (int): Total bytes exchanged across all sessions
-        exchanged (int): Bytes exchanged in current session (download + upload)
-        total_download (int): Total bytes downloaded across all sessions
-        download (int): Bytes downloaded in current session
-        total_upload (int): Total bytes uploaded across all sessions
-        upload (int): Bytes uploaded in current session
         total_exchanged (int): Total bytes exchanged with the player across all sessions
         exchanged (int): Bytes exchanged with the player in current session (download + upload)
         total_download (int): Total bytes downloaded from the player across all sessions
