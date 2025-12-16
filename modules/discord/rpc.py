@@ -89,7 +89,12 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
         if not connection_status.is_set():
             try:
                 rpc.connect()
-            except (exceptions.DiscordNotFound, exceptions.DiscordError, exceptions.ConnectionTimeout):
+            except (
+                exceptions.DiscordNotFound,
+                exceptions.DiscordError,
+                exceptions.ConnectionTimeout,
+                exceptions.InvalidPipe,
+            ):
                 continue
             else:
                 connection_status.set()
