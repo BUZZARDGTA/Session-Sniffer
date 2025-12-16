@@ -2687,11 +2687,7 @@ def check_for_updates() -> None:
 
 def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
     """Populate the AllInterfaces collection with network interface details."""
-    try:
-        adapters = list(get_adapters_info())
-    except GetAdaptersAddressesError as e:
-        print(f'Error retrieving adapter information: {e}', file=sys.stderr)
-        sys.exit(1)
+    adapters = list(get_adapters_info())
 
     if not adapters:
         return
