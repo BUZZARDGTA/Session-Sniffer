@@ -295,7 +295,7 @@ class PacketCapture:
             self._tshark_process = process
 
             # stdout and stderr are always set when PIPE is used
-            if not process.stdout or not process.stderr:
+            if process.stdout is None or process.stderr is None:
                 raise TSharkProcessInitializationError
 
             # Iterate over stdout line by line as it is being produced
