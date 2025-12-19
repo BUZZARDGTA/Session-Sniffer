@@ -18,7 +18,7 @@ import webbrowser
 import winsound
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
 from threading import Event, Lock, RLock, Thread
@@ -5239,7 +5239,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract datetime value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    raise PlayerNotFoundInRegistryError(ip)
+                    return datetime.min.replace(tzinfo=UTC)
 
                 datetime_mapping = {
                     'First Seen': player.datetime.first_seen,
@@ -5258,7 +5258,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract total session time value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    raise PlayerNotFoundInRegistryError(ip)
+                    return timedelta(0)
                 return player.datetime.get_total_session_time()
 
             combined.sort(
@@ -5271,7 +5271,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract session time value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    raise PlayerNotFoundInRegistryError(ip)
+                    return timedelta(0)
                 return player.datetime.get_session_time()
 
             combined.sort(
@@ -5301,7 +5301,7 @@ class SessionTableModel(QAbstractTableModel):
                 """Extract bandwidth value for a given IP address."""
                 player = PlayersRegistry.get_player_by_ip(ip)
                 if player is None:
-                    raise PlayerNotFoundInRegistryError(ip)
+                    return 0
 
                 bandwidth_mapping = {
                     'T. Bandwith': player.bandwidth.total_exchanged,
