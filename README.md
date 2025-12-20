@@ -70,6 +70,9 @@ Grab the latest stable release and get started instantly!
 | Tom Clancy's Ghost Recon® Wildlands        | PC                                            |                                                                                                                                                                                   |
 | MONOPOLY 2024                              | PC                                            | Only the host is connected trough P2P                                                                                                                                             |
 | GSClient                                   | PC                                            |                                                                                                                                                                                   |
+| OmeTV                                      | Android                                       |                                                                                                                                                                                   |
+| Azar                                       | Android                                       |                                                                                                                                                                                   |
+| Chatspin                                   | Android                                       |                                                                                                                                                                                   |
 
 > _Note_: The script works with all P2P (Peer-to-Peer) games, but only the titles above are confirmed to work.
 
