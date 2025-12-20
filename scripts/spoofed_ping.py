@@ -23,7 +23,7 @@ PingCheckResults = dict[str, list[
 CHECK_HOST_API = 'https://check-host.net'
 
 
-class Colors(Enum):
+class Colors(str, Enum):
     """Hex color codes for Rich formatting."""
 
     CYAN = '3a96dd'
