@@ -12,6 +12,7 @@ from modules.capture.exceptions import (
     InvalidPortMultipleError,
     InvalidPortNumberError,
     InvalidPortNumericError,
+    MalformedPacketError,
     TSharkAlreadyRunningError,
     TSharkCrashExceptionError,
     TSharkNoProcessError,
@@ -304,14 +305,7 @@ class PacketCapture:
                 if packet_fields is None:
                     continue
 
-                with suppress(
-                    InvalidIPv4AddressMultipleError,
-                    InvalidIPv4AddressFormatError,
-                    InvalidLengthNumericError,
-                    InvalidPortMultipleError,
-                    InvalidPortNumericError,
-                    InvalidPortNumberError,
-                ):
+                with suppress(MalformedPacketError):
                     yield Packet.from_fields(packet_fields)
 
             # After stdout is done, check if there were any errors in stderr

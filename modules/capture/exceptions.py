@@ -25,7 +25,11 @@ class TSharkProcessingError(TSharkError, ValueError):
         super().__init__(message)
 
 
-class InvalidIPv4AddressError(TSharkProcessingError):
+class MalformedPacketError(TSharkProcessingError):
+    """Base exception for malformed packet errors."""
+
+
+class InvalidIPv4AddressError(MalformedPacketError):
     """Raised when the source or destination IP addresses are not valid IPv4 addresses."""
 
     def __init__(self, ip: str) -> None:
@@ -41,7 +45,7 @@ class InvalidIPv4AddressFormatError(InvalidIPv4AddressError):
     """Raised when an IP field is not a valid IPv4 format."""
 
 
-class InvalidPortFormatError(TSharkProcessingError):
+class InvalidPortFormatError(MalformedPacketError):
     """Raised when source or destination ports are not digits."""
 
     def __init__(self, port: str) -> None:
@@ -57,7 +61,7 @@ class InvalidPortNumericError(InvalidPortFormatError):
     """Raised when a port field is not a valid numeric format."""
 
 
-class InvalidPortNumberError(TSharkProcessingError):
+class InvalidPortNumberError(MalformedPacketError):
     """Raised when source or destination ports are not valid."""
 
     def __init__(self, port: int) -> None:
@@ -65,7 +69,7 @@ class InvalidPortNumberError(TSharkProcessingError):
         super().__init__(f'Invalid port number: {port}. Port must be a number between {MIN_PORT} and {MAX_PORT}.')
 
 
-class InvalidLengthFormatError(TSharkProcessingError):
+class InvalidLengthFormatError(MalformedPacketError):
     """Raised when frame length is not in the expected format."""
 
     def __init__(self, length: str) -> None:
