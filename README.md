@@ -72,6 +72,7 @@ Grab the latest stable release and get started instantly!
 | GSClient                                   | PC                                            |                                                                                                                                                                                   |
 | OmeTV                                      | Android                                       |                                                                                                                                                                                   |
 | Azar                                       | Android                                       |                                                                                                                                                                                   |
+| Chatspin                                   | Android                                       |                                                                                                                                                                                   |
 
 > _Note_: The script works with all P2P (Peer-to-Peer) games, but only the titles above are confirmed to work.
 
