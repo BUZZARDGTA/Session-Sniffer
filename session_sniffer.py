@@ -1,5 +1,6 @@
 # pylint: disable=missing-module-docstring,too-many-lines  # noqa: D100
 import ast
+import atexit
 import dataclasses
 import enum
 import hashlib
@@ -8047,4 +8048,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    atexit.register(logging.shutdown)
     main()
