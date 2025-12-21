@@ -237,7 +237,9 @@ def is_file_need_newline_ending(file: Path) -> bool:
     if not file.exists() or not file.stat().st_size:
         return False
 
-    return not file.read_bytes().endswith(b'\n')
+    with file.open('rb') as f:
+        f.seek(-1, os.SEEK_END)
+        return f.read(1) != b'\n'
 
 
 def write_lines_to_file(file: Path, mode: Literal['w', 'x', 'a'], lines: list[str]) -> None:
