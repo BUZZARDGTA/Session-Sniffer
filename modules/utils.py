@@ -112,8 +112,8 @@ def resource_path(relative_path: Path) -> Path:
     raise TypeError(format_type_error(base_path, (str, Path)))
 
 
-def get_documents_folder() -> Path:
-    """Retrieve the Path object to the current user's "Documents" folder by querying the Windows registry.
+def get_documents_dir() -> Path:
+    """Retrieve the Path object to the current user's "Documents" directory by querying the Windows registry.
 
     Returns:
         Path: A `Path` object pointing to the user's "Documents" folder.

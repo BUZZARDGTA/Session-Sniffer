@@ -104,11 +104,11 @@ from modules.capture.utils.check_tshark_filters import check_broadcast_multicast
 from modules.capture.utils.npcap_checker import ensure_npcap_installed
 from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
-    BIN_FOLDER_PATH,
-    IMAGES_FOLDER_PATH,
+    BIN_DIR_PATH,
+    IMAGES_DIR_PATH,
     PYPROJECT_DATA,
-    SCRIPTS_FOLDER_PATH,
-    TTS_FOLDER_PATH,
+    SCRIPTS_DIR_PATH,
+    TTS_DIR_PATH,
     VERSION,
 )
 from modules.constants.standalone import (
@@ -309,11 +309,11 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
 }
 DISCORD_APPLICATION_ID = 1313304495958261781
-COUNTRY_FLAGS_FOLDER_PATH = IMAGES_FOLDER_PATH / 'country_flags'
 GEOLITE2_DATABASES_FOLDER_PATH = Path('GeoLite2 Databases')
+COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
 INTERFACE_PARTS_LENGTH = 3
-PAPING_PATH = BIN_FOLDER_PATH / 'paping.exe'
+PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
 RESERVED_NETWORK_RANGES = [  # https://en.wikipedia.org/wiki/Reserved_IP_addresses
     '0.0.0.0/8',
     '10.0.0.0/8',
@@ -339,10 +339,10 @@ RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>
 SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).strftime('%Y/%m/%d') / f"{datetime.now(tz=LOCAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')}.log"
 SETTINGS_PATH = Path('Settings.ini')
 SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
-TSHARK_PATH = BIN_FOLDER_PATH / 'WiresharkPortable64/App/Wireshark/tshark.exe'
-ARPSPOOF_PATH = BIN_FOLDER_PATH / 'arpspoof.exe'
 USERIP_DATABASES_PATH = Path('UserIP Databases')
 USERIP_LOGGING_PATH = Path('UserIP_Logging.log')
+TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64/App/Wireshark/tshark.exe'
+ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 
 class ExceptionInfo(NamedTuple):
@@ -2847,7 +2847,7 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     def update_geolite2_databases() -> dict[str, requests.exceptions.RequestException | str | int | None]:
-        geolite2_version_file_path = GEOLITE2_DATABASES_FOLDER_PATH / 'version.json'
+        geolite2_version_file_path = GEOLITE2_DATABASES_DIR_PATH / 'version.json'
         geolite2_databases: dict[str, dict[str, str | None]] = {
             f'GeoLite2-{db}.mmdb': {
                 'current_version': None,
@@ -2917,8 +2917,8 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
                     if not isinstance(response.content, bytes):
                         raise TypeError(format_type_error(response.content, bytes))
 
-                    GEOLITE2_DATABASES_FOLDER_PATH.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-                    destination_file_path = GEOLITE2_DATABASES_FOLDER_PATH / database_name
+                    GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
+                    destination_file_path = GEOLITE2_DATABASES_DIR_PATH / database_name
 
                     # [Bug-Fix]: https://github.com/BUZZARDGTA/Session-Sniffer/issues/28
                     if destination_file_path.is_file():
@@ -2983,9 +2983,9 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
 
     def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
         try:
-            geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_FOLDER_PATH / 'GeoLite2-ASN.mmdb')
-            geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_FOLDER_PATH / 'GeoLite2-City.mmdb')
-            geolite2_country_reader = geoip2.database.Reader(GEOLITE2_DATABASES_FOLDER_PATH / 'GeoLite2-Country.mmdb')
+            geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb')
+            geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-City.mmdb')
+            geolite2_country_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-Country.mmdb')
 
             geolite2_asn_reader.asn('1.1.1.1')
             geolite2_city_reader.city('1.1.1.1')
@@ -3294,7 +3294,7 @@ def process_userip_task(
             if not isinstance(voice_name, str):
                 raise TypeError(format_type_error(voice_name, str))
 
-            tts_file_path = TTS_FOLDER_PATH / f'{voice_name} ({connection_type}).wav'
+            tts_file_path = TTS_DIR_PATH / f'{voice_name} ({connection_type}).wav'
             validate_file(tts_file_path)
 
             winsound.PlaySound(str(tts_file_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
@@ -4965,7 +4965,7 @@ def rendering_core(
                     )
                     if (
                         country_code
-                        and (flag_path := COUNTRY_FLAGS_FOLDER_PATH / f'{country_code.upper()}.png').exists()
+                        and (flag_path := COUNTRY_FLAGS_DIR_PATH / f'{country_code.upper()}.png').exists()
                     ):
                         pixmap = QPixmap()
                         pixmap.loadFromData(flag_path.read_bytes())
