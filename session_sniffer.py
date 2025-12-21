@@ -165,7 +165,6 @@ from modules.msgbox import MsgBox
 from modules.networking.ctypes_adapters_info import (
     IF_OPER_STATUS_NOT_PRESENT,
     MEDIA_CONNECT_STATE_DISCONNECTED,
-    GetAdaptersAddressesError,
     get_adapters_info,
 )
 from modules.networking.endpoint_ping_manager import (
