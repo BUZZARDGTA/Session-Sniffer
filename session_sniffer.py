@@ -389,7 +389,9 @@ def terminate_script(
         console.print(error_message)
 
     if stdout_crash_text is not None:
-        print(ScriptControl.get_message())
+        crash_message = ScriptControl.get_crash_message()
+        if crash_message:
+            console.print(crash_message, highlight=False)
 
     if msgbox_crash_text is not None:
         msgbox_title = TITLE
@@ -440,19 +442,19 @@ signal.signal(signal.SIGINT, handle_sigint)
 class ScriptControl:
     _lock: ClassVar = Lock()
     _crashed: ClassVar[bool] = False
-    _message: ClassVar[str | None] = None
+    _crash_message: ClassVar[str | None] = None
 
     @classmethod
     def set_crashed(cls, message: str | None = None) -> None:
         with cls._lock:
             cls._crashed = True
-            cls._message = message
+            cls._crash_message = message
 
     @classmethod
     def reset_crashed(cls) -> None:
         with cls._lock:
             cls._crashed = False
-            cls._message = None
+            cls._crash_message = None
 
     @classmethod
     def has_crashed(cls) -> bool:
@@ -460,9 +462,9 @@ class ScriptControl:
             return cls._crashed
 
     @classmethod
-    def get_message(cls) -> str | None:
+    def get_crash_message(cls) -> str | None:
         with cls._lock:
-            return cls._message
+            return cls._crash_message
 
 
 class ThreadsExceptionHandler:
