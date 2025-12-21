@@ -52,3 +52,10 @@ class PlayerDateTimeCorruptionError(Exception):
 
     def __init__(self, last_rejoin: str, last_seen: str) -> None:
         super().__init__(f'Player data corruption: last_rejoin ({last_rejoin}) > last_seen ({last_seen})')
+
+
+class UnsupportedPlatformError(RuntimeError):
+    """Raised when attempting to run Session Sniffer on a non-Windows platform."""
+
+    def __init__(self, platform: str) -> None:
+        super().__init__(f'This application only supports Windows (current platform: {platform}).')

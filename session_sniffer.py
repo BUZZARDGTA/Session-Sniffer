@@ -124,6 +124,7 @@ from modules.exceptions import (
     PlayerDateTimeCorruptionError,
     PlayerNotFoundInRegistryError,
     UnexpectedPlayerCountError,
+    UnsupportedPlatformError,
 )
 from modules.guis.app import app
 from modules.guis.colors import StatusBarColors, TableColors, ThresholdColors
@@ -7655,6 +7656,9 @@ SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(
 def main() -> None:
     colorama.init(autoreset=True)
     os.chdir(SCRIPT_DIR)
+
+    if sys.platform != 'win32':
+        raise UnsupportedPlatformError(sys.platform)
 
     # Check minimum screen resolution requirement early to avoid wasting user's time
     try:
