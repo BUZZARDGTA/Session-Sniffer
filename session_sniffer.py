@@ -204,6 +204,7 @@ from modules.utils import (
     format_triple_quoted_text,
     format_type_error,
     get_pid_by_path,
+    get_session_log_path,
     is_pyinstaller_compiled,
     pluralize,
     run_cmd_command,
@@ -342,14 +343,7 @@ RESERVED_NETWORK_RANGES = [  # https://en.wikipedia.org/wiki/Reserved_IP_address
 RESERVED_NETWORKS_FILTER = ' or '.join(RESERVED_NETWORK_RANGES)
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
-_sessions_logging_now = datetime.now(tz=LOCAL_TZ)
-_sessions_logging_date_dir = (
-    SESSIONS_LOGGING_DIR_PATH
-    / _sessions_logging_now.strftime('%Y')
-    / _sessions_logging_now.strftime('%m')
-    / _sessions_logging_now.strftime('%d')
-)
-SESSIONS_LOGGING_PATH = _sessions_logging_date_dir / f"{_sessions_logging_now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
 TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64' / 'App' / 'Wireshark' / 'tshark.exe'
 ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'

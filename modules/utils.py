@@ -8,7 +8,7 @@ import sys
 import textwrap
 import winreg
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -157,6 +157,22 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
     app_dir = base / TITLE
     app_dir.mkdir(parents=True, exist_ok=True)
     return app_dir
+
+
+def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
+    """Generate a timestamped session log path in a year/month/day folder structure.
+
+    Args:
+        base_dir (Path): Root directory for session logs.
+        tz (tzinfo): Timezone to use for timestamps.
+
+    Returns:
+        Path: Full path to the timestamped log file.
+    """
+    now = datetime.now(tz=tz)
+    date_dir = base_dir / now.strftime('%Y') / now.strftime('%m') / now.strftime('%d')
+    date_dir.mkdir(parents=True, exist_ok=True)
+    return date_dir / f"{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 
 
 def set_window_title(title: str) -> None:
