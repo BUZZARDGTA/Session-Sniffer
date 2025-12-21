@@ -105,10 +105,17 @@ from modules.capture.utils.npcap_checker import ensure_npcap_installed
 from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
     BIN_DIR_PATH,
+    ERROR_LOG_PATH,
+    GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
     SCRIPTS_DIR_PATH,
+    SESSIONS_LOGGING_DIR_PATH,
+    SETTINGS_INI_PATH,
     TTS_DIR_PATH,
+    USER_SCRIPTS_DIR_PATH,
+    USERIP_DATABASES_DIR_PATH,
+    USERIP_LOG_PATH,
     VERSION,
 )
 from modules.constants.standalone import (
@@ -223,7 +230,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M',
     handlers=[
-        logging.FileHandler('error.log'),
+        logging.FileHandler(ERROR_LOG_PATH, encoding='utf-8'),
     ],
 )
 logging.captureWarnings(capture=True)
@@ -309,7 +316,6 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
 }
 DISCORD_APPLICATION_ID = 1313304495958261781
-GEOLITE2_DATABASES_FOLDER_PATH = Path('GeoLite2 Databases')
 COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
 INTERFACE_PARTS_LENGTH = 3
@@ -336,13 +342,19 @@ RESERVED_NETWORK_RANGES = [  # https://en.wikipedia.org/wiki/Reserved_IP_address
 RESERVED_NETWORKS_FILTER = ' or '.join(RESERVED_NETWORK_RANGES)
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
-SESSIONS_LOGGING_PATH = Path('Sessions Logging') / datetime.now(tz=LOCAL_TZ).strftime('%Y/%m/%d') / f"{datetime.now(tz=LOCAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')}.log"
-SETTINGS_PATH = Path('Settings.ini')
+_sessions_logging_now = datetime.now(tz=LOCAL_TZ)
+_sessions_logging_date_dir = (
+    SESSIONS_LOGGING_DIR_PATH
+    / _sessions_logging_now.strftime('%Y')
+    / _sessions_logging_now.strftime('%m')
+    / _sessions_logging_now.strftime('%d')
+)
+SESSIONS_LOGGING_PATH = _sessions_logging_date_dir / f"{_sessions_logging_now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
-USERIP_DATABASES_PATH = Path('UserIP Databases')
-USERIP_LOGGING_PATH = Path('UserIP_Logging.log')
 TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64' / 'App' / 'Wireshark' / 'tshark.exe'
 ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
+
+USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
 
 class ExceptionInfo(NamedTuple):
@@ -874,7 +886,7 @@ class Settings(DefaultSettings):
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
 
-        SETTINGS_PATH.write_text(text, encoding='utf-8')
+        SETTINGS_INI_PATH.write_text(text, encoding='utf-8')
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
@@ -2249,10 +2261,10 @@ class UserIPDatabases:
                         the conflict is resolved.
 
                     DEBUG:
-                        "{existing_userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
+                        "{existing_userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":
                         {', '.join(existing_userip.usernames)}={existing_userip.ip}
 
-                        "{conflicting_database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":
+                        "{conflicting_database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":
                         {conflicting_username}={existing_userip.ip}
                 """),
                 'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
@@ -3302,10 +3314,10 @@ def process_userip_task(
         if connection_type == 'connected':
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
 
-            relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')
+            relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
             with _userip_logging_file_write_lock:
-                write_lines_to_file(USERIP_LOGGING_PATH, 'a', [(
+                write_lines_to_file(USERIP_LOG_PATH, 'a', [(
                     f'User{pluralize(len(player.userip.usernames))}: {", ".join(player.userip.usernames)} | '
                     f'IP:{player.ip} | Ports:{", ".join(map(str, reversed(player.ports.all)))} | '
                     f'Time:{player.userip_detection.date_time} | Country:{player.iplookup.geolite2.country} | '
@@ -3934,7 +3946,7 @@ def rendering_core(
             """)
 
             default_userip_files_settings = {
-                USERIP_DATABASES_PATH / 'Blacklist.ini': """
+                USERIP_DATABASES_DIR_PATH / 'Blacklist.ini': """
                     ENABLED=True
                     COLOR=RED
                     LOG=True
@@ -3945,7 +3957,7 @@ def rendering_core(
                     PROTECTION_RESTART_PROCESS_PATH=None
                     PROTECTION_SUSPEND_PROCESS_MODE=Auto
                 """,
-                USERIP_DATABASES_PATH / 'Enemylist.ini': """
+                USERIP_DATABASES_DIR_PATH / 'Enemylist.ini': """
                     ENABLED=True
                     COLOR=DARKGOLDENROD
                     LOG=True
@@ -3956,7 +3968,7 @@ def rendering_core(
                     PROTECTION_RESTART_PROCESS_PATH=None
                     PROTECTION_SUSPEND_PROCESS_MODE=Auto
                 """,
-                USERIP_DATABASES_PATH / 'Friendlist.ini': """
+                USERIP_DATABASES_DIR_PATH / 'Friendlist.ini': """
                     ENABLED=True
                     COLOR=GREEN
                     LOG=True
@@ -3967,7 +3979,7 @@ def rendering_core(
                     PROTECTION_RESTART_PROCESS_PATH=None
                     PROTECTION_SUSPEND_PROCESS_MODE=Auto
                 """,
-                USERIP_DATABASES_PATH / 'Randomlist.ini': """
+                USERIP_DATABASES_DIR_PATH / 'Randomlist.ini': """
                     ENABLED=True
                     COLOR=BLACK
                     LOG=True
@@ -3978,7 +3990,7 @@ def rendering_core(
                     PROTECTION_RESTART_PROCESS_PATH=None
                     PROTECTION_SUSPEND_PROCESS_MODE=Auto
                 """,
-                USERIP_DATABASES_PATH / 'Searchlist.ini': """
+                USERIP_DATABASES_DIR_PATH / 'Searchlist.ini': """
                     ENABLED=True
                     COLOR=BLUE
                     LOG=True
@@ -4000,7 +4012,7 @@ def rendering_core(
                 # username3=255.255.255.255
             """, add_trailing_newline=True)
 
-            USERIP_DATABASES_PATH.mkdir(parents=True, exist_ok=True)
+            USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
             for userip_path, settings in default_userip_files_settings.items():
                 if not userip_path.is_file():
@@ -4016,7 +4028,7 @@ def rendering_core(
             new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
             unresolved_ip_invalid: set[str] = set()
 
-            for userip_path in USERIP_DATABASES_PATH.rglob('*.ini'):
+            for userip_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
                 parsed_settings, parsed_data = parse_userip_ini_file(userip_path, unresolved_ip_invalid)
                 if parsed_settings is None or parsed_data is None:
                     continue
@@ -6034,10 +6046,21 @@ class SessionTableView(QTableView):
                 )
 
                 scripts_menu = add_menu(context_menu, 'User Scripts ')
-                for script in SCRIPTS_FOLDER_PATH.glob('*'):
+
+                spoofed_ping_script = (SCRIPTS_DIR_PATH / 'spoofed_ping.py').resolve()
+                if spoofed_ping_script.is_file():
+                    add_action(
+                        scripts_menu,
+                        spoofed_ping_script.name,
+                        tooltip='',
+                        handler=lambda: run_cmd_script(spoofed_ping_script, [ip_address]),
+                    )
+
+                for script in USER_SCRIPTS_DIR_PATH.glob('*'):
                     if (
                         not script.is_file()
                         or script.name.startswith(('_', '.'))
+                        or script.name == 'spoofed_ping.py'
                         or script.suffix.casefold() not in {'.bat', '.cmd', '.exe', '.py', '.lnk'}
                     ):
                         continue
@@ -6064,7 +6087,7 @@ class SessionTableView(QTableView):
 
                         add_action(
                             add_userip_menu,
-                            str(database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')),
+                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
                             tooltip='Add selected IP address to this UserIP database.',
                             handler=create_add_handler(database_path),
                         )
@@ -6076,7 +6099,7 @@ class SessionTableView(QTableView):
 
                         action = add_action(
                             move_userip_menu,
-                            str(database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')),
+                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
                             tooltip='Move selected IP address to this UserIP database.',
                             handler=create_move_handler(database_path),
                         )
@@ -6111,7 +6134,7 @@ class SessionTableView(QTableView):
 
                     add_action(
                         add_userip_menu,
-                        str(database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')),
+                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
                         tooltip='Add selected IP addresses to this UserIP database.',
                         handler=create_multi_add_handler(database_path, all_ips),
                     )
@@ -6125,7 +6148,7 @@ class SessionTableView(QTableView):
 
                     add_action(
                         move_userip_menu,
-                        str(database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')),
+                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
                         tooltip='Move selected IP addresses to this UserIP database.',
                         handler=create_multi_move_handler(database_path, all_ips),
                     )
@@ -6194,7 +6217,7 @@ class SessionTableView(QTableView):
             Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
             In UserIP database: {(
                 player.userip_detection is not None
-                and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_PATH).with_suffix('')}"
+                and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')}"
             ) or "No"}
             Last Port: {player.ports.last}
             Middle Port{pluralize(len(player.ports.middle))}: {', '.join(map(str, player.ports.middle))}
@@ -6282,7 +6305,7 @@ class SessionTableView(QTableView):
             QMessageBox.information(
                 self, TITLE,
                 f'Selected IP{pluralize(len(ip_addresses))} {ip_addresses} has been added with username "{username}" '
-                f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}".',
+                f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".',
             )
         else:
             # If the user canceled or left the input empty, show an error
@@ -6335,10 +6358,10 @@ class SessionTableView(QTableView):
             report = (
                 f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} moved from the following '
                 f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
-                f'"{selected_database.relative_to(USERIP_DATABASES_PATH).with_suffix("")}":</b><br><br><br>'
+                f'"{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":</b><br><br><br>'
             )
             for database_path, deleted_entries in deleted_entries_by_database.items():
-                report += f'<b>{database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}:</b><br>'
+                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
                 report += '<ul>'
                 for entry in deleted_entries:
                     report += f'<li>{entry}</li>'
@@ -6390,7 +6413,7 @@ class SessionTableView(QTableView):
                 f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
             )
             for database_path, deleted_entries in deleted_entries_by_database.items():
-                report += f'<b>{database_path.relative_to(USERIP_DATABASES_PATH).with_suffix("")}:</b><br>'
+                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
                 report += '<ul>'
                 for entry in deleted_entries:
                     report += f'<li>{entry}</li>'
@@ -7696,7 +7719,7 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
     print('\nApplying your custom settings from "Settings.ini" ...\n')
-    Settings.load_from_settings_file(SETTINGS_PATH)
+    Settings.load_from_settings_file(SETTINGS_INI_PATH)
 
     clear_screen()
     set_window_title(f'Searching for a new update - {TITLE}')
@@ -7711,7 +7734,7 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
     print('\nApplying your custom settings from "Settings.ini" ...\n')
-    Settings.load_from_settings_file(SETTINGS_PATH)
+    Settings.load_from_settings_file(SETTINGS_INI_PATH)
 
     clear_screen()
     set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")

@@ -18,8 +18,20 @@ Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game s
 - `modules/networking/`: DNS, reverse DNS, manufacturer lookup, ping management.
 - `modules/rendering_core/`: Transforms registry + lookup results into GUI payloads.
 - `modules/models/`: External API / release / lookup models (e.g., GitHub, IP APIs).
-- `UserIP Databases/`: INI‑based user IP tagging; processed asynchronously when first seen.
 - `.github/workflows/Session_Sniffer.spec`: PyInstaller spec – update `datas` if adding runtime folders.
+
+## User Data Storage (AppData)
+Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `modules/constants/local.py`.
+
+- Local AppData (`scope='local'`) is for machine-specific and/or potentially large data (logs / databases / caches):
+	- `error.log`
+	- GeoLite2 databases
+	- session logging
+	- `UserIP_Logging.log`
+- Roaming AppData (`scope='roaming'`) is for user-owned and potentially syncable data (config / user-managed content):
+	- `Settings.ini`
+	- UserIP databases
+	- User scripts
 
 ## Quality & Tooling Workflow
 Use VS Code tasks instead of ad‑hoc commands:
@@ -40,6 +52,8 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `clear_all_data`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
 - Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.reconstruct_settings()` once per batch.
+- User-data paths: Do not write into the repo/install directory. Use the path constants from `modules/constants/local.py`.
+- AppData scope selection: Prefer Roaming for config/user-managed data, Local for logs/large databases.
 - Capture filters: Compose lists then join with `and`; preserve conditional ordering (custom prepend filters first). When adding filters ensure symmetry with display filter logic if exclusion is related.
 - Exceptions: Use project‑specific ones from `modules/guis/exceptions.py`. For new GUI error states, subclass similarly.
 

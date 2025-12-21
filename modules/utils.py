@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import psutil
 from win32com.client import Dispatch
 
+from modules.constants.standalone import TITLE
 from modules.constants.standard import CMD_EXE
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
@@ -127,6 +128,39 @@ def get_documents_dir() -> Path:
             raise TypeError(format_type_error(documents_path, str))
 
     return Path(documents_path)
+
+
+def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
+    """Return the per-user application data directory.
+
+    Session Sniffer is Windows-only.
+
+    Use `scope='roaming'` for user-owned, syncable data that should follow the user profile
+    between machines (when applicable), such as:
+    - Configuration (e.g., `Settings.ini`)
+    - User-managed databases/tags (e.g., UserIP databases)
+    - User scripts
+
+    Use `scope='local'` for machine-specific and/or potentially large, non-syncable data,
+    such as:
+    - Logs (e.g., `error.log`, session logs)
+    - Large databases/caches (e.g., GeoLite2 databases)
+
+    This function prefers the Windows environment variables (`APPDATA` and `LOCALAPPDATA`)
+    to support redirected profiles (common in corporate environments). If the variables are
+    missing, it falls back to the default `Path.home() / 'AppData' / ...` layout.
+
+    Args:
+        scope: Which AppData base to use: 'roaming' or 'local'.
+    """
+    if scope == 'roaming':
+        base = Path(os.getenv('APPDATA', str(Path.home() / 'AppData' / 'Roaming')))
+    else:
+        base = Path(os.getenv('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local')))
+
+    app_dir = base / TITLE
+    app_dir.mkdir(parents=True, exist_ok=True)
+    return app_dir
 
 
 def set_window_title(title: str) -> None:
