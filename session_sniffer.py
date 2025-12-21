@@ -369,10 +369,10 @@ def terminate_script(
 
     ScriptControl.set_crashed(None if stdout_crash_text is None else f'\n\n{stdout_crash_text}\n')
 
+    console = Console()
+
     if exception_info:
         logger.error('Uncaught exception: %s: %s', exception_info.exc_type.__name__, exception_info.exc_value)
-
-        console = Console()
 
         traceback_message = Traceback.from_exception(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback)
         console.print(traceback_message)
