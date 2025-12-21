@@ -151,7 +151,7 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
     missing, it falls back to the default `Path.home() / 'AppData' / ...` layout.
 
     Args:
-        scope: Which AppData base to use: 'roaming' or 'local'.
+        scope: Which AppData base to use: `roaming` or `local`.
     """
     if scope == 'roaming':
         base = Path(os.getenv('APPDATA', str(Path.home() / 'AppData' / 'Roaming')))
