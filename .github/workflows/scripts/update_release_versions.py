@@ -6,6 +6,10 @@ from pathlib import Path
 from packaging.version import Version
 
 
+def get_repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Update "release_versions.json" with updated version info.')
     parser.add_argument('tag', action='store', help='The release tag (e.g., 1.3.7+20250405.1644)')
@@ -14,7 +18,7 @@ def main() -> None:
     args = parser.parse_args()
 
     version = Version(args.tag)
-    json_path = Path('release_versions.json')
+    json_path = get_repo_root() / 'release_versions.json'
 
     if not json_path.exists():
         error_msg = f'File: "{json_path.absolute()}" not found.'
