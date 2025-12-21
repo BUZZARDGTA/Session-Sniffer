@@ -95,7 +95,7 @@ def get_working_directory_to_script_location() -> Path:
     """Get the working directory to the script or executable location."""
     if is_pyinstaller_compiled():
         return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parents[1]
 
 
 def set_working_directory_to_script_location() -> None:
@@ -105,7 +105,7 @@ def set_working_directory_to_script_location() -> None:
 
 def resource_path(relative_path: Path) -> Path:
     """Get absolute path to resource, works for dev and for PyInstaller."""
-    base_path = getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent)  # .parent twice because of modularizing bruh
+    base_path = getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[1])
     return Path(base_path) / relative_path
 
 
