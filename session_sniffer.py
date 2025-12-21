@@ -341,7 +341,7 @@ SETTINGS_PATH = Path('Settings.ini')
 SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
 USERIP_DATABASES_PATH = Path('UserIP Databases')
 USERIP_LOGGING_PATH = Path('UserIP_Logging.log')
-TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64/App/Wireshark/tshark.exe'
+TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64' / 'App' / 'Wireshark' / 'tshark.exe'
 ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 

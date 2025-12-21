@@ -8,9 +8,9 @@ from typing import ClassVar
 from modules.utils import format_type_error, get_documents_dir
 
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(r'^user:(?P<username>[\w._-]{1,16}), scid:\d{1,9}, ip:(?P<ip>[\d.]+), timestamp:\d{10}$')
-TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData/Roaming/PopstarDevs/2Take1Menu/scripts/GTA_V_Session_Sniffer-plugin/log.txt'
-STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData/Roaming/Stand/Lua Scripts/GTA_V_Session_Sniffer-plugin/log.txt'
-CHERAX__PLUGIN__LOG_PATH = get_documents_dir() / 'Cherax/Lua/GTA_V_Session_Sniffer-plugin/log.txt'
+TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'PopstarDevs' / '2Take1Menu' / 'scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
+STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'Stand' / 'Lua Scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
+CHERAX__PLUGIN__LOG_PATH = get_documents_dir() / 'Cherax' / 'Lua' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
 
 LOGS_PATHS = (
     STAND__PLUGIN__LOG_PATH,
