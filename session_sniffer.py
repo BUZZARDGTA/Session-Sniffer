@@ -109,7 +109,7 @@ from modules.constants.local import (
     GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
-    SCRIPTS_DIR_PATH,
+    SCRIPT_DIR,
     SESSIONS_LOGGING_DIR_PATH,
     SETTINGS_PATH,
     TTS_DIR_PATH,
@@ -7664,9 +7664,6 @@ class DiscordIntro(QDialog):
         self.fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
         self.fade_out.finished.connect(self.close)  # pyright: ignore[reportUnknownMemberType]  # Close the window after the fade-out finishes
         self.fade_out.start()
-
-
-SCRIPT_DIR = Path(sys.executable).parent if is_pyinstaller_compiled() else Path(__file__).resolve().parent
 
 
 def main() -> None:

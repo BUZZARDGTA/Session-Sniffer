@@ -4,7 +4,14 @@ from pathlib import Path
 import toml
 from packaging.version import Version
 
-from modules.utils import format_project_version, get_app_dir, resource_path
+from modules.utils import (
+    format_project_version,
+    get_app_dir,
+    get_working_directory_to_script_location,
+    resource_path,
+)
+
+SCRIPT_DIR = get_working_directory_to_script_location()
 
 BIN_DIR_PATH = resource_path(Path('bin'))
 IMAGES_DIR_PATH = resource_path(Path('images'))
