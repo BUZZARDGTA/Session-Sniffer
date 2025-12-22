@@ -18,8 +18,10 @@ IMAGES_DIR_PATH = resource_path(Path('images'))
 PYPROJECT_PATH = resource_path(Path('pyproject.toml'))
 REQUIREMENTS_PATH = resource_path(Path('requirements.txt'))
 RESOURCES_DIR_PATH = resource_path(Path('resources'))
-SCRIPTS_DIR_PATH = resource_path(Path('scripts'))
+BUILTIN_SCRIPTS_DIR_PATH = resource_path(Path('scripts'))
 TTS_DIR_PATH = resource_path(Path('TTS'))
+BUILTIN_SPOOFED_PING_SCRIPT_PATH = BUILTIN_SCRIPTS_DIR_PATH / 'spoofed_ping.py'
+
 
 PYPROJECT_DATA = toml.load(PYPROJECT_PATH)
 CURRENT_VERSION = Version(PYPROJECT_DATA['project']['version'])
