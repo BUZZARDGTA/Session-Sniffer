@@ -111,11 +111,11 @@ from modules.constants.local import (
     PYPROJECT_DATA,
     SCRIPTS_DIR_PATH,
     SESSIONS_LOGGING_DIR_PATH,
-    SETTINGS_INI_PATH,
+    SETTINGS_PATH,
     TTS_DIR_PATH,
     USER_SCRIPTS_DIR_PATH,
     USERIP_DATABASES_DIR_PATH,
-    USERIP_LOG_PATH,
+    USERIP_LOGGING_PATH,
     VERSION,
 )
 from modules.constants.standalone import (
@@ -3311,7 +3311,7 @@ def process_userip_task(
             relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
             with _userip_logging_file_write_lock:
-                write_lines_to_file(USERIP_LOG_PATH, 'a', [(
+                write_lines_to_file(USERIP_LOGGING_PATH, 'a', [(
                     f'User{pluralize(len(player.userip.usernames))}: {", ".join(player.userip.usernames)} | '
                     f'IP:{player.ip} | Ports:{", ".join(map(str, reversed(player.ports.all)))} | '
                     f'Time:{player.userip_detection.date_time} | Country:{player.iplookup.geolite2.country} | '

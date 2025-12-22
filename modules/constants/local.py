@@ -26,7 +26,7 @@ APP_DIR_ROAMING = get_app_dir(scope='roaming')
 ERROR_LOG_PATH = APP_DIR_LOCAL / 'error.log'
 GEOLITE2_DATABASES_DIR_PATH = APP_DIR_LOCAL / 'GeoLite2 Databases'
 SESSIONS_LOGGING_DIR_PATH = APP_DIR_LOCAL / 'Sessions Logging'
-USERIP_LOG_PATH = APP_DIR_LOCAL / 'UserIP_Logging.log'
+USERIP_LOGGING_PATH = APP_DIR_LOCAL / 'UserIP_Logging.log'
 
 # Roaming (syncable): settings, user databases, user scripts
 SETTINGS_INI_PATH = APP_DIR_ROAMING / 'Settings.ini'
