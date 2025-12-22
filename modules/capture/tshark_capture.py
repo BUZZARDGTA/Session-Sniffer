@@ -266,11 +266,6 @@ class PacketCapture:
         """Check if the packet capture is currently running."""
         return self._state.running_event.is_set()
 
-    def wait(self) -> None:
-        """Block until the packet capture is stopped."""
-        while self._state.running_event.is_set():
-            self._state.running_event.wait(timeout=0.1)
-
     def _terminate_process(self) -> None:
         """Terminate the TShark process and wait for it to exit."""
         if not self._state.tshark_process:
