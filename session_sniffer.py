@@ -7726,11 +7726,6 @@ def main() -> None:
     ensure_npcap_installed()
 
     clear_screen()
-    set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
-    print('\nApplying your custom settings from "Settings.ini" ...\n')
-    Settings.load_from_settings_file(SETTINGS_PATH)
-
-    clear_screen()
     set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
     print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n")
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = update_and_initialize_geolite2_readers()
