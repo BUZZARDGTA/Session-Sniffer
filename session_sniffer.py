@@ -97,6 +97,7 @@ from modules.capture.interface_selection import (
     show_interface_selection_dialog,
 )
 from modules.capture.tshark_capture import (
+    CaptureConfig,
     Packet,
     PacketCapture,
 )
@@ -4707,8 +4708,8 @@ def rendering_core(
                     userip_invalid_ip_count=len(UserIPDatabases.notified_ip_invalid),
                     userip_conflict_ip_count=len(UserIPDatabases.notified_ip_conflicts),
                     userip_corrupted_settings_count=len(UserIPDatabases.notified_settings_corrupted),
-                    interface_name=capture.interface.name,
-                    interface_is_arp=capture.interface.is_arp,
+                    interface_name=capture.config.interface.name,
+                    interface_is_arp=capture.config.interface.is_arp,
                     memory_mb=psutil.Process().memory_info().rss / 1024 / 1024,
                     discord_rpc_connected=discord_rpc_connected,
                 )
@@ -7982,11 +7983,13 @@ def main() -> None:
                 ).start()
 
     capture = PacketCapture(
-        interface=selected_interface,
-        tshark_path=TSHARK_PATH,
-        capture_filter=capture_filter_str,
-        display_filter=display_filter_str,
-        callback=packet_callback,
+        CaptureConfig(
+            interface=selected_interface,
+            tshark_path=TSHARK_PATH,
+            callback=packet_callback,
+            capture_filter=capture_filter_str,
+            display_filter=display_filter_str,
+        ),
     )
     capture.start()
 

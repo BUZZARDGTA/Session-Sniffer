@@ -2,6 +2,7 @@
 import subprocess
 import threading
 from contextlib import suppress
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self
 
@@ -158,41 +159,35 @@ class Packet(NamedTuple):
         )
 
 
-class PacketCapture:
-    def __init__(
-        self,
-        *,
-        interface: InterfaceSelectionData,
-        tshark_path: Path,
-        capture_filter: str | None = None,
-        display_filter: str | None = None,
-        callback: Callable[[Packet], None],
-    ) -> None:
-        """Initialize the PacketCapture class.
+type PacketCallback = Callable[[Packet], None]
+type PacketGenerator = Generator[Packet]
 
-        Args:
-            interface (InterfaceSelectionData): The selected network interface to capture packets from.
-            tshark_path (Path): The path to the TShark executable.
-            capture_filter (str | None): Optional capture filter for TShark.
-            display_filter (str | None): Optional display filter for TShark.
-            callback (Callable[[Packet], None]): A callback function to process each captured packet.
-        """
-        self.interface = interface
-        self.tshark_path = tshark_path
-        self.capture_filter = capture_filter
-        self.display_filter = display_filter
-        self._callback: Callable[[Packet], None] = callback
 
-        self._control_lock = threading.Lock()
-        self._running_event = threading.Event()
-        self._restart_requested = threading.Event()
-        self._tshark_cmd = (
-            str(tshark_path),
+@dataclass(frozen=True, kw_only=True, slots=True)
+class CaptureConfig:
+    """Configuration for packet capture using TShark.
+
+    Attributes:
+        interface (InterfaceSelectionData): The selected network interface to capture packets from.
+        tshark_path (Path): The path to the TShark executable.
+        callback (PacketCallback): A callback function to process captured packets.
+        capture_filter (str | None): An optional capture filter string for TShark.
+        display_filter (str | None): An optional display filter string for TShark.
+    """
+    interface: InterfaceSelectionData
+    tshark_path: Path
+    callback: PacketCallback
+    capture_filter: str | None = None
+    display_filter: str | None = None
+
+    def build_tshark_cmd(self) -> tuple[str, ...]:
+        return (
+            str(self.tshark_path),
             # Capture interface
-            '-i', interface.name,
-            *(('-f', capture_filter) if capture_filter else ()),
+            '-i', self.interface.name,
+            *(('-f', self.capture_filter) if self.capture_filter else ()),
             # Processing
-            *(('-Y', display_filter) if display_filter else ()),
+            *(('-Y', self.display_filter) if self.display_filter else ()),
             '-n',
             # Output
             '-T', 'fields',
@@ -208,25 +203,55 @@ class PacketCapture:
             # Diagnostic output
             '--log-level', 'critical',
         )
-        self._capture_thread: threading.Thread | None = None
-        self._tshark_process: subprocess.Popen[str] | None = None
+
+
+@dataclass(kw_only=True, slots=True)
+class _CaptureState:
+    """Internal state for managing the packet capture process.
+
+    Attributes:
+        control_lock (threading.Lock): A lock to synchronize access to the capture state.
+        running_event (threading.Event): An event indicating whether the capture is running.
+        restart_requested (threading.Event): An event indicating whether a restart has been requested.
+        capture_thread (threading.Thread | None): The thread running the packet capture.
+        tshark_process (subprocess.Popen[str] | None): The TShark process used for packet capture.
+    """
+    control_lock: threading.Lock = field(default_factory=threading.Lock)
+    running_event: threading.Event = field(default_factory=threading.Event)
+    restart_requested: threading.Event = field(default_factory=threading.Event)
+    capture_thread: threading.Thread | None = None
+    tshark_process: subprocess.Popen[str] | None = None
+
+
+class PacketCapture:
+    def __init__(self, config: CaptureConfig, /) -> None:
+        """Initialize the PacketCapture class.
+
+        Args:
+            config (CaptureConfig): Configuration for the packet capture.
+
+        Raises:
+            TSharkProcessInitializationError: If the TShark process could not be initialized.
+        """
+        self.config = config
+        self._state = _CaptureState()
 
     def start(self) -> None:
         """Start the packet capture by launching a new TShark process."""
-        with self._control_lock:
-            if self._running_event.is_set():
+        with self._state.control_lock:
+            if self._state.running_event.is_set():
                 raise TSharkAlreadyRunningError
 
-            self._running_event.set()
+            self._state.running_event.set()
             self._start_thread()
 
     def stop(self) -> None:
         """Stop the packet capture by terminating the TShark process."""
-        with self._control_lock:
-            if not self._running_event.is_set():
+        with self._state.control_lock:
+            if not self._state.running_event.is_set():
                 raise TSharkNotRunningError
 
-            self._running_event.clear()
+            self._state.running_event.clear()
             self._terminate_process()
 
     def request_restart(self) -> None:
@@ -235,65 +260,68 @@ class PacketCapture:
         This method is safe to call from within the packet callback.
         It signals the capture thread to restart itself at the next opportunity.
         """
-        self._restart_requested.set()
+        self._state.restart_requested.set()
 
     def is_running(self) -> bool:
         """Check if the packet capture is currently running."""
-        return self._running_event.is_set()
+        return self._state.running_event.is_set()
 
     def wait(self) -> None:
         """Block until the packet capture is stopped."""
-        while self._running_event.is_set():
-            self._running_event.wait(timeout=0.1)
+        while self._state.running_event.is_set():
+            self._state.running_event.wait(timeout=0.1)
 
     def _terminate_process(self) -> None:
         """Terminate the TShark process and wait for it to exit."""
-        if not self._tshark_process:
+        if not self._state.tshark_process:
             raise TSharkNoProcessError
 
-        self._tshark_process.terminate()
-        self._tshark_process.wait()
-        self._tshark_process = None
+        self._state.tshark_process.terminate()
+        self._state.tshark_process.wait()
+        self._state.tshark_process = None
 
     def _start_thread(self) -> None:
         """Create and start a new capture thread."""
-        if self._capture_thread and self._capture_thread.is_alive():
+        if self._state.capture_thread and self._state.capture_thread.is_alive():
             raise TSharkThreadAlreadyRunningError
 
-        self._capture_thread = threading.Thread(
+        self._state.capture_thread = threading.Thread(
             target=self._run_capture_loop,
             name='TSharkCapture',
             daemon=True,
         )
-        self._capture_thread.start()
+        self._state.capture_thread.start()
 
     def _run_capture_loop(self) -> None:
         """Main capture loop that processes captured packets."""
-        while self._running_event.is_set():
-            self._restart_requested.clear()  # Clear any previous restart request before starting new capture iteration
+        while self._state.running_event.is_set():
+            self._state.restart_requested.clear()  # Clear any previous restart request before starting new capture iteration
 
             for packet in self._capture_packets():
-                self._callback(packet)
+                self.config.callback(packet)
 
-                if self._restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
+                if self._state.restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
                     break
 
-        self._capture_thread = None
+        self._state.capture_thread = None
 
-    def _capture_packets(self) -> Generator[Packet]:
+    def _capture_packets(self) -> PacketGenerator:
         """Capture packets using TShark and process the output.
 
         Yields:
             Packet: A packet object containing the captured packet data.
         """
+        tshark_cmd = self.config.build_tshark_cmd()
+
         with subprocess.Popen(
-            self._tshark_cmd,
+            tshark_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding='utf-8',
         ) as process:
-            self._tshark_process = process
+            with self._state.control_lock:
+                self._state.tshark_process = process
 
             # stdout and stderr are always set when PIPE is used
             if process.stdout is None or process.stderr is None:
