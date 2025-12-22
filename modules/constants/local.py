@@ -29,6 +29,6 @@ SESSIONS_LOGGING_DIR_PATH = APP_DIR_LOCAL / 'Sessions Logging'
 USERIP_LOGGING_PATH = APP_DIR_LOCAL / 'UserIP_Logging.log'
 
 # Roaming (syncable): settings, user databases, user scripts
-SETTINGS_INI_PATH = APP_DIR_ROAMING / 'Settings.ini'
+SETTINGS_PATH = APP_DIR_ROAMING / 'Settings.ini'
 USERIP_DATABASES_DIR_PATH = APP_DIR_ROAMING / 'UserIP Databases'
 USER_SCRIPTS_DIR_PATH = APP_DIR_ROAMING / 'scripts'

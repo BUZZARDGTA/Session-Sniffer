@@ -880,7 +880,7 @@ class Settings(DefaultSettings):
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
 
-        SETTINGS_INI_PATH.write_text(text, encoding='utf-8')
+        SETTINGS_PATH.write_text(text, encoding='utf-8')
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
@@ -7713,7 +7713,7 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
     print('\nApplying your custom settings from "Settings.ini" ...\n')
-    Settings.load_from_settings_file(SETTINGS_INI_PATH)
+    Settings.load_from_settings_file(SETTINGS_PATH)
 
     clear_screen()
     set_window_title(f'Searching for a new update - {TITLE}')
@@ -7728,7 +7728,7 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
     print('\nApplying your custom settings from "Settings.ini" ...\n')
-    Settings.load_from_settings_file(SETTINGS_INI_PATH)
+    Settings.load_from_settings_file(SETTINGS_PATH)
 
     clear_screen()
     set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
