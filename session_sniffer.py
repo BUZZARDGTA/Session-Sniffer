@@ -106,6 +106,7 @@ from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
     BIN_DIR_PATH,
     ERROR_LOG_PATH,
+    BUILTIN_SCRIPTS_DIR_PATH,
     GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
@@ -6041,35 +6042,41 @@ class SessionTableView(QTableView):
 
                 scripts_menu = add_menu(context_menu, 'User Scripts ')
 
-                spoofed_ping_script = (SCRIPTS_DIR_PATH / 'spoofed_ping.py').resolve()
-                if spoofed_ping_script.is_file():
-                    add_action(
-                        scripts_menu,
-                        spoofed_ping_script.name,
-                        tooltip='',
-                        handler=lambda: run_cmd_script(spoofed_ping_script, [ip_address]),
-                    )
+                def create_script_handler(script_path: Path) -> Callable[[], None]:
+                    return lambda: run_cmd_script(script_path, [ip_address])
 
-                for script in USER_SCRIPTS_DIR_PATH.glob('*'):
-                    if (
-                        not script.is_file()
-                        or script.name.startswith(('_', '.'))
-                        or script.name == 'spoofed_ping.py'
-                        or script.suffix.casefold() not in {'.bat', '.cmd', '.exe', '.py', '.lnk'}
-                    ):
-                        continue
+                def get_script_candidates(directory: Path) -> list[Path]:
+                    allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
+                    return [
+                        script
+                        for script in directory.glob('*')
+                        if (
+                            script.is_file()
+                            and not script.name.startswith(('_', '.'))
+                            and script.suffix.casefold() in allowed_suffixes
+                        )
+                    ]
 
-                    script_resolved = script.resolve()
+                def add_scripts_to_menu(menu: QMenu, scripts: list[Path]) -> None:
+                    for script in scripts:
+                        script_resolved = script.resolve()
+                        add_action(
+                            menu,
+                            script_resolved.name,
+                            tooltip='',
+                            handler=create_script_handler(script_resolved),
+                        )
 
-                    def create_script_handler(script_path: Path) -> Callable[[], None]:
-                        return lambda: run_cmd_script(script_path, [ip_address])
+                builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
+                user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
-                    add_action(
-                        scripts_menu,
-                        script_resolved.name,
-                        tooltip='',
-                        handler=create_script_handler(script_resolved),
-                    )
+                add_scripts_to_menu(scripts_menu, builtin_scripts)
+
+                # Separator between builtin/user scripts
+                if builtin_scripts and user_scripts:
+                    scripts_menu.addSeparator()
+
+                add_scripts_to_menu(scripts_menu, user_scripts)
 
                 userip_menu = add_menu(context_menu, 'UserIP  ')
 
