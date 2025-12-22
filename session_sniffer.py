@@ -105,8 +105,8 @@ from modules.capture.utils.npcap_checker import ensure_npcap_installed
 from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
     BIN_DIR_PATH,
-    ERROR_LOG_PATH,
     BUILTIN_SCRIPTS_DIR_PATH,
+    ERROR_LOG_PATH,
     GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
