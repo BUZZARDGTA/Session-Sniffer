@@ -29,6 +29,20 @@ class MalformedPacketError(TSharkProcessingError):
     """Base exception for malformed packet errors."""
 
 
+class MissingRequiredPacketFieldError(MalformedPacketError):
+    """Raised when a required packet field is missing/empty."""
+
+    def __init__(self) -> None:
+        super().__init__('Missing required packet field(s)')
+
+
+class MissingPortError(MalformedPacketError):
+    """Raised when source or destination port is missing/empty."""
+
+    def __init__(self) -> None:
+        super().__init__('Missing port(s)')
+
+
 class InvalidIPv4AddressError(MalformedPacketError):
     """Raised when the source or destination IP addresses are not valid IPv4 addresses."""
 

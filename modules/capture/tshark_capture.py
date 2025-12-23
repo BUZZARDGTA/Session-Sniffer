@@ -1,7 +1,6 @@
 """Module for packet capture using TShark, including packet processing and handling of TShark crashes."""
 import subprocess
 import threading
-from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self
@@ -14,6 +13,8 @@ from modules.capture.exceptions import (
     InvalidPortNumberError,
     InvalidPortNumericError,
     MalformedPacketError,
+    MissingPortError,
+    MissingRequiredPacketFieldError,
     TSharkAlreadyRunningError,
     TSharkCrashExceptionError,
     TSharkNoProcessError,
@@ -33,36 +34,60 @@ if TYPE_CHECKING:
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
 
+_MALFORMED_PACKET_REASONS: dict[type[BaseException], str] = {
+    InvalidIPv4AddressMultipleError: 'Malformed packet: multiple IPs detected',
+    InvalidIPv4AddressFormatError: 'Malformed packet: invalid IPv4 format',
+    MissingRequiredPacketFieldError: 'Malformed packet: missing required field(s)',
+    InvalidPortMultipleError: 'Malformed packet: multiple ports detected',
+    InvalidPortNumericError: 'Malformed packet: non-numeric port',
+    InvalidPortNumberError: 'Malformed packet: port out of range',
+    MissingPortError: 'Malformed packet: missing port(s)',
+    InvalidLengthNumericError: 'Malformed packet: non-numeric length',
+}
+
+
+def _get_malformed_reason(exc: BaseException, /) -> str:
+    return next(
+        (r for exc_type, r in _MALFORMED_PACKET_REASONS.items() if isinstance(exc, exc_type)),
+        'Malformed packet',
+    )
+
+
+def _log_malformed_packet_skip(
+    reason: str,
+    /,
+    *,
+    raw_line: str | None = None,
+    fields: tuple[str, ...] | PacketFields | None = None,
+    exc: BaseException | None = None,
+) -> None:
+    """Log a malformed packet including both reason and full debug info in the warning."""
+    print(f'{reason} (Packet skipped). raw_line={raw_line!r} fields={fields!r} exc={exc!r}')
+
 
 def _parse_and_validate_port(port_str: str, /) -> int:
     if ',' in port_str:
-        print(f'[Tshark] Invalid port (multiple): {port_str}. Skipped.')
         raise InvalidPortMultipleError(port_str)
 
     if not port_str.isascii() or not port_str.isdecimal():
-        print(f'[Tshark] Invalid port (not numeric): {port_str}. Skipped.')
         raise InvalidPortNumericError(port_str)
     port = int(port_str)
     if not MIN_PORT <= port <= MAX_PORT:
-        print(f'[Tshark] Invalid port (out of range): {port}. Skipped.')
         raise InvalidPortNumberError(port)
     return port
 
 
 def _parse_and_validate_ip(ip: str, /) -> str:
     if ',' in ip:
-        print(f'[Tshark] Invalid IP (multiple): {ip}. Skipped.')
         raise InvalidIPv4AddressMultipleError(ip)
 
     if not is_ipv4_address(ip):
-        print(f'[Tshark] Invalid IP format: {ip}. Skipped.')
         raise InvalidIPv4AddressFormatError(ip)
     return ip
 
 
 def _parse_and_validate_length(length_str: str, /) -> int:
     if not length_str.isascii() or not length_str.isdecimal():
-        print(f'[Tshark] Invalid length (not numeric): {length_str}. Skipped.')
         raise InvalidLengthNumericError(length_str)
     return int(length_str)
 
@@ -87,19 +112,11 @@ def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
     # Split the line into fields and limit the split based on the expected number of fields
     fields = tuple(field.strip() for field in raw_line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
     if len(fields) != _EXPECTED_TSHARK_PACKET_FIELD_COUNT:
-        print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
-        return None
-
-    # Ensure required fields are not empty: time_epoch, length, src_ip, dst_ip
-    if any(not field for field in fields[:4]):
-        print(f'[TShark] One or more required fields (time_epoch, length, src_ip, dst_ip) are empty. Fields: {fields}')
-        return None
-
-    # TODO(BUZZARDGTA): It would be ideal to retain these packets instead of discarding them.
-    # Displaying "None" in the Port column should be supported at some point in the future development.
-    # Skip processing if source or destination port is missing (last two fields)
-    if not fields[-2] or not fields[-1]:
-        print(f'[TShark] Skipping packet with missing port(s): {fields}')
+        _log_malformed_packet_skip(
+            f'Malformed packet: unexpected field count (expected {_EXPECTED_TSHARK_PACKET_FIELD_COUNT}, got {len(fields)})',
+            raw_line=raw_line,
+            fields=fields,
+        )
         return None
 
     return PacketFields(*fields)
@@ -145,6 +162,11 @@ class Packet(NamedTuple):
             InvalidPortFormatError: If the source or destination ports are not digits.
             InvalidPortNumberError: If the source or destination ports are not valid.
         """
+        if not all((fields.time_epoch, fields.length, fields.src_ip, fields.dst_ip)):
+            raise MissingRequiredPacketFieldError
+        if not all((fields.src_port, fields.dst_port)):
+            raise MissingPortError
+
         return cls(
             datetime=_convert_epoch_time_to_datetime(float(fields.time_epoch)),
             ip=IP(
@@ -330,8 +352,15 @@ class PacketCapture:
                 if packet_fields is None:
                     continue
 
-                with suppress(MalformedPacketError):
+                try:
                     yield Packet.from_fields(packet_fields)
+                except MalformedPacketError as exc:
+                    _log_malformed_packet_skip(
+                        _get_malformed_reason(exc),
+                        raw_line=raw_line,
+                        fields=packet_fields,
+                        exc=exc,
+                    )
 
             # After stdout is done, check if there were any errors in stderr
             stderr_output = process.stderr.read()
