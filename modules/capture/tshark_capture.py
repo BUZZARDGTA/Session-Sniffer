@@ -72,11 +72,11 @@ def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
     return dt_utc.astimezone(LOCAL_TZ)
 
 
-def _process_tshark_stdout(line: str, /) -> PacketFields | None:
+def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
     """Process a line of TShark output and return a PacketFields object.
 
     Args:
-        line (str): A line of TShark output.
+        raw_line (str): A line of TShark output.
 
     Returns:
         (PacketFields | None): A named tuple containing the packet fields., or `None` if the packet is invalid.
@@ -85,7 +85,7 @@ def _process_tshark_stdout(line: str, /) -> PacketFields | None:
         TSharkProcessingError: If IPs or ports are invalid or the number of fields in the line is unexpected.
     """
     # Split the line into fields and limit the split based on the expected number of fields
-    fields = tuple(field.strip() for field in line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
+    fields = tuple(field.strip() for field in raw_line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
     if len(fields) != _EXPECTED_TSHARK_PACKET_FIELD_COUNT:
         print(f'[TShark] Unexpected number of fields in TShark output. Expected "{_EXPECTED_TSHARK_PACKET_FIELD_COUNT}", got "{len(fields)}": "{fields}"')
         return None
@@ -324,7 +324,9 @@ class PacketCapture:
 
             # Iterate over stdout line by line as it is being produced
             for line in process.stdout:
-                packet_fields = _process_tshark_stdout(line.rstrip())
+                raw_line = line.rstrip()
+
+                packet_fields = _process_tshark_stdout(raw_line)
                 if packet_fields is None:
                     continue
 
