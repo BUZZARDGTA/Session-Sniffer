@@ -26,20 +26,20 @@
         "base_version": "1.4.3",
         "epoch": 0,
         "is_devrelease": false,
-        "is_postrelease": false,
+        "is_postrelease": true,
         "is_prerelease": false,
-        "local": "20251214.958",
+        "local": "20251224.1756",
         "major": 1,
         "micro": 3,
         "minor": 4,
-        "post": null,
+        "post": 1,
         "pre": null,
-        "public": "1.4.3",
+        "public": "1.4.3.post1",
         "release": [
             1,
             4,
             3
         ],
-        "version": "1.4.3+20251214.958"
+        "version": "1.4.3.post1+20251224.1756"
     }
 }
