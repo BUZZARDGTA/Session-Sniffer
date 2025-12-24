@@ -24,6 +24,7 @@ from modules.capture.exceptions import (
 )
 from modules.constants.external import LOCAL_TZ
 from modules.constants.standalone import MAX_PORT, MIN_PORT
+from modules.logging_setup import get_logger
 from modules.networking.utils import is_ipv4_address
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from modules.capture.interface_selection import InterfaceSelectionData
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
+logger = get_logger(__name__)
 
 
 def _log_malformed_packet_skip(
@@ -42,7 +44,11 @@ def _log_malformed_packet_skip(
     raw_line: str,
 ) -> None:
     """Log a malformed packet including reason and full debug info."""
-    print(f'{reason} (Packet skipped). raw_line={raw_line!r}')
+    logger.warning(
+        '%s (Packet skipped). raw_line=%r',
+        reason,
+        raw_line,
+    )
 
 
 def _parse_and_validate_port(port_str: str, /) -> int:
@@ -297,6 +303,7 @@ class PacketCapture:
                 self.config.callback(packet)
 
                 if self._state.restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
+                    logger.debug('Capture loop exiting due to restart request')
                     break
 
         self._state.capture_thread = None

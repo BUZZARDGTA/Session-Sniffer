@@ -5,7 +5,10 @@ from pathlib import Path
 from threading import Lock
 from typing import ClassVar
 
+from modules.logging_setup import get_logger
 from modules.utils import format_type_error, get_documents_dir
+
+logger = get_logger(__name__)
 
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(r'^user:(?P<username>[\w._-]{1,16}), scid:\d{1,9}, ip:(?P<ip>[\d.]+), timestamp:\d{10}$')
 TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'PopstarDevs' / '2Take1Menu' / 'scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
@@ -76,7 +79,7 @@ class ModMenuLogsParser:
 
             # Only print the message if this isn't the initial run
             if cls._last_known_log_files_mod_times:
-                print('ModMenuLogsParser: Detected changes in log files, re-parsing...')
+                logger.info('Detected changes in log files, re-parsing...')
 
             # Full reparse since something changed
             ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)

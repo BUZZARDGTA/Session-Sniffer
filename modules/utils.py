@@ -176,11 +176,11 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
 
 
 def set_window_title(title: str) -> None:
-    print(f'\033]0;{title}\007', end='')
+    print(f'\033]0;{title}\007', end='')  # noqa: T201
 
 
 def clear_screen() -> None:
-    print('\033c', end='')
+    print('\033c', end='')  # noqa: T201
 
 
 def pluralize(count: int, singular: str = '', plural: str = 's') -> str:

@@ -1,6 +1,6 @@
 [project]
 name = "session_sniffer"
-version = "v1.4.3+20251214.0958"
+version = "v1.4.3.post1+20251224.1756"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
@@ -126,7 +126,6 @@ ignore = [
     "PLR0915", # too-many-statements
     "S602",    # subprocess-popen-with-shell-equals-true
     "S603",    # subprocess-without-shell-equals-true
-    "T201",    # print
     "TD003",   # missing-todo-link
     "TD005",   # missing-todo-description
 ]

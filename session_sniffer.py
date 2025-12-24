@@ -30,7 +30,6 @@ import geoip2.database
 import geoip2.errors
 import psutil
 import requests
-from colorama import Fore
 from packaging.version import Version
 from prettytable import PrettyTable, TableStyle
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -85,9 +84,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
-from rich.console import Console
 from rich.text import Text
-from rich.traceback import Traceback
 
 from modules.capture.exceptions import (
     TSharkOutputParsingError,
@@ -107,7 +104,6 @@ from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
     BIN_DIR_PATH,
     BUILTIN_SCRIPTS_DIR_PATH,
-    ERROR_LOG_PATH,
     GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
@@ -164,6 +160,11 @@ from modules.launcher.package_checker import (
     check_packages_version,
     get_dependencies_from_pyproject,
     get_dependencies_from_requirements,
+)
+from modules.logging_setup import (
+    console,
+    get_logger,
+    setup_logging,
 )
 from modules.models import (
     GithubReleaseResponse,
@@ -228,16 +229,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
     from types import FrameType, TracebackType
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M',
-    handlers=[
-        logging.FileHandler(ERROR_LOG_PATH, encoding='utf-8'),
-    ],
-)
-logging.captureWarnings(capture=True)
-logger = logging.getLogger(__name__)
+# Production-friendly logging: INFO to console, quiet third-party debug noise
+setup_logging(console_level=logging.INFO)
+logger = get_logger(__name__)
 
 GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
 GITHUB_RELEASES_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
@@ -377,13 +371,13 @@ def terminate_script(
 
     ScriptControl.set_crashed(None if stdout_crash_text is None else f'\n\n{stdout_crash_text}\n')
 
-    console = Console()
-
     if exception_info:
-        logger.error('Uncaught exception: %s: %s', exception_info.exc_type.__name__, exception_info.exc_value)
-
-        traceback_message = Traceback.from_exception(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback)
-        console.print(traceback_message)
+        logger.error(
+            'Uncaught exception: %s: %s',
+            exception_info.exc_type.__name__,
+            exception_info.exc_value,
+            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
+        )
 
         error_message = Text.from_markup(
             (
@@ -395,7 +389,7 @@ def terminate_script(
             ),
             style='white',
         )
-        console.print(error_message)
+        console.print(error_message, highlight=False)
 
     if stdout_crash_text is not None:
         crash_message = ScriptControl.get_crash_message()
@@ -440,7 +434,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
 def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
     if not ScriptControl.has_crashed():
         # Block CTRL+C if script is already crashing under control
-        print(f'\n{Fore.YELLOW}Ctrl+C pressed. Exiting script ...{Fore.RESET}')
+        console.print('Ctrl+C pressed. Exiting script ...', highlight=False)
         terminate_script('SIGINT')
 
 
@@ -866,7 +860,7 @@ class Settings(DefaultSettings):
 
     @classmethod
     def rewrite_settings_file(cls) -> None:
-        print('\nRewriting "Settings.ini" file ...')
+        console.print('Rewriting "Settings.ini" file ...', highlight=False)
 
         text = format_triple_quoted_text(f"""
             ;;-----------------------------------------------------------------------------
@@ -6611,7 +6605,7 @@ def arp_spoofing_task(  # noqa: PLR0913
     """
     with ThreadsExceptionHandler():
         if not ARPSPOOF_PATH.is_file():
-            print(f'[ARP Spoof] Executable not found at: {ARPSPOOF_PATH}')
+            logger.warning('Executable not found at: %s', ARPSPOOF_PATH)
             return
 
         proc: subprocess.Popen[str] | None = None
@@ -6631,13 +6625,12 @@ def arp_spoofing_task(  # noqa: PLR0913
             spawn_msgbox_thread: bool = False,
         ) -> None:
             """Log, notify, and terminate the ARP spoofing task on failure."""
-            stage_msg = f'[ARP Spoof] Task terminated due to {stage}.'
             if exit_code is not None:
-                print(f'[ARP Spoof] {stage.capitalize()}. Exit code: {exit_code}.')
+                logger.error('%s. Exit code: %s.', stage.capitalize(), exit_code)
             else:
-                print(f'[ARP Spoof] {stage.capitalize()}.')
+                logger.error('%s.', stage.capitalize())
             if error_output:
-                print(f'[ARP Spoof] Error: {error_output}')
+                logger.error('Error: %s', error_output)
 
             error_message = format_arp_spoofing_failed_message(
                 interface_name=interface_name,
@@ -6665,7 +6658,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                 ).start()
             else:
                 show_msgbox()
-            print(stage_msg)
+            logger.info('Task terminated due to %s.', stage)
 
         while not gui_closed__event.is_set():
             # Wait for capture to be running
@@ -6683,7 +6676,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                     stderr=subprocess.PIPE,
                     text=True,
                 )
-                print(f'[ARP Spoof] Started spoofing on interface {interface_ip}')
+                logger.info('Started spoofing on interface %s', interface_ip)
 
                 try:
                     proc.wait(timeout=startup_probe_timeout)
@@ -6718,19 +6711,19 @@ def arp_spoofing_task(  # noqa: PLR0913
                         spawn_msgbox_thread=True,
                     )
 
-                print('[ARP Spoof] Process died unexpectedly, respawning...')
+                logger.info('Process died unexpectedly, respawning...')
                 break
 
             # Stop the process if capture stopped
             if proc and proc.poll() is None:
                 terminate_process(proc)
-                print('[ARP Spoof] Stopped spoofing.')
+                logger.info('Stopped spoofing.')
                 proc = None
 
         # Final cleanup
         if proc and proc.poll() is None:
             terminate_process(proc)
-        print('[ARP Spoof] Task terminated.')
+        logger.info('Task terminated.')
 
 
 def generate_gui_header_html(*, capture: PacketCapture) -> str:
@@ -7695,7 +7688,7 @@ def main() -> None:
     if not is_pyinstaller_compiled():
         clear_screen()
         set_window_title(f'Checking that your Python packages versions matches with file "requirements.txt" - {TITLE}')
-        print('\nChecking that your Python packages versions matches with file "requirements.txt" ...\n')
+        console.print('\nChecking that your Python packages versions matches with file "requirements.txt" ...', highlight=False)
 
         if outdated_packages := check_packages_version(get_dependencies_from_pyproject() or get_dependencies_from_requirements()):
             msgbox_message = 'The following packages have version mismatches:\n\n'
@@ -7717,32 +7710,32 @@ def main() -> None:
 
     clear_screen()
     set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
-    print('\nApplying your custom settings from "Settings.ini" ...\n')
+    console.print('\nApplying your custom settings from "Settings.ini" ...\n', highlight=False)
     Settings.load_from_settings_file(SETTINGS_PATH)
 
     clear_screen()
     set_window_title(f'Searching for a new update - {TITLE}')
-    print('\nSearching for a new update ...\n')
+    console.print('\nSearching for a new update ...\n', highlight=False)
     check_for_updates()
 
     clear_screen()
     set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')
-    print('\nChecking that "Npcap" driver is installed on your system ...\n')
+    console.print('\nChecking that "Npcap" driver is installed on your system ...\n', highlight=False)
     ensure_npcap_installed()
 
     clear_screen()
     set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
-    print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n")
+    console.print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n", highlight=False)
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = update_and_initialize_geolite2_readers()
 
     clear_screen()
     set_window_title(f'Initializing MacLookup module - {TITLE}')
-    print('\nInitializing MacLookup module ...\n')
+    console.print('\nInitializing MacLookup module ...\n', highlight=False)
     mac_lookup = MacLookup(load_on_init=True)
 
     clear_screen()
     set_window_title(f'Capture network interface selection - {TITLE}')
-    print('\nCapture network interface selection ...\n')
+    console.print('\nCapture network interface selection ...\n', highlight=False)
     populate_network_interfaces_info(mac_lookup)
 
     # Initialize interface selection
@@ -7798,7 +7791,7 @@ def main() -> None:
 
     clear_screen()
     set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
-    print('\nInitializing addresses and establishing connection to your PC / Console ...\n')
+    console.print('\nInitializing addresses and establishing connection to your PC / Console ...\n', highlight=False)
     need_rewrite_settings = False
 
     if (
@@ -7893,10 +7886,12 @@ def main() -> None:
             if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
                 TsharkStats.restarted_times += 1
                 TsharkStats.packets_latencies.clear()
-                print(
-                    f'[Tshark] Packet capture overflow detected: latency {packet_latency.total_seconds():.2f}s '
-                    f'exceeds threshold of {Settings.CAPTURE_OVERFLOW_TIMER:.2f}s. '
-                    f'Restarting capture now (restart #{TsharkStats.restarted_times}). Skipping this packet.',
+                logger.warning(
+                    'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
+                    'Restarting capture now (restart #%d). Skipping this packet.',
+                    packet_latency.total_seconds(),
+                    Settings.CAPTURE_OVERFLOW_TIMER,
+                    TsharkStats.restarted_times,
                 )
                 capture.request_restart()
                 return  # Skip processing this packet
@@ -7986,9 +7981,9 @@ def main() -> None:
         CaptureConfig(
             interface=selected_interface,
             tshark_path=TSHARK_PATH,
-            callback=packet_callback,
             capture_filter=capture_filter_str,
             display_filter=display_filter_str,
+            callback=packet_callback,
         ),
     )
     capture.start()
