@@ -17,82 +17,85 @@ class TSharkOutputParsingError(TSharkError):
         super().__init__(f'Expected "{expected_parts}" parts, got "{actual_parts}" in "{output_line}"')
 
 
-class TSharkProcessingError(TSharkError, ValueError):
-    """Base class for TShark packet parsing errors."""
+class MalformedPacketError(TSharkError):
+    """Base exception for malformed packet errors.
 
-    def __init__(self, message: str) -> None:
-        """Initialize the exception with a custom message."""
-        super().__init__(message)
+    These exceptions are meant to be self-describing: `str(exc)` should produce
+    a user-friendly reason suitable for logs/UI.
+    """
 
+    message_template: str = 'Malformed packet'
 
-class MalformedPacketError(TSharkProcessingError):
-    """Base exception for malformed packet errors."""
+    def __init__(self, value: object | None = None) -> None:
+        self.value = value
+        super().__init__()
+
+    def __str__(self) -> str:
+        """Return a user-friendly reason for the malformed packet."""
+        try:
+            return self.message_template.format(value=self.value)
+        except (IndexError, KeyError, ValueError):
+            return self.message_template
 
 
 class MissingRequiredPacketFieldError(MalformedPacketError):
     """Raised when a required packet field is missing/empty."""
 
-    def __init__(self) -> None:
-        super().__init__('Missing required packet field(s)')
+    message_template = 'Missing required packet field(s)'
 
 
 class MissingPortError(MalformedPacketError):
     """Raised when source or destination port is missing/empty."""
 
-    def __init__(self) -> None:
-        super().__init__('Missing port(s)')
+    message_template = 'Missing port(s)'
 
 
 class InvalidIPv4AddressError(MalformedPacketError):
     """Raised when the source or destination IP addresses are not valid IPv4 addresses."""
 
-    def __init__(self, ip: str) -> None:
-        """Initialize the InvalidIPv4AddressError exception."""
-        super().__init__(f'Invalid IPv4 address: {ip}. IP must be a valid IPv4 address.')
-
 
 class InvalidIPv4AddressMultipleError(InvalidIPv4AddressError):
     """Raised when an IP field contains multiple comma-separated values."""
+
+    message_template = 'Invalid IPv4 address: {value}. IP must be a valid IPv4 address.'
 
 
 class InvalidIPv4AddressFormatError(InvalidIPv4AddressError):
     """Raised when an IP field is not a valid IPv4 format."""
 
+    message_template = 'Invalid IPv4 address: {value}. IP must be a valid IPv4 address.'
+
 
 class InvalidPortFormatError(MalformedPacketError):
     """Raised when source or destination ports are not digits."""
-
-    def __init__(self, port: str) -> None:
-        """Initialize the InvalidPortFormatError exception."""
-        super().__init__(f'Invalid port format: {port}. Port must be a number.')
 
 
 class InvalidPortMultipleError(InvalidPortFormatError):
     """Raised when a port field contains multiple comma-separated values."""
 
+    message_template = 'Invalid port format: {value}. Port must be a number.'
+
 
 class InvalidPortNumericError(InvalidPortFormatError):
     """Raised when a port field is not a valid numeric format."""
+
+    message_template = 'Invalid port format: {value}. Port must be a number.'
 
 
 class InvalidPortNumberError(MalformedPacketError):
     """Raised when source or destination ports are not valid."""
 
-    def __init__(self, port: int) -> None:
-        """Initialize the InvalidPortNumberError exception."""
-        super().__init__(f'Invalid port number: {port}. Port must be a number between {MIN_PORT} and {MAX_PORT}.')
+    message_template = f'Invalid port number: {{value}}. Port must be a number between {MIN_PORT} and {MAX_PORT}.'
 
 
 class InvalidLengthFormatError(MalformedPacketError):
     """Raised when frame length is not in the expected format."""
 
-    def __init__(self, length: str) -> None:
-        """Initialize the InvalidLengthFormatError exception."""
-        super().__init__(f'Invalid length format: {length}. Length must be a number.')
-
 
 class InvalidLengthNumericError(InvalidLengthFormatError):
     """Raised when a length field is not a valid numeric format."""
+
+    message_template = 'Invalid length format: {value}. Length must be a number.'
 
 
 class TSharkCrashExceptionError(TSharkError):

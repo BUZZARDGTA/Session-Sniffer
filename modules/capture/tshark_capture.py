@@ -34,35 +34,15 @@ if TYPE_CHECKING:
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
 
-_MALFORMED_PACKET_REASONS: dict[type[BaseException], str] = {
-    InvalidIPv4AddressMultipleError: 'Malformed packet: multiple IPs detected',
-    InvalidIPv4AddressFormatError: 'Malformed packet: invalid IPv4 format',
-    MissingRequiredPacketFieldError: 'Malformed packet: missing required field(s)',
-    InvalidPortMultipleError: 'Malformed packet: multiple ports detected',
-    InvalidPortNumericError: 'Malformed packet: non-numeric port',
-    InvalidPortNumberError: 'Malformed packet: port out of range',
-    MissingPortError: 'Malformed packet: missing port(s)',
-    InvalidLengthNumericError: 'Malformed packet: non-numeric length',
-}
-
-
-def _get_malformed_reason(exc: BaseException, /) -> str:
-    return next(
-        (r for exc_type, r in _MALFORMED_PACKET_REASONS.items() if isinstance(exc, exc_type)),
-        'Malformed packet',
-    )
-
 
 def _log_malformed_packet_skip(
     reason: str,
     /,
     *,
-    raw_line: str | None = None,
-    fields: tuple[str, ...] | PacketFields | None = None,
-    exc: BaseException | None = None,
+    raw_line: str,
 ) -> None:
-    """Log a malformed packet including both reason and full debug info in the warning."""
-    print(f'{reason} (Packet skipped). raw_line={raw_line!r} fields={fields!r} exc={exc!r}')
+    """Log a malformed packet including reason and full debug info."""
+    print(f'{reason} (Packet skipped). raw_line={raw_line!r}')
 
 
 def _parse_and_validate_port(port_str: str, /) -> int:
@@ -107,7 +87,7 @@ def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
         (PacketFields | None): A named tuple containing the packet fields., or `None` if the packet is invalid.
 
     Raises:
-        TSharkProcessingError: If IPs or ports are invalid or the number of fields in the line is unexpected.
+        MalformedPacketError: If IPs or ports are invalid or the number of fields in the line is unexpected.
     """
     # Split the line into fields and limit the split based on the expected number of fields
     fields = tuple(field.strip() for field in raw_line.split('|', _EXPECTED_TSHARK_PACKET_FIELD_COUNT))
@@ -115,7 +95,6 @@ def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
         _log_malformed_packet_skip(
             f'Malformed packet: unexpected field count (expected {_EXPECTED_TSHARK_PACKET_FIELD_COUNT}, got {len(fields)})',
             raw_line=raw_line,
-            fields=fields,
         )
         return None
 
@@ -356,10 +335,8 @@ class PacketCapture:
                     yield Packet.from_fields(packet_fields)
                 except MalformedPacketError as exc:
                     _log_malformed_packet_skip(
-                        _get_malformed_reason(exc),
+                        str(exc),
                         raw_line=raw_line,
-                        fields=packet_fields,
-                        exc=exc,
                     )
 
             # After stdout is done, check if there were any errors in stderr
