@@ -323,6 +323,7 @@ class PacketCapture:
             text=True,
             encoding='utf-8',
             bufsize=1,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         ) as process:
             with self._state.control_lock:
                 self._state.tshark_process = process
