@@ -3306,14 +3306,15 @@ def process_userip_task(
 
             relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
-            with _userip_logging_file_write_lock:
-                write_lines_to_file(USERIP_LOGGING_PATH, 'a', [(
-                    f'User{pluralize(len(player.userip.usernames))}: {", ".join(player.userip.usernames)} | '
-                    f'IP:{player.ip} | Ports:{", ".join(map(str, reversed(player.ports.all)))} | '
-                    f'Time:{player.userip_detection.date_time} | Country:{player.iplookup.geolite2.country} | '
-                    f'Detection Type: {player.userip_detection.type} | '
-                    f'Database:{relative_database_path}'
-                )])
+            if player.userip.settings.LOG:
+                with _userip_logging_file_write_lock:
+                    write_lines_to_file(USERIP_LOGGING_PATH, 'a', [(
+                        f'User{pluralize(len(player.userip.usernames))}: {", ".join(player.userip.usernames)} | '
+                        f'IP:{player.ip} | Ports:{", ".join(map(str, reversed(player.ports.all)))} | '
+                        f'Time:{player.userip_detection.date_time} | Country:{player.iplookup.geolite2.country} | '
+                        f'Detection Type: {player.userip_detection.type} | '
+                        f'Database:{relative_database_path}'
+                    )])
 
             if player.userip.settings.NOTIFICATIONS:
                 wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
