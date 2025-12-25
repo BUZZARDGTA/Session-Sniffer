@@ -322,6 +322,7 @@ class PacketCapture:
             stderr=subprocess.PIPE,
             text=True,
             encoding='utf-8',
+            bufsize=1,
         ) as process:
             with self._state.control_lock:
                 self._state.tshark_process = process
