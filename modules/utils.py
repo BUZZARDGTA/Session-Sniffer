@@ -6,11 +6,10 @@ import os
 import subprocess
 import sys
 import winreg
-from collections.abc import Iterable
 from contextlib import suppress
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal
 
 import psutil
 from win32com.client import Dispatch
@@ -28,10 +27,9 @@ from modules.utils_exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from packaging.version import Version
-
-
-T = TypeVar('T')
 
 USER_SHELL_FOLDERS__REG_KEY = R'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
 
@@ -163,12 +161,12 @@ def format_project_version(version: Version) -> str:
     return f'v{version.public}'
 
 
-def take(n: int, iterable: Iterable[T]) -> list[T]:
+def take[T](n: int, iterable: Iterable[T]) -> list[T]:
     """Return the first n items from the given iterable."""
     return list(iterable)[:n]
 
 
-def dedup_preserve_order(*iterables: Iterable[T]) -> list[T]:
+def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
     """Concatenate one or more iterables while removing duplicates and preserving order."""
     seen: set[T] = set()
     unique: list[T] = []
