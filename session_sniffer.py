@@ -4124,7 +4124,6 @@ def rendering_core(
             logging_disconnected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
                 logging_disconnected_players_table__column_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
             )
-            row_texts: list[str] = []
 
             # Calculate optimal padding for both connected and disconnected players
             (session_connected__padding_country_name,
@@ -4138,56 +4137,56 @@ def rendering_core(
             logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
             logging_connected_players_table.align = 'l'
             for player in session_connected:
-                row_texts: list[str] = []
-                row_texts.append(f'{format_player_usernames(player)}')
-                row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
-                row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
-                row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
-                row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
-                row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.packets.total_exchanged}')
-                row_texts.append(f'{player.packets.exchanged}')
-                row_texts.append(f'{player.packets.total_received}')
-                row_texts.append(f'{player.packets.received}')
-                row_texts.append(f'{player.packets.total_sent}')
-                row_texts.append(f'{player.packets.sent}')
-                row_texts.append(f'{player.packets.pps.calculated_rate}')
-                row_texts.append(f'{player.packets.ppm.calculated_rate}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate)}')
-                row_texts.append(f'{format_player_ip(player.ip)}')
-                row_texts.append(f'{player.reverse_dns.hostname}')
-                row_texts.append(f'{player.ports.last}')
-                row_texts.append(f'{format_player_middle_ports(player)}')
-                row_texts.append(f'{player.ports.first}')
-                row_texts.append(f'{player.iplookup.ipapi.continent:<{session_connected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
-                row_texts.append(f'{player.iplookup.geolite2.country:<{session_connected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
-                row_texts.append(f'{player.iplookup.ipapi.region}')
-                row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                row_texts.append(f'{player.iplookup.geolite2.city}')
-                row_texts.append(f'{player.iplookup.ipapi.district}')
-                row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                row_texts.append(f'{player.iplookup.ipapi.lat}')
-                row_texts.append(f'{player.iplookup.ipapi.lon}')
-                row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                row_texts.append(f'{player.iplookup.ipapi.offset}')
-                row_texts.append(f'{player.iplookup.ipapi.currency}')
-                row_texts.append(f'{player.iplookup.ipapi.org}')
-                row_texts.append(f'{player.iplookup.ipapi.isp}')
-                row_texts.append(f'{player.iplookup.geolite2.asn}')
-                row_texts.append(f'{player.iplookup.ipapi.asn}')
-                row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                row_texts.append(f'{player.ping.is_pinging}')
-                logging_connected_players_table.add_row(row_texts)
+                connected_row_texts: list[str] = []
+                connected_row_texts.append(f'{format_player_usernames(player)}')
+                connected_row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
+                connected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
+                connected_row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                connected_row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
+                connected_row_texts.append(f'{player.rejoins}')
+                connected_row_texts.append(f'{player.packets.total_exchanged}')
+                connected_row_texts.append(f'{player.packets.exchanged}')
+                connected_row_texts.append(f'{player.packets.total_received}')
+                connected_row_texts.append(f'{player.packets.received}')
+                connected_row_texts.append(f'{player.packets.total_sent}')
+                connected_row_texts.append(f'{player.packets.sent}')
+                connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
+                connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate)}')
+                connected_row_texts.append(f'{format_player_ip(player.ip)}')
+                connected_row_texts.append(f'{player.reverse_dns.hostname}')
+                connected_row_texts.append(f'{player.ports.last}')
+                connected_row_texts.append(f'{format_player_middle_ports(player)}')
+                connected_row_texts.append(f'{player.ports.first}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_connected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
+                connected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_connected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
+                connected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                connected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                connected_row_texts.append(f'{player.ping.is_pinging}')
+                logging_connected_players_table.add_row(connected_row_texts)
 
             logging_disconnected_players_table = PrettyTable()
             logging_disconnected_players_table.set_style(TableStyle.SINGLE_BORDER)
@@ -4195,53 +4194,53 @@ def rendering_core(
             logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
             logging_disconnected_players_table.align = 'l'
             for player in session_disconnected:
-                row_texts: list[str] = []
-                row_texts.append(f'{format_player_usernames(player)}')
-                row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
-                row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
-                row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
-                row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
-                row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
-                row_texts.append(f'{player.rejoins}')
-                row_texts.append(f'{player.packets.total_exchanged}')
-                row_texts.append(f'{player.packets.exchanged}')
-                row_texts.append(f'{player.packets.total_received}')
-                row_texts.append(f'{player.packets.received}')
-                row_texts.append(f'{player.packets.total_sent}')
-                row_texts.append(f'{player.packets.sent}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
-                row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
-                row_texts.append(f'{player.ip}')
-                row_texts.append(f'{player.reverse_dns.hostname}')
-                row_texts.append(f'{player.ports.last}')
-                row_texts.append(f'{format_player_middle_ports(player)}')
-                row_texts.append(f'{player.ports.first}')
-                row_texts.append(f'{player.iplookup.ipapi.continent:<{session_disconnected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
-                row_texts.append(f'{player.iplookup.geolite2.country:<{session_disconnected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
-                row_texts.append(f'{player.iplookup.ipapi.region}')
-                row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                row_texts.append(f'{player.iplookup.geolite2.city}')
-                row_texts.append(f'{player.iplookup.ipapi.district}')
-                row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                row_texts.append(f'{player.iplookup.ipapi.lat}')
-                row_texts.append(f'{player.iplookup.ipapi.lon}')
-                row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                row_texts.append(f'{player.iplookup.ipapi.offset}')
-                row_texts.append(f'{player.iplookup.ipapi.currency}')
-                row_texts.append(f'{player.iplookup.ipapi.org}')
-                row_texts.append(f'{player.iplookup.ipapi.isp}')
-                row_texts.append(f'{player.iplookup.geolite2.asn}')
-                row_texts.append(f'{player.iplookup.ipapi.asn}')
-                row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                row_texts.append(f'{player.ping.is_pinging}')
-                logging_disconnected_players_table.add_row(row_texts)
+                disconnected_row_texts: list[str] = []
+                disconnected_row_texts.append(f'{format_player_usernames(player)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
+                disconnected_row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                disconnected_row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
+                disconnected_row_texts.append(f'{player.rejoins}')
+                disconnected_row_texts.append(f'{player.packets.total_exchanged}')
+                disconnected_row_texts.append(f'{player.packets.exchanged}')
+                disconnected_row_texts.append(f'{player.packets.total_received}')
+                disconnected_row_texts.append(f'{player.packets.received}')
+                disconnected_row_texts.append(f'{player.packets.total_sent}')
+                disconnected_row_texts.append(f'{player.packets.sent}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
+                disconnected_row_texts.append(f'{player.ip}')
+                disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
+                disconnected_row_texts.append(f'{player.ports.last}')
+                disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
+                disconnected_row_texts.append(f'{player.ports.first}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_disconnected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_disconnected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                disconnected_row_texts.append(f'{player.ping.is_pinging}')
+                logging_disconnected_players_table.add_row(disconnected_row_texts)
 
             # Check if the directories exist, if not create them
             if not SESSIONS_LOGGING_PATH.parent.is_dir():
@@ -4326,7 +4325,6 @@ def rendering_core(
                 val = min(max(player_bpm_calculated_bytes, 0), BPM_MAX_THRESHOLD) * 0xFF // BPM_MAX_THRESHOLD
                 return QColor(0xFF - val, val, 0)
 
-            row_texts: list[str] = []
             session_connected_table__processed_data: list[list[str]] = []
             session_connected_table__compiled_colors: list[list[CellColor]] = []
             session_disconnected_table__processed_data: list[list[str]] = []
@@ -4346,27 +4344,27 @@ def rendering_core(
                     for _ in range(GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS)
                 ]
 
-                row_texts: list[str] = []
-                row_texts.append(f'{format_player_usernames(player)}')
-                row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
-                row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
+                connected_row_texts: list[str] = []
+                connected_row_texts.append(f'{format_player_usernames(player)}')
+                connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
+                connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 if 'T. Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                    connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
                 if 'Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
-                row_texts.append(f'{player.rejoins}')
+                    connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
+                connected_row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_exchanged}')
+                    connected_row_texts.append(f'{player.packets.total_exchanged}')
                 if 'Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.exchanged}')
+                    connected_row_texts.append(f'{player.packets.exchanged}')
                 if 'T. Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_received}')
+                    connected_row_texts.append(f'{player.packets.total_received}')
                 if 'Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.received}')
+                    connected_row_texts.append(f'{player.packets.received}')
                 if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_sent}')
+                    connected_row_texts.append(f'{player.packets.total_sent}')
                 if 'Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.sent}')
+                    connected_row_texts.append(f'{player.packets.sent}')
                 if 'PPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                         foreground=get_player_pps_gradient_color(
@@ -4375,7 +4373,7 @@ def rendering_core(
                             is_first_calculation=player.packets.pps.is_first_calculation,
                         ),
                     )
-                    row_texts.append(f'{player.packets.pps.calculated_rate}')
+                    connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
                 if 'PPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
                         foreground=get_player_ppm_gradient_color(
@@ -4384,19 +4382,19 @@ def rendering_core(
                             is_first_calculation=player.packets.ppm.is_first_calculation,
                         ),
                     )
-                    row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                    connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
                 if 'T. Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
                 if 'Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
                 if 'T. Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
                 if 'Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
                 if 'T. Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
                 if 'Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
                 if 'BPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
                         foreground=get_player_bps_gradient_color(
@@ -4405,7 +4403,7 @@ def rendering_core(
                             is_first_calculation=player.bandwidth.bps.is_first_calculation,
                         ),
                     )
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
                 if 'BPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
                         foreground=get_player_bpm_gradient_color(
@@ -4414,66 +4412,66 @@ def rendering_core(
                             is_first_calculation=player.bandwidth.bpm.is_first_calculation,
                         ),
                     )
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
-                row_texts.append(f'{format_player_ip(player.ip)}')
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
+                connected_row_texts.append(f'{format_player_ip(player.ip)}')
                 if 'Hostname' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.reverse_dns.hostname}')
+                    connected_row_texts.append(f'{player.reverse_dns.hostname}')
                 if 'Last Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ports.last}')
+                    connected_row_texts.append(f'{player.ports.last}')
                 if 'Middle Ports' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{format_player_middle_ports(player)}')
+                    connected_row_texts.append(f'{format_player_middle_ports(player)}')
                 if 'First Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ports.first}')
+                    connected_row_texts.append(f'{player.ports.first}')
                 if 'Continent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
-                        row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
+                        connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
-                        row_texts.append(f'{player.iplookup.ipapi.continent}')
+                        connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
                 if 'Country' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
                     if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
-                        row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+                        connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
-                        row_texts.append(f'{player.iplookup.geolite2.country}')
+                        connected_row_texts.append(f'{player.iplookup.geolite2.country}')
                 if 'Region' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.region}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.region}')
                 if 'R. Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
                 if 'City' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.geolite2.city}')
+                    connected_row_texts.append(f'{player.iplookup.geolite2.city}')
                 if 'District' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.district}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.district}')
                 if 'ZIP Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
                 if 'Lat' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.lat}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
                 if 'Lon' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.lon}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
                 if 'Time Zone' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
                 if 'Offset' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.offset}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
                 if 'Currency' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.currency}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
                 if 'Organization' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.org}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.org}')
                 if 'ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.isp}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
                 if 'ASN / ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.geolite2.asn}')
+                    connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
                 if 'AS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.asn}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
                 if 'ASN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
                 if 'Mobile' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
                 if 'VPN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
                 if 'Hosting' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                    connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
                 if 'Pinging' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ping.is_pinging}')
+                    connected_row_texts.append(f'{player.ping.is_pinging}')
 
-                session_connected_table__processed_data.append(row_texts)
+                session_connected_table__processed_data.append(connected_row_texts)
                 session_connected_table__compiled_colors.append(row_colors)
 
             for player in session_disconnected:
@@ -4487,99 +4485,99 @@ def rendering_core(
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
                 row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS)]
 
-                row_texts: list[str] = []
-                row_texts.append(f'{format_player_usernames(player)}')
-                row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
-                row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
-                row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
+                disconnected_row_texts: list[str] = []
+                disconnected_row_texts.append(f'{format_player_usernames(player)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
                 if 'T. Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                    disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
                 if 'Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
-                row_texts.append(f'{player.rejoins}')
+                    disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
+                disconnected_row_texts.append(f'{player.rejoins}')
                 if 'T. Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_exchanged}')
+                    disconnected_row_texts.append(f'{player.packets.total_exchanged}')
                 if 'Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.exchanged}')
+                    disconnected_row_texts.append(f'{player.packets.exchanged}')
                 if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_received}')
+                    disconnected_row_texts.append(f'{player.packets.total_received}')
                 if 'Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.received}')
+                    disconnected_row_texts.append(f'{player.packets.received}')
                 if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.total_sent}')
+                    disconnected_row_texts.append(f'{player.packets.total_sent}')
                 if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.packets.sent}')
+                    disconnected_row_texts.append(f'{player.packets.sent}')
                 if 'T. Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
                 if 'Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
                 if 'T. Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
                 if 'Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
                 if 'T. Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
                 if 'Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-                row_texts.append(f'{player.ip}')
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
+                disconnected_row_texts.append(f'{player.ip}')
                 if 'Hostname' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.reverse_dns.hostname}')
+                    disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
                 if 'Last Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ports.last}')
+                    disconnected_row_texts.append(f'{player.ports.last}')
                 if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{format_player_middle_ports(player)}')
+                    disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
                 if 'First Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ports.first}')
+                    disconnected_row_texts.append(f'{player.ports.first}')
                 if 'Continent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
-                        row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
+                        disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
-                        row_texts.append(f'{player.iplookup.ipapi.continent}')
+                        disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
                 if 'Country' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
                     if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
-                        row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+                        disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
-                        row_texts.append(f'{player.iplookup.geolite2.country}')
+                        disconnected_row_texts.append(f'{player.iplookup.geolite2.country}')
                 if 'Region' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.region}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
                 if 'R. Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
                 if 'City' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.geolite2.city}')
+                    disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
                 if 'District' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.district}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
                 if 'ZIP Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
                 if 'Lat' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.lat}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
                 if 'Lon' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.lon}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
                 if 'Time Zone' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
                 if 'Offset' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.offset}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
                 if 'Currency' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.currency}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
                 if 'Organization' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.org}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
                 if 'ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.isp}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
                 if 'ASN / ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.geolite2.asn}')
+                    disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
                 if 'AS' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.asn}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
                 if 'ASN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
                 if 'Mobile' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
                 if 'VPN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
                 if 'Hosting' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
                 if 'Pinging' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
-                    row_texts.append(f'{player.ping.is_pinging}')
+                    disconnected_row_texts.append(f'{player.ping.is_pinging}')
 
-                session_disconnected_table__processed_data.append(row_texts)
+                session_disconnected_table__processed_data.append(disconnected_row_texts)
                 session_disconnected_table__compiled_colors.append(row_colors)
 
             return (
