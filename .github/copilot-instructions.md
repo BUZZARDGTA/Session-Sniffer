@@ -39,7 +39,7 @@ Use VS Code tasks instead of ad‑hoc commands:
 - Run app: task `🚀 Launch Session Sniffer` (ensures `.venv` interpreter).
 - Dependency check: `🔄 Check Dependencies` powershell script (read‑only updates info).
 - Install deps: `📦 Install Dependencies` after editing `pyproject.toml` / `requirements.txt`.
-- Unified quality run: `🔍 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyright, Flake8, Pylint, Vulture, Pydocstyle, Pip Audit, Safety, Snyk).
+- Unified quality run: `🔍 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyright, Flake8, Pylint, Vulture, Pip Audit, Safety, Snyk).
 
 Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
 

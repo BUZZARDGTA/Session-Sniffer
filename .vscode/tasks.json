@@ -134,18 +134,6 @@
             }
         },
         {
-            "label": "📚 Pydocstyle - Docstring Conventions",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/Scripts/pydocstyle.exe",
-            "args": ["."],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "panel": "shared"
-            }
-        },
-        {
             "label": "🔐 Pip Audit - Vulnerability Scanner",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/pip-audit.exe",
