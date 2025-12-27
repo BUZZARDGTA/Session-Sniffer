@@ -453,7 +453,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
-        format_uncaught_exception_report_message(issues_url='https://github.com/BUZZARDGTA/Session-Sniffer/issues'),
+        'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues',
         exception_info=exception_info,
     )
 
