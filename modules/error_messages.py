@@ -9,7 +9,7 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
     interface_description: str,
     interface_ip: str,
     interface_mac: str | None = None,
-    vendor_name: str | None = None,
+    interface_vendor_name: str | None = None,
     exit_code: int | None = None,
     error_details: str | None = None,
 ) -> str:
@@ -30,7 +30,7 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
         f'Description: {interface_description}\n'
         f'IP Address: {interface_ip}\n'
         f'MAC Address: {interface_mac or ""}\n'
-        f'Vendor Name: {vendor_name or ""}\n\n'
+        f'Vendor Name: {interface_vendor_name or ""}\n\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'DIAGNOSTICS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
