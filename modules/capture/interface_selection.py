@@ -406,6 +406,7 @@ class InterfaceSelectionDialog(QDialog):
         QToolTip.showText(QCursor.pos(), displayed_text, self.table)
 
     def update_select_button_state(self) -> None:
+        """Enable the Select button only when a row is selected."""
         # Check if any row is selected
         selected_row = self.table.currentRow()
         if selected_row != -1:
@@ -466,6 +467,7 @@ class InterfaceSelectionDialog(QDialog):
         self.select_interface()
 
     def select_interface(self) -> None:
+        """Persist the current selection and close the dialog as accepted."""
         selected_row = self.table.currentRow()
         if selected_row != -1:
             # Retrieve the selected interface data

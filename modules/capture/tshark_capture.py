@@ -196,6 +196,7 @@ class CaptureConfig:
     display_filter: str | None = None
 
     def build_tshark_cmd(self) -> tuple[str, ...]:
+        """Build the TShark command-line arguments for this capture config."""
         return (
             str(self.tshark_path),
             # Capture interface

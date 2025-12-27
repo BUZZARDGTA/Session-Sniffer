@@ -480,23 +480,27 @@ class ScriptControl:
 
     @classmethod
     def set_crashed(cls, message: str | None = None) -> None:
+        """Mark the process as crashed and store an optional crash message."""
         with cls._lock:
             cls._crashed = True
             cls._crash_message = message
 
     @classmethod
     def reset_crashed(cls) -> None:
+        """Clear the crash flag and any stored crash message."""
         with cls._lock:
             cls._crashed = False
             cls._crash_message = None
 
     @classmethod
     def has_crashed(cls) -> bool:
+        """Return whether the process has been marked as crashed."""
         with cls._lock:
             return cls._crashed
 
     @classmethod
     def get_crash_message(cls) -> str | None:
+        """Return the stored crash message, if any."""
         with cls._lock:
             return cls._crash_message
 
@@ -893,6 +897,7 @@ class Settings(DefaultSettings):
 
     @classmethod
     def rewrite_settings_file(cls) -> None:
+        """Rewrite the settings file from current in-memory values."""
         console.print('Rewriting "Settings.ini" file ...', highlight=False)
 
         text = format_triple_quoted_text(
@@ -910,6 +915,7 @@ class Settings(DefaultSettings):
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
+        """Parse the settings INI file and report whether it should be rewritten."""
         def process_ini_line_output(line: str) -> str:
             return line.rstrip('\n')
 
@@ -960,6 +966,7 @@ class Settings(DefaultSettings):
 
     @classmethod
     def load_from_settings_file(cls, settings_path: Path) -> None:
+        """Load settings from disk into `Settings` and rewrite when necessary."""
         matched_settings_count = 0
 
         try:
@@ -1774,6 +1781,7 @@ class PlayerPorts:
 
     @classmethod
     def from_packet_port(cls, port: int) -> Self:
+        """Create a new ports tracker from the first observed port."""
         return cls(
             all=[port],
             first=port,
@@ -1782,6 +1790,7 @@ class PlayerPorts:
         )
 
     def reset(self, port: int) -> None:
+        """Reset tracked ports back to a single observed port."""
         self.all.clear()
         self.all.append(port)
         self.first = port
@@ -1997,6 +2006,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
         self.mod_menus: PlayerModMenus | None = None
 
     def mark_as_seen(self, *, port: int, packet_datetime: datetime, packet_length: int, sent_by_local_host: bool) -> None:
+        """Update per-player state from an observed packet."""
         self.datetime.last_seen = packet_datetime
         self.packets.increment(sent_by_local_host=sent_by_local_host)
         self.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
@@ -2014,6 +2024,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
             self.ports.last = port
 
     def mark_as_rejoined(self, *, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
+        """Handle a player rejoin by resetting current-session counters."""
         self.left_event.clear()
         self.rejoins += 1
 
@@ -2027,6 +2038,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
             self.ports.reset(port)
 
     def mark_as_left(self) -> None:
+        """Mark the player as disconnected and move it to the disconnected registry."""
         self.left_event.set()
 
         self.datetime.set_session_time()
@@ -2230,6 +2242,7 @@ class SessionHost:
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
+        """Infer and cache the session host from currently connected players."""
         connected_players = take(2, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
 
         potential_session_host_player = None
@@ -2383,6 +2396,7 @@ class UserIPDatabases:
 
     @classmethod
     def get_userip_database_filepaths(cls) -> list[Path]:
+        """Return all enabled UserIP database file paths."""
         with cls._update_userip_database_lock:
             return [database_path for database_path, _, _ in cls.userip_databases]
 
@@ -5072,11 +5086,13 @@ class SessionTableModel(QAbstractTableModel):
 
     # pylint: disable=invalid-name
     def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+        """Return number of rows in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._data)
 
     def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+        """Return number of columns in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._headers)
@@ -5139,6 +5155,7 @@ class SessionTableModel(QAbstractTableModel):
 
     # pylint: disable=invalid-name
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
+        """Return header display text and tooltips for the table model."""
         if orientation == Qt.Orientation.Horizontal:
             if role == Qt.ItemDataRole.DisplayRole:
                 return self._headers[section]  # Display the header name
@@ -5151,6 +5168,7 @@ class SessionTableModel(QAbstractTableModel):
     # pylint: enable=invalid-name
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        """Return Qt flags controlling whether the item is enabled/selectable."""
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
 
@@ -5621,6 +5639,7 @@ class SessionTableView(QTableView):
         return header
 
     def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # pylint: disable=redefined-builtin  # noqa: A002, N802
+        """Show country flag tooltips on hover and forward other events."""
         if isinstance(object, QWidget) and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
             if index.isValid():
@@ -5780,12 +5799,14 @@ class SessionTableView(QTableView):
         return sorted_column_name, sort_order
 
     def handle_menu_hovered(self, action: QAction) -> None:
+        """Propagate QAction tooltip text to its parent menu."""
         # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
         action_parent = action.parent()
         if isinstance(action_parent, QMenu):
             action_parent.setToolTip(action.toolTip())
 
     def on_section_clicked(self, section_index: int) -> None:
+        """Sort the table by the clicked header section and reset selections."""
         model = self.model()
         horizontal_header = self.horizontalHeader()
         selection_model = self.selectionModel()
@@ -6164,6 +6185,7 @@ class SessionTableView(QTableView):
                 main_window.remove_player_from_disconnected(ip)
 
     def show_detailed_ip_lookup_player_cell(self, player: Player) -> None:
+        """Show a detailed information dialog for the given player."""
         QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
             ############ Player Infos #############
             IP Address: {player.ip}
@@ -6244,6 +6266,7 @@ class SessionTableView(QTableView):
         run_paping(ip, port)
 
     def userip_manager__add(self, ip_addresses: list[str], selected_database: Path) -> None:
+        """Add the selected IP address(es) to the chosen UserIP database."""
         # Prompt the user for a username
         username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(ip_addresses))}:')
 
@@ -6269,6 +6292,7 @@ class SessionTableView(QTableView):
             QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
 
     def userip_manager__move(self, ip_addresses: list[str], selected_database: Path) -> None:
+        """Move the selected IP address(es) to the chosen UserIP database."""
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
 
@@ -6328,6 +6352,7 @@ class SessionTableView(QTableView):
             QMessageBox.information(self, TITLE, report)
 
     def userip_manager__del(self, ip_addresses: list[str]) -> None:
+        """Remove the selected IP address(es) from all enabled UserIP databases."""
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
 
@@ -6500,6 +6525,7 @@ class GUIWorkerThread(QThread):
         self.disconnected_table_view = disconnected_table_view
 
     def run(self) -> None:
+        """Continuously emit GUI payloads while the app is running."""
         while not gui_closed__event.is_set():
             GUIrenderingData.session_connected_sorted_column_name, GUIrenderingData.session_connected_sort_order = self.connected_table_view.get_sorted_column()
             GUIrenderingData.session_disconnected_sorted_column_name, GUIrenderingData.session_disconnected_sort_order = self.disconnected_table_view.get_sorted_column()
@@ -7099,6 +7125,7 @@ class MainWindow(QMainWindow):
         self.disconnected_expand_button.setEnabled(True)
 
     def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Handle the main window close event and terminate background work."""
         gui_closed__event.set()  # Signal the thread to stop
         self.worker_thread.quit()  # Stop the QThread
         self.worker_thread.wait()  # Wait for the thread to finish
@@ -7270,12 +7297,15 @@ class MainWindow(QMainWindow):
             self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
 
     def open_project_repo(self) -> None:
+        """Open the GitHub repository in the default browser."""
         webbrowser.open(GITHUB_REPO_URL)
 
     def open_documentation(self) -> None:
+        """Open the documentation URL in the default browser."""
         webbrowser.open(DOCUMENTATION_URL)
 
     def join_discord(self) -> None:
+        """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
 
     def toggle_mobile_detection(self) -> None:
@@ -7419,6 +7449,7 @@ class ClickableLabel(QLabel):
     clicked = pyqtSignal()
 
     def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Emit `clicked` when left mouse button is pressed."""
         if event is not None and event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
 
@@ -7532,6 +7563,7 @@ class DiscordIntro(QDialog):
 
     # pylint: disable=invalid-name
     def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Begin drag when clicking the dialog background."""
         if (
             event is not None
             and event.button() == Qt.MouseButton.LeftButton
@@ -7544,6 +7576,7 @@ class DiscordIntro(QDialog):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Move the dialog while dragging."""
         if (
             event is not None
             and self._drag_pos is not None  # If mouse is pressed, move the window
@@ -7555,12 +7588,14 @@ class DiscordIntro(QDialog):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 
         super().mouseReleaseEvent(event)
     # pylint: enable=invalid-name
 
     def center_window(self) -> None:
+        """Center the dialog on the primary screen."""
         screen = app.primaryScreen()
         if screen is None:
             raise PrimaryScreenNotFoundError
@@ -7571,6 +7606,7 @@ class DiscordIntro(QDialog):
         self.move(x, y)
 
     def open_discord(self) -> None:
+        """Open the Discord invite URL and disable future popup reminders."""
         webbrowser.open(DISCORD_INVITE_URL)
 
         if Settings.SHOW_DISCORD_POPUP:
@@ -7580,6 +7616,7 @@ class DiscordIntro(QDialog):
         self.close_popup()
 
     def dont_remind_me(self) -> None:
+        """Disable future Discord popup reminders and close the dialog."""
         if Settings.SHOW_DISCORD_POPUP:
             Settings.SHOW_DISCORD_POPUP = False
             Settings.rewrite_settings_file()
@@ -7587,6 +7624,7 @@ class DiscordIntro(QDialog):
         self.close_popup()
 
     def close_popup(self) -> None:
+        """Fade out and close the Discord popup dialog."""
         # Smooth fade-out before closing
         self.fade_out.setDuration(500)
         self.fade_out.setStartValue(1)  # Start from fully opaque

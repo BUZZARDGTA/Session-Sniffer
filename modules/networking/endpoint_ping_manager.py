@@ -48,6 +48,7 @@ class EndpointInfo:
     failed_ips: dict[str, int] = dataclasses.field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
     def update_success(self, duration: float, ip: str) -> None:
+        """Record a successful ping attempt and clear any per-IP failure tracking."""
         self.calls += 1
         self.total_time += duration
         self.cooldown_until = 0.0
@@ -56,6 +57,7 @@ class EndpointInfo:
             del self.failed_ips[ip]  # Remove from failed URLs if previously failed
 
     def update_failure(self, duration: float, cooldown: float, ip: str) -> None:
+        """Record a failed ping attempt and start a cooldown for this endpoint."""
         self.calls += 1
         self.failures += 1
         self.total_time += duration
@@ -65,11 +67,13 @@ class EndpointInfo:
         self.failed_ips[ip] = self.failed_ips.get(ip, 0) + 1
 
     def average_time(self) -> float:
+        """Return the average request duration, or infinity if unmeasured."""
         if self.calls > 0:
             return self.total_time / self.calls
         return float('inf')
 
     def score(self, now: float) -> float:
+        """Compute a score used to rank endpoints for selection."""
         # If still cooling down, assign an infinite score.
         if now < self.cooldown_until:
             return float('inf')
