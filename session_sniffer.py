@@ -158,6 +158,11 @@ from modules.guis.stylesheets import (
     DISCORD_POPUP_EXIT_BUTTON_STYLESHEET,
     DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
     DISCORD_POPUP_MAIN_STYLESHEET,
+    STATUS_BAR_STYLESHEET,
+    STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
+    STATUS_BAR_CONFIG_LABEL_STYLESHEET,
+    STATUS_BAR_ISSUES_LABEL_STYLESHEET,
+    STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
 )
 from modules.guis.utils import get_screen_size, resize_window_for_screen
 from modules.launcher.package_checker import (
@@ -7035,68 +7040,25 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
         self.status_bar.setSizeGripEnabled(False)
-        self.status_bar.setStyleSheet("""
-            QStatusBar {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #2e3440, stop:1 #3b4252);
-                color: #d8dee9;
-                border-top: 2px solid #88c0d0;
-                font-family: 'Segoe UI', 'Roboto', sans-serif;
-                font-size: 10pt;
-                font-weight: 500;
-                padding: 4px 8px;
-                min-height: 24px;
-            }
-            QStatusBar::item {
-                border: none;
-            }
-        """)
+        self.status_bar.setStyleSheet(STATUS_BAR_STYLESHEET)
 
         # Create individual status labels for better organization
         self.status_capture_label = QLabel()
         self.status_capture_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_capture_label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                color: #d8dee9;
-                border: none;
-                padding: 4px 8px 4px 8px;
-            }
-        """)
+        self.status_capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
 
         self.status_config_label = QLabel()
         self.status_config_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_config_label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                color: #d8dee9;
-                border: none;
-                padding: 4px 8px;
-            }
-        """)
+        self.status_config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
 
         self.status_issues_label = QLabel()
         self.status_issues_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_issues_label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                color: #d8dee9;
-                border: none;
-                padding: 4px 8px;
-            }
-        """)
+        self.status_issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
 
         self.status_performance_label = QLabel()
         self.status_performance_label.setTextFormat(Qt.TextFormat.RichText)
         self.status_performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.status_performance_label.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                color: #d8dee9;
-                border: none;
-                padding: 4px 8px 4px 4px;
-            }
-        """)
+        self.status_performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
 
         # Add labels to status bar with proper spacing
         self.status_bar.addWidget(self.status_capture_label)

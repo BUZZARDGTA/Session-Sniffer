@@ -272,3 +272,65 @@ color: white;
 border-radius: 10px;
 border: none;
 """.strip()
+
+
+# =============================================================================
+# STATUS BAR STYLES
+# =============================================================================
+
+STATUS_BAR_STYLESHEET = """
+QStatusBar {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #2e3440, stop:1 #3b4252);
+    color: #d8dee9;
+    border-top: 2px solid #88c0d0;
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    font-size: 10pt;
+    font-weight: 500;
+    padding: 4px 8px;
+    min-height: 24px;
+}
+QStatusBar::item {
+    border: none;
+}
+""".strip()
+
+
+STATUS_BAR_CAPTURE_LABEL_STYLESHEET = """
+QLabel {
+    background: transparent;
+    color: #d8dee9;
+    border: none;
+    padding: 4px 8px 4px 8px;
+}
+""".strip()
+
+
+STATUS_BAR_CONFIG_LABEL_STYLESHEET = """
+QLabel {
+    background: transparent;
+    color: #d8dee9;
+    border: none;
+    padding: 4px 8px;
+}
+""".strip()
+
+
+STATUS_BAR_ISSUES_LABEL_STYLESHEET = """
+QLabel {
+    background: transparent;
+    color: #d8dee9;
+    border: none;
+    padding: 4px 8px;
+}
+""".strip()
+
+
+STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET = """
+QLabel {
+    background: transparent;
+    color: #d8dee9;
+    border: none;
+    padding: 4px 8px 4px 4px;
+}
+""".strip()
