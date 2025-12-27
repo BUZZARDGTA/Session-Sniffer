@@ -1,6 +1,7 @@
-"""Error message formatting functions.
+"""GUI dialog/message-box text formatting.
 
-This module contains functions for formatting error messages and dialogs.
+This module contains functions that build user-facing text intended ONLY for GUI dialogs/message boxes
+(e.g., messages shown via the app's message box / dialog helpers).
 """
 
 from typing import TYPE_CHECKING
@@ -51,20 +52,6 @@ def format_type_error(
 
     plural_suffix = '' if expected_type_count == 1 else 's'
     return f'Expected type{plural_suffix} {expected_types_names}, got {actual_type} instead.{suffix}'
-
-
-def format_file_not_found_error(file_path: Path) -> str:
-    """Format the file-not-found error message."""
-    return f'File not found: {file_path.absolute()}'
-
-
-def format_uncaught_exception_report_message(*, issues_url: str) -> str:
-    """Format the generic uncaught-exception message shown to the user."""
-    return (
-        'An unexpected (uncaught) error occurred.\n\n'
-        'Please kindly report it to:\n'
-        f'{issues_url}'
-    )
 
 
 def format_invalid_datetime_columns_settings_message() -> str:
@@ -184,21 +171,6 @@ def format_outdated_packages_message(
     msgbox_message += f'\nKeeping your packages synced with "{app_title}" ensures smooth script execution and prevents compatibility issues.'
     msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
     return msgbox_message
-
-
-def format_port_number_not_provided_message() -> str:
-    """Format the warning shown when a port input is missing/invalid."""
-    return 'No valid port number provided.'
-
-
-def format_port_number_out_of_range_message(*, min_port: int, max_port: int) -> str:
-    """Format the warning shown when a port input is out of range."""
-    return f'Please enter a valid port number between {min_port} and {max_port}.'
-
-
-def format_no_username_provided_message() -> str:
-    """Format the warning shown when the user submits an empty username."""
-    return 'ERROR:\nNo username was provided.'
 
 
 def format_userip_ip_conflict_message(  # pylint: disable=too-many-arguments,  # noqa: PLR0913
