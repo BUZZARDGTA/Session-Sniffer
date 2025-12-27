@@ -130,7 +130,11 @@ def ping_loop(target_ip: str, s: requests.Session) -> None:
             rprint('\n')
             continue
 
-        rprint(f'[{Colors.CYAN}]Ping request sent to [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]. Result API link: [link={CHECK_HOST_API}/check-result/{request_id}][{Colors.CYAN_LIGHT} bold]{CHECK_HOST_API}/check-result/{request_id}[/{Colors.CYAN_LIGHT} bold][/link][/{Colors.CYAN}]')
+        result_url = f'{CHECK_HOST_API}/check-result/{request_id}'
+        rprint(
+            f'[{Colors.CYAN}]Ping request sent to [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]. '
+            f'Result API link: [link={result_url}][{Colors.CYAN_LIGHT} bold]{result_url}[/{Colors.CYAN_LIGHT} bold][/link][/{Colors.CYAN}]',
+        )
 
         results: PingCheckResults = get_ping_results(request_id)
         if not isinstance(results, dict):
@@ -143,7 +147,14 @@ def ping_loop(target_ip: str, s: requests.Session) -> None:
 
         global_rtt_values: list[float | int] = []
 
-        table = Table(title=f'[{Colors.CYAN}]Ping Results from[/{Colors.CYAN}] [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]', show_header=True, header_style=f'bold {Colors.CYAN_LIGHT}')
+        table = Table(
+            title=(
+                f'[{Colors.CYAN}]Ping Results from[/{Colors.CYAN}] '
+                f'[{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]'
+            ),
+            show_header=True,
+            header_style=f'bold {Colors.CYAN_LIGHT}',
+        )
         table.add_column('Country',      header_style=f'{Colors.CYAN_LIGHT}')
         table.add_column('City',         header_style=f'{Colors.CYAN_LIGHT}')
         table.add_column('Success',      header_style=f'bold {Colors.CYAN_LIGHT}', justify='center')
