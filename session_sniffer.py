@@ -6597,7 +6597,7 @@ def arp_spoofing_task(  # noqa: PLR0913
     interface_description: str,
     interface_ip: str,
     interface_mac: str | None,
-    vendor_name: str | None,
+    interface_vendor_name: str | None,
     capture_obj: PacketCapture,
 ) -> None:
     """Manage ARP spoofing process lifecycle synchronized with packet capture state.
@@ -6638,7 +6638,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                 interface_description=interface_description,
                 interface_ip=interface_ip,
                 interface_mac=interface_mac,
-                vendor_name=vendor_name,
+                interface_vendor_name=interface_vendor_name,
                 exit_code=exit_code,
                 error_details=error_output,
             )
