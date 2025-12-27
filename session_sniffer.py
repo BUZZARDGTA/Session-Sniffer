@@ -209,6 +209,16 @@ from modules.networking.utils import (
     is_valid_non_special_ipv4,
 )
 from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
+from modules.text_templates import (
+    DEFAULT_USERIP_FILES_SETTINGS_INI,
+    SETTINGS_INI_HEADER_TEMPLATE,
+    USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
+    USERIP_DEFAULT_DB_HEADER_TEMPLATE,
+)
+from modules.text_utils import (
+    format_triple_quoted_text,
+    pluralize,
+)
 from modules.utils import (
     check_case_insensitive_and_exact_match,
     clear_screen,
