@@ -1070,14 +1070,14 @@ class Settings(DefaultSettings):
                         need_rewrite_settings = True
                     else:
                         if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_gui_columns_to_hide: list[str] = []
+                            filtered_connected_gui_columns_to_hide: list[str] = []
 
                             for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
                                         value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
-                                    filtered_gui_columns_to_hide.append(normalized_match)
+                                    filtered_connected_gui_columns_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
                                         need_rewrite_current_setting = True
                                 except NoMatchFoundError:
@@ -1086,11 +1086,11 @@ class Settings(DefaultSettings):
                             # Sort columns according to internal order
                             sorted_gui_columns_to_hide = [
                                 column for column in Settings.GUI_HIDEABLE_CONNECTED_COLUMNS
-                                if column in filtered_gui_columns_to_hide
+                                if column in filtered_connected_gui_columns_to_hide
                             ]
 
                             # Check if sorting changed the order
-                            if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
+                            if filtered_connected_gui_columns_to_hide != sorted_gui_columns_to_hide:
                                 need_rewrite_current_setting = True
 
                             Settings.GUI_COLUMNS_CONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
@@ -1103,14 +1103,14 @@ class Settings(DefaultSettings):
                         need_rewrite_settings = True
                     else:
                         if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_gui_columns_to_hide: list[str] = []
+                            filtered_disconnected_gui_columns_to_hide: list[str] = []
 
                             for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
                                 try:
                                     case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
                                         value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
                                     )
-                                    filtered_gui_columns_to_hide.append(normalized_match)
+                                    filtered_disconnected_gui_columns_to_hide.append(normalized_match)
                                     if not case_sensitive_match:
                                         need_rewrite_current_setting = True
                                 except NoMatchFoundError:
@@ -1119,11 +1119,11 @@ class Settings(DefaultSettings):
                             # Sort columns according to internal order
                             sorted_gui_columns_to_hide = [
                                 column for column in Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS
-                                if column in filtered_gui_columns_to_hide
+                                if column in filtered_disconnected_gui_columns_to_hide
                             ]
 
                             # Check if sorting changed the order
-                            if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
+                            if filtered_disconnected_gui_columns_to_hide != sorted_gui_columns_to_hide:
                                 need_rewrite_current_setting = True
 
                             Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
