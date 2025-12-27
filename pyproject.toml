@@ -128,7 +128,7 @@ convention = "google"
 
 [tool.ty.environment]
 python-platform = "win32"
-python-version = "3.12"
+python-version = "3.14"
 
 [tool.ty.src]
 exclude = [
