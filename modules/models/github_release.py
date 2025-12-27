@@ -22,8 +22,7 @@ class GithubReleaseAsset(BaseModel):
 class GithubReleaseResponse(BaseModel):
     """Model for the complete GitHub release API response.
 
-    Used to validate responses from:
-    https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest
+    Used to validate GitHub's "latest release" response for the GeoLite.mmdb database.
     """
 
     assets: list[GithubReleaseAsset]

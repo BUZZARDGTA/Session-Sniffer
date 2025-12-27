@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field
 class IpApiResponse(BaseModel):
     """Model for a single IP lookup result from ip-api.com batch endpoint.
 
-    Used to validate individual items in the batch response from:
-    http://ip-api.com/batch
+    Used to validate individual items returned by the ip-api.com batch endpoint.
     """
 
     # Location information

@@ -16,8 +16,7 @@ class VersionInfo(BaseModel):
 class GithubVersionsResponse(BaseModel):
     """Model for the complete GitHub versions API response.
 
-    Used to validate responses from:
-    https://raw.githubusercontent.com/BUZZARDGTA/Session-Sniffer/version/release_versions.json
+    Used to validate the versions JSON response published for Session Sniffer releases.
     """
 
     latest_stable: VersionInfo
