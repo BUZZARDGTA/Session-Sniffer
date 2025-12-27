@@ -77,12 +77,12 @@ class MsgBox:
         """Display a message box with the specified title, text, and style.
 
         Args:
-            title (str): The title of the message box.
-            text (str): The text to display in the message box.
-            style (Style): The style for the message box, defined by the Style class.
+            title: The title of the message box.
+            text: The text to display in the message box.
+            style: The style for the message box, defined by the Style class.
 
         Returns:
-            int: The return value from the message box, indicating which button was pressed.
+            The return value from the message box, indicating which button was pressed.
 
         Raises:
             TypeError: If the return value from the MessageBox is not an integer.

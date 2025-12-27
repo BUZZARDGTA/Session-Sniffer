@@ -16,7 +16,7 @@ def get_screen_size() -> tuple[int, int]:
     """Get the current screen size and validate minimum resolution requirements.
 
     Returns:
-        tuple[int,int]: Screen width and height in pixels.
+        Screen width and height in pixels.
 
     Raises:
         PrimaryScreenNotFoundError: If no primary screen is detected.
@@ -43,9 +43,9 @@ def resize_window_for_screen(window: QMainWindow | QDialog, screen_width: int, s
     """Resize a window based on the screen resolution.
 
     Args:
-        window (QWidget): The window to resize.
-        screen_width (int): The width of the screen.
-        screen_height (int): The height of the screen.
+        window: The window to resize.
+        screen_width: The width of the screen.
+        screen_height: The height of the screen.
     """
     if (screen_width, screen_height) >= (2560, 1440):
         window.resize(1400, 900)

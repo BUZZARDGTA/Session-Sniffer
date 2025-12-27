@@ -48,15 +48,15 @@ def setup_logging(  # pylint: disable=too-many-arguments  # noqa: PLR0913
 ) -> None:
     """Configure root logging with Rich console + rotating file handler (idempotent).
 
-    Parameters:
-        console_level (int): log level for console (DEBUG+ recommended)
-        file_level (int): log level for file (WARNING+ recommended)
-        log_file (Path | str): path to log file
-        max_bytes (int): max file size before rotation
-        backup_count (int): number of rotated files to keep
-        rich_tracebacks (bool): enable/disable rich tracebacks on console
-        show_path (bool): show file path in `RichHandler` output
-        show_time (bool): show timestamps in `RichHandler output
+    Args:
+        console_level: Log level for console (DEBUG+ recommended).
+        file_level: Log level for file (WARNING+ recommended).
+        log_file: Path to log file.
+        max_bytes: Max file size before rotation.
+        backup_count: Number of rotated files to keep.
+        rich_tracebacks: Enable/disable rich tracebacks on console.
+        show_path: Show file path in `RichHandler` output.
+        show_time: Show timestamps in `RichHandler` output.
     """
     global _atexit_registered  # pylint: disable=global-statement  # noqa: PLW0603
 
@@ -109,11 +109,11 @@ def setup_logging(  # pylint: disable=too-many-arguments  # noqa: PLR0913
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a logger, ensuring logging is configured (idempotent).
 
-    Parameters:
-        name (str | None): the logger name (default: root logger)
+    Args:
+        name: The logger name (default: root logger).
 
     Returns:
-        logging.Logger: the configured logger
+        The configured logger.
     """
     setup_logging()
     return logging.getLogger(name)

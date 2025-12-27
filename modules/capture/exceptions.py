@@ -102,16 +102,16 @@ class TSharkCrashExceptionError(TSharkError):
     """Exception raised when TShark crashes.
 
     Attributes:
-        returncode (int): The return code of the TShark process.
-        stderr_output (str): The standard error output from TShark.
+        returncode: The return code of the TShark process.
+        stderr_output: The standard error output from TShark.
     """
 
     def __init__(self, returncode: int, stderr_output: str) -> None:
         """Initialize the exception with the return code and standard error output.
 
         Args:
-            returncode (int): The return code of the TShark process.
-            stderr_output (str): The standard error output from TShark.
+            returncode: The return code of the TShark process.
+            stderr_output: The standard error output from TShark.
         """
         super().__init__(f'TShark crashed with return code {returncode}: {stderr_output}')
 

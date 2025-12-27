@@ -10,22 +10,21 @@ def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tupl
     """Check if the given network interface supports 'broadcast' and 'multicast' capture filters using tshark.
 
     Args:
-        tshark_path (Path): Path to the tshark executable.
-        interface (str): The name of the network interface to check.
+        tshark_path: Path to the tshark executable.
+        interface: The name of the network interface to check.
 
     Returns:
-        tuple: A tuple where the first value indicates support for 'broadcast',
-               and the second indicates support for 'multicast' capture filters.
+        A tuple where the first value indicates support for 'broadcast', and the second indicates support for 'multicast' capture filters.
     """
 
     def run_capture_filter_test(capture_filter: str) -> bool:
         """Run tshark with a given capture filter and return whether it was successful.
 
         Args:
-            capture_filter (str): The capture filter to test (e.g. "broadcast" or "multicast").
+            capture_filter: The capture filter to test (e.g. "broadcast" or "multicast").
 
         Returns:
-            bool: True if tshark ran successfully with the given filter, False otherwise.
+            True if tshark ran successfully with the given filter, False otherwise.
         """
         cmd = (
             str(tshark_path),

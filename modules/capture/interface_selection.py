@@ -293,9 +293,9 @@ class InterfaceSelectionDialog(QDialog):
         """Restore the previously saved interface selection from settings.
 
         Args:
-            saved_interface_name (str | None): The name of the previously selected interface from settings (optional).
-            saved_ip_address (str | None): The IP address of the previously selected interface (optional).
-            saved_mac_address (str | None): The MAC address of the previously selected interface (optional).
+            saved_interface_name: The name of the previously selected interface from settings (optional).
+            saved_ip_address: The IP address of the previously selected interface (optional).
+            saved_mac_address: The MAC address of the previously selected interface (optional).
         """
         best_match_index = _find_best_matching_interface_index(
             self.interfaces,

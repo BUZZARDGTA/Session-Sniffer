@@ -30,7 +30,7 @@ class DiscordRPC:
         """Initialize the DiscordRPC instance.
 
         Args:
-            client_id (int): The client ID for connecting to Discord Rich Presence.
+            client_id: The client ID for connecting to Discord Rich Presence.
         """
         self._rpc = Presence(client_id)
         self._closed = False
@@ -51,7 +51,7 @@ class DiscordRPC:
         """Attempt to update the Discord Rich Presence.
 
         Args:
-            state_message (optional): If provided, the state message to display in Discord presence.
+            state_message: If provided, the state message to display in Discord presence.
         """
         if self._closed:
             return

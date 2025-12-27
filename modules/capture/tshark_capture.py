@@ -87,10 +87,10 @@ def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
     """Process a line of TShark output and return a PacketFields object.
 
     Args:
-        raw_line (str): A line of TShark output.
+        raw_line: A line of TShark output.
 
     Returns:
-        (PacketFields | None): A named tuple containing the packet fields., or `None` if the packet is invalid.
+        A named tuple containing the packet fields, or `None` if the packet is invalid.
 
     Raises:
         MalformedPacketError: If IPs or ports are invalid or the number of fields in the line is unexpected.
@@ -137,10 +137,10 @@ class Packet(NamedTuple):
         """Create a Packet object from TShark output fields.
 
         Args:
-            fields (PacketFields): A named tuple containing the packet fields.
+            fields: A named tuple containing the packet fields.
 
         Returns:
-            Packet: A Packet object containing the parsed fields.
+            A Packet object containing the parsed fields.
 
         Raises:
             InvalidIPv4AddressError: If the source or destination IP addresses are not valid IPv4 addresses.
@@ -175,11 +175,11 @@ class CaptureConfig:
     """Configuration for packet capture using TShark.
 
     Attributes:
-        interface (InterfaceSelectionData): The selected network interface to capture packets from.
-        tshark_path (Path): The path to the TShark executable.
-        callback (PacketCallback): A callback function to process captured packets.
-        capture_filter (str | None): An optional capture filter string for TShark.
-        display_filter (str | None): An optional display filter string for TShark.
+        interface: The selected network interface to capture packets from.
+        tshark_path: The path to the TShark executable.
+        callback: A callback function to process captured packets.
+        capture_filter: An optional capture filter string for TShark.
+        display_filter: An optional display filter string for TShark.
     """
     interface: InterfaceSelectionData
     tshark_path: Path
@@ -217,11 +217,11 @@ class _CaptureState:
     """Internal state for managing the packet capture process.
 
     Attributes:
-        control_lock (threading.Lock): A lock to synchronize access to the capture state.
-        running_event (threading.Event): An event indicating whether the capture is running.
-        restart_requested (threading.Event): An event indicating whether a restart has been requested.
-        capture_thread (threading.Thread | None): The thread running the packet capture.
-        tshark_process (subprocess.Popen[str] | None): The TShark process used for packet capture.
+        control_lock: A lock to synchronize access to the capture state.
+        running_event: An event indicating whether the capture is running.
+        restart_requested: An event indicating whether a restart has been requested.
+        capture_thread: The thread running the packet capture.
+        tshark_process: The TShark process used for packet capture.
     """
     control_lock: threading.Lock = field(default_factory=threading.Lock)
     running_event: threading.Event = field(default_factory=threading.Event)
@@ -235,7 +235,7 @@ class PacketCapture:
         """Initialize the PacketCapture class.
 
         Args:
-            config (CaptureConfig): Configuration for the packet capture.
+            config: Configuration for the packet capture.
 
         Raises:
             TSharkProcessInitializationError: If the TShark process could not be initialized.
@@ -312,7 +312,7 @@ class PacketCapture:
         """Capture packets using TShark and process the output.
 
         Yields:
-            Packet: A packet object containing the captured packet data.
+            Packets containing the captured packet data.
         """
         tshark_cmd = self.config.build_tshark_cmd()
 

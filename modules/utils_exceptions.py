@@ -13,7 +13,7 @@ class InvalidFileError(Exception):
         """Initialize the exception with a default error message.
 
         Args:
-            file_path (Path): The path to the invalid file.
+            file_path: The path to the invalid file.
         """
         super().__init__(f'Invalid file: {file_path.absolute()}')
 
@@ -49,7 +49,7 @@ class NoMatchFoundError(Exception):
         """Initialize the exception with the input value and an optional custom message.
 
         Args:
-            input_value (str): The value that did not match any item in the list.
+            input_value: The value that did not match any item in the list.
         """
         super().__init__(f"No matching value found in the provided list: '{input_value}'")
 
@@ -61,9 +61,9 @@ class ParenthesisMismatchError(Exception):
         """Initialize the exception with unmatched parentheses positions.
 
         Args:
-            expr (str): The expression with mismatched parentheses.
-            unmatched_opening (list[int]): Positions of unmatched opening parentheses.
-            unmatched_closing (list[int]): Positions of unmatched closing parentheses.
+            expr: The expression with mismatched parentheses.
+            unmatched_opening: Positions of unmatched opening parentheses.
+            unmatched_closing: Positions of unmatched closing parentheses.
         """
 
         def pluralize(count: int, singular: str = '', plural: str = 's') -> str:

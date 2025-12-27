@@ -476,10 +476,10 @@ class ThreadsExceptionHandler:
     This class is designed to overcome the limitation where threads run independently from the main process, which continues execution without waiting for thread completion.
 
     Attributes:
-        raising_function (str | None): The name of the function where the exception was raised.
-        raising_exc_type (type[BaseException] | None): The type of the raised exception.
-        raising_exc_value (BaseException | None): The value of the raised exception.
-        raising_exc_traceback (TracebackType | None): The traceback information for the raised exception.
+        raising_function: The name of the function where the exception was raised.
+        raising_exc_type: The type of the raised exception.
+        raising_exc_value: The value of the raised exception.
+        raising_exc_traceback: The traceback information for the raised exception.
     """
     raising_function: ClassVar[str | None] = None
     raising_exc_type: ClassVar[type[BaseException] | None] = None
@@ -493,12 +493,12 @@ class ThreadsExceptionHandler:
         """Exit method called upon exiting the 'with' block.
 
         Args:
-            exc_type (type[BaseException] | None): The type of the raised exception.
-            exc_value (BaseException | None): The value of the raised exception.
-            exc_traceback (TracebackType | None): The traceback information of the raised exception.
+            exc_type: The type of the raised exception.
+            exc_value: The value of the raised exception.
+            exc_traceback: The traceback information of the raised exception.
 
         Returns:
-            bool: True to suppress the exception from propagating further.
+            True to suppress the exception from propagating further.
         """
         # Return False to allow normal execution if no exception occurred
         if exc_type is None or exc_value is None:
@@ -1283,7 +1283,7 @@ class AllInterfaces:
         The iteration will be done over the dictionary values (the Interface objects).
 
         Yields:
-            Interface: Each interface from `all_interfaces`.
+            Each interface from `all_interfaces`.
         """
         yield from cls.all_interfaces.values()
 
@@ -1292,10 +1292,10 @@ class AllInterfaces:
         """Retrieve an interface by its `index`.
 
         Args:
-            index (int): The index of the interface to retrieve.
+            index: The index of the interface to retrieve.
 
         Returns:
-            Interface | None: The interface matching the index, or None if not found.
+            The interface matching the index, or None if not found.
         """
         return cls.all_interfaces.get(index)
 
@@ -1304,10 +1304,10 @@ class AllInterfaces:
         """Retrieve an interface by its `name`, case-insensitively.
 
         Args:
-            name (str): The name of the interface to retrieve.
+            name: The name of the interface to retrieve.
 
         Returns:
-            Interface | None: The interface matching the name, or None if not found.
+            The interface matching the name, or None if not found.
         """
         normalized_name = name.casefold()
         index = cls._name_map.get(normalized_name)
@@ -1320,10 +1320,10 @@ class AllInterfaces:
         """Add a new interface to the registry or raise if it exists.
 
         Args:
-            new_interface (Interface): The interface object to add.
+            new_interface: The interface object to add.
 
         Returns:
-            Interface: The added interface.
+            The added interface.
 
         Raises:
             InterfaceAlreadyExistsError: If an interface with the same index already exists.
@@ -1341,10 +1341,10 @@ class AllInterfaces:
         """Delete an interface by its `index`.
 
         Args:
-            index (int): The index of the interface to delete.
+            index: The index of the interface to delete.
 
         Returns:
-            bool: `True` if the interface was deleted, `False` if no matching interface was found.
+            `True` if the interface was deleted, `False` if no matching interface was found.
         """
         interface = cls.all_interfaces.pop(index, None)
         if interface:
@@ -1395,14 +1395,14 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
     """Class to manage player packet counts and statistics.
 
     Attributes:
-        total_exchanged (int): Total packets exchanged with the player across all sessions
-        exchanged (int): Packets exchanged with the player in current session (received + sent)
-        total_received (int): Total packets received from the player across all sessions
-        received (int): Packets received from the player in current session
-        total_sent (int): Total packets sent to the player across all sessions
-        sent (int): Packets sent to the player in current session
-        pps (PPS): Packets Per Second rate calculator
-        ppm (PPM): Packets Per Minute rate calculator
+        total_exchanged: Total packets exchanged with the player across all sessions.
+        exchanged: Packets exchanged with the player in current session (received + sent).
+        total_received: Total packets received from the player across all sessions.
+        received: Packets received from the player in current session.
+        total_sent: Total packets sent to the player across all sessions.
+        sent: Packets sent to the player in current session.
+        pps: Packets Per Second rate calculator.
+        ppm: Packets Per Minute rate calculator.
     """
 
     @dataclass(kw_only=True, slots=True)
@@ -1410,10 +1410,10 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
         """Class to manage player Packets Per Second (PPS) calculations.
 
         Attributes:
-            is_first_calculation (bool): True until the first rate calculation completes
-            last_update_time (float): Timestamp of the last rate calculation
-            accumulated_packets (int): Number of packets counted since last calculation
-            calculated_rate (int): The final PPS value to display (Packets Per Second)
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_packets: Number of packets counted since last calculation.
+            calculated_rate: The final PPS value to display (Packets Per Second).
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1439,10 +1439,10 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
         """Class to manage player Packets Per Minute (PPM) calculations.
 
         Attributes:
-            is_first_calculation (bool): True until the first rate calculation completes
-            last_update_time (float): Timestamp of the last rate calculation
-            accumulated_packets (int): Number of packets counted since last calculation
-            calculated_rate (int): The final PPM value to display (Packets Per Minute)
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_packets: Number of packets counted since last calculation.
+            calculated_rate: The final PPM value to display (Packets Per Minute).
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1482,7 +1482,7 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
             sent_by_local_host: Whether the initial packet was sent by local host
 
         Returns:
-            PlayerPackets: New instance initialized for the packet direction
+            New instance initialized for the packet direction.
         """
         if sent_by_local_host:
             return cls(
@@ -1562,14 +1562,14 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
     """Class to manage player bandwidth (upload/download) totals and rate calculations.
 
     Attributes:
-        total_exchanged (int): Total bytes exchanged with the player across all sessions
-        exchanged (int): Bytes exchanged with the player in current session (download + upload)
-        total_download (int): Total bytes downloaded from the player across all sessions
-        download (int): Bytes downloaded from the player in current session
-        total_upload (int): Total bytes uploaded to the player across all sessions
-        upload (int): Bytes uploaded to the player in current session
-        bps (BPS): Bytes Per Second rate calculator
-        bpm (BPM): Bytes Per Minute rate calculator
+        total_exchanged: Total bytes exchanged with the player across all sessions.
+        exchanged: Bytes exchanged with the player in current session (download + upload).
+        total_download: Total bytes downloaded from the player across all sessions.
+        download: Bytes downloaded from the player in current session.
+        total_upload: Total bytes uploaded to the player across all sessions.
+        upload: Bytes uploaded to the player in current session.
+        bps: Bytes Per Second rate calculator.
+        bpm: Bytes Per Minute rate calculator.
     """
 
     @dataclass(kw_only=True, slots=True)
@@ -1577,10 +1577,10 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
         """Class to manage player Bytes Per Second (BPS) calculations.
 
         Attributes:
-            is_first_calculation (bool): True until the first rate calculation completes
-            last_update_time (float): Timestamp of the last rate calculation
-            accumulated_bytes (int): Number of bytes counted since last calculation
-            calculated_rate (int): The final BPS value to display (Bytes Per Second)
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_bytes: Number of bytes counted since last calculation.
+            calculated_rate: The final BPS value to display (Bytes Per Second).
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1606,10 +1606,10 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
         """Class to manage player Bytes Per Minute (BPM) calculations.
 
         Attributes:
-            is_first_calculation (bool): True until the first rate calculation completes
-            last_update_time (float): Timestamp of the last rate calculation
-            accumulated_bytes (int): Number of bytes counted since last calculation
-            calculated_rate (int): The final BPM value to display (Bytes Per Minute)
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_bytes: Number of bytes counted since last calculation.
+            calculated_rate: The final BPM value to display (Bytes Per Minute).
         """
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
@@ -1650,7 +1650,7 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
             sent_by_local_host: Whether the initial packet was sent by local host
 
         Returns:
-            PlayerBandwidth: New instance initialized for the packet direction
+            New instance initialized for the packet direction.
         """
         if sent_by_local_host:
             return cls(
@@ -1790,7 +1790,7 @@ class PlayerDateTime:
         """Return current session duration.
 
         Returns:
-            timedelta: The session duration. For disconnected players, returns the stored
+            The session duration. For disconnected players, returns the stored
                 duration from their last session. For connected players, calculates the
                 live duration from when they joined until their last activity.
         """
@@ -1804,7 +1804,7 @@ class PlayerDateTime:
         """Return total cumulative session duration across all sessions.
 
         Returns:
-            timedelta: Sum of all completed sessions plus the current session.
+            Sum of all completed sessions plus the current session.
                 For connected players, includes their ongoing session time.
                 For disconnected players, includes their completed final session.
         """
@@ -1823,10 +1823,10 @@ class PlayerDateTime:
         """Create a PlayerDateTime instance from a packet timestamp.
 
         Args:
-            packet_datetime (datetime): The timestamp of the first packet from the player.
+            packet_datetime: The timestamp of the first packet from the player.
 
         Returns:
-            PlayerDateTime: New instance initialized with packet timestamp values.
+            New instance initialized with packet timestamp values.
         """
         return cls(
             first_seen=packet_datetime,
@@ -2023,10 +2023,10 @@ class PlayersRegistry:
         """Add a connected player to the registry.
 
         Args:
-            player (Player): The player object to add.
+            player: The player object to add.
 
         Returns:
-            Player: The player object that was added.
+            The player object that was added.
 
         Raies:
             PlayerAlreadyExistsError: If the player already exists in the registry.
@@ -2043,7 +2043,7 @@ class PlayersRegistry:
         """Move a player from the disconnected registry to the connected registry.
 
         Args:
-            player (Player): The player object to move.
+            player: The player object to move.
 
         Raises:
             PlayerNotFoundError: If the player is not found in the disconnected registry.
@@ -2059,7 +2059,7 @@ class PlayersRegistry:
         """Move a player from the connected registry to the disconnected registry.
 
         Args:
-            player (Player): The player object to move.
+            player: The player object to move.
 
         Raises:
             PlayerNotFoundError: If the player is not found in the connected registry.
@@ -2078,7 +2078,7 @@ class PlayersRegistry:
         using the clear button.
 
         Args:
-            ip (str): The IP address of the player.
+            ip: The IP address of the player.
 
         Returns:
             The player object if found, otherwise `None`.
@@ -2132,10 +2132,10 @@ class PlayersRegistry:
         """Remove a connected player from the registry by IP address.
 
         Args:
-            ip (str): The IP address of the player to remove.
+            ip: The IP address of the player to remove.
 
         Returns:
-            Player|None: The removed player object if found, otherwise `None`.
+            The removed player object if found, otherwise `None`.
         """
         with cls._registry_lock:
             return cls._connected_players_registry.pop(ip, None)
@@ -2145,10 +2145,10 @@ class PlayersRegistry:
         """Remove a disconnected player from the registry by IP address.
 
         Args:
-            ip (str): The IP address of the player to remove.
+            ip: The IP address of the player to remove.
 
         Returns:
-            Player|None: The removed player object if found, otherwise `None`.
+            The removed player object if found, otherwise `None`.
         """
         with cls._registry_lock:
             return cls._disconnected_players_registry.pop(ip, None)
@@ -2345,7 +2345,7 @@ class MobileWarnings:
             ip: The IP address to add
 
         Returns:
-            bool: `True` if the IP was newly added, `False` if it was already present
+            `True` if the IP was newly added, `False` if it was already present.
         """
         with cls.lock:
             if ip in cls.notified_mobile_ips:
@@ -2361,7 +2361,7 @@ class MobileWarnings:
             ip: The IP address to check
 
         Returns:
-            bool: `True` if the IP has been notified, `False` otherwise
+            `True` if the IP has been notified, `False` otherwise.
         """
         with cls.lock:
             return ip in cls.notified_mobile_ips
@@ -2374,7 +2374,7 @@ class MobileWarnings:
             ip: The IP address to remove
 
         Returns:
-            bool: `True` if the IP was removed, `False` if it wasn't present
+            `True` if the IP was removed, `False` if it wasn't present.
         """
         with cls.lock:
             if ip in cls.notified_mobile_ips:
@@ -2403,10 +2403,10 @@ class MobileWarnings:
         """Remove multiple IPs from the notified mobile IPs set in a single thread-safe operation.
 
         Args:
-            ips (set[str]): Set of IP addresses to remove
+            ips: Set of IP addresses to remove.
 
         Returns:
-            int: The number of IPs that were actually removed
+            The number of IPs that were actually removed.
         """
         with cls.lock:
             initial_count = len(cls.notified_mobile_ips)
@@ -2436,7 +2436,7 @@ class VPNWarnings:
             ip: The IP address to add
 
         Returns:
-            bool: `True` if the IP was newly added, `False` if it was already present
+            `True` if the IP was newly added, `False` if it was already present.
         """
         with cls.lock:
             if ip in cls.notified_vpn_ips:
@@ -2452,7 +2452,7 @@ class VPNWarnings:
             ip: The IP address to check
 
         Returns:
-            bool: `True` if the IP has been notified, `False` otherwise
+            `True` if the IP has been notified, `False` otherwise.
         """
         with cls.lock:
             return ip in cls.notified_vpn_ips
@@ -2465,7 +2465,7 @@ class VPNWarnings:
             ip: The IP address to remove
 
         Returns:
-            bool: `True` if the IP was removed, `False` if it wasn't present
+            `True` if the IP was removed, `False` if it wasn't present.
         """
         with cls.lock:
             if ip in cls.notified_vpn_ips:
@@ -2494,10 +2494,10 @@ class VPNWarnings:
         """Remove multiple IPs from the notified VPN IPs set in a single thread-safe operation.
 
         Args:
-            ips (set[str]): Set of IP addresses to remove
+            ips: Set of IP addresses to remove.
 
         Returns:
-            int: The number of IPs that were actually removed
+            The number of IPs that were actually removed.
         """
         with cls.lock:
             initial_count = len(cls.notified_vpn_ips)
@@ -2527,7 +2527,7 @@ class HostingWarnings:
             ip: The IP address to add
 
         Returns:
-            bool: `True` if the IP was newly added, `False` if it was already present
+            `True` if the IP was newly added, `False` if it was already present.
         """
         with cls.lock:
             if ip in cls.notified_hosting_ips:
@@ -2543,7 +2543,7 @@ class HostingWarnings:
             ip: The IP address to check
 
         Returns:
-            bool: `True` if the IP has been notified, `False` otherwise
+            `True` if the IP has been notified, `False` otherwise.
         """
         with cls.lock:
             return ip in cls.notified_hosting_ips
@@ -2556,7 +2556,7 @@ class HostingWarnings:
             ip: The IP address to remove
 
         Returns:
-            bool: `True` if the IP was removed, `False` if it wasn't present
+            `True` if the IP was removed, `False` if it wasn't present.
         """
         with cls.lock:
             if ip in cls.notified_hosting_ips:
@@ -2585,10 +2585,10 @@ class HostingWarnings:
         """Remove multiple IPs from the notified hosting IPs set in a single thread-safe operation.
 
         Args:
-            ips (set[str]): Set of IP addresses to remove
+            ips: Set of IP addresses to remove.
 
         Returns:
-            int: The number of IPs that were actually removed
+            The number of IPs that were actually removed.
         """
         with cls.lock:
             initial_count = len(cls.notified_hosting_ips)
@@ -2735,10 +2735,7 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
     """Retrieve a list of available TShark interfaces, excluding a list of exclusions.
 
     Returns:
-        A list of tuples containing:
-        - Index (int)
-        - Device name (str)
-        - Interface name (str)
+        A list of interfaces as `(index, device_name, name)` tuples.
     """
     def process_stdout(stdout_line: str) -> tuple[int, str, str]:
         parts = stdout_line.strip().split(' ', maxsplit=INTERFACE_PARTS_LENGTH - 1)
@@ -3055,7 +3052,7 @@ def wait_for_player_data_ready(
         timeout: Maximum time to wait for data to be ready
 
     Returns:
-        bool: `True` if all specified data is ready, `False` if timeout occurred
+        `True` if all specified data is ready, `False` if timeout occurred.
     """
     def check_userip_usernames(player: Player) -> bool:
         """Check if player has usernames in userip data."""
@@ -5078,10 +5075,10 @@ class SessionTableModel(QAbstractTableModel):
         This method removes that visual indicator to get the clean IP address string.
 
         Args:
-            ip_address (str): The IP address string that may contain a session host crown suffix.
+            ip_address: The IP address string that may contain a session host crown suffix.
 
         Returns:
-            str: The IP address string with session host crown suffix removed.
+            The IP address string with session host crown suffix removed.
         """
         return ip_address.removesuffix(' 👑')
 
@@ -5369,7 +5366,7 @@ class SessionTableModel(QAbstractTableModel):
         """Check if a column is visible in the table.
 
         Args:
-            column_name (str): The column name to check.
+            column_name: The column name to check.
 
         Returns:
             `True` if column exists, `False` otherwise.
@@ -5380,7 +5377,7 @@ class SessionTableModel(QAbstractTableModel):
         """Get the table index of a specified column.
 
         Args:
-            column_name (str): The column name to look for.
+            column_name: The column name to look for.
 
         Returns:
             The column index.
@@ -5410,7 +5407,7 @@ class SessionTableModel(QAbstractTableModel):
         This method ensures the IP address is always returned as a string type.
 
         Args:
-            row_data (list[str]): The row data list containing the IP address.
+            row_data: The row data list containing the IP address.
 
         Returns:
             The IP address as a clean string (with crown suffix removed if present).
@@ -5434,7 +5431,7 @@ class SessionTableModel(QAbstractTableModel):
         For 'IP Address' column, it automatically removes the session host crown suffix (👑) if present.
 
         Args:
-            index (QModelIndex): The QModelIndex to get display text from.
+            index: The QModelIndex to get display text from.
 
         Returns:
             The display text as a string, or `None` if no valid display text is available.
@@ -5566,7 +5563,7 @@ class SessionTableModel(QAbstractTableModel):
         """Remove a single player row from the table by IP address.
 
         Args:
-            ip (str): The IP address of the player to remove.
+            ip: The IP address of the player to remove.
         """
         # Find the row containing this IP address
         for row_idx, row_data in enumerate(self._data):
@@ -6192,7 +6189,7 @@ class SessionTableView(QTableView):
         """Remove multiple players from the table by calling the appropriate `MainWindow` method.
 
         Args:
-            ips (set[str]): Set of IP addresses of the players to remove.
+            ips: Set of IP addresses of the players to remove.
         """
         # Get the MainWindow instance
         main_window = self.window()
@@ -6736,10 +6733,10 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
     """Generate the GUI header HTML based on capture state.
 
     Args:
-        capture (PacketCapture): The PacketCapture instance to read state from.
+        capture: The PacketCapture instance to read state from.
 
     Returns:
-        str: HTML string for the header.
+        HTML string for the header.
     """
     if capture.is_running():
         stop_status = ''

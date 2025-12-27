@@ -18,10 +18,10 @@ def lookup(target_ip: str) -> str:
     is found or an error occurs during lookup, it returns the original IP address.
 
     Args:
-        target_ip (str): The IP address to look up.
+        target_ip: The IP address to look up.
 
     Returns:
-        str: The resolved hostname, or the original IP address if no valid hostname is found.
+        The resolved hostname, or the original IP address if no valid hostname is found.
     """
     rev_name = dns.reversename.from_address(target_ip)
 

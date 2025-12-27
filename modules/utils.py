@@ -38,11 +38,11 @@ def format_attribute_error(cls: type, name: str) -> str:
     """Format an attribute error message.
 
     Args:
-        cls (type): The class of the object.
-        name (str): The name of the missing attribute.
+        cls: The class of the object.
+        name: The name of the missing attribute.
 
     Returns:
-        str: The formatted error message.
+        The formatted error message.
     """
     return f"'{cls.__name__}' object has no attribute '{name}'"
 
@@ -55,12 +55,12 @@ def format_type_error(
     """Generate a formatted error message for a type mismatch.
 
     Args:
-        obj (object): The object whose type is being checked.
-        expected_types (type[Any] | tuple[type[Any], ...]): The expected type(s) for the object.
-        suffix (str): An optional suffix to append to the error message.
+        obj: The object whose type is being checked.
+        expected_types: The expected type(s) for the object.
+        suffix: An optional suffix to append to the error message.
 
     Returns:
-        str: The formatted error message. (e.g., for deeper debugging purposes)
+        The formatted error message (e.g., for deeper debugging purposes).
     """
     # Determine the actual type of the object
     actual_type = type(obj).__name__
@@ -81,7 +81,7 @@ def format_file_not_found_error(file_path: Path) -> str:
     """Format the file not found error message.
 
     Args:
-        file_path (Path): The path to the file that was not found.
+        file_path: The path to the file that was not found.
     """
     return f'File not found: {file_path.absolute()}'
 
@@ -113,7 +113,7 @@ def get_documents_dir() -> Path:
     """Retrieve the Path object to the current user's "Documents" directory by querying the Windows registry.
 
     Returns:
-        Path: A `Path` object pointing to the user's "Documents" folder.
+        A `Path` object pointing to the user's "Documents" folder.
 
     Raises:
         TypeError: If the retrieved path is not a string.
@@ -163,11 +163,11 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
     """Generate a timestamped session log path in a year/month/day folder structure.
 
     Args:
-        base_dir (Path): Root directory for session logs.
-        tz (tzinfo): Timezone to use for timestamps.
+        base_dir: Root directory for session logs.
+        tz: Timezone to use for timestamps.
 
     Returns:
-        Path: Full path to the timestamped log file.
+        Full path to the timestamped log file.
     """
     now = datetime.now(tz=tz)
     date_dir = base_dir / now.strftime('%Y') / now.strftime('%m') / now.strftime('%d')
@@ -195,7 +195,7 @@ def validate_file(file_path: Path) -> Path:
         InvalidFileError: If the path is not a file.
 
     Returns:
-        Path: The validated file path.
+        The validated file path.
     """
     if not file_path.exists():
         raise FileNotFoundError(format_file_not_found_error(file_path))
@@ -332,12 +332,12 @@ def format_triple_quoted_text(
     """Format a triple-quoted string by removing leading whitespace and optionally adding newlines.
 
     Args:
-        text (str): The text to format.
-        add_leading_newline (bool): Whether to add a leading newline. Defaults to False.
-        add_trailing_newline (bool): Whether to add a trailing newline. Defaults to False.
+        text: The text to format.
+        add_leading_newline: Whether to add a leading newline. Defaults to False.
+        add_trailing_newline: Whether to add a trailing newline. Defaults to False.
 
     Returns:
-        str: The formatted text.
+        The formatted text.
     """
     formatted_text = textwrap.dedent(text).strip()
 
@@ -383,7 +383,7 @@ def custom_str_to_bool(string: str, *, only_match_against: bool | None = None) -
 
     Args:
         string: The boolean string to be checked.
-        only_match_against (optional): If provided, the only boolean value to match against.
+        only_match_against: If provided, the only boolean value to match against.
     """
     need_rewrite_current_setting = False
     resolved_value = None
@@ -420,7 +420,7 @@ def custom_str_to_nonetype(string: str) -> tuple[None, bool]:
         string: The NoneType string to be checked.
 
     Returns:
-        tuple: A tuple containing the resolved NoneType value and a boolean indicating if the string was exactly matching "None".
+        A tuple containing the resolved NoneType value and a boolean indicating if the string was exactly matching "None".
     """
     if not string.lower() == 'none':
         raise InvalidNoneTypeValueError
