@@ -6,10 +6,11 @@ import os
 import subprocess
 import sys
 import winreg
+from collections.abc import Iterable
 from contextlib import suppress
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import psutil
 from win32com.client import Dispatch
@@ -27,9 +28,10 @@ from modules.utils_exceptions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from packaging.version import Version
+
+
+T = TypeVar('T')
 
 USER_SHELL_FOLDERS__REG_KEY = R'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
 
@@ -124,10 +126,12 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
 
 
 def set_window_title(title: str) -> None:
+    """Set the terminal window title (best-effort)."""
     print(f'\033]0;{title}\007', end='')  # noqa: T201
 
 
 def clear_screen() -> None:
+    """Clear the terminal screen (best-effort)."""
     print('\033c', end='')  # noqa: T201
 
 
@@ -159,12 +163,12 @@ def format_project_version(version: Version) -> str:
     return f'v{version.public}'
 
 
-def take[T](n: int, iterable: Iterable[T]) -> list[T]:
+def take(n: int, iterable: Iterable[T]) -> list[T]:
     """Return the first n items from the given iterable."""
     return list(iterable)[:n]
 
 
-def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
+def dedup_preserve_order(*iterables: Iterable[T]) -> list[T]:
     """Concatenate one or more iterables while removing duplicates and preserving order."""
     seen: set[T] = set()
     unique: list[T] = []
@@ -179,6 +183,7 @@ def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
 
 
 def is_file_need_newline_ending(file: Path) -> bool:
+    """Return whether the file exists and is missing a trailing newline."""
     if not file.exists() or not file.stat().st_size:
         return False
 

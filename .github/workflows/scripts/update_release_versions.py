@@ -7,10 +7,12 @@ from packaging.version import Version
 
 
 def get_repo_root() -> Path:
+    """Return the repository root directory for this workspace."""
     return Path(__file__).resolve().parents[3]
 
 
 def main() -> None:
+    """Update `release_versions.json` using the provided tag."""
     parser = argparse.ArgumentParser(description='Update "release_versions.json" with updated version info.')
     parser.add_argument('tag', action='store', help='The release tag (e.g., 1.3.7+20250405.1644)')
     parser.add_argument('--prerelease', action='store_true', help='Mark the release as a prerelease')

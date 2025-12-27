@@ -264,6 +264,7 @@ def is_ipv4_address(ip_address: str, /) -> bool:
 
 
 def main() -> None:
+    """Parse arguments and start the ping loop for the target IP."""
     parser = argparse.ArgumentParser(description='Ping an IP using Check-Host API.')
     parser.add_argument('ip', metavar='<ip>', type=str, help='Target IP to ping')
     args = parser.parse_args()

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 
 def get_dependencies_from_pyproject() -> dict[str, Requirement]:
+    """Return dependency requirements parsed from `pyproject.toml`."""
     dependencies = PYPROJECT_DATA.get('project', {}).get('dependencies', [])
 
     return {
@@ -19,6 +20,7 @@ def get_dependencies_from_pyproject() -> dict[str, Requirement]:
 
 
 def get_dependencies_from_requirements() -> dict[str, Requirement]:
+    """Return dependency requirements parsed from `requirements.txt`."""
     dependencies: dict[str, Requirement] = {}
 
     with REQUIREMENTS_PATH.open('r', encoding='utf-8') as f:
@@ -37,6 +39,7 @@ def get_dependencies_from_requirements() -> dict[str, Requirement]:
 
 
 def check_packages_version(required_packages: dict[str, Requirement]) -> list[tuple[str, SpecifierSet, str]]:
+    """Compare installed versions against requirements and return mismatches."""
     outdated_packages: list[tuple[str, SpecifierSet, str | Literal['Not Installed']]] = []  # noqa: PYI051
     for package_name, requirement in required_packages.items():
         try:

@@ -388,6 +388,7 @@ def terminate_script(
     stdout_crash_text: str | None = None,
     exception_info: ExceptionInfo | None = None,
 ) -> None:
+    """Terminate the application and optionally display crash information."""
     def should_terminate_gracefully() -> bool:
         for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread'):
             if thread_name in globals():
@@ -461,6 +462,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
 
 
 def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
+    """Handle Ctrl+C by terminating the script if not already crashing."""
     if not ScriptControl.has_crashed():
         # Block CTRL+C if script is already crashing under control
         console.print('Ctrl+C pressed. Exiting script ...', highlight=False)
@@ -2693,6 +2695,7 @@ class GUIDetectionSettings:
 
 
 def check_for_updates() -> None:
+    """Check for available updates and optionally open the releases page."""
     def get_updater_json_response() -> GithubVersionsResponse | None:
         while True:
             try:
@@ -2907,6 +2910,7 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
 
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
+    """Update GeoLite2 databases if needed and return initialized readers."""
     def update_geolite2_databases() -> dict[str, requests.exceptions.RequestException | str | int | None]:
         geolite2_version_file_path = GEOLITE2_DATABASES_DIR_PATH / 'version.json'
         geolite2_databases: dict[str, dict[str, str | None]] = {
@@ -3260,6 +3264,7 @@ def process_userip_task(
     player: Player,
     connection_type: Literal['connected', 'disconnected'],
 ) -> None:
+    """Process a queued UserIP task for a player on a background thread."""
     with ThreadsExceptionHandler():
         if player.userip_detection is None:
             raise TypeError(format_type_error(player.userip_detection, PlayerUserIPDetection))
@@ -3393,6 +3398,7 @@ def process_userip_task(
 
 
 def iplookup_core() -> None:
+    """Populate IP lookup data in the background using batch requests."""
     with ThreadsExceptionHandler():
         def throttle_until(requests_remaining: int, throttle_time: int) -> None:
             # Calculate sleep time only if there are remaining requests
@@ -3485,6 +3491,7 @@ def iplookup_core() -> None:
 
 
 def hostname_core() -> None:
+    """Resolve reverse DNS hostnames for players in the background."""
     with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
         futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()   # Tracks IPs currently being processed
@@ -3525,6 +3532,7 @@ def hostname_core() -> None:
 
 
 def pinger_core() -> None:
+    """Fetch and parse ping data for players in the background."""
     with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
         futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()   # Tracks IPs currently being processed
@@ -3678,6 +3686,7 @@ def rendering_core(
     *,
     vpn_mode_enabled: bool,
 ) -> None:
+    """Compile GUI payloads from runtime state and emit updates."""
     with ThreadsExceptionHandler():
         def parse_userip_ini_file(ini_path: Path, unresolved_ip_invalid: set[str]) -> tuple[UserIPSettings | None, dict[str, list[str]] | None]:
             def process_ini_line_output(line: str) -> str:
@@ -7635,6 +7644,7 @@ class DiscordIntro(QDialog):
 
 
 def main() -> None:
+    """Run environment checks, initialize dependencies, and start the GUI."""
     colorama.init(autoreset=True)
     os.chdir(SCRIPT_DIR)
 

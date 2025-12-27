@@ -75,6 +75,7 @@ def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> b
 
 
 def is_private_device_ipv4(ip_address: str, /) -> bool:
+    """Return whether the address is a valid IPv4 private address."""
     try:
         ipv4_obj = IPv4Address(ip_address)
     except AddressValueError:
@@ -83,6 +84,7 @@ def is_private_device_ipv4(ip_address: str, /) -> bool:
 
 
 def is_valid_non_special_ipv4(ip_address: str, /) -> bool:
+    """Return whether the address is a valid IPv4 and not a special/reserved address."""
     try:
         ipv4_obj = IPv4Address(ip_address)
     except AddressValueError:

@@ -490,6 +490,7 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
     saved_ip_address: str | None = None,
     saved_mac_address: str | None = None,
 ) -> tuple[InterfaceSelectionData | None, bool, bool, bool]:
+    """Show the interface selection dialog and return the chosen interface and toggles."""
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_width,

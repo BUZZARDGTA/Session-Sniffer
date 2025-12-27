@@ -133,6 +133,7 @@ def get_host_semaphore(url: str) -> Semaphore:
 
 
 def get_sorted_endpoints() -> list[EndpointInfo]:
+    """Return endpoints sorted by current score, prioritizing non-cooldown endpoints."""
     now = time.monotonic()
 
     with _endpoints_lock:
@@ -144,6 +145,7 @@ def get_sorted_endpoints() -> list[EndpointInfo]:
 
 
 def parse_ping_response(ping_response: str) -> PingResult:
+    """Parse raw ping output into a structured `PingResult`."""
     # Extract individual ping times
     ping_times = [float(match.group('TIME_MS')) for match in RE_BYTES_PATTERN.finditer(ping_response)]
 
