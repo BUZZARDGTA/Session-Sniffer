@@ -24,7 +24,7 @@ def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tupl
             capture_filter: The capture filter to test (e.g. "broadcast" or "multicast").
 
         Returns:
-            True if tshark ran successfully with the given filter, False otherwise.
+            Whether tshark ran successfully with the given filter.
         """
         cmd = (
             str(tshark_path),

@@ -498,7 +498,7 @@ class ThreadsExceptionHandler:
             exc_traceback: The traceback information of the raised exception.
 
         Returns:
-            True to suppress the exception from propagating further.
+            Whether to suppress the exception from propagating further.
         """
         # Return False to allow normal execution if no exception occurred
         if exc_type is None or exc_value is None:
@@ -1344,7 +1344,7 @@ class AllInterfaces:
             index: The index of the interface to delete.
 
         Returns:
-            `True` if the interface was deleted, `False` if no matching interface was found.
+            Whether an interface matching the index existed and was deleted.
         """
         interface = cls.all_interfaces.pop(index, None)
         if interface:
@@ -2345,7 +2345,7 @@ class MobileWarnings:
             ip: The IP address to add
 
         Returns:
-            `True` if the IP was newly added, `False` if it was already present.
+            Whether the IP was newly added.
         """
         with cls.lock:
             if ip in cls.notified_mobile_ips:
@@ -2361,7 +2361,7 @@ class MobileWarnings:
             ip: The IP address to check
 
         Returns:
-            `True` if the IP has been notified, `False` otherwise.
+            Whether the IP has been notified.
         """
         with cls.lock:
             return ip in cls.notified_mobile_ips
@@ -2374,7 +2374,7 @@ class MobileWarnings:
             ip: The IP address to remove
 
         Returns:
-            `True` if the IP was removed, `False` if it wasn't present.
+            Whether the IP was present and removed.
         """
         with cls.lock:
             if ip in cls.notified_mobile_ips:
@@ -2436,7 +2436,7 @@ class VPNWarnings:
             ip: The IP address to add
 
         Returns:
-            `True` if the IP was newly added, `False` if it was already present.
+            Whether the IP was newly added.
         """
         with cls.lock:
             if ip in cls.notified_vpn_ips:
@@ -2452,7 +2452,7 @@ class VPNWarnings:
             ip: The IP address to check
 
         Returns:
-            `True` if the IP has been notified, `False` otherwise.
+            Whether the IP has been notified.
         """
         with cls.lock:
             return ip in cls.notified_vpn_ips
@@ -2465,7 +2465,7 @@ class VPNWarnings:
             ip: The IP address to remove
 
         Returns:
-            `True` if the IP was removed, `False` if it wasn't present.
+            Whether the IP was present and removed.
         """
         with cls.lock:
             if ip in cls.notified_vpn_ips:
@@ -2527,7 +2527,7 @@ class HostingWarnings:
             ip: The IP address to add
 
         Returns:
-            `True` if the IP was newly added, `False` if it was already present.
+            Whether the IP was newly added.
         """
         with cls.lock:
             if ip in cls.notified_hosting_ips:
@@ -2543,7 +2543,7 @@ class HostingWarnings:
             ip: The IP address to check
 
         Returns:
-            `True` if the IP has been notified, `False` otherwise.
+            Whether the IP has been notified.
         """
         with cls.lock:
             return ip in cls.notified_hosting_ips
@@ -2556,7 +2556,7 @@ class HostingWarnings:
             ip: The IP address to remove
 
         Returns:
-            `True` if the IP was removed, `False` if it wasn't present.
+            Whether the IP was present and removed.
         """
         with cls.lock:
             if ip in cls.notified_hosting_ips:
@@ -3052,7 +3052,7 @@ def wait_for_player_data_ready(
         timeout: Maximum time to wait for data to be ready
 
     Returns:
-        `True` if all specified data is ready, `False` if timeout occurred.
+        Whether all specified data is ready before the timeout expires.
     """
     def check_userip_usernames(player: Player) -> bool:
         """Check if player has usernames in userip data."""
@@ -5369,7 +5369,7 @@ class SessionTableModel(QAbstractTableModel):
             column_name: The column name to check.
 
         Returns:
-            `True` if column exists, `False` otherwise.
+            Whether the column exists.
         """
         return column_name in self._headers
 

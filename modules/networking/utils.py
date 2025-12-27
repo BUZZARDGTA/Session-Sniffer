@@ -22,7 +22,7 @@ def is_mac_address(mac_address: str, /, *, raise_exception: bool = False) -> boo
         raise_exception: If True, raise an exception for invalid MAC addresses.
 
     Returns:
-        True if the MAC address is valid, False otherwise.
+        Whether the MAC address is valid.
 
     Raises:
         InvalidMacAddressError: If the MAC address is invalid and `raise_exception` is True.
@@ -61,7 +61,7 @@ def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> b
         raise_exception: If True, raise an exception for invalid IP addresses.
 
     Returns:
-        True if the IP address is valid, False otherwise.
+        Whether the IP address is valid.
 
     Raises:
         InvalidIPv4AddressError: If the IP address is invalid and `raise_exception` is True.
