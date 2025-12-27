@@ -21,6 +21,8 @@ class GetAdaptersAddressesError(OSError):
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class AdapterData:  # pylint: disable=too-many-instance-attributes
+    """Represent Windows network adapter details used by the sniffer."""
+
     interface_index:      int
     friendly_name:        str
     description:          str
@@ -65,11 +67,11 @@ MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
 
 # Structures
 class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
-    pass
+    """ctypes definition for a Windows IP_ADAPTER_UNICAST_ADDRESS structure."""
 
 
 class IP_ADAPTER_ADDRESSES(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
-    pass
+    """ctypes definition for a Windows IP_ADAPTER_ADDRESSES structure."""
 
 
 class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
@@ -86,6 +88,8 @@ class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801  # pylint: disable=inv
 
 
 class SOCKET_ADDRESS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+    """ctypes definition for a Windows SOCKET_ADDRESS structure."""
+
     _fields_ = [  # noqa: RUF012
         ('lpSockaddr', ctypes.c_void_p),
         ('iSockaddrLength', ctypes.c_int),
@@ -130,6 +134,8 @@ IP_ADAPTER_ADDRESSES._fields_ = [
 
 
 class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+    """ctypes definition for a Windows MIB_IF_ROW2 structure."""
+
     _fields_ = [  # noqa: RUF012
         ('InterfaceLuid', ctypes.c_uint64),
         ('InterfaceIndex', wintypes.DWORD),
@@ -176,6 +182,8 @@ class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-na
 
 
 class SOCKADDR_IN(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+    """ctypes definition for a Windows IPv4 sockaddr_in structure."""
+
     _fields_ = [  # noqa: RUF012
         ('sin_family', wintypes.USHORT),
         ('sin_port', wintypes.USHORT),

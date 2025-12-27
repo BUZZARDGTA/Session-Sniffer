@@ -38,6 +38,8 @@ RE_RTT_STATS_PATTERN = re.compile(
 
 @dataclass(slots=True)
 class EndpointInfo:
+    """Track per-endpoint ping performance and cooldown state."""
+
     url: str
     calls: int = 0
     failures: int = 0
@@ -76,6 +78,8 @@ class EndpointInfo:
 
 
 class PingResult(NamedTuple):
+    """Represent parsed ping statistics extracted from a ping response."""
+
     ping_times: list[float]
     packets_transmitted: int | None
     packets_received: int | None

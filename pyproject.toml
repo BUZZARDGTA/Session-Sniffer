@@ -51,7 +51,6 @@ strict = true
 
 [tool.pydocstyle]
 ignore = [
-    "D101",  # Missing docstring in public class
     "D102",  # Missing docstring in public method
     "D103",  # Missing docstring in public function
     "D203",  # 1 blank line required before class docstring
@@ -113,7 +112,6 @@ exclude = [
 [tool.ruff.lint]
 ignore = [
     "C901",    # complex-structure
-    "D101",    # undocumented-public-class
     "D102",    # undocumented-public-method
     "D103",    # undocumented-public-function
     "D107",    # undocumented-public-init

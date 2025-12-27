@@ -108,6 +108,8 @@ def _process_tshark_stdout(raw_line: str, /) -> PacketFields | None:
 
 
 class PacketFields(NamedTuple):
+    """Represent raw packet fields parsed from a single TShark output line."""
+
     time_epoch: str
     length: str
     src_ip: str
@@ -117,16 +119,22 @@ class PacketFields(NamedTuple):
 
 
 class IP(NamedTuple):
+    """Hold source and destination IP addresses for a packet."""
+
     src: str
     dst: str
 
 
 class Port(NamedTuple):
+    """Hold source and destination ports for a packet."""
+
     src: int
     dst: int
 
 
 class Packet(NamedTuple):
+    """Represent a parsed packet emitted by the capture pipeline."""
+
     datetime: datetime
     ip: IP
     port: Port
@@ -231,6 +239,8 @@ class _CaptureState:
 
 
 class PacketCapture:
+    """Manage a background TShark process and emit parsed packets via callback."""
+
     def __init__(self, config: CaptureConfig, /) -> None:
         """Initialize the PacketCapture class.
 

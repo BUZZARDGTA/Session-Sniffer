@@ -375,6 +375,8 @@ USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
 
 class ExceptionInfo(NamedTuple):
+    """Store exception details for crash reporting and logging."""
+
     exc_type: type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType | None
@@ -470,6 +472,8 @@ signal.signal(signal.SIGINT, handle_sigint)
 
 
 class ScriptControl:
+    """Track global crash state and crash message across threads."""
+
     _lock: ClassVar = Lock()
     _crashed: ClassVar[bool] = False
     _crash_message: ClassVar[str | None] = None
@@ -603,6 +607,8 @@ class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-n
 
 
 class Settings(DefaultSettings):
+    """Load, validate, and persist user settings for the application."""
+
     ALL_SETTINGS: ClassVar = (
         'CAPTURE_INTERFACE_NAME',
         'CAPTURE_IP_ADDRESS',
@@ -1217,6 +1223,8 @@ class Settings(DefaultSettings):
 
 
 class ARPEntry(NamedTuple):
+    """Represent a single ARP neighbor entry for an interface."""
+
     ip_address: str
     mac_address: str
     vendor_name: str | None = None
@@ -1224,6 +1232,8 @@ class ARPEntry(NamedTuple):
 
 @dataclass(kw_only=True, slots=True)
 class Interface:
+    """Represent a network interface and its live capture-related stats."""
+
     index: int
     ip_enabled: bool
     state: int
@@ -1287,6 +1297,8 @@ class Interface:
 
 
 class AllInterfaces:
+    """Store and query discovered network interfaces by index and name."""
+
     all_interfaces: ClassVar[dict[int, Interface]] = {}
     _name_map: ClassVar[dict[str, int]] = {}
 
@@ -1370,6 +1382,8 @@ class AllInterfaces:
 
 
 class ThirdPartyServers(enum.Enum):
+    """Define IP ranges to treat as third-party server traffic."""
+
     PC_DISCORD = ('66.22.196.0/22', '66.22.200.0/21', '66.22.208.0/20', '66.22.224.0/20', '66.22.240.0/21', '66.22.248.0/24', '104.29.128.0/18')
     PC_VALVE = ('103.10.124.0/23', '103.28.54.0/23', '146.66.152.0/21', '155.133.224.0/19', '162.254.192.0/21', '185.25.180.0/22', '205.196.6.0/24')  # Valve = Steam
     PC_GOOGLE = ('34.0.0.0/9', '34.128.0.0/10', '35.184.0.0/13', '35.192.0.0/11', '35.224.0.0/12', '35.240.0.0/13')
@@ -1400,6 +1414,8 @@ class ThirdPartyServers(enum.Enum):
 
 @dataclass(kw_only=True, slots=True)
 class PlayerReverseDNS:
+    """Store reverse DNS lookup state for a player."""
+
     is_initialized: bool = False
 
     hostname: Literal['...'] | str = '...'  # noqa: PYI051
@@ -1749,6 +1765,8 @@ class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(kw_only=True, slots=True)
 class PlayerPorts:
+    """Track observed ports for a player within a session."""
+
     all: list[int]
     first: int
     middle: list[int]
@@ -1773,6 +1791,8 @@ class PlayerPorts:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerDateTime:
+    """Track per-player timestamps and compute session durations."""
+
     first_seen: datetime
     last_rejoin: datetime
     last_seen: datetime
@@ -1854,6 +1874,8 @@ class PlayerDateTime:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerGeoLite2:
+    """Store GeoLite2 lookup state and cached values for a player."""
+
     is_initialized: bool = False
 
     country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
@@ -1864,6 +1886,8 @@ class PlayerGeoLite2:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
+    """Store IP-API lookup state and cached values for a player."""
+
     is_initialized: bool = False
 
     continent: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
@@ -1890,18 +1914,24 @@ class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
 
 
 class PlayerCountryFlag(NamedTuple):
+    """Hold the rendered country flag assets for a player."""
+
     pixmap: QPixmap
     icon: QIcon
 
 
 @dataclass(kw_only=True, slots=True)
 class PlayerIPLookup:
+    """Group multiple IP lookup providers for a player."""
+
     geolite2: PlayerGeoLite2 = dataclasses.field(default_factory=PlayerGeoLite2)
     ipapi: PlayerIPAPI = dataclasses.field(default_factory=PlayerIPAPI)
 
 
 @dataclass(kw_only=True, slots=True)
 class PlayerPing:  # pylint: disable=too-many-instance-attributes
+    """Store ping lookup state and cached RTT/packet stats for a player."""
+
     is_initialized: bool = False
 
     is_pinging: Literal['...'] | bool = '...'
@@ -1919,6 +1949,8 @@ class PlayerPing:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(kw_only=True, slots=True)
 class PlayerUserIPDetection:
+    """Store user-IP detection metadata for a player."""
+
     time: str
     date_time: str
 
@@ -1928,10 +1960,14 @@ class PlayerUserIPDetection:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerModMenus:
+    """Store parsed mod menu usernames associated with a player."""
+
     usernames: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
 
 class Player:  # pylint: disable=too-many-instance-attributes
+    """Represent a remote player identified by IP and derived session metadata."""
+
     def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
         """Initialize a `Player` from the first observed packet.
 
@@ -2179,6 +2215,8 @@ class PlayersRegistry:
 
 
 class SessionHost:
+    """Track the inferred session host and pending disconnections."""
+
     player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
     players_pending_for_disconnection: ClassVar[list[Player]] = []
@@ -2244,6 +2282,8 @@ class UserIP(NamedTuple):
 
 
 class UserIPDatabases:
+    """Load and cache enabled UserIP databases and resolve IP-to-user mappings."""
+
     _update_userip_database_lock: ClassVar = Lock()
 
     userip_databases: ClassVar[list[tuple[Path, UserIPSettings, dict[str, list[str]]]]] = []
@@ -2349,6 +2389,8 @@ class UserIPDatabases:
 
 # Detection warning tracking systems
 class MobileWarnings:
+    """Track which IPs have triggered the mobile detection warning."""
+
     lock: ClassVar = Lock()
     notified_mobile_ips: ClassVar[set[str]] = set()
 
@@ -2440,6 +2482,8 @@ class MobileWarnings:
 
 
 class VPNWarnings:
+    """Track which IPs have triggered the VPN detection warning."""
+
     lock: ClassVar = Lock()
     notified_vpn_ips: ClassVar[set[str]] = set()
 
@@ -2531,6 +2575,8 @@ class VPNWarnings:
 
 
 class HostingWarnings:
+    """Track which IPs have triggered the hosting detection warning."""
+
     lock: ClassVar = Lock()
     notified_hosting_ips: ClassVar[set[str]] = set()
 
@@ -3530,6 +3576,8 @@ class TsharkStats:
 
 
 class CellColor(NamedTuple):
+    """Hold foreground and background colors for a table cell."""
+
     foreground: QColor
     background: QColor
 
@@ -3568,6 +3616,8 @@ class ThreadSafeMeta(type):
 
 
 class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
+    """Define the shared GUI rendering payload state shape."""
+
     CONNECTED_HIDDEN_COLUMNS: set[str]
     DISCONNECTED_HIDDEN_COLUMNS: set[str]
     GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES: list[str]
@@ -3594,6 +3644,8 @@ class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
 
 
 class GUIrenderingData(AbstractGUIRenderingData, metaclass=ThreadSafeMeta):
+    """Store the latest compiled GUI rendering data and synchronization events."""
+
     gui_rendering_ready_event: ClassVar = Event()
 
 
@@ -4942,6 +4994,8 @@ def rendering_core(
 
 
 class SessionTableModel(QAbstractTableModel):
+    """Provide a Qt table model for rendering connected/disconnected sessions."""
+
     TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
 
     def __init__(self, headers: list[str]) -> None:
@@ -5480,6 +5534,8 @@ class SessionTableModel(QAbstractTableModel):
 
 
 class SessionTableView(QTableView):
+    """Render a session table view with custom selection and tooltips."""
+
     def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder, *, is_connected_table: bool) -> None:
         """Initialize a session table view.
 
@@ -6423,6 +6479,8 @@ class SessionTableView(QTableView):
 
 
 class GUIWorkerThread(QThread):
+    """Emit GUI update payloads compiled by the rendering core."""
+
     update_signal = pyqtSignal(GUIUpdatePayload)
 
     def __init__(
@@ -6661,6 +6719,8 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
 
 
 class MainWindow(QMainWindow):
+    """Main Qt window that hosts session tables and control UI."""
+
     def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
         """Initialize the main application window.
 
@@ -7354,6 +7414,8 @@ class MainWindow(QMainWindow):
 
 
 class ClickableLabel(QLabel):
+    """Emit a signal when the label is clicked."""
+
     clicked = pyqtSignal()
 
     def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
@@ -7362,6 +7424,8 @@ class ClickableLabel(QLabel):
 
 
 class DiscordIntro(QDialog):
+    """Show a modal dialog inviting the user to join the Discord server."""
+
     def __init__(self) -> None:
         """Initialize the Discord community intro dialog."""
         super().__init__()

@@ -71,6 +71,8 @@ def _find_best_matching_interface_index(
 
 
 class InterfaceSelectionData(NamedTuple):
+    """Represent a network interface row displayed in the selection dialog."""
+
     selection_index: int
     name: str
     description: str
@@ -112,6 +114,8 @@ class SafeQTableWidget(QTableWidget):
 
 
 class InterfaceSelectionDialog(QDialog):
+    """Display a dialog to select the capture network interface."""
+
     def __init__(  # pylint: disable=too-many-arguments  # noqa: PLR0913
         self,
         screen_width: int,

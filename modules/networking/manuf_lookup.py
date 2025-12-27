@@ -34,6 +34,8 @@ RE_MANUF_ENTRY_PATTERN = re.compile(
 
 
 class ManufEntry(NamedTuple):
+    """Represent a parsed entry from the Wireshark manuf database."""
+
     mac_prefix: str
     prefix_int: int
     cidr: int
@@ -101,6 +103,8 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
 
 
 class MacLookup:
+    """Look up MAC address vendor information using the local manuf database."""
+
     def __init__(self, *, load_on_init: bool = False) -> None:
         """Initialize the MacLookup instance.
 
