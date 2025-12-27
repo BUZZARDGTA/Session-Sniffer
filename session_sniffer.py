@@ -7780,8 +7780,8 @@ def main() -> None:
                     mac_address,
                     vendor_name,
                     device_name,
+                    is_inactive,
                     is_arp=False,
-                    is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
@@ -7794,8 +7794,8 @@ def main() -> None:
                 mac_address,
                 vendor_name,
                 device_name,
+                is_inactive,
                 is_arp=False,
-                is_inactive=is_inactive,
             ))
 
         for arp_entry in interface.get_arp_entries():
@@ -7811,8 +7811,8 @@ def main() -> None:
                 arp_entry.mac_address,
                 vendor_name,
                 device_name,
+                is_inactive,
                 is_arp=True,
-                is_inactive=is_inactive,
             ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)

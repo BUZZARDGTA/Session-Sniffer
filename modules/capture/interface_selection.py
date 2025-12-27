@@ -80,8 +80,8 @@ class InterfaceSelectionData(NamedTuple):
     mac_address: str
     vendor_name: Literal['N/A'] | str  # noqa: PYI051
     device_name: str
-    is_arp: bool
     is_inactive: bool
+    is_arp: bool
 
 
 class SafeQTableWidget(QTableWidget):
