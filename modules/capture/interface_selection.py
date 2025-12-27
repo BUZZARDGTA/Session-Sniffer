@@ -20,8 +20,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from modules.guis.utils import resize_window_for_screen
 from modules.error_messages import format_type_error
+from modules.guis.utils import resize_window_for_screen
 
 
 def _find_best_matching_interface_index(
