@@ -2386,8 +2386,8 @@ class UserIPDatabases:
                             ip_to_userip[ip].usernames.append(username)
 
                         # Assign the UserIP object to the PlayerRegistry if applicable
-                        if player := PlayersRegistry.get_player_by_ip(ip):
-                            player.userip = ip_to_userip[ip]
+                        if matched_player := PlayersRegistry.get_player_by_ip(ip):
+                            matched_player.userip = ip_to_userip[ip]
 
             # Remove resolved conflicts
             resolved_conflicts = cls.notified_ip_conflicts - unresolved_conflicts
@@ -3458,34 +3458,34 @@ def iplookup_core() -> None:
             iplookup_results = [IpApiResponse.model_validate(item) for item in iplookup_results_data]
 
             for iplookup in iplookup_results:
-                player = PlayersRegistry.get_player_by_ip(iplookup.query)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
+                if matched_player is None:
                     continue
 
-                player.iplookup.ipapi.continent = iplookup.continent
-                player.iplookup.ipapi.continent_code = iplookup.continent_code
-                player.iplookup.ipapi.country = iplookup.country
-                player.iplookup.ipapi.country_code = iplookup.country_code
-                player.iplookup.ipapi.region = iplookup.region
-                player.iplookup.ipapi.region_code = iplookup.region_code
-                player.iplookup.ipapi.city = iplookup.city
-                player.iplookup.ipapi.district = iplookup.district
-                player.iplookup.ipapi.zip_code = iplookup.zip_code
-                player.iplookup.ipapi.lat = iplookup.lat
-                player.iplookup.ipapi.lon = iplookup.lon
-                player.iplookup.ipapi.time_zone = iplookup.time_zone
-                player.iplookup.ipapi.offset = iplookup.offset
-                player.iplookup.ipapi.currency = iplookup.currency
-                player.iplookup.ipapi.isp = iplookup.isp
-                player.iplookup.ipapi.org = iplookup.org
-                player.iplookup.ipapi.asn = iplookup.asn
-                player.iplookup.ipapi.as_name = iplookup.as_name
+                matched_player.iplookup.ipapi.continent = iplookup.continent
+                matched_player.iplookup.ipapi.continent_code = iplookup.continent_code
+                matched_player.iplookup.ipapi.country = iplookup.country
+                matched_player.iplookup.ipapi.country_code = iplookup.country_code
+                matched_player.iplookup.ipapi.region = iplookup.region
+                matched_player.iplookup.ipapi.region_code = iplookup.region_code
+                matched_player.iplookup.ipapi.city = iplookup.city
+                matched_player.iplookup.ipapi.district = iplookup.district
+                matched_player.iplookup.ipapi.zip_code = iplookup.zip_code
+                matched_player.iplookup.ipapi.lat = iplookup.lat
+                matched_player.iplookup.ipapi.lon = iplookup.lon
+                matched_player.iplookup.ipapi.time_zone = iplookup.time_zone
+                matched_player.iplookup.ipapi.offset = iplookup.offset
+                matched_player.iplookup.ipapi.currency = iplookup.currency
+                matched_player.iplookup.ipapi.isp = iplookup.isp
+                matched_player.iplookup.ipapi.org = iplookup.org
+                matched_player.iplookup.ipapi.asn = iplookup.asn
+                matched_player.iplookup.ipapi.as_name = iplookup.as_name
 
-                player.iplookup.ipapi.mobile = iplookup.mobile
-                player.iplookup.ipapi.proxy = iplookup.proxy
-                player.iplookup.ipapi.hosting = iplookup.hosting
+                matched_player.iplookup.ipapi.mobile = iplookup.mobile
+                matched_player.iplookup.ipapi.proxy = iplookup.proxy
+                matched_player.iplookup.ipapi.hosting = iplookup.hosting
 
-                player.iplookup.ipapi.is_initialized = True
+                matched_player.iplookup.ipapi.is_initialized = True
 
             throttle_until(int(response.headers['X-Rl']), int(response.headers['X-Ttl']))
 
@@ -3521,12 +3521,12 @@ def hostname_core() -> None:
 
                 hostname = future.result()
 
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     continue
 
-                player.reverse_dns.hostname = hostname
-                player.reverse_dns.is_initialized = True
+                matched_player.reverse_dns.hostname = hostname
+                matched_player.reverse_dns.is_initialized = True
 
             gui_closed__event.wait(0.1)
 
@@ -3565,22 +3565,22 @@ def pinger_core() -> None:
                 except AllEndpointsExhaustedError:
                     continue
 
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     continue
 
-                player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
-                player.ping.ping_times = ping_result.ping_times
-                player.ping.packets_transmitted = ping_result.packets_transmitted
-                player.ping.packets_received = ping_result.packets_received
-                player.ping.packet_duplicates = ping_result.packet_duplicates
-                player.ping.packet_loss = ping_result.packet_loss
-                player.ping.packet_errors = ping_result.packet_errors
-                player.ping.rtt_min = ping_result.rtt_min
-                player.ping.rtt_avg = ping_result.rtt_avg
-                player.ping.rtt_max = ping_result.rtt_max
-                player.ping.rtt_mdev = ping_result.rtt_mdev
-                player.ping.is_initialized = True
+                matched_player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
+                matched_player.ping.ping_times = ping_result.ping_times
+                matched_player.ping.packets_transmitted = ping_result.packets_transmitted
+                matched_player.ping.packets_received = ping_result.packets_received
+                matched_player.ping.packet_duplicates = ping_result.packet_duplicates
+                matched_player.ping.packet_loss = ping_result.packet_loss
+                matched_player.ping.packet_errors = ping_result.packet_errors
+                matched_player.ping.rtt_min = ping_result.rtt_min
+                matched_player.ping.rtt_avg = ping_result.rtt_avg
+                matched_player.ping.rtt_max = ping_result.rtt_max
+                matched_player.ping.rtt_mdev = ping_result.rtt_mdev
+                matched_player.ping.is_initialized = True
 
             gui_closed__event.wait(0.1)
 
@@ -5121,9 +5121,9 @@ class SessionTableModel(QAbstractTableModel):
             if self.has_column('Country') and self.get_column_index('Country') == col_idx:
                 ip = self.get_ip_from_data_safely(self._data[row_idx])
 
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is not None and player.country_flag is not None:
-                    return player.country_flag.icon
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is not None and matched_player.country_flag is not None:
+                    return matched_player.country_flag.icon
 
         if role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
@@ -5215,14 +5215,14 @@ class SessionTableModel(QAbstractTableModel):
             # Sort by raw datetime values from player objects
             def extract_datetime_for_ip(ip: str) -> datetime:
                 """Extract datetime value for a given IP address."""
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     return datetime.min.replace(tzinfo=UTC)
 
                 datetime_mapping = {
-                    'First Seen': player.datetime.first_seen,
-                    'Last Rejoin': player.datetime.last_rejoin,
-                    'Last Seen': player.datetime.last_seen,
+                    'First Seen': matched_player.datetime.first_seen,
+                    'Last Rejoin': matched_player.datetime.last_rejoin,
+                    'Last Seen': matched_player.datetime.last_seen,
                 }
                 return datetime_mapping[sorted_column_name]
 
@@ -5234,10 +5234,10 @@ class SessionTableModel(QAbstractTableModel):
             # Sort by total session time duration from player objects
             def extract_total_session_time_for_ip(ip: str) -> timedelta:
                 """Extract total session time value for a given IP address."""
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     return timedelta(0)
-                return player.datetime.get_total_session_time()
+                return matched_player.datetime.get_total_session_time()
 
             combined.sort(
                 key=lambda row: extract_total_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
@@ -5247,10 +5247,10 @@ class SessionTableModel(QAbstractTableModel):
             # Sort by session time duration from player objects
             def extract_session_time_for_ip(ip: str) -> timedelta:
                 """Extract session time value for a given IP address."""
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     return timedelta(0)
-                return player.datetime.get_session_time()
+                return matched_player.datetime.get_session_time()
 
             combined.sort(
                 key=lambda row: extract_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
@@ -5277,19 +5277,19 @@ class SessionTableModel(QAbstractTableModel):
             # Sort by raw bandwidth integer values from player objects
             def extract_bandwidth_for_ip(ip: str) -> int:
                 """Extract bandwidth value for a given IP address."""
-                player = PlayersRegistry.get_player_by_ip(ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
                     return 0
 
                 bandwidth_mapping = {
-                    'T. Bandwith': player.bandwidth.total_exchanged,
-                    'Bandwith': player.bandwidth.exchanged,
-                    'T. Download': player.bandwidth.total_download,
-                    'Download': player.bandwidth.download,
-                    'T. Upload': player.bandwidth.total_upload,
-                    'Upload': player.bandwidth.upload,
-                    'BPS': player.bandwidth.bps.calculated_rate,
-                    'BPM': player.bandwidth.bpm.calculated_rate,
+                    'T. Bandwith': matched_player.bandwidth.total_exchanged,
+                    'Bandwith': matched_player.bandwidth.exchanged,
+                    'T. Download': matched_player.bandwidth.total_download,
+                    'Download': matched_player.bandwidth.download,
+                    'T. Upload': matched_player.bandwidth.total_upload,
+                    'Upload': matched_player.bandwidth.upload,
+                    'BPS': matched_player.bandwidth.bps.calculated_rate,
+                    'BPM': matched_player.bandwidth.bpm.calculated_rate,
                 }
                 return bandwidth_mapping[sorted_column_name]
 
@@ -5655,9 +5655,9 @@ class SessionTableView(QTableView):
                 if model.has_column('Country') and model.get_column_index('Country') == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
-                        player = PlayersRegistry.get_player_by_ip(ip)
-                        if player is not None and player.country_flag is not None:
-                            self.show_flag_tooltip(event, index, player)
+                        matched_player = PlayersRegistry.get_player_by_ip(ip)
+                        if matched_player is not None and matched_player.country_flag is not None:
+                            self.show_flag_tooltip(event, index, matched_player)
 
         return super().eventFilter(object, event)
 
@@ -5992,13 +5992,13 @@ class SessionTableView(QTableView):
                     return
 
                 userip_database_filepaths = UserIPDatabases.get_userip_database_filepaths()
-                player = PlayersRegistry.get_player_by_ip(displayed_ip)
-                if player is None:
+                matched_player = PlayersRegistry.get_player_by_ip(displayed_ip)
+                if matched_player is None:
                     return
 
                 # Create local copies to use in lambdas
                 ip_address = displayed_ip
-                player_obj = player
+                player_obj = matched_player
 
                 add_action(
                     context_menu,
@@ -6061,7 +6061,7 @@ class SessionTableView(QTableView):
 
                 userip_menu = add_menu(context_menu, 'UserIP  ')
 
-                if player.userip is None:
+                if matched_player.userip is None:
                     add_userip_menu = add_menu(userip_menu, 'Add     ', 'Add selected IP address to UserIP database.')  # Extra spaces for alignment
                     for database_path in userip_database_filepaths:
                         def create_add_handler(db_path: Path) -> Callable[[], None]:
@@ -6085,7 +6085,7 @@ class SessionTableView(QTableView):
                             tooltip='Move selected IP address to this UserIP database.',
                             handler=create_move_handler(database_path),
                         )
-                        action.setEnabled(player.userip.database_path != database_path)
+                        action.setEnabled(matched_player.userip.database_path != database_path)
                     add_action(
                         userip_menu,
                         'Delete  ',  # Extra spaces for alignment
@@ -7924,9 +7924,9 @@ def main() -> None:
                 else:
                     return  # Neither source nor destination is a private IP address.
 
-            player = PlayersRegistry.get_player_by_ip(target_ip)
-            if player is None:
-                player = PlayersRegistry.add_connected_player(
+            matched_player = PlayersRegistry.get_player_by_ip(target_ip)
+            if matched_player is None:
+                matched_player = PlayersRegistry.add_connected_player(
                     Player(
                         ip=target_ip,
                         port=target_port,
@@ -7937,42 +7937,42 @@ def main() -> None:
                 )
 
                 if GUIDetectionSettings.player_join_notifications_enabled:
-                    show_detection_warning_popup(player, 'player_joined')
+                    show_detection_warning_popup(matched_player, 'player_joined')
 
-            elif player.left_event.is_set():
-                player.mark_as_rejoined(
+            elif matched_player.left_event.is_set():
+                matched_player.mark_as_rejoined(
                     port=target_port,
                     packet_datetime=packet.datetime,
                     packet_length=packet.length,
                     sent_by_local_host=sent_by_local_host,
                 )
-                PlayersRegistry.move_player_to_connected(player)
+                PlayersRegistry.move_player_to_connected(matched_player)
 
                 if GUIDetectionSettings.player_join_notifications_enabled:
-                    show_detection_warning_popup(player, 'player_joined')
+                    show_detection_warning_popup(matched_player, 'player_joined')
 
                 if GUIDetectionSettings.player_rejoin_notifications_enabled:
-                    show_detection_warning_popup(player, 'player_rejoined')
+                    show_detection_warning_popup(matched_player, 'player_rejoined')
             else:
-                player.mark_as_seen(
+                matched_player.mark_as_seen(
                     port=target_port,
                     packet_datetime=packet.datetime,
                     packet_length=packet.length,
                     sent_by_local_host=sent_by_local_host,
                 )
 
-            if player.ip in UserIPDatabases.ips_set and (
-                not player.userip_detection
-                or not player.userip_detection.as_processed_task
+            if matched_player.ip in UserIPDatabases.ips_set and (
+                not matched_player.userip_detection
+                or not matched_player.userip_detection.as_processed_task
             ):
-                player.userip_detection = PlayerUserIPDetection(
+                matched_player.userip_detection = PlayerUserIPDetection(
                     time=packet.datetime.strftime('%H:%M:%S'),
                     date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
                 )
                 Thread(
                     target=process_userip_task,
-                    name=f'ProcessUserIPTask-{player.ip}-connected',
-                    args=(player, 'connected'),
+                    name=f'ProcessUserIPTask-{matched_player.ip}-connected',
+                    args=(matched_player, 'connected'),
                     daemon=True,
                 ).start()
 
