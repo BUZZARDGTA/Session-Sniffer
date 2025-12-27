@@ -6317,8 +6317,11 @@ class SessionTableView(QTableView):
 
             QMessageBox.information(
                 self, TITLE,
-                f'Selected IP{pluralize(len(ip_addresses))} {ip_addresses} has been added with username "{username}" '
-                f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".',
+                (
+                    f'Selected IP{pluralize(len(ip_addresses))} {list(ip_addresses)} '
+                    f'ha{pluralize(len(ip_addresses), singular="s", plural="ve")} been added with username "{username}" '
+                    f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".'
+                ),
             )
         else:
             # If the user canceled or left the input empty, show an error
