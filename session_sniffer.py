@@ -158,11 +158,11 @@ from modules.guis.stylesheets import (
     DISCORD_POPUP_EXIT_BUTTON_STYLESHEET,
     DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
     DISCORD_POPUP_MAIN_STYLESHEET,
-    STATUS_BAR_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
     STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
+    STATUS_BAR_STYLESHEET,
 )
 from modules.guis.utils import get_screen_size, resize_window_for_screen
 from modules.launcher.package_checker import (
