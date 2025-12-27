@@ -231,8 +231,11 @@ def _get_ip_net_table(buf: object, size_ptr: object) -> int:
 def _sockaddr_to_ipv4(sockaddr_ptr: int) -> str | None:
     """Converts a sockaddr pointer to an IPv4 address if applicable.
 
-    :param sockaddr_ptr: A pointer to a sockaddr_in structure.
-    :return: IPv4 address as a string or `None` if not IPv4.
+    Args:
+        sockaddr_ptr: A pointer to a sockaddr_in structure.
+
+    Returns:
+        The IPv4 address as a string, or `None` if the sockaddr is not IPv4.
     """
     # Explicitly cast sockaddr_ptr to a ctypes pointer of SOCKADDR_IN
     sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents
@@ -294,7 +297,8 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
 def get_adapters_info() -> Iterator[AdapterData]:
     """Retrieves information for all network adapters.
 
-    :return: An iterator of `AdapterData` objects containing network adapter information.
+    Returns:
+        An iterator of `AdapterData` objects containing network adapter information.
     """
     # Build neighbor map once to attach per adapter
     neighbors_by_if: dict[int, list[tuple[str | None, str | None]]] = {}

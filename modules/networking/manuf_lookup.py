@@ -104,7 +104,8 @@ class MacLookup:
     def __init__(self, *, load_on_init: bool = False) -> None:
         """Initialize the MacLookup instance.
 
-        :param load_on_init: If True, fetches and loads the manuf database immediately.
+        Args:
+            load_on_init: If True, fetch and load the manuf database immediately.
         """
         self.manuf_database: ManufDatabaseType | None = None
         if load_on_init:
@@ -140,8 +141,11 @@ class MacLookup:
     def lookup(self, mac_address: str) -> ManufEntry | None:
         """Lookup the MAC address in the manuf database.
 
-        :param mac_address: MAC address to lookup (string)
-        :return: Best matching `ManufEntry` or `None` if no match.
+        Args:
+            mac_address: The MAC address to look up.
+
+        Returns:
+            The best matching entry, or `None` if no match is found.
         """
         is_mac_address(mac_address, raise_exception=True)
 
