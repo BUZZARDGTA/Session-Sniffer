@@ -60,25 +60,11 @@ $QualityTools = @(
         Category = "LINTING"
     },
     @{
-        ToolName = "mypy"
-        Command = "mypy . --config-file pyproject.toml"
-        InstallCommand = "pip install mypy"
-        Description = "Static type checking"
-        Category = "TYPE CHECKING"
-    },
-    @{
         ToolName = "flake8"
         Command = "flake8 . --config .flake8"
         InstallCommand = "pip install flake8"
         Description = "Style guide enforcement"
         Category = "LINTING"
-    },
-    @{
-        ToolName = "pyright"
-        Command = "pyright"
-        InstallCommand = "pip install pyright"
-        Description = "Microsoft Python type checker"
-        Category = "TYPE CHECKING"
     },
     @{
         ToolName = "pylint"
@@ -93,6 +79,27 @@ $QualityTools = @(
         InstallCommand = "pip install vulture"
         Description = "Dead code detection and analysis"
         Category = "CODE QUALITY"
+    },
+    @{
+        ToolName = "mypy"
+        Command = "mypy . --config-file pyproject.toml"
+        InstallCommand = "pip install mypy"
+        Description = "Static type checking"
+        Category = "TYPE CHECKING"
+    },
+    @{
+        ToolName = "pyright"
+        Command = "pyright"
+        InstallCommand = "pip install pyright"
+        Description = "Microsoft Python type checker"
+        Category = "TYPE CHECKING"
+    },
+    @{
+        ToolName = "ty"
+        Command = "ty check ."
+        InstallCommand = "pip install ty"
+        Description = "Astral's fast Python type checker"
+        Category = "TYPE CHECKING"
     },
     @{
         ToolName = "pip-audit"

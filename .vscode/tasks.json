@@ -74,34 +74,10 @@
             }
         },
         {
-            "label": "🔬 MyPy - Static Type Checker",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/Scripts/mypy.exe",
-            "args": [".", "--config-file", "pyproject.toml"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "panel": "shared"
-            }
-        },
-        {
             "label": "📝 Flake8 - Style Guide Enforcer",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/flake8.exe",
             "args": [".", "--config", ".flake8"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "🎯 Pyright - Microsoft Type Checker",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/Scripts/pyright.exe",
-            "args": [".", "--project", "pyproject.toml"],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -126,6 +102,42 @@
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/vulture.exe",
             "args": [".", "--config", "pyproject.toml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "🎯 Pyright - Microsoft Type Checker",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/pyright.exe",
+            "args": [".", "--project", "pyproject.toml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "🔬 MyPy - Static Type Checker",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/mypy.exe",
+            "args": [".", "--config-file", "pyproject.toml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "🧪 Ty - Type Checker",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/ty.exe",
+            "args": ["check", "."],
             "group": "test",
             "presentation": {
                 "echo": true,
