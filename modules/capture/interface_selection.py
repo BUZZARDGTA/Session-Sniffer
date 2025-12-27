@@ -147,7 +147,6 @@ class InterfaceSelectionDialog(QDialog):
         # Custom variables
         self.selected_interface_data: InterfaceSelectionData | None = None
         self.all_interfaces = interfaces  # Store the complete list of interface data
-        self.arp_spoofing_enabled = arp_spoofing_default
         self.hide_inactive_enabled = hide_inactive_default
         self.hide_arp_enabled = hide_arp_default
         self.interfaces: list[InterfaceSelectionData] = []  # Will be populated by apply_filters()
