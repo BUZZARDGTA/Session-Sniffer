@@ -8,6 +8,7 @@ class PrimaryScreenNotFoundError(Exception):
     """Raised when no primary screen is detected in GUI operations."""
 
     def __init__(self) -> None:
+        """Initialize the exception with a default message."""
         super().__init__('No primary screen detected')
 
 
@@ -15,6 +16,11 @@ class UnsupportedSortColumnError(Exception):
     """Raised when an unsupported column name is used for sorting."""
 
     def __init__(self, column_name: str) -> None:
+        """Initialize the exception with the unsupported column name.
+
+        Args:
+            column_name: The unsupported column name.
+        """
         super().__init__(f"Sorting by column '{column_name}' is not supported.")
 
 
@@ -22,6 +28,11 @@ class TableDataConsistencyError(Exception):
     """Raised when table data and color arrays are in an inconsistent state."""
 
     def __init__(self, *, case: str) -> None:
+        """Initialize the exception for a specific inconsistency case.
+
+        Args:
+            case: A key identifying the inconsistency scenario.
+        """
         error_messages = {
             'colors_without_data': "Inconsistent state: It's not possible to have colors if there's no data.",
             'data_without_colors': "Inconsistent state: It's not possible to have data without colors.",
@@ -35,6 +46,7 @@ class InvalidDateColumnConfigurationError(Exception):
     """Raised when GUI date column settings are invalid (both date and time disabled)."""
 
     def __init__(self) -> None:
+        """Initialize the exception with a default message."""
         super().__init__('Invalid settings: Both date and time are disabled.')
 
 
@@ -42,6 +54,14 @@ class UnsupportedScreenResolutionError(Exception):
     """Raised when screen resolution is below minimum requirements."""
 
     def __init__(self, screen_width: int, screen_height: int, min_width: int, min_height: int) -> None:
+        """Initialize the exception with screen resolution information.
+
+        Args:
+            screen_width: Current screen width in pixels.
+            screen_height: Current screen height in pixels.
+            min_width: Minimum required width in pixels.
+            min_height: Minimum required height in pixels.
+        """
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.min_width = min_width

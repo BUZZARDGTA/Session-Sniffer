@@ -122,6 +122,16 @@ class InterfaceSelectionDialog(QDialog):
         hide_arp_default: bool,
         arp_spoofing_default: bool,
     ) -> None:
+        """Initialize the interface selection dialog.
+
+        Args:
+            screen_width: Screen width in pixels.
+            screen_height: Screen height in pixels.
+            interfaces: Available interfaces to display.
+            hide_inactive_default: Default state for hiding inactive interfaces.
+            hide_arp_default: Default state for hiding ARP interfaces.
+            arp_spoofing_default: Default state for ARP spoofing.
+        """
         super().__init__()
 
         # Set up the window

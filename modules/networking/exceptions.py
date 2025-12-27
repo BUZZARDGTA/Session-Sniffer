@@ -107,5 +107,11 @@ class InterfaceAlreadyExistsError(Exception):
     """Raised when attempting to add a network interface that already exists."""
 
     def __init__(self, index: int, name: str | None = None) -> None:
+        """Initialize the exception with interface identity details.
+
+        Args:
+            index: Interface index.
+            name: Optional interface name.
+        """
         details = f'index={index}' + (f', name="{name}"' if name else '')
         super().__init__(f'Interface already exists in registry ({details})')

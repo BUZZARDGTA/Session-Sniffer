@@ -1933,6 +1933,15 @@ class PlayerModMenus:
 
 class Player:  # pylint: disable=too-many-instance-attributes
     def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
+        """Initialize a `Player` from the first observed packet.
+
+        Args:
+            ip: The player's IP address.
+            packet_datetime: Timestamp of the packet used to create the player.
+            packet_length: Length of the packet in bytes.
+            port: Source/destination port observed for the player.
+            sent_by_local_host: Whether the packet direction is from the local host.
+        """
         self.ip = ip
         self.left_event = Event()
         self.rejoins = 0
@@ -4936,6 +4945,11 @@ class SessionTableModel(QAbstractTableModel):
     TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
 
     def __init__(self, headers: list[str]) -> None:
+        """Initialize the table model with a set of column headers.
+
+        Args:
+            headers: Column header labels for the table.
+        """
         super().__init__()
 
         self._view: SessionTableView | None = None  # Initially, no view is attached
@@ -5467,6 +5481,14 @@ class SessionTableModel(QAbstractTableModel):
 
 class SessionTableView(QTableView):
     def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder, *, is_connected_table: bool) -> None:
+        """Initialize a session table view.
+
+        Args:
+            model: The model to display.
+            sort_column: Initial column index to sort by.
+            sort_order: Initial sort order.
+            is_connected_table: Whether this view represents the connected table.
+        """
         super().__init__()
 
         self._is_connected_table = is_connected_table  # Store which table type this is
@@ -6408,6 +6430,12 @@ class GUIWorkerThread(QThread):
         connected_table_view: SessionTableView,
         disconnected_table_view: SessionTableView,
     ) -> None:
+        """Initialize the GUI worker thread.
+
+        Args:
+            connected_table_view: The connected players table view.
+            disconnected_table_view: The disconnected players table view.
+        """
         super().__init__()
 
         self.connected_table_view = connected_table_view
@@ -6634,6 +6662,13 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
 
 class MainWindow(QMainWindow):
     def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
+        """Initialize the main application window.
+
+        Args:
+            screen_width: Primary screen width in pixels.
+            screen_height: Primary screen height in pixels.
+            capture: Packet capture instance used by the GUI.
+        """
         super().__init__()
 
         self.capture = capture
@@ -7328,6 +7363,7 @@ class ClickableLabel(QLabel):
 
 class DiscordIntro(QDialog):
     def __init__(self) -> None:
+        """Initialize the Discord community intro dialog."""
         super().__init__()
 
         window_title = '🏆 Join our Discord Community! 🤝'

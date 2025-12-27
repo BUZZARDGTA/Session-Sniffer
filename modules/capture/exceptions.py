@@ -14,6 +14,13 @@ class TSharkOutputParsingError(TSharkError):
     """Raised when TShark output cannot be parsed correctly."""
 
     def __init__(self, expected_parts: int, actual_parts: int, output_line: str) -> None:
+        """Initialize the exception with parsing details.
+
+        Args:
+            expected_parts: Expected number of output parts.
+            actual_parts: Actual number of output parts.
+            output_line: The raw output line that failed parsing.
+        """
         super().__init__(f'Expected "{expected_parts}" parts, got "{actual_parts}" in "{output_line}"')
 
 
@@ -27,6 +34,11 @@ class MalformedPacketError(TSharkError):
     message_template: str = 'Malformed packet'
 
     def __init__(self, value: object | None = None) -> None:
+        """Initialize the exception with the offending value (if any).
+
+        Args:
+            value: Optional value associated with the malformed packet.
+        """
         self.value = value
         super().__init__()
 
