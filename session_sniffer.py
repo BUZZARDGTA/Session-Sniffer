@@ -2704,13 +2704,13 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             state=adapter.operational_status,
             media_connect_state=adapter.media_connect_state,
             name=adapter.friendly_name,
-            mac_address=adapter.mac_address,
             packets_sent=adapter.packets_sent,
             packets_recv=adapter.packets_recv,
             transmit_link_speed=adapter.transmit_link_speed,
             receive_link_speed=adapter.receive_link_speed,
             description=adapter.description,
             ip_addresses=adapter.ipv4_addresses,
+            mac_address=adapter.mac_address,
             device_name=None,
             vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address) if adapter.mac_address else None,
         ))
@@ -6620,10 +6620,10 @@ def arp_spoofing_task(  # noqa: PLR0913
         def report_failure(
             stage: str,
             *,
-            exit_code: int | None = None,
-            error_output: str | None = None,
-            msgbox_style: MsgBox.Style | None = None,
-            spawn_msgbox_thread: bool = False,
+            exit_code: int | None,
+            error_output: str | None,
+            msgbox_style: MsgBox.Style,
+            spawn_msgbox_thread: bool,
         ) -> None:
             """Log, notify, and terminate the ARP spoofing task on failure."""
             if exit_code is not None:
@@ -6642,13 +6642,12 @@ def arp_spoofing_task(  # noqa: PLR0913
                 exit_code=exit_code,
                 error_details=error_output,
             )
-            final_style = msgbox_style or (MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST)
 
             def show_msgbox() -> None:
                 MsgBox.show(
                     title='ARP Spoofing Failed',
                     text=error_message,
-                    style=final_style,
+                    style=msgbox_style,
                 )
 
             if spawn_msgbox_thread:
@@ -6688,7 +6687,13 @@ def arp_spoofing_task(  # noqa: PLR0913
                     stdout_data, stderr_data = proc.communicate()
                     error_output = (stderr_data or stdout_data or '').strip() or None
                     proc = None
-                    report_failure('startup failure', exit_code=exit_code, error_output=error_output)
+                    report_failure(
+                        'startup failure',
+                        exit_code=exit_code,
+                        error_output=error_output,
+                        msgbox_style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=False,
+                    )
                     return
 
             # Wait for capture to stop or process to die
@@ -7759,31 +7764,55 @@ def main() -> None:
             Settings.CAPTURE_INTERFACE_NAME = interface.name
             Settings.rewrite_settings_file()
 
-        vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
         mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
+        vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
         is_inactive = interface.is_interface_inactive()
 
         if interface.ip_addresses:
             for ip_address in interface.ip_addresses:
                 interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data), interface.name, interface.description,
-                    interface.packets_sent, interface.packets_recv, ip_address, mac_address, vendor_name,
-                    device_name, is_arp=False, is_inactive=is_inactive,
+                    len(interfaces_selection_data),
+                    interface.name,
+                    interface.description,
+                    interface.packets_sent,
+                    interface.packets_recv,
+                    ip_address,
+                    mac_address,
+                    vendor_name,
+                    device_name,
+                    is_arp=False,
+                    is_inactive=is_inactive,
                 ))
         else:
             interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface.name, interface.description,
-                interface.packets_sent, interface.packets_recv, 'N/A', mac_address, vendor_name,
-                device_name, is_arp=False, is_inactive=is_inactive,
+                len(interfaces_selection_data),
+                interface.name,
+                interface.description,
+                interface.packets_sent,
+                interface.packets_recv,
+                'N/A',
+                mac_address,
+                vendor_name,
+                device_name,
+                is_arp=False,
+                is_inactive=is_inactive,
             ))
 
         for arp_entry in interface.get_arp_entries():
             vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
 
             interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data), interface.name, interface.description,
-                'N/A', 'N/A', arp_entry.ip_address, arp_entry.mac_address, vendor_name,
-                device_name, is_arp=True, is_inactive=is_inactive,
+                len(interfaces_selection_data),
+                interface.name,
+                interface.description,
+                'N/A',
+                'N/A',
+                arp_entry.ip_address,
+                arp_entry.mac_address,
+                vendor_name,
+                device_name,
+                is_arp=True,
+                is_inactive=is_inactive,
             ))
 
     selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)

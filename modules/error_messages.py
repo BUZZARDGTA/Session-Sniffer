@@ -8,10 +8,10 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
     interface_name: str,
     interface_description: str,
     interface_ip: str,
-    interface_mac: str | None = None,
-    interface_vendor_name: str | None = None,
-    exit_code: int | None = None,
-    error_details: str | None = None,
+    interface_mac: str | None,
+    interface_vendor_name: str | None,
+    exit_code: int | None,
+    error_details: str | None,
 ) -> str:
     """Format an ARP spoofing failure message for display in a message box.
 
