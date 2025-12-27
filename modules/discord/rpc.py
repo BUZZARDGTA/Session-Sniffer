@@ -11,7 +11,7 @@ import sentinel  # pyright: ignore[reportMissingTypeStubs]
 from pypresence import exceptions
 from pypresence.presence import Presence
 
-from modules.utils import format_type_error
+from modules.error_messages import format_type_error
 
 QueueType = SimpleQueue[str | object]
 

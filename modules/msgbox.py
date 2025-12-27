@@ -9,7 +9,7 @@ The MsgBox.show() method can be used to display a message box with custom button
 import ctypes
 import enum
 
-from modules.utils import format_type_error
+from modules.error_messages import format_type_error
 
 
 class MsgBox:

@@ -123,7 +123,11 @@ from modules.constants.standalone import (
 )
 from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
-from modules.error_messages import format_arp_spoofing_failed_message
+from modules.error_messages import (
+    format_arp_spoofing_failed_message,
+    format_attribute_error,
+    format_type_error,
+)
 from modules.exceptions import (
     PlayerAlreadyExistsError,
     PlayerDateTimeCorruptionError,
@@ -202,10 +206,8 @@ from modules.utils import (
     custom_str_to_bool,
     custom_str_to_nonetype,
     dedup_preserve_order,
-    format_attribute_error,
     format_project_version,
     format_triple_quoted_text,
-    format_type_error,
     get_pid_by_path,
     get_session_log_path,
     is_pyinstaller_compiled,

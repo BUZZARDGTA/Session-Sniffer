@@ -17,6 +17,10 @@ from win32com.client import Dispatch
 
 from modules.constants.standalone import TITLE
 from modules.constants.standard import CMD_EXE
+from modules.error_messages import (
+    format_attribute_error as _format_attribute_error,
+    format_type_error as _format_type_error,
+)
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -44,7 +48,7 @@ def format_attribute_error(cls: type, name: str) -> str:
     Returns:
         The formatted error message.
     """
-    return f"'{cls.__name__}' object has no attribute '{name}'"
+    return _format_attribute_error(cls, name)
 
 
 def format_type_error(
@@ -62,19 +66,7 @@ def format_type_error(
     Returns:
         The formatted error message (e.g., for deeper debugging purposes).
     """
-    # Determine the actual type of the object
-    actual_type = type(obj).__name__
-
-    # Handle expected types, which could be a single type or a tuple of types
-    if isinstance(expected_types, tuple):
-        expected_types_names = ' | '.join(t.__name__ for t in expected_types)
-        expected_type_count = len(expected_types)
-    else:
-        expected_types_names = expected_types.__name__
-        expected_type_count = 1
-
-    # Format the error message
-    return f'Expected type{pluralize(expected_type_count)} {expected_types_names}, got {actual_type} instead.{suffix}'
+    return _format_type_error(obj, expected_types, suffix=suffix)
 
 
 def format_file_not_found_error(file_path: Path) -> str:

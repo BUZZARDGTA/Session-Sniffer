@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from modules.guis.utils import resize_window_for_screen
-from modules.utils import format_type_error
+from modules.error_messages import format_type_error
 
 
 def _find_best_matching_interface_index(

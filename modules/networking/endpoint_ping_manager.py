@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from requests import exceptions
 
+from modules.error_messages import format_type_error
 from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
     InvalidPingResultError,
@@ -33,17 +34,6 @@ RE_RTT_STATS_PATTERN = re.compile(
     r'rtt min/avg/max/mdev = (?P<RTT_MIN>[\d\.]+)/(?P<RTT_AVG>[\d\.]+)/'
     r'(?P<RTT_MAX>[\d\.]+)/(?P<RTT_MDEV>[\d\.]+) ms',
 )
-
-
-def format_type_error(
-    obj: object,
-    expected_types: type | tuple[type, ...],
-    suffix: str = '',
-) -> str:
-    """Generate a formatted error message for a type mismatch."""
-    type_names = ' or '.join(t.__name__ for t in expected_types) if isinstance(expected_types, tuple) else expected_types.__name__
-
-    return f'Expected {type_names}, got {type(obj).__name__}: {obj!r}{suffix}'
 
 
 @dataclass(slots=True)

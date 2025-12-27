@@ -4,6 +4,47 @@ This module contains functions for formatting error messages and dialogs.
 """
 
 
+def format_attribute_error(cls: type, name: str) -> str:
+    """Format an attribute error message.
+
+    Args:
+        cls: The class of the object.
+        name: The name of the missing attribute.
+
+    Returns:
+        The formatted error message.
+    """
+    return f"'{cls.__name__}' object has no attribute '{name}'"
+
+
+def format_type_error(
+    obj: object,
+    expected_types: type | tuple[type, ...],
+    suffix: str = '',
+) -> str:
+    """Generate a formatted error message for a type mismatch.
+
+    Args:
+        obj: The object whose type is being checked.
+        expected_types: The expected type(s) for the object.
+        suffix: An optional suffix to append to the error message.
+
+    Returns:
+        The formatted error message.
+    """
+    actual_type = type(obj).__name__
+
+    if isinstance(expected_types, tuple):
+        expected_types_names = ' | '.join(t.__name__ for t in expected_types)
+        expected_type_count = len(expected_types)
+    else:
+        expected_types_names = expected_types.__name__
+        expected_type_count = 1
+
+    plural_suffix = '' if expected_type_count == 1 else 's'
+    return f'Expected type{plural_suffix} {expected_types_names}, got {actual_type} instead.{suffix}'
+
+
 def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
     interface_name: str,
     interface_description: str,
