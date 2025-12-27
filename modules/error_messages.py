@@ -18,6 +18,8 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
     Returns:
         A formatted error message string ready for display.
     """
+    interface_mac = 'N/A' if interface_mac is None else interface_mac
+    interface_vendor_name = 'N/A' if interface_vendor_name is None else interface_vendor_name
     exit_code_output = f'{exit_code}' if exit_code is not None else ''
     error_details_output = f'\n{error_details}' if error_details else ''
 
@@ -29,8 +31,8 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
         f'Name: {interface_name}\n'
         f'Description: {interface_description}\n'
         f'IP Address: {interface_ip}\n'
-        f'MAC Address: {interface_mac or ""}\n'
-        f'Vendor Name: {interface_vendor_name or ""}\n\n'
+        f'MAC Address: {interface_mac}\n'
+        f'Vendor Name: {interface_vendor_name}\n\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'DIAGNOSTICS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
