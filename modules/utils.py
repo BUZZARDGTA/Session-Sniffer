@@ -5,22 +5,18 @@ This module contains a variety of helper functions and custom exceptions used ac
 import os
 import subprocess
 import sys
-import textwrap
 import winreg
 from contextlib import suppress
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import psutil
 from win32com.client import Dispatch
 
 from modules.constants.standalone import TITLE
 from modules.constants.standard import CMD_EXE
-from modules.error_messages import (
-    format_attribute_error as _format_attribute_error,
-    format_type_error as _format_type_error,
-)
+from modules.error_messages import format_file_not_found_error, format_type_error
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -36,46 +32,6 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 USER_SHELL_FOLDERS__REG_KEY = R'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
-
-
-def format_attribute_error(cls: type, name: str) -> str:
-    """Format an attribute error message.
-
-    Args:
-        cls: The class of the object.
-        name: The name of the missing attribute.
-
-    Returns:
-        The formatted error message.
-    """
-    return _format_attribute_error(cls, name)
-
-
-def format_type_error(
-    obj: object,
-    expected_types: type[Any] | tuple[type[Any], ...],
-    suffix: str = '',
-) -> str:
-    """Generate a formatted error message for a type mismatch.
-
-    Args:
-        obj: The object whose type is being checked.
-        expected_types: The expected type(s) for the object.
-        suffix: An optional suffix to append to the error message.
-
-    Returns:
-        The formatted error message (e.g., for deeper debugging purposes).
-    """
-    return _format_type_error(obj, expected_types, suffix=suffix)
-
-
-def format_file_not_found_error(file_path: Path) -> str:
-    """Format the file not found error message.
-
-    Args:
-        file_path: The path to the file that was not found.
-    """
-    return f'File not found: {file_path.absolute()}'
 
 
 def is_pyinstaller_compiled() -> bool:
@@ -173,10 +129,6 @@ def set_window_title(title: str) -> None:
 
 def clear_screen() -> None:
     print('\033c', end='')  # noqa: T201
-
-
-def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
-    return singular if count == 1 else plural
 
 
 def validate_file(file_path: Path) -> Path:
@@ -312,33 +264,6 @@ def terminate_process_tree(pid: int | None = None) -> None:
 
     with suppress(psutil.NoSuchProcess):
         parent.wait(3)
-
-
-def format_triple_quoted_text(
-    text: str,
-    /,
-    *,
-    add_leading_newline: bool = False,
-    add_trailing_newline: bool = False,
-) -> str:
-    """Format a triple-quoted string by removing leading whitespace and optionally adding newlines.
-
-    Args:
-        text: The text to format.
-        add_leading_newline: Whether to add a leading newline. Defaults to False.
-        add_trailing_newline: Whether to add a trailing newline. Defaults to False.
-
-    Returns:
-        The formatted text.
-    """
-    formatted_text = textwrap.dedent(text).strip()
-
-    if add_leading_newline:
-        formatted_text = '\n' + formatted_text
-    if add_trailing_newline:
-        formatted_text += '\n'
-
-    return formatted_text
 
 
 def check_case_insensitive_and_exact_match(input_value: str, custom_values_tuple: tuple[str, ...]) -> tuple[bool, str]:

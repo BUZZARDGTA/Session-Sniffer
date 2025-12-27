@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+from modules.text_utils import pluralize
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -65,11 +67,6 @@ class ParenthesisMismatchError(Exception):
             unmatched_opening: Positions of unmatched opening parentheses.
             unmatched_closing: Positions of unmatched closing parentheses.
         """
-
-        def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
-            """Return the appropriate plural form based on count."""
-            return singular if count == 1 else plural
-
         message = '\n'.join(
             f'Unmatched {type_} parentheses at position{pluralize(len(positions))}: {positions}'
             for type_, positions in (

@@ -144,6 +144,10 @@ from modules.guis.exceptions import (
     UnsupportedScreenResolutionError,
     UnsupportedSortColumnError,
 )
+from modules.guis.html_templates import (
+    CAPTURE_STOPPED_HTML,
+    GUI_HEADER_HTML_TEMPLATE,
+)
 from modules.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
     CONNECTED_CLEAR_BUTTON_STYLESHEET,
@@ -212,11 +216,9 @@ from modules.utils import (
     custom_str_to_nonetype,
     dedup_preserve_order,
     format_project_version,
-    format_triple_quoted_text,
     get_pid_by_path,
     get_session_log_path,
     is_pyinstaller_compiled,
-    pluralize,
     run_cmd_command,
     run_cmd_script,
     set_window_title,
@@ -6745,29 +6747,13 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
     Returns:
         HTML string for the header.
     """
-    if capture.is_running():
-        stop_status = ''
-    else:
-        stop_status = """
-                <div style="background: linear-gradient(90deg, #bf616a, #d08770); padding: 10px;
-                            margin-top: 10px; border: 2px solid #bf616a; border-radius: 6px;
-                            box-shadow: 0px 3px 8px rgba(191, 97, 106, 0.4); text-align: center;">
-                    <span style="font-size: 18px; font-weight: bold; color: #ffeb3b;">⏸️ CAPTURE STOPPED</span>
-                </div>
-                """
+    stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
 
-    return f"""
-            <div style="background: linear-gradient(90deg, #2e3440, #4c566a); color: white; padding: 15px;
-                        border: 2px solid #88c0d0; border-radius: 8px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);">
-                <div style="text-align: center;">
-                    <span style="font-size: 24px; color: #88c0d0; font-weight: bold;">{TITLE}</span>&nbsp;&nbsp;<span style="font-size: 14px; color: #aaa">{VERSION}</span>
-                </div>
-                <p style="font-size: 14px; margin: 8px 0 0 0; text-align: center; color: #d8dee9;">
-                    The best FREE and Open-Source packet sniffer, aka IP puller
-                </p>
-                {stop_status}
-            </div>
-            """
+    return GUI_HEADER_HTML_TEMPLATE.format(
+        title=TITLE,
+        version=VERSION,
+        stop_status=stop_status,
+    )
 
 
 class MainWindow(QMainWindow):
