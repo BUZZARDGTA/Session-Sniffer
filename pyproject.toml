@@ -50,17 +50,6 @@ strict = true
 
 
 [tool.pydocstyle]
-ignore = [
-    "D203",  # 1 blank line required before class docstring
-    "D204",  # 1 blank line required after class docstring
-    "D213",  # Multi-line docstring summary should start at the second line
-    "D401",  # First line should be in imperative mood
-    "D406",  # Section name should end with a newline
-    "D407",  # Missing dashed underline after section
-    "D413",  # Missing blank line after last section
-]
-
-
 [tool.pylint.master]
 enable = "all"
 extension-pkg-allow-list = ["PyQt6"]
@@ -80,8 +69,6 @@ max-line-length = 176
 disable = [
     "fixme",
     "locally-disabled",
-    "missing-class-docstring",
-    "missing-function-docstring",
     "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
@@ -110,7 +97,6 @@ exclude = [
 [tool.ruff.lint]
 ignore = [
     "C901",    # complex-structure
-    "D107",    # undocumented-public-init
     "ERA001",  # commented-out-code
     "FIX002",  # line-contains-todo
     "PLR0912", # too-many-branches
