@@ -1,1 +1,1 @@
-"""This package handles interactions with Discord."""
+"""The package handles interactions with Discord."""

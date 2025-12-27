@@ -1,1 +1,1 @@
-"""This package contains networking utilities."""
+"""The package contains networking utilities."""

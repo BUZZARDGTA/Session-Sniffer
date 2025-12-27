@@ -1,4 +1,4 @@
-"""This script retrieves network adapter information on Windows."""
+"""The script retrieves network adapter information on Windows."""
 import ctypes
 import socket
 from ctypes import wintypes

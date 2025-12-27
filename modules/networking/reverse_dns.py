@@ -1,4 +1,4 @@
-"""This module provides functionality for performing reverse DNS lookups.
+"""The module provides functionality for performing reverse DNS lookups.
 
 It includes a function `lookup` which resolves hostnames from IP addresses.
 """

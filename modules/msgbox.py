@@ -1,4 +1,4 @@
-"""This module provides a wrapper for the Windows MessageBox API using ctypes.
+"""The module provides a wrapper for the Windows MessageBox API using ctypes.
 
 It defines two main components:
 - MsgBox.ReturnValues: Enum class representing the possible return values from a MessageBox.

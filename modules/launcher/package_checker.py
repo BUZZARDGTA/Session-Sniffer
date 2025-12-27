@@ -1,4 +1,4 @@
-"""This module checks the validity of packages for the launcher."""
+"""The module checks the validity of packages for the launcher."""
 import importlib.metadata
 from typing import TYPE_CHECKING, Literal
 

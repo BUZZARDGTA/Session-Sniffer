@@ -1,4 +1,4 @@
-"""This module manages the integration with Discord Rich Presence (RPC) to display custom status updates.
+"""The module manages the integration with Discord Rich Presence (RPC) to display custom status updates.
 
 It connects to Discord using a provided client ID, updates the presence state with a message, and provides
 functionality to update or close the presence. It uses threading to run the update process asynchronously.

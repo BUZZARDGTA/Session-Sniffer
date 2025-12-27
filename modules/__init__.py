@@ -1,1 +1,1 @@
-"""This package contains all the modules for the project."""
+"""The package contains all the modules for the project."""

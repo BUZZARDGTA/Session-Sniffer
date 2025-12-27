@@ -1,1 +1,1 @@
-"""This package contains modules related to packet capture functionality."""
+"""The package contains modules related to packet capture functionality."""

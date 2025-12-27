@@ -1,4 +1,4 @@
-"""This package contains constants used throughout the project.
+"""The package contains constants used throughout the project.
 
 Note:
     A constant should appear in at least two files to justify inclusion here.

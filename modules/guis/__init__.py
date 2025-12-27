@@ -1,1 +1,1 @@
-"""This package contains GUI-related components."""
+"""The package contains GUI-related components."""

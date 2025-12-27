@@ -1,1 +1,1 @@
-"""This package contains components related to the launcher."""
+"""The package contains components related to the launcher."""
