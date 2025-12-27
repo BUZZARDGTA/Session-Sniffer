@@ -5,8 +5,8 @@ from pathlib import Path
 from threading import Lock
 from typing import ClassVar
 
-from modules.logging_setup import get_logger
 from modules.error_messages import format_type_error
+from modules.logging_setup import get_logger
 from modules.utils import get_documents_dir
 
 logger = get_logger(__name__)
