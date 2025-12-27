@@ -232,7 +232,7 @@ def _sockaddr_to_ipv4(sockaddr_ptr: int) -> str | None:
     """Converts a sockaddr pointer to an IPv4 address if applicable.
 
     :param sockaddr_ptr: A pointer to a sockaddr_in structure.
-    :return: IPv4 address as a string or None if not IPv4.
+    :return: IPv4 address as a string or `None` if not IPv4.
     """
     # Explicitly cast sockaddr_ptr to a ctypes pointer of SOCKADDR_IN
     sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents

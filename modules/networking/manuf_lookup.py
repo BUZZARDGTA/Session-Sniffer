@@ -141,7 +141,7 @@ class MacLookup:
         """Lookup the MAC address in the manuf database.
 
         :param mac_address: MAC address to lookup (string)
-        :return: Best matching ManufEntry or None if no match.
+        :return: Best matching `ManufEntry` or `None` if no match.
         """
         is_mac_address(mac_address, raise_exception=True)
 
