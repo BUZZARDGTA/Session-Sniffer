@@ -95,8 +95,18 @@ def ping_loop(target_ip: str, s: requests.Session) -> None:
 
         return results
 
-    def pluralize(variable: int) -> str:
-        return 's' if variable > 1 else ''
+    def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
+        """Return the singular/plural suffix based on a count.
+
+        Args:
+            count: The count to decide plurality.
+            singular: Suffix to use when count is exactly 1.
+            plural: Suffix to use otherwise.
+
+        Returns:
+            The chosen suffix.
+        """
+        return singular if count == 1 else plural
 
     def get_rtt_gradient_color(val: int) -> str:
         val = min(max(val, 0), 3000) * 0xFF // 3000
