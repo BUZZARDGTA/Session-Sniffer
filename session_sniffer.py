@@ -126,7 +126,20 @@ from modules.discord.rpc import DiscordRPC
 from modules.error_messages import (
     format_arp_spoofing_failed_message,
     format_attribute_error,
+    format_failed_check_for_updates_message,
+    format_geolite2_download_flags_failed_message,
+    format_geolite2_update_initialize_error_message,
+    format_invalid_datetime_columns_settings_message,
+    format_no_username_provided_message,
+    format_outdated_packages_message,
+    format_port_number_not_provided_message,
+    format_port_number_out_of_range_message,
     format_type_error,
+    format_uncaught_exception_report_message,
+    format_userip_corrupted_settings_message,
+    format_userip_invalid_ip_entry_message,
+    format_userip_ip_conflict_message,
+    format_userip_missing_settings_message,
 )
 from modules.exceptions import (
     PlayerAlreadyExistsError,
@@ -445,7 +458,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
-        'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues',
+        format_uncaught_exception_report_message(issues_url='https://github.com/BUZZARDGTA/Session-Sniffer/issues'),
         exception_info=exception_info,
     )
 
@@ -881,16 +894,13 @@ class Settings(DefaultSettings):
     def rewrite_settings_file(cls) -> None:
         console.print('Rewriting "Settings.ini" file ...', highlight=False)
 
-        text = format_triple_quoted_text(f"""
-            ;;-----------------------------------------------------------------------------
-            ;; {TITLE} Configuration Settings
-            ;;-----------------------------------------------------------------------------
-            ;; Lines starting with ";" or "#" symbols are commented lines.
-            ;;
-            ;; For detailed explanations of each setting, please refer to the following documentation:
-            ;; https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration
-            ;;-----------------------------------------------------------------------------
-        """, add_trailing_newline=True)
+        text = format_triple_quoted_text(
+            SETTINGS_INI_HEADER_TEMPLATE.format(
+                title=TITLE,
+                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration',
+            ),
+            add_trailing_newline=True,
+        )
 
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
@@ -1196,16 +1206,7 @@ class Settings(DefaultSettings):
 
             MsgBox.show(
                 title=TITLE,
-                text=format_triple_quoted_text("""
-                    ERROR in your custom "Settings.ini" file:
-
-                    At least one of these settings must be set to "True" value:
-                    <GUI_COLUMNS_DATETIME_SHOW_DATE>
-                    <GUI_COLUMNS_DATETIME_SHOW_TIME>
-                    <GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME>
-
-                    Default values will be applied to fix this issue.
-                """),
+                text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
                 style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
             )
 
@@ -2259,23 +2260,14 @@ class UserIPDatabases:
             name=f'UserIPConflictError-{existing_userip.ip}',
             kwargs={
                 'title': TITLE,
-                'text': format_triple_quoted_text(f"""
-                    ERROR:
-                        UserIP databases IP conflict
-
-                    INFOS:
-                        The same IP cannot be assigned to multiple
-                        databases.
-                        Users assigned to this IP will be ignored until
-                        the conflict is resolved.
-
-                    DEBUG:
-                        "{existing_userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":
-                        {', '.join(existing_userip.usernames)}={existing_userip.ip}
-
-                        "{conflicting_database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":
-                        {conflicting_username}={existing_userip.ip}
-                """),
+                'text': format_triple_quoted_text(format_userip_ip_conflict_message(
+                    existing_database_path=existing_userip.database_path,
+                    existing_usernames=existing_userip.usernames,
+                    ip=existing_userip.ip,
+                    conflicting_database_path=conflicting_database_path,
+                    conflicting_username=conflicting_username,
+                    userip_databases_dir=USERIP_DATABASES_DIR_PATH,
+                )),
                 'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
             },
             daemon=True,
@@ -2645,25 +2637,12 @@ def check_for_updates() -> None:
             except requests.exceptions.RequestException as e:
                 choice = MsgBox.show(
                     title=TITLE,
-                    text=format_triple_quoted_text(f"""
-                        ERROR:
-                            Failed to check for updates.
-
-                            DEBUG:
-                                Exception: {type(e).__name__}
-                                HTTP Code: {f"{e.response.status_code} - {e.response.reason}" if e.response else "No response"}
-
-                        Please check your internet connection and ensure you have access to:
-                        {GITHUB_VERSIONS_URL}
-
-                        Abort:
-                            Exit and open the "{TITLE}" GitHub page to
-                            download the latest version.
-                        Retry:
-                            Try checking for updates again.
-                        Ignore:
-                            Continue using the current version (not recommended).
-                    """),
+                    text=format_triple_quoted_text(format_failed_check_for_updates_message(
+                        app_title=TITLE,
+                        exception_name=type(e).__name__,
+                        http_code=(f'{e.response.status_code} - {e.response.reason}' if e.response else 'No response'),
+                        versions_url=GITHUB_VERSIONS_URL,
+                    )),
                     style=MsgBox.Style.MB_ABORTRETRYIGNORE | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
                 )
 
@@ -2966,16 +2945,10 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
                 name='GeoLite2DownloadError',
                 kwargs={
                     'title': TITLE,
-                    'text': format_triple_quoted_text(f"""
-                        ERROR:
-                            Failed fetching MaxMind GeoLite2 "{'", "'.join(failed_fetching_flag_list)}" database{pluralize(len(failed_fetching_flag_list))}.
-
-                        DEBUG:
-                            GITHUB_RELEASE_API__GEOLITE2__URL={GITHUB_RELEASE_API__GEOLITE2__URL}
-                            failed_fetching_flag_list={failed_fetching_flag_list}
-
-                        These MaxMind GeoLite2 database{pluralize(len(failed_fetching_flag_list))} will not be updated.
-                    """),
+                    'text': format_triple_quoted_text(format_geolite2_download_flags_failed_message(
+                        failed_flags=failed_fetching_flag_list,
+                        geolite2_release_api_url=GITHUB_RELEASE_API__GEOLITE2__URL,
+                    )),
                     'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
                 },
                 daemon=True,
@@ -3799,21 +3772,12 @@ def rendering_core(
                                 name=f'UserIPConfigFileError-{ini_path.name}',
                                 kwargs={
                                     'title': TITLE,
-                                    'text': format_triple_quoted_text(f"""
-                                        ERROR:
-                                            Corrupted UserIP Database File (Settings)
-
-                                        INFOS:
-                                            UserIP database file:
-                                            "{ini_path}"
-                                            has an invalid settings value:
-
-                                            {setting}={value}
-
-                                        For more information on formatting, please refer to the
-                                        documentation:
-                                        https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration
-                                    """),
+                                    'text': format_triple_quoted_text(format_userip_corrupted_settings_message(
+                                        ini_path=ini_path,
+                                        setting=setting,
+                                        value=value,
+                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                                    )),
                                     'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
                                 },
                                 daemon=True,
@@ -3853,21 +3817,12 @@ def rendering_core(
                                 name=f'UserIPInvalidEntryError-{ini_path.name}_{username}={ip}',
                                 kwargs={
                                     'title': TITLE,
-                                    'text': format_triple_quoted_text(f"""
-                                        ERROR:
-                                            UserIP database invalid IP address
-
-                                        INFOS:
-                                            The IP address from this database entry is invalid.
-
-                                        DEBUG:
-                                            {ini_path}
-                                            {username}={ip}
-
-                                        For more information on formatting, please refer to the
-                                        documentation:
-                                        https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration
-                                    """),
+                                    'text': format_triple_quoted_text(format_userip_invalid_ip_entry_message(
+                                        ini_path=ini_path,
+                                        username=username,
+                                        ip=ip,
+                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                                    )),
                                     'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
                                 },
                                 daemon=True,
@@ -3892,20 +3847,11 @@ def rendering_core(
                         name=f'UserIPConfigFileError-{ini_path.name}',
                         kwargs={
                             'title': TITLE,
-                            'text': format_triple_quoted_text(f"""
-                                ERROR:
-                                    Missing setting{pluralize(number_of_settings_missing)} in UserIP Database File
-
-                                INFOS:
-                                    {number_of_settings_missing} missing setting{pluralize(number_of_settings_missing)} in UserIP database file:
-                                    "{ini_path}"
-
-                                    {"\n                ".join(f"<{setting.upper()}>" for setting in list_of_missing_settings)}
-
-                                For more information on formatting, please refer to the
-                                documentation:
-                                https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration
-                            """),
+                            'text': format_triple_quoted_text(format_userip_missing_settings_message(
+                                ini_path=ini_path,
+                                missing_settings=list_of_missing_settings,
+                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                            )),
                             'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
                         },
                         daemon=True,
@@ -3940,84 +3886,19 @@ def rendering_core(
             ), userip
 
         def update_userip_databases() -> float:
-            default_userip_file_header = format_triple_quoted_text(f"""
-                ;;-----------------------------------------------------------------------------
-                ;; {TITLE} User IP default database file
-                ;;-----------------------------------------------------------------------------
-                ;; Lines starting with ";" or "#" symbols are commented lines.
-                ;;
-                ;; For detailed explanations of each setting, please refer to the following documentation:
-                ;; https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration
-                ;;-----------------------------------------------------------------------------
-                [Settings]
-            """)
+            default_userip_file_header = format_triple_quoted_text(
+                USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
+                    title=TITLE,
+                    configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                ),
+            )
 
             default_userip_files_settings = {
-                USERIP_DATABASES_DIR_PATH / 'Blacklist.ini': """
-                    ENABLED=True
-                    COLOR=RED
-                    LOG=True
-                    NOTIFICATIONS=True
-                    VOICE_NOTIFICATIONS=Male
-                    PROTECTION=False
-                    PROTECTION_PROCESS_PATH=None
-                    PROTECTION_RESTART_PROCESS_PATH=None
-                    PROTECTION_SUSPEND_PROCESS_MODE=Auto
-                """,
-                USERIP_DATABASES_DIR_PATH / 'Enemylist.ini': """
-                    ENABLED=True
-                    COLOR=DARKGOLDENROD
-                    LOG=True
-                    NOTIFICATIONS=True
-                    VOICE_NOTIFICATIONS=Male
-                    PROTECTION=False
-                    PROTECTION_PROCESS_PATH=None
-                    PROTECTION_RESTART_PROCESS_PATH=None
-                    PROTECTION_SUSPEND_PROCESS_MODE=Auto
-                """,
-                USERIP_DATABASES_DIR_PATH / 'Friendlist.ini': """
-                    ENABLED=True
-                    COLOR=GREEN
-                    LOG=True
-                    NOTIFICATIONS=False
-                    VOICE_NOTIFICATIONS=Female
-                    PROTECTION=False
-                    PROTECTION_PROCESS_PATH=None
-                    PROTECTION_RESTART_PROCESS_PATH=None
-                    PROTECTION_SUSPEND_PROCESS_MODE=Auto
-                """,
-                USERIP_DATABASES_DIR_PATH / 'Randomlist.ini': """
-                    ENABLED=True
-                    COLOR=BLACK
-                    LOG=True
-                    NOTIFICATIONS=False
-                    VOICE_NOTIFICATIONS=Female
-                    PROTECTION=False
-                    PROTECTION_PROCESS_PATH=None
-                    PROTECTION_RESTART_PROCESS_PATH=None
-                    PROTECTION_SUSPEND_PROCESS_MODE=Auto
-                """,
-                USERIP_DATABASES_DIR_PATH / 'Searchlist.ini': """
-                    ENABLED=True
-                    COLOR=BLUE
-                    LOG=True
-                    NOTIFICATIONS=False
-                    VOICE_NOTIFICATIONS=Female
-                    PROTECTION=False
-                    PROTECTION_PROCESS_PATH=None
-                    PROTECTION_RESTART_PROCESS_PATH=None
-                    PROTECTION_SUSPEND_PROCESS_MODE=Auto
-                """,
+                USERIP_DATABASES_DIR_PATH / ini_name: settings
+                for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()
             }
 
-            default_userip_file_footer = format_triple_quoted_text("""
-                [UserIP]
-                # Add users below in this format: username=IP
-                # Examples:
-                # username1=192.168.1.1
-                # username2=127.0.0.1
-                # username3=255.255.255.255
-            """, add_trailing_newline=True)
+            default_userip_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
 
             USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 

@@ -12,7 +12,7 @@ from threading import Thread
 from modules.constants.standalone import TITLE
 from modules.constants.standard import SC_EXE
 from modules.msgbox import MsgBox
-from modules.utils import format_triple_quoted_text
+from modules.text_utils import format_triple_quoted_text
 
 NPCAP_SERVICE_QUERY_CMD = (SC_EXE, 'query', 'npcap')
 NPCAP_DOWNLOAD_URL = 'https://npcap.com/#download'
