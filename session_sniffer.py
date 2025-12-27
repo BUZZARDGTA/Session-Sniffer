@@ -2995,33 +2995,20 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
     update_geolite2_databases__dict = update_geolite2_databases()
     exception__initialize_geolite2_readers, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = initialize_geolite2_readers()
 
-    show_error = False
-    msgbox_message = ''
+    geoip2_enabled, msgbox_message = format_geolite2_update_initialize_error_message(
+        update_exception=update_geolite2_databases__dict['exception'] if isinstance(update_geolite2_databases__dict['exception'], Exception) else None,
+        failed_url=update_geolite2_databases__dict['url'] if isinstance(update_geolite2_databases__dict['url'], str) else None,
+        http_code=(
+            update_geolite2_databases__dict['http_code']
+            if isinstance(update_geolite2_databases__dict['http_code'], (int, str))
+            else None
+        ),
+        initialize_exception=exception__initialize_geolite2_readers,
+    )
 
-    if update_geolite2_databases__dict['exception']:
-        msgbox_message += f"Exception Error: {update_geolite2_databases__dict['exception']}\n\n"
-        show_error = True
-    if update_geolite2_databases__dict['url']:
-        msgbox_message += f'Error: Failed fetching url: "{update_geolite2_databases__dict['url']}".'
-        if update_geolite2_databases__dict['http_code']:
-            msgbox_message += f" (http_code: {update_geolite2_databases__dict['http_code']})"
-        msgbox_message += "\nImpossible to keep Maxmind's GeoLite2 IP to Country, City and ASN resolutions feature up-to-date.\n\n"
-        show_error = True
-
-    if exception__initialize_geolite2_readers:
-        msgbox_message += f'Exception Error: {exception__initialize_geolite2_readers}\n\n'
-        msgbox_message += "Now disabling MaxMind's GeoLite2 IP to Country, City and ASN resolutions feature.\n"
-        msgbox_message += "Countrys, Citys and ASN from players won't shows up from the players columns."
-        geoip2_enabled = False
-        show_error = True
-    else:
-        geoip2_enabled = True
-
-    if show_error:
-        msgbox_title = TITLE
-        msgbox_message = msgbox_message.rstrip('\n')
+    if msgbox_message is not None:
         msgbox_style = MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
-        MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
+        MsgBox.show(TITLE, msgbox_message, msgbox_style)
 
     return geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
 
