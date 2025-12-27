@@ -16,7 +16,7 @@ from win32com.client import Dispatch
 
 from modules.constants.standalone import TITLE
 from modules.constants.standard import CMD_EXE
-from modules.error_messages import format_file_not_found_error, format_type_error
+from modules.error_messages import format_type_error
 from modules.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -142,7 +142,8 @@ def validate_file(file_path: Path) -> Path:
         The validated file path.
     """
     if not file_path.exists():
-        raise FileNotFoundError(format_file_not_found_error(file_path))
+        error_msg = f'File not found: {file_path.absolute()}'
+        raise FileNotFoundError(error_msg)
     if not file_path.is_file():
         raise InvalidFileError(file_path)
 
