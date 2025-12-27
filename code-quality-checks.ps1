@@ -78,7 +78,7 @@ $QualityTools = @(
         Command = "vulture ."
         InstallCommand = "pip install vulture"
         Description = "Dead code detection and analysis"
-        Category = "CODE QUALITY"
+        Category = "LINTING"
     },
     @{
         ToolName = "mypy"
