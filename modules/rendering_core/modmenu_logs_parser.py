@@ -41,9 +41,7 @@ def _parse_log_file(log_path: Path) -> defaultdict[str, list[str]]:
         if not match:
             continue
 
-        username = match.group('username')
-        ip = match.group('ip')
-
+        username, ip = match.group('username', 'ip')
         if username is None or ip is None:
             continue
         if not isinstance(username, str):
