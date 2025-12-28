@@ -943,8 +943,7 @@ class Settings(DefaultSettings):
             if not isinstance(setting_value, str):
                 raise TypeError(format_type_error(setting_value, str))
 
-            corrected_setting_name = setting_name.strip()
-            if not corrected_setting_name:
+            if not (corrected_setting_name := setting_name.strip()):
                 continue
 
             if corrected_setting_name != setting_name:
