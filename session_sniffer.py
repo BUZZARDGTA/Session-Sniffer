@@ -5855,9 +5855,7 @@ class SessionTableView(QTableView):
 
         def add_menu(parent_menu: QMenu, label: str, tooltip: str | None = None) -> QMenu:
             """Helper to create and configure a QMenu."""
-            menu = parent_menu.addMenu(label)
-            if not isinstance(menu, QMenu):
-                raise TypeError(format_type_error(menu, QMenu))
+            menu = ensure_instance(parent_menu.addMenu(label), QMenu)
 
             if tooltip:
                 menu.setToolTip(tooltip)
