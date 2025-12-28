@@ -16,7 +16,7 @@ Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game s
 ## Key Directories & Responsibilities
 - `modules/capture/`: Interface selection, tshark/npcap checks, filter helpers.
 - `modules/guis/`: Qt app bootstrap (`app.py`), size/util functions (`utils.py`), custom widgets, exceptions, stylesheets.
-- `modules/networking/`: DNS, reverse DNS, manufacturer lookup, ping management.
+- `modules/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
 - `modules/rendering_core/`: Transforms registry + lookup results into GUI payloads.
 - `modules/models/`: External API / release / lookup models (e.g., GitHub, IP APIs).
 - `.github/workflows/Session_Sniffer.spec`: PyInstaller spec – update `datas` if adding runtime folders.
