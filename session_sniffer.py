@@ -5968,10 +5968,7 @@ class SessionTableView(QTableView):
         if len(selected_indexes) == 1:
             selected_column = selected_indexes[0].column()
 
-            column_name = selected_model.headerData(selected_column, Qt.Orientation.Horizontal)
-            if not isinstance(column_name, str):
-                raise TypeError(format_type_error(column_name, str))
-
+            column_name = ensure_instance(selected_model.headerData(selected_column, Qt.Orientation.Horizontal), str)
             if column_name == 'IP Address':
                 # Get the IP address from the selected cell
                 displayed_ip = selected_model.get_display_text(selected_indexes[0])
