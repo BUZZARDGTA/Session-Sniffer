@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from requests import exceptions
 
-from modules.error_messages import format_type_error
+from modules.error_messages import ensure_instance, format_type_error
 from modules.networking.exceptions import (
     AllEndpointsExhaustedError,
     InvalidPingResultError,
@@ -147,26 +147,25 @@ def get_sorted_endpoints() -> list[EndpointInfo]:
 def parse_ping_response(ping_response: str) -> PingResult:
     """Parse raw ping output into a structured `PingResult`."""
     # Extract individual ping times
-    ping_times = [float(match.group('TIME_MS')) for match in RE_BYTES_PATTERN.finditer(ping_response)]
+    ping_times = [float(ensure_instance(match.group('TIME_MS'), str)) for match in RE_BYTES_PATTERN.finditer(ping_response)]
 
     # Extract packet statistics
     packets_transmitted = packets_received = packet_duplicates = packet_loss = packet_errors = None
     packets_match = RE_PACKET_STATS_PATTERN.search(ping_response)
     if packets_match:
-        packets_transmitted = int(packets_match.group('PACKETS_TRANSMITTED'))
-        packets_received = int(packets_match.group('PACKETS_RECEIVED'))
-        packet_duplicates = int(packets_match.group('DUPLICATES') or 0)
-        packet_loss = float(packets_match.group('PACKET_LOSS_PERCENTAGE'))
-        packet_errors = int(packets_match.group('ERRORS') or 0)
-
+        packets_transmitted = int(ensure_instance(packets_match.group('PACKETS_TRANSMITTED'), str))
+        packets_received = int(ensure_instance(packets_match.group('PACKETS_RECEIVED'), str))
+        packet_duplicates = int(ensure_instance(packets_match.group('DUPLICATES'), (str, type(None))) or 0)
+        packet_loss = float(ensure_instance(packets_match.group('PACKET_LOSS_PERCENTAGE'), str))
+        packet_errors = int(ensure_instance(packets_match.group('ERRORS'), (str, type(None))) or 0)
     # Extract RTT statistics
     rtt_min = rtt_avg = rtt_max = rtt_mdev = None
     rtt_match = RE_RTT_STATS_PATTERN.search(ping_response)
     if rtt_match:
-        rtt_min = float(rtt_match.group('RTT_MIN'))
-        rtt_avg = float(rtt_match.group('RTT_AVG'))
-        rtt_max = float(rtt_match.group('RTT_MAX'))
-        rtt_mdev = float(rtt_match.group('RTT_MDEV'))
+        rtt_min = float(ensure_instance(rtt_match.group('RTT_MIN'), str))
+        rtt_avg = float(ensure_instance(rtt_match.group('RTT_AVG'), str))
+        rtt_max = float(ensure_instance(rtt_match.group('RTT_MAX'), str))
+        rtt_mdev = float(ensure_instance(rtt_match.group('RTT_MDEV'), str))
 
     return PingResult(
         ping_times=ping_times,

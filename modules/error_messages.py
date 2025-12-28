@@ -54,6 +54,24 @@ def format_type_error(
     return f'Expected type{plural_suffix} {expected_types_names}, got {actual_type} instead.{suffix}'
 
 
+def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...]) -> T:
+    """Ensure an object is an instance of the expected type.
+
+    Args:
+        obj: The object to validate.
+        expected_types: The expected type(s) for `obj`.
+
+    Returns:
+        The same object, typed as `T`.
+
+    Raises:
+        TypeError: If `obj` is not an instance of `expected_types`.
+    """
+    if not isinstance(obj, expected_types):
+        raise TypeError(format_type_error(obj, expected_types))
+    return obj
+
+
 def format_invalid_datetime_columns_settings_message() -> str:
     """Format the Settings.ini error shown when all datetime columns are disabled."""
     return """
