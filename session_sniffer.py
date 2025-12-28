@@ -86,6 +86,7 @@ from PyQt6.QtWidgets import (
 from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
 from rich.text import Text
 
+from modules import msgbox
 from modules.capture.exceptions import (
     TSharkOutputParsingError,
 )
@@ -192,7 +193,6 @@ from modules.models import (
     GithubVersionsResponse,
     IpApiResponse,
 )
-from modules.msgbox import MsgBox
 from modules.networking.ctypes_adapters_info import (
     IF_OPER_STATUS_NOT_PRESENT,
     MEDIA_CONNECT_STATE_DISCONNECTED,
@@ -429,9 +429,9 @@ def terminate_script(
     if msgbox_crash_text is not None:
         msgbox_title = TITLE
         msgbox_message = msgbox_crash_text
-        msgbox_style = MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_SYSTEMMODAL
+        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SYSTEMMODAL
 
-        MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
+        msgbox.show(msgbox_title, msgbox_message, msgbox_style)
         time.sleep(1)
 
     # If the termination method is "EXIT", do not sleep unless crash messages are present
@@ -1214,10 +1214,10 @@ class Settings(DefaultSettings):
         ):
             need_rewrite_settings = True
 
-            MsgBox.show(
+            msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
-                style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
             )
 
             for setting_name in (
@@ -2315,7 +2315,7 @@ class UserIPDatabases:
         conflicting_username: str,
     ) -> None:
         Thread(
-            target=MsgBox.show,
+            target=msgbox.show,
             name=f'UserIPConflictError-{existing_userip.ip}',
             kwargs={
                 'title': TITLE,
@@ -2327,7 +2327,7 @@ class UserIPDatabases:
                     conflicting_username=conflicting_username,
                     userip_databases_dir=USERIP_DATABASES_DIR_PATH,
                 )),
-                'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
+                'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
             },
             daemon=True,
         ).start()
@@ -2702,7 +2702,7 @@ def check_for_updates() -> None:
                 response = s.get(GITHUB_VERSIONS_URL)
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
-                choice = MsgBox.show(
+                choice = msgbox.show(
                     title=TITLE,
                     text=format_triple_quoted_text(format_failed_check_for_updates_message(
                         app_title=TITLE,
@@ -2710,13 +2710,13 @@ def check_for_updates() -> None:
                         http_code=(f'{e.response.status_code} - {e.response.reason}' if e.response else 'No response'),
                         versions_url=GITHUB_VERSIONS_URL,
                     )),
-                    style=MsgBox.Style.MB_ABORTRETRYIGNORE | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
+                    style=msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
                 )
 
-                if choice == MsgBox.ReturnValues.IDABORT:
+                if choice == msgbox.ReturnValues.IDABORT:
                     webbrowser.open(GITHUB_RELEASES_URL)
                     sys.exit(0)
-                elif choice == MsgBox.ReturnValues.IDIGNORE:
+                elif choice == msgbox.ReturnValues.IDIGNORE:
                     return None
             else:
                 versions_data = response.json()
@@ -2741,7 +2741,7 @@ def check_for_updates() -> None:
         update_channel = 'pre-release' if (Settings.UPDATER_CHANNEL == 'RC' and is_new_rc_version_available) else 'stable release'
         latest_version = latest_rc_version if (Settings.UPDATER_CHANNEL == 'RC' and is_new_rc_version_available) else latest_stable_version
 
-        if MsgBox.show(
+        if msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(f"""
                 New {update_channel} version found. Do you want to update?
@@ -2749,8 +2749,8 @@ def check_for_updates() -> None:
                 Current version: {format_project_version(current_version)}
                 Latest version: {format_project_version(latest_version)}
             """),
-            style=MsgBox.Style.MB_YESNO | MsgBox.Style.MB_ICONQUESTION | MsgBox.Style.MB_SETFOREGROUND,
-        ) == MsgBox.ReturnValues.IDYES:
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION | msgbox.Style.MB_SETFOREGROUND,
+        ) == msgbox.ReturnValues.IDYES:
             webbrowser.open(GITHUB_RELEASES_URL)
             sys.exit(0)
 
@@ -3009,7 +3009,7 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
 
         if failed_fetching_flag_list:
             Thread(
-                target=MsgBox.show,
+                target=msgbox.show,
                 name='GeoLite2DownloadError',
                 kwargs={
                     'title': TITLE,
@@ -3017,7 +3017,7 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
                         failed_flags=failed_fetching_flag_list,
                         geolite2_release_api_url=GITHUB_RELEASE_API__GEOLITE2__URL,
                     )),
-                    'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
+                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
                 },
                 daemon=True,
             ).start()
@@ -3075,8 +3075,8 @@ def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Read
     )
 
     if msgbox_message is not None:
-        msgbox_style = MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
-        MsgBox.show(TITLE, msgbox_message, msgbox_style)
+        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
+        msgbox.show(TITLE, msgbox_message, msgbox_style)
 
     return geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
 
@@ -3138,7 +3138,7 @@ class NotificationConfig(TypedDict):
     emoji: str
     title: str
     description: str
-    icon: MsgBox.Style
+    icon: msgbox.Style
     thread_name: str
 
 
@@ -3159,42 +3159,42 @@ def show_detection_warning_popup(
                 'emoji': '📱',
                 'title': 'MOBILE CONNECTION DETECTED!',
                 'description': 'A player using a mobile (cellular) connection has been detected in your session!',
-                'icon': MsgBox.Style.MB_ICONINFORMATION,
+                'icon': msgbox.Style.MB_ICONINFORMATION,
                 'thread_name': 'MobileWarning',
             },
             'vpn': {
                 'emoji': '🚨',
                 'title': 'VPN CONNECTION DETECTED!',
                 'description': 'A player using a VPN/Proxy/Tor connection has been detected in your session!',
-                'icon': MsgBox.Style.MB_ICONEXCLAMATION,
+                'icon': msgbox.Style.MB_ICONEXCLAMATION,
                 'thread_name': 'VPNWarning',
             },
             'hosting': {
                 'emoji': '🏢',
                 'title': 'HOSTING CONNECTION DETECTED!',
                 'description': 'A player connecting from a hosting provider or data center has been detected in your session!',
-                'icon': MsgBox.Style.MB_ICONWARNING,
+                'icon': msgbox.Style.MB_ICONWARNING,
                 'thread_name': 'HostingWarning',
             },
             'player_joined': {
                 'emoji': '🟢',
                 'title': 'PLAYER JOINED SESSION!',
                 'description': 'A new player has joined your session!',
-                'icon': MsgBox.Style.MB_ICONINFORMATION,
+                'icon': msgbox.Style.MB_ICONINFORMATION,
                 'thread_name': 'PlayerJoined',
             },
             'player_rejoined': {
                 'emoji': '🔄',
                 'title': 'PLAYER REJOINED SESSION!',
                 'description': 'A player has rejoined your session after disconnecting!',
-                'icon': MsgBox.Style.MB_ICONINFORMATION,
+                'icon': msgbox.Style.MB_ICONINFORMATION,
                 'thread_name': 'PlayerRejoined',
             },
             'player_left': {
                 'emoji': '🔴',
                 'title': 'PLAYER LEFT SESSION!',
                 'description': 'A player has left your session!',
-                'icon': MsgBox.Style.MB_ICONINFORMATION,
+                'icon': msgbox.Style.MB_ICONINFORMATION,
                 'thread_name': 'PlayerLeft',
             },
         }
@@ -3204,7 +3204,7 @@ def show_detection_warning_popup(
         time_label = 'Detection Time' if notification_type in {'mobile', 'vpn', 'hosting'} else 'Event Time'
         data_status_line = '' if data_ready else '⚠️ Some data may still be loading and missing from this notification\n\n'
 
-        MsgBox.show(
+        msgbox.show(
             title=f"{TITLE} - {config['title']}",
             text=format_triple_quoted_text(f"""
                 {config['emoji']} {config['title']} {config['emoji']}
@@ -3240,7 +3240,7 @@ def show_detection_warning_popup(
                 Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
                 Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
             """),
-            style=MsgBox.Style.MB_OK | config['icon'] | MsgBox.Style.MB_SYSTEMMODAL,
+            style=msgbox.Style.MB_OK | config['icon'] | msgbox.Style.MB_SYSTEMMODAL,
         )
 
     # Get thread name for the notification type
@@ -3365,7 +3365,7 @@ def process_userip_task(
                 wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
                 Thread(
-                    target=MsgBox.show,
+                    target=msgbox.show,
                     name=f'UserIPMsgBox-{player.ip}',
                     kwargs={
                         'title': TITLE,
@@ -3391,7 +3391,7 @@ def process_userip_task(
                             Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
                             Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
                         """),
-                        'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SYSTEMMODAL,
+                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
                     },
                     daemon=True,
                 ).start()
@@ -3834,7 +3834,7 @@ def rendering_core(
                         if ini_path not in UserIPDatabases.notified_settings_corrupted:
                             UserIPDatabases.notified_settings_corrupted.add(ini_path)
                             Thread(
-                                target=MsgBox.show,
+                                target=msgbox.show,
                                 name=f'UserIPConfigFileError-{ini_path.name}',
                                 kwargs={
                                     'title': TITLE,
@@ -3844,7 +3844,7 @@ def rendering_core(
                                         value=value,
                                         configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
                                     )),
-                                    'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
+                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
                                 },
                                 daemon=True,
                             ).start()
@@ -3879,7 +3879,7 @@ def rendering_core(
                         unresolved_ip_invalid.add(f'{ini_path}={username}={ip}')
                         if f'{ini_path}={username}={ip}' not in UserIPDatabases.notified_ip_invalid:
                             Thread(
-                                target=MsgBox.show,
+                                target=msgbox.show,
                                 name=f'UserIPInvalidEntryError-{ini_path.name}_{username}={ip}',
                                 kwargs={
                                     'title': TITLE,
@@ -3889,7 +3889,7 @@ def rendering_core(
                                         ip=ip,
                                         configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
                                     )),
-                                    'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
+                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
                                 },
                                 daemon=True,
                             ).start()
@@ -3909,7 +3909,7 @@ def rendering_core(
                 if ini_path not in UserIPDatabases.notified_settings_corrupted:
                     UserIPDatabases.notified_settings_corrupted.add(ini_path)
                     Thread(
-                        target=MsgBox.show,
+                        target=msgbox.show,
                         name=f'UserIPConfigFileError-{ini_path.name}',
                         kwargs={
                             'title': TITLE,
@@ -3918,7 +3918,7 @@ def rendering_core(
                                 missing_settings=list_of_missing_settings,
                                 configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
                             )),
-                            'style': MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND,
+                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
                         },
                         daemon=True,
                     ).start()
@@ -6623,7 +6623,7 @@ def arp_spoofing_task(  # noqa: PLR0913
             *,
             exit_code: int | None,
             error_output: str | None,
-            msgbox_style: MsgBox.Style,
+            msgbox_style: msgbox.Style,
             spawn_msgbox_thread: bool,
         ) -> None:
             """Log, notify, and terminate the ARP spoofing task on failure."""
@@ -6645,7 +6645,7 @@ def arp_spoofing_task(  # noqa: PLR0913
             )
 
             def show_msgbox() -> None:
-                MsgBox.show(
+                msgbox.show(
                     title='ARP Spoofing Failed',
                     text=error_message,
                     style=msgbox_style,
@@ -6654,7 +6654,7 @@ def arp_spoofing_task(  # noqa: PLR0913
             if spawn_msgbox_thread:
                 Thread(
                     target=show_msgbox,
-                    name=f'ARPSpoof-{stage}-MsgBox',
+                    name=f'ARPSpoof-{stage}-msgbox',
                     daemon=True,
                 ).start()
             else:
@@ -6692,7 +6692,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                         'startup failure',
                         exit_code=exit_code,
                         error_output=error_output,
-                        msgbox_style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
                         spawn_msgbox_thread=False,
                     )
                     return
@@ -6714,7 +6714,7 @@ def arp_spoofing_task(  # noqa: PLR0913
                         'unexpected process exit',
                         exit_code=exit_code,
                         error_output=error_output,
-                        msgbox_style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONWARNING | MsgBox.Style.MB_TOPMOST,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
                         spawn_msgbox_thread=True,
                     )
 
@@ -7653,10 +7653,10 @@ def main() -> None:
     try:
         screen_width, screen_height = get_screen_size()
     except UnsupportedScreenResolutionError as e:
-        MsgBox.show(
+        msgbox.show(
             title='Unsupported Screen Resolution',
             text=e.msgbox_text,
-            style=MsgBox.Style.MB_OK | MsgBox.Style.MB_ICONERROR | MsgBox.Style.MB_TOPMOST,
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
         )
         sys.exit(1)
 
@@ -7677,10 +7677,10 @@ def main() -> None:
             msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
 
             # Show message box
-            msgbox_style = MsgBox.Style.MB_YESNO | MsgBox.Style.MB_ICONEXCLAMATION | MsgBox.Style.MB_SETFOREGROUND
+            msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
             msgbox_title = TITLE
-            errorlevel = MsgBox.show(msgbox_title, msgbox_message, msgbox_style)
-            if errorlevel != MsgBox.ReturnValues.IDYES:
+            errorlevel = msgbox.show(msgbox_title, msgbox_message, msgbox_style)
+            if errorlevel != msgbox.ReturnValues.IDYES:
                 sys.exit(0)
 
     clear_screen()
