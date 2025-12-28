@@ -929,12 +929,10 @@ class Settings(DefaultSettings):
         ini_database: dict[str, str] = {}
 
         for line in map(process_ini_line_output, ini_data.splitlines(keepends=False)):
-            corrected_line = line.strip()
-            if corrected_line != line:
+            if (corrected_line := line.strip()) != line:
                 need_rewrite_ini = True
 
-            match = RE_SETTINGS_INI_PARSER_PATTERN.search(corrected_line)
-            if not match:
+            if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(corrected_line)):
                 continue
 
             setting_name = match.group('key')
@@ -951,8 +949,7 @@ class Settings(DefaultSettings):
             if corrected_setting_name != setting_name:
                 need_rewrite_ini = True
 
-            corrected_setting_value = setting_value.strip()
-            if not corrected_setting_value:
+            if not (corrected_setting_value := setting_value.strip()):
                 continue
 
             if corrected_setting_value != setting_value:
@@ -3719,35 +3716,30 @@ def rendering_core(
                     continue
 
                 if current_section == 'Settings':
-                    match = RE_SETTINGS_INI_PARSER_PATTERN.search(line)
-                    if not match:
+                    if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(line)):
                         # If it's a newline or a comment we don't really care about rewritting at this point.
                         if not line.startswith((';', '#')) or not line:
                             corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
 
-                    setting = match.group('key')
-                    if setting is None:
+                    if (setting := match.group('key')) is None:
                         if corrected_ini_data_lines:
                             corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
                     if not isinstance(setting, str):
                         raise TypeError(format_type_error(setting, str))
-                    value = match.group('value')
-                    if value is None:
+                    if (value := match.group('value')) is None:
                         if corrected_ini_data_lines:
                             corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
                     if not isinstance(value, str):
                         raise TypeError(format_type_error(value, str))
 
-                    setting = setting.strip()
-                    if not setting:
+                    if not (setting := setting.strip()):
                         if corrected_ini_data_lines:
                             corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
-                    value = value.strip()
-                    if not value:
+                    if not (value := value.strip()):
                         if corrected_ini_data_lines:
                             corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
@@ -3854,25 +3846,20 @@ def rendering_core(
                         corrected_ini_data_lines[-1] = f'{setting}={settings[setting]}'
 
                 elif current_section == 'UserIP':
-                    match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-                    if not match:
+                    if not (match := RE_USERIP_INI_PARSER_PATTERN.search(line)):
                         continue
-                    username = match.group('username')
-                    if username is None:
+                    if (username := match.group('username')) is None:
                         continue
                     if not isinstance(username, str):
                         raise TypeError(format_type_error(username, str))
-                    ip = match.group('ip')
-                    if ip is None:
+                    if (ip := match.group('ip')) is None:
                         continue
                     if not isinstance(ip, str):
                         raise TypeError(format_type_error(ip, str))
 
-                    username = username.strip()
-                    if not username:
+                    if not (username := username.strip()):
                         continue
-                    ip = ip.strip()
-                    if not ip:
+                    if not (ip := ip.strip()):
                         continue
 
                     if not is_ipv4_address(ip):

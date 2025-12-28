@@ -365,8 +365,7 @@ def validate_and_strip_balanced_outer_parens(expr: str) -> str:
             s = s.removeprefix('(').removesuffix(')')
         return s
 
-    expr = expr.strip()
-    if not expr:
+    if not (expr := expr.strip()):
         return ''
 
     unmatched_opening: list[int] = []
