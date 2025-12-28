@@ -5840,9 +5840,7 @@ class SessionTableView(QTableView):
             handler: Callable[..., None] | None = None,
         ) -> QAction:
             """Helper to create and configure a QAction."""
-            action = menu.addAction(label)  # pyright: ignore[reportUnknownMemberType]
-            if not isinstance(action, QAction):
-                raise TypeError(format_type_error(action, QAction))
+            action = ensure_instance(menu.addAction(label), QAction)  # pyright: ignore[reportUnknownMemberType]
 
             if shortcut:
                 action.setShortcut(shortcut)
