@@ -96,7 +96,7 @@ class PingResult(NamedTuple):
     rtt_mdev: float | None
 
     def is_invalid(self, ping_response: str) -> bool:
-        """Return True if the ping data is invalid (missing critical information)."""
+        """Return whether the ping data is invalid (missing critical information)."""
         return ping_response.strip() == 'null' or any(
             getattr(self, attr) is None for attr in ('packets_transmitted', 'packets_received', 'packet_duplicates', 'packet_loss', 'packet_errors')
         )
