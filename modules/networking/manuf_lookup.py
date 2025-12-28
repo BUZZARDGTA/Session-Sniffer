@@ -22,11 +22,9 @@ MANUF_FILE_PATH = RESOURCES_DIR_PATH / 'manuf'
 RE_MANUF_ENTRY_PATTERN = re.compile(
     r"""
         ^
-        (?P<mac_prefix>[0-9A-Fa-f:]{6,17})  # MAC address prefix
-        (?:/(?P<cidr>\d+))?                 # Optional /CIDR
-        [\t ]+                              # Separator
-        (?P<manufacturer>\S+)               # Manufacturer
-        (?:[\t ]+(?P<vendor_name>.*))?      # Optional organization name
+        (?P<mac_prefix>[0-9A-Fa-f:]{6,17})(?:/(?P<cidr>\d+))?  # MAC address block (24, 28 or 36 bits wide, per IEEE allocation sizes)
+        [\t ]+(?P<manufacturer>\S+)                            # shortened name used by Wireshark for address name resolution
+        [\t ]+(?P<vendor_name>.*)                              # full vendor name from the registry
         $
     """,
     re.VERBOSE,
