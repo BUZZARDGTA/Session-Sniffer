@@ -22,11 +22,11 @@ MANUF_FILE_PATH = RESOURCES_DIR_PATH / 'manuf'
 RE_MANUF_ENTRY_PATTERN = re.compile(
     r"""
         ^
-        ([0-9A-Fa-f:]{6,17})  # MAC address prefix
-        (?:/(\d+))?           # Optional /CIDR
-        [\t ]+                # Separator
-        (\S+)                 # Manufacturer
-        (?:[\t ]+(.*))?       # Optional organization name
+        (?P<mac_prefix>[0-9A-Fa-f:]{6,17})  # MAC address prefix
+        (?:/(?P<cidr>\d+))?                 # Optional /CIDR
+        [\t ]+                              # Separator
+        (?P<manufacturer>\S+)               # Manufacturer
+        (?:[\t ]+(?P<vendor_name>.*))?      # Optional organization name
         $
     """,
     re.VERBOSE,
@@ -74,8 +74,7 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not match:
             raise ManufLineParseError(line)
 
-        mac_prefix, cidr, manufacturer, vendor_name = match.groups()
-
+        mac_prefix, cidr, manufacturer, vendor_name = match.group('mac_prefix', 'cidr', 'manufacturer', 'vendor_name')
         if not isinstance(mac_prefix, str):
             raise InvalidMacPrefixError(mac_prefix)
         if not isinstance(cidr, (str, type(None))):
