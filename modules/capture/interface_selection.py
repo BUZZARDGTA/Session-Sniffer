@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from modules.error_messages import format_type_error
+from modules.error_messages import ensure_instance
 from modules.guis.utils import resize_window_for_screen
 
 
@@ -92,24 +92,15 @@ class SafeQTableWidget(QTableWidget):
     # pylint: disable=invalid-name
     def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
-        selection_model = super().selectionModel()
-        if not isinstance(selection_model, QItemSelectionModel):
-            raise TypeError(format_type_error(selection_model, QItemSelectionModel))
-        return selection_model
+        return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
     def verticalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
-        header = super().verticalHeader()
-        if not isinstance(header, QHeaderView):
-            raise TypeError(format_type_error(header, QHeaderView))
-        return header
+        return ensure_instance(super().verticalHeader(), QHeaderView)
 
     def horizontalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
-        header = super().horizontalHeader()
-        if not isinstance(header, QHeaderView):
-            raise TypeError(format_type_error(header, QHeaderView))
-        return header
+        return ensure_instance(super().horizontalHeader(), QHeaderView)
     # pylint: enable=invalid-name
 
 
