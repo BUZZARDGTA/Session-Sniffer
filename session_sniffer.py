@@ -3328,19 +3328,7 @@ def process_userip_task(
                 subprocess.Popen([str(SHUTDOWN_EXE), '/s' if player.userip.settings.PROTECTION == 'Shutdown_PC' else '/r'])
 
         if player.userip.settings.VOICE_NOTIFICATIONS:
-            if player.userip.settings.VOICE_NOTIFICATIONS == 'Male':
-                voice_name = 'Liam'
-            elif player.userip.settings.VOICE_NOTIFICATIONS == 'Female':
-                voice_name = 'Jane'
-            else:
-                voice_name = None
-
-            if not isinstance(voice_name, str):
-                raise TypeError(format_type_error(voice_name, str))
-
-            tts_file_path = TTS_DIR_PATH / f'{voice_name} ({connection_type}).wav'
-            validate_file(tts_file_path)
-
+            tts_file_path = validate_file(TTS_DIR_PATH / f'{player.userip.settings.VOICE_NOTIFICATIONS} ({connection_type}).wav')
             winsound.PlaySound(str(tts_file_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
 
         if connection_type == 'connected':
