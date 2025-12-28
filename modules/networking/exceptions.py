@@ -51,36 +51,36 @@ class InvalidManufEntryFieldError(TypeError):
         )
 
 
-class InvalidMacPrefixError(InvalidManufEntryFieldError):
-    """Exception raised when MAC prefix is invalid."""
+class InvalidMacAddressBlockError(InvalidManufEntryFieldError):
+    """Exception raised when `mac_address_block` is invalid."""
 
     def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid MAC prefix."""
-        super().__init__('mac_prefix', value)
+        """Initialize the exception with the invalid MAC address block."""
+        super().__init__('mac_address_block', value)
 
 
-class InvalidCidrError(InvalidManufEntryFieldError):
-    """Exception raised when CIDR is invalid."""
-
-    def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid CIDR."""
-        super().__init__('cidr', value)
-
-
-class InvalidManufacturerError(InvalidManufEntryFieldError):
-    """Exception raised when manufacturer is invalid."""
+class InvalidPrefixLengthBitsError(InvalidManufEntryFieldError):
+    """Exception raised when `prefix_length_bits` is invalid."""
 
     def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid manufacturer."""
-        super().__init__('manufacturer', value)
+        """Initialize the exception with the invalid prefix length (bits)."""
+        super().__init__('prefix_length_bits', value)
 
 
-class InvalidVendorNameError(InvalidManufEntryFieldError):
-    """Exception raised when vendor name is invalid."""
+class InvalidWiresharkResolutionAliasError(InvalidManufEntryFieldError):
+    """Exception raised when `wireshark_resolution_alias` is invalid."""
 
     def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid vendor name."""
-        super().__init__('vendor_name', value)
+        """Initialize the exception with the invalid Wireshark resolution alias."""
+        super().__init__('wireshark_resolution_alias', value)
+
+
+class InvalidFullVendorNameError(InvalidManufEntryFieldError):
+    """Exception raised when the full vendor name is invalid."""
+
+    def __init__(self, value: object) -> None:
+        """Initialize the exception with the invalid full vendor name."""
+        super().__init__('full_vendor_name', value)
 
 
 class InvalidPingResultError(Exception):

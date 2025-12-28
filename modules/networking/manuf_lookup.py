@@ -1,16 +1,16 @@
 """Provide functionality for MAC address lookup using the Wireshark manuf database.
 
-Includes functions to fetch, parse, and search the database with CIDR-aware prefix matching.
+Includes functions to fetch, parse, and search the database, with support for longest-prefix matching.
 """
 import re
 from typing import TYPE_CHECKING, NamedTuple
 
 from modules.constants.local import RESOURCES_DIR_PATH
 from modules.networking.exceptions import (
-    InvalidCidrError,
-    InvalidMacPrefixError,
-    InvalidManufacturerError,
-    InvalidVendorNameError,
+    InvalidFullVendorNameError,
+    InvalidMacAddressBlockError,
+    InvalidPrefixLengthBitsError,
+    InvalidWiresharkResolutionAliasError,
     ManufLineParseError,
 )
 from modules.networking.utils import is_mac_address
@@ -22,9 +22,15 @@ MANUF_FILE_PATH = RESOURCES_DIR_PATH / 'manuf'
 RE_MANUF_ENTRY_PATTERN = re.compile(
     r"""
         ^
-        (?P<mac_prefix>[0-9A-Fa-f:]{6,17})(?:/(?P<cidr>\d+))?  # MAC address block (24, 28 or 36 bits wide, per IEEE allocation sizes)
-        [\t ]+(?P<manufacturer>\S+)                            # shortened name used by Wireshark for address name resolution
-        [\t ]+(?P<vendor_name>.*)                              # full vendor name from the registry
+        (?P<mac_address_block>  # MAC address block
+            (?:[0-9A-Fa-f]{2}:){2}[0-9A-Fa-f]{2}  # 3-byte base
+            (?::[0-9A-Fa-f]{2}){0,2}  # optional 4th and 5th byte for /28 and /36 bits wide
+        )
+        (?:/(?P<prefix_length_bits>24|28|36))?  # optional IEEE prefix length in bits; default 24 if missing
+        [ \t]+
+        (?P<wireshark_resolution_alias>\S+)  # shortened name used by Wireshark for address name resolution
+        [ \t]+
+        (?P<full_vendor_name>[^\t]+)  # the full vendor name from the registry
         $
     """,
     re.VERBOSE,
@@ -34,11 +40,11 @@ RE_MANUF_ENTRY_PATTERN = re.compile(
 class ManufEntry(NamedTuple):
     """Represent a parsed entry from the Wireshark manuf database."""
 
-    mac_prefix: str
+    mac_address_block: str
     prefix_int: int
-    cidr: int
-    manufacturer: str
-    vendor_name: str
+    prefix_length_bits: int
+    wireshark_resolution_alias: str
+    full_vendor_name: str
 
 
 def _mac_str_to_int(mac: str) -> int:
@@ -46,21 +52,21 @@ def _mac_str_to_int(mac: str) -> int:
     return int(mac.translate(str.maketrans('', '', ':-')), 16)
 
 
-def _mac_prefix_str_to_int(prefix: str, cidr: int) -> int:
-    """Convert the MAC prefix string to an integer, shifted to the top bits per CIDR."""
-    raw_int = _mac_str_to_int(prefix)
-    shift_amount = 48 - cidr
+def _mac_address_block_str_to_int(mac_address_block: str, prefix_length_bits: int) -> int:
+    """Convert the MAC address block string to an integer, shifted to the top bits per prefix length."""
+    raw_int = _mac_str_to_int(mac_address_block)
+    shift_amount = 48 - prefix_length_bits
     return raw_int << shift_amount
 
 
-def _matches_prefix(mac_int: int, prefix_int: int, cidr: int) -> bool:
-    """Return True if mac_int matches the prefix_int on the first cidr bits."""
-    shift = 48 - cidr  # MAC addresses are 48 bits long
+def _matches_prefix(mac_int: int, prefix_int: int, prefix_length_bits: int) -> bool:
+    """Return whether `mac_int` matches `prefix_int` on the first `prefix_length_bits` bits."""
+    shift = 48 - prefix_length_bits  # MAC addresses are 48 bits long
     return (mac_int >> shift) == (prefix_int >> shift)
 
 
 def _parse_and_load_manuf_database() -> ManufDatabaseType:
-    """Parse the manuf file and return a database dict of prefix -> ManufEntry list."""
+    """Parse the manuf file and return a database dict of prefix -> `ManufEntry` list."""
     manuf_database: ManufDatabaseType = {}
 
     for raw_line in MANUF_FILE_PATH.read_text(encoding='utf-8').splitlines():
@@ -72,29 +78,34 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not match:
             raise ManufLineParseError(line)
 
-        mac_prefix, cidr, manufacturer, vendor_name = match.group('mac_prefix', 'cidr', 'manufacturer', 'vendor_name')
-        if not isinstance(mac_prefix, str):
-            raise InvalidMacPrefixError(mac_prefix)
-        if not isinstance(cidr, (str, type(None))):
-            raise InvalidCidrError(cidr)
-        if not isinstance(manufacturer, str):
-            raise InvalidManufacturerError(manufacturer)
-        if not isinstance(vendor_name, str):
-            raise InvalidVendorNameError(vendor_name)
+        mac_address_block, prefix_length_bits, wireshark_resolution_alias, full_vendor_name = match.group(
+            'mac_address_block',
+            'prefix_length_bits',
+            'wireshark_resolution_alias',
+            'full_vendor_name',
+        )
+        if not isinstance(mac_address_block, str):
+            raise InvalidMacAddressBlockError(mac_address_block)
+        if not isinstance(prefix_length_bits, (str, type(None))):
+            raise InvalidPrefixLengthBitsError(prefix_length_bits)
+        if not isinstance(wireshark_resolution_alias, str):
+            raise InvalidWiresharkResolutionAliasError(wireshark_resolution_alias)
+        if not isinstance(full_vendor_name, str):
+            raise InvalidFullVendorNameError(full_vendor_name)
 
-        cidr_int = int(cidr) if cidr else 24
-        prefix_int = _mac_prefix_str_to_int(mac_prefix, cidr_int)
+        prefix_length_bits_int = int(prefix_length_bits) if prefix_length_bits is not None else 24
+        prefix_int = _mac_address_block_str_to_int(mac_address_block, prefix_length_bits_int)
 
         entry = ManufEntry(
-            mac_prefix=mac_prefix,
+            mac_address_block=mac_address_block,
             prefix_int=prefix_int,
-            cidr=cidr_int,
-            manufacturer=manufacturer,
-            vendor_name=vendor_name,
+            prefix_length_bits=prefix_length_bits_int,
+            wireshark_resolution_alias=wireshark_resolution_alias,
+            full_vendor_name=full_vendor_name,
         )
-        manuf_database.setdefault(mac_prefix.upper(), [])
-        if entry not in manuf_database[mac_prefix.upper()]:
-            manuf_database[mac_prefix.upper()].append(entry)
+        manuf_database.setdefault(mac_address_block.upper(), [])
+        if entry not in manuf_database[mac_address_block.upper()]:
+            manuf_database[mac_address_block.upper()].append(entry)
 
     return manuf_database
 
@@ -106,7 +117,7 @@ class MacLookup:
         """Initialize the MacLookup instance.
 
         Args:
-            load_on_init: If True, fetch and load the manuf database immediately.
+            load_on_init: If `True`, fetch and load the manuf database immediately.
         """
         self.manuf_database: ManufDatabaseType | None = None
         if load_on_init:
@@ -117,7 +128,7 @@ class MacLookup:
         self.manuf_database = _parse_and_load_manuf_database()
 
     def _find_best_match(self, mac_address: str) -> ManufEntry | None:
-        """Find the best matching ManufEntry for the given MAC address using CIDR longest prefix match."""
+        """Find the best matching `ManufEntry` for the given MAC address, with support for longest-prefix matching."""
         if self.manuf_database is None:
             self._refresh_manuf_database()
         if self.manuf_database is None:
@@ -126,15 +137,15 @@ class MacLookup:
         mac_int = _mac_str_to_int(mac_address)
 
         best_entry: ManufEntry | None = None
-        best_cidr = -1
+        best_prefix_length_bits = -1
 
         for manuf_entries in self.manuf_database.values():
             for manuf in manuf_entries:
                 if (
-                    _matches_prefix(mac_int, manuf.prefix_int, manuf.cidr)
-                    and manuf.cidr > best_cidr
+                    _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits)
+                    and manuf.prefix_length_bits > best_prefix_length_bits
                 ):
-                    best_cidr = manuf.cidr
+                    best_prefix_length_bits = manuf.prefix_length_bits
                     best_entry = manuf
 
         return best_entry
@@ -157,4 +168,4 @@ class MacLookup:
         entry = self.lookup(mac_address)
         if entry is None:
             return None
-        return entry.vendor_name or None
+        return entry.full_vendor_name or None
