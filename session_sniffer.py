@@ -936,12 +936,8 @@ class Settings(DefaultSettings):
             if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(corrected_line)):
                 continue
 
-            setting_name = match.group('key')
-            if not isinstance(setting_name, str):
-                raise TypeError(format_type_error(setting_name, str))
-            setting_value = match.group('value')
-            if not isinstance(setting_value, str):
-                raise TypeError(format_type_error(setting_value, str))
+            setting_name = ensure_instance(match.group('key'), str)
+            setting_value = ensure_instance(match.group('value'), str)
 
             if not (corrected_setting_name := setting_name.strip()):
                 continue
