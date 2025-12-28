@@ -11,7 +11,7 @@ import sentinel  # pyright: ignore[reportMissingTypeStubs]
 from pypresence import exceptions
 from pypresence.presence import Presence
 
-from modules.error_messages import format_type_error
+from modules.error_messages import ensure_instance
 
 QueueType = SimpleQueue[str | object]
 
@@ -81,10 +81,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 rpc.close()
             return
 
-        if not isinstance(queue_item, str):
-            raise TypeError(format_type_error(queue_item, str))
-
-        state_message = queue_item
+        state_message = ensure_instance(queue_item, str)
 
         if not connection_status.is_set():
             try:
