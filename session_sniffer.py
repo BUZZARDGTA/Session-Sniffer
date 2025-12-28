@@ -125,6 +125,7 @@ from modules.constants.standalone import (
 from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
 from modules.error_messages import (
+    ensure_instance,
     format_arp_spoofing_failed_message,
     format_attribute_error,
     format_failed_check_for_updates_message,
@@ -5601,6 +5602,14 @@ class SessionTableView(QTableView):
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
+    def window(self) -> MainWindow:
+        """Override the window method to ensure it returns the parent `MainWindow`.
+
+        Raises:
+            TypeError: If the view is not attached to a `MainWindow`.
+        """
+        return ensure_instance(super().window(), MainWindow)
+
     def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # pylint: disable=redefined-builtin  # noqa: A002, N802
         """Show country flag tooltips on hover and forward other events."""
         if isinstance(object, QWidget) and isinstance(event, QHoverEvent):
@@ -6128,8 +6137,6 @@ class SessionTableView(QTableView):
         """
         # Get the MainWindow instance
         main_window = self.window()
-        if not isinstance(main_window, MainWindow):
-            return
 
         # Remove each player
         for ip in ips:
