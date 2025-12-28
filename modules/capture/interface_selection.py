@@ -113,7 +113,7 @@ class SafeQTableWidget(QTableWidget):
     # pylint: enable=invalid-name
 
 
-class InterfaceSelectionDialog(QDialog):
+class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-attributes
     """Display a dialog to select the capture network interface."""
 
     def __init__(  # pylint: disable=too-many-arguments  # noqa: PLR0913
