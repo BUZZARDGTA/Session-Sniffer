@@ -6135,9 +6135,7 @@ class SessionTableView(QTableView):
     def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
         # Access the system clipboard from the centralized app instance
-        clipboard = app.clipboard()
-        if not isinstance(clipboard, QClipboard):
-            raise TypeError(format_type_error(clipboard, QClipboard))
+        clipboard = ensure_instance(app.clipboard(), QClipboard)
 
         # Prepare a list to store text data from selected cells
         selected_texts: list[str] = []
