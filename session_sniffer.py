@@ -5043,9 +5043,7 @@ class SessionTableModel(QAbstractTableModel):
     @property
     def view(self) -> SessionTableView:
         """Get or attach a `SessionTableView` to this model."""
-        if self._view is None:
-            raise TypeError(format_type_error(self._view, SessionTableView))
-        return self._view
+        return ensure_instance(self._view, SessionTableView)
 
     @view.setter
     def view(self, new_view: SessionTableView) -> None:
