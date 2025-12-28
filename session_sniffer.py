@@ -5593,44 +5593,27 @@ class SessionTableView(QTableView):
     # pylint: disable=invalid-name
     def setModel(self, model: QAbstractItemModel | None) -> None:  # noqa: N802
         """Override the setModel method to ensure the model is of type SessionTableModel."""
-        if not isinstance(model, SessionTableModel):
-            raise TypeError(format_type_error(model, SessionTableModel))
-        super().setModel(model)
+        super().setModel(ensure_instance(model, SessionTableModel))
 
     def model(self) -> SessionTableModel:
         """Override the model method to ensure it returns a SessionTableModel."""
-        model = super().model()
-        if not isinstance(model, SessionTableModel):
-            raise TypeError(format_type_error(model, SessionTableModel))
-        return model
+        return ensure_instance(super().model(), SessionTableModel)
 
     def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
-        selection_model = super().selectionModel()
-        if not isinstance(selection_model, QItemSelectionModel):
-            raise TypeError(format_type_error(selection_model, QItemSelectionModel))
-        return selection_model
+        return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
     def viewport(self) -> QWidget:
         """Override the viewport method to ensure it returns a QWidget."""
-        viewport = super().viewport()
-        if not isinstance(viewport, QWidget):
-            raise TypeError(format_type_error(viewport, QWidget))
-        return viewport
+        return ensure_instance(super().viewport(), QWidget)
 
     def verticalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
-        header = super().verticalHeader()
-        if not isinstance(header, QHeaderView):
-            raise TypeError(format_type_error(header, QHeaderView))
-        return header
+        return ensure_instance(super().verticalHeader(), QHeaderView)
 
     def horizontalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
-        header = super().horizontalHeader()
-        if not isinstance(header, QHeaderView):
-            raise TypeError(format_type_error(header, QHeaderView))
-        return header
+        return ensure_instance(super().horizontalHeader(), QHeaderView)
 
     def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # pylint: disable=redefined-builtin  # noqa: A002, N802
         """Show country flag tooltips on hover and forward other events."""
