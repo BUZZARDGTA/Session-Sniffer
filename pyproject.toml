@@ -74,7 +74,6 @@ disable = [
     "too-many-branches",
     "too-many-locals",
     "too-many-statements",
-    "undefined-variable",  # TODO (BUZZARDGTA): unsupported in Python 3.14
     "used-before-assignment",  # TODO (BUZZARDGTA): unsupported in Python 3.14
 ]
 
