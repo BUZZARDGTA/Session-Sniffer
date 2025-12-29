@@ -3316,11 +3316,14 @@ def process_userip_task(
                     terminate_process_tree(process_pid)
 
                     if player.userip.settings.PROTECTION == 'Restart_Process' and isinstance(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH, Path):
-                        subprocess.Popen([str(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH.absolute())])
+                        subprocess.Popen([str(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH.absolute())])  # pylint: disable=consider-using-with
 
             elif player.userip.settings.PROTECTION in {'Shutdown_PC', 'Restart_PC'}:
                 validate_file(SHUTDOWN_EXE)
-                subprocess.Popen([str(SHUTDOWN_EXE), '/s' if player.userip.settings.PROTECTION == 'Shutdown_PC' else '/r'])
+                subprocess.run(
+                    [str(SHUTDOWN_EXE), '/s' if player.userip.settings.PROTECTION == 'Shutdown_PC' else '/r'],
+                    check=False,
+                )
 
         if player.userip.settings.VOICE_NOTIFICATIONS:
             tts_file_path = validate_file(TTS_DIR_PATH / f'{player.userip.settings.VOICE_NOTIFICATIONS} ({connection_type}).wav')
@@ -6554,7 +6557,7 @@ class PersistentMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
-def arp_spoofing_task(  # noqa: PLR0913
+def arp_spoofing_task(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
     interface_device_name: str,
     interface_name: str,
     interface_description: str,
@@ -6633,7 +6636,7 @@ def arp_spoofing_task(  # noqa: PLR0913
 
             # Start arpspoof process
             if proc is None or proc.poll() is not None:
-                proc = subprocess.Popen(
+                proc = subprocess.Popen(  # pylint: disable=consider-using-with
                     [str(ARPSPOOF_PATH), '-i', interface_device_name, interface_ip],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
