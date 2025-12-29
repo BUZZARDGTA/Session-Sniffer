@@ -3320,7 +3320,6 @@ def process_userip_task(
 
             elif player.userip.settings.PROTECTION in {'Shutdown_PC', 'Restart_PC'}:
                 validate_file(SHUTDOWN_EXE)
-
                 subprocess.Popen([str(SHUTDOWN_EXE), '/s' if player.userip.settings.PROTECTION == 'Shutdown_PC' else '/r'])
 
         if player.userip.settings.VOICE_NOTIFICATIONS:
