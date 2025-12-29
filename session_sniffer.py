@@ -6221,10 +6221,10 @@ class SessionTableView(QTableView):
 
         run_paping(ip, port)
 
-    def userip_manager__add(self, ip_addresses: list[str], selected_database: Path) -> None:
+    def userip_manager__add(self, selected_ips: list[str], selected_database: Path) -> None:
         """Add the selected IP address(es) to the chosen UserIP database."""
         # Prompt the user for a username
-        username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(ip_addresses))}:')
+        username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:')
 
         if not ok:
             return
@@ -6233,13 +6233,13 @@ class SessionTableView(QTableView):
 
         if username:  # Only proceed if the user clicked 'OK' and provided a username
             # Append the username and associated IP(s) to the corresponding database file
-            write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in ip_addresses])
+            write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in selected_ips])
 
             QMessageBox.information(
                 self, TITLE,
                 (
-                    f'Selected IP{pluralize(len(ip_addresses))} {list(ip_addresses)} '
-                    f'ha{pluralize(len(ip_addresses), singular="s", plural="ve")} been added with username "{username}" '
+                    f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
+                    f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username "{username}" '
                     f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".'
                 ),
             )
@@ -6247,7 +6247,7 @@ class SessionTableView(QTableView):
             # If the user canceled or left the input empty, show an error
             QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
 
-    def userip_manager__move(self, ip_addresses: list[str], selected_database: Path) -> None:
+    def userip_manager__move(self, selected_ips: list[str], selected_database: Path) -> None:
         """Move the selected IP address(es) to the chosen UserIP database."""
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
@@ -6268,16 +6268,23 @@ class SessionTableView(QTableView):
             # Remove any lines containing the IP address
             lines_to_keep: list[str] = []
             for line in lines:
+                # Try to match the regex
                 match = RE_USERIP_INI_PARSER_PATTERN.search(line)
                 if match:
                     # Extract username and ip using named groups
-                    username, ip = match.group('username').strip(), match.group('ip').strip()
+                    username, ip = match.group('username', 'ip')
 
-                    # Ensure both username and ip are non-empty strings
-                    if isinstance(username, str) and isinstance(ip, str) and ip in ip_addresses:
-                        deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
-                        continue
+                    # Only process if username and ip are strings
+                    if isinstance(username, str) and isinstance(ip, str):
+                        # Ensure both username and ip are non-empty strings
+                        username, ip = username.strip(), ip.strip()
 
+                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
+                        if ip in selected_ips:
+                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
+                            continue  # skip appending this line
+
+                # All other lines should be kept
                 lines_to_keep.append(line)
 
             if deleted_entries_in_this_database:
@@ -6293,7 +6300,7 @@ class SessionTableView(QTableView):
         # After processing all databases, show a detailed report
         if deleted_entries_by_database:
             report = (
-                f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} moved from the following '
+                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} moved from the following '
                 f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
                 f'"{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":</b><br><br><br>'
             )
@@ -6307,7 +6314,7 @@ class SessionTableView(QTableView):
 
             QMessageBox.information(self, TITLE, report)
 
-    def userip_manager__del(self, ip_addresses: list[str]) -> None:
+    def userip_manager__del(self, selected_ips: list[str]) -> None:
         """Remove the selected IP address(es) from all enabled UserIP databases."""
         # Dictionary to store removed entries by database
         deleted_entries_by_database: dict[Path, list[str]] = {}
@@ -6325,16 +6332,23 @@ class SessionTableView(QTableView):
             # Remove any lines containing the IP address
             lines_to_keep: list[str] = []
             for line in lines:
+                # Try to match the regex
                 match = RE_USERIP_INI_PARSER_PATTERN.search(line)
                 if match:
                     # Extract username and ip using named groups
-                    username, ip = match.group('username').strip(), match.group('ip').strip()
+                    username, ip = match.group('username', 'ip')
 
-                    # Ensure both username and ip are non-empty strings
-                    if isinstance(username, str) and isinstance(ip, str) and ip in ip_addresses:
-                        deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
-                        continue
+                    # Only process if username and ip are strings
+                    if isinstance(username, str) and isinstance(ip, str):
+                        # Ensure both username and ip are non-empty strings
+                        username, ip = username.strip(), ip.strip()
 
+                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
+                        if ip in selected_ips:
+                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
+                            continue  # skip appending this line
+
+                # All other lines should be kept
                 lines_to_keep.append(line)
 
             if deleted_entries_in_this_database:
@@ -6347,7 +6361,7 @@ class SessionTableView(QTableView):
         # After processing all databases, show a detailed report
         if deleted_entries_by_database:
             report = (
-                f'<b>Selected IP{pluralize(len(ip_addresses))} {ip_addresses} removed from the following '
+                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} removed from the following '
                 f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
             )
             for database_path, deleted_entries in deleted_entries_by_database.items():
