@@ -48,6 +48,10 @@ check_untyped_defs = true
 ignore_missing_imports = true
 strict = true
 
+[[tool.mypy.overrides]]
+module = "modules.discord.rpc"
+disable_error_code = ["no-untyped-call"]
+
 
 [tool.pylint.master]
 enable = "all"
