@@ -11,7 +11,12 @@ from modules.utils import get_documents_dir
 
 logger = get_logger(__name__)
 
-RE_MODMENU_LOGS_USER_PATTERN = re.compile(r'^user:(?P<username>[\w._-]{1,16}), scid:\d{1,9}, ip:(?P<ip>[\d.]+), timestamp:\d{10}$')
+RE_MODMENU_LOGS_USER_PATTERN = re.compile(
+    r'^user:(?P<username>[\w._-]{1,16}), '
+    r'scid:\d{1,9}, '
+    r'ip:(?P<ip>(?:\d{1,3}\.){3}\d{1,3}), '
+    r'timestamp:\d{10}$',
+)
 TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'PopstarDevs' / '2Take1Menu' / 'scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
 STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'Stand' / 'Lua Scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
 CHERAX__PLUGIN__LOG_PATH = get_documents_dir() / 'Cherax' / 'Lua' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
