@@ -17,6 +17,7 @@ RE_MODMENU_LOGS_USER_PATTERN = re.compile(
     r'ip:(?P<ip>(?:\d{1,3}\.){3}\d{1,3}), '
     r'timestamp:\d{10}$',
 )
+
 TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'PopstarDevs' / '2Take1Menu' / 'scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
 STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'Stand' / 'Lua Scripts' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
 CHERAX__PLUGIN__LOG_PATH = get_documents_dir() / 'Cherax' / 'Lua' / 'GTA_V_Session_Sniffer-plugin' / 'log.txt'
