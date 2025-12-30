@@ -64,9 +64,7 @@ class ModMenuLogsParser:
 
     @classmethod
     def _has_log_files_changed(cls, current_log_files_mod_times: dict[Path, float]) -> bool:
-        """Determine if any file was added, removed, or modified."""
-        with cls._lock:
-            return current_log_files_mod_times != cls._last_known_log_files_mod_times
+        return current_log_files_mod_times != cls._last_known_log_files_mod_times
 
     @classmethod
     def refresh(cls) -> None:
@@ -75,6 +73,9 @@ class ModMenuLogsParser:
 
         if not cls._has_log_files_changed(current_log_files_mod_times):
             return  # No changes
+        with cls._lock:
+            if not cls._has_log_files_changed(current_log_files_mod_times):
+                return  # No changes
 
         # Full reparse since something changed
         ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)
