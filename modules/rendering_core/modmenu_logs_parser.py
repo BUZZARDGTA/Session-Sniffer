@@ -11,7 +11,8 @@ from modules.utils import get_documents_dir
 
 logger = get_logger(__name__)
 
-IPUserMap = defaultdict[str, set[str]]
+FileModTimes = dict[Path, float]
+UsernamesByIP = defaultdict[str, list[str]]
 
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(
     r'^user:(?P<username>[\w._-]{1,16}), '
@@ -35,21 +36,30 @@ class ModMenuLogsParser:
     """Thread-safe parser to extract and track IP-to-username mappings from mod menu logs."""
 
     _lock: ClassVar = Lock()
-    _last_known_log_files_mod_times: ClassVar[dict[Path, float]] = {}
-    _ip_to_usernames_map: ClassVar[IPUserMap] = defaultdict(set)
+    _last_mod_times: ClassVar[FileModTimes] = {}
+    _ip_to_usernames_map: ClassVar[UsernamesByIP] = defaultdict(list)
+
+    @staticmethod
+    def _snapshot_file_mod_times() -> FileModTimes:
+        """Return current modification times of all existing log files."""
+        return {path: path.stat().st_mtime for path in LOGS_PATHS if path.is_file()}
 
     @classmethod
-    def _snapshot_and_parse_logs(cls) -> tuple[dict[Path, float], IPUserMap]:
-        """Take a snapshot of all log file modification times and parse them."""
-        ip_to_usernames_map: IPUserMap = defaultdict(set)
-        current_mod_times: dict[Path, float] = {}
+    def refresh(cls) -> None:
+        """Re-parse logs only if any file changed."""
+        current_mod_times = cls._snapshot_file_mod_times()
+
+        # Step 1: skip parsing if nothing changed
+        with cls._lock:
+            if current_mod_times == cls._last_mod_times:
+                return  # nothing to do
+
+        # Step 2: parse logs into a temporary map outside the lock
+        temp_map: UsernamesByIP = defaultdict(list)
 
         for path in LOGS_PATHS:
             if not path.is_file():
                 continue
-
-            # Capture modification time
-            current_mod_times[path] = path.stat().st_mtime
 
             # Parse file line by line
             with path.open(encoding='utf-8') as f:
@@ -64,27 +74,16 @@ class ModMenuLogsParser:
                     if not isinstance(ip, str):
                         raise TypeError(format_type_error(ip, str))
 
-                    ip_to_usernames_map[match['ip']].add(match['username'])
+                    # Preserve order and avoid duplicates
+                    if username not in temp_map[ip]:
+                        temp_map[ip].append(username)
 
-        return current_mod_times, ip_to_usernames_map
-
-    @classmethod
-    def _has_log_files_changed(cls, current_log_files_mod_times: dict[Path, float]) -> bool:
-        return current_log_files_mod_times != cls._last_known_log_files_mod_times
-
-    @classmethod
-    def refresh(cls) -> None:
-        """Re-parse all logs if any file was added, removed, or modified."""
-        # Step 1: snapshot and parse logs outside the lock
-        current_mod_times, ip_to_usernames_map = cls._snapshot_and_parse_logs()
-
-        # Step 2: acquire lock once to update shared state
+        # Step 3: swap the temporary map into the class variable under lock
         with cls._lock:
-            if cls._has_log_files_changed(current_mod_times):
-                if cls._last_known_log_files_mod_times:  # skip logging on first run
-                    logger.info('Detected changes in log files, re-parsing...')
-                cls._ip_to_usernames_map = ip_to_usernames_map
-                cls._last_known_log_files_mod_times = current_mod_times
+            if cls._last_mod_times:  # only log if it's not the first run
+                logger.info('Detected changes in log files, re-parsing...')
+            cls._ip_to_usernames_map = temp_map
+            cls._last_mod_times = current_mod_times
 
     @classmethod
     def has_ip(cls, ip: str) -> bool:
@@ -96,4 +95,4 @@ class ModMenuLogsParser:
     def get_usernames_by_ip(cls, ip: str) -> list[str]:
         """Thread-safe retrieval of usernames associated with the given IP."""
         with cls._lock:
-            return list(cls._ip_to_usernames_map.get(ip, set()))
+            return cls._ip_to_usernames_map[ip].copy()  # return a copy to prevent external modification
