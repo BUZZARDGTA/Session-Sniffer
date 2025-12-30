@@ -74,23 +74,23 @@ class ModMenuLogsParser:
     @classmethod
     def refresh(cls) -> None:
         """Re-parse all logs if any file was added, removed, or modified."""
+        current_log_files_mod_times = _snapshot_file_mod_times()
+
+        if not cls._has_log_files_changed(current_log_files_mod_times):
+            return  # No changes
+
+        # Full reparse since something changed
+        ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)
+        for path in current_log_files_mod_times:
+            log_data = _parse_log_file(path)
+            for ip, usernames in log_data.items():
+                for username in usernames:
+                    ip_to_usernames_map[ip].append(username)
+
         with cls._lock:
-            current_log_files_mod_times = _snapshot_file_mod_times()
-
-            if not cls._has_log_files_changed(current_log_files_mod_times):
-                return  # No changes
-
             # Only print the message if this isn't the initial run
             if cls._last_known_log_files_mod_times:
                 logger.info('Detected changes in log files, re-parsing...')
-
-            # Full reparse since something changed
-            ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)
-            for path in current_log_files_mod_times:
-                log_data = _parse_log_file(path)
-                for ip, usernames in log_data.items():
-                    for username in usernames:
-                        ip_to_usernames_map[ip].append(username)
 
             cls._ip_to_usernames_map = ip_to_usernames_map
             cls._last_known_log_files_mod_times = current_log_files_mod_times
