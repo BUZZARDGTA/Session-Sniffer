@@ -47,8 +47,6 @@ def _parse_log_file(log_path: Path) -> defaultdict[str, list[str]]:
             continue
 
         username, ip = match.group('username', 'ip')
-        if username is None or ip is None:
-            continue
         if not isinstance(username, str):
             raise TypeError(format_type_error(username, str))
         if not isinstance(ip, str):
