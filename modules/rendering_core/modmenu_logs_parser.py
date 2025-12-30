@@ -75,9 +75,9 @@ class ModMenuLogsParser:
 
     @classmethod
     def refresh(cls) -> None:
+        """Re-parse all logs if any file was added, removed, or modified."""
         with cls._lock:
             current_log_files_mod_times = _snapshot_file_mod_times()
-        """Re-parse all logs if any file was added, removed, or modified."""
 
             if not cls._has_log_files_changed(current_log_files_mod_times):
                 return  # No changes
