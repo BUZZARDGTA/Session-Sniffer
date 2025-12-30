@@ -52,7 +52,8 @@ class ModMenuLogsParser:
         # Step 1: skip parsing if nothing changed
         with cls._lock:
             if current_mod_times == cls._last_mod_times:
-                return  # nothing to do
+                return  # nothing changed
+            is_first_run = not cls._last_mod_times
 
         # Step 2: parse logs into a temporary map outside the lock
         temp_map: UsernamesByIP = defaultdict(list)
@@ -78,12 +79,13 @@ class ModMenuLogsParser:
                     if username not in temp_map[ip]:
                         temp_map[ip].append(username)
 
-        # Step 3: swap the temporary map into the class variable under lock
+        # Step 3: atomically update class variables under the same lock
         with cls._lock:
-            if cls._last_mod_times:  # only log if it's not the first run
-                logger.info('Detected changes in log files, re-parsing...')
             cls._ip_to_usernames_map = temp_map
             cls._last_mod_times = current_mod_times
+
+            if not is_first_run:
+                logger.info('Detected changes in log files, re-parsing...')
 
     @classmethod
     def has_ip(cls, ip: str) -> bool:
