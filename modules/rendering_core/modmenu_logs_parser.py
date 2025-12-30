@@ -30,11 +30,7 @@ LOGS_PATHS = (
 
 def _snapshot_file_mod_times() -> dict[Path, float]:
     """Return current modification times of all existing log files."""
-    return {
-        path: path.stat().st_mtime
-        for path in LOGS_PATHS
-        if path.is_file()
-    }
+    return {path: path.stat().st_mtime for path in LOGS_PATHS if path.is_file()}
 
 
 def _parse_log_file(log_path: Path) -> defaultdict[str, list[str]]:
