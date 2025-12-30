@@ -11,6 +11,8 @@ from modules.utils import get_documents_dir
 
 logger = get_logger(__name__)
 
+IPUserMap = defaultdict[str, set[str]]
+
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(
     r'^user:(?P<username>[\w._-]{1,16}), '
     r'scid:\d{1,9}, '
@@ -29,38 +31,42 @@ LOGS_PATHS = (
 )
 
 
-def _snapshot_file_mod_times() -> dict[Path, float]:
-    """Return current modification times of all existing log files."""
-    return {path: path.stat().st_mtime for path in LOGS_PATHS if path.is_file()}
-
-
-def _parse_log_file(log_path: Path) -> defaultdict[str, list[str]]:
-    """Read and parse a single log file and return IP-to-usernames mapping."""
-    ip_usernames: defaultdict[str, list[str]] = defaultdict(list)
-
-    for line in log_path.read_text(encoding='utf-8').splitlines():
-        match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line)
-        if not match:
-            continue
-
-        username, ip = match.group('username', 'ip')
-        if not isinstance(username, str):
-            raise TypeError(format_type_error(username, str))
-        if not isinstance(ip, str):
-            raise TypeError(format_type_error(ip, str))
-
-        if username not in ip_usernames[ip]:
-            ip_usernames[ip].append(username)
-
-    return ip_usernames
-
-
 class ModMenuLogsParser:
     """Thread-safe parser to extract and track IP-to-username mappings from mod menu logs."""
 
     _lock: ClassVar = Lock()
     _last_known_log_files_mod_times: ClassVar[dict[Path, float]] = {}
-    _ip_to_usernames_map: ClassVar[defaultdict[str, list[str]]] = defaultdict(list)
+    _ip_to_usernames_map: ClassVar[IPUserMap] = defaultdict(set)
+
+    @classmethod
+    def _snapshot_and_parse_logs(cls) -> tuple[dict[Path, float], IPUserMap]:
+        """Take a snapshot of all log file modification times and parse them."""
+        ip_to_usernames_map: IPUserMap = defaultdict(set)
+        current_mod_times: dict[Path, float] = {}
+
+        for path in LOGS_PATHS:
+            if not path.is_file():
+                continue
+
+            # Capture modification time
+            current_mod_times[path] = path.stat().st_mtime
+
+            # Parse file line by line
+            with path.open(encoding='utf-8') as f:
+                for line in f:
+                    match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
+                    if not match:
+                        continue
+
+                    username, ip = match.group('username', 'ip')
+                    if not isinstance(username, str):
+                        raise TypeError(format_type_error(username, str))
+                    if not isinstance(ip, str):
+                        raise TypeError(format_type_error(ip, str))
+
+                    ip_to_usernames_map[match['ip']].add(match['username'])
+
+        return current_mod_times, ip_to_usernames_map
 
     @classmethod
     def _has_log_files_changed(cls, current_log_files_mod_times: dict[Path, float]) -> bool:
@@ -69,29 +75,16 @@ class ModMenuLogsParser:
     @classmethod
     def refresh(cls) -> None:
         """Re-parse all logs if any file was added, removed, or modified."""
-        current_log_files_mod_times = _snapshot_file_mod_times()
+        # Step 1: snapshot and parse logs outside the lock
+        current_mod_times, ip_to_usernames_map = cls._snapshot_and_parse_logs()
 
-        if not cls._has_log_files_changed(current_log_files_mod_times):
-            return  # No changes
+        # Step 2: acquire lock once to update shared state
         with cls._lock:
-            if not cls._has_log_files_changed(current_log_files_mod_times):
-                return  # No changes
-
-        # Full reparse since something changed
-        ip_to_usernames_map: defaultdict[str, list[str]] = defaultdict(list)
-        for path in current_log_files_mod_times:
-            log_data = _parse_log_file(path)
-            for ip, usernames in log_data.items():
-                for username in usernames:
-                    ip_to_usernames_map[ip].append(username)
-
-        with cls._lock:
-            # Only print the message if this isn't the initial run
-            if cls._last_known_log_files_mod_times:
-                logger.info('Detected changes in log files, re-parsing...')
-
-            cls._ip_to_usernames_map = ip_to_usernames_map
-            cls._last_known_log_files_mod_times = current_log_files_mod_times
+            if cls._has_log_files_changed(current_mod_times):
+                if cls._last_known_log_files_mod_times:  # skip logging on first run
+                    logger.info('Detected changes in log files, re-parsing...')
+                cls._ip_to_usernames_map = ip_to_usernames_map
+                cls._last_known_log_files_mod_times = current_mod_times
 
     @classmethod
     def has_ip(cls, ip: str) -> bool:
@@ -101,6 +94,6 @@ class ModMenuLogsParser:
 
     @classmethod
     def get_usernames_by_ip(cls, ip: str) -> list[str]:
-        """Thread-safe retrieval of usernames associated with a given IP."""
+        """Thread-safe retrieval of usernames associated with the given IP."""
         with cls._lock:
-            return cls._ip_to_usernames_map.get(ip, []).copy()
+            return list(cls._ip_to_usernames_map.get(ip, set()))
