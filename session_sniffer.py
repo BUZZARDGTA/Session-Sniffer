@@ -3326,8 +3326,9 @@ def process_userip_task(
                 )
 
         if player.userip.settings.VOICE_NOTIFICATIONS:
-            tts_file_path = validate_file(TTS_DIR_PATH / f'{player.userip.settings.VOICE_NOTIFICATIONS} ({connection_type}).wav')
-            winsound.PlaySound(str(tts_file_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            tts_voice_name = 'Liam' if player.userip.settings.VOICE_NOTIFICATIONS == 'Male' else 'Jane'
+            tts_candidate_path = TTS_DIR_PATH / f'{tts_voice_name} ({connection_type}).wav'
+            winsound.PlaySound(str(tts_candidate_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
 
         if connection_type == 'connected':
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
