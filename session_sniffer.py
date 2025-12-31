@@ -5533,7 +5533,14 @@ class SessionTableModel(QAbstractTableModel):
 class SessionTableView(QTableView):
     """Render a session table view with custom selection and tooltips."""
 
-    def __init__(self, model: SessionTableModel, sort_column: int, sort_order: Qt.SortOrder, *, is_connected_table: bool) -> None:
+    def __init__(
+        self,
+        model: SessionTableModel,
+        sort_column: int,
+        sort_order: Qt.SortOrder,
+        *,
+        is_connected_table: bool,
+    ) -> None:
         """Initialize a session table view.
 
         Args:
