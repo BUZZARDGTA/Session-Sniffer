@@ -192,7 +192,6 @@ GITHUB_VERSIONS_URL = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Snif
 DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
-# GITHUB_RELEASE_API__GEOLITE2__BACKUP__URL = 'https://api.github.com/repos/PrxyHunter/GeoLite2/releases/latest'
 
 # TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
 ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
