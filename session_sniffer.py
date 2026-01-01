@@ -1232,7 +1232,7 @@ class ARPEntry(NamedTuple):
 
 
 @dataclass(kw_only=True, slots=True)
-class Interface:
+class Interface:  # pylint: disable=too-many-instance-attributes
     """Represent a network interface and its live capture-related stats."""
 
     index: int
@@ -4615,7 +4615,7 @@ def rendering_core(
                 for each individual status bar section.
             """
             @dataclass(frozen=True, slots=True)
-            class StatusBarSnapshot:
+            class StatusBarSnapshot:  # pylint: disable=too-many-instance-attributes
                 """Snapshot of all global state to avoid race conditions."""
                 # Settings
                 capture_ip_address: str | None
