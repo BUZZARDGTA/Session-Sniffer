@@ -14,7 +14,6 @@
         "**/dist": true,
         "bin": true,
         "COPYING": true,
-        "GeoLite2 Databases": true,
         "images": true,
         "resources": true,
         "Session_Sniffer.exe": true,

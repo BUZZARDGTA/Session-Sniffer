@@ -214,10 +214,4 @@ __marimo__/
 
 # Project data directory
 /.dev/
-/error.log
-/GeoLite2 Databases/
 /Session_Sniffer.exe
-/Sessions Logging/
-/Settings.ini
-/UserIP Databases/
-/UserIP_Logging.log
