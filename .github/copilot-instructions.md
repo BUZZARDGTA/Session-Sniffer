@@ -27,7 +27,7 @@ Session Sniffer stores *all* user read/write data under the user's AppData, via 
 - Local AppData (`scope='local'`) is for machine-specific and/or potentially large data (logs / databases / caches):
 	- `error.log`
 	- GeoLite2 databases
-	- session logging
+	- `Sessions Logging`
 	- `UserIP_Logging.log`
 - Roaming AppData (`scope='roaming'`) is for user-owned and potentially syncable data (config / user-managed content):
 	- `Settings.ini`
