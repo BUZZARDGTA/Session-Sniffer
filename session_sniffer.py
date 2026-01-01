@@ -2742,89 +2742,101 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
 
 
 def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData | None:
-    """Select the best matching interface based on given settings.
+    """Select the best matching interface based on current settings.
 
-    If no interface matches, show the selection dialog to prompt the user.
+    If auto-selection is not possible or results in ambiguity,
+    prompt the user with the interface selection dialog.
     """
 
-    def select_best_settings_matching_interface() -> InterfaceSelectionData | None:
-        """Select the interface with the highest priority based on the given settings.
+    def _can_auto_select_interface() -> bool:
+        """Whether the application has enough configuration to attempt auto-selecting an interface."""
+        if not Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT:
+            return False
 
-        Returns None if no interface matches.
-        """
-
-        def calculate_interface_priority(interface: InterfaceSelectionData) -> int:
-            """Calculate the priority of an interface based on the given settings.
-
-            Priority increases for each matching setting.
-            """
-            priority = 0
-
-            if Settings.CAPTURE_INTERFACE_NAME is not None and interface.name == Settings.CAPTURE_INTERFACE_NAME:
-                priority += 1
-            if Settings.CAPTURE_MAC_ADDRESS is not None and interface.mac_address == Settings.CAPTURE_MAC_ADDRESS:
-                priority += 1
-            if Settings.CAPTURE_IP_ADDRESS is not None and interface.ip_address == Settings.CAPTURE_IP_ADDRESS:
-                priority += 1
-
-            return priority
-
-        # First, try to select the best matching interface based on priority
-        max_priority = 0
-        selected_interface_index = None
-
-        for interface in interfaces_selection_data:
-            priority = calculate_interface_priority(interface)
-
-            if priority == max_priority:
-                selected_interface_index = None  # If multiple matches found, reset selection
-            elif priority > max_priority:
-                max_priority = priority
-                selected_interface_index = interface.selection_index
-
-        if selected_interface_index is not None:
-            return interfaces_selection_data[selected_interface_index]
-
-        return None
-
-    # First try to select the best matching interface based on settings
-    result: InterfaceSelectionData | None = None
-    if (
-        # Check if the network interface prompt is disabled
-        Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT
-        # Check if any capture setting is defined
-        and any(setting is not None for setting in (Settings.CAPTURE_INTERFACE_NAME, Settings.CAPTURE_MAC_ADDRESS, Settings.CAPTURE_IP_ADDRESS))
-    ):
-        result = select_best_settings_matching_interface()
-
-    # If no suitable interface was found, prompt the user to select an interface
-    if result is None:
-        result, arp_spoofing_enabled, hide_inactive_enabled, hide_arp_enabled = show_interface_selection_dialog(
-            screen_width,
-            screen_height,
-            interfaces_selection_data,
-            hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
-            hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
-            arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
-            saved_interface_name=Settings.CAPTURE_INTERFACE_NAME,
-            saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
-            saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
+        return any(
+            setting is not None
+            for setting in (
+                Settings.CAPTURE_INTERFACE_NAME,
+                Settings.CAPTURE_MAC_ADDRESS,
+                Settings.CAPTURE_IP_ADDRESS,
+            )
         )
 
-        if result is not None:
-            settings_changed = (
-                arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING
-                or hide_inactive_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE
-                or hide_arp_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_ARP
-            )
+    def _auto_select_best_interface() -> InterfaceSelectionData | None:
+        """Return the best matching interface, or `None` if ambiguous or no match."""
+        if not _can_auto_select_interface():
+            return None
 
-            if settings_changed:
-                Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
-                Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
-                Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
-                Settings.rewrite_settings_file()
+        def calculate_score(interface: InterfaceSelectionData) -> int:
+            """Calculate the score of an interface based on matching criteria.
 
-    return result
+            Args:
+                interface: The interface to calculate the score for
+            """
+            score = 0
+            if Settings.CAPTURE_INTERFACE_NAME is not None and interface.name == Settings.CAPTURE_INTERFACE_NAME:
+                score += 4
+            if Settings.CAPTURE_MAC_ADDRESS is not None and interface.mac_address == Settings.CAPTURE_MAC_ADDRESS:
+                score += 2
+            if Settings.CAPTURE_IP_ADDRESS is not None and interface.ip_address == Settings.CAPTURE_IP_ADDRESS:
+                score += 1
+            return score
+
+        best_score = 0
+        best_interface: InterfaceSelectionData | None = None
+        ambiguous = False
+
+        for interface in interfaces_selection_data:
+            score = calculate_score(interface)
+            if not score:
+                continue
+
+            if score > best_score:
+                best_score = score
+                best_interface = interface
+                ambiguous = False
+            elif score == best_score:
+                ambiguous = True
+
+        if best_interface is None or ambiguous:
+            return None
+
+        return best_interface
+
+    if auto_selected := _auto_select_best_interface():
+        return auto_selected
+
+    # If no suitable interface was found, prompt the user to select an interface
+    selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_arp_enabled = show_interface_selection_dialog(
+        screen_width,
+        screen_height,
+        interfaces_selection_data,
+        hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
+        hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
+        arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
+        saved_interface_name=Settings.CAPTURE_INTERFACE_NAME,
+        saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
+        saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
+    )
+
+    need_rewrite_settings = False
+
+    if arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING:
+        Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
+        need_rewrite_settings = True
+
+    if hide_inactive_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE:
+        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
+        need_rewrite_settings = True
+
+    if hide_arp_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_ARP:
+        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
+        need_rewrite_settings = True
+
+    if need_rewrite_settings:
+        Settings.rewrite_settings_file()
+
+    return selected_interface
 
 
 def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
