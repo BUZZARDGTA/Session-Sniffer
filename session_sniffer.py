@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
-from threading import Event, Lock, RLock, Thread
+from threading import Condition, Event, Lock, RLock, Thread
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, Self, TypedDict
 
 import colorama
@@ -127,7 +127,6 @@ from modules.discord.rpc import DiscordRPC
 from modules.error_messages import (
     ensure_instance,
     format_arp_spoofing_failed_message,
-    format_attribute_error,
     format_failed_check_for_updates_message,
     format_geolite2_download_flags_failed_message,
     format_geolite2_update_initialize_error_message,
@@ -3583,9 +3582,18 @@ class TsharkStats:
 
 class CellColor(NamedTuple):
     """Hold foreground and background colors for a table cell."""
-
     foreground: QColor
     background: QColor
+
+
+class SessionTableSnapshot(NamedTuple):
+    """Immutable snapshot of connected/disconnected table rows + cell colors."""
+    connected_num: int
+    connected_rows: tuple[tuple[str, ...], ...]
+    connected_colors: tuple[tuple[CellColor, ...], ...]
+    disconnected_num: int
+    disconnected_rows: tuple[tuple[str, ...], ...]
+    disconnected_colors: tuple[tuple[CellColor, ...], ...]
 
 
 class GUIUpdatePayload(NamedTuple):
@@ -3595,64 +3603,84 @@ class GUIUpdatePayload(NamedTuple):
     status_config_text: str
     status_issues_text: str
     status_performance_text: str
-    connected_rows: list[tuple[list[str], list[CellColor]]]
-    disconnected_rows: list[tuple[list[str], list[CellColor]]]
+    connected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
+    disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
     connected_num: int
     disconnected_num: int
 
 
-class ThreadSafeMeta(type):
-    """Metaclass that ensures thread-safe access to class attributes."""
+@dataclass(frozen=True, slots=True)
+class GUIRenderingSnapshot:  # pylint: disable=too-many-instance-attributes
+    """A single published GUI rendering snapshot.
 
-    # Define a lock for the metaclass itself to be shared across all instances of classes using this metaclass.
-    _rlock: ClassVar = RLock()
+    Built off-thread, then published by replacement (no shared mutation).
+    """
 
-    def __getattr__(cls, name: str) -> object:
-        """Get an attribute from the class in a thread-safe manner."""
-        with cls._rlock:
-            try:
-                return super().__getattribute__(name)
-            except AttributeError:
-                raise AttributeError(format_attribute_error(cls, name)) from None
+    # Column config
+    connected_hidden_columns: set[str]
+    disconnected_hidden_columns: set[str]
+    connected_column_names: list[str]
+    disconnected_column_names: list[str]
 
-    def __setattr__(cls, name: str, value: object) -> None:
-        """Set an attribute on the class in a thread-safe manner."""
-        with cls._rlock:
-            super().__setattr__(name, value)
-
-
-class AbstractGUIRenderingData:  # pylint: disable=too-few-public-methods
-    """Define the shared GUI rendering payload state shape."""
-
-    CONNECTED_HIDDEN_COLUMNS: set[str]
-    DISCONNECTED_HIDDEN_COLUMNS: set[str]
-    GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES: list[str]
-    GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES: list[str]
-
+    # Header + status
     header_text: str
     status_capture_text: str
     status_config_text: str
     status_issues_text: str
     status_performance_text: str
-    SESSION_CONNECTED_TABLE__NUM_COLS: int
-    session_connected_table__num_rows: int
-    session_connected_table__processed_data: list[list[str]]
-    session_connected_table__compiled_colors: list[list[CellColor]]
-    SESSION_DISCONNECTED_TABLE__NUM_COLS: int
-    session_disconnected_table__num_rows: int
-    session_disconnected_table__processed_data: list[list[str]]
-    session_disconnected_table__compiled_colors: list[list[CellColor]]
 
-    session_connected_sorted_column_name: str
-    session_connected_sort_order: Qt.SortOrder
-    session_disconnected_sorted_column_name: str
-    session_disconnected_sort_order: Qt.SortOrder
+    # Connected table
+    connected_num_cols: int
+    connected_num_rows: int
+    connected_rows: tuple[tuple[str, ...], ...]
+    connected_colors: tuple[tuple[CellColor, ...], ...]
+
+    # Disconnected table
+    disconnected_num_cols: int
+    disconnected_num_rows: int
+    disconnected_rows: tuple[tuple[str, ...], ...]
+    disconnected_colors: tuple[tuple[CellColor, ...], ...]
 
 
-class GUIrenderingData(AbstractGUIRenderingData, metaclass=ThreadSafeMeta):
-    """Store the latest compiled GUI rendering data and synchronization events."""
+class GUIRenderingState:
+    """Atomically published rendering state using a version counter and Condition for multi-consumer waits."""
 
-    gui_rendering_ready_event: ClassVar = Event()
+    _lock: ClassVar[Lock] = Lock()
+    _condition: ClassVar[Condition] = Condition(_lock)
+    _current: ClassVar[GUIRenderingSnapshot | None] = None
+    _version: ClassVar[int] = 0  # Incremented each time a new snapshot is published
+
+    @classmethod
+    def publish_rendering_snapshot(cls, snapshot: GUIRenderingSnapshot) -> None:
+        """Publish a fully-built snapshot by replacement."""
+        with cls._condition:
+            if cls._current is snapshot:  # Early exit if nothing changed
+                return
+
+            cls._current = snapshot
+            cls._version += 1
+            cls._condition.notify_all()  # wake all consumers only if snapshot changed
+
+    @classmethod
+    def wait_rendering_snapshot(
+        cls,
+        *,
+        timeout: float,
+        last_seen_version: int = 0,
+    ) -> tuple[GUIRenderingSnapshot | None, int]:
+        """Wait for a new snapshot if it's newer than last_seen_version.
+
+        Returns:
+            Tuple of (snapshot, version). Snapshot is None if timeout occurs.
+        """
+        with cls._condition:
+            if not cls._condition.wait_for(
+                lambda: cls._version != last_seen_version,
+                timeout=timeout,
+            ):
+                return None, last_seen_version
+
+            return cls._current, cls._version
 
 
 @dataclass(frozen=True, slots=True)
@@ -4229,7 +4257,7 @@ def rendering_core(
                 encoding='utf-8',
             )
 
-        def process_gui_session_tables_rendering() -> tuple[int, list[list[str]], list[list[CellColor]], int, list[list[str]], list[list[CellColor]]]:
+        def process_gui_session_tables_rendering() -> SessionTableSnapshot:
             def format_player_gui_datetime(datetime_object: datetime) -> str:
                 formatted_elapsed = None
 
@@ -4315,31 +4343,31 @@ def rendering_core(
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
                 row_colors = [
                     CellColor(foreground=row_fg_color, background=row_bg_color)
-                    for _ in range(GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS)
+                    for _ in range(connected_num_cols)
                 ]
 
                 connected_row_texts: list[str] = []
                 connected_row_texts.append(f'{format_player_usernames(player)}')
                 connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
-                if 'T. Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Session Time' not in connected_hidden_columns:
                     connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-                if 'Session Time' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Session Time' not in connected_hidden_columns:
                     connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
                 connected_row_texts.append(f'{player.rejoins}')
-                if 'T. Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.total_exchanged}')
-                if 'Packets' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Packets' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.exchanged}')
-                if 'T. Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets Received' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.total_received}')
-                if 'Packets Received' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Packets Received' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.received}')
-                if 'T. Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets Sent' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.total_sent}')
-                if 'Packets Sent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Packets Sent' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.packets.sent}')
-                if 'PPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'PPS' not in connected_hidden_columns:
                     row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                         foreground=get_player_pps_gradient_color(
                             row_fg_color,
@@ -4348,7 +4376,7 @@ def rendering_core(
                         ),
                     )
                     connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
-                if 'PPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'PPM' not in connected_hidden_columns:
                     row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
                         foreground=get_player_ppm_gradient_color(
                             row_fg_color,
@@ -4357,19 +4385,19 @@ def rendering_core(
                         ),
                     )
                     connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
-                if 'T. Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Bandwith' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-                if 'Bandwith' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Bandwith' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-                if 'T. Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Download' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-                if 'Download' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Download' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-                if 'T. Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'T. Upload' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-                if 'Upload' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Upload' not in connected_hidden_columns:
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-                if 'BPS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'BPS' not in connected_hidden_columns:
                     row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
                         foreground=get_player_bps_gradient_color(
                             row_fg_color,
@@ -4378,7 +4406,7 @@ def rendering_core(
                         ),
                     )
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
-                if 'BPM' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'BPM' not in connected_hidden_columns:
                     row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
                         foreground=get_player_bpm_gradient_color(
                             row_fg_color,
@@ -4388,61 +4416,61 @@ def rendering_core(
                     )
                     connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
                 connected_row_texts.append(f'{format_player_ip(player.ip)}')
-                if 'Hostname' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Hostname' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Last Port' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Middle Ports' not in connected_hidden_columns:
                     connected_row_texts.append(f'{format_player_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'First Port' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Continent' not in connected_hidden_columns:
                     if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
                         connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Country' not in connected_hidden_columns:
                     if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
                         connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         connected_row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Region' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'R. Code' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'City' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'District' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'ZIP Code' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Lat' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Lon' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Time Zone' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Offset' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Currency' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Organization' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'ISP' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'ASN / ISP' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'AS' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'ASN' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Mobile' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'VPN' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Hosting' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS:
+                if 'Pinging' not in connected_hidden_columns:
                     connected_row_texts.append(f'{player.ping.is_pinging}')
 
                 session_connected_table__processed_data.append(connected_row_texts)
@@ -4457,110 +4485,118 @@ def rendering_core(
                     row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
 
                 # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
-                row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS)]
+                row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(disconnected_num_cols)]
 
                 disconnected_row_texts: list[str] = []
                 disconnected_row_texts.append(f'{format_player_usernames(player)}')
                 disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
                 disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
                 disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
-                if 'T. Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Session Time' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-                if 'Session Time' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Session Time' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
                 disconnected_row_texts.append(f'{player.rejoins}')
-                if 'T. Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.total_exchanged}')
-                if 'Packets' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Packets' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.exchanged}')
-                if 'T. Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets Received' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.total_received}')
-                if 'Packets Received' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Packets Received' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.received}')
-                if 'T. Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Packets Sent' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.total_sent}')
-                if 'Packets Sent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Packets Sent' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.packets.sent}')
-                if 'T. Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Bandwith' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-                if 'Bandwith' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Bandwith' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-                if 'T. Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Download' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-                if 'Download' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Download' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-                if 'T. Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'T. Upload' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-                if 'Upload' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Upload' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
                 disconnected_row_texts.append(f'{player.ip}')
-                if 'Hostname' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Hostname' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
-                if 'Last Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Last Port' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.ports.last}')
-                if 'Middle Ports' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Middle Ports' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
-                if 'First Port' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'First Port' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.ports.first}')
-                if 'Continent' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Continent' not in disconnected_hidden_columns:
                     if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
                         disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
                     else:
                         disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-                if 'Country' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Country' not in disconnected_hidden_columns:
                     if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
                         disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
                     else:
                         disconnected_row_texts.append(f'{player.iplookup.geolite2.country}')
-                if 'Region' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Region' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
-                if 'R. Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'R. Code' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-                if 'City' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'City' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
-                if 'District' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'District' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
-                if 'ZIP Code' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'ZIP Code' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-                if 'Lat' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Lat' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-                if 'Lon' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Lon' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-                if 'Time Zone' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Time Zone' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-                if 'Offset' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Offset' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-                if 'Currency' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Currency' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-                if 'Organization' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Organization' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
-                if 'ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'ISP' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-                if 'ASN / ISP' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'ASN / ISP' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
-                if 'AS' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'AS' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-                if 'ASN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'ASN' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                if 'Mobile' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Mobile' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                if 'VPN' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'VPN' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                if 'Hosting' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Hosting' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                if 'Pinging' not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS:
+                if 'Pinging' not in disconnected_hidden_columns:
                     disconnected_row_texts.append(f'{player.ping.is_pinging}')
 
                 session_disconnected_table__processed_data.append(disconnected_row_texts)
                 session_disconnected_table__compiled_colors.append(row_colors)
 
-            return (
-                len(session_connected_table__processed_data),
-                session_connected_table__processed_data,
-                session_connected_table__compiled_colors,
-                len(session_disconnected_table__processed_data),
-                session_disconnected_table__processed_data,
-                session_disconnected_table__compiled_colors,
+            connected_num = len(session_connected_table__processed_data)
+            connected_rows = tuple(tuple(row) for row in session_connected_table__processed_data)
+            connected_colors = tuple(tuple(row) for row in session_connected_table__compiled_colors)
+
+            disconnected_num = len(session_disconnected_table__processed_data)
+            disconnected_rows = tuple(tuple(row) for row in session_disconnected_table__processed_data)
+            disconnected_colors = tuple(tuple(row) for row in session_disconnected_table__compiled_colors)
+
+            return SessionTableSnapshot(
+                connected_num=connected_num,
+                connected_rows=connected_rows,
+                connected_colors=connected_colors,
+                disconnected_num=disconnected_num,
+                disconnected_rows=disconnected_rows,
+                disconnected_colors=disconnected_colors,
             )
 
         def generate_gui_status_text() -> tuple[str, str, str, str]:
@@ -4794,20 +4830,10 @@ def rendering_core(
 
             return capture_section, config_section, userip_issues_section, performance_section
 
-        # Data structures already initialized before GUI - just get the values
-        gui_connected_players_table__column_names = GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES
-
-        # Still need logging column names (not used by GUI)
         logging_connected_players_table__column_names = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
         logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
-
-        # Column mapping for rendering
-        connected_column_mapping = {header: index for index, header in enumerate(gui_connected_players_table__column_names)}
-        # DISCONNECTED_COLUMN_MAPPING = {header: index for index, header in enumerate(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES)}
-
         last_userip_parse_time = None
         last_session_logging_processing_time = None
-
         discord_rpc_manager = None
         if Settings.DISCORD_PRESENCE:
             discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
@@ -4972,18 +4998,51 @@ def rendering_core(
                  (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0)):  # noqa: PLR2004
                 discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
 
-            GUIrenderingData.header_text = generate_gui_header_html(capture=capture)
-            (GUIrenderingData.status_capture_text, GUIrenderingData.status_config_text,
-             GUIrenderingData.status_issues_text, GUIrenderingData.status_performance_text) = generate_gui_status_text()
+            connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+            disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
+            connected_column_names = [
+                column_name
+                for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+                if column_name not in connected_hidden_columns
+            ]
+            disconnected_column_names = [
+                column_name
+                for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+                if column_name not in disconnected_hidden_columns
+            ]
+            connected_num_cols = len(connected_column_names)
+            disconnected_num_cols = len(disconnected_column_names)
+            connected_column_mapping = {header: index for index, header in enumerate(connected_column_names)}
+            header_text = generate_gui_header_html(capture=capture)
             (
-                GUIrenderingData.session_connected_table__num_rows,
-                GUIrenderingData.session_connected_table__processed_data,
-                GUIrenderingData.session_connected_table__compiled_colors,
-                GUIrenderingData.session_disconnected_table__num_rows,
-                GUIrenderingData.session_disconnected_table__processed_data,
-                GUIrenderingData.session_disconnected_table__compiled_colors,
-            ) = process_gui_session_tables_rendering()
-            GUIrenderingData.gui_rendering_ready_event.set()
+                status_capture_text,
+                status_config_text,
+                status_issues_text,
+                status_performance_text,
+            ) = generate_gui_status_text()
+            session_table_snapshot = process_gui_session_tables_rendering()
+
+            GUIRenderingState.publish_rendering_snapshot(
+                GUIRenderingSnapshot(
+                    connected_hidden_columns=connected_hidden_columns,
+                    disconnected_hidden_columns=disconnected_hidden_columns,
+                    connected_column_names=connected_column_names,
+                    disconnected_column_names=disconnected_column_names,
+                    header_text=header_text,
+                    status_capture_text=status_capture_text,
+                    status_config_text=status_config_text,
+                    status_issues_text=status_issues_text,
+                    status_performance_text=status_performance_text,
+                    connected_num_cols=connected_num_cols,
+                    connected_num_rows=session_table_snapshot.connected_num,
+                    connected_rows=session_table_snapshot.connected_rows,
+                    connected_colors=session_table_snapshot.connected_colors,
+                    disconnected_num_cols=disconnected_num_cols,
+                    disconnected_num_rows=session_table_snapshot.disconnected_num,
+                    disconnected_rows=session_table_snapshot.disconnected_rows,
+                    disconnected_colors=session_table_snapshot.disconnected_colors,
+                ),
+            )
 
             gui_closed__event.wait(1)
 
@@ -6506,44 +6565,45 @@ class GUIWorkerThread(QThread):
 
     def run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
+        last_snapshot_version = 0
+
         while not gui_closed__event.is_set():
-            GUIrenderingData.session_connected_sorted_column_name, GUIrenderingData.session_connected_sort_order = self.connected_table_view.get_sorted_column()
-            GUIrenderingData.session_disconnected_sorted_column_name, GUIrenderingData.session_disconnected_sort_order = self.disconnected_table_view.get_sorted_column()
-
-            if not GUIrenderingData.gui_rendering_ready_event.is_set():
+            snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
+                timeout=0.1,
+                last_seen_version=last_snapshot_version,
+            )
+            if snapshot is None:
                 continue
-            GUIrenderingData.gui_rendering_ready_event.clear()
 
-            header_text = GUIrenderingData.header_text
-            status_capture_text = GUIrenderingData.status_capture_text
-            status_config_text = GUIrenderingData.status_config_text
-            status_issues_text = GUIrenderingData.status_issues_text
-            status_performance_text = GUIrenderingData.status_performance_text
+            header_text = snapshot.header_text
+            status_capture_text = snapshot.status_capture_text
+            status_config_text = snapshot.status_config_text
+            status_issues_text = snapshot.status_issues_text
+            status_performance_text = snapshot.status_performance_text
+            connected_num = snapshot.connected_num_rows
+            disconnected_num = snapshot.disconnected_num_rows
 
-            connected_data = [row[:] for row in GUIrenderingData.session_connected_table__processed_data]
-            connected_colors = [row[:] for row in GUIrenderingData.session_connected_table__compiled_colors]
-            connected_num = GUIrenderingData.session_connected_table__num_rows
+            # Preprocess rows with colors
+            connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                (list(row), list(colors))
+                for row, colors in zip(snapshot.connected_rows, snapshot.connected_colors, strict=True)
+            ]
+            disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                (list(row), list(colors))
+                for row, colors in zip(snapshot.disconnected_rows, snapshot.disconnected_colors, strict=True)
+            ]
 
-            disconnected_data = [row[:] for row in GUIrenderingData.session_disconnected_table__processed_data]
-            disconnected_colors = [row[:] for row in GUIrenderingData.session_disconnected_table__compiled_colors]
-            disconnected_num = GUIrenderingData.session_disconnected_table__num_rows
-
-            connected_rows = list(zip(connected_data, connected_colors, strict=True))
-            disconnected_rows = list(zip(disconnected_data, disconnected_colors, strict=True))
-
-            payload = GUIUpdatePayload(
+            self.update_signal.emit(GUIUpdatePayload(
                 header_text=header_text,
                 status_capture_text=status_capture_text,
                 status_config_text=status_config_text,
                 status_issues_text=status_issues_text,
                 status_performance_text=status_performance_text,
-                connected_rows=connected_rows,
-                disconnected_rows=disconnected_rows,
+                connected_rows_with_colors=connected_rows_with_colors,
+                disconnected_rows_with_colors=disconnected_rows_with_colors,
                 connected_num=connected_num,
                 disconnected_num=disconnected_num,
-            )
-
-            self.update_signal.emit(payload)
+            ))
 
 
 class PersistentMenu(QMenu):
@@ -6895,12 +6955,17 @@ class MainWindow(QMainWindow):
         self.connected_header_layout.addWidget(self.connected_collapse_button)
 
         # Create the table model and view
-        while not GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES:  # Wait for the GUI rendering data to be ready
-            gui_closed__event.wait(0.1)
-        self.connected_table_model = SessionTableModel(GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES)
+        connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+        connected_column_names = [
+            column_name
+            for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+            if column_name not in connected_hidden_columns
+        ]
+
+        self.connected_table_model = SessionTableModel(connected_column_names)
         self.connected_table_view = SessionTableView(
             self.connected_table_model,
-            GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES.index('Last Rejoin'),
+            connected_column_names.index('Last Rejoin'),
             Qt.SortOrder.DescendingOrder,
             is_connected_table=True,
         )
@@ -6958,12 +7023,17 @@ class MainWindow(QMainWindow):
         self.disconnected_expand_button.setVisible(False)
 
         # Create the table model and view
-        while not GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES:  # Wait for the GUI rendering data to be ready
-            gui_closed__event.wait(0.1)
-        self.disconnected_table_model = SessionTableModel(GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES)
+        disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
+        disconnected_column_names = [
+            column_name
+            for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+            if column_name not in disconnected_hidden_columns
+        ]
+
+        self.disconnected_table_model = SessionTableModel(disconnected_column_names)
         self.disconnected_table_view = SessionTableView(
             self.disconnected_table_model,
-            GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES.index('Last Seen'),
+            disconnected_column_names.index('Last Seen'),
             Qt.SortOrder.AscendingOrder,
             is_connected_table=False,
         )
@@ -7227,8 +7297,8 @@ class MainWindow(QMainWindow):
             self._update_connected_header_with_selection()
 
         # Process connected players data
-        for processed_data, compiled_colors in payload.connected_rows:
-            ip = self.connected_table_model.get_ip_from_data_safely(processed_data)
+        for processed_data, compiled_colors in payload.connected_rows_with_colors:
+            ip = self.connected_table_model.get_ip_from_data_safely(list(processed_data))
 
             # Remove from disconnected table (maintain data consistency)
             disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
@@ -7238,9 +7308,9 @@ class MainWindow(QMainWindow):
             # Update connected table data
             connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
             if connected_row_index is None:
-                self.connected_table_model.add_row_without_refresh(processed_data, compiled_colors)
+                self.connected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
             else:
-                self.connected_table_model.update_row_without_refresh(connected_row_index, processed_data, compiled_colors)
+                self.connected_table_model.update_row_without_refresh(connected_row_index, list(processed_data), list(compiled_colors))
 
         # Only perform expensive UI operations if tables are visible
         if self.connected_table_view.isVisible():
@@ -7254,8 +7324,8 @@ class MainWindow(QMainWindow):
             self._update_disconnected_header_with_selection()
 
         # Process disconnected players data
-        for processed_data, compiled_colors in payload.disconnected_rows:
-            ip = self.disconnected_table_model.get_ip_from_data_safely(processed_data)
+        for processed_data, compiled_colors in payload.disconnected_rows_with_colors:
+            ip = self.disconnected_table_model.get_ip_from_data_safely(list(processed_data))
 
             # Remove from connected table (maintain data consistency)
             connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
@@ -7265,9 +7335,9 @@ class MainWindow(QMainWindow):
             # Update disconnected table data
             disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
             if disconnected_row_index is None:
-                self.disconnected_table_model.add_row_without_refresh(processed_data, compiled_colors)
+                self.disconnected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
             else:
-                self.disconnected_table_model.update_row_without_refresh(disconnected_row_index, processed_data, compiled_colors)
+                self.disconnected_table_model.update_row_without_refresh(disconnected_row_index, list(processed_data), list(compiled_colors))
 
         # Only perform expensive UI operations if tables are visible
         if self.disconnected_table_view.isVisible():
@@ -7975,27 +8045,6 @@ def main() -> None:
             ),
             daemon=True,
         ).start()
-
-    # Initialize GUI data structures early so GUI can start immediately
-    GUIrenderingData.CONNECTED_HIDDEN_COLUMNS = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
-    GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
-
-    # Compile table column names
-    gui_connected_players_table__column_names = [
-        column_name
-        for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
-        if column_name not in GUIrenderingData.CONNECTED_HIDDEN_COLUMNS
-    ]
-    gui_disconnected_players_table__column_names = [
-        column_name
-        for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-        if column_name not in GUIrenderingData.DISCONNECTED_HIDDEN_COLUMNS
-    ]
-
-    GUIrenderingData.GUI_CONNECTED_PLAYERS_TABLE__COLUMN_NAMES = gui_connected_players_table__column_names
-    GUIrenderingData.GUI_DISCONNECTED_PLAYERS_TABLE__COLUMN_NAMES = gui_disconnected_players_table__column_names
-    GUIrenderingData.SESSION_CONNECTED_TABLE__NUM_COLS = len(gui_connected_players_table__column_names)
-    GUIrenderingData.SESSION_DISCONNECTED_TABLE__NUM_COLS = len(gui_disconnected_players_table__column_names)
 
     # Initialize GUI first - now it has all the data it needs
     window = MainWindow(screen_width, screen_height, capture)

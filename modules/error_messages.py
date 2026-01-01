@@ -13,19 +13,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def format_attribute_error(cls: type, name: str) -> str:
-    """Format an attribute error message.
-
-    Args:
-        cls: The class of the object.
-        name: The name of the missing attribute.
-
-    Returns:
-        The formatted error message.
-    """
-    return f"'{cls.__name__}' object has no attribute '{name}'"
-
-
 def format_type_error(
     obj: object,
     expected_types: type | tuple[type, ...],
