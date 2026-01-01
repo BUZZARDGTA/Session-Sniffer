@@ -50,19 +50,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtSignal,
 )
-from PyQt6.QtGui import (
-    QAction,
-    QBrush,
-    QClipboard,
-    QCloseEvent,
-    QColor,
-    QFont,
-    QHoverEvent,
-    QIcon,
-    QKeyEvent,
-    QMouseEvent,
-    QPixmap,
-)
+from PyQt6.QtGui import QAction, QBrush, QClipboard, QCloseEvent, QColor, QFont, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
@@ -87,18 +75,9 @@ from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStub
 from rich.text import Text
 
 from modules import msgbox
-from modules.capture.exceptions import (
-    TSharkOutputParsingError,
-)
-from modules.capture.interface_selection import (
-    InterfaceSelectionData,
-    show_interface_selection_dialog,
-)
-from modules.capture.tshark_capture import (
-    CaptureConfig,
-    Packet,
-    PacketCapture,
-)
+from modules.capture.exceptions import TSharkOutputParsingError
+from modules.capture.interface_selection import InterfaceSelectionData, show_interface_selection_dialog
+from modules.capture.tshark_capture import CaptureConfig, Packet, PacketCapture
 from modules.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from modules.capture.utils.npcap_checker import ensure_npcap_installed
 from modules.constants.external import LOCAL_TZ
@@ -117,11 +96,7 @@ from modules.constants.local import (
     USERIP_LOGGING_PATH,
     VERSION,
 )
-from modules.constants.standalone import (
-    MAX_PORT,
-    MIN_PORT,
-    TITLE,
-)
+from modules.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from modules.constants.standard import SYSTEM32_PATH
 from modules.discord.rpc import DiscordRPC
 from modules.error_messages import (
@@ -137,13 +112,7 @@ from modules.error_messages import (
     format_userip_ip_conflict_message,
     format_userip_missing_settings_message,
 )
-from modules.exceptions import (
-    PlayerAlreadyExistsError,
-    PlayerDateTimeCorruptionError,
-    PlayerNotFoundInRegistryError,
-    UnexpectedPlayerCountError,
-    UnsupportedPlatformError,
-)
+from modules.exceptions import PlayerAlreadyExistsError, PlayerDateTimeCorruptionError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError, UnsupportedPlatformError
 from modules.guis.app import app
 from modules.guis.colors import StatusBarColors, TableColors, ThresholdColors
 from modules.guis.exceptions import (
@@ -153,10 +122,7 @@ from modules.guis.exceptions import (
     UnsupportedScreenResolutionError,
     UnsupportedSortColumnError,
 )
-from modules.guis.html_templates import (
-    CAPTURE_STOPPED_HTML,
-    GUI_HEADER_HTML_TEMPLATE,
-)
+from modules.guis.html_templates import CAPTURE_STOPPED_HTML, GUI_HEADER_HTML_TEMPLATE
 from modules.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
     CONNECTED_CLEAR_BUTTON_STYLESHEET,
@@ -178,55 +144,19 @@ from modules.guis.stylesheets import (
     STATUS_BAR_STYLESHEET,
 )
 from modules.guis.utils import get_screen_size, resize_window_for_screen
-from modules.launcher.package_checker import (
-    check_packages_version,
-    get_dependencies_from_pyproject,
-    get_dependencies_from_requirements,
-)
-from modules.logging_setup import (
-    console,
-    get_logger,
-    setup_logging,
-)
-from modules.models import (
-    GithubReleaseResponse,
-    GithubVersionsResponse,
-    IpApiResponse,
-)
-from modules.networking.ctypes_adapters_info import (
-    IF_OPER_STATUS_NOT_PRESENT,
-    MEDIA_CONNECT_STATE_DISCONNECTED,
-    get_adapters_info,
-)
-from modules.networking.endpoint_ping_manager import (
-    PingResult,
-    fetch_and_parse_ping,
-)
-from modules.networking.exceptions import (
-    AllEndpointsExhaustedError,
-    InterfaceAlreadyExistsError,
-)
+from modules.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject, get_dependencies_from_requirements
+from modules.logging_setup import console, get_logger, setup_logging
+from modules.models import GithubVersionsResponse, IpApiResponse
+from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, get_adapters_info
+from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
+from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
 from modules.networking.http_session import s
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup
-from modules.networking.utils import (
-    format_mac_address,
-    is_ipv4_address,
-    is_mac_address,
-    is_private_device_ipv4,
-    is_valid_non_special_ipv4,
-)
+from modules.networking.utils import format_mac_address, is_ipv4_address, is_mac_address, is_private_device_ipv4, is_valid_non_special_ipv4
 from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
-from modules.text_templates import (
-    DEFAULT_USERIP_FILES_SETTINGS_INI,
-    SETTINGS_INI_HEADER_TEMPLATE,
-    USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
-    USERIP_DEFAULT_DB_HEADER_TEMPLATE,
-)
-from modules.text_utils import (
-    format_triple_quoted_text,
-    pluralize,
-)
+from modules.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, SETTINGS_INI_HEADER_TEMPLATE, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
+from modules.text_utils import format_triple_quoted_text, pluralize
 from modules.utils import (
     check_case_insensitive_and_exact_match,
     clear_screen,
@@ -246,11 +176,7 @@ from modules.utils import (
     validate_file,
     write_lines_to_file,
 )
-from modules.utils_exceptions import (
-    InvalidBooleanValueError,
-    InvalidNoneTypeValueError,
-    NoMatchFoundError,
-)
+from modules.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
