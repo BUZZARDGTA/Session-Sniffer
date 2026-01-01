@@ -2268,7 +2268,7 @@ class SessionHost:
 
 
 @pydantic_dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
-class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-name
+class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-name,too-few-public-methods
     """Class to represent settings with attributes for each setting key."""
     ENABLED: bool
     COLOR: QColor
