@@ -3598,6 +3598,7 @@ class SessionTableSnapshot(NamedTuple):
 
 class GUIUpdatePayload(NamedTuple):
     """Payload containing all data needed for GUI updates."""
+    snapshot_version: int
     header_text: str
     status_capture_text: str
     status_config_text: str
@@ -3681,6 +3682,12 @@ class GUIRenderingState:
                 return None, last_seen_version
 
             return cls._current, cls._version
+
+    @classmethod
+    def get_version(cls) -> int:
+        """Return the current snapshot version in a thread-safe manner."""
+        with cls._condition:
+            return cls._version
 
 
 @dataclass(frozen=True, slots=True)
@@ -6594,6 +6601,7 @@ class GUIWorkerThread(QThread):
             ]
 
             self.update_signal.emit(GUIUpdatePayload(
+                snapshot_version=last_snapshot_version,
                 header_text=header_text,
                 status_capture_text=status_capture_text,
                 status_config_text=status_config_text,
@@ -6786,6 +6794,8 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
 
 class MainWindow(QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
+
+    _min_accepted_snapshot_version: int
 
     def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
         """Initialize the main application window.
@@ -7061,6 +7071,10 @@ class MainWindow(QMainWindow):
         self._connected_selected_count = 0
         self._disconnected_selected_count = 0
 
+        # Ignore any queued GUI updates published before this version.
+        # This prevents a stale update from repopulating the tables right after CLEAR.
+        self._min_accepted_snapshot_version = 0
+
         # Connect to selection change signals to track selected cells
         self.connected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
             lambda: self._update_selection_count(self.connected_table_view, 'connected'),
@@ -7279,6 +7293,9 @@ class MainWindow(QMainWindow):
 
     def update_gui(self, payload: GUIUpdatePayload) -> None:
         """Update header text, status bar, and table data for connected and disconnected players."""
+        if payload.snapshot_version < self._min_accepted_snapshot_version:
+            return
+
         # Update the main header text
         self.header_text.setText(payload.header_text)
 
@@ -7415,6 +7432,7 @@ class MainWindow(QMainWindow):
 
     def clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
+        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
         connected_ips = {player.ip for player in connected_players}
 
@@ -7433,6 +7451,7 @@ class MainWindow(QMainWindow):
 
     def clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
+        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
         disconnected_ips = {player.ip for player in disconnected_players}
 
