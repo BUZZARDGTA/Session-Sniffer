@@ -13,10 +13,7 @@ from urllib.parse import urlparse
 from requests import exceptions
 
 from modules.error_messages import ensure_instance, format_type_error
-from modules.networking.exceptions import (
-    AllEndpointsExhaustedError,
-    InvalidPingResultError,
-)
+from modules.networking.exceptions import AllEndpointsExhaustedError, InvalidPingResultError
 from modules.networking.http_session import s
 
 RE_BYTES_PATTERN = re.compile(

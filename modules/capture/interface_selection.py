@@ -7,18 +7,7 @@ from typing import Literal, NamedTuple
 
 from PyQt6.QtCore import QItemSelectionModel, Qt
 from PyQt6.QtGui import QCursor
-from PyQt6.QtWidgets import (
-    QCheckBox,
-    QDialog,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QToolTip,
-    QVBoxLayout,
-)
+from PyQt6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout
 
 from modules.error_messages import ensure_instance
 from modules.guis.utils import resize_window_for_screen

@@ -3,10 +3,7 @@ import re
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
 
-from modules.networking.exceptions import (
-    InvalidIPv4AddressError,
-    InvalidMacAddressError,
-)
+from modules.networking.exceptions import InvalidIPv4AddressError, InvalidMacAddressError
 
 RE_MAC_ADDRESS_PATTERN = re.compile(r'^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$', re.IGNORECASE)
 IPV4_LAST_OCTET_VALUE = 255
