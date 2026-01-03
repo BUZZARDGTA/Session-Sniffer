@@ -1,4 +1,4 @@
-"""GeoLite2 database updater + reader initialization."""
+"""GeoLite2 database updater (download and persist)."""
 
 import hashlib
 import json
@@ -9,15 +9,13 @@ from pathlib import Path
 from threading import Thread
 from typing import Literal
 
-import geoip2.database
-import geoip2.errors
 import requests
 from pydantic import BaseModel, Field, ValidationError
 
 from modules import msgbox
 from modules.constants.local import GEOLITE2_DATABASES_DIR_PATH
 from modules.constants.standalone import TITLE
-from modules.error_messages import format_geolite2_download_flags_failed_message, format_geolite2_update_initialize_error_message, format_type_error
+from modules.error_messages import format_geolite2_download_flags_failed_message, format_type_error
 from modules.logging_setup import get_logger
 from modules.models import GithubReleaseResponse
 from modules.networking.http_session import s as default_http_session
@@ -234,58 +232,3 @@ def update_geolite2_databases(*, session: requests.Session = default_http_sessio
     _write_geolite2_version_file(geolite2_version_file_path, geolite2_databases)
 
     return GeoLite2UpdateResult()
-
-
-def initialize_geolite2_readers() -> (
-    tuple[geoip2.errors.GeoIP2Error | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None]
-):
-    """Open the GeoLite2 databases and sanity-check them with a known IP."""
-    try:
-        geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb')
-        geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-City.mmdb')
-        geolite2_country_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-Country.mmdb')
-
-        geolite2_asn_reader.asn('1.1.1.1')
-        geolite2_city_reader.city('1.1.1.1')
-        geolite2_country_reader.country('1.1.1.1')
-
-        exception = None
-    except geoip2.errors.GeoIP2Error as e:
-        geolite2_asn_reader = None
-        geolite2_city_reader = None
-        geolite2_country_reader = None
-        exception = e
-
-    return exception, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
-
-
-def update_and_initialize_geolite2_readers(*, session: requests.Session = default_http_session) -> (
-    tuple[bool,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None]
-):
-    """Update GeoLite2 databases (best-effort) and initialize readers.
-
-    Returns:
-        (geoip2_enabled, asn_reader, city_reader, country_reader)
-    """
-    update_result = update_geolite2_databases(session=session)
-
-    init_exception, asn_reader, city_reader, country_reader = initialize_geolite2_readers()
-
-    geoip2_enabled, msgbox_message = format_geolite2_update_initialize_error_message(
-        update_exception=update_result.exception if isinstance(update_result.exception, Exception) else None,
-        failed_url=update_result.url if isinstance(update_result.url, str) else None,
-        http_code=(update_result.http_code if isinstance(update_result.http_code, (int, str)) else None),
-        initialize_exception=init_exception,
-    )
-
-    if msgbox_message is not None:
-        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
-        msgbox.show(TITLE, msgbox_message, msgbox_style)
-
-    return geoip2_enabled, asn_reader, city_reader, country_reader
