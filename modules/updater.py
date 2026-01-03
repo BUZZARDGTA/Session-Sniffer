@@ -33,15 +33,15 @@ def check_for_updates(*, updater_channel: str | None) -> UpdateCheckOutcome:
     outcome, versions = _fetch_versions_with_retries()
 
     match outcome:
-        case UpdateCheckOutcome.ABORT:
-            return outcome
-        case UpdateCheckOutcome.IGNORE | UpdateCheckOutcome.FAILED:
-            return UpdateCheckOutcome.IGNORE
         case UpdateCheckOutcome.PROCEED if versions is not None:
             return _handle_update_decision(
                 updater_channel=updater_channel,
                 versions=versions,
             )
+        case UpdateCheckOutcome.ABORT:
+            return outcome
+        case UpdateCheckOutcome.IGNORE | UpdateCheckOutcome.FAILED:
+            return UpdateCheckOutcome.IGNORE
         case _:
             return UpdateCheckOutcome.IGNORE
 
@@ -51,14 +51,15 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
 
     Returns:
         tuple: (outcome, versions) where:
+            - PROCEED: Successfully fetched version data
             - ABORT: User clicked Abort button
             - IGNORE: User clicked Ignore button
             - FAILED: All retry attempts exhausted
-            - PROCEED: Successfully fetched version data
     """
     for attempt in range(1, max_attempts + 1):
         try:
             versions = _fetch_github_versions()
+            raise requests.exceptions.RequestException("Simulated failure for testing retries")
         except requests.exceptions.RequestException as exc:
             http_code = exc.response.status_code if exc.response is not None else None
 
