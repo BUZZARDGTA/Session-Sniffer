@@ -59,7 +59,6 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
     for attempt in range(1, max_attempts + 1):
         try:
             versions = _fetch_github_versions()
-            raise requests.exceptions.RequestException("Simulated failure for testing retries")
         except requests.exceptions.RequestException as exc:
             http_code = exc.response.status_code if exc.response is not None else None
 
