@@ -26,7 +26,6 @@ import geoip2.database
 import geoip2.errors
 import psutil
 import requests
-from packaging.version import Version
 from prettytable import PrettyTable, TableStyle
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from PyQt6.QtCore import (
@@ -81,7 +80,6 @@ from modules.constants.local import (
     BIN_DIR_PATH,
     BUILTIN_SCRIPTS_DIR_PATH,
     IMAGES_DIR_PATH,
-    PYPROJECT_DATA,
     SCRIPT_DIR,
     SESSIONS_LOGGING_DIR_PATH,
     SETTINGS_PATH,
@@ -97,7 +95,6 @@ from modules.discord.rpc import DiscordRPC
 from modules.error_messages import (
     ensure_instance,
     format_arp_spoofing_failed_message,
-    format_failed_check_for_updates_message,
     format_invalid_datetime_columns_settings_message,
     format_type_error,
     format_userip_corrupted_settings_message,
@@ -139,7 +136,7 @@ from modules.guis.stylesheets import (
 from modules.guis.utils import get_screen_size, resize_window_for_screen
 from modules.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject, get_dependencies_from_requirements
 from modules.logging_setup import console, get_logger, setup_logging
-from modules.models import GithubVersionsResponse, IpApiResponse
+from modules.models import IpApiResponse
 from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, get_adapters_info
 from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
@@ -151,13 +148,13 @@ from modules.networking.utils import format_mac_address, is_ipv4_address, is_mac
 from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from modules.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, SETTINGS_INI_HEADER_TEMPLATE, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from modules.text_utils import format_triple_quoted_text, pluralize
+from modules.updater.updater_service import check_for_updates
 from modules.utils import (
     check_case_insensitive_and_exact_match,
     clear_screen,
     custom_str_to_bool,
     custom_str_to_nonetype,
     dedup_preserve_order,
-    format_project_version,
     get_pid_by_path,
     get_session_log_path,
     is_pyinstaller_compiled,
@@ -2601,67 +2598,6 @@ class GUIDetectionSettings:
     player_join_notifications_enabled: ClassVar[bool] = False
     player_rejoin_notifications_enabled: ClassVar[bool] = False
     player_leave_notifications_enabled: ClassVar[bool] = False
-
-
-def check_for_updates() -> None:
-    """Check for available updates and optionally open the releases page."""
-    def get_updater_json_response() -> GithubVersionsResponse | None:
-        while True:
-            try:
-                response = s.get(GITHUB_VERSIONS_URL)
-                response.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                choice = msgbox.show(
-                    title=TITLE,
-                    text=format_triple_quoted_text(format_failed_check_for_updates_message(
-                        app_title=TITLE,
-                        exception_name=type(e).__name__,
-                        http_code=(f'{e.response.status_code} - {e.response.reason}' if e.response else 'No response'),
-                        versions_url=GITHUB_VERSIONS_URL,
-                    )),
-                    style=msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                )
-
-                if choice == msgbox.ReturnValues.IDABORT:
-                    webbrowser.open(GITHUB_RELEASES_URL)
-                    sys.exit(0)
-                elif choice == msgbox.ReturnValues.IDIGNORE:
-                    return None
-            else:
-                versions_data = response.json()
-                return GithubVersionsResponse.model_validate(versions_data)
-
-    versions_response = get_updater_json_response()
-    if versions_response is None:
-        return
-
-    current_version = Version(PYPROJECT_DATA['project']['version'])
-
-    # Get versions from the response
-    latest_stable_version = Version(versions_response.latest_stable.version)
-    latest_rc_version = Version(versions_response.latest_prerelease.version)
-
-    # Check for updates based on the current version
-    is_new_stable_version_available = latest_stable_version > current_version
-    is_new_rc_version_available = latest_rc_version > current_version
-
-    # Determine which version to display based on the user's channel setting
-    if is_new_stable_version_available or (Settings.UPDATER_CHANNEL == 'RC' and is_new_rc_version_available):
-        update_channel = 'pre-release' if (Settings.UPDATER_CHANNEL == 'RC' and is_new_rc_version_available) else 'stable release'
-        latest_version = latest_rc_version if (Settings.UPDATER_CHANNEL == 'RC' and is_new_rc_version_available) else latest_stable_version
-
-        if msgbox.show(
-            title=TITLE,
-            text=format_triple_quoted_text(f"""
-                New {update_channel} version found. Do you want to update?
-
-                Current version: {format_project_version(current_version)}
-                Latest version: {format_project_version(latest_version)}
-            """),
-            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION | msgbox.Style.MB_SETFOREGROUND,
-        ) == msgbox.ReturnValues.IDYES:
-            webbrowser.open(GITHUB_RELEASES_URL)
-            sys.exit(0)
 
 
 def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
@@ -7510,7 +7446,10 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Searching for a new update - {TITLE}')
     console.print('\nSearching for a new update ...\n', highlight=False)
-    check_for_updates()
+    check_for_updates(
+        session=s,
+        updater_channel=Settings.UPDATER_CHANNEL,
+    )
 
     clear_screen()
     set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')
