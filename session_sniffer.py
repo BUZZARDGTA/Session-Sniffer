@@ -148,7 +148,7 @@ from modules.networking.utils import format_mac_address, is_ipv4_address, is_mac
 from modules.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from modules.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, SETTINGS_INI_HEADER_TEMPLATE, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from modules.text_utils import format_triple_quoted_text, pluralize
-from modules.updater.updater_service import UpdateCheckOutcome, check_for_updates
+from modules.updater import UpdateCheckOutcome, check_for_updates
 from modules.utils import (
     check_case_insensitive_and_exact_match,
     clear_screen,
