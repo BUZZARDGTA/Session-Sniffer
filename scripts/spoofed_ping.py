@@ -50,12 +50,12 @@ PING_COLOR_MAP = {
 }
 
 
-def ping_loop(target_ip: str, s: requests.Session) -> None:
+def ping_loop(target_ip: str, session: requests.Session) -> None:
     """Continuously pings the target IP until the user closes the script."""
 
     def send_ping_request(ip: str) -> tuple[str | None, dict[str, object] | None]:
         """Send a ping request to the Check-Host API."""
-        response = s.get(f'{CHECK_HOST_API}/check-ping?host={ip}', headers={'Accept': 'application/json'})
+        response = session.get(f'{CHECK_HOST_API}/check-ping?host={ip}', headers={'Accept': 'application/json'})
         response.raise_for_status()
 
         nodes = response.json()
@@ -77,7 +77,7 @@ def ping_loop(target_ip: str, s: requests.Session) -> None:
             time.sleep(1)
         rprint(' ' * 50, end='\r')
 
-        response = s.get(f'{CHECK_HOST_API}/check-result/{request_id}', headers={'Accept': 'application/json'})
+        response = session.get(f'{CHECK_HOST_API}/check-result/{request_id}', headers={'Accept': 'application/json'})
         response.raise_for_status()
 
         results: PingCheckResults = response.json()
@@ -279,13 +279,13 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        with requests.Session() as s:
-            s.headers.update({
+        with requests.Session() as session:
+            session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:135.0) Gecko/20100101 Firefox/135.0',
                 'Accept': 'application/json',
             })
-            # s.verify = False
-            ping_loop(target_ip, s)
+            # session.verify = False
+            ping_loop(target_ip, session)
     except KeyboardInterrupt:
         sys.exit(0)
 
