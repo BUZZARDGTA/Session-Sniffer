@@ -3,17 +3,13 @@ import ast
 import atexit
 import dataclasses
 import enum
-import hashlib
 import ipaddress
-import json
 import logging
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import webbrowser
 import winsound
@@ -84,7 +80,6 @@ from modules.constants.external import LOCAL_TZ
 from modules.constants.local import (
     BIN_DIR_PATH,
     BUILTIN_SCRIPTS_DIR_PATH,
-    GEOLITE2_DATABASES_DIR_PATH,
     IMAGES_DIR_PATH,
     PYPROJECT_DATA,
     SCRIPT_DIR,
@@ -103,8 +98,6 @@ from modules.error_messages import (
     ensure_instance,
     format_arp_spoofing_failed_message,
     format_failed_check_for_updates_message,
-    format_geolite2_download_flags_failed_message,
-    format_geolite2_update_initialize_error_message,
     format_invalid_datetime_columns_settings_message,
     format_type_error,
     format_userip_corrupted_settings_message,
@@ -150,6 +143,7 @@ from modules.models import GithubVersionsResponse, IpApiResponse
 from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, get_adapters_info
 from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
+from modules.networking.geolite2_updater import update_and_initialize_geolite2_readers
 from modules.networking.http_session import s
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup
@@ -191,10 +185,7 @@ GITHUB_RELEASES_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
 GITHUB_VERSIONS_URL = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Sniffer/version/release_versions.json'
 DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
-GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
-
 # TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
-ERROR_USER_MAPPED_FILE = 1224  # https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-
 NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
 PPS_MAX_THRESHOLD = 10
 PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
@@ -2837,178 +2828,6 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
         Settings.rewrite_settings_file()
 
     return selected_interface
-
-
-def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
-    """Update GeoLite2 databases if needed and return initialized readers."""
-    def update_geolite2_databases() -> dict[str, requests.exceptions.RequestException | str | int | None]:
-        geolite2_version_file_path = GEOLITE2_DATABASES_DIR_PATH / 'version.json'
-        geolite2_databases: dict[str, dict[str, str | None]] = {
-            f'GeoLite2-{db}.mmdb': {
-                'current_version': None,
-                'last_version': None,
-                'download_url': None,
-            }
-            for db in ('ASN', 'City', 'Country')
-        }
-
-        try:
-            with geolite2_version_file_path.open('r', encoding='utf-8') as f:
-                loaded_data = json.load(f)
-        except FileNotFoundError:
-            pass
-        else:
-            if isinstance(loaded_data, dict):
-                for database_name, database_info in loaded_data.items():  # pyright: ignore[reportUnknownVariableType]
-                    if not isinstance(database_name, str):
-                        continue
-                    if not isinstance(database_info, dict):
-                        continue
-                    if database_name not in geolite2_databases:
-                        continue
-
-                    geolite2_databases[database_name]['current_version'] = database_info.get('version', None)  # pyright: ignore[reportUnknownMemberType]
-
-        try:
-            response = s.get(GITHUB_RELEASE_API__GEOLITE2__URL)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            return {
-                'exception': e,
-                'url': GITHUB_RELEASE_API__GEOLITE2__URL,
-                'http_code': getattr(e.response, 'status_code', None),
-            }
-
-        release_response_data = response.json()
-        release_data = GithubReleaseResponse.model_validate(release_response_data)
-
-        for asset in release_data.assets:
-            if asset.name not in geolite2_databases:
-                continue
-
-            geolite2_databases[asset.name].update({
-                'last_version': asset.updated_at.isoformat(),
-                'download_url': str(asset.browser_download_url),
-            })
-
-        failed_fetching_flag_list: list[str] = []
-        for database_name, database_info in geolite2_databases.items():
-            if database_info['last_version']:
-                if database_info['current_version'] != database_info['last_version']:
-                    download_url = database_info['download_url']
-                    if download_url is None:
-                        failed_fetching_flag_list.append(database_name)
-                        continue
-                    try:
-                        response = s.get(download_url)
-                        response.raise_for_status()
-                    except requests.exceptions.RequestException as e:
-                        return {
-                            'exception': e,
-                            'url': download_url,
-                            'http_code': getattr(e.response, 'status_code', None),
-                        }
-
-                    if not isinstance(response.content, bytes):
-                        raise TypeError(format_type_error(response.content, bytes))
-
-                    GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-                    destination_file_path = GEOLITE2_DATABASES_DIR_PATH / database_name
-
-                    # [Bug-Fix]: https://github.com/BUZZARDGTA/Session-Sniffer/issues/28
-                    if destination_file_path.is_file():
-                        if hashlib.sha256(destination_file_path.read_bytes()).hexdigest() == hashlib.sha256(response.content).hexdigest():
-                            geolite2_databases[database_name]['current_version'] = database_info['last_version']
-                        else:
-                            temp_path = Path(tempfile.gettempdir()) / database_name
-                            temp_path.write_bytes(response.content)
-
-                            try:
-                                shutil.move(temp_path, destination_file_path)
-                            except OSError as e:
-                                # The file is currently open and in use by another process. Abort updating this database.
-                                if e.winerror == ERROR_USER_MAPPED_FILE:
-                                    if temp_path.is_file():
-                                        temp_path.unlink()
-                                    geolite2_databases[database_name]['current_version'] = database_info['current_version']
-                    else:
-                        destination_file_path.write_bytes(response.content)
-                        geolite2_databases[database_name]['current_version'] = database_info['last_version']
-            else:
-                failed_fetching_flag_list.append(database_name)
-
-        if failed_fetching_flag_list:
-            Thread(
-                target=msgbox.show,
-                name='GeoLite2DownloadError',
-                kwargs={
-                    'title': TITLE,
-                    'text': format_triple_quoted_text(format_geolite2_download_flags_failed_message(
-                        failed_flags=failed_fetching_flag_list,
-                        geolite2_release_api_url=GITHUB_RELEASE_API__GEOLITE2__URL,
-                    )),
-                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
-                },
-                daemon=True,
-            ).start()
-
-        # Create the data dictionary, where each name maps to its version info
-        data = {
-            name: {'version': info['current_version']}
-            for name, info in geolite2_databases.items()
-        }
-
-        # Convert the data to a JSON formatted string with proper indentation
-        json_data = json.dumps(data, indent=4)
-
-        # Write the JSON formatted string to the GeoLite2 version file
-        geolite2_version_file_path.write_text(json_data, encoding='utf-8')
-
-        return {
-            'exception': None,
-            'url': None,
-            'http_code': None,
-        }
-
-    def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
-        try:
-            geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb')
-            geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-City.mmdb')
-            geolite2_country_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-Country.mmdb')
-
-            geolite2_asn_reader.asn('1.1.1.1')
-            geolite2_city_reader.city('1.1.1.1')
-            geolite2_country_reader.country('1.1.1.1')
-
-            exception = None
-        except geoip2.errors.GeoIP2Error as e:
-            geolite2_asn_reader = None
-            geolite2_city_reader = None
-            geolite2_country_reader = None
-
-            exception = e
-
-        return exception, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
-
-    update_geolite2_databases__dict = update_geolite2_databases()
-    exception__initialize_geolite2_readers, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = initialize_geolite2_readers()
-
-    geoip2_enabled, msgbox_message = format_geolite2_update_initialize_error_message(
-        update_exception=update_geolite2_databases__dict['exception'] if isinstance(update_geolite2_databases__dict['exception'], Exception) else None,
-        failed_url=update_geolite2_databases__dict['url'] if isinstance(update_geolite2_databases__dict['url'], str) else None,
-        http_code=(
-            update_geolite2_databases__dict['http_code']
-            if isinstance(update_geolite2_databases__dict['http_code'], (int, str))
-            else None
-        ),
-        initialize_exception=exception__initialize_geolite2_readers,
-    )
-
-    if msgbox_message is not None:
-        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
-        msgbox.show(TITLE, msgbox_message, msgbox_style)
-
-    return geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
 
 
 gui_closed__event = Event()
