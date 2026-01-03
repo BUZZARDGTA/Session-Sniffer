@@ -359,11 +359,11 @@ def validate_and_strip_balanced_outer_parens(expr: str) -> str:
     with the positions of the unmatched parentheses.
     """
 
-    def strip_n_times(s: str, *, times: int) -> str:
+    def strip_n_times(string: str, *, times: int) -> str:
         """Strip outer parentheses from a string n times."""
         for _ in range(times):
-            s = s.removeprefix('(').removesuffix(')')
-        return s
+            string = string.removeprefix('(').removesuffix(')')
+        return string
 
     if not (expr := expr.strip()):
         return ''
