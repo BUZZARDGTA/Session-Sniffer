@@ -3,6 +3,7 @@
 import hashlib
 import json
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime  # noqa: TC003  # Pydantic needs this import at runtime for datetime parsing
 from pathlib import Path
 from threading import Thread
@@ -39,28 +40,21 @@ class GeoLite2VersionFile(BaseModel):
     GeoLite2_Country: GeoLite2VersionEntry = Field(alias='GeoLite2-Country.mmdb')
 
 
-class GeoLite2UpdateResult(BaseModel):
+@dataclass(kw_only=True, slots=True)
+class GeoLite2UpdateResult:
     """Outcome of a GeoLite2 update attempt (success or failure)."""
 
     exception: Exception | None = None
     url: str | None = None
     http_code: int | str | None = None
 
-    model_config = {
-        'arbitrary_types_allowed': True,
-        'frozen': True,
-    }
 
-
-class GeoLite2DatabaseInfo(BaseModel):
+@dataclass(kw_only=True, slots=True)
+class GeoLite2DatabaseInfo:
     """Mutable state for a single GeoLite2 database file."""
     current_version: str | None = None
     last_version: str | None = None
     download_url: str | None = None
-
-    model_config = {
-        'frozen': False,
-    }
 
     def set_current_version_from_datetime(self, dt: datetime) -> None:
         """Set current_version from a datetime object, storing ISO string."""
