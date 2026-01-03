@@ -1,92 +1,155 @@
-"""Update checker orchestration: UI + retry policy + version comparison."""
+"""Updater: GitHub version fetch + retry + UI + version comparison."""
 
 import webbrowser
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING
 
+import requests
 from packaging.version import Version
 
 from modules import msgbox
 from modules.constants.local import CURRENT_VERSION
-from modules.constants.standalone import GITHUB_RELEASES_URL, TITLE
+from modules.constants.standalone import (
+    GITHUB_RELEASES_URL,
+    GITHUB_VERSIONS_URL,
+    TITLE,
+)
 from modules.error_messages import format_failed_check_for_updates_message
+from modules.models import GithubVersionsResponse
+from modules.networking.http_session import session
 from modules.text_utils import format_triple_quoted_text
-from modules.updater.result_types import VersionFetchFailure, VersionFetchSuccess
-from modules.updater.version_fetcher import fetch_github_versions
 from modules.utils import format_project_version
 
-if TYPE_CHECKING:
-    from modules.models import GithubVersionsResponse
+
+@dataclass(slots=True)
+class VersionFetchFailure:
+    """Failed version fetch."""
+
+    exception: Exception
+    http_code: int | None
+
+
+@dataclass(slots=True)
+class VersionFetchSuccess:
+    """Successful version fetch."""
+
+    versions: GithubVersionsResponse
+
+
+VersionFetchResult = VersionFetchFailure | VersionFetchSuccess
 
 
 class UpdateCheckOutcome(Enum):
-    """Possible outcomes of an update check operation."""
+    """Outcome of the update check process."""
+
     PROCEED = auto()
     ABORT = auto()
     IGNORE = auto()
 
 
 def check_for_updates(*, updater_channel: str | None) -> UpdateCheckOutcome:
-    """Check for updates and prompt the user if one is available."""
-    max_fetch_attempts = 3
-    attempts = 0
+    """Orchestrate update checking.
 
-    while attempts < max_fetch_attempts:
-        attempts += 1
-        result = fetch_github_versions()
+    - fetch versions with retry + UI
+    - compare versions
+    - optionally open browser
+    """
+    versions = _fetch_versions_with_retries()
+    if versions is None:
+        return UpdateCheckOutcome.IGNORE
 
-        match result:
-            case VersionFetchSuccess(versions=versions):
-                return _handle_update_logic(
-                    updater_channel=updater_channel,
-                    versions=versions,
-                )
-
-            case VersionFetchFailure(exception=exc, http_code=code):
-                choice = msgbox.show(
-                    title=TITLE,
-                    text=format_triple_quoted_text(
-                        format_failed_check_for_updates_message(
-                            exception_name=type(exc).__name__,
-                            http_code=str(code) if code is not None else 'No response',
-                        ),
-                    ),
-                    style=msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                )
-
-                if choice == msgbox.ReturnValues.IDABORT:
-                    webbrowser.open(GITHUB_RELEASES_URL)
-                    return UpdateCheckOutcome.ABORT
-
-                if choice == msgbox.ReturnValues.IDIGNORE:
-                    return UpdateCheckOutcome.IGNORE
-
-    return UpdateCheckOutcome.IGNORE
+    return _handle_update_decision(
+        updater_channel=updater_channel,
+        versions=versions,
+    )
 
 
-def _handle_update_logic(*, updater_channel: str | None, versions: GithubVersionsResponse) -> UpdateCheckOutcome:
-    current_version = CURRENT_VERSION
+def _fetch_versions_with_retries(*, max_attempts: int = 3) -> GithubVersionsResponse | None:
+    """Fetch GitHub versions with user-driven retry policy."""
+    for attempt in range(1, max_attempts + 1):
+        result = _fetch_github_versions()
 
-    latest_stable_version = Version(versions.latest_stable.version)
-    latest_rc_version = Version(versions.latest_prerelease.version)
+        if isinstance(result, VersionFetchSuccess):
+            return result.versions
 
-    update_candidate = latest_rc_version if updater_channel == 'RC' else latest_stable_version
+        choice = _show_fetch_failure_dialog(result)
 
-    if update_candidate <= current_version:
+        if choice == msgbox.ReturnValues.IDABORT:
+            webbrowser.open(GITHUB_RELEASES_URL)
+            return None
+
+        if choice == msgbox.ReturnValues.IDIGNORE:
+            return None
+
+        if choice != msgbox.ReturnValues.IDRETRY or attempt >= max_attempts:
+            return None
+
+    return None
+
+
+def _fetch_github_versions() -> VersionFetchResult:
+    """Fetch and validate version metadata from GitHub."""
+    try:
+        response = session.get(GITHUB_VERSIONS_URL, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        return VersionFetchFailure(
+            exception=exc,
+            http_code=getattr(exc.response, 'status_code', None),
+        )
+
+    versions = GithubVersionsResponse.model_validate(response.json())
+    return VersionFetchSuccess(versions=versions)
+
+
+def _show_fetch_failure_dialog(result: VersionFetchFailure) -> int:
+    """Display failure UI and return user choice."""
+    exc = result.exception
+    code = result.http_code
+
+    return msgbox.show(
+        title=TITLE,
+        text=format_triple_quoted_text(
+            format_failed_check_for_updates_message(
+                exception_name=type(exc).__name__,
+                http_code=str(code) if code is not None else 'No response',
+            ),
+        ),
+        style=msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+    )
+
+
+def _handle_update_decision(
+    *,
+    updater_channel: str | None,
+    versions: GithubVersionsResponse,
+) -> UpdateCheckOutcome:
+    """Compare versions and optionally prompt user to update."""
+    current = CURRENT_VERSION
+
+    latest_stable = Version(versions.latest_stable.version)
+    latest_rc = Version(versions.latest_prerelease.version)
+
+    candidate = latest_rc if updater_channel == 'RC' else latest_stable
+
+    if candidate <= current:
         return UpdateCheckOutcome.PROCEED
 
     label = 'pre-release' if updater_channel == 'RC' else 'stable release'
 
-    if msgbox.show(
-        title=TITLE,
-        text=format_triple_quoted_text(f"""
+    if (
+        msgbox.show(
+            title=TITLE,
+            text=format_triple_quoted_text(f"""
             New {label} version available. Do you want to update?
 
-            Current version: {format_project_version(current_version)}
-            Latest version: {format_project_version(update_candidate)}
+            Current version: {format_project_version(current)}
+            Latest version: {format_project_version(candidate)}
         """),
-        style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
-    ) == msgbox.ReturnValues.IDYES:
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
+        )
+        == msgbox.ReturnValues.IDYES
+    ):
         webbrowser.open(GITHUB_RELEASES_URL)
 
     return UpdateCheckOutcome.PROCEED
