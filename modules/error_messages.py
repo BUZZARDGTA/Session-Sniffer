@@ -6,6 +6,7 @@ This module contains functions that build user-facing text intended ONLY for GUI
 
 from typing import TYPE_CHECKING
 
+from modules.constants.standalone import GITHUB_VERSIONS_URL, TITLE
 from modules.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -75,10 +76,8 @@ def format_invalid_datetime_columns_settings_message() -> str:
 
 def format_failed_check_for_updates_message(
     *,
-    app_title: str,
     exception_name: str,
     http_code: str,
-    versions_url: str,
 ) -> str:
     """Format the retry/abort message shown when update checks fail."""
     return f"""
@@ -90,10 +89,10 @@ def format_failed_check_for_updates_message(
                 HTTP Code: {http_code}
 
         Please check your internet connection and ensure you have access to:
-        {versions_url}
+        {GITHUB_VERSIONS_URL}
 
         Abort:
-            Exit and open the "{app_title}" GitHub page to
+            Exit and open the "{TITLE}" GitHub page to
             download the latest version.
         Retry:
             Try checking for updates again.

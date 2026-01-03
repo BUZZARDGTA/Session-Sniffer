@@ -14,7 +14,7 @@ from requests import exceptions
 
 from modules.error_messages import ensure_instance, format_type_error
 from modules.networking.exceptions import AllEndpointsExhaustedError, InvalidPingResultError
-from modules.networking.http_session import s
+from modules.networking.http_session import session
 
 RE_BYTES_PATTERN = re.compile(
     r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) '
@@ -200,7 +200,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
         request_start_time = time.monotonic()
 
         try:
-            response = s.get(f'{endpoint_info.url}?host={ip}', timeout=30)
+            response = session.get(f'{endpoint_info.url}?host={ip}', timeout=30)
             response.raise_for_status()
             if not isinstance(response.content, bytes):
                 raise TypeError(format_type_error(response.content, bytes))

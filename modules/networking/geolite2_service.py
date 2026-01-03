@@ -7,14 +7,12 @@ from modules.constants.standalone import TITLE
 from modules.error_messages import format_geolite2_update_initialize_error_message
 from modules.networking.geolite2_readers import initialize_geolite2_readers
 from modules.networking.geolite2_updater import update_geolite2_databases
-from modules.networking.http_session import s as default_http_session
 
 if TYPE_CHECKING:
     import geoip2.database
-    import requests
 
 
-def update_and_initialize_geolite2_readers(*, session: requests.Session = default_http_session) -> (
+def update_and_initialize_geolite2_readers() -> (
     tuple[bool,
           geoip2.database.Reader | None,
           geoip2.database.Reader | None,
@@ -25,7 +23,7 @@ def update_and_initialize_geolite2_readers(*, session: requests.Session = defaul
     Returns:
         (geoip2_enabled, asn_reader, city_reader, country_reader)
     """
-    update_result = update_geolite2_databases(session=session)
+    update_result = update_geolite2_databases()
 
     init_exception, asn_reader, city_reader, country_reader = initialize_geolite2_readers()
 

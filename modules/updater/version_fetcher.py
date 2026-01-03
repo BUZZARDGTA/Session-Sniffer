@@ -1,39 +1,32 @@
-"""Version fetcher for GitHub releases API."""
-
-from dataclasses import dataclass
+"""Version fetcher for GitHub-hosted version metadata."""
 
 import requests
 
+from modules.constants.standalone import GITHUB_VERSIONS_URL
 from modules.models import GithubVersionsResponse
+from modules.networking.http_session import session
+from modules.updater.result_types import (
+    VersionFetchFailure,
+    VersionFetchResult,
+    VersionFetchSuccess,
+)
 
 
-@dataclass(kw_only=True, slots=True)
-class VersionFetchResult:
-    """Outcome of a version fetch attempt."""
-
-    exception: Exception | None = None
-    url: str | None = None
-    http_code: int | str | None = None
-    versions_response: GithubVersionsResponse | None = None
-
-
-def _version_fetch_result_from_exception(*, exception: requests.exceptions.RequestException, url: str) -> VersionFetchResult:
-    return VersionFetchResult(exception=exception, url=url, http_code=getattr(exception.response, 'status_code', None))
-
-
-def fetch_github_versions(*, session: requests.Session, versions_url: str) -> VersionFetchResult:
-    """Fetch version information from GitHub API.
+def fetch_github_versions() -> VersionFetchResult:
+    """Fetch and validate version metadata.
 
     Returns:
-        VersionFetchResult with either exception details or parsed version data.
+        VersionFetchResult: The result of the version fetch attempt.
     """
     try:
-        response = session.get(versions_url)
+        response = session.get(GITHUB_VERSIONS_URL, timeout=10)
         response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        return _version_fetch_result_from_exception(exception=e, url=versions_url)
+    except requests.exceptions.RequestException as exc:
+        return VersionFetchFailure(
+            exception=exc,
+            http_code=getattr(exc.response, 'status_code', None),
+        )
 
-    versions_data = response.json()
-    versions_response = GithubVersionsResponse.model_validate(versions_data)
+    versions = GithubVersionsResponse.model_validate(response.json())
 
-    return VersionFetchResult(versions_response=versions_response)
+    return VersionFetchSuccess(versions=versions)

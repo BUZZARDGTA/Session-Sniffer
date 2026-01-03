@@ -18,7 +18,7 @@ from modules.constants.standalone import TITLE
 from modules.error_messages import format_geolite2_download_flags_failed_message, format_type_error
 from modules.logging_setup import get_logger
 from modules.models import GithubReleaseResponse
-from modules.networking.http_session import s as default_http_session
+from modules.networking.http_session import session
 from modules.text_utils import format_triple_quoted_text
 
 GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
@@ -94,7 +94,7 @@ def _geolite2_update_result_from_exception(*, exception: requests.exceptions.Req
     return GeoLite2UpdateResult(exception=exception, url=url, http_code=getattr(exception.response, 'status_code', None))
 
 
-def _fetch_geolite2_release_assets(*, session: requests.Session) -> tuple[GeoLite2UpdateResult, None] | tuple[None, GithubReleaseResponse]:
+def _fetch_geolite2_release_assets() -> tuple[GeoLite2UpdateResult, None] | tuple[None, GithubReleaseResponse]:
     try:
         response = session.get(GITHUB_RELEASE_API__GEOLITE2__URL)
         response.raise_for_status()
@@ -107,7 +107,7 @@ def _fetch_geolite2_release_assets(*, session: requests.Session) -> tuple[GeoLit
     return None, release_data
 
 
-def _download_geolite2_asset_bytes(*, session: requests.Session, download_url: str) -> tuple[GeoLite2UpdateResult | None, bytes | None]:
+def _download_geolite2_asset_bytes(download_url: str, /) -> tuple[GeoLite2UpdateResult | None, bytes | None]:
     try:
         response = session.get(download_url)
         response.raise_for_status()
@@ -145,13 +145,7 @@ def _notify_geolite2_download_flags_failed(failed_flags: list[str], /) -> None:
     ).start()
 
 
-def _persist_geolite2_database_bytes(
-    *,
-    database_name: str,
-    file_bytes: bytes,
-    desired_version: str,
-    current_version: str | None,
-) -> str | None:
+def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, desired_version: str, current_version: str | None) -> str | None:
     GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
     destination_file_path = GEOLITE2_DATABASES_DIR_PATH / database_name
 
@@ -181,14 +175,14 @@ def _persist_geolite2_database_bytes(
     return desired_version
 
 
-def update_geolite2_databases(*, session: requests.Session = default_http_session) -> GeoLite2UpdateResult:
+def update_geolite2_databases() -> GeoLite2UpdateResult:
     """Download/update GeoLite2 ASN/City/Country mmdb databases and persist versions."""
     geolite2_version_file_path = GEOLITE2_DATABASES_DIR_PATH / 'version.json'
     geolite2_databases = _build_geolite2_databases_state()
 
     _load_geolite2_current_versions(geolite2_version_file_path=geolite2_version_file_path, geolite2_databases=geolite2_databases)
 
-    update_error, release_data = _fetch_geolite2_release_assets(session=session)
+    update_error, release_data = _fetch_geolite2_release_assets()
     if update_error is not None or release_data is None:
         return update_error if update_error is not None else GeoLite2UpdateResult()
 
@@ -217,7 +211,7 @@ def update_geolite2_databases(*, session: requests.Session = default_http_sessio
             failed_fetching_flag_list.append(database_name)
             continue
 
-        download_error, file_bytes = _download_geolite2_asset_bytes(session=session, download_url=download_url)
+        download_error, file_bytes = _download_geolite2_asset_bytes(download_url)
         if download_error is not None or file_bytes is None:
             return download_error if download_error is not None else GeoLite2UpdateResult()
 

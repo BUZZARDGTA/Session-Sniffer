@@ -141,7 +141,7 @@ from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, 
 from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
 from modules.networking.geolite2_service import update_and_initialize_geolite2_readers
-from modules.networking.http_session import s
+from modules.networking.http_session import session
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup
 from modules.networking.utils import format_mac_address, is_ipv4_address, is_mac_address, is_private_device_ipv4, is_valid_non_special_ipv4
@@ -3112,7 +3112,7 @@ def iplookup_core() -> None:
                 continue
 
             try:
-                response = s.post(
+                response = session.post(
                     'http://ip-api.com/batch',
                     params={'fields': fields_to_lookup},
                     headers={'Content-Type': 'application/json'},
@@ -7446,10 +7446,7 @@ def main() -> None:
     clear_screen()
     set_window_title(f'Searching for a new update - {TITLE}')
     console.print('\nSearching for a new update ...\n', highlight=False)
-    check_for_updates(
-        session=s,
-        updater_channel=Settings.UPDATER_CHANNEL,
-    )
+    check_for_updates(updater_channel=Settings.UPDATER_CHANNEL)
 
     clear_screen()
     set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')

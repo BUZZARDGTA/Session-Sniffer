@@ -6,5 +6,5 @@ HEADERS = {
 }
 
 # Global session object
-s = requests.Session()
-s.headers.update(HEADERS)
+session = requests.Session()
+session.headers.update(HEADERS)
