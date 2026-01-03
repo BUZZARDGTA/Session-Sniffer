@@ -140,7 +140,7 @@ from modules.models import IpApiResponse
 from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, get_adapters_info
 from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
-from modules.networking.geolite2_service import update_and_initialize_geolite2_readers
+from modules.networking.geolite2.service import update_and_initialize_geolite2_readers
 from modules.networking.http_session import session
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup

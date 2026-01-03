@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from modules import msgbox
 from modules.constants.standalone import TITLE
 from modules.error_messages import format_geolite2_update_initialize_error_message
-from modules.networking.geolite2_readers import initialize_geolite2_readers
-from modules.networking.geolite2_updater import update_geolite2_databases
+from modules.networking.geolite2.readers import initialize_geolite2_readers
+from modules.networking.geolite2.updater import update_geolite2_databases
 
 if TYPE_CHECKING:
     import geoip2.database
