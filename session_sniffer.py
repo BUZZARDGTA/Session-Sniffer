@@ -71,7 +71,6 @@ from rich.text import Text
 
 from modules import msgbox
 from modules.capture.exceptions import TSharkOutputParsingError
-from modules.capture.interface_selection import InterfaceSelectionData, show_interface_selection_dialog
 from modules.capture.tshark_capture import CaptureConfig, Packet, PacketCapture
 from modules.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from modules.capture.utils.npcap_checker import ensure_npcap_installed
@@ -113,6 +112,7 @@ from modules.guis.exceptions import (
     UnsupportedSortColumnError,
 )
 from modules.guis.html_templates import CAPTURE_STOPPED_HTML, GUI_HEADER_HTML_TEMPLATE
+from modules.guis.interface_selection_dialog import show_interface_selection_dialog
 from modules.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
     CONNECTED_CLEAR_BUTTON_STYLESHEET,
@@ -137,11 +137,12 @@ from modules.guis.utils import get_screen_size, resize_window_for_screen
 from modules.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject, get_dependencies_from_requirements
 from modules.logging_setup import console, get_logger, setup_logging
 from modules.models import IpApiResponse
-from modules.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, get_adapters_info
+from modules.networking.ctypes_adapters_info import get_adapters_info
 from modules.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
-from modules.networking.exceptions import AllEndpointsExhaustedError, InterfaceAlreadyExistsError
+from modules.networking.exceptions import AllEndpointsExhaustedError
 from modules.networking.geolite2.service import update_and_initialize_geolite2_readers
 from modules.networking.http_session import session
+from modules.networking.interface import AllInterfaces, ARPEntry, Interface, SelectedInterface
 from modules.networking.manuf_lookup import MacLookup
 from modules.networking.reverse_dns import lookup as reverse_dns_lookup
 from modules.networking.utils import format_mac_address, is_ipv4_address, is_mac_address, is_private_device_ipv4, is_valid_non_special_ipv4
@@ -183,7 +184,6 @@ GITHUB_VERSIONS_URL = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Snif
 DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 # TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
-NETWORK_ADAPTER_DISABLED = 3  # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
 PPS_MAX_THRESHOLD = 10
 PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
 BPS_MAX_THRESHOLD = 1024
@@ -1134,165 +1134,6 @@ class Settings(DefaultSettings):
 
         if need_rewrite_settings:
             cls.rewrite_settings_file()
-
-
-class ARPEntry(NamedTuple):
-    """Represent a single ARP neighbor entry for an interface."""
-
-    ip_address: str
-    mac_address: str
-    vendor_name: str | None = None
-
-
-@dataclass(kw_only=True, slots=True)
-class Interface:  # pylint: disable=too-many-instance-attributes
-    """Represent a network interface and its live capture-related stats."""
-
-    index: int
-    ip_enabled: bool
-    state: int
-    media_connect_state: int
-    name: str
-    packets_sent: int
-    packets_recv: int
-    transmit_link_speed: int
-    receive_link_speed: int
-    description: str
-    ip_addresses: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    arp_entries: list[ARPEntry] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    mac_address: str | None
-    device_name: str | None
-    vendor_name: str | None
-
-    def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
-        """Add an ARP entry for the given interface."""
-        if arp_entry in self.arp_entries:
-            return False
-
-        self.arp_entries.append(arp_entry)
-        return True
-
-    def get_arp_entries(self) -> list[ARPEntry]:
-        """Get ARP entries for the given interface."""
-        return self.arp_entries
-
-    def is_interface_inactive(self) -> bool:
-        """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
-        # Check for obvious inactive states first
-        inactive_conditions = [
-            self.state in (NETWORK_ADAPTER_DISABLED, IF_OPER_STATUS_NOT_PRESENT),
-            self.media_connect_state == MEDIA_CONNECT_STATE_DISCONNECTED,
-            not self.ip_addresses,
-            not self.ip_enabled and not self.ip_addresses,
-            not self.transmit_link_speed and not self.receive_link_speed,
-        ]
-
-        if any(inactive_conditions):
-            return True
-
-        # Zero link speeds combined with no IP/traffic suggests inactive virtual adapters
-        if (
-            not self.transmit_link_speed
-            and not self.receive_link_speed
-            and not self.ip_addresses
-            and not self.packets_sent
-            and not self.packets_recv
-        ):
-            return True
-
-        # Check if all identifying details and traffic data are missing
-        return (
-            not self.packets_sent
-            and not self.packets_recv
-            and not self.description
-            and not self.ip_addresses
-            and not self.arp_entries
-        )
-
-
-class AllInterfaces:
-    """Store and query discovered network interfaces by index and name."""
-
-    all_interfaces: ClassVar[dict[int, Interface]] = {}
-    _name_map: ClassVar[dict[str, int]] = {}
-
-    @classmethod
-    def iterate(cls) -> Iterator[Interface]:
-        """Yield each interface from `all_interfaces`.
-
-        This is an iterator that will provide all interfaces stored in the dictionary.
-        The iteration will be done over the dictionary values (the Interface objects).
-
-        Yields:
-            Each interface from `all_interfaces`.
-        """
-        yield from cls.all_interfaces.values()
-
-    @classmethod
-    def get_interface(cls, index: int) -> Interface | None:
-        """Retrieve an interface by its `index`.
-
-        Args:
-            index: The index of the interface to retrieve.
-
-        Returns:
-            The interface matching the index, or None if not found.
-        """
-        return cls.all_interfaces.get(index)
-
-    @classmethod
-    def get_interface_by_name(cls, name: str) -> Interface | None:
-        """Retrieve an interface by its `name`, case-insensitively.
-
-        Args:
-            name: The name of the interface to retrieve.
-
-        Returns:
-            The interface matching the name, or None if not found.
-        """
-        normalized_name = name.casefold()
-        index = cls._name_map.get(normalized_name)
-        if index is not None:
-            return cls.get_interface(index)
-        return None
-
-    @classmethod
-    def add_interface(cls, new_interface: Interface) -> Interface:
-        """Add a new interface to the registry or raise if it exists.
-
-        Args:
-            new_interface: The interface object to add.
-
-        Returns:
-            The added interface.
-
-        Raises:
-            InterfaceAlreadyExistsError: If an interface with the same index already exists.
-        """
-        if new_interface.index in cls.all_interfaces:
-            raise InterfaceAlreadyExistsError(new_interface.index, new_interface.name)
-
-        cls.all_interfaces[new_interface.index] = new_interface
-        if new_interface.name:
-            cls._name_map[new_interface.name.casefold()] = new_interface.index
-        return new_interface
-
-    @classmethod
-    def delete_interface(cls, index: int) -> bool:
-        """Delete an interface by its `index`.
-
-        Args:
-            index: The index of the interface to delete.
-
-        Returns:
-            Whether an interface matching the index existed and was deleted.
-        """
-        interface = cls.all_interfaces.pop(index, None)
-        if interface:
-            if interface.name:
-                cls._name_map.pop(interface.name.casefold(), None)
-            return True
-        return False
 
 
 class ThirdPartyServers(enum.Enum):
@@ -2668,11 +2509,19 @@ def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
     ]
 
 
-def select_interface(interfaces_selection_data: list[InterfaceSelectionData], screen_width: int, screen_height: int) -> InterfaceSelectionData | None:
+def select_interface(
+    interfaces: list[Interface],
+    screen_width: int,
+    screen_height: int,
+) -> SelectedInterface | None:
     """Select the best matching interface based on current settings.
 
     If auto-selection is not possible or results in ambiguity,
     prompt the user with the interface selection dialog.
+
+    Returns:
+        A SelectedInterface snapshot, or None if cancelled.
+        Note: ip_address can be None or 'N/A' if interface has no IP addresses.
     """
 
     def _can_auto_select_interface() -> bool:
@@ -2689,55 +2538,113 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
             )
         )
 
-    def _auto_select_best_interface() -> InterfaceSelectionData | None:
+    def _build_selected_interface(interface: Interface, ip_address: str | None, *, is_arp: bool) -> SelectedInterface:
+        mac_address = (
+            next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+            if is_arp
+            else interface.mac_address
+        )
+        vendor_name = (
+            next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+            if is_arp
+            else interface.vendor_name
+        )
+
+        return SelectedInterface(
+            name=interface.name,
+            description=interface.description,
+            device_name=interface.device_name,
+            vendor_name=vendor_name,
+            ip_address=ip_address,
+            mac_address=mac_address,
+            is_arp=is_arp,
+        )
+
+    def _auto_select_best_interface() -> SelectedInterface | None:
         """Return the best matching interface, or `None` if ambiguous or no match."""
         if not _can_auto_select_interface():
             return None
 
-        def calculate_score(interface: InterfaceSelectionData) -> int:
+        def calculate_score(interface: Interface, ip_address: str, *, is_arp: bool) -> int:
             """Calculate the score of an interface based on matching criteria.
 
             Args:
                 interface: The interface to calculate the score for
+                ip_address: The IP address for this row
+                is_arp: Whether this is an ARP entry
             """
             score = 0
             if Settings.CAPTURE_INTERFACE_NAME is not None and interface.name == Settings.CAPTURE_INTERFACE_NAME:
                 score += 4
-            if Settings.CAPTURE_MAC_ADDRESS is not None and interface.mac_address == Settings.CAPTURE_MAC_ADDRESS:
+
+            # Get the MAC address for this specific row
+            mac_address = (
+                next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+                if is_arp
+                else interface.mac_address
+            )
+
+            if Settings.CAPTURE_MAC_ADDRESS is not None and mac_address == Settings.CAPTURE_MAC_ADDRESS:
                 score += 2
-            if Settings.CAPTURE_IP_ADDRESS is not None and interface.ip_address == Settings.CAPTURE_IP_ADDRESS:
+            if Settings.CAPTURE_IP_ADDRESS is not None and ip_address == Settings.CAPTURE_IP_ADDRESS:
                 score += 1
             return score
 
         best_score = 0
-        best_interface: InterfaceSelectionData | None = None
+        best_match: tuple[Interface, str, bool] | None = None
         ambiguous = False
 
-        for interface in interfaces_selection_data:
-            score = calculate_score(interface)
-            if not score:
-                continue
+        # Check all possible rows (interface IPs + ARP entries)
+        for interface in interfaces:
+            # Check regular IP addresses
+            if interface.ip_addresses:
+                for ip_address in interface.ip_addresses:
+                    score = calculate_score(interface, ip_address, is_arp=False)
+                    if score > best_score:
+                        best_score = score
+                        best_match = (interface, ip_address, False)
+                        ambiguous = False
+                    elif score == best_score and score > 0:
+                        ambiguous = True
+            else:
+                # No IP addresses case
+                score = calculate_score(interface, 'N/A', is_arp=False)
+                if score > best_score:
+                    best_score = score
+                    best_match = (interface, 'N/A', False)
+                    ambiguous = False
+                elif score == best_score and score > 0:
+                    ambiguous = True
 
-            if score > best_score:
-                best_score = score
-                best_interface = interface
-                ambiguous = False
-            elif score == best_score:
-                ambiguous = True
+            # Check ARP entries
+            for arp_entry in interface.arp_entries:
+                score = calculate_score(interface, arp_entry.ip_address, is_arp=True)
+                if score > best_score:
+                    best_score = score
+                    best_match = (interface, arp_entry.ip_address, True)
+                    ambiguous = False
+                elif score == best_score and score > 0:
+                    ambiguous = True
 
-        if best_interface is None or ambiguous:
+        if best_match is None or ambiguous:
             return None
 
-        return best_interface
+        interface, ip_address, is_arp = best_match
+        return _build_selected_interface(interface, ip_address, is_arp=is_arp)
 
     if auto_selected := _auto_select_best_interface():
         return auto_selected
 
     # If no suitable interface was found, prompt the user to select an interface
-    selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_arp_enabled = show_interface_selection_dialog(
+    (
+        selected_interface,
+        arp_spoofing_enabled,
+        hide_inactive_enabled,
+        hide_arp_enabled,
+    ) = show_interface_selection_dialog(
         screen_width,
         screen_height,
-        interfaces_selection_data,
+        interfaces,
         hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
         hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
         arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
@@ -2745,6 +2652,9 @@ def select_interface(interfaces_selection_data: list[InterfaceSelectionData], sc
         saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
         saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
     )
+
+    if selected_interface is None:
+        return None
 
     need_rewrite_settings = False
 
@@ -6326,13 +6236,8 @@ class PersistentMenu(QMenu):
         super().mouseReleaseEvent(event)
 
 
-def arp_spoofing_task(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    interface_device_name: str,
-    interface_name: str,
-    interface_description: str,
-    interface_ip: str,
-    interface_mac: str | None,
-    interface_vendor_name: str | None,
+def arp_spoofing_task(
+    selected_interface: SelectedInterface,
     capture_obj: PacketCapture,
 ) -> None:
     """Manage ARP spoofing process lifecycle synchronized with packet capture state.
@@ -6342,6 +6247,14 @@ def arp_spoofing_task(  # noqa: PLR0913  # pylint: disable=too-many-arguments,to
     with ThreadsExceptionHandler():
         if not ARPSPOOF_PATH.is_file():
             logger.warning('Executable not found at: %s', ARPSPOOF_PATH)
+            return
+
+        # Validate required interface fields
+        if selected_interface.device_name is None:
+            logger.error('ARP spoofing cannot start: device_name is None')
+            return
+        if selected_interface.ip_address is None:
+            logger.error('ARP spoofing cannot start: ip_address is None')
             return
 
         proc: subprocess.Popen[str] | None = None
@@ -6369,11 +6282,7 @@ def arp_spoofing_task(  # noqa: PLR0913  # pylint: disable=too-many-arguments,to
                 logger.error('Error: %s', error_output)
 
             error_message = format_arp_spoofing_failed_message(
-                interface_name=interface_name,
-                interface_description=interface_description,
-                interface_ip=interface_ip,
-                interface_mac=interface_mac,
-                interface_vendor_name=interface_vendor_name,
+                selected_interface=selected_interface,
                 exit_code=exit_code,
                 error_details=error_output,
             )
@@ -6406,12 +6315,12 @@ def arp_spoofing_task(  # noqa: PLR0913  # pylint: disable=too-many-arguments,to
             # Start arpspoof process
             if proc is None or proc.poll() is not None:
                 proc = subprocess.Popen(  # pylint: disable=consider-using-with
-                    [str(ARPSPOOF_PATH), '-i', interface_device_name, interface_ip],
+                    [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                 )
-                logger.info('Started spoofing on interface %s', interface_ip)
+                logger.info('Started spoofing on interface %s', selected_interface.ip_address)
 
                 try:
                     proc.wait(timeout=startup_probe_timeout)
@@ -7470,9 +7379,8 @@ def main() -> None:
     console.print('\nCapture network interface selection ...\n', highlight=False)
     populate_network_interfaces_info(mac_lookup)
 
-    # Initialize interface selection
-    interfaces_selection_data: list[InterfaceSelectionData] = []
-
+    # Get list of Interface objects that are available in tshark
+    available_interfaces: list[Interface] = []
     tshark_interfaces = [
         (i, device_name) for _, device_name, name in get_filtered_tshark_interfaces()
         if (i := AllInterfaces.get_interface_by_name(name))
@@ -7490,58 +7398,9 @@ def main() -> None:
             Settings.CAPTURE_INTERFACE_NAME = interface.name
             Settings.rewrite_settings_file()
 
-        mac_address = 'N/A' if interface.mac_address is None else interface.mac_address
-        vendor_name = 'N/A' if interface.vendor_name is None else interface.vendor_name
-        is_inactive = interface.is_interface_inactive()
+        available_interfaces.append(interface)
 
-        if interface.ip_addresses:
-            for ip_address in interface.ip_addresses:
-                interfaces_selection_data.append(InterfaceSelectionData(
-                    len(interfaces_selection_data),
-                    interface.name,
-                    interface.description,
-                    interface.packets_sent,
-                    interface.packets_recv,
-                    ip_address,
-                    mac_address,
-                    vendor_name,
-                    device_name,
-                    is_inactive,
-                    is_arp=False,
-                ))
-        else:
-            interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data),
-                interface.name,
-                interface.description,
-                interface.packets_sent,
-                interface.packets_recv,
-                'N/A',
-                mac_address,
-                vendor_name,
-                device_name,
-                is_inactive,
-                is_arp=False,
-            ))
-
-        for arp_entry in interface.get_arp_entries():
-            vendor_name = 'N/A' if arp_entry.vendor_name is None else arp_entry.vendor_name
-
-            interfaces_selection_data.append(InterfaceSelectionData(
-                len(interfaces_selection_data),
-                interface.name,
-                interface.description,
-                'N/A',
-                'N/A',
-                arp_entry.ip_address,
-                arp_entry.mac_address,
-                vendor_name,
-                device_name,
-                is_inactive,
-                is_arp=True,
-            ))
-
-    selected_interface = select_interface(interfaces_selection_data, screen_width, screen_height)
+    selected_interface = select_interface(available_interfaces, screen_width, screen_height)
     if selected_interface is None:
         sys.exit(0)
 
@@ -7749,12 +7608,7 @@ def main() -> None:
             target=arp_spoofing_task,
             name=f'ARPSpoofingTask-{selected_interface.ip_address}',
             args=(
-                selected_interface.device_name,
-                selected_interface.name,
-                selected_interface.description,
-                selected_interface.ip_address,
-                selected_interface.mac_address,
-                selected_interface.vendor_name,
+                selected_interface,
                 capture,
             ),
             daemon=True,

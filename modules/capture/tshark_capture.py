@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
 
-    from modules.capture.interface_selection import InterfaceSelectionData
+    from modules.networking.interface import SelectedInterface
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
 logger = get_logger(__name__)
@@ -189,7 +189,7 @@ class CaptureConfig:
         capture_filter: An optional capture filter string for TShark.
         display_filter: An optional display filter string for TShark.
     """
-    interface: InterfaceSelectionData
+    interface: SelectedInterface
     tshark_path: Path
     callback: PacketCallback
     capture_filter: str | None = None

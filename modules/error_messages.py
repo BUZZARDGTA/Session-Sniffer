@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from modules.networking.interface import SelectedInterface
+
 
 def format_type_error(
     obj: object,
@@ -281,12 +283,8 @@ def format_userip_missing_settings_message(
     """
 
 
-def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
-    interface_name: str,
-    interface_description: str,
-    interface_ip: str,
-    interface_mac: str | None,
-    interface_vendor_name: str | None,
+def format_arp_spoofing_failed_message(
+    selected_interface: SelectedInterface,
     exit_code: int | None,
     error_details: str | None,
 ) -> str:
@@ -295,8 +293,9 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
     Returns:
         A formatted error message string ready for display.
     """
-    interface_mac = 'N/A' if interface_mac is None else interface_mac
-    interface_vendor_name = 'N/A' if interface_vendor_name is None else interface_vendor_name
+    interface_ip = selected_interface.ip_address or 'N/A'
+    interface_mac = 'N/A' if selected_interface.mac_address is None else selected_interface.mac_address
+    interface_vendor_name = 'N/A' if selected_interface.vendor_name is None else selected_interface.vendor_name
     exit_code_output = f'{exit_code}' if exit_code is not None else ''
     error_details_output = f'\n{error_details}' if error_details else ''
 
@@ -305,8 +304,8 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'INTERFACE DETAILS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'Name: {interface_name}\n'
-        f'Description: {interface_description}\n'
+        f'Name: {selected_interface.name}\n'
+        f'Description: {selected_interface.description}\n'
         f'IP Address: {interface_ip}\n'
         f'MAC Address: {interface_mac}\n'
         f'Vendor Name: {interface_vendor_name}\n\n'
@@ -323,6 +322,6 @@ def format_arp_spoofing_failed_message(  # pylint: disable=too-many-arguments,to
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'RECOMMENDATIONS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'• If adapter "{interface_name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
+        f'• If adapter "{selected_interface.name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
         f'• If available, try sniffing target device {interface_ip} on a different network adapter (e.g., Wi-Fi instead of Ethernet)'
     )

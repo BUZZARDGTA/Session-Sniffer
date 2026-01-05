@@ -64,6 +64,10 @@ MEDIA_CONNECT_STATE_UNKNOWN = 0  # Unknown connection state
 MEDIA_CONNECT_STATE_CONNECTED = 1  # Media is connected
 MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
 
+# Windows Network Adapter State constant
+# https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
+NETWORK_ADAPTER_DISABLED = 3
+
 
 # Structures
 class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods

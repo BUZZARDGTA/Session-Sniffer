@@ -1,20 +1,73 @@
-"""Module for handling the selection of network interfaces in a GUI dialog.
+"""GUI dialog for selecting network capture interfaces.
 
-It displays a list of interfaces with relevant details and allows users to select an interface
-for further network sniffing operations.
+This module provides the InterfaceSelectionDialog for displaying available
+network interfaces and allowing users to select one for packet capture.
 """
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QItemSelectionModel, Qt
 from PyQt6.QtGui import QCursor
-from PyQt6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QToolTip,
+    QVBoxLayout,
+)
 
 from modules.error_messages import ensure_instance
 from modules.guis.utils import resize_window_for_screen
+from modules.networking.interface import SelectedInterface
+
+if TYPE_CHECKING:
+    from modules.networking.interface import Interface
 
 
-def _find_best_matching_interface_index(
-    interfaces: list[InterfaceSelectionData],
+def _calculate_interface_score(  # pylint: disable=too-many-arguments  # noqa: PLR0913
+    interface: Interface,
+    ip_address: str,
+    *,
+    is_arp: bool,
+    saved_interface_name: str | None,
+    saved_ip_address: str | None,
+    saved_mac_address: str | None,
+) -> int:
+    """Calculate weighted matching score for an interface row.
+
+    Args:
+        interface: The interface object
+        ip_address: The IP address for this row
+        is_arp: Whether this row represents an ARP entry
+        saved_interface_name: Previously saved interface name
+        saved_ip_address: Previously saved IP address
+        saved_mac_address: Previously saved MAC address
+
+    Returns:
+        Weighted score: name match=4, MAC match=2, IP match=1
+    """
+    score = 0
+    if saved_interface_name is not None and interface.name == saved_interface_name:
+        score += 4
+
+    mac_address = interface.mac_address if not is_arp else (
+        next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+    )
+    if saved_mac_address is not None and mac_address == saved_mac_address:
+        score += 2
+
+    if saved_ip_address is not None and ip_address == saved_ip_address:
+        score += 1
+
+    return score
+
+
+def _find_best_matching_interface_row(
+    interface_rows: list[tuple[Interface, str, bool]],
     saved_interface_name: str | None,
     saved_ip_address: str | None,
     saved_mac_address: str | None,
@@ -23,26 +76,32 @@ def _find_best_matching_interface_index(
 
     Weighted scoring favors name > MAC > IP to reduce ties while still rejecting
     ambiguous top scores (e.g., duplicate adapters).
+
+    Args:
+        interface_rows: List of (Interface, ip_address, is_arp) tuples
+        saved_interface_name: Previously saved interface name
+        saved_ip_address: Previously saved IP address
+        saved_mac_address: Previously saved MAC address
+
+    Returns:
+        Row index of best match, or None if no match or ambiguous
     """
     if not any((saved_interface_name, saved_ip_address, saved_mac_address)):
         return None
-
-    def calculate_score(interface: InterfaceSelectionData) -> int:
-        score = 0
-        if saved_interface_name is not None and interface.name == saved_interface_name:
-            score += 4
-        if saved_mac_address is not None and interface.mac_address == saved_mac_address:
-            score += 2
-        if saved_ip_address is not None and interface.ip_address == saved_ip_address:
-            score += 1
-        return score
 
     best_score = 0
     best_index: int | None = None
     ambiguous = False
 
-    for idx, interface in enumerate(interfaces):
-        score = calculate_score(interface)
+    for idx, (interface, ip_address, is_arp) in enumerate(interface_rows):
+        score = _calculate_interface_score(
+            interface,
+            ip_address,
+            is_arp=is_arp,
+            saved_interface_name=saved_interface_name,
+            saved_ip_address=saved_ip_address,
+            saved_mac_address=saved_mac_address,
+        )
         if not score:
             continue
 
@@ -57,22 +116,6 @@ def _find_best_matching_interface_index(
         return None
 
     return best_index
-
-
-class InterfaceSelectionData(NamedTuple):
-    """Represent a network interface row displayed in the selection dialog."""
-
-    selection_index: int
-    name: str
-    description: str
-    packets_sent: Literal['N/A'] | int
-    packets_recv: Literal['N/A'] | int
-    ip_address: str
-    mac_address: str
-    vendor_name: Literal['N/A'] | str  # noqa: PYI051
-    device_name: str
-    is_inactive: bool
-    is_arp: bool
 
 
 class SafeQTableWidget(QTableWidget):
@@ -100,7 +143,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         self,
         screen_width: int,
         screen_height: int,
-        interfaces: list[InterfaceSelectionData],
+        interfaces: list[Interface],
         *,
         hide_inactive_default: bool,
         hide_arp_default: bool,
@@ -111,7 +154,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         Args:
             screen_width: Screen width in pixels.
             screen_height: Screen height in pixels.
-            interfaces: Available interfaces to display.
+            interfaces: Available Interface objects to display.
             hide_inactive_default: Default state for hiding inactive interfaces.
             hide_arp_default: Default state for hiding ARP interfaces.
             arp_spoofing_default: Default state for ARP spoofing.
@@ -125,11 +168,16 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         resize_window_for_screen(self, screen_width, screen_height)
 
         # Custom variables
-        self.selected_interface_data: InterfaceSelectionData | None = None
-        self.all_interfaces = interfaces  # Store the complete list of interface data
+        self.selected_interface: SelectedInterface | None = None
+        self.selected_ip_address: str | None = None
+        self.selected_is_arp: bool = False
+
+        self.all_interfaces = interfaces  # Store the complete list of Interface objects
         self.hide_inactive_enabled = hide_inactive_default
         self.hide_arp_enabled = hide_arp_default
-        self.interfaces: list[InterfaceSelectionData] = []  # Will be populated by apply_filters()
+
+        # Will be populated with (Interface, ip_address, is_arp) tuples
+        self.interface_rows: list[tuple[Interface, str, bool]] = []
 
         # Layout for the dialog
         layout = QVBoxLayout()
@@ -245,34 +293,47 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
     # Custom Methods:
     def apply_filters(self) -> None:
         """Apply the selected filters and populate the table."""
-        # Preserve currently selected interface (object identity) before filtering/rebuilding table
-        previously_selected: InterfaceSelectionData | None = None
+        # Preserve currently selected row (by object identity) before filtering/rebuilding table
+        previously_selected_row: tuple[Interface, str, bool] | None = None
         current_row = self.table.currentRow()
-        if current_row != -1 and 0 <= current_row < len(self.interfaces):
-            previously_selected = self.interfaces[current_row]
+        if current_row != -1 and 0 <= current_row < len(self.interface_rows):
+            previously_selected_row = self.interface_rows[current_row]
 
         hide_inactive = self.hide_inactive_checkbox.isChecked()
         hide_arp = self.hide_arp_checkbox.isChecked()
 
-        # Filter the interfaces based on checkbox states
-        self.interfaces = [
-            interface for interface in self.all_interfaces
-            if not (hide_inactive and interface.is_inactive)
-            and not (hide_arp and interface.is_arp)
-        ]
+        # Build filtered list of (Interface, ip_address, is_arp) rows
+        self.interface_rows = []
+        for interface in self.all_interfaces:
+            is_inactive = interface.is_interface_inactive()
+
+            if hide_inactive and is_inactive:
+                continue
+
+            # Add rows for regular IP addresses
+            if interface.ip_addresses:
+                for ip_address in interface.ip_addresses:
+                    self.interface_rows.append((interface, ip_address, False))
+            else:
+                # No IP addresses, show one row with 'N/A'
+                self.interface_rows.append((interface, 'N/A', False))
+
+            # Add rows for ARP entries
+            if not hide_arp:
+                for arp_entry in interface.arp_entries:
+                    self.interface_rows.append((interface, arp_entry.ip_address, True))
 
         self.populate_table()
 
         # Attempt to restore previous selection if still present & logically allowed
-        if (
-            previously_selected is not None
+        if previously_selected_row is not None:
             # If ARP spoofing enabled and previous selection is NOT an ARP entry, do not restore (it becomes greyed out)
-            and not (self.arp_spoofing_checkbox.isChecked() and not previously_selected.is_arp)
-        ):
-            for idx, interface in enumerate(self.interfaces):
-                if interface is previously_selected:
-                    self.table.selectRow(idx)
-                    break
+            interface, _ip, is_arp = previously_selected_row
+            if not (self.arp_spoofing_checkbox.isChecked() and not is_arp):
+                for idx, row in enumerate(self.interface_rows):
+                    if row == previously_selected_row:
+                        self.table.selectRow(idx)
+                        break
 
         # Ensure select button state reflects restored selection
         self.update_select_button_state()
@@ -290,8 +351,8 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
             saved_ip_address: The IP address of the previously selected interface (optional).
             saved_mac_address: The MAC address of the previously selected interface (optional).
         """
-        best_match_index = _find_best_matching_interface_index(
-            self.interfaces,
+        best_match_index = _find_best_matching_interface_row(
+            self.interface_rows,
             saved_interface_name,
             saved_ip_address,
             saved_mac_address,
@@ -311,46 +372,72 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         arp_spoofing_enabled = self.arp_spoofing_checkbox.isChecked()
 
         # Populate with filtered data
-        for idx, interface in enumerate(self.interfaces):
+        for idx, (interface, ip_address, is_arp) in enumerate(self.interface_rows):
             self.table.insertRow(idx)
 
             # Determine if this row should be disabled (greyed out)
-            should_disable = arp_spoofing_enabled and not interface.is_arp
+            should_disable = arp_spoofing_enabled and not is_arp
 
-            item = QTableWidgetItem(str(interface.name) if not interface.is_arp else f'{interface.name} (ARP)')
+            # Get display values
+            mac_address = interface.mac_address or 'N/A'
+            vendor_name = interface.vendor_name or 'N/A'
+            packets_sent = interface.packets_sent
+            packets_recv = interface.packets_recv
+
+            # For ARP entries, get the specific ARP data
+            if is_arp:
+                arp_entry = next((arp for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+                if arp_entry:
+                    mac_address = arp_entry.mac_address
+                    vendor_name = arp_entry.vendor_name or 'N/A'
+                packets_sent_str = 'N/A'
+                packets_recv_str = 'N/A'
+            else:
+                packets_sent_str = str(packets_sent)
+                packets_recv_str = str(packets_recv)
+
+            # Name column
+            name_display = f'{interface.name} (ARP)' if is_arp else interface.name
+            item = QTableWidgetItem(name_display)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 0, item)
 
-            item = QTableWidgetItem(str(interface.description))
+            # Description
+            item = QTableWidgetItem(interface.description)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 1, item)
 
-            item = QTableWidgetItem(str(interface.packets_sent))
+            # Packets Sent
+            item = QTableWidgetItem(packets_sent_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 2, item)
 
-            item = QTableWidgetItem(str(interface.packets_recv))
+            # Packets Received
+            item = QTableWidgetItem(packets_recv_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 3, item)
 
-            item = QTableWidgetItem(str(interface.ip_address))
+            # IP Address
+            item = QTableWidgetItem(ip_address)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 4, item)
 
-            item = QTableWidgetItem(str(interface.mac_address))
+            # MAC Address
+            item = QTableWidgetItem(mac_address)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 5, item)
 
-            item = QTableWidgetItem(str(interface.vendor_name))
+            # Vendor Name
+            item = QTableWidgetItem(vendor_name)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
@@ -417,23 +504,23 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
             return
 
         try:
-            interface = self.interfaces[selected_row]
+            _, _, is_arp = self.interface_rows[selected_row]
         except IndexError:
             return
 
         # If ARP spoofing is enabled and selected interface is not ARP, clear selection
-        if self.arp_spoofing_checkbox.isChecked() and not interface.is_arp:
+        if self.arp_spoofing_checkbox.isChecked() and not is_arp:
             self.table.clearSelection()
             return
 
         # If a non-ARP interface is selected and spoofing is enabled, turn off spoofing
-        if not interface.is_arp and self.arp_spoofing_checkbox.isChecked():
+        if not is_arp and self.arp_spoofing_checkbox.isChecked():
             self.arp_spoofing_checkbox.setChecked(False)
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
         """Handle double-click on table cell - simulates clicking the Start button."""
         # Validate row index
-        if row < 0 or row >= len(self.interfaces):
+        if row < 0 or row >= len(self.interface_rows):
             return
 
         # Check if this row is disabled (greyed out due to ARP spoofing)
@@ -450,7 +537,28 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         selected_row = self.table.currentRow()
         if selected_row != -1:
             # Retrieve the selected interface data
-            self.selected_interface_data = self.interfaces[selected_row]  # Get the selected interface data
+            interface, ip_address, is_arp = self.interface_rows[selected_row]
+            mac_address = (
+                next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+                if is_arp
+                else interface.mac_address
+            )
+            vendor_name = (
+                next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+                if is_arp
+                else interface.vendor_name
+            )
+            self.selected_interface = SelectedInterface(
+                name=interface.name,
+                description=interface.description,
+                device_name=interface.device_name,
+                vendor_name=vendor_name,
+                ip_address=ip_address,
+                mac_address=mac_address,
+                is_arp=is_arp,
+            )
+            self.selected_ip_address = ip_address
+            self.selected_is_arp = is_arp
             self.arp_spoofing_enabled = self.arp_spoofing_checkbox.isChecked()
             self.hide_inactive_enabled = self.hide_inactive_checkbox.isChecked()
             self.hide_arp_enabled = self.hide_arp_checkbox.isChecked()
@@ -460,7 +568,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
 def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # noqa: PLR0913
     screen_width: int,
     screen_height: int,
-    interfaces: list[InterfaceSelectionData],
+    interfaces: list[Interface],
     *,
     hide_inactive_default: bool,
     hide_arp_default: bool,
@@ -468,8 +576,13 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
     saved_interface_name: str | None = None,
     saved_ip_address: str | None = None,
     saved_mac_address: str | None = None,
-) -> tuple[InterfaceSelectionData | None, bool, bool, bool]:
-    """Show the interface selection dialog and return the chosen interface and toggles."""
+) -> tuple[SelectedInterface | None, bool, bool, bool]:
+    """Show the interface selection dialog and return the chosen interface and toggles.
+
+    Returns:
+        Tuple of (selected_interface, arp_spoofing_enabled,
+                  hide_inactive_enabled, hide_arp_enabled)
+    """
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_width,
@@ -483,5 +596,10 @@ def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # no
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
 
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected
-        return dialog.selected_interface_data, dialog.arp_spoofing_enabled, dialog.hide_inactive_enabled, dialog.hide_arp_enabled
+        return (
+            dialog.selected_interface,
+            dialog.arp_spoofing_enabled,
+            dialog.hide_inactive_enabled,
+            dialog.hide_arp_enabled,
+        )
     return None, arp_spoofing_default, hide_inactive_default, hide_arp_default
