@@ -49,6 +49,8 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Release workflow builds a one‑file PyInstaller executable; additions to resources must be reflected in both repo and spec file.
 
 ## Patterns & Conventions
+- **String Quotes**: Always use single quotes (`'`) for strings throughout the project. Use double quotes (`"`) only when the string itself contains single quotes.
+- **Future Imports**: Never use `from __future__ import annotations`. The project uses Python 3.14, which has native support for postponed annotation evaluation and does not require this import.
 - Avoid blocking operations or high‑latency lookups in the packet callback; offload to threads as done for user IP tasks.
 - GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `clear_all_data`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
