@@ -89,8 +89,8 @@ This functionality was available on PS3 and Xbox 360 but is patched on current-g
 However, it does allow for manual assignment using [UserIP INI databases Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration) files.
 
 \*_As of v1.1.4, username detection for GTA Online (PC) is supported via these **mod menu** plugins:_
-- _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/GTA_V_Session_Sniffer-plugin-Stand-Lua)_
-- _[Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/GTA_V_Session_Sniffer-plugin-Cherax-Lua)_
+- _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)_
+- _[Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)_
 
 ---
 
