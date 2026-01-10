@@ -28,18 +28,18 @@
         "is_devrelease": false,
         "is_postrelease": true,
         "is_prerelease": false,
-        "local": "20260101.1507",
+        "local": "20260110.1727",
         "major": 1,
         "micro": 3,
         "minor": 4,
-        "post": 3,
+        "post": 4,
         "pre": null,
-        "public": "1.4.3.post3",
+        "public": "1.4.3.post4",
         "release": [
             1,
             4,
             3
         ],
-        "version": "1.4.3.post3+20260101.1507"
+        "version": "1.4.3.post4+20260110.1727"
     }
 }
