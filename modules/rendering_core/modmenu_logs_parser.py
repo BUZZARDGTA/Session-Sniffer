@@ -57,7 +57,7 @@ class ModMenuLogsParser:
                 return  # nothing changed
 
             if cls._last_mod_times:  # skip logging on first run
-                logger.info('Detected changes in log files, re-parsing...')
+                logger.debug('Detected changes in log files, re-parsing...')
 
         # Step 2: parse logs into a temporary map outside the lock
         temp_map: UsernamesByIP = defaultdict(list)
