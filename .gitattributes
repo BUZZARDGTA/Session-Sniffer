@@ -1,4 +1,5 @@
 bin/** linguist-vendored
+check_dependencies.ps1 linguist-vendored
 code-quality-checks.ps1 linguist-vendored
 
 # Auto detect text files and normalize line endings to CRLF
