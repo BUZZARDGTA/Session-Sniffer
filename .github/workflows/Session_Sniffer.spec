@@ -2,12 +2,11 @@
 
 
 a = Analysis(
-    ['..\\..\\session_sniffer.py'],
-    pathex=[],
+    ['..\\..\\src\\session_sniffer\\main.py'],
+    pathex=['..\\..\\src'],
     binaries=[],
     datas=[
         ('..\\..\\pyproject.toml', '.'),
-        ('..\\..\\requirements.txt', '.'),
         ('..\\..\\bin', 'bin'),
         ('..\\..\\images', 'images'),
         ('..\\..\\resources', 'resources'),

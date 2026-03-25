@@ -5,13 +5,13 @@
             "name": "Debug Session Sniffer",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/session_sniffer.py",
+            "module": "session_sniffer",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "python": "${workspaceFolder}/.venv/Scripts/python.exe",
             "justMyCode": true,
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src"
             }
         }
     ]

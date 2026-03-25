@@ -22,5 +22,6 @@
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
     "search.useIgnoreFiles": false,
-    "extensions.ignoreRecommendations": false
+    "extensions.ignoreRecommendations": false,
+    "snyk.advanced.autoSelectOrganization": true
 }

@@ -1,3 +1,10 @@
+[build-system]
+requires = [
+    "setuptools>=69.0",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "session_sniffer"
 version = "v1.4.3.post4+20260110.1727"
@@ -5,20 +12,18 @@ dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
     "geoip2==5.2.0",
-    "packaging==25.0",
+    "packaging==26.0",
     "prettytable==3.17.0",
-    "psutil==7.2.0",
+    "psutil==7.2.2",
     "pydantic==2.12.5",
     "pypresence==4.6.1",
     "PyQt6==6.8.1",
     "pywin32==311; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
     "requests==2.32.5",
-    "rich==14.2.0",
+    "rich==14.3.3",
     "sentinel==1.0.0",
     "toml==0.10.2",
-    "types-requests==2.32.4.20250913",
-    "types-toml==0.10.8.20240310",
     "tzlocal==5.3.1",
 
     # Security fixes
@@ -26,7 +31,7 @@ dependencies = [
     "certifi>=2024.7.4",
     "idna>=3.7",
 ]
-requires-python = "==3.14"
+requires-python = ">=3.14,<3.15"
 authors = [
     {name = "BUZZARDGTA"},
 ]
@@ -41,6 +46,21 @@ Repository = "https://github.com/BUZZARDGTA/Session-Sniffer"
 Issues = "https://github.com/BUZZARDGTA/Session-Sniffer/issues"
 Discord = "https://discord.gg/hMZ7MsPX7G"
 
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "mypy",
+    "pip-audit",
+    "pylint",
+    "pyright",
+    "ruff",
+    "safety",
+    "ty",
+    "types-requests==2.32.4.20260107",
+    "types-toml==0.10.8.20240310",
+    "vulture",
+]
+
 
 [tool.mypy]
 python_version = "3.14"
@@ -49,7 +69,7 @@ ignore_missing_imports = true
 strict = true
 
 [[tool.mypy.overrides]]
-module = "modules.discord.rpc"
+module = "session_sniffer.discord.rpc"
 disable_error_code = ["no-untyped-call"]
 
 
@@ -86,6 +106,9 @@ disable = [
 pythonVersion = "3.14"
 pythonPlatform = "Windows"
 typeCheckingMode = "strict"
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
 
 
 [tool.ruff]
@@ -115,7 +138,7 @@ inline-quotes = "single"
 
 [tool.ruff.lint.isort]
 known-first-party = [
-    "modules",
+    "session_sniffer",
 ]
 section-order = [
     "future",

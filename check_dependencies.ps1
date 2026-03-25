@@ -53,7 +53,10 @@ Write-Host ""
 
 # Step 3: Report outdated packages (no upgrades performed)
 Write-Host "[3/3] Checking installed packages for available updates..." -ForegroundColor Yellow
-$outdatedJson = pip list --outdated --format=json 2>$null
+$outdatedJson = & {
+        $ErrorActionPreference = 'SilentlyContinue'
+        pip list --outdated --format=json 2>&1
+    } | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: Failed to list packages. Make sure pip is available in the virtual environment." -ForegroundColor Red
@@ -82,7 +85,7 @@ if ($packages.Count -eq 0) {
 
     Write-Host "" -ForegroundColor Gray
     Write-Host "This script only checks for updates and does NOT perform upgrades." -ForegroundColor Yellow
-    Write-Host "To upgrade packages run: `pip install --upgrade <package>` or update requirements manually." -ForegroundColor DarkYellow
+    Write-Host "To upgrade packages run: `pip install --upgrade <package>` or update dependencies in pyproject.toml manually." -ForegroundColor DarkYellow
 }
 
 Write-Host ""

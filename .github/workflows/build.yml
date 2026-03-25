@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Python Project Dependencies
         run: |
-          venv\Scripts\pip install -r "..\..\requirements.txt"
+          venv\Scripts\pip install "..\.."
           venv\Scripts\pip install pyinstaller
         working-directory: .github/workflows
 

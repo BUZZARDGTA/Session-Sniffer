@@ -1,10 +1,12 @@
 # Copilot Coding Agent Instructions for Session Sniffer
 
 ## Overview
-Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game sessions. The entry point is `session_sniffer.py`, which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `modules/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
+Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game sessions. The entry point is `src/session_sniffer/main.py` (module execution via `python -m session_sniffer`), which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `src/session_sniffer/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
+
+Important import note: even with the `src/` layout, Python imports remain `from session_sniffer...`, not `from src.session_sniffer...`. The `src` directory is a source root on `PYTHONPATH`; it is not part of the package name.
 
 ## Architecture & Data Flow
-- Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `modules/capture/tshark_capture.py`) and invokes `config.callback` (created in `session_sniffer.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
+- Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `src/session_sniffer/capture/tshark_capture.py`) and invokes `config.callback` (created in `src/session_sniffer/main.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
 - PacketCapture config/state: Read config via `capture.config` (e.g., `capture.config.interface`). Runtime state (threads/events/process handles) lives in an internal `_CaptureState` dataclass.
 - Player State: Connected/disconnected movement handled via registry methods and `Player.left_event`. Rejoins call `mark_as_rejoined`; periodic packets call `mark_as_seen`.
 - Rendering: Background thread `rendering_core` compiles `GUIUpdatePayload` objects using `GUIrenderingData` and emits them via `GUIWorkerThread.update_signal`. Avoid direct GUI mutations from non‑GUI threads.
@@ -14,15 +16,15 @@ Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game s
 - Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Use provided helpers (`ThreadsExceptionHandler`) for safe exception handling.
 
 ## Key Directories & Responsibilities
-- `modules/capture/`: Interface selection, tshark/npcap checks, filter helpers.
-- `modules/guis/`: Qt app bootstrap (`app.py`), size/util functions (`utils.py`), custom widgets, exceptions, stylesheets.
-- `modules/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
-- `modules/rendering_core/`: Transforms registry + lookup results into GUI payloads.
-- `modules/models/`: External API / release / lookup models (e.g., GitHub, IP APIs).
+- `src/session_sniffer/capture/`: Interface selection, tshark/npcap checks, filter helpers.
+- `src/session_sniffer/guis/`: Qt app bootstrap (`app.py`), size/util functions (`utils.py`), custom widgets, exceptions, stylesheets.
+- `src/session_sniffer/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
+- `src/session_sniffer/rendering_core/`: Transforms registry + lookup results into GUI payloads.
+- `src/session_sniffer/models/`: External API / release / lookup models (e.g., GitHub, IP APIs).
 - `.github/workflows/Session_Sniffer.spec`: PyInstaller spec – update `datas` if adding runtime folders.
 
 ## User Data Storage (AppData)
-Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `modules/constants/local.py`.
+Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `src/session_sniffer/constants/local.py`.
 
 - Local AppData (`scope='local'`) is for machine-specific and/or potentially large data (logs / databases / caches):
 	- `error.log`
@@ -38,13 +40,13 @@ Session Sniffer stores *all* user read/write data under the user's AppData, via 
 Use VS Code tasks instead of ad‑hoc commands:
 - Run app: task `🚀 Launch Session Sniffer` (ensures `.venv` interpreter).
 - Dependency check: `🔄 Check Dependencies` powershell script (read‑only updates info).
-- Install deps: `📦 Install Dependencies` after editing `pyproject.toml` / `requirements.txt`.
+- Install deps: `📦 Install Dependencies` after editing `pyproject.toml`.
 - Unified quality run: `🔍 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyright, Flake8, Pylint, Vulture, Pip Audit, Safety, Snyk).
 
 Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
 
 ## Dependency & Version Management
-- Pin new dependencies exactly (match existing style) in both `pyproject.toml` and `requirements.txt` unless they are security libs (which may use `>=`).
+- Pin new dependencies exactly (match existing style) in `pyproject.toml` unless they are security libs (which may use `>=`).
 - Python version is locked to `3.14`. Do not introduce syntax/features incompatible with tools expecting `py314` target.
 - Release workflow builds a one‑file PyInstaller executable; additions to resources must be reflected in both repo and spec file.
 
@@ -56,13 +58,13 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `clear_all_data`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
 - Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.reconstruct_settings()` once per batch.
-- User-data paths: Do not write into the repo/install directory. Use the path constants from `modules/constants/local.py`.
+- User-data paths: Do not write into the repo/install directory. Use the path constants from `src/session_sniffer/constants/local.py`.
 - AppData scope selection: Prefer Roaming for config/user-managed data, Local for logs/large databases.
 - Capture filters: Compose lists then join with `and`; preserve conditional ordering (custom prepend filters first). When adding filters ensure symmetry with display filter logic if exclusion is related.
-- Exceptions: Use project‑specific ones from `modules/guis/exceptions.py`. For new GUI error states, subclass similarly.
+- Exceptions: Use project‑specific ones from `src/session_sniffer/guis/exceptions.py`. For new GUI error states, subclass similarly.
 - Logging:
-	- Configure once at startup via `modules.logging_setup.setup_logging(...)` (already done in `session_sniffer.py`).
-	- Obtain loggers via `modules.logging_setup.get_logger(__name__)` (idempotent; safe anywhere).
+	- Configure once at startup via `session_sniffer.logging_setup.setup_logging(...)` (imported from `src/session_sniffer/logging_setup.py`; already done in `src/session_sniffer/main.py`).
+	- Obtain loggers via `session_sniffer.logging_setup.get_logger(__name__)` (imported from `src/session_sniffer/logging_setup.py`; idempotent and safe anywhere).
 	- Console output is Rich-formatted; file logging writes WARNING+ to a rotating `error.log` under LOCALAPPDATA (the app data directory; not the current working directory).
 	- Prefer `logger.debug/info/warning/error/exception(...)` over `print()` for diagnostics; use the shared Rich `console` only for intentional rich terminal output.
 

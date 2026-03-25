@@ -5,7 +5,12 @@
             "label": "🚀 Launch Session Sniffer",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/python.exe",
-            "args": ["session_sniffer.py"],
+            "args": ["-m", "session_sniffer"],
+            "options": {
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/src"
+                }
+            },
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -39,7 +44,7 @@
             "label": "📦 Install Dependencies",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/pip",
-            "args": ["install", "-r", "requirements.txt"],
+            "args": ["install", "-e", ".[dev]"],
             "group": "build",
             "presentation": {
                 "echo": true,

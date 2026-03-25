@@ -3,11 +3,11 @@
 It continuously sends ping requests and displays results using Rich formatting.
 """  # noqa: INP001
 import argparse
+import enum
 import statistics
 import sys
 import time
 from contextlib import suppress
-from enum import Enum
 from ipaddress import AddressValueError, IPv4Address
 from typing import Literal
 
@@ -23,7 +23,7 @@ PingCheckResults = dict[str, list[
 CHECK_HOST_API = 'https://check-host.net'
 
 
-class Colors(str, Enum):
+class Colors(enum.StrEnum):
     """Hex color codes for Rich formatting."""
 
     CYAN = '3a96dd'

@@ -1,0 +1,7665 @@
+"""Session Sniffer application entry point and main GUI/capture orchestration."""
+
+import ast
+import atexit
+import dataclasses
+import enum
+import ipaddress
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import webbrowser
+import winsound
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from operator import attrgetter
+from pathlib import Path
+from threading import Condition, Event, Lock, RLock, Thread
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, Self, TypedDict
+
+import colorama
+import geoip2.database
+import geoip2.errors
+import psutil
+import requests
+from prettytable import PrettyTable, TableStyle
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QAbstractTableModel,
+    QEasingCurve,
+    QEvent,
+    QItemSelection,
+    QItemSelectionModel,
+    QModelIndex,
+    QObject,
+    QPoint,
+    QPropertyAnimation,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    pyqtSignal,
+)
+from PyQt6.QtGui import QAction, QBrush, QClipboard, QCloseEvent, QColor, QFont, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QPixmap
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QStatusBar,
+    QTableView,
+    QToolBar,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+)
+from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
+from rich.text import Text
+
+from session_sniffer import msgbox
+from session_sniffer.capture.exceptions import TSharkOutputParsingError
+from session_sniffer.capture.tshark_capture import CaptureConfig, Packet, PacketCapture
+from session_sniffer.capture.utils.check_tshark_filters import check_broadcast_multicast_support
+from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
+from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.local import (
+    BIN_DIR_PATH,
+    BUILTIN_SCRIPTS_DIR_PATH,
+    IMAGES_DIR_PATH,
+    SCRIPT_DIR,
+    SESSIONS_LOGGING_DIR_PATH,
+    SETTINGS_PATH,
+    TTS_DIR_PATH,
+    USER_SCRIPTS_DIR_PATH,
+    USERIP_DATABASES_DIR_PATH,
+    USERIP_LOGGING_PATH,
+    VERSION,
+)
+from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
+from session_sniffer.constants.standard import SYSTEM32_PATH
+from session_sniffer.discord.rpc import DiscordRPC
+from session_sniffer.error_messages import (
+    ensure_instance,
+    format_arp_spoofing_failed_message,
+    format_invalid_datetime_columns_settings_message,
+    format_type_error,
+    format_userip_corrupted_settings_message,
+    format_userip_invalid_ip_entry_message,
+    format_userip_ip_conflict_message,
+    format_userip_missing_settings_message,
+)
+from session_sniffer.exceptions import (
+    PlayerAlreadyExistsError,
+    PlayerDateTimeCorruptionError,
+    PlayerNotFoundInRegistryError,
+    UnexpectedPlayerCountError,
+    UnsupportedPlatformError,
+)
+from session_sniffer.guis.app import app
+from session_sniffer.guis.colors import StatusBarColors, TableColors, ThresholdColors
+from session_sniffer.guis.exceptions import (
+    InvalidDateColumnConfigurationError,
+    PrimaryScreenNotFoundError,
+    TableDataConsistencyError,
+    UnsupportedScreenResolutionError,
+    UnsupportedSortColumnError,
+)
+from session_sniffer.guis.html_templates import CAPTURE_STOPPED_HTML, GUI_HEADER_HTML_TEMPLATE
+from session_sniffer.guis.interface_selection_dialog import show_interface_selection_dialog
+from session_sniffer.guis.stylesheets import (
+    COMMON_COLLAPSE_BUTTON_STYLESHEET,
+    CONNECTED_CLEAR_BUTTON_STYLESHEET,
+    CONNECTED_EXPAND_BUTTON_STYLESHEET,
+    CONNECTED_HEADER_CONTAINER_STYLESHEET,
+    CONNECTED_HEADER_TEXT_STYLESHEET,
+    CUSTOM_CONTEXT_MENU_STYLESHEET,
+    DISCONNECTED_CLEAR_BUTTON_STYLESHEET,
+    DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
+    DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
+    DISCONNECTED_HEADER_TEXT_STYLESHEET,
+    DISCORD_POPUP_EXIT_BUTTON_STYLESHEET,
+    DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
+    DISCORD_POPUP_MAIN_STYLESHEET,
+    STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
+    STATUS_BAR_CONFIG_LABEL_STYLESHEET,
+    STATUS_BAR_ISSUES_LABEL_STYLESHEET,
+    STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
+    STATUS_BAR_STYLESHEET,
+)
+from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen
+from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
+from session_sniffer.logging_setup import console, get_logger, setup_logging
+from session_sniffer.models import IpApiResponse
+from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
+from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
+from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
+from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
+from session_sniffer.networking.http_session import session
+from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, SelectedInterface
+from session_sniffer.networking.manuf_lookup import MacLookup
+from session_sniffer.networking.reverse_dns import lookup as reverse_dns_lookup
+from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address, is_private_device_ipv4, is_valid_non_special_ipv4
+from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
+from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, SETTINGS_INI_HEADER_TEMPLATE, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
+from session_sniffer.text_utils import format_triple_quoted_text, pluralize
+from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
+from session_sniffer.utils import (
+    check_case_insensitive_and_exact_match,
+    clear_screen,
+    custom_str_to_bool,
+    custom_str_to_nonetype,
+    dedup_preserve_order,
+    get_pid_by_path,
+    get_session_log_path,
+    is_pyinstaller_compiled,
+    run_cmd_command,
+    run_cmd_script,
+    set_window_title,
+    take,
+    terminate_process_tree,
+    validate_and_strip_balanced_outer_parens,
+    validate_file,
+    write_lines_to_file,
+)
+from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
+    from types import FrameType, TracebackType
+
+# Production-friendly logging: INFO to console, quiet third-party debug noise
+setup_logging(console_level=logging.INFO)
+logger = get_logger(__name__)
+
+GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
+GITHUB_RELEASES_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
+GITHUB_VERSIONS_URL = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Sniffer/version/release_versions.json'
+DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
+DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
+# TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
+PPS_MAX_THRESHOLD = 10
+PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
+BPS_MAX_THRESHOLD = 1024
+BPM_MAX_THRESHOLD = BPS_MAX_THRESHOLD * 60
+MINIMUM_PACKETS_FOR_SESSION_HOST = 50
+USERIP_INI_SETTINGS = [
+    'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
+    'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
+]
+EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
+    'Adapter for loopback traffic capture',
+    'Event Tracing for Windows (ETW) reader',
+}
+GUI_COLUMN_HEADERS_TOOLTIPS = {
+    'Usernames': (
+        'Displays the username(s) of players from your UserIP database files.\n\n'
+        'For GTA V PC users who have used the Session Sniffer mod menu plugin,\n'
+        'it automatically resolves usernames while the plugin is running,\n'
+        'or shows previously resolved players that were seen by the plugin.'
+    ),
+    'First Seen': 'The very first time the player was observed across all sessions.',
+    'Last Rejoin': 'The most recent time the player rejoined your session.',
+    'Last Seen': 'The most recent time the player was active in your session.',
+    'T. Session Time': 'The total amount of time the player has been playing across all sessions.',
+    'Session Time': 'The amount of time the player was playing in the last session before disconnecting.',
+    'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
+    'T. Packets': 'The total number of packets exchanged with the player across all sessions.',
+    'Packets': 'The number of packets exchanged (Received + Sent) with the player during the current session.',
+    'T. Packets Received': 'The total number of packets received from the player across all sessions.',
+    'Packets Received': 'The number of packets received from the player during the current session.',
+    'T. Packets Sent': 'The total number of packets sent to the player across all sessions.',
+    'Packets Sent': 'The number of packets sent to the player during the current session.',
+    'PPS': 'The number of Packets exchanged (Received + Sent) with the player Per Second during the current session.',
+    'PPM': 'The number of Packets exchanged (Received + Sent) with the player Per Minute during the current session.',
+    'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
+    'Bandwith': 'The amount of bytes transferred (Download + Upload) with the player during the current session.',
+    'T. Download': 'The total amount of bytes downloaded from the player across all sessions.',
+    'Download': 'The amount of bytes downloaded from the player during the current session.',
+    'T. Upload': 'The total amount of bytes uploaded to the player across all sessions.',
+    'Upload': 'The amount of bytes uploaded to the player during the current session.',
+    'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Second during the current session.',
+    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Minute during the current session.',
+    'IP Address': 'The IP address of the player.',
+    'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
+    'Last Port': "The port used by the player's last captured packet.",
+    'Middle Ports': 'The ports used by the player between the first and last captured packets.',
+    'First Port': "The port used by the player's first captured packet.",
+    'Continent': "The continent of the player's IP location.",
+    'Country': "The country of the player's IP location.",
+    'Region': "The region of the player's IP location.",
+    'R. Code': "The region code of the player's IP location.",
+    'City': "The city associated with the player's IP location (typically representing the ISP or an intermediate location, not the player's home address city).",
+    'District': "The district of the player's IP location.",
+    'ZIP Code': "The ZIP/postal code of the player's IP location.",
+    'Lat': "The latitude of the player's IP location.",
+    'Lon': "The longitude of the player's IP location.",
+    'Time Zone': "The time zone of the player's IP location.",
+    'Offset': "The time zone offset of the player's IP location.",
+    'Currency': "The currency associated with the player's IP location.",
+    'Organization': "The organization associated with the player's IP address.",
+    'ISP': "The Internet Service Provider of the player's IP address.",
+    'ASN / ISP': 'The Autonomous System Number or Internet Service Provider of the player.',
+    'AS': "The Autonomous System code of the player's IP.",
+    'ASN': "The Autonomous System Number name associated with the player's IP.",
+    'Mobile': 'Indicates if the player is using a mobile network (e.g., through a cellular hotspot or mobile data).',
+    'VPN': 'Indicates if the player is using a VPN, Proxy, or Tor relay.',
+    'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
+}
+DISCORD_APPLICATION_ID = 1313304495958261781
+COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
+HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
+INTERFACE_PARTS_LENGTH = 3
+PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
+RESERVED_NETWORK_RANGES = [  # https://en.wikipedia.org/wiki/Reserved_IP_addresses
+    '0.0.0.0/8',
+    '10.0.0.0/8',
+    '100.64.0.0/10',
+    '127.0.0.0/8',
+    '169.254.0.0/16',
+    '172.16.0.0/12',
+    '192.0.0.0/24',
+    '192.0.2.0/24',
+    '192.88.99.0/24',
+    '192.168.0.0/16',
+    '198.18.0.0/15',
+    '198.51.100.0/24',
+    '203.0.113.0/24',
+    '224.0.0.0/4',
+    '233.252.0.0/24',
+    '240.0.0.0/4',
+    '255.255.255.255/32',
+]
+RESERVED_NETWORKS_FILTER = ' or '.join(RESERVED_NETWORK_RANGES)
+RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
+RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
+SHUTDOWN_EXE = SYSTEM32_PATH / 'shutdown.exe'
+TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64' / 'App' / 'Wireshark' / 'tshark.exe'
+ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
+
+USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
+
+
+class ExceptionInfo(NamedTuple):
+    """Store exception details for crash reporting and logging."""
+
+    exc_type: type[BaseException]
+    exc_value: BaseException
+    exc_traceback: TracebackType | None
+
+
+def terminate_script(
+    terminate_method: Literal['EXIT', 'SIGINT', 'THREAD_RAISED'],
+    msgbox_crash_text: str | None = None,
+    stdout_crash_text: str | None = None,
+    exception_info: ExceptionInfo | None = None,
+) -> None:
+    """Terminate the application and optionally display crash information."""
+    def should_terminate_gracefully() -> bool:
+        for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread'):
+            if thread_name in globals():
+                thread = globals()[thread_name]
+                if isinstance(thread, Thread) and thread.is_alive():
+                    return False
+
+        # TODO(BUZZARDGTA): Gracefully exit the script even when the `capture` module is running.
+        return False
+
+    ScriptControl.set_crashed(None if stdout_crash_text is None else f'\n\n{stdout_crash_text}\n')
+
+    if exception_info:
+        logger.error(
+            'Uncaught exception: %s: %s',
+            exception_info.exc_type.__name__,
+            exception_info.exc_value,
+            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
+        )
+
+        error_message = Text.from_markup(
+            (
+                '\n\n\nAn unexpected (uncaught) error occurred. [bold]Please kindly report it to:[/bold]\n'
+                '[link=https://github.com/BUZZARDGTA/Session-Sniffer/issues]'
+                'https://github.com/BUZZARDGTA/Session-Sniffer/issues[/link].\n\n'
+                'DEBUG:\n'
+                f'VERSION={globals().get("VERSION", "Unknown Version")}'
+            ),
+            style='white',
+        )
+        console.print(error_message, highlight=False)
+
+    if stdout_crash_text is not None:
+        crash_message = ScriptControl.get_crash_message()
+        if crash_message:
+            console.print(crash_message, highlight=False)
+
+    if msgbox_crash_text is not None:
+        msgbox_title = TITLE
+        msgbox_message = msgbox_crash_text
+        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SYSTEMMODAL
+
+        msgbox.show(msgbox_title, msgbox_message, msgbox_style)
+        time.sleep(1)
+
+    # If the termination method is "EXIT", do not sleep unless crash messages are present
+    need_sleep = True
+    if terminate_method == 'EXIT' and msgbox_crash_text is None and stdout_crash_text is None:
+        need_sleep = False
+    if need_sleep:
+        time.sleep(3)
+
+    if should_terminate_gracefully():
+        exit_code = 1 if terminate_method == 'THREAD_RAISED' else 0
+        sys.exit(exit_code)
+
+    terminate_process_tree()
+
+
+def handle_exception(exc_type: type[BaseException], exc_value: BaseException, exc_traceback: TracebackType | None) -> None:
+    """Handle exceptions for the main script (not threads)."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        return
+
+    exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
+    terminate_script(
+        'EXIT',
+        'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues',
+        exception_info=exception_info,
+    )
+
+
+def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
+    """Handle Ctrl+C by terminating the script if not already crashing."""
+    if not ScriptControl.has_crashed():
+        # Block CTRL+C if script is already crashing under control
+        console.print('Ctrl+C pressed. Exiting script ...', highlight=False)
+        terminate_script('SIGINT')
+
+
+sys.excepthook = handle_exception
+signal.signal(signal.SIGINT, handle_sigint)
+
+
+class ScriptControl:
+    """Track global crash state and crash message across threads."""
+
+    _lock: ClassVar = Lock()
+    _crashed: ClassVar[bool] = False
+    _crash_message: ClassVar[str | None] = None
+
+    @classmethod
+    def set_crashed(cls, message: str | None = None) -> None:
+        """Mark the process as crashed and store an optional crash message."""
+        with cls._lock:
+            cls._crashed = True
+            cls._crash_message = message
+
+    @classmethod
+    def reset_crashed(cls) -> None:
+        """Clear the crash flag and any stored crash message."""
+        with cls._lock:
+            cls._crashed = False
+            cls._crash_message = None
+
+    @classmethod
+    def has_crashed(cls) -> bool:
+        """Return whether the process has been marked as crashed."""
+        with cls._lock:
+            return cls._crashed
+
+    @classmethod
+    def get_crash_message(cls) -> str | None:
+        """Return the stored crash message, if any."""
+        with cls._lock:
+            return cls._crash_message
+
+
+class ThreadsExceptionHandler:
+    """Handle exceptions raised within threads and provide additional functionality for managing thread execution.
+
+    This class is designed to overcome the limitation where threads run independently from the main process, which continues execution without waiting for thread completion.
+
+    Attributes:
+        raising_function: The name of the function where the exception was raised.
+        raising_exc_type: The type of the raised exception.
+        raising_exc_value: The value of the raised exception.
+        raising_exc_traceback: The traceback information for the raised exception.
+    """
+    raising_function: ClassVar[str | None] = None
+    raising_exc_type: ClassVar[type[BaseException] | None] = None
+    raising_exc_value: ClassVar[BaseException | None] = None
+    raising_exc_traceback: ClassVar[TracebackType | None] = None
+
+    def __enter__(self) -> None:
+        """Enter the runtime context related to this object."""
+
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, exc_traceback: TracebackType | None) -> bool:
+        """Exit method called upon exiting the 'with' block.
+
+        Args:
+            exc_type: The type of the raised exception.
+            exc_value: The value of the raised exception.
+            exc_traceback: The traceback information of the raised exception.
+
+        Returns:
+            Whether to suppress the exception from propagating further.
+        """
+        # Return False to allow normal execution if no exception occurred
+        if exc_type is None or exc_value is None:
+            return False
+
+        # Handle exception details
+        ThreadsExceptionHandler.raising_exc_type = exc_type
+        ThreadsExceptionHandler.raising_exc_value = exc_value
+        ThreadsExceptionHandler.raising_exc_traceback = exc_traceback
+
+        # Extract the failed function name from the traceback safely
+        if exc_traceback is not None:
+            tb = exc_traceback
+            while tb.tb_next:
+                tb = tb.tb_next
+            ThreadsExceptionHandler.raising_function = tb.tb_frame.f_code.co_name
+        else:
+            ThreadsExceptionHandler.raising_function = '<unknown>'
+
+        # Create the exception info and terminate the script
+        exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
+        terminate_script(
+            'THREAD_RAISED',
+            (
+                'An unexpected (uncaught) error occurred.\n\n'
+                'Please kindly report it to:\n'
+                'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
+            ),
+            exception_info=exception_info,
+        )
+
+        # Suppress the exception from propagating
+        return True
+
+
+@dataclass
+class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-name
+    """Class containing default setting values."""
+    CAPTURE_INTERFACE_NAME: str | None = None
+    CAPTURE_IP_ADDRESS: str | None = None
+    CAPTURE_MAC_ADDRESS: str | None = None
+    CAPTURE_ARP_SPOOFING: bool = False
+    CAPTURE_BLOCK_THIRD_PARTY_SERVERS: bool = True
+    CAPTURE_PROGRAM_PRESET: str | None = None
+    CAPTURE_OVERFLOW_TIMER: float = 3.0
+    CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None = None
+    CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None = None
+    GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool = False
+    GUI_INTERFACE_SELECTION_HIDE_INACTIVE: bool = True
+    GUI_INTERFACE_SELECTION_HIDE_ARP: bool = False
+    GUI_SESSIONS_LOGGING: bool = True
+    GUI_RESET_PORTS_ON_REJOINS: bool = True
+    GUI_COLUMNS_CONNECTED_HIDDEN: tuple[str, ...] = (
+        'T. Session Time', 'Session Time',
+        'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPM',
+        'T. Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPM',
+        'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
+        'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
+    )
+    GUI_COLUMNS_DISCONNECTED_HIDDEN: tuple[str, ...] = (
+        'T. Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent',
+        'T. Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload',
+        'Middle Ports', 'First Port', 'Continent', 'R. Code', 'City', 'District', 'ZIP Code',
+        'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency', 'Organization', 'ISP', 'AS', 'ASN',
+    )
+    GUI_COLUMNS_DATETIME_SHOW_DATE: bool = False
+    GUI_COLUMNS_DATETIME_SHOW_TIME: bool = False
+    GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME: bool = True
+    GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2: bool = True
+    GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2: bool = True
+    GUI_DISCONNECTED_PLAYERS_TIMER: float = 10.0
+    DISCORD_PRESENCE: bool = True
+    SHOW_DISCORD_POPUP: bool = True
+    UPDATER_CHANNEL: str | None = 'Stable'
+
+
+class Settings(DefaultSettings):
+    """Load, validate, and persist user settings for the application."""
+
+    ALL_SETTINGS: ClassVar = (
+        'CAPTURE_INTERFACE_NAME',
+        'CAPTURE_IP_ADDRESS',
+        'CAPTURE_MAC_ADDRESS',
+        'CAPTURE_ARP_SPOOFING',
+        'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
+        'CAPTURE_PROGRAM_PRESET',
+        'CAPTURE_OVERFLOW_TIMER',
+        'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
+        'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
+        'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
+        'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
+        'GUI_INTERFACE_SELECTION_HIDE_ARP',
+        'GUI_SESSIONS_LOGGING',
+        'GUI_RESET_PORTS_ON_REJOINS',
+        'GUI_COLUMNS_CONNECTED_HIDDEN',
+        'GUI_COLUMNS_DISCONNECTED_HIDDEN',
+        'GUI_COLUMNS_DATETIME_SHOW_DATE',
+        'GUI_COLUMNS_DATETIME_SHOW_TIME',
+        'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
+        'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
+        'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
+        'GUI_DISCONNECTED_PLAYERS_TIMER',
+        'DISCORD_PRESENCE',
+        'SHOW_DISCORD_POPUP',
+        'UPDATER_CHANNEL',
+    )
+
+    _ALL_SETTINGS_SET: ClassVar = frozenset(ALL_SETTINGS)
+
+    GUI_COLUMNS_MAPPING: ClassVar = {
+        'Usernames': 'usernames',
+        'First Seen': 'datetime.first_seen',
+        'Last Rejoin': 'datetime.last_rejoin',
+        'Last Seen': 'datetime.last_seen',
+        'T. Session Time': 'datetime.total_session_time',
+        'Session Time': 'datetime.session_time',
+        'Rejoins': 'rejoins',
+        'T. Packets': 'total_packets',
+        'Packets': 'packets',
+        'T. Packets Received': 'total_packets_received',
+        'Packets Received': 'packets_received',
+        'T. Packets Sent': 'total_packets_sent',
+        'Packets Sent': 'packets_sent',
+        'PPS': 'pps.calculated_rate',
+        'PPM': 'ppm.calculated_rate',
+        'T. Bandwith': 'bandwidth.total_exchanged',
+        'Bandwith': 'bandwidth.exchanged',
+        'T. Download': 'bandwidth.total_download',
+        'Download': 'bandwidth.download',
+        'T. Upload': 'bandwidth.total_upload',
+        'Upload': 'bandwidth.upload',
+        'BPS': 'bps.calculated_rate',
+        'BPM': 'bpm.calculated_rate',
+        'IP Address': 'ip',
+        'Hostname': 'reverse_dns.hostname',
+        'Last Port': 'ports.last',
+        'Middle Ports': 'ports.middle',
+        'First Port': 'ports.first',
+        'Continent': 'iplookup.ipapi.continent',
+        'Country': 'iplookup.geolite2.country',
+        'Region': 'iplookup.ipapi.region',
+        'R. Code': 'iplookup.ipapi.region_code',
+        'City': 'iplookup.geolite2.city',
+        'District': 'iplookup.ipapi.district',
+        'ZIP Code': 'iplookup.ipapi.zip_code',
+        'Lat': 'iplookup.ipapi.lat',
+        'Lon': 'iplookup.ipapi.lon',
+        'Time Zone': 'iplookup.ipapi.time_zone',
+        'Offset': 'iplookup.ipapi.offset',
+        'Currency': 'iplookup.ipapi.currency',
+        'Organization': 'iplookup.ipapi.org',
+        'ISP': 'iplookup.ipapi.isp',
+        'ASN / ISP': 'iplookup.geolite2.asn',
+        'AS': 'iplookup.ipapi.asn',
+        'ASN': 'iplookup.ipapi.as_name',
+        'Mobile': 'iplookup.ipapi.mobile',
+        'VPN': 'iplookup.ipapi.proxy',
+        'Hosting': 'iplookup.ipapi.hosting',
+        'Pinging': 'ping.is_pinging',
+    }
+    GUI_FORCED_COLUMNS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
+    GUI_HIDEABLE_CONNECTED_COLUMNS: ClassVar = (
+        'T. Session Time',
+        'Session Time',
+        'T. Packets',
+        'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
+        'PPS',
+        'PPM',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'BPS',
+        'BPM',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_HIDEABLE_DISCONNECTED_COLUMNS: ClassVar = (
+        'T. Session Time',
+        'Session Time',
+        'T. Packets',
+        'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_ALL_CONNECTED_COLUMNS: ClassVar = (
+        'Usernames',
+        'First Seen',
+        'Last Rejoin',
+        'T. Session Time',
+        'Session Time',
+        'Rejoins',
+        'T. Packets',
+        'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
+        'PPS',
+        'PPM',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'BPS',
+        'BPM',
+        'IP Address',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+    GUI_ALL_DISCONNECTED_COLUMNS: ClassVar = (
+        'Usernames',
+        'First Seen',
+        'Last Rejoin',
+        'Last Seen',
+        'T. Session Time',
+        'Session Time',
+        'Rejoins',
+        'T. Packets',
+        'Packets',
+        'T. Packets Received',
+        'Packets Received',
+        'T. Packets Sent',
+        'Packets Sent',
+        'T. Bandwith',
+        'Bandwith',
+        'T. Download',
+        'Download',
+        'T. Upload',
+        'Upload',
+        'IP Address',
+        'Hostname',
+        'Last Port',
+        'Middle Ports',
+        'First Port',
+        'Continent',
+        'Country',
+        'Region',
+        'R. Code',
+        'City',
+        'District',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Time Zone',
+        'Offset',
+        'Currency',
+        'Organization',
+        'ISP',
+        'ASN / ISP',
+        'AS',
+        'ASN',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+    )
+
+    @classmethod
+    def iterate_over_settings(cls) -> Iterator[tuple[str, Any]]:
+        """Iterate over all settings and their current values."""
+        for setting_name in cls.ALL_SETTINGS:
+            yield setting_name, getattr(cls, setting_name)
+
+    @classmethod
+    def get_settings_length(cls) -> int:
+        """Get the total number of settings."""
+        return len(cls.ALL_SETTINGS)
+
+    @classmethod
+    def has_setting(cls, setting_name: str) -> bool:
+        """Check if a setting exists."""
+        return setting_name in cls._ALL_SETTINGS_SET
+
+    @classmethod
+    def rewrite_settings_file(cls) -> None:
+        """Rewrite the settings file from current in-memory values."""
+        console.print('Rewriting "Settings.ini" file ...', highlight=False)
+
+        text = format_triple_quoted_text(
+            SETTINGS_INI_HEADER_TEMPLATE.format(
+                title=TITLE,
+                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration',
+            ),
+            add_trailing_newline=True,
+        )
+
+        for setting_name, setting_value in cls.iterate_over_settings():
+            text += f'{setting_name}={setting_value}\n'
+
+        SETTINGS_PATH.write_text(text, encoding='utf-8')
+
+    @staticmethod
+    def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
+        """Parse the settings INI file and report whether it should be rewritten."""
+        def process_ini_line_output(line: str) -> str:
+            return line.rstrip('\n')
+
+        validate_file(ini_path)
+
+        ini_data = ini_path.read_text('utf-8')
+
+        need_rewrite_ini = False
+        ini_database: dict[str, str] = {}
+
+        for line in map(process_ini_line_output, ini_data.splitlines(keepends=False)):
+            if (corrected_line := line.strip()) != line:
+                need_rewrite_ini = True
+
+            if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(corrected_line)):
+                continue
+
+            setting_name = ensure_instance(match.group('key'), str)
+            setting_value = ensure_instance(match.group('value'), str)
+
+            if not (corrected_setting_name := setting_name.strip()):
+                continue
+
+            if corrected_setting_name != setting_name:
+                need_rewrite_ini = True
+
+            if not (corrected_setting_value := setting_value.strip()):
+                continue
+
+            if corrected_setting_value != setting_value:
+                need_rewrite_ini = True
+
+            if corrected_setting_name in ini_database:
+                need_rewrite_ini = True  # Settings file needs to be rewritten as it contains duplicate settings
+                continue
+
+            ini_database[corrected_setting_name] = corrected_setting_value
+
+        return ini_database, need_rewrite_ini
+
+    @classmethod
+    def load_from_settings_file(cls, settings_path: Path) -> None:
+        """Load settings from disk into `Settings` and rewrite when necessary."""
+        matched_settings_count = 0
+
+        try:
+            settings, need_rewrite_settings = cls.parse_settings_ini_file(settings_path)
+        except FileNotFoundError:
+            need_rewrite_settings = True
+        else:
+            for setting_name, setting_value in settings.items():
+                if not cls.has_setting(setting_name):
+                    need_rewrite_settings = True
+                    continue
+
+                matched_settings_count += 1
+                need_rewrite_current_setting = False
+
+                if setting_name == 'CAPTURE_INTERFACE_NAME':
+                    try:
+                        Settings.CAPTURE_INTERFACE_NAME, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        Settings.CAPTURE_INTERFACE_NAME = setting_value  # pyright: ignore[reportConstantRedefinition]
+                elif setting_name == 'CAPTURE_IP_ADDRESS':
+                    try:
+                        Settings.CAPTURE_IP_ADDRESS, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        if is_ipv4_address(setting_value):
+                            Settings.CAPTURE_IP_ADDRESS = setting_value  # pyright: ignore[reportConstantRedefinition]
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_MAC_ADDRESS':
+                    try:
+                        Settings.CAPTURE_MAC_ADDRESS, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        formatted_mac_address = format_mac_address(setting_value)
+                        if is_mac_address(formatted_mac_address):
+                            if formatted_mac_address != setting_value:
+                                need_rewrite_settings = True
+                            Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address  # pyright: ignore[reportConstantRedefinition]
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_ARP_SPOOFING':
+                    try:
+                        Settings.CAPTURE_ARP_SPOOFING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_BLOCK_THIRD_PARTY_SERVERS':
+                    try:
+                        Settings.CAPTURE_BLOCK_THIRD_PARTY_SERVERS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_PROGRAM_PRESET':
+                    try:
+                        Settings.CAPTURE_PROGRAM_PRESET, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        try:
+                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('GTA5', 'Minecraft'))
+                            Settings.CAPTURE_PROGRAM_PRESET = normalized_match  # pyright: ignore[reportConstantRedefinition]
+                            if not case_sensitive_match:
+                                need_rewrite_current_setting = True
+                        except NoMatchFoundError:
+                            need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_OVERFLOW_TIMER':
+                    try:
+                        capture_overflow_timer = float(setting_value)
+                    except (ValueError, TypeError):
+                        need_rewrite_settings = True
+                    else:
+                        if capture_overflow_timer >= 1:
+                            Settings.CAPTURE_OVERFLOW_TIMER = capture_overflow_timer
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER':
+                    try:
+                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
+                        if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
+                            need_rewrite_settings = True
+                elif setting_name == 'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER':
+                    try:
+                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
+                        if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
+                            need_rewrite_settings = True
+                elif setting_name == 'GUI_SESSIONS_LOGGING':
+                    try:
+                        Settings.GUI_SESSIONS_LOGGING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_RESET_PORTS_ON_REJOINS':
+                    try:
+                        Settings.GUI_RESET_PORTS_ON_REJOINS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_CONNECTED_HIDDEN':
+                    try:
+                        gui_columns_to_hide = ast.literal_eval(setting_value)
+                    except (ValueError, SyntaxError):
+                        need_rewrite_settings = True
+                    else:
+                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
+                            filtered_connected_gui_columns_to_hide: list[str] = []
+
+                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
+                                try:
+                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                        value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
+                                    )
+                                    filtered_connected_gui_columns_to_hide.append(normalized_match)
+                                    if not case_sensitive_match:
+                                        need_rewrite_current_setting = True
+                                except NoMatchFoundError:
+                                    need_rewrite_settings = True
+
+                            # Sort columns according to internal order
+                            sorted_gui_columns_to_hide = [
+                                column for column in Settings.GUI_HIDEABLE_CONNECTED_COLUMNS
+                                if column in filtered_connected_gui_columns_to_hide
+                            ]
+
+                            # Check if sorting changed the order
+                            if filtered_connected_gui_columns_to_hide != sorted_gui_columns_to_hide:
+                                need_rewrite_current_setting = True
+
+                            Settings.GUI_COLUMNS_CONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_DISCONNECTED_HIDDEN':
+                    try:
+                        gui_columns_to_hide = ast.literal_eval(setting_value)
+                    except (ValueError, SyntaxError):
+                        need_rewrite_settings = True
+                    else:
+                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
+                            filtered_disconnected_gui_columns_to_hide: list[str] = []
+
+                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
+                                try:
+                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                        value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
+                                    )
+                                    filtered_disconnected_gui_columns_to_hide.append(normalized_match)
+                                    if not case_sensitive_match:
+                                        need_rewrite_current_setting = True
+                                except NoMatchFoundError:
+                                    need_rewrite_settings = True
+
+                            # Sort columns according to internal order
+                            sorted_gui_columns_to_hide = [
+                                column for column in Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS
+                                if column in filtered_disconnected_gui_columns_to_hide
+                            ]
+
+                            # Check if sorting changed the order
+                            if filtered_disconnected_gui_columns_to_hide != sorted_gui_columns_to_hide:
+                                need_rewrite_current_setting = True
+
+                            Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_DATE':
+                    try:
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_DATE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_TIME':
+                    try:
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME':
+                    try:
+                        Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2':
+                    try:
+                        Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2':
+                    try:
+                        Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_DISCONNECTED_PLAYERS_TIMER':
+                    try:
+                        player_disconnected_timer = float(setting_value)
+                    except (ValueError, TypeError):
+                        need_rewrite_settings = True
+                    else:
+                        if player_disconnected_timer >= 3.0:  # noqa: PLR2004
+                            Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
+                        else:
+                            need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_AUTO_CONNECT':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_INACTIVE':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_ARP':
+                    try:
+                        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'DISCORD_PRESENCE':
+                    try:
+                        Settings.DISCORD_PRESENCE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'SHOW_DISCORD_POPUP':
+                    try:
+                        Settings.SHOW_DISCORD_POPUP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
+                    except InvalidBooleanValueError:
+                        need_rewrite_settings = True
+                elif setting_name == 'UPDATER_CHANNEL':
+                    try:
+                        Settings.UPDATER_CHANNEL, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
+                    except InvalidNoneTypeValueError:
+                        try:
+                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('Stable', 'RC'))
+                            Settings.UPDATER_CHANNEL = normalized_match  # pyright: ignore[reportConstantRedefinition]
+                            if not case_sensitive_match:
+                                need_rewrite_current_setting = True
+                        except NoMatchFoundError:
+                            need_rewrite_settings = True
+
+                if need_rewrite_current_setting:
+                    need_rewrite_settings = True
+
+            if matched_settings_count != cls.get_settings_length():
+                need_rewrite_settings = True
+
+        if (
+            Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False
+            and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False
+            and Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False
+        ):
+            need_rewrite_settings = True
+
+            msgbox.show(
+                title=TITLE,
+                text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+            )
+
+            for setting_name in (
+                'GUI_COLUMNS_DATETIME_SHOW_DATE',
+                'GUI_COLUMNS_DATETIME_SHOW_TIME',
+                'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
+            ):
+                setattr(Settings, setting_name, getattr(DefaultSettings, setting_name))
+
+        if need_rewrite_settings:
+            cls.rewrite_settings_file()
+
+
+class ThirdPartyServers(enum.Enum):
+    """Define IP ranges to treat as third-party server traffic."""
+
+    PC_DISCORD = ('66.22.196.0/22', '66.22.200.0/21', '66.22.208.0/20', '66.22.224.0/20', '66.22.240.0/21', '66.22.248.0/24', '104.29.128.0/18')
+    PC_VALVE = ('103.10.124.0/23', '103.28.54.0/23', '146.66.152.0/21', '155.133.224.0/19', '162.254.192.0/21', '185.25.180.0/22', '205.196.6.0/24')  # Valve = Steam
+    PC_GOOGLE = ('34.0.0.0/9', '34.128.0.0/10', '35.184.0.0/13', '35.192.0.0/11', '35.224.0.0/12', '35.240.0.0/13')
+    PC_MULTICAST = ('224.0.0.0/4',)
+    PC_ANDROID_OMETV_OVH = (
+        '15.204.0.0/16', '15.235.208.0/20', '37.59.0.0/16', '46.105.0.0/16', '51.68.32.0/20', '51.89.0.0/16', '54.36.0.0/14', '57.128.0.0/14',
+        '135.125.0.0/16', '135.148.136.0/23', '135.148.150.0/23', '141.94.0.0/15', '146.59.0.0/16', '148.113.0.0/16', '162.19.0.0/16',
+    )
+    PC_OMETV_GOOGLE = ('74.125.0.0/16',)
+    PC_UK_MINISTRY_OF_DEFENCE = ('25.0.0.0/8',)
+    PC_SERVERS_COM = ('173.237.26.0/24',)
+    PC_OTHERS = ('113.117.15.193/32',)
+    PC_RUSTDESK = ('209.250.240.0/20',)
+    PS_SONY_INTERACTIVE = ('104.142.128.0/17',)
+    PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
+    GTAV_TAKETWO = ('104.255.104.0/22', '185.56.64.0/22', '192.81.240.0/21')
+    GTAV_PC_MICROSOFT = ('52.139.128.0/18',)
+    GTAV_PC_DOD_NETWORK_INFORMATION_CENTER = ('26.0.0.0/8',)
+    GTAV_PC_BATTLEYE = ('51.89.97.102/32', '51.89.99.255/32')
+    GTAV_PS5_TELLAS_GREECE = ('176.58.224.0/22',)
+    GTAV_XBOXONE_MICROSOFT = ('40.74.0.0/18', '52.159.128.0/17', '52.160.0.0/16')
+    MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT = ('20.202.0.0/24', '20.224.0.0/16', '168.61.142.128/25', '168.61.143.0/24', '168.61.144.0/20', '168.61.160.0/19')
+
+    @classmethod
+    def get_all_ip_ranges(cls) -> list[str]:
+        """Return a flat list of all IP ranges from the Enum."""
+        return [ip_range for server in cls for ip_range in server.value]
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerReverseDNS:
+    """Store reverse DNS lookup state for a player."""
+
+    is_initialized: bool = False
+
+    hostname: Literal['...'] | str = '...'  # noqa: PYI051
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerPackets:  # pylint: disable=too-many-instance-attributes
+    """Class to manage player packet counts and statistics.
+
+    Attributes:
+        total_exchanged: Total packets exchanged with the player across all sessions.
+        exchanged: Packets exchanged with the player in current session (received + sent).
+        total_received: Total packets received from the player across all sessions.
+        received: Packets received from the player in current session.
+        total_sent: Total packets sent to the player across all sessions.
+        sent: Packets sent to the player in current session.
+        pps: Packets Per Second rate calculator.
+        ppm: Packets Per Minute rate calculator.
+    """
+
+    @dataclass(kw_only=True, slots=True)
+    class PPS:
+        """Class to manage player Packets Per Second (PPS) calculations.
+
+        Attributes:
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_packets: Number of packets counted since last calculation.
+            calculated_rate: The final PPS value to display (Packets Per Second).
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_packets: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated packets and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_packets
+            self.accumulated_packets = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the PlayerPPS to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_packets = 0
+            self.calculated_rate = 0
+
+    @dataclass(kw_only=True, slots=True)
+    class PPM:
+        """Class to manage player Packets Per Minute (PPM) calculations.
+
+        Attributes:
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_packets: Number of packets counted since last calculation.
+            calculated_rate: The final PPM value to display (Packets Per Minute).
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_packets: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated packets and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_packets
+            self.accumulated_packets = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the PlayerPPM to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_packets = 0
+            self.calculated_rate = 0
+
+    total_exchanged: int = 1
+    exchanged: int = 1
+
+    total_received: int = 0
+    received: int = 0
+    total_sent: int = 0
+    sent: int = 0
+
+    pps: PPS = dataclasses.field(default_factory=PPS)
+    ppm: PPM = dataclasses.field(default_factory=PPM)
+
+    @classmethod
+    def from_packet_direction(cls, *, sent_by_local_host: bool) -> Self:
+        """Create `PlayerPackets` from initial packet direction.
+
+        Args:
+            sent_by_local_host: Whether the initial packet was sent by local host
+
+        Returns:
+            New instance initialized for the packet direction.
+        """
+        if sent_by_local_host:
+            return cls(
+                total_exchanged=1,
+                exchanged=1,
+
+                total_received=0,
+                received=0,
+                total_sent=1,
+                sent=1,
+
+                pps=cls.PPS(accumulated_packets=1),
+                ppm=cls.PPM(accumulated_packets=1),
+            )
+        return cls(
+            total_exchanged=1,
+            exchanged=1,
+
+            total_received=1,
+            received=1,
+            total_sent=0,
+            sent=0,
+
+            pps=cls.PPS(accumulated_packets=1),
+            ppm=cls.PPM(accumulated_packets=1),
+        )
+
+    def increment(self, *, sent_by_local_host: bool) -> None:
+        """Increment packet counts based on packet direction.
+
+        Args:
+            sent_by_local_host: Whether the packet was sent by local host
+        """
+        self.total_exchanged += 1
+        self.exchanged += 1
+
+        if sent_by_local_host:
+            self.total_sent += 1
+            self.sent += 1
+        else:
+            self.total_received += 1
+            self.received += 1
+
+        self.pps.accumulated_packets += 1
+        self.ppm.accumulated_packets += 1
+
+    def reset_current_session(self, *, sent_by_local_host: bool) -> None:
+        """Reset current session packet counts (for rejoins).
+
+        Args:
+            sent_by_local_host: Whether the rejoin packet was sent by local host
+        """
+        self.total_exchanged += 1
+        self.exchanged = 1
+
+        if sent_by_local_host:
+            self.total_sent += 1
+            self.sent = 1
+            self.received = 0
+        else:
+            self.sent = 0
+            self.total_received += 1
+            self.received = 1
+
+        self.pps.reset()
+        self.pps.accumulated_packets = 1
+        self.ppm.reset()
+        self.ppm.accumulated_packets = 1
+
+
+BANDWIDTH_MB_THRESHOLD = 1_048_576  # 1 MB in bytes
+BANDWIDTH_KB_THRESHOLD = 1024  # 1 KB in bytes
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
+    """Class to manage player bandwidth (upload/download) totals and rate calculations.
+
+    Attributes:
+        total_exchanged: Total bytes exchanged with the player across all sessions.
+        exchanged: Bytes exchanged with the player in current session (download + upload).
+        total_download: Total bytes downloaded from the player across all sessions.
+        download: Bytes downloaded from the player in current session.
+        total_upload: Total bytes uploaded to the player across all sessions.
+        upload: Bytes uploaded to the player in current session.
+        bps: Bytes Per Second rate calculator.
+        bpm: Bytes Per Minute rate calculator.
+    """
+
+    @dataclass(kw_only=True, slots=True)
+    class BPS:
+        """Class to manage player Bytes Per Second (BPS) calculations.
+
+        Attributes:
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_bytes: Number of bytes counted since last calculation.
+            calculated_rate: The final BPS value to display (Bytes Per Second).
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_bytes: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated bytes and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_bytes
+            self.accumulated_bytes = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the BPS to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_bytes = 0
+            self.calculated_rate = 0
+
+    @dataclass(kw_only=True, slots=True)
+    class BPM:
+        """Class to manage player Bytes Per Minute (BPM) calculations.
+
+        Attributes:
+            is_first_calculation: True until the first rate calculation completes.
+            last_update_time: Timestamp of the last rate calculation.
+            accumulated_bytes: Number of bytes counted since last calculation.
+            calculated_rate: The final BPM value to display (Bytes Per Minute).
+        """
+        is_first_calculation: bool = True
+        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+        accumulated_bytes: int = 0
+        calculated_rate: int = 0
+
+        def calculate_and_update_rate(self) -> None:
+            """Calculate rate from accumulated bytes and reset counter."""
+            self.is_first_calculation = False
+            self.calculated_rate = self.accumulated_bytes
+            self.accumulated_bytes = 0
+            self.last_update_time = time.monotonic()
+
+        def reset(self) -> None:
+            """Resets the BPM to its initial state."""
+            self.is_first_calculation = True
+            self.last_update_time = time.monotonic()
+            self.accumulated_bytes = 0
+            self.calculated_rate = 0
+
+    total_exchanged: int = 0
+    exchanged: int = 0
+
+    total_download: int = 0
+    download: int = 0
+    total_upload: int = 0
+    upload: int = 0
+
+    bps: BPS = dataclasses.field(default_factory=BPS)
+    bpm: BPM = dataclasses.field(default_factory=BPM)
+
+    @classmethod
+    def from_packet_direction(cls, *, packet_length: int, sent_by_local_host: bool) -> Self:
+        """Create `PlayerBandwidth` from initial packet direction.
+
+        Args:
+            packet_length: The length of the initial packet in bytes
+            sent_by_local_host: Whether the initial packet was sent by local host
+
+        Returns:
+            New instance initialized for the packet direction.
+        """
+        if sent_by_local_host:
+            return cls(
+                total_exchanged=packet_length,
+                exchanged=packet_length,
+
+                total_download=0,
+                download=0,
+                total_upload=packet_length,
+                upload=packet_length,
+
+                bps=cls.BPS(accumulated_bytes=packet_length),
+                bpm=cls.BPM(accumulated_bytes=packet_length),
+            )
+        return cls(
+            total_exchanged=packet_length,
+            exchanged=packet_length,
+
+            total_download=packet_length,
+            download=packet_length,
+            total_upload=0,
+            upload=0,
+
+            bps=cls.BPS(accumulated_bytes=packet_length),
+            bpm=cls.BPM(accumulated_bytes=packet_length),
+        )
+
+    def increment(self, *, packet_length: int, sent_by_local_host: bool) -> None:
+        """Increment bandwidth counts based on packet direction.
+
+        Args:
+            packet_length: The length of the packet in bytes
+            sent_by_local_host: Whether the packet was sent by local host
+        """
+        self.total_exchanged += packet_length
+        self.exchanged += packet_length
+
+        if sent_by_local_host:
+            self.total_upload += packet_length
+            self.upload += packet_length
+        else:
+            self.total_download += packet_length
+            self.download += packet_length
+
+        self.bps.accumulated_bytes += packet_length
+        self.bpm.accumulated_bytes += packet_length
+
+    def reset_current_session(self, *, packet_length: int, sent_by_local_host: bool) -> None:
+        """Reset current session bandwidth counts (for rejoins).
+
+        Args:
+            packet_length: The length of the rejoin packet in bytes
+            sent_by_local_host: Whether the rejoin packet was sent by local host
+        """
+        self.total_exchanged += packet_length
+        self.exchanged = packet_length
+
+        if sent_by_local_host:
+            self.total_upload += packet_length
+            self.upload = packet_length
+            self.download = 0
+        else:
+            self.total_download += packet_length
+            self.upload = 0
+            self.download = packet_length
+
+        self.bps.reset()
+        self.bps.accumulated_bytes = packet_length
+        self.bpm.reset()
+        self.bpm.accumulated_bytes = packet_length
+
+    @staticmethod
+    def format_bytes(total_bytes: int) -> str:
+        """Format bytes to human-readable string."""
+        if total_bytes >= BANDWIDTH_MB_THRESHOLD:
+            return f'{total_bytes / BANDWIDTH_MB_THRESHOLD:.1f} MB'
+        if total_bytes >= BANDWIDTH_KB_THRESHOLD:
+            return f'{total_bytes / BANDWIDTH_KB_THRESHOLD:.1f} KB'
+        return f'{total_bytes} B'
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerPorts:
+    """Track observed ports for a player within a session."""
+
+    all: list[int]
+    first: int
+    middle: list[int]
+    last: int
+
+    @classmethod
+    def from_packet_port(cls, port: int) -> Self:
+        """Create a new ports tracker from the first observed port."""
+        return cls(
+            all=[port],
+            first=port,
+            middle=[],
+            last=port,
+        )
+
+    def reset(self, port: int) -> None:
+        """Reset tracked ports back to a single observed port."""
+        self.all.clear()
+        self.all.append(port)
+        self.first = port
+        self.middle.clear()
+        self.last = port
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerDateTime:
+    """Track per-player timestamps and compute session durations."""
+
+    first_seen: datetime
+    last_rejoin: datetime
+    last_seen: datetime
+    total_session_time: timedelta | None
+    session_time: timedelta | None
+
+    def set_session_time(self) -> None:
+        """Finalize and store the session duration.
+
+        Calculates the duration between when the player last joined and was last seen,
+        then stores it. Called when a player disconnects to freeze their session duration.
+        """
+        self.session_time = self.last_seen - self.last_rejoin
+
+    def accumulate_session_to_total(self) -> None:
+        """Add finalized session duration to the cumulative total and clear current session.
+
+        Transfers the completed session duration into the running total across all sessions,
+        then clears the current session duration to prepare for tracking a new session.
+        Only accumulates if a session has been finalized.
+        """
+        if self.session_time is not None:
+            if self.total_session_time is None:
+                self.total_session_time = self.session_time
+            else:
+                self.total_session_time += self.session_time
+            self.session_time = None
+
+    def get_session_time(self) -> timedelta:
+        """Return current session duration.
+
+        Returns:
+            The session duration. For disconnected players, returns the stored
+                duration from their last session. For connected players, calculates the
+                live duration from when they joined until their last activity.
+        """
+        if self.last_rejoin > self.last_seen:
+            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        if self.session_time is None:
+            return self.last_seen - self.last_rejoin
+        return self.session_time
+
+    def get_total_session_time(self) -> timedelta:
+        """Return total cumulative session duration across all sessions.
+
+        Returns:
+            Sum of all completed sessions plus the current session.
+                For connected players, includes their ongoing session time.
+                For disconnected players, includes their completed final session.
+        """
+        if self.last_rejoin > self.last_seen:
+            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        if self.total_session_time is None:
+            if self.session_time is None:
+                return self.last_seen - self.last_rejoin
+            return self.session_time
+        if self.session_time is None:
+            return self.total_session_time + (self.last_seen - self.last_rejoin)
+        return self.total_session_time + self.session_time
+
+    @classmethod
+    def from_packet_datetime(cls, packet_datetime: datetime) -> Self:
+        """Create a PlayerDateTime instance from a packet timestamp.
+
+        Args:
+            packet_datetime: The timestamp of the first packet from the player.
+
+        Returns:
+            New instance initialized with packet timestamp values.
+        """
+        return cls(
+            first_seen=packet_datetime,
+            last_rejoin=packet_datetime,
+            last_seen=packet_datetime,
+            total_session_time=None,
+            session_time=None,
+        )
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerGeoLite2:
+    """Store GeoLite2 lookup state and cached values for a player."""
+
+    is_initialized: bool = False
+
+    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
+    """Store IP-API lookup state and cached values for a player."""
+
+    is_initialized: bool = False
+
+    continent: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    continent_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    region: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    region_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    district: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    zip_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    lat: Literal['...', 'N/A'] | float | int = '...'
+    lon: Literal['...', 'N/A'] | float | int = '...'
+    time_zone: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    offset: Literal['...', 'N/A'] | int = '...'
+    currency: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    org: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    isp: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    as_name: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    mobile: Literal['...', 'N/A'] | bool = '...'
+    proxy: Literal['...', 'N/A'] | bool = '...'
+    hosting: Literal['...', 'N/A'] | bool = '...'
+
+
+class PlayerCountryFlag(NamedTuple):
+    """Hold the rendered country flag assets for a player."""
+
+    pixmap: QPixmap
+    icon: QIcon
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerIPLookup:
+    """Group multiple IP lookup providers for a player."""
+
+    geolite2: PlayerGeoLite2 = dataclasses.field(default_factory=PlayerGeoLite2)
+    ipapi: PlayerIPAPI = dataclasses.field(default_factory=PlayerIPAPI)
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerPing:  # pylint: disable=too-many-instance-attributes
+    """Store ping lookup state and cached RTT/packet stats for a player."""
+
+    is_initialized: bool = False
+
+    is_pinging: Literal['...'] | bool = '...'
+    ping_times: Literal['...'] | list[float] = '...'
+    packets_transmitted: Literal['...'] | int | None = '...'
+    packets_received: Literal['...'] | int | None = '...'
+    packet_duplicates: Literal['...'] | int | None = '...'
+    packet_loss: Literal['...'] | float | None = '...'
+    packet_errors: Literal['...'] | int | None = '...'
+    rtt_min: Literal['...'] | float | None = '...'
+    rtt_avg: Literal['...'] | float | None = '...'
+    rtt_max: Literal['...'] | float | None = '...'
+    rtt_mdev: Literal['...'] | float | None = '...'
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerUserIPDetection:
+    """Store user-IP detection metadata for a player."""
+
+    time: str
+    date_time: str
+
+    as_processed_task: bool = True
+    type: Literal['Static IP'] = 'Static IP'
+
+
+@dataclass(kw_only=True, slots=True)
+class PlayerModMenus:
+    """Store parsed mod menu usernames associated with a player."""
+
+    usernames: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+
+
+class Player:  # pylint: disable=too-many-instance-attributes
+    """Represent a remote player identified by IP and derived session metadata."""
+
+    def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
+        """Initialize a `Player` from the first observed packet.
+
+        Args:
+            ip: The player's IP address.
+            packet_datetime: Timestamp of the packet used to create the player.
+            packet_length: Length of the packet in bytes.
+            port: Source/destination port observed for the player.
+            sent_by_local_host: Whether the packet direction is from the local host.
+        """
+        self.ip = ip
+        self.left_event = Event()
+        self.rejoins = 0
+        self.usernames: list[str] = []
+
+        self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
+        self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
+        self.bandwidth = PlayerBandwidth.from_packet_direction(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
+        self.ports = PlayerPorts.from_packet_port(port)
+        self.reverse_dns = PlayerReverseDNS()
+        self.iplookup = PlayerIPLookup()
+        self.ping = PlayerPing()
+
+        self.country_flag: PlayerCountryFlag | None = None
+        self.userip: UserIP | None = None
+        self.userip_detection: PlayerUserIPDetection | None = None
+        self.mod_menus: PlayerModMenus | None = None
+
+    def mark_as_seen(self, *, port: int, packet_datetime: datetime, packet_length: int, sent_by_local_host: bool) -> None:
+        """Update per-player state from an observed packet."""
+        self.datetime.last_seen = packet_datetime
+        self.packets.increment(sent_by_local_host=sent_by_local_host)
+        self.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
+
+        if port != self.ports.last:
+            if port not in self.ports.all:
+                self.ports.all.append(port)
+
+            if port in self.ports.middle:
+                self.ports.middle.remove(port)
+
+            if self.ports.last not in self.ports.middle and self.ports.last != self.ports.first:
+                self.ports.middle.append(self.ports.last)
+
+            self.ports.last = port
+
+    def mark_as_rejoined(self, *, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
+        """Handle a player rejoin by resetting current-session counters."""
+        self.left_event.clear()
+        self.rejoins += 1
+
+        self.datetime.accumulate_session_to_total()
+        self.datetime.last_rejoin = packet_datetime
+        self.datetime.last_seen = packet_datetime
+        self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
+        self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
+
+        if Settings.GUI_RESET_PORTS_ON_REJOINS:
+            self.ports.reset(port)
+
+    def mark_as_left(self) -> None:
+        """Mark the player as disconnected and move it to the disconnected registry."""
+        self.left_event.set()
+
+        self.datetime.set_session_time()
+        self.packets.pps.reset()
+        self.packets.ppm.reset()
+        self.bandwidth.bps.reset()
+        self.bandwidth.bpm.reset()
+
+        PlayersRegistry.move_player_to_disconnected(self)
+
+        # Clear IP from warning sets so detections will trigger again on rejoin
+        MobileWarnings.remove_notified_ip(self.ip)
+        VPNWarnings.remove_notified_ip(self.ip)
+        HostingWarnings.remove_notified_ip(self.ip)
+
+        if self.userip_detection and self.userip_detection.as_processed_task:
+            self.userip_detection.as_processed_task = False
+            Thread(
+                target=process_userip_task,
+                name=f'ProcessUserIPTask-{self.ip}-disconnected',
+                args=(self, 'disconnected'), daemon=True,
+            ).start()
+
+
+class PlayersRegistry:
+    """Class to manage the registry of connected and disconnected players.
+
+    This class provides methods to add, retrieve, and iterate over players in the registry.
+    """
+    _DEFAULT_CONNECTED_SORT_ORDER: ClassVar = 'datetime.last_rejoin'
+    _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar = 'datetime.last_seen'
+
+    _registry_lock: ClassVar = RLock()
+    _connected_players_registry: ClassVar[dict[str, Player]] = {}
+    _disconnected_players_registry: ClassVar[dict[str, Player]] = {}
+
+    @classmethod
+    def _get_sorted_connected_players(cls) -> list[Player]:
+        return sorted(
+            cls._connected_players_registry.values(),
+            key=attrgetter(cls._DEFAULT_CONNECTED_SORT_ORDER),
+        )
+
+    @classmethod
+    def _get_sorted_disconnected_players(cls) -> list[Player]:
+        return sorted(
+            cls._disconnected_players_registry.values(),
+            key=attrgetter(cls._DEFAULT_DISCONNECTED_SORT_ORDER),
+            reverse=True,
+        )
+
+    @classmethod
+    def add_connected_player(cls, player: Player) -> Player:
+        """Add a connected player to the registry.
+
+        Args:
+            player: The player object to add.
+
+        Returns:
+            The player object that was added.
+
+        Raies:
+            PlayerAlreadyExistsError: If the player already exists in the registry.
+        """
+        with cls._registry_lock:
+            if player.ip in cls._connected_players_registry:
+                raise PlayerAlreadyExistsError(player.ip)
+
+            cls._connected_players_registry[player.ip] = player
+            return player
+
+    @classmethod
+    def move_player_to_connected(cls, player: Player) -> None:
+        """Move a player from the disconnected registry to the connected registry.
+
+        Args:
+            player: The player object to move.
+
+        Raises:
+            PlayerNotFoundError: If the player is not found in the disconnected registry.
+        """
+        with cls._registry_lock:
+            if player.ip not in cls._disconnected_players_registry:
+                raise PlayerNotFoundInRegistryError(player.ip)
+
+            cls._connected_players_registry[player.ip] = cls._disconnected_players_registry.pop(player.ip)
+
+    @classmethod
+    def move_player_to_disconnected(cls, player: Player) -> None:
+        """Move a player from the connected registry to the disconnected registry.
+
+        Args:
+            player: The player object to move.
+
+        Raises:
+            PlayerNotFoundError: If the player is not found in the connected registry.
+        """
+        with cls._registry_lock:
+            if player.ip not in cls._connected_players_registry:
+                raise PlayerNotFoundInRegistryError(player.ip)
+
+            cls._disconnected_players_registry[player.ip] = cls._connected_players_registry.pop(player.ip)
+
+    @classmethod
+    def get_player_by_ip(cls, ip: str, /) -> Player | None:
+        """Get a player by their IP address.
+
+        Note that `None` may also be returned if the user manually cleared the IP by
+        using the clear button.
+
+        Args:
+            ip: The IP address of the player.
+
+        Returns:
+            The player object if found, otherwise `None`.
+        """
+        with cls._registry_lock:
+            return cls._connected_players_registry.get(ip) or cls._disconnected_players_registry.get(ip)
+
+    @classmethod
+    def get_default_sorted_players(
+        cls,
+        *,
+        include_connected: bool = True,
+        include_disconnected: bool = True,
+    ) -> list[Player]:
+        """Return a snapshot of players sorted by default criteria.
+
+        Connected players are sorted by last rejoin (ascending),
+        disconnected players by last seen (descending).
+        """
+        with cls._registry_lock:
+            players: list[Player] = []
+            if include_connected:
+                players.extend(cls._get_sorted_connected_players())
+            if include_disconnected:
+                players.extend(cls._get_sorted_disconnected_players())
+            return players
+
+    @classmethod
+    def get_default_sorted_connected_and_disconnected_players(cls) -> tuple[list[Player], list[Player]]:
+        """Return connected and disconnected players, each sorted by their default criteria."""
+        with cls._registry_lock:
+            return (
+                cls._get_sorted_connected_players(),
+                cls._get_sorted_disconnected_players(),
+            )
+
+    @classmethod
+    def clear_connected_players(cls) -> None:
+        """Clear all connected players from the registry."""
+        with cls._registry_lock:
+            cls._connected_players_registry.clear()
+
+    @classmethod
+    def clear_disconnected_players(cls) -> None:
+        """Clear all disconnected players from the registry."""
+        with cls._registry_lock:
+            cls._disconnected_players_registry.clear()
+
+    @classmethod
+    def remove_connected_player(cls, ip: str) -> Player | None:
+        """Remove a connected player from the registry by IP address.
+
+        Args:
+            ip: The IP address of the player to remove.
+
+        Returns:
+            The removed player object if found, otherwise `None`.
+        """
+        with cls._registry_lock:
+            return cls._connected_players_registry.pop(ip, None)
+
+    @classmethod
+    def remove_disconnected_player(cls, ip: str) -> Player | None:
+        """Remove a disconnected player from the registry by IP address.
+
+        Args:
+            ip: The IP address of the player to remove.
+
+        Returns:
+            The removed player object if found, otherwise `None`.
+        """
+        with cls._registry_lock:
+            return cls._disconnected_players_registry.pop(ip, None)
+
+
+class SessionHost:
+    """Track the inferred session host and pending disconnections."""
+
+    player: ClassVar[Player | None] = None
+    search_player: ClassVar[bool] = False
+    players_pending_for_disconnection: ClassVar[list[Player]] = []
+
+    @classmethod
+    def clear_session_host_data(cls) -> None:
+        """Clear all session host data including pending disconnections."""
+        cls.players_pending_for_disconnection.clear()
+        cls.search_player = False
+        cls.player = None
+
+    @staticmethod
+    def get_host_player(session_connected: list[Player]) -> Player | None:
+        """Infer and cache the session host from currently connected players."""
+        connected_players: list[Player] = take(2, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
+
+        potential_session_host_player = None
+
+        if len(connected_players) == 1:
+            potential_session_host_player = connected_players[0]
+        elif len(connected_players) == 2:  # noqa: PLR2004
+            time_difference = connected_players[1].datetime.last_rejoin - connected_players[0].datetime.last_rejoin
+            if time_difference >= timedelta(milliseconds=200):
+                potential_session_host_player = connected_players[0]
+        else:
+            raise UnexpectedPlayerCountError(len(connected_players))
+
+        if (
+            not potential_session_host_player
+            # Skip players remaining to be disconnected from the previous session.
+            or potential_session_host_player in SessionHost.players_pending_for_disconnection
+            # The lower this value, the riskier it becomes, as it could potentially flag a player who ultimately isn't part of the newly discovered session.
+            # In such scenarios, a better approach might involve checking around 25-100 packets.
+            # However, increasing this value also increases the risk, as the host may have already disconnected.
+            or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_SESSION_HOST
+        ):
+            return None
+
+        SessionHost.player = potential_session_host_player
+        SessionHost.search_player = False
+        return potential_session_host_player
+
+
+@pydantic_dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
+class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-name,too-few-public-methods
+    """Class to represent settings with attributes for each setting key."""
+    ENABLED: bool
+    COLOR: QColor
+    LOG: bool
+    NOTIFICATIONS: bool
+    VOICE_NOTIFICATIONS: Literal['Male', 'Female', False]
+    PROTECTION: Literal['Suspend_Process', 'Exit_Process', 'Restart_Process', 'Shutdown_PC', 'Restart_PC', False]
+    PROTECTION_PROCESS_PATH: Path | None
+    PROTECTION_RESTART_PROCESS_PATH: Path | None
+    PROTECTION_SUSPEND_PROCESS_MODE: int | float | Literal['Auto', 'Manual']
+
+
+class UserIP(NamedTuple):
+    """Class representing information associated with a specific IP, including settings and usernames."""
+    ip: str
+    database_path: Path
+    settings: UserIPSettings
+    usernames: list[str]
+
+
+class UserIPDatabases:
+    """Load and cache enabled UserIP databases and resolve IP-to-user mappings."""
+
+    _update_userip_database_lock: ClassVar = Lock()
+
+    userip_databases: ClassVar[list[tuple[Path, UserIPSettings, dict[str, list[str]]]]] = []
+    ips_set: ClassVar[set[str]] = set()
+    notified_settings_corrupted: ClassVar[set[Path]] = set()
+    notified_ip_invalid: ClassVar[set[str]] = set()
+    notified_ip_conflicts: ClassVar[set[str]] = set()
+
+    @staticmethod
+    def _notify_ip_conflict(
+        *,
+        existing_userip: UserIP,
+        conflicting_database_path: Path,
+        conflicting_username: str,
+    ) -> None:
+        Thread(
+            target=msgbox.show,
+            name=f'UserIPConflictError-{existing_userip.ip}',
+            kwargs={
+                'title': TITLE,
+                'text': format_triple_quoted_text(format_userip_ip_conflict_message(
+                    existing_database_path=existing_userip.database_path,
+                    existing_usernames=existing_userip.usernames,
+                    ip=existing_userip.ip,
+                    conflicting_database_path=conflicting_database_path,
+                    conflicting_username=conflicting_username,
+                    userip_databases_dir=USERIP_DATABASES_DIR_PATH,
+                )),
+                'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
+            },
+            daemon=True,
+        ).start()
+
+    @classmethod
+    def populate(cls, database_entries: list[tuple[Path, UserIPSettings, dict[str, list[str]]]]) -> None:
+        """Replace `cls.userip_databases` with a new set of databases.
+
+        Args:
+            database_entries: A list of tuples containing database_path, settings, and user_ips.
+        """
+        with cls._update_userip_database_lock:
+            cls.userip_databases = [
+                (database_path, settings, user_ips)
+                for database_path, settings, user_ips in database_entries
+                if settings.ENABLED
+            ]
+
+    @classmethod
+    def build(cls) -> None:
+        """Rebuild the `ips_set` cache dynamically from the current databases.
+
+        This method refreshes the cached data without clearing entire structures and avoids duplicates.
+        """
+        with cls._update_userip_database_lock:
+            ips_set: set[str] = set()
+            ip_to_userip: dict[str, UserIP] = {}
+            unresolved_conflicts: set[str] = set()
+
+            for database_path, settings, user_ips in cls.userip_databases:
+                for username, ips in user_ips.items():
+                    for ip in ips:
+                        # If the IP is already assigned to a different database, it's a conflict.
+                        if ip in ip_to_userip and ip_to_userip[ip].database_path != database_path:
+                            if ip not in cls.notified_ip_conflicts:
+                                cls._notify_ip_conflict(
+                                    existing_userip=ip_to_userip[ip],
+                                    conflicting_database_path=database_path,
+                                    conflicting_username=username,
+                                )
+                                cls.notified_ip_conflicts.add(ip)
+                            unresolved_conflicts.add(ip)
+                            continue
+
+                        ips_set.add(ip)
+
+                        # If it's a new entry, add it
+                        if ip not in ip_to_userip:
+                            ip_to_userip[ip] = UserIP(
+                                ip=ip,
+                                database_path=database_path,
+                                settings=settings,
+                                usernames=[username],
+                            )
+                        elif username not in ip_to_userip[ip].usernames:  # Append username if it doesn't already exist
+                            ip_to_userip[ip].usernames.append(username)
+
+                        # Assign the UserIP object to the PlayerRegistry if applicable
+                        if matched_player := PlayersRegistry.get_player_by_ip(ip):
+                            matched_player.userip = ip_to_userip[ip]
+
+            # Remove resolved conflicts
+            resolved_conflicts = cls.notified_ip_conflicts - unresolved_conflicts
+            for resolved_ip in resolved_conflicts:
+                cls.notified_ip_conflicts.remove(resolved_ip)
+
+            cls.ips_set = ips_set
+
+    @classmethod
+    def get_userip_database_filepaths(cls) -> list[Path]:
+        """Return all enabled UserIP database file paths."""
+        with cls._update_userip_database_lock:
+            return [database_path for database_path, _, _ in cls.userip_databases]
+
+
+# Detection warning tracking systems
+class MobileWarnings:
+    """Track which IPs have triggered the mobile detection warning."""
+
+    lock: ClassVar = Lock()
+    notified_mobile_ips: ClassVar[set[str]] = set()
+
+    @classmethod
+    def add_notified_ip(cls, ip: str) -> bool:
+        """Add an IP to the notified mobile IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to add
+
+        Returns:
+            Whether the IP was newly added.
+        """
+        with cls.lock:
+            if ip in cls.notified_mobile_ips:
+                return False
+            cls.notified_mobile_ips.add(ip)
+            return True
+
+    @classmethod
+    def is_ip_notified(cls, ip: str) -> bool:
+        """Check if an IP has already been notified for mobile detection.
+
+        Args:
+            ip: The IP address to check
+
+        Returns:
+            Whether the IP has been notified.
+        """
+        with cls.lock:
+            return ip in cls.notified_mobile_ips
+
+    @classmethod
+    def remove_notified_ip(cls, ip: str) -> bool:
+        """Remove an IP from the notified mobile IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to remove
+
+        Returns:
+            Whether the IP was present and removed.
+        """
+        with cls.lock:
+            if ip in cls.notified_mobile_ips:
+                cls.notified_mobile_ips.remove(ip)
+                return True
+            return False
+
+    @classmethod
+    def clear_all_notified_ips(cls) -> None:
+        """Clear all notified mobile IPs in a thread-safe manner."""
+        with cls.lock:
+            cls.notified_mobile_ips.clear()
+
+    @classmethod
+    def get_notified_ips_count(cls) -> int:
+        """Get the count of notified mobile IPs in a thread-safe manner.
+
+        Returns:
+            The number of notified mobile IPs
+        """
+        with cls.lock:
+            return len(cls.notified_mobile_ips)
+
+    @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified mobile IPs set in a single thread-safe operation.
+
+        Args:
+            ips: Set of IP addresses to remove.
+
+        Returns:
+            The number of IPs that were actually removed.
+        """
+        with cls.lock:
+            initial_count = len(cls.notified_mobile_ips)
+            cls.notified_mobile_ips -= ips
+            return initial_count - len(cls.notified_mobile_ips)
+
+    @classmethod
+    def get_notified_ips_copy(cls) -> set[str]:
+        """Get a copy of the notified mobile IPs set in a thread-safe manner.
+
+        Returns:
+            A copy of the notified mobile IPs set
+        """
+        with cls.lock:
+            return cls.notified_mobile_ips.copy()
+
+
+class VPNWarnings:
+    """Track which IPs have triggered the VPN detection warning."""
+
+    lock: ClassVar = Lock()
+    notified_vpn_ips: ClassVar[set[str]] = set()
+
+    @classmethod
+    def add_notified_ip(cls, ip: str) -> bool:
+        """Add an IP to the notified VPN IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to add
+
+        Returns:
+            Whether the IP was newly added.
+        """
+        with cls.lock:
+            if ip in cls.notified_vpn_ips:
+                return False
+            cls.notified_vpn_ips.add(ip)
+            return True
+
+    @classmethod
+    def is_ip_notified(cls, ip: str) -> bool:
+        """Check if an IP has already been notified for VPN detection.
+
+        Args:
+            ip: The IP address to check
+
+        Returns:
+            Whether the IP has been notified.
+        """
+        with cls.lock:
+            return ip in cls.notified_vpn_ips
+
+    @classmethod
+    def remove_notified_ip(cls, ip: str) -> bool:
+        """Remove an IP from the notified VPN IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to remove
+
+        Returns:
+            Whether the IP was present and removed.
+        """
+        with cls.lock:
+            if ip in cls.notified_vpn_ips:
+                cls.notified_vpn_ips.remove(ip)
+                return True
+            return False
+
+    @classmethod
+    def clear_all_notified_ips(cls) -> None:
+        """Clear all notified VPN IPs in a thread-safe manner."""
+        with cls.lock:
+            cls.notified_vpn_ips.clear()
+
+    @classmethod
+    def get_notified_ips_count(cls) -> int:
+        """Get the count of notified VPN IPs in a thread-safe manner.
+
+        Returns:
+            The number of notified VPN IPs
+        """
+        with cls.lock:
+            return len(cls.notified_vpn_ips)
+
+    @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified VPN IPs set in a single thread-safe operation.
+
+        Args:
+            ips: Set of IP addresses to remove.
+
+        Returns:
+            The number of IPs that were actually removed.
+        """
+        with cls.lock:
+            initial_count = len(cls.notified_vpn_ips)
+            cls.notified_vpn_ips -= ips
+            return initial_count - len(cls.notified_vpn_ips)
+
+    @classmethod
+    def get_notified_ips_copy(cls) -> set[str]:
+        """Get a copy of the notified VPN IPs set in a thread-safe manner.
+
+        Returns:
+            A copy of the notified VPN IPs set
+        """
+        with cls.lock:
+            return cls.notified_vpn_ips.copy()
+
+
+class HostingWarnings:
+    """Track which IPs have triggered the hosting detection warning."""
+
+    lock: ClassVar = Lock()
+    notified_hosting_ips: ClassVar[set[str]] = set()
+
+    @classmethod
+    def add_notified_ip(cls, ip: str) -> bool:
+        """Add an IP to the notified hosting IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to add
+
+        Returns:
+            Whether the IP was newly added.
+        """
+        with cls.lock:
+            if ip in cls.notified_hosting_ips:
+                return False
+            cls.notified_hosting_ips.add(ip)
+            return True
+
+    @classmethod
+    def is_ip_notified(cls, ip: str) -> bool:
+        """Check if an IP has already been notified for hosting detection.
+
+        Args:
+            ip: The IP address to check
+
+        Returns:
+            Whether the IP has been notified.
+        """
+        with cls.lock:
+            return ip in cls.notified_hosting_ips
+
+    @classmethod
+    def remove_notified_ip(cls, ip: str) -> bool:
+        """Remove an IP from the notified hosting IPs set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to remove
+
+        Returns:
+            Whether the IP was present and removed.
+        """
+        with cls.lock:
+            if ip in cls.notified_hosting_ips:
+                cls.notified_hosting_ips.remove(ip)
+                return True
+            return False
+
+    @classmethod
+    def clear_all_notified_ips(cls) -> None:
+        """Clear all notified hosting IPs in a thread-safe manner."""
+        with cls.lock:
+            cls.notified_hosting_ips.clear()
+
+    @classmethod
+    def get_notified_ips_count(cls) -> int:
+        """Get the count of notified hosting IPs in a thread-safe manner.
+
+        Returns:
+            The number of notified hosting IPs
+        """
+        with cls.lock:
+            return len(cls.notified_hosting_ips)
+
+    @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified hosting IPs set in a single thread-safe operation.
+
+        Args:
+            ips: Set of IP addresses to remove.
+
+        Returns:
+            The number of IPs that were actually removed.
+        """
+        with cls.lock:
+            initial_count = len(cls.notified_hosting_ips)
+            cls.notified_hosting_ips -= ips
+            return initial_count - len(cls.notified_hosting_ips)
+
+    @classmethod
+    def get_notified_ips_copy(cls) -> set[str]:
+        """Get a copy of the notified hosting IPs set in a thread-safe manner.
+
+        Returns:
+            A copy of the notified hosting IPs set
+        """
+        with cls.lock:
+            return cls.notified_hosting_ips.copy()
+
+
+@dataclass(kw_only=True, slots=True)
+class GUIDetectionSettings:
+    """Runtime GUI detection settings that persist during application execution but are not saved to settings file."""
+    mobile_detection_enabled: ClassVar[bool] = False
+    vpn_detection_enabled: ClassVar[bool] = False
+    hosting_detection_enabled: ClassVar[bool] = False
+    player_join_notifications_enabled: ClassVar[bool] = False
+    player_rejoin_notifications_enabled: ClassVar[bool] = False
+    player_leave_notifications_enabled: ClassVar[bool] = False
+
+
+def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
+    """Populate the AllInterfaces collection with network interface details."""
+    adapters = list(get_adapters_info())
+
+    if not adapters:
+        return
+
+    for adapter in adapters:
+        interface = AllInterfaces.add_interface(Interface(
+            index=adapter.interface_index,
+            ip_enabled=adapter.ip_enabled,
+            state=adapter.operational_status,
+            media_connect_state=adapter.media_connect_state,
+            name=adapter.friendly_name,
+            packets_sent=adapter.packets_sent,
+            packets_recv=adapter.packets_recv,
+            transmit_link_speed=adapter.transmit_link_speed,
+            receive_link_speed=adapter.receive_link_speed,
+            description=adapter.description,
+            ip_addresses=adapter.ipv4_addresses,
+            mac_address=adapter.mac_address,
+            device_name=None,
+            vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address) if adapter.mac_address else None,
+        ))
+
+        for neighbor_ip, neighbor_mac in adapter.neighbors:
+            if (
+                not neighbor_ip or not neighbor_mac
+                or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
+                or not is_valid_non_special_ipv4(neighbor_ip)
+            ):
+                continue
+
+            vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
+            interface.add_arp_entry(ARPEntry(
+                ip_address=neighbor_ip,
+                mac_address=neighbor_mac,
+                vendor_name=vendor_name,
+            ))
+
+
+def get_filtered_tshark_interfaces() -> list[tuple[int, str, str]]:
+    """Retrieve a list of available TShark interfaces, excluding a list of exclusions.
+
+    Returns:
+        A list of interfaces as `(index, device_name, name)` tuples.
+    """
+    def process_stdout(stdout_line: str) -> tuple[int, str, str]:
+        parts = stdout_line.strip().split(' ', maxsplit=INTERFACE_PARTS_LENGTH - 1)
+
+        if len(parts) != INTERFACE_PARTS_LENGTH:
+            raise TSharkOutputParsingError(INTERFACE_PARTS_LENGTH, len(parts), stdout_line)
+
+        index = int(parts[0].removesuffix('.'))
+        device_name = parts[1]
+        name = parts[2].removeprefix('(').removesuffix(')')
+
+        return index, device_name, name
+
+    tshark_output = subprocess.check_output([TSHARK_PATH, '-D'], encoding='utf-8', text=True)
+
+    return [
+        (index, device_name, name)
+        for index, device_name, name in map(process_stdout, tshark_output.splitlines())
+        if name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES
+    ]
+
+
+def select_interface(
+    interfaces: list[Interface],
+    screen_width: int,
+    screen_height: int,
+) -> SelectedInterface | None:
+    """Select the best matching interface based on current settings.
+
+    If auto-selection is not possible or results in ambiguity,
+    prompt the user with the interface selection dialog.
+
+    Returns:
+        A SelectedInterface snapshot, or None if cancelled.
+        Note: ip_address can be None or 'N/A' if interface has no IP addresses.
+    """
+
+    def _can_auto_select_interface() -> bool:
+        """Whether the application has enough configuration to attempt auto-selecting an interface."""
+        if not Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT:
+            return False
+
+        return any(
+            setting is not None
+            for setting in (
+                Settings.CAPTURE_INTERFACE_NAME,
+                Settings.CAPTURE_MAC_ADDRESS,
+                Settings.CAPTURE_IP_ADDRESS,
+            )
+        )
+
+    def _build_selected_interface(interface: Interface, ip_address: str | None, *, is_arp: bool) -> SelectedInterface:
+        mac_address = (
+            next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+            if is_arp
+            else interface.mac_address
+        )
+        vendor_name = (
+            next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+            if is_arp
+            else interface.vendor_name
+        )
+
+        return SelectedInterface(
+            name=interface.name,
+            description=interface.description,
+            device_name=interface.device_name,
+            vendor_name=vendor_name,
+            ip_address=ip_address,
+            mac_address=mac_address,
+            is_arp=is_arp,
+        )
+
+    def _auto_select_best_interface() -> SelectedInterface | None:
+        """Return the best matching interface, or `None` if ambiguous or no match."""
+        if not _can_auto_select_interface():
+            return None
+
+        def calculate_score(interface: Interface, ip_address: str, *, is_arp: bool) -> int:
+            """Calculate the score of an interface based on matching criteria.
+
+            Args:
+                interface: The interface to calculate the score for
+                ip_address: The IP address for this row
+                is_arp: Whether this is an ARP entry
+            """
+            score = 0
+            if Settings.CAPTURE_INTERFACE_NAME is not None and interface.name == Settings.CAPTURE_INTERFACE_NAME:
+                score += 4
+
+            # Get the MAC address for this specific row
+            mac_address = (
+                next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
+                if is_arp
+                else interface.mac_address
+            )
+
+            if Settings.CAPTURE_MAC_ADDRESS is not None and mac_address == Settings.CAPTURE_MAC_ADDRESS:
+                score += 2
+            if Settings.CAPTURE_IP_ADDRESS is not None and ip_address == Settings.CAPTURE_IP_ADDRESS:
+                score += 1
+            return score
+
+        best_score = 0
+        best_match: tuple[Interface, str, bool] | None = None
+        ambiguous = False
+
+        # Check all possible rows (interface IPs + ARP entries)
+        for interface in interfaces:
+            # Check regular IP addresses
+            if interface.ip_addresses:
+                for ip_address in interface.ip_addresses:
+                    score = calculate_score(interface, ip_address, is_arp=False)
+                    if score > best_score:
+                        best_score = score
+                        best_match = (interface, ip_address, False)
+                        ambiguous = False
+                    elif score == best_score and score > 0:
+                        ambiguous = True
+            else:
+                # No IP addresses case
+                score = calculate_score(interface, 'N/A', is_arp=False)
+                if score > best_score:
+                    best_score = score
+                    best_match = (interface, 'N/A', False)
+                    ambiguous = False
+                elif score == best_score and score > 0:
+                    ambiguous = True
+
+            # Check ARP entries
+            for arp_entry in interface.arp_entries:
+                score = calculate_score(interface, arp_entry.ip_address, is_arp=True)
+                if score > best_score:
+                    best_score = score
+                    best_match = (interface, arp_entry.ip_address, True)
+                    ambiguous = False
+                elif score == best_score and score > 0:
+                    ambiguous = True
+
+        if best_match is None or ambiguous:
+            return None
+
+        interface, ip_address, is_arp = best_match
+        return _build_selected_interface(interface, ip_address, is_arp=is_arp)
+
+    if auto_selected := _auto_select_best_interface():
+        return auto_selected
+
+    # If no suitable interface was found, prompt the user to select an interface
+    (
+        selected_interface,
+        arp_spoofing_enabled,
+        hide_inactive_enabled,
+        hide_arp_enabled,
+    ) = show_interface_selection_dialog(
+        screen_width,
+        screen_height,
+        interfaces,
+        hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
+        hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
+        arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
+        saved_interface_name=Settings.CAPTURE_INTERFACE_NAME,
+        saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
+        saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
+    )
+
+    if selected_interface is None:
+        return None
+
+    need_rewrite_settings = False
+
+    if arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING:
+        Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
+        need_rewrite_settings = True
+
+    if hide_inactive_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE:
+        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
+        need_rewrite_settings = True
+
+    if hide_arp_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_ARP:
+        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
+        need_rewrite_settings = True
+
+    if need_rewrite_settings:
+        Settings.rewrite_settings_file()
+
+    return selected_interface
+
+
+gui_closed__event = Event()
+_userip_logging_file_write_lock = Lock()
+
+
+def wait_for_player_data_ready(
+    player: Player,
+    *,
+    data_fields: tuple[Literal['userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'], ...],
+    timeout: float,
+) -> bool:
+    """Wait for specific player data fields to be ready for display.
+
+    Args:
+        player: The player object to wait for
+        data_fields: Tuple of data field paths to wait for
+        timeout: Maximum time to wait for data to be ready
+
+    Returns:
+        Whether all specified data is ready before the timeout expires.
+    """
+    def check_userip_usernames(player: Player) -> bool:
+        """Check if player has usernames in userip data."""
+        return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
+
+    def check_reverse_dns_hostname(player: Player) -> bool:
+        """Check if player reverse DNS is initialized."""
+        return player.reverse_dns.is_initialized
+
+    def check_iplookup_geolite2(player: Player) -> bool:
+        """Check if player GeoLite2 data is initialized."""
+        return player.iplookup.geolite2.is_initialized
+
+    def check_iplookup_ipapi(player: Player) -> bool:
+        """Check if player IP API data is initialized."""
+        return player.iplookup.ipapi.is_initialized
+
+    field_checkers = {
+        'userip.usernames': check_userip_usernames,
+        'reverse_dns.hostname': check_reverse_dns_hostname,
+        'iplookup.geolite2': check_iplookup_geolite2,
+        'iplookup.ipapi': check_iplookup_ipapi,
+    }
+
+    while not player.left_event.is_set() and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen) < timedelta(seconds=timeout):
+        if all(field_checkers[field](player) for field in data_fields if field in field_checkers):
+            return True
+
+        gui_closed__event.wait(0.1)
+
+    return False
+
+
+class NotificationConfig(TypedDict):
+    """Type definition for notification configuration."""
+    emoji: str
+    title: str
+    description: str
+    icon: msgbox.Style
+    thread_name: str
+
+
+def show_detection_warning_popup(
+    player: Player,
+    notification_type: Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_rejoined', 'player_left'],
+) -> None:
+    """Show a notification popup for detections or player connection events.
+
+    Args:
+        player: The player object with detection data
+        notification_type: Type of notification - `mobile`, `vpn`, `hosting`, `player_joined`, `player_rejoined`, or `player_left`
+    """
+    def show_popup_thread() -> None:
+        """Thread function to show popup after ensuring data is ready."""
+        notification_configs: dict[Literal['mobile', 'vpn', 'hosting', 'player_joined', 'player_rejoined', 'player_left'], NotificationConfig] = {
+            'mobile': {
+                'emoji': '📱',
+                'title': 'MOBILE CONNECTION DETECTED!',
+                'description': 'A player using a mobile (cellular) connection has been detected in your session!',
+                'icon': msgbox.Style.MB_ICONINFORMATION,
+                'thread_name': 'MobileWarning',
+            },
+            'vpn': {
+                'emoji': '🚨',
+                'title': 'VPN CONNECTION DETECTED!',
+                'description': 'A player using a VPN/Proxy/Tor connection has been detected in your session!',
+                'icon': msgbox.Style.MB_ICONEXCLAMATION,
+                'thread_name': 'VPNWarning',
+            },
+            'hosting': {
+                'emoji': '🏢',
+                'title': 'HOSTING CONNECTION DETECTED!',
+                'description': 'A player connecting from a hosting provider or data center has been detected in your session!',
+                'icon': msgbox.Style.MB_ICONWARNING,
+                'thread_name': 'HostingWarning',
+            },
+            'player_joined': {
+                'emoji': '🟢',
+                'title': 'PLAYER JOINED SESSION!',
+                'description': 'A new player has joined your session!',
+                'icon': msgbox.Style.MB_ICONINFORMATION,
+                'thread_name': 'PlayerJoined',
+            },
+            'player_rejoined': {
+                'emoji': '🔄',
+                'title': 'PLAYER REJOINED SESSION!',
+                'description': 'A player has rejoined your session after disconnecting!',
+                'icon': msgbox.Style.MB_ICONINFORMATION,
+                'thread_name': 'PlayerRejoined',
+            },
+            'player_left': {
+                'emoji': '🔴',
+                'title': 'PLAYER LEFT SESSION!',
+                'description': 'A player has left your session!',
+                'icon': msgbox.Style.MB_ICONINFORMATION,
+                'thread_name': 'PlayerLeft',
+            },
+        }
+
+        config = notification_configs[notification_type]
+        data_ready = wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=3.0)
+        time_label = 'Detection Time' if notification_type in {'mobile', 'vpn', 'hosting'} else 'Event Time'
+        data_status_line = '' if data_ready else '⚠️ Some data may still be loading and missing from this notification\n\n'
+
+        msgbox.show(
+            title=f"{TITLE} - {config['title']}",
+            text=format_triple_quoted_text(f"""
+                {config['emoji']} {config['title']} {config['emoji']}
+
+                {config['description']}
+
+                {data_status_line}############ PLAYER DETAILS ############
+                Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
+                {time_label}: {datetime.now(tz=LOCAL_TZ).strftime("%H:%M.%S")}
+
+                ############ CONNECTION DETAILS ############
+                IP Address: {player.ip}
+                Hostname: {player.reverse_dns.hostname}
+                Last Port: {player.ports.last}
+                Middle Ports: {", ".join(map(str, reversed(player.ports.middle)))}
+                First Port: {player.ports.first}
+                Total Packets Exchanged: {player.packets.total_exchanged}
+                Current Session Packets: {player.packets.exchanged}
+                Rejoins: {player.rejoins}
+
+                ############ LOCATION DETAILS ############
+                Continent: {player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})
+                Country: {player.iplookup.ipapi.country} ({player.iplookup.ipapi.country_code})
+                Region: {player.iplookup.ipapi.region} ({player.iplookup.ipapi.region_code})
+
+                ############ NETWORK DETAILS ############
+                ISP: {player.iplookup.ipapi.isp}
+                Organization: {player.iplookup.ipapi.org}
+                ASN: {player.iplookup.ipapi.asn} ({player.iplookup.ipapi.as_name})
+
+                ############ DETECTION FLAGS ############
+                Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
+                Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
+                Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
+            """),
+            style=msgbox.Style.MB_OK | config['icon'] | msgbox.Style.MB_SYSTEMMODAL,
+        )
+
+    # Get thread name for the notification type
+    notification_configs_for_thread_name = {
+        'mobile': 'MobileWarning',
+        'vpn': 'VPNWarning',
+        'hosting': 'HostingWarning',
+        'player_joined': 'PlayerJoined',
+        'player_rejoined': 'PlayerRejoined',
+        'player_left': 'PlayerLeft',
+    }
+
+    Thread(
+        target=show_popup_thread,
+        name=f'{notification_configs_for_thread_name[notification_type]}-{player.ip}',
+        daemon=True,
+    ).start()
+
+
+def process_userip_task(
+    player: Player,
+    connection_type: Literal['connected', 'disconnected'],
+) -> None:
+    """Process a queued UserIP task for a player on a background thread."""
+    with ThreadsExceptionHandler():
+        if player.userip_detection is None:
+            raise TypeError(format_type_error(player.userip_detection, PlayerUserIPDetection))
+
+        timeout = 10
+        start_time = time.monotonic()
+
+        while not isinstance(player.userip, UserIP):
+            if PlayersRegistry.get_player_by_ip(player.ip) is None:
+                return
+
+            if time.monotonic() - start_time > timeout:
+                raise TypeError(format_type_error(player.userip, UserIP))
+
+            time.sleep(0.01)  # Sleep to prevent high CPU usage
+
+        def suspend_process_for_duration_or_mode(process_pid: int, duration_or_mode: float | Literal['Auto', 'Manual']) -> None:
+            """Suspends the specified process for a given duration or until a specified condition is met.
+
+            Args:
+                process_pid: The process ID of the process to be suspended.
+                duration_or_mode: Specifies how long the process should be suspended.
+                    - If a float, it defines the duration (in seconds) to suspend the process.
+                    - If "Manual", the process remains suspended until manually resumed.
+                    - If "Auto", the process resumes when the player is flagged as "disconnected".
+            """
+            process = psutil.Process(process_pid)
+            process.suspend()
+
+            if isinstance(duration_or_mode, (int, float)):
+                gui_closed__event.wait(duration_or_mode)
+                process.resume()
+                return
+
+            if duration_or_mode == 'Manual':
+                return
+            if duration_or_mode == 'Auto':
+                while not player.left_event.is_set():
+                    gui_closed__event.wait(0.1)
+                process.resume()
+                return
+
+        # We wants to run this as fast as possible so it's on top of the function.
+        if connection_type == 'connected' and player.userip.settings.PROTECTION:
+            if player.userip.settings.PROTECTION == 'Suspend_Process' and isinstance(player.userip.settings.PROTECTION_PROCESS_PATH, Path):
+                if process_pid := get_pid_by_path(player.userip.settings.PROTECTION_PROCESS_PATH):
+                    Thread(
+                        target=suspend_process_for_duration_or_mode,
+                        name=f'UserIPSuspendProcess-{player.ip}',
+                        args=(process_pid, player.userip.settings.PROTECTION_SUSPEND_PROCESS_MODE),
+                        daemon=True,
+                    ).start()
+
+            elif player.userip.settings.PROTECTION in {'Exit_Process', 'Restart_Process'} and isinstance(player.userip.settings.PROTECTION_PROCESS_PATH, Path):
+                if process_pid := get_pid_by_path(player.userip.settings.PROTECTION_PROCESS_PATH):
+                    terminate_process_tree(process_pid)
+
+                    if player.userip.settings.PROTECTION == 'Restart_Process' and isinstance(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH, Path):
+                        subprocess.Popen([str(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH.absolute())])  # pylint: disable=consider-using-with
+
+            elif player.userip.settings.PROTECTION in {'Shutdown_PC', 'Restart_PC'}:
+                validate_file(SHUTDOWN_EXE)
+                subprocess.run(
+                    [str(SHUTDOWN_EXE), '/s' if player.userip.settings.PROTECTION == 'Shutdown_PC' else '/r'],
+                    check=False,
+                )
+
+        if player.userip.settings.VOICE_NOTIFICATIONS:
+            tts_voice_name = 'Liam' if player.userip.settings.VOICE_NOTIFICATIONS == 'Male' else 'Jane'
+            tts_candidate_path = TTS_DIR_PATH / f'{tts_voice_name} ({connection_type}).wav'
+            winsound.PlaySound(str(tts_candidate_path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+
+        if connection_type == 'connected':
+            wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
+
+            relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+
+            if player.userip.settings.LOG:
+                with _userip_logging_file_write_lock:
+                    write_lines_to_file(USERIP_LOGGING_PATH, 'a', [(
+                        f'User{pluralize(len(player.userip.usernames))}: {", ".join(player.userip.usernames)} | '
+                        f'IP:{player.ip} | Ports:{", ".join(map(str, reversed(player.ports.all)))} | '
+                        f'Time:{player.userip_detection.date_time} | Country:{player.iplookup.geolite2.country} | '
+                        f'Detection Type: {player.userip_detection.type} | '
+                        f'Database:{relative_database_path}'
+                    )])
+
+            if player.userip.settings.NOTIFICATIONS:
+                wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
+
+                Thread(
+                    target=msgbox.show,
+                    name=f'UserIPMsgBox-{player.ip}',
+                    kwargs={
+                        'title': TITLE,
+                        'text': format_triple_quoted_text(f"""
+                            #### UserIP detected at {player.userip_detection.time} ####
+                            User{pluralize(len(player.userip.usernames))}: {', '.join(player.userip.usernames)}
+                            IP Address: {player.ip}
+                            Hostname: {player.reverse_dns.hostname}
+                            Port{pluralize(len(player.ports.all))}: {', '.join(map(str, reversed(player.ports.all)))}
+                            Country Code: {player.iplookup.geolite2.country_code}
+                            Detection Type: {player.userip_detection.type}
+                            Database: {relative_database_path}
+                            ############# IP Lookup ##############
+                            Continent: {player.iplookup.ipapi.continent}
+                            Country: {player.iplookup.geolite2.country}
+                            Region: {player.iplookup.ipapi.region}
+                            City: {player.iplookup.geolite2.city}
+                            Organization: {player.iplookup.ipapi.org}
+                            ISP: {player.iplookup.ipapi.isp}
+                            ASN / ISP: {player.iplookup.geolite2.asn}
+                            ASN: {player.iplookup.ipapi.as_name}
+                            Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
+                            Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
+                            Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
+                        """),
+                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
+                    },
+                    daemon=True,
+                ).start()
+
+
+def iplookup_core() -> None:
+    """Populate IP lookup data in the background using batch requests."""
+    with ThreadsExceptionHandler():
+        def throttle_until(requests_remaining: int, throttle_time: int) -> None:
+            # Calculate sleep time only if there are remaining requests
+            sleep_time = throttle_time / requests_remaining if requests_remaining > 0 else throttle_time
+
+            # We sleep x seconds (just in case) to avoid triggering a "429" status code.
+            gui_closed__event.wait(sleep_time)
+
+        # Following values taken from https://ip-api.com/docs/api:batch the 03/04/2024.
+        # max_requests = 15
+        # max_throttle_time = 60
+        max_batch_ip_api_ips = 100
+        fields_to_lookup = (
+            'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
+            'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+        )
+
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
+
+            ips_to_lookup: list[str] = []
+
+            for player in PlayersRegistry.get_default_sorted_players():
+                if player.iplookup.ipapi.is_initialized:
+                    continue
+
+                ips_to_lookup.append(player.ip)
+
+                if len(ips_to_lookup) == max_batch_ip_api_ips:
+                    break
+
+            if not ips_to_lookup:
+                gui_closed__event.wait(1)
+                continue
+
+            try:
+                response = session.post(
+                    'http://ip-api.com/batch',
+                    params={'fields': fields_to_lookup},
+                    headers={'Content-Type': 'application/json'},
+                    json=ips_to_lookup,
+                    timeout=3,
+                )
+                response.raise_for_status()
+            except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+                gui_closed__event.wait(1)
+                continue
+            except requests.exceptions.HTTPError as e:
+                # Handle rate limiting
+                if isinstance(e.response, requests.Response) and e.response.status_code == requests.codes.too_many_requests:  # pylint: disable=no-member
+                    throttle_until(int(e.response.headers['X-Rl']), int(e.response.headers['X-Ttl']))
+                    continue
+                raise  # Re-raise other HTTP errors
+
+            iplookup_results_data = response.json()
+            iplookup_results = [IpApiResponse.model_validate(item) for item in iplookup_results_data]
+
+            for iplookup in iplookup_results:
+                matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
+                if matched_player is None:
+                    continue
+
+                matched_player.iplookup.ipapi.continent = iplookup.continent
+                matched_player.iplookup.ipapi.continent_code = iplookup.continent_code
+                matched_player.iplookup.ipapi.country = iplookup.country
+                matched_player.iplookup.ipapi.country_code = iplookup.country_code
+                matched_player.iplookup.ipapi.region = iplookup.region
+                matched_player.iplookup.ipapi.region_code = iplookup.region_code
+                matched_player.iplookup.ipapi.city = iplookup.city
+                matched_player.iplookup.ipapi.district = iplookup.district
+                matched_player.iplookup.ipapi.zip_code = iplookup.zip_code
+                matched_player.iplookup.ipapi.lat = iplookup.lat
+                matched_player.iplookup.ipapi.lon = iplookup.lon
+                matched_player.iplookup.ipapi.time_zone = iplookup.time_zone
+                matched_player.iplookup.ipapi.offset = iplookup.offset
+                matched_player.iplookup.ipapi.currency = iplookup.currency
+                matched_player.iplookup.ipapi.isp = iplookup.isp
+                matched_player.iplookup.ipapi.org = iplookup.org
+                matched_player.iplookup.ipapi.asn = iplookup.asn
+                matched_player.iplookup.ipapi.as_name = iplookup.as_name
+
+                matched_player.iplookup.ipapi.mobile = iplookup.mobile
+                matched_player.iplookup.ipapi.proxy = iplookup.proxy
+                matched_player.iplookup.ipapi.hosting = iplookup.hosting
+
+                matched_player.iplookup.ipapi.is_initialized = True
+
+            throttle_until(int(response.headers['X-Rl']), int(response.headers['X-Ttl']))
+
+
+def hostname_core() -> None:
+    """Resolve reverse DNS hostnames for players in the background."""
+    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
+        futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
+        pending_ips: set[str] = set()   # Tracks IPs currently being processed
+
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
+
+            for player in PlayersRegistry.get_default_sorted_players():
+                if player.reverse_dns.is_initialized or player.ip in pending_ips:
+                    continue
+
+                future = executor.submit(reverse_dns_lookup, player.ip)
+                futures[future] = player.ip
+                pending_ips.add(player.ip)
+
+            if not futures:
+                gui_closed__event.wait(1)
+                continue
+
+            for future, ip in list(futures.items()):
+                if not future.done():
+                    continue
+
+                futures.pop(future)
+                pending_ips.remove(ip)
+
+                hostname = future.result()
+
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    continue
+
+                matched_player.reverse_dns.hostname = hostname
+                matched_player.reverse_dns.is_initialized = True
+
+            gui_closed__event.wait(0.1)
+
+
+def pinger_core() -> None:
+    """Fetch and parse ping data for players in the background."""
+    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
+        futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
+        pending_ips: set[str] = set()   # Tracks IPs currently being processed
+
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
+
+            for player in PlayersRegistry.get_default_sorted_players():
+                if player.ping.is_initialized or player.ip in pending_ips:
+                    continue
+
+                future = executor.submit(fetch_and_parse_ping, player.ip)
+                futures[future] = player.ip
+                pending_ips.add(player.ip)
+
+            if not futures:
+                gui_closed__event.wait(1)
+                continue
+
+            for future, ip in list(futures.items()):
+                if not future.done():
+                    continue
+
+                futures.pop(future)
+                pending_ips.remove(ip)
+
+                try:
+                    ping_result = future.result()
+                except AllEndpointsExhaustedError:
+                    continue
+
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    continue
+
+                matched_player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
+                matched_player.ping.ping_times = ping_result.ping_times
+                matched_player.ping.packets_transmitted = ping_result.packets_transmitted
+                matched_player.ping.packets_received = ping_result.packets_received
+                matched_player.ping.packet_duplicates = ping_result.packet_duplicates
+                matched_player.ping.packet_loss = ping_result.packet_loss
+                matched_player.ping.packet_errors = ping_result.packet_errors
+                matched_player.ping.rtt_min = ping_result.rtt_min
+                matched_player.ping.rtt_avg = ping_result.rtt_avg
+                matched_player.ping.rtt_max = ping_result.rtt_max
+                matched_player.ping.rtt_mdev = ping_result.rtt_mdev
+                matched_player.ping.is_initialized = True
+
+            gui_closed__event.wait(0.1)
+
+
+@dataclass(kw_only=True, slots=True)
+class TsharkStats:
+    """Statistics and data tracking for TShark packet capture performance."""
+    packets_latencies: ClassVar[list[tuple[datetime, timedelta]]] = []
+    restarted_times: ClassVar[int] = 0
+    global_bandwidth: ClassVar[int] = 0
+    global_download: ClassVar[int] = 0
+    global_upload: ClassVar[int] = 0
+    global_bps_rate: ClassVar[int] = 0
+    global_pps_rate: ClassVar[int] = 0
+
+
+class CellColor(NamedTuple):
+    """Hold foreground and background colors for a table cell."""
+    foreground: QColor
+    background: QColor
+
+
+class SessionTableSnapshot(NamedTuple):
+    """Immutable snapshot of connected/disconnected table rows + cell colors."""
+    connected_num: int
+    connected_rows: tuple[tuple[str, ...], ...]
+    connected_colors: tuple[tuple[CellColor, ...], ...]
+    disconnected_num: int
+    disconnected_rows: tuple[tuple[str, ...], ...]
+    disconnected_colors: tuple[tuple[CellColor, ...], ...]
+
+
+class GUIUpdatePayload(NamedTuple):
+    """Payload containing all data needed for GUI updates."""
+    snapshot_version: int
+    header_text: str
+    status_capture_text: str
+    status_config_text: str
+    status_issues_text: str
+    status_performance_text: str
+    connected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
+    disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
+    connected_num: int
+    disconnected_num: int
+
+
+@dataclass(frozen=True, slots=True)
+class GUIRenderingSnapshot:  # pylint: disable=too-many-instance-attributes
+    """A single published GUI rendering snapshot.
+
+    Built off-thread, then published by replacement (no shared mutation).
+    """
+
+    # Column config
+    connected_hidden_columns: set[str]
+    disconnected_hidden_columns: set[str]
+    connected_column_names: list[str]
+    disconnected_column_names: list[str]
+
+    # Header + status
+    header_text: str
+    status_capture_text: str
+    status_config_text: str
+    status_issues_text: str
+    status_performance_text: str
+
+    # Connected table
+    connected_num_cols: int
+    connected_num_rows: int
+    connected_rows: tuple[tuple[str, ...], ...]
+    connected_colors: tuple[tuple[CellColor, ...], ...]
+
+    # Disconnected table
+    disconnected_num_cols: int
+    disconnected_num_rows: int
+    disconnected_rows: tuple[tuple[str, ...], ...]
+    disconnected_colors: tuple[tuple[CellColor, ...], ...]
+
+
+class GUIRenderingState:
+    """Atomically published rendering state using a version counter and Condition for multi-consumer waits."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _condition: ClassVar[Condition] = Condition(_lock)
+    _current: ClassVar[GUIRenderingSnapshot | None] = None
+    _version: ClassVar[int] = 0  # Incremented each time a new snapshot is published
+
+    @classmethod
+    def publish_rendering_snapshot(cls, snapshot: GUIRenderingSnapshot) -> None:
+        """Publish a fully-built snapshot by replacement."""
+        with cls._condition:
+            if cls._current is snapshot:  # Early exit if nothing changed
+                return
+
+            cls._current = snapshot
+            cls._version += 1
+            cls._condition.notify_all()  # wake all consumers only if snapshot changed
+
+    @classmethod
+    def wait_rendering_snapshot(
+        cls,
+        *,
+        timeout: float,
+        last_seen_version: int = 0,
+    ) -> tuple[GUIRenderingSnapshot | None, int]:
+        """Wait for a new snapshot if it's newer than last_seen_version.
+
+        Returns:
+            Tuple of (snapshot, version). Snapshot is None if timeout occurs.
+        """
+        with cls._condition:
+            if not cls._condition.wait_for(
+                lambda: cls._version != last_seen_version,
+                timeout=timeout,
+            ):
+                return None, last_seen_version
+
+            return cls._current, cls._version
+
+    @classmethod
+    def get_version(cls) -> int:
+        """Return the current snapshot version in a thread-safe manner."""
+        with cls._condition:
+            return cls._version
+
+
+@dataclass(frozen=True, slots=True)
+class GeoIP2Readers:
+    """Container for GeoIP2 database readers."""
+    enabled: bool
+    asn_reader: geoip2.database.Reader | None
+    city_reader: geoip2.database.Reader | None
+    country_reader: geoip2.database.Reader | None
+
+
+def rendering_core(
+    capture: PacketCapture,
+    geoip2_readers: GeoIP2Readers,
+    *,
+    vpn_mode_enabled: bool,
+) -> None:
+    """Compile GUI payloads from runtime state and emit updates."""
+    with ThreadsExceptionHandler():
+        def parse_userip_ini_file(ini_path: Path, unresolved_ip_invalid: set[str]) -> tuple[UserIPSettings | None, dict[str, list[str]] | None]:
+            def process_ini_line_output(line: str) -> str:
+                return line.strip()
+
+            validate_file(ini_path)
+
+            settings: dict[str, Any] = {}
+            userip: dict[str, list[str]] = {}
+            current_section = None
+            matched_settings: list[str] = []
+            ini_data = ini_path.read_text('utf-8')
+            corrected_ini_data_lines: list[str] = []
+
+            for line in map(process_ini_line_output, ini_data.splitlines(keepends=True)):
+                corrected_ini_data_lines.append(line)
+
+                if line.startswith('[') and line.endswith(']'):
+                    # we basically adding a newline if the previous line is not a newline for eyes visiblitly or idk how we say that
+                    if (
+                        corrected_ini_data_lines
+                        and len(corrected_ini_data_lines) > 1
+                        and corrected_ini_data_lines[-2]
+                    ):
+                        corrected_ini_data_lines.insert(-1, '')  # Insert an empty string before the last line
+                    current_section = line[1:-1]
+                    continue
+
+                if current_section is None:
+                    continue
+
+                if current_section == 'Settings':
+                    if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(line)):
+                        # If it's a newline or a comment we don't really care about rewritting at this point.
+                        if not line.startswith((';', '#')) or not line:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+
+                    if (setting := match.group('key')) is None:
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+                    if not isinstance(setting, str):
+                        raise TypeError(format_type_error(setting, str))
+                    if (value := match.group('value')) is None:
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+                    if not isinstance(value, str):
+                        raise TypeError(format_type_error(value, str))
+
+                    if not (setting := setting.strip()):
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+                    if not (value := value.strip()):
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+
+                    if setting not in USERIP_INI_SETTINGS:
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+
+                    if setting in settings:
+                        if corrected_ini_data_lines:
+                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        continue
+
+                    matched_settings.append(setting)
+                    need_rewrite_current_setting = False
+                    is_setting_corrupted = False
+
+                    if setting == 'ENABLED':
+                        try:
+                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value)
+                        except InvalidBooleanValueError:
+                            is_setting_corrupted = True
+                    elif setting == 'COLOR':
+                        if (q_color := QColor(value)).isValid():
+                            settings[setting] = q_color
+                        else:
+                            is_setting_corrupted = True
+                    elif setting in {'LOG', 'NOTIFICATIONS'}:
+                        try:
+                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value)
+                        except InvalidBooleanValueError:
+                            is_setting_corrupted = True
+                    elif setting == 'VOICE_NOTIFICATIONS':
+                        try:
+                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value, only_match_against=False)
+                        except InvalidBooleanValueError:
+                            try:
+                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, ('Male', 'Female'))
+                                settings[setting] = normalized_match
+                                if not case_sensitive_match:
+                                    need_rewrite_current_setting = True
+                            except NoMatchFoundError:
+                                is_setting_corrupted = True
+                    elif setting == 'PROTECTION':
+                        try:
+                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value, only_match_against=False)
+                        except InvalidBooleanValueError:
+                            try:
+                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
+                                    value, ('Suspend_Process', 'Exit_Process', 'Restart_Process', 'Shutdown_PC', 'Restart_PC'),
+                                )
+                                settings[setting] = normalized_match
+                                if not case_sensitive_match:
+                                    need_rewrite_current_setting = True
+                            except NoMatchFoundError:
+                                is_setting_corrupted = True
+                    elif setting in {'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH'}:
+                        try:
+                            settings[setting], need_rewrite_current_setting = custom_str_to_nonetype(value)
+                        except InvalidNoneTypeValueError:
+                            stripped_value = value.strip("\"'")
+                            if value != stripped_value:
+                                is_setting_corrupted = True
+                            settings[setting] = Path(stripped_value)
+                    elif setting == 'PROTECTION_SUSPEND_PROCESS_MODE':
+                        try:
+                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, ('Auto', 'Manual'))
+                            settings[setting] = normalized_match
+                            if not case_sensitive_match:
+                                need_rewrite_current_setting = True
+                        except NoMatchFoundError:
+                            try:
+                                protection_suspend_process_mode = float(value) if '.' in value else int(value)
+                            except (ValueError, TypeError):
+                                is_setting_corrupted = True
+                            else:
+                                if protection_suspend_process_mode >= 0:
+                                    settings[setting] = protection_suspend_process_mode
+                                else:
+                                    is_setting_corrupted = True
+
+                    if is_setting_corrupted:
+                        if ini_path not in UserIPDatabases.notified_settings_corrupted:
+                            UserIPDatabases.notified_settings_corrupted.add(ini_path)
+                            Thread(
+                                target=msgbox.show,
+                                name=f'UserIPConfigFileError-{ini_path.name}',
+                                kwargs={
+                                    'title': TITLE,
+                                    'text': format_triple_quoted_text(format_userip_corrupted_settings_message(
+                                        ini_path=ini_path,
+                                        setting=setting,
+                                        value=value,
+                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                                    )),
+                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                                },
+                                daemon=True,
+                            ).start()
+                        return None, None
+
+                    if need_rewrite_current_setting:
+                        corrected_ini_data_lines[-1] = f'{setting}={settings[setting]}'
+
+                elif current_section == 'UserIP':
+                    if not (match := RE_USERIP_INI_PARSER_PATTERN.search(line)):
+                        continue
+                    if (username := match.group('username')) is None:
+                        continue
+                    if not isinstance(username, str):
+                        raise TypeError(format_type_error(username, str))
+                    if (ip := match.group('ip')) is None:
+                        continue
+                    if not isinstance(ip, str):
+                        raise TypeError(format_type_error(ip, str))
+
+                    if not (username := username.strip()):
+                        continue
+                    if not (ip := ip.strip()):
+                        continue
+
+                    if not is_ipv4_address(ip):
+                        unresolved_ip_invalid.add(f'{ini_path}={username}={ip}')
+                        if f'{ini_path}={username}={ip}' not in UserIPDatabases.notified_ip_invalid:
+                            Thread(
+                                target=msgbox.show,
+                                name=f'UserIPInvalidEntryError-{ini_path.name}_{username}={ip}',
+                                kwargs={
+                                    'title': TITLE,
+                                    'text': format_triple_quoted_text(format_userip_invalid_ip_entry_message(
+                                        ini_path=ini_path,
+                                        username=username,
+                                        ip=ip,
+                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                                    )),
+                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                                },
+                                daemon=True,
+                            ).start()
+                            UserIPDatabases.notified_ip_invalid.add(f'{ini_path}={username}={ip}')
+                        continue
+
+                    if username in userip:
+                        if ip not in userip[username]:
+                            userip[username].append(ip)
+                    else:
+                        userip[username] = [ip]
+
+            list_of_missing_settings = [setting for setting in USERIP_INI_SETTINGS if setting not in matched_settings]
+            number_of_settings_missing = len(list_of_missing_settings)
+
+            if number_of_settings_missing > 0:
+                if ini_path not in UserIPDatabases.notified_settings_corrupted:
+                    UserIPDatabases.notified_settings_corrupted.add(ini_path)
+                    Thread(
+                        target=msgbox.show,
+                        name=f'UserIPConfigFileError-{ini_path.name}',
+                        kwargs={
+                            'title': TITLE,
+                            'text': format_triple_quoted_text(format_userip_missing_settings_message(
+                                ini_path=ini_path,
+                                missing_settings=list_of_missing_settings,
+                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                            )),
+                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                        },
+                        daemon=True,
+                    ).start()
+                return None, None
+
+            if ini_path in UserIPDatabases.notified_settings_corrupted:
+                UserIPDatabases.notified_settings_corrupted.remove(ini_path)
+
+            # Basically always have a newline ending
+            if (
+                len(corrected_ini_data_lines) > 1
+                and corrected_ini_data_lines[-1]
+            ):
+                corrected_ini_data_lines.append('')
+
+            fixed_ini_data = '\n'.join(corrected_ini_data_lines)
+
+            if ini_data != fixed_ini_data:
+                ini_path.write_text(fixed_ini_data, encoding='utf-8')
+
+            return UserIPSettings(
+                settings['ENABLED'],
+                settings['COLOR'],
+                settings['LOG'],
+                settings['NOTIFICATIONS'],
+                settings['VOICE_NOTIFICATIONS'],
+                settings['PROTECTION'],
+                settings['PROTECTION_PROCESS_PATH'],
+                settings['PROTECTION_RESTART_PROCESS_PATH'],
+                settings['PROTECTION_SUSPEND_PROCESS_MODE'],
+            ), userip
+
+        def update_userip_databases() -> float:
+            default_userip_file_header = format_triple_quoted_text(
+                USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
+                    title=TITLE,
+                    configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                ),
+            )
+
+            default_userip_files_settings = {
+                USERIP_DATABASES_DIR_PATH / ini_name: settings
+                for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()
+            }
+
+            default_userip_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
+
+            USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+
+            for userip_path, settings in default_userip_files_settings.items():
+                if not userip_path.is_file():
+                    file_content = f'{default_userip_file_header}\n\n{settings}\n\n{default_userip_file_footer}'
+                    userip_path.write_text(file_content, encoding='utf-8')
+
+            # Remove deleted files from notified settings conflicts
+            # TODO(BUZZARDGTA): I should also warn again on another error, but it'd probably require a DICT then.
+            for file_path in set(UserIPDatabases.notified_settings_corrupted):
+                if not file_path.is_file():
+                    UserIPDatabases.notified_settings_corrupted.remove(file_path)
+
+            new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
+            unresolved_ip_invalid: set[str] = set()
+
+            for userip_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
+                parsed_settings, parsed_data = parse_userip_ini_file(userip_path, unresolved_ip_invalid)
+                if parsed_settings is None or parsed_data is None:
+                    continue
+                new_databases.append((userip_path, parsed_settings, parsed_data))
+
+            UserIPDatabases.populate(new_databases)
+
+            resolved_ip_invalids = UserIPDatabases.notified_ip_invalid - unresolved_ip_invalid
+            for resolved_database_entry in resolved_ip_invalids:
+                UserIPDatabases.notified_ip_invalid.remove(resolved_database_entry)
+
+            UserIPDatabases.build()
+
+            return time.monotonic()
+
+        def get_country_info(ip_address: str) -> tuple[str, str]:
+            country_name = 'N/A'
+            country_code = 'N/A'
+
+            if geoip2_readers.enabled and geoip2_readers.country_reader is not None:
+                try:
+                    response = geoip2_readers.country_reader.country(ip_address)
+                except geoip2.errors.AddressNotFoundError:
+                    pass
+                else:
+                    country_name = str(response.country.name) if response.country.name is not None else 'N/A'
+                    country_code = str(response.country.iso_code) if response.country.iso_code is not None else 'N/A'
+
+            return country_name, country_code
+
+        def get_city_info(ip_address: str) -> str:
+            city = 'N/A'
+
+            if geoip2_readers.enabled and geoip2_readers.city_reader is not None:
+                try:
+                    response = geoip2_readers.city_reader.city(ip_address)
+                except geoip2.errors.AddressNotFoundError:
+                    pass
+                else:
+                    city = str(response.city.name) if response.city.name is not None else 'N/A'
+
+            return city
+
+        def get_asn_info(ip_address: str) -> str:
+            asn = 'N/A'
+
+            if geoip2_readers.enabled and geoip2_readers.asn_reader is not None:
+                try:
+                    response = geoip2_readers.asn_reader.asn(ip_address)
+                except geoip2.errors.AddressNotFoundError:
+                    pass
+                else:
+                    asn = str(response.autonomous_system_organization) if response.autonomous_system_organization is not None else 'N/A'
+
+            return asn
+
+        def format_elapsed_time(duration: timedelta) -> str:
+            """Format a timedelta duration into a compact human-readable string."""
+            hours, remainder = divmod(duration.total_seconds(), 3600)
+            minutes, remainder = divmod(remainder, 60)
+            seconds, milliseconds = divmod(remainder * 1000, 1000)
+
+            duration_parts: list[str] = []
+            if hours >= 1:
+                duration_parts.append(f'{int(hours):02}h')
+            if duration_parts or minutes >= 1:
+                duration_parts.append(f'{int(minutes):02}m')
+            if duration_parts or seconds >= 1:
+                duration_parts.append(f'{int(seconds):02}s')
+            if not duration_parts and milliseconds > 0:
+                duration_parts.append(f'{int(milliseconds):03}ms')
+
+            return ' '.join(duration_parts) if duration_parts else '000ms'
+
+        def format_player_usernames(player: Player) -> str:
+            """Format player usernames as comma-separated string."""
+            return ', '.join(player.usernames) if player.usernames else ''
+
+        def format_player_ip(player_ip: str) -> str:
+            """Format player IP with crown emoji if session host."""
+            if SessionHost.player and SessionHost.player.ip == player_ip:
+                return f'{player_ip} 👑'
+            return player_ip
+
+        def format_player_middle_ports(player: Player) -> str:
+            """Format player middle ports as comma-separated string in reverse order."""
+            if player.ports.middle:
+                return ', '.join(map(str, reversed(player.ports.middle)))
+            return ''
+
+        def process_session_logging() -> None:
+            def format_player_logging_datetime(datetime_object: datetime) -> str:
+                return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
+
+            def add_sort_arrow_char_to_sorted_logging_table_column(column_names: Sequence[str], sorted_column: str, sort_order: Qt.SortOrder) -> list[str]:
+                arrow = ' \u2193' if sort_order == Qt.SortOrder.DescendingOrder else ' \u2191'  # Down arrow for descending, up arrow for ascending
+                return [
+                    column + arrow if column == sorted_column else column
+                    for column in column_names
+                ]
+
+            def calculate_table_padding(connected_players: list[Player], disconnected_players: list[Player]) -> tuple[int, int, int, int]:
+                """Calculate optimal padding for table columns based on player data."""
+                table_country_column_length_threshold = 27
+                table_continent_column_length_threshold = 13
+
+                connected_country_padding = 0
+                connected_continent_padding = 0
+                disconnected_country_padding = 0
+                disconnected_continent_padding = 0
+
+                # Calculate optimal padding for connected players
+                for player in connected_players:
+                    country_len = len(player.iplookup.geolite2.country)
+                    continent_len = len(player.iplookup.ipapi.continent)
+
+                    # Only include in padding calculation if within threshold
+                    if country_len <= table_country_column_length_threshold:
+                        connected_country_padding = max(connected_country_padding, country_len)
+                    if continent_len <= table_continent_column_length_threshold:
+                        connected_continent_padding = max(connected_continent_padding, continent_len)
+
+                # Calculate optimal padding for disconnected players
+                for player in disconnected_players:
+                    country_len = len(player.iplookup.geolite2.country)
+                    continent_len = len(player.iplookup.ipapi.continent)
+
+                    # Only include in padding calculation if within threshold
+                    if country_len <= table_country_column_length_threshold:
+                        disconnected_country_padding = max(disconnected_country_padding, country_len)
+                    if continent_len <= table_continent_column_length_threshold:
+                        disconnected_continent_padding = max(disconnected_continent_padding, continent_len)
+
+                return connected_country_padding, connected_continent_padding, disconnected_country_padding, disconnected_continent_padding
+
+            logging_connected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
+                logging_connected_players_table__column_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder,
+            )
+            logging_disconnected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
+                logging_disconnected_players_table__column_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
+            )
+
+            # Calculate optimal padding for both connected and disconnected players
+            (session_connected__padding_country_name,
+             session_connected__padding_continent_name,
+             session_disconnected__padding_country_name,
+             session_disconnected__padding_continent_name) = calculate_table_padding(session_connected, session_disconnected)
+
+            logging_connected_players_table = PrettyTable()
+            logging_connected_players_table.set_style(TableStyle.SINGLE_BORDER)
+            logging_connected_players_table.title = f'Player{pluralize(len(session_connected))} connected in your session ({len(session_connected)}):'
+            logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
+            logging_connected_players_table.align = dict.fromkeys(logging_connected_players__column_names__with_down_arrow, 'l')
+            for player in session_connected:
+                connected_row_texts: list[str] = []
+                connected_row_texts.append(f'{format_player_usernames(player)}')
+                connected_row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
+                connected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
+                connected_row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                connected_row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
+                connected_row_texts.append(f'{player.rejoins}')
+                connected_row_texts.append(f'{player.packets.total_exchanged}')
+                connected_row_texts.append(f'{player.packets.exchanged}')
+                connected_row_texts.append(f'{player.packets.total_received}')
+                connected_row_texts.append(f'{player.packets.received}')
+                connected_row_texts.append(f'{player.packets.total_sent}')
+                connected_row_texts.append(f'{player.packets.sent}')
+                connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
+                connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)}')
+                connected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate)}')
+                connected_row_texts.append(f'{format_player_ip(player.ip)}')
+                connected_row_texts.append(f'{player.reverse_dns.hostname}')
+                connected_row_texts.append(f'{player.ports.last}')
+                connected_row_texts.append(f'{format_player_middle_ports(player)}')
+                connected_row_texts.append(f'{player.ports.first}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_connected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
+                connected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_connected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
+                connected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                connected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                connected_row_texts.append(f'{player.ping.is_pinging}')
+                logging_connected_players_table.add_row(connected_row_texts)
+
+            logging_disconnected_players_table = PrettyTable()
+            logging_disconnected_players_table.set_style(TableStyle.SINGLE_BORDER)
+            logging_disconnected_players_table.title = f"Player{pluralize(len(session_disconnected))} who've left your session ({len(session_disconnected)}):"
+            logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
+            logging_disconnected_players_table.align = dict.fromkeys(logging_disconnected_players__column_names__with_down_arrow, 'l')
+            for player in session_disconnected:
+                disconnected_row_texts: list[str] = []
+                disconnected_row_texts.append(f'{format_player_usernames(player)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.first_seen)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_rejoin)}')
+                disconnected_row_texts.append(f'{format_player_logging_datetime(player.datetime.last_seen)}')
+                disconnected_row_texts.append(f'{format_elapsed_time(player.datetime.get_total_session_time())}')
+                disconnected_row_texts.append(f'{format_elapsed_time(player.datetime.get_session_time())}')
+                disconnected_row_texts.append(f'{player.rejoins}')
+                disconnected_row_texts.append(f'{player.packets.total_exchanged}')
+                disconnected_row_texts.append(f'{player.packets.exchanged}')
+                disconnected_row_texts.append(f'{player.packets.total_received}')
+                disconnected_row_texts.append(f'{player.packets.received}')
+                disconnected_row_texts.append(f'{player.packets.total_sent}')
+                disconnected_row_texts.append(f'{player.packets.sent}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.exchanged)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_download)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.download)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.total_upload)}')
+                disconnected_row_texts.append(f'{PlayerBandwidth.format_bytes(player.bandwidth.upload)}')
+                disconnected_row_texts.append(f'{player.ip}')
+                disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
+                disconnected_row_texts.append(f'{player.ports.last}')
+                disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
+                disconnected_row_texts.append(f'{player.ports.first}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_disconnected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_disconnected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                disconnected_row_texts.append(f'{player.ping.is_pinging}')
+                logging_disconnected_players_table.add_row(disconnected_row_texts)
+
+            # Check if the directories exist, if not create them
+            if not SESSIONS_LOGGING_PATH.parent.is_dir():
+                SESSIONS_LOGGING_PATH.parent.mkdir(parents=True)  # Create the directories if they don't exist
+
+            # Check if the file exists, if not create it
+            if not SESSIONS_LOGGING_PATH.is_file():
+                SESSIONS_LOGGING_PATH.touch()  # Create the file if it doesn't exist
+
+            SESSIONS_LOGGING_PATH.write_text(
+                logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),  # pyright: ignore[reportUnknownMemberType]
+                encoding='utf-8',
+            )
+
+        def process_gui_session_tables_rendering() -> SessionTableSnapshot:
+            def format_player_gui_datetime(datetime_object: datetime) -> str:
+                formatted_elapsed = None
+
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME:
+                    elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
+                    formatted_elapsed = format_elapsed_time(elapsed_time)
+
+                    if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
+                        return formatted_elapsed
+
+                datetime_parts: list[str] = []
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE:
+                    datetime_parts.append(datetime_object.strftime('%m/%d/%Y'))
+                if Settings.GUI_COLUMNS_DATETIME_SHOW_TIME:
+                    datetime_parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
+                if not datetime_parts:
+                    raise InvalidDateColumnConfigurationError
+
+                formatted_datetime = ' '.join(datetime_parts)
+
+                if formatted_elapsed:
+                    formatted_datetime += f' ({formatted_elapsed})'
+
+                return formatted_datetime
+
+            def get_player_pps_gradient_color(default_color: QColor, player_pps_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for PPS value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on PPS_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_pps_calculated_rate, 0), PPS_MAX_THRESHOLD) * 0xFF // PPS_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            def get_player_ppm_gradient_color(default_color: QColor, player_ppm_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for PPM value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on PPM_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_ppm_calculated_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            def get_player_bps_gradient_color(default_color: QColor, player_bps_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for BPS value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on BPS_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_bps_calculated_bytes, 0), BPS_MAX_THRESHOLD) * 0xFF // BPS_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            def get_player_bpm_gradient_color(default_color: QColor, player_bpm_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
+                """Calculate gradient color for BPM value using simple linear interpolation.
+
+                Red (low) -> Green (high) gradient based on BPM_MAX_THRESHOLD.
+                """
+                if is_first_calculation:
+                    return default_color
+
+                val = min(max(player_bpm_calculated_bytes, 0), BPM_MAX_THRESHOLD) * 0xFF // BPM_MAX_THRESHOLD
+                return QColor(0xFF - val, val, 0)
+
+            session_connected_table__processed_data: list[list[str]] = []
+            session_connected_table__compiled_colors: list[list[CellColor]] = []
+            session_disconnected_table__processed_data: list[list[str]] = []
+            session_disconnected_table__compiled_colors: list[list[CellColor]] = []
+
+            for player in session_connected:
+                if player.userip and player.userip.usernames:
+                    row_fg_color = QColor(TableColors.CONNECTED_USERIP_TEXT)
+                    row_bg_color = player.userip.settings.COLOR
+                else:
+                    row_fg_color = QColor(TableColors.CONNECTED_TEXT)
+                    row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
+
+                # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
+                row_colors = [
+                    CellColor(foreground=row_fg_color, background=row_bg_color)
+                    for _ in range(connected_num_cols)
+                ]
+
+                connected_row_texts: list[str] = []
+                connected_row_texts.append(f'{format_player_usernames(player)}')
+                connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
+                connected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
+                if 'T. Session Time' not in connected_hidden_columns:
+                    connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                if 'Session Time' not in connected_hidden_columns:
+                    connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
+                connected_row_texts.append(f'{player.rejoins}')
+                if 'T. Packets' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.total_exchanged}')
+                if 'Packets' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.exchanged}')
+                if 'T. Packets Received' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.total_received}')
+                if 'Packets Received' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.received}')
+                if 'T. Packets Sent' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.total_sent}')
+                if 'Packets Sent' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.packets.sent}')
+                if 'PPS' not in connected_hidden_columns:
+                    row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
+                        foreground=get_player_pps_gradient_color(
+                            row_fg_color,
+                            player.packets.pps.calculated_rate,
+                            is_first_calculation=player.packets.pps.is_first_calculation,
+                        ),
+                    )
+                    connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
+                if 'PPM' not in connected_hidden_columns:
+                    row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
+                        foreground=get_player_ppm_gradient_color(
+                            row_fg_color,
+                            player.packets.ppm.calculated_rate,
+                            is_first_calculation=player.packets.ppm.is_first_calculation,
+                        ),
+                    )
+                    connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
+                if 'T. Bandwith' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                if 'Bandwith' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                if 'T. Download' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                if 'Download' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                if 'T. Upload' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                if 'Upload' not in connected_hidden_columns:
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
+                if 'BPS' not in connected_hidden_columns:
+                    row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
+                        foreground=get_player_bps_gradient_color(
+                            row_fg_color,
+                            player.bandwidth.bps.calculated_rate,
+                            is_first_calculation=player.bandwidth.bps.is_first_calculation,
+                        ),
+                    )
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
+                if 'BPM' not in connected_hidden_columns:
+                    row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
+                        foreground=get_player_bpm_gradient_color(
+                            row_fg_color,
+                            player.bandwidth.bpm.calculated_rate,
+                            is_first_calculation=player.bandwidth.bpm.is_first_calculation,
+                        ),
+                    )
+                    connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
+                connected_row_texts.append(f'{format_player_ip(player.ip)}')
+                if 'Hostname' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.reverse_dns.hostname}')
+                if 'Last Port' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.ports.last}')
+                if 'Middle Ports' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{format_player_middle_ports(player)}')
+                if 'First Port' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.ports.first}')
+                if 'Continent' not in connected_hidden_columns:
+                    if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
+                        connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
+                    else:
+                        connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
+                if 'Country' not in connected_hidden_columns:
+                    if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
+                        connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+                    else:
+                        connected_row_texts.append(f'{player.iplookup.geolite2.country}')
+                if 'Region' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                if 'R. Code' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                if 'City' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                if 'District' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                if 'ZIP Code' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                if 'Lat' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                if 'Lon' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                if 'Time Zone' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                if 'Offset' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                if 'Currency' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                if 'Organization' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                if 'ISP' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                if 'ASN / ISP' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                if 'AS' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                if 'ASN' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                if 'Mobile' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                if 'VPN' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                if 'Hosting' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                if 'Pinging' not in connected_hidden_columns:
+                    connected_row_texts.append(f'{player.ping.is_pinging}')
+
+                session_connected_table__processed_data.append(connected_row_texts)
+                session_connected_table__compiled_colors.append(row_colors)
+
+            for player in session_disconnected:
+                if player.userip and player.userip.usernames:
+                    row_fg_color = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
+                    row_bg_color = player.userip.settings.COLOR
+                else:
+                    row_fg_color = QColor(TableColors.DISCONNECTED_TEXT)
+                    row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
+
+                # Initialize a list for cell colors for the current row, creating a new CellColor object for each column
+                row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(disconnected_num_cols)]
+
+                disconnected_row_texts: list[str] = []
+                disconnected_row_texts.append(f'{format_player_usernames(player)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.first_seen)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_rejoin)}')
+                disconnected_row_texts.append(f'{format_player_gui_datetime(player.datetime.last_seen)}')
+                if 'T. Session Time' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
+                if 'Session Time' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
+                disconnected_row_texts.append(f'{player.rejoins}')
+                if 'T. Packets' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.total_exchanged}')
+                if 'Packets' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.exchanged}')
+                if 'T. Packets Received' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.total_received}')
+                if 'Packets Received' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.received}')
+                if 'T. Packets Sent' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.total_sent}')
+                if 'Packets Sent' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.packets.sent}')
+                if 'T. Bandwith' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
+                if 'Bandwith' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
+                if 'T. Download' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
+                if 'Download' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
+                if 'T. Upload' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
+                if 'Upload' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
+                disconnected_row_texts.append(f'{player.ip}')
+                if 'Hostname' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
+                if 'Last Port' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.ports.last}')
+                if 'Middle Ports' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
+                if 'First Port' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.ports.first}')
+                if 'Continent' not in disconnected_hidden_columns:
+                    if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
+                        disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
+                    else:
+                        disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
+                if 'Country' not in disconnected_hidden_columns:
+                    if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
+                        disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+                    else:
+                        disconnected_row_texts.append(f'{player.iplookup.geolite2.country}')
+                if 'Region' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
+                if 'R. Code' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
+                if 'City' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
+                if 'District' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
+                if 'ZIP Code' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
+                if 'Lat' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
+                if 'Lon' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
+                if 'Time Zone' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+                if 'Offset' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
+                if 'Currency' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
+                if 'Organization' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
+                if 'ISP' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
+                if 'ASN / ISP' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+                if 'AS' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
+                if 'ASN' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
+                if 'Mobile' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
+                if 'VPN' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
+                if 'Hosting' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
+                if 'Pinging' not in disconnected_hidden_columns:
+                    disconnected_row_texts.append(f'{player.ping.is_pinging}')
+
+                session_disconnected_table__processed_data.append(disconnected_row_texts)
+                session_disconnected_table__compiled_colors.append(row_colors)
+
+            connected_num = len(session_connected_table__processed_data)
+            connected_rows = tuple(tuple(row) for row in session_connected_table__processed_data)
+            connected_colors = tuple(tuple(row) for row in session_connected_table__compiled_colors)
+
+            disconnected_num = len(session_disconnected_table__processed_data)
+            disconnected_rows = tuple(tuple(row) for row in session_disconnected_table__processed_data)
+            disconnected_colors = tuple(tuple(row) for row in session_disconnected_table__compiled_colors)
+
+            return SessionTableSnapshot(
+                connected_num=connected_num,
+                connected_rows=connected_rows,
+                connected_colors=connected_colors,
+                disconnected_num=disconnected_num,
+                disconnected_rows=disconnected_rows,
+                disconnected_colors=disconnected_colors,
+            )
+
+        def generate_gui_status_text() -> tuple[str, str, str, str]:
+            """Generate status bar text content for individual sections.
+
+            Returns:
+                A tuple of (capture, config, issues, performance) containing HTML formatted text
+                for each individual status bar section.
+            """
+            @dataclass(frozen=True, slots=True)
+            class StatusBarSnapshot:  # pylint: disable=too-many-instance-attributes
+                """Snapshot of all global state to avoid race conditions."""
+                # Settings
+                capture_ip_address: str | None
+                capture_program_preset: str | None
+                capture_overflow_timer: float
+                discord_presence_enabled: bool
+
+                # TsharkStats
+                tshark_global_bandwidth: int
+                tshark_global_download: int
+                tshark_global_upload: int
+                tshark_global_bps_rate: int
+                tshark_global_pps_rate: int
+                tshark_restarted_times: int
+                tshark_packets_latencies: list[tuple[datetime, timedelta]]
+
+                # UserIPDatabases
+                userip_invalid_ip_count: int
+                userip_conflict_ip_count: int
+                userip_corrupted_settings_count: int
+
+                # Interface
+                interface_name: str
+                interface_is_arp: bool
+
+                # System
+                memory_mb: float
+                discord_rpc_connected: bool
+
+            class StatusBarThresholds(enum.IntEnum):
+                """Performance thresholds for color coding."""
+                BANDWIDTH_CRITICAL = 1_000_000_000
+                BANDWIDTH_WARNING = 500_000_000
+                DOWNLOAD_CRITICAL = 500_000_000
+                DOWNLOAD_WARNING = 250_000_000
+                UPLOAD_CRITICAL = 500_000_000
+                UPLOAD_WARNING = 250_000_000
+                BPS_CRITICAL = 3_000_000
+                BPS_WARNING = 1_000_000
+                PPS_CRITICAL = 1500
+                PPS_WARNING = 1000
+                MEMORY_HIGH = 500
+                MEMORY_MEDIUM = 300
+
+            def capture_global_state() -> StatusBarSnapshot:
+                """Capture all global state atomically to avoid race conditions."""
+                # Capture Discord RPC status if enabled
+                discord_rpc_connected = False
+                if Settings.DISCORD_PRESENCE and discord_rpc_manager is not None:
+                    discord_rpc_connected = discord_rpc_manager.connection_status.is_set()
+
+                return StatusBarSnapshot(
+                    capture_ip_address=Settings.CAPTURE_IP_ADDRESS,
+                    capture_program_preset=Settings.CAPTURE_PROGRAM_PRESET,
+                    capture_overflow_timer=Settings.CAPTURE_OVERFLOW_TIMER,
+                    discord_presence_enabled=Settings.DISCORD_PRESENCE,
+                    tshark_global_bandwidth=TsharkStats.global_bandwidth,
+                    tshark_global_download=TsharkStats.global_download,
+                    tshark_global_upload=TsharkStats.global_upload,
+                    tshark_global_bps_rate=TsharkStats.global_bps_rate,
+                    tshark_global_pps_rate=TsharkStats.global_pps_rate,
+                    tshark_restarted_times=TsharkStats.restarted_times,
+                    tshark_packets_latencies=list(TsharkStats.packets_latencies),
+                    userip_invalid_ip_count=len(UserIPDatabases.notified_ip_invalid),
+                    userip_conflict_ip_count=len(UserIPDatabases.notified_ip_conflicts),
+                    userip_corrupted_settings_count=len(UserIPDatabases.notified_settings_corrupted),
+                    interface_name=capture.config.interface.name,
+                    interface_is_arp=capture.config.interface.is_arp,
+                    memory_mb=psutil.Process().memory_info().rss / 1024 / 1024,
+                    discord_rpc_connected=discord_rpc_connected,
+                )
+
+            def calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> tuple[float, float]:
+                """Calculate average packets latency from packets latencies snapshot."""
+                one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
+                recent_packets = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in packets_latencies if pkt_time >= one_second_ago]
+
+                # Update global list to only keep recent packets
+                TsharkStats.packets_latencies[:] = recent_packets
+
+                if recent_packets:
+                    total_latency_seconds = sum(pkt_latency.total_seconds() for _, pkt_latency in recent_packets)
+                    avg_latency_seconds = total_latency_seconds / len(recent_packets)
+                    avg_latency_rounded = round(avg_latency_seconds, 1)
+                else:
+                    avg_latency_seconds = 0.0
+                    avg_latency_rounded = 0.0
+
+                return avg_latency_seconds, avg_latency_rounded
+
+            def build_capture_section(snapshot: StatusBarSnapshot) -> str:
+                """Build the capture status bar section."""
+                displayed_ip = snapshot.capture_ip_address or 'N/A'
+                return (
+                    f'<span style="font-size: 11px;">'
+                    f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">📡 Capture:</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Interface:</span> '
+                    f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.interface_name}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">IP:</span> '
+                    f'<span style="color: {StatusBarColors.ENABLED};">{displayed_ip}</span>'
+                    f'</span>'
+                )
+
+            def build_config_section(snapshot: StatusBarSnapshot) -> str:
+                """Build the configuration status bar section."""
+                is_arp_enabled = 'Enabled' if snapshot.interface_is_arp else 'Disabled'
+                is_vpn_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
+                arp_color = StatusBarColors.ENABLED if is_arp_enabled == 'Enabled' else StatusBarColors.DISABLED
+                vpn_color = StatusBarColors.ENABLED if is_vpn_enabled == 'Enabled' else StatusBarColors.DISABLED
+
+                discord_display = ''
+                if snapshot.discord_presence_enabled and discord_rpc_manager is not None:
+                    rpc_color = StatusBarColors.ENABLED if snapshot.discord_rpc_connected else StatusBarColors.DISABLED
+                    rpc_status = 'Connected' if snapshot.discord_rpc_connected else 'Waiting'
+                    discord_display = (
+                        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> '
+                        f'<span style="color: {rpc_color};">{rpc_status}</span>'
+                    )
+
+                return (
+                    f'<span style="font-size: 11px;">'
+                    f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> '
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> '
+                    f'<span style="color: {arp_color};">{is_arp_enabled}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> '
+                    f'<span style="color: {vpn_color};">{is_vpn_enabled}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Preset:</span> '
+                    f'<span style="color: {StatusBarColors.SECONDARY_ACCENT};">{snapshot.capture_program_preset}</span>'
+                    f'{discord_display}'
+                    f'</span>'
+                )
+
+            def build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
+                """Build the UserIP issues status bar section."""
+                if not any([snapshot.userip_invalid_ip_count, snapshot.userip_conflict_ip_count, snapshot.userip_corrupted_settings_count]):
+                    return ''
+
+                issues: list[str] = []
+                if snapshot.userip_invalid_ip_count:
+                    issues.append(f'<span style="color: {StatusBarColors.DISABLED};">❌ Invalid IPs: {snapshot.userip_invalid_ip_count}</span>')
+                if snapshot.userip_conflict_ip_count:
+                    issues.append(f'<span style="color: {StatusBarColors.DISABLED};">⚠️ Conflicts: {snapshot.userip_conflict_ip_count}</span>')
+                if snapshot.userip_corrupted_settings_count:
+                    issues.append(f'<span style="color: {StatusBarColors.DISABLED};">🔧 Corrupted: {snapshot.userip_corrupted_settings_count}</span>')
+
+                divider = f' <span style="color: {StatusBarColors.DIVIDER};"> • </span> '
+                return (
+                    f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">🧯 UserIP Issues:</span> '
+                    f'{divider.join(issues)}'
+                )
+
+            def build_performance_section(snapshot: StatusBarSnapshot, avg_latency_seconds: float, avg_latency_rounded: float) -> str:
+                """Build the performance status bar section."""
+                # Calculate colors based on thresholds
+                latency_color = (ThresholdColors.CRITICAL if avg_latency_seconds >= 0.90 * snapshot.capture_overflow_timer
+                                 else ThresholdColors.WARNING if avg_latency_seconds >= 0.75 * snapshot.capture_overflow_timer
+                                 else ThresholdColors.HEALTHY)
+                bandwidth_color = (ThresholdColors.CRITICAL if snapshot.tshark_global_bandwidth >= StatusBarThresholds.BANDWIDTH_CRITICAL
+                                   else ThresholdColors.WARNING if snapshot.tshark_global_bandwidth >= StatusBarThresholds.BANDWIDTH_WARNING
+                                   else ThresholdColors.HEALTHY)
+                download_color = (ThresholdColors.CRITICAL if snapshot.tshark_global_download >= StatusBarThresholds.DOWNLOAD_CRITICAL
+                                  else ThresholdColors.WARNING if snapshot.tshark_global_download >= StatusBarThresholds.DOWNLOAD_WARNING
+                                  else ThresholdColors.HEALTHY)
+                upload_color = (ThresholdColors.CRITICAL if snapshot.tshark_global_upload >= StatusBarThresholds.UPLOAD_CRITICAL
+                                else ThresholdColors.WARNING if snapshot.tshark_global_upload >= StatusBarThresholds.UPLOAD_WARNING
+                                else ThresholdColors.HEALTHY)
+                bps_color = (ThresholdColors.CRITICAL if snapshot.tshark_global_bps_rate >= StatusBarThresholds.BPS_CRITICAL
+                             else ThresholdColors.WARNING if snapshot.tshark_global_bps_rate >= StatusBarThresholds.BPS_WARNING
+                             else ThresholdColors.HEALTHY)
+                pps_color = (ThresholdColors.CRITICAL if snapshot.tshark_global_pps_rate >= StatusBarThresholds.PPS_CRITICAL
+                             else ThresholdColors.WARNING if snapshot.tshark_global_pps_rate >= StatusBarThresholds.PPS_WARNING
+                             else ThresholdColors.HEALTHY)
+                memory_color = (ThresholdColors.CRITICAL if snapshot.memory_mb >= StatusBarThresholds.MEMORY_HIGH
+                                else ThresholdColors.WARNING if snapshot.memory_mb >= StatusBarThresholds.MEMORY_MEDIUM
+                                else ThresholdColors.HEALTHY)
+                restart_color = ThresholdColors.HEALTHY if not snapshot.tshark_restarted_times else ThresholdColors.CRITICAL
+
+                return (
+                    f'<span style="font-size: 11px;">'
+                    f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚡ Performance:</span> '
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Latency:</span> '
+                    f'<span style="color: {latency_color};">{avg_latency_rounded}s</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓↑:</span> '
+                    f'<span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(snapshot.tshark_global_bandwidth)}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓:</span> '
+                    f'<span style="color: {download_color};">{PlayerBandwidth.format_bytes(snapshot.tshark_global_download)}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↑:</span> '
+                    f'<span style="color: {upload_color};">{PlayerBandwidth.format_bytes(snapshot.tshark_global_upload)}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">BPS:</span> '
+                    f'<span style="color: {bps_color};">{PlayerBandwidth.format_bytes(snapshot.tshark_global_bps_rate)}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">PPS:</span> '
+                    f'<span style="color: {pps_color};">{snapshot.tshark_global_pps_rate}</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">RAM:</span> '
+                    f'<span style="color: {memory_color};">{int(snapshot.memory_mb)} MB</span> '
+                    f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
+                    f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Restarts:</span> '
+                    f'<span style="color: {restart_color};">{snapshot.tshark_restarted_times}</span>'
+                    f'</span>'
+                )
+
+            # === MAIN EXECUTION ===
+            snapshot = capture_global_state()
+            avg_latency_seconds, avg_latency_rounded = calculate_latency(snapshot.tshark_packets_latencies)
+
+            capture_section = build_capture_section(snapshot)
+            config_section = build_config_section(snapshot)
+            userip_issues_section = build_userip_issues_section(snapshot)
+            performance_section = build_performance_section(snapshot, avg_latency_seconds, avg_latency_rounded)
+
+            return capture_section, config_section, userip_issues_section, performance_section
+
+        logging_connected_players_table__column_names = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
+        logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
+        last_userip_parse_time = None
+        last_session_logging_processing_time = None
+        discord_rpc_manager = None
+        if Settings.DISCORD_PRESENCE:
+            discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
+
+        while not gui_closed__event.is_set():
+            if ScriptControl.has_crashed():
+                return
+
+            if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
+                last_userip_parse_time = update_userip_databases()
+
+            ModMenuLogsParser.refresh()
+
+            global_bandwidth = 0
+            global_download = 0
+            global_upload = 0
+            global_bps_rate = 0
+            global_pps_rate = 0
+
+            session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
+            for player in session_connected.copy():
+                if (
+                    not player.left_event.is_set()
+                    and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.GUI_DISCONNECTED_PLAYERS_TIMER
+                ):
+                    player.mark_as_left()
+                    session_connected.remove(player)
+                    session_disconnected.append(player)
+
+                    if GUIDetectionSettings.player_leave_notifications_enabled:
+                        show_detection_warning_popup(player, 'player_left')
+
+                    continue
+
+                # Calculate PPS every second
+                if (time.monotonic() - player.packets.pps.last_update_time) >= 1.0:
+                    player.packets.pps.calculate_and_update_rate()
+
+                # Calculate PPM every minute
+                if (time.monotonic() - player.packets.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.packets.ppm.calculate_and_update_rate()
+
+                # Calculate BPS every second
+                if (time.monotonic() - player.bandwidth.bps.last_update_time) >= 1.0:
+                    player.bandwidth.bps.calculate_and_update_rate()
+
+                # Calculate BPM every minute
+                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.bandwidth.bpm.calculate_and_update_rate()
+
+                # Track current session bandwidth across all connected players
+                global_bandwidth += player.bandwidth.exchanged
+                global_download += player.bandwidth.download
+                global_upload += player.bandwidth.upload
+                global_bps_rate += player.bandwidth.bps.calculated_rate
+                global_pps_rate += player.packets.pps.calculated_rate
+
+            # Update global stats once after all calculations
+            TsharkStats.global_bandwidth = global_bandwidth
+            TsharkStats.global_download = global_download
+            TsharkStats.global_upload = global_upload
+            TsharkStats.global_bps_rate = global_bps_rate
+            TsharkStats.global_pps_rate = global_pps_rate
+
+            for player in session_connected + session_disconnected:
+                if player.userip and player.ip not in UserIPDatabases.ips_set:
+                    player.userip = None
+                    player.userip_detection = None
+
+                modmenu_usernames_for_player = ModMenuLogsParser.get_usernames_by_ip(player.ip)
+                if modmenu_usernames_for_player:
+                    if player.mod_menus is None:
+                        player.mod_menus = PlayerModMenus(
+                            usernames=modmenu_usernames_for_player,
+                        )
+                    else:
+                        player.mod_menus.usernames[:] = modmenu_usernames_for_player
+                else:
+                    player.mod_menus = None
+
+                player.usernames = dedup_preserve_order(
+                    player.userip.usernames if player.userip else [],
+                    player.mod_menus.usernames if player.mod_menus else [],
+                )
+
+                if player.country_flag is None:
+                    country_code = (
+                        player.iplookup.geolite2.country_code
+                        if player.iplookup.geolite2.country_code not in ['...', 'N/A']
+                        else player.iplookup.ipapi.country_code
+                        if player.iplookup.ipapi.country_code not in ['...', 'N/A']
+                        else None
+                    )
+                    if (
+                        country_code
+                        and (flag_path := COUNTRY_FLAGS_DIR_PATH / f'{country_code.upper()}.png').exists()
+                    ):
+                        pixmap = QPixmap()
+                        pixmap.loadFromData(flag_path.read_bytes())
+                        player.country_flag = PlayerCountryFlag(
+                            pixmap=pixmap,
+                            icon=QIcon(pixmap),
+                        )
+
+                if not player.iplookup.geolite2.is_initialized:
+                    player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
+                    player.iplookup.geolite2.city = get_city_info(player.ip)
+                    player.iplookup.geolite2.asn = get_asn_info(player.ip)
+                    player.iplookup.geolite2.is_initialized = True
+
+                if player in session_connected:
+                    if (
+                        player.iplookup.ipapi.mobile is True
+                        and GUIDetectionSettings.mobile_detection_enabled
+                        and not MobileWarnings.is_ip_notified(player.ip)
+                        and MobileWarnings.add_notified_ip(player.ip)
+                    ):
+                        show_detection_warning_popup(player, 'mobile')
+
+                    if (
+                        player.iplookup.ipapi.proxy is True
+                        and GUIDetectionSettings.vpn_detection_enabled
+                        and not VPNWarnings.is_ip_notified(player.ip)
+                        and VPNWarnings.add_notified_ip(player.ip)
+                    ):
+                        show_detection_warning_popup(player, 'vpn')
+
+                    if (
+                        player.iplookup.ipapi.hosting is True
+                        and GUIDetectionSettings.hosting_detection_enabled
+                        and not HostingWarnings.is_ip_notified(player.ip)
+                        and HostingWarnings.add_notified_ip(player.ip)
+                    ):
+                        show_detection_warning_popup(player, 'hosting')
+
+            if Settings.CAPTURE_PROGRAM_PRESET == 'GTA5':
+                if SessionHost.player and SessionHost.player.left_event.is_set():
+                    SessionHost.player = None
+                # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
+                if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
+                    SessionHost.player = None
+                    SessionHost.search_player = True
+                    SessionHost.players_pending_for_disconnection.clear()
+
+                if not session_connected:
+                    SessionHost.player = None
+                    SessionHost.search_player = True
+                    SessionHost.players_pending_for_disconnection.clear()
+                elif len(session_connected) >= 1 and all(
+                    not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
+                ):
+                    SessionHost.players_pending_for_disconnection = session_connected
+                elif SessionHost.search_player:
+                    SessionHost.get_host_player(session_connected)
+
+            if Settings.GUI_SESSIONS_LOGGING and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
+                last_session_logging_processing_time = time.monotonic()
+                process_session_logging()
+
+            if (Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and
+                (discord_rpc_manager.last_update_time is None or
+                 (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0)):  # noqa: PLR2004
+                discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
+
+            connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+            disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
+            connected_column_names = [
+                column_name
+                for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+                if column_name not in connected_hidden_columns
+            ]
+            disconnected_column_names = [
+                column_name
+                for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+                if column_name not in disconnected_hidden_columns
+            ]
+            connected_num_cols = len(connected_column_names)
+            disconnected_num_cols = len(disconnected_column_names)
+            connected_column_mapping = {header: index for index, header in enumerate(connected_column_names)}
+            header_text = generate_gui_header_html(capture=capture)
+            (
+                status_capture_text,
+                status_config_text,
+                status_issues_text,
+                status_performance_text,
+            ) = generate_gui_status_text()
+            session_table_snapshot = process_gui_session_tables_rendering()
+
+            GUIRenderingState.publish_rendering_snapshot(
+                GUIRenderingSnapshot(
+                    connected_hidden_columns=connected_hidden_columns,
+                    disconnected_hidden_columns=disconnected_hidden_columns,
+                    connected_column_names=connected_column_names,
+                    disconnected_column_names=disconnected_column_names,
+                    header_text=header_text,
+                    status_capture_text=status_capture_text,
+                    status_config_text=status_config_text,
+                    status_issues_text=status_issues_text,
+                    status_performance_text=status_performance_text,
+                    connected_num_cols=connected_num_cols,
+                    connected_num_rows=session_table_snapshot.connected_num,
+                    connected_rows=session_table_snapshot.connected_rows,
+                    connected_colors=session_table_snapshot.connected_colors,
+                    disconnected_num_cols=disconnected_num_cols,
+                    disconnected_num_rows=session_table_snapshot.disconnected_num,
+                    disconnected_rows=session_table_snapshot.disconnected_rows,
+                    disconnected_colors=session_table_snapshot.disconnected_colors,
+                ),
+            )
+
+            gui_closed__event.wait(1)
+
+
+class SessionTableModel(QAbstractTableModel):
+    """Provide a Qt table model for rendering connected/disconnected sessions."""
+
+    TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
+
+    def __init__(self, headers: list[str]) -> None:
+        """Initialize the table model with a set of column headers.
+
+        Args:
+            headers: Column header labels for the table.
+        """
+        super().__init__()
+
+        self._view: SessionTableView | None = None  # Initially, no view is attached
+        self._data: list[list[str]] = []  # The data to be displayed in the table
+        self._compiled_colors: list[list[CellColor]] = []  # The compiled colors for the table
+        self._headers = headers  # The column headers
+        self._ip_column_index = self._headers.index('IP Address')
+        self._username_column_index = self._headers.index('Usernames')
+
+    # --------------------------------------------------------------------------
+    # Public properties
+    # --------------------------------------------------------------------------
+
+    @classmethod
+    def remove_session_host_crown_from_ip(cls, ip_address: str) -> str:
+        """Remove the crown suffix from an IP address string if present.
+
+        The crown emoji (👑) is used to indicate that this IP address belongs to the session host.
+        This method removes that visual indicator to get the clean IP address string.
+
+        Args:
+            ip_address: The IP address string that may contain a session host crown suffix.
+
+        Returns:
+            The IP address string with session host crown suffix removed.
+        """
+        return ip_address.removesuffix(' 👑')
+
+    @property
+    def view(self) -> SessionTableView:
+        """Get or attach a `SessionTableView` to this model."""
+        return ensure_instance(self._view, SessionTableView)
+
+    @view.setter
+    def view(self, new_view: SessionTableView) -> None:
+        """Attach a `SessionTableView` to this model."""
+        self._view = new_view
+
+    # --------------------------------------------------------------------------
+    # Public read-only properties
+    # --------------------------------------------------------------------------
+
+    @property
+    def ip_column_index(self) -> int:
+        """Returns the index of the 'IP Address' column in this table model.
+
+        This value is computed during initialization based on the `headers` provided.<br>
+        It is read-only and specific to this instance.
+        """
+        return self._ip_column_index
+
+    @property
+    def username_column_index(self) -> int:
+        """Returns the index of the 'Usernames' column in this table model.
+
+        This value is computed during initialization based on the `headers` provided.<br>
+        It is read-only and specific to this instance.
+        """
+        return self._username_column_index
+
+    # --------------------------------------------------------------------------
+    # Qt model methods (overrides)
+    # --------------------------------------------------------------------------
+
+    # pylint: disable=invalid-name
+    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+        """Return number of rows in the model."""
+        if parent is None:
+            parent = QModelIndex()
+        return len(self._data)
+
+    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+        """Return number of columns in the model."""
+        if parent is None:
+            parent = QModelIndex()
+        return len(self._headers)
+    # pylint: enable=invalid-name
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:  # pylint: disable=too-many-return-statements # noqa: PLR0911
+        """Override data method to customize data retrieval and alignment."""
+        if not index.isValid():
+            return None
+
+        row_idx = index.row()
+        col_idx = index.column()
+
+        # Check bounds
+        if row_idx >= len(self._data) or col_idx >= len(self._data[row_idx]):
+            return None  # Return None for invalid index
+
+        if role == Qt.ItemDataRole.DecorationRole:  # noqa: SIM102
+            if self.has_column('Country') and self.get_column_index('Country') == col_idx:
+                ip = self.get_ip_from_data_safely(self._data[row_idx])
+
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is not None and matched_player.country_flag is not None:
+                    return matched_player.country_flag.icon
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            # Return the cell's text
+            return self._data[row_idx][col_idx]
+
+        if role == Qt.ItemDataRole.ForegroundRole:  # noqa: SIM102
+            # Return the cell's foreground color
+            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
+                return QBrush(self._compiled_colors[row_idx][col_idx].foreground)
+
+        if role == Qt.ItemDataRole.BackgroundRole:  # noqa: SIM102
+            # Return the cell's background color
+            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
+                return QBrush(self._compiled_colors[row_idx][col_idx].background)
+
+        if role == Qt.ItemDataRole.ToolTipRole:
+            # Return the tooltip text for the cell
+            view = self.view
+            horizontal_header = view.horizontalHeader()
+            resize_mode = horizontal_header.sectionResizeMode(index.column())
+
+            # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
+            if resize_mode != QHeaderView.ResizeMode.Stretch:
+                return None
+
+            cell_text = self._data[row_idx][col_idx]
+
+            font_metrics = view.fontMetrics()
+            text_width = font_metrics.horizontalAdvance(cell_text)
+            column_width = view.columnWidth(index.column())
+
+            if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
+                return cell_text
+
+        return None
+
+    # pylint: disable=invalid-name
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
+        """Return header display text and tooltips for the table model."""
+        if orientation == Qt.Orientation.Horizontal:
+            if role == Qt.ItemDataRole.DisplayRole:
+                return self._headers[section]  # Display the header name
+            if role == Qt.ItemDataRole.ToolTipRole:
+                # Fetch the header name and return the corresponding tooltip
+                header_name = self._headers[section]
+                return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
+
+        return None
+    # pylint: enable=invalid-name
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        """Return Qt flags controlling whether the item is enabled/selectable."""
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """Sort the table by a specific column.
+
+        Args:
+            column: The column index to sort by.
+            order: The order (ascending/descending) to sort in.
+        """
+        if not self._data:
+            if self._compiled_colors:
+                raise TableDataConsistencyError(case='colors_without_data')
+            return  # No data to process, exit early.
+
+        if not self._compiled_colors:
+            raise TableDataConsistencyError(case='data_without_colors')
+
+        self.layoutAboutToBeChanged.emit()
+
+        sorted_column_name = self._headers[column]
+
+        # Combine data and colors for sorting
+        combined = list(zip(self._data, self._compiled_colors, strict=True))
+        if not combined:
+            raise TableDataConsistencyError(case='empty_combined')
+        sort_order_bool = order == Qt.SortOrder.DescendingOrder
+
+        if sorted_column_name == 'Usernames':
+            combined.sort(
+                key=lambda row: ', '.join(row[0][column]).casefold(),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
+            # Sort by raw datetime values from player objects
+            def extract_datetime_for_ip(ip: str) -> datetime:
+                """Extract datetime value for a given IP address."""
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    return datetime.min.replace(tzinfo=UTC)
+
+                datetime_mapping = {
+                    'First Seen': matched_player.datetime.first_seen,
+                    'Last Rejoin': matched_player.datetime.last_rejoin,
+                    'Last Seen': matched_player.datetime.last_seen,
+                }
+                return datetime_mapping[sorted_column_name]
+
+            combined.sort(
+                key=lambda row: extract_datetime_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=not sort_order_bool,
+            )
+        elif sorted_column_name == 'T. Session Time':
+            # Sort by total session time duration from player objects
+            def extract_total_session_time_for_ip(ip: str) -> timedelta:
+                """Extract total session time value for a given IP address."""
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    return timedelta(0)
+                return matched_player.datetime.get_total_session_time()
+
+            combined.sort(
+                key=lambda row: extract_total_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name == 'Session Time':
+            # Sort by session time duration from player objects
+            def extract_session_time_for_ip(ip: str) -> timedelta:
+                """Extract session time value for a given IP address."""
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    return timedelta(0)
+                return matched_player.datetime.get_session_time()
+
+            combined.sort(
+                key=lambda row: extract_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name == 'IP Address':
+            combined.sort(
+                key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {
+            'Rejoins',
+            'T. Packets', 'Packets', 'T. Packets Sent', 'Packets Sent', 'T. Packets Received', 'Packets Received', 'PPS', 'PPM',
+            'Last Port', 'First Port',
+        }:
+            # Sort by integer/float value of the column value
+            combined.sort(
+                key=lambda row: float(row[0][column]),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {
+            'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
+        }:
+            # Sort by raw bandwidth integer values from player objects
+            def extract_bandwidth_for_ip(ip: str) -> int:
+                """Extract bandwidth value for a given IP address."""
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is None:
+                    return 0
+
+                bandwidth_mapping = {
+                    'T. Bandwith': matched_player.bandwidth.total_exchanged,
+                    'Bandwith': matched_player.bandwidth.exchanged,
+                    'T. Download': matched_player.bandwidth.total_download,
+                    'Download': matched_player.bandwidth.download,
+                    'T. Upload': matched_player.bandwidth.total_upload,
+                    'Upload': matched_player.bandwidth.upload,
+                    'BPS': matched_player.bandwidth.bps.calculated_rate,
+                    'BPM': matched_player.bandwidth.bpm.calculated_rate,
+                }
+                return bandwidth_mapping[sorted_column_name]
+
+            combined.sort(
+                key=lambda row: extract_bandwidth_for_ip(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name == 'Middle Ports':
+            # Sort by the number of ports in the list (length)
+            combined.sort(
+                key=lambda row: len(row[0][column]),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {'Lat', 'Lon', 'Offset'}:
+            # Sort by integer/float value of the column value but keep "..." at the end
+            combined.sort(
+                key=lambda row: float(row[0][column]) if row[0][column] != '...' else float('-inf'),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {
+            'Hostname', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code',
+            'Time Zone', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN',
+        }:
+            # Sort by string representation of the column value
+            combined.sort(
+                key=lambda row: str(row[0][column]).casefold(),
+                reverse=sort_order_bool,
+            )
+        elif sorted_column_name in {'Mobile', 'VPN', 'Hosting', 'Pinging'}:
+            # Sort by boolean representation of the column value
+            combined.sort(
+                key=lambda row: str(row[0][column]).casefold(),
+                reverse=sort_order_bool,
+            )
+        else:
+            raise UnsupportedSortColumnError(sorted_column_name)
+
+        # Unpack the sorted data
+        self._data, self._compiled_colors = map(list, zip(*combined, strict=True))
+
+        self.layoutChanged.emit()
+    # pylint: enable=invalid-name
+
+    # --------------------------------------------------------------------------
+    # Custom / internal management methods
+    # --------------------------------------------------------------------------
+
+    def has_column(self, column_name: str, /) -> bool:
+        """Check if a column is visible in the table.
+
+        Args:
+            column_name: The column name to check.
+
+        Returns:
+            Whether the column exists.
+        """
+        return column_name in self._headers
+
+    def get_column_index(self, column_name: str, /) -> int:
+        """Get the table index of a specified column.
+
+        Args:
+            column_name: The column name to look for.
+
+        Returns:
+            The column index.
+
+        Raises:
+            ValueError: If the column is not visible.
+        """
+        return self._headers.index(column_name)
+
+    def get_row_index_by_ip(self, ip: str, /) -> int | None:
+        """Find the row index for the given IP address.
+
+        Args:
+            ip: The IP address to search for.
+
+        Returns:
+            The index of the row containing the IP address, or None if not found.
+        """
+        for row_index, row_data in enumerate(self._data):
+            if self.get_ip_from_data_safely(row_data) == ip:
+                return row_index
+        return None
+
+    def get_ip_from_data_safely(self, row_data: list[str]) -> str:
+        """Safely extract an IP address as a string from row data.
+
+        This method ensures the IP address is always returned as a string type.
+
+        Args:
+            row_data: The row data list containing the IP address.
+
+        Returns:
+            The IP address as a clean string (with crown suffix removed if present).
+
+        Raises:
+            IndexError: If the IP column index is out of bounds.
+            TypeError: If the IP data is not a string.
+        """
+        if self.ip_column_index >= len(row_data):
+            error_msg = f'IP column index {self.ip_column_index} is out of bounds for row data with {len(row_data)} columns'
+            raise IndexError(error_msg)
+
+        ip_data = row_data[self.ip_column_index]
+
+        return self.remove_session_host_crown_from_ip(ip_data)
+
+    def get_display_text(self, index: QModelIndex) -> str | None:
+        """Extract display text as a string from model data.
+
+        This method handles the case where model data might return `str`, `QBrush`, `QIcon` or `None` for decoration roles, but we only want the display text as a string.<br>
+        For 'IP Address' column, it automatically removes the session host crown suffix (👑) if present.
+
+        Args:
+            index: The QModelIndex to get display text from.
+
+        Returns:
+            The display text as a string, or `None` if no valid display text is available.
+            For the 'IP Address' column, the crown suffix is automatically removed.
+
+        Raises:
+            TypeError: If the display data is not a string and is not `None`.
+        """
+        # Explicitly request DisplayRole to get only the text content
+        display_data = self.data(index, Qt.ItemDataRole.DisplayRole)
+        if display_data is None:
+            return None
+        if not isinstance(display_data, str):
+            raise TypeError(format_type_error(display_data, str))
+
+        # If this is an IP Address column, remove the crown suffix
+        if index.column() == self.ip_column_index:
+            return self.remove_session_host_crown_from_ip(display_data)
+
+        return display_data
+
+    def sort_current_column(self) -> None:
+        """Call the sort method with the current column index and order.
+
+        Ensures sorting reflects the current state of the header.
+        """
+        # Retrieve the current sort column and order
+        horizontal_header = self.view.horizontalHeader()
+        sort_column = horizontal_header.sortIndicatorSection()
+        sort_order = horizontal_header.sortIndicatorOrder()
+
+        # Call the sort function with the retrieved arguments
+        self.sort(sort_column, sort_order)
+
+    def add_row_without_refresh(self, row_data: list[str], row_colors: list[CellColor]) -> None:
+        """Add a new row to the model without notifying the view in real time.
+
+        Args:
+            row_data: The data for the new row.
+            row_colors: A list of `CellColor` objects corresponding to the row's colors.
+        """
+        # Only update internal data without triggering signals
+        self._data.append(row_data)
+        self._compiled_colors.append(row_colors)
+
+    def update_row_without_refresh(self, row_index: int, row_data: list[str], row_colors: list[CellColor]) -> None:
+        """Update an existing row in the model with new data and colors without notifying the view in real time.
+
+        Args:
+            row_index: The index of the row to update.
+            row_data: The new data for the row.
+            row_colors: A list of `CellColor` objects corresponding to the row's colors.
+        """
+        if 0 <= row_index < self.rowCount():
+            self._data[row_index] = row_data
+            self._compiled_colors[row_index] = row_colors
+
+    def delete_row(self, row_index: int) -> None:
+        """Delete a row from the model along with its associated colors.
+
+        If any items are selected under this row, their selection moves one row up.
+
+        Args:
+            row_index: The index of the row to delete.
+        """
+        if 0 <= row_index < self.rowCount():
+            view = self.view
+            selection_model = view.selectionModel()
+
+            # Adjust selection for the deleted row
+            for index in selection_model.selection().indexes():
+                if index.row() == row_index:  # Row to be deleted
+                    # Deselect the row because it's about to be deleted
+                    # Select the row to be deleted
+                    selection = QItemSelection(
+                        self.index(index.row(), index.column()),
+                        self.index(index.row(), index.column()),
+                    )
+                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
+
+            # Notify the view that rows are about to be removed
+            self.beginRemoveRows(self.index(row_index, 0), row_index, row_index)
+
+            # Remove the data and compiled colors at the specified index
+            self._data.pop(row_index)
+            self._compiled_colors.pop(row_index)
+
+            # Adjust selection for rows below the deleted one
+            for index in selection_model.selection().indexes():
+                if index.row() > row_index:  # Items below the deleted row
+                    # Deselect the original row
+                    selection_to_deselect = QItemSelection(
+                        self.index(index.row(), index.column()),  # Original row
+                        self.index(index.row(), index.column()),
+                    )
+                    selection_model.select(selection_to_deselect, QItemSelectionModel.SelectionFlag.Deselect)
+
+                    # Move the selection up by one row
+                    selection_to_select = QItemSelection(
+                        self.index(index.row() - 1, index.column()),  # New row after deletion
+                        self.index(index.row() - 1, index.column()),
+                    )
+                    selection_model.select(selection_to_select, QItemSelectionModel.SelectionFlag.Select)
+
+            # Notify the view that the rows have been removed
+            self.endRemoveRows()
+
+            # NOTE: Fixes a weird UI bug that when someone leaves, it makes it an empty row
+            if not self._data:
+                # Begin resetting the model to indicate it's empty
+                self.beginResetModel()
+                self._data = []
+                self._compiled_colors = []
+                # End reset and notify the view that the model has been reset
+                self.endResetModel()
+
+            # Ensure the view resizes properly after a row is removed
+            # view.resizeRowsToContents()
+            # view.viewport().update()
+
+    def clear_all_data(self) -> None:
+        """Clear all data from the table model."""
+        self.beginResetModel()
+        self._data = []
+        self._compiled_colors = []
+        self.endResetModel()
+
+    def remove_player_by_ip(self, ip: str) -> None:
+        """Remove a single player row from the table by IP address.
+
+        Args:
+            ip: The IP address of the player to remove.
+        """
+        # Find the row containing this IP address
+        for row_idx, row_data in enumerate(self._data):
+            row_ip = self.get_ip_from_data_safely(row_data)
+            if row_ip == ip:
+                # Remove the row
+                self.beginRemoveRows(QModelIndex(), row_idx, row_idx)
+                self._data.pop(row_idx)
+                if row_idx < len(self._compiled_colors):
+                    self._compiled_colors.pop(row_idx)
+                self.endRemoveRows()
+                break
+
+    def refresh_view(self) -> None:
+        """Notifies the view to refresh and reflect all changes made to the model."""
+        self.layoutAboutToBeChanged.emit()
+        self.layoutChanged.emit()
+
+
+class SessionTableView(QTableView):
+    """Render a session table view with custom selection and tooltips."""
+
+    def __init__(
+        self,
+        model: SessionTableModel,
+        sort_column: int,
+        sort_order: Qt.SortOrder,
+        *,
+        is_connected_table: bool,
+    ) -> None:
+        """Initialize a session table view.
+
+        Args:
+            model: The model to display.
+            sort_column: Initial column index to sort by.
+            sort_order: Initial sort order.
+            is_connected_table: Whether this view represents the connected table.
+        """
+        super().__init__()
+
+        self._is_connected_table = is_connected_table  # Store which table type this is
+        self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
+        self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
+        self._previous_sort_section_index: int | None = None
+
+        self.setModel(model)
+        self.setMouseTracking(True)  # Track mouse without clicks
+        viewport = self.viewport()
+        viewport.installEventFilter(self)  # Install event filter
+        # Configure table view settings
+        vertical_header = self.verticalHeader()
+        vertical_header.setVisible(False)  # Hide row index
+        self.setAlternatingRowColors(True)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        horizontal_header = self.horizontalHeader()
+        horizontal_header.setSectionsClickable(True)
+        horizontal_header.sectionClicked.connect(self.on_section_clicked)  # pyright: ignore[reportUnknownMemberType]
+        horizontal_header.setSectionsMovable(True)
+        self.setSelectionMode(QTableView.SelectionMode.NoSelection)
+        self.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
+        self.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+
+        # Set the sort indicator for the specified column
+        self.setSortingEnabled(False)
+        horizontal_header.setSortIndicator(sort_column, sort_order)
+        horizontal_header.setSortIndicatorShown(True)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)  # pyright: ignore[reportUnknownMemberType]
+
+    # pylint: disable=invalid-name
+    def setModel(self, model: QAbstractItemModel | None) -> None:  # noqa: N802
+        """Override the setModel method to ensure the model is of type SessionTableModel."""
+        super().setModel(ensure_instance(model, SessionTableModel))
+
+    def model(self) -> SessionTableModel:
+        """Override the model method to ensure it returns a SessionTableModel."""
+        return ensure_instance(super().model(), SessionTableModel)
+
+    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
+        """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
+        return ensure_instance(super().selectionModel(), QItemSelectionModel)
+
+    def viewport(self) -> QWidget:
+        """Override the viewport method to ensure it returns a QWidget."""
+        return ensure_instance(super().viewport(), QWidget)
+
+    def verticalHeader(self) -> QHeaderView:  # noqa: N802
+        """Override the verticalHeader method to ensure it returns a QHeaderView."""
+        return ensure_instance(super().verticalHeader(), QHeaderView)
+
+    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
+        """Override the horizontalHeader method to ensure it returns a QHeaderView."""
+        return ensure_instance(super().horizontalHeader(), QHeaderView)
+
+    def window(self) -> MainWindow:
+        """Override the window method to ensure it returns the parent `MainWindow`.
+
+        Raises:
+            TypeError: If the view is not attached to a `MainWindow`.
+        """
+        return ensure_instance(super().window(), MainWindow)
+
+    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # pylint: disable=redefined-builtin  # noqa: A002, N802
+        """Show country flag tooltips on hover and forward other events."""
+        if isinstance(object, QWidget) and isinstance(event, QHoverEvent):
+            index = self.indexAt(event.position().toPoint())  # Get hovered cell
+            if index.isValid():
+                model = self.model()
+
+                if model.has_column('Country') and model.get_column_index('Country') == index.column():
+                    ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
+                    if ip is not None:
+                        matched_player = PlayersRegistry.get_player_by_ip(ip)
+                        if matched_player is not None and matched_player.country_flag is not None:
+                            self.show_flag_tooltip(event, index, matched_player)
+
+        return super().eventFilter(object, event)
+
+    def keyPressEvent(self, e: QKeyEvent | None) -> None:  # noqa: N802
+        """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
+
+        Fall back to default behavior for other key presses.
+        """
+        if isinstance(e, QKeyEvent):  # noqa: SIM102
+            if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if e.key() == Qt.Key.Key_A:
+                    self.select_all_cells()
+                elif e.key() == Qt.Key.Key_C:
+                    self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
+                return
+
+        # Fall back to default behavior
+        super().keyPressEvent(e)
+
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+        """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
+
+        Fall back to default behavior for non-cell areas.
+        """
+        if isinstance(e, QMouseEvent):
+            index = self.indexAt(e.pos())  # Determine the index of the clicked item
+            if index.isValid():
+                selection_model = self.selectionModel()
+                selection_flag = None
+
+                if e.button() == Qt.MouseButton.LeftButton:
+                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                        selection_flag = (
+                            QItemSelectionModel.SelectionFlag.Deselect
+                            if selection_model.isSelected(index)
+                            else QItemSelectionModel.SelectionFlag.Select
+                        )
+                        self._drag_selecting = True
+                        self._previous_cell = index
+                    elif e.modifiers() == Qt.KeyboardModifier.NoModifier:
+                        was_selection_index_selected = selection_model.isSelected(index)
+                        selection_model.clearSelection()
+                        selection_flag = (
+                            QItemSelectionModel.SelectionFlag.Deselect
+                            if was_selection_index_selected
+                            else QItemSelectionModel.SelectionFlag.Select
+                        )
+
+                elif e.button() == Qt.MouseButton.RightButton:  # noqa: SIM102
+                    if not selection_model.isSelected(index):
+                        selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
+
+                if selection_flag is not None:
+                    selection_model.select(index, selection_flag)
+
+        # Fall back to default behavior
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+        """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
+        if isinstance(e, QMouseEvent):
+            index = self.indexAt(e.pos())  # Get the index under the cursor
+            if index.isValid():
+                selection_model = self.selectionModel()
+
+                if e.buttons() == Qt.MouseButton.LeftButton:  # noqa: SIM102
+                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:  # noqa: SIM102
+                        if self._drag_selecting and self._previous_cell != index:
+                            self._previous_cell = index
+
+                            selection_model.select(index, (
+                                QItemSelectionModel.SelectionFlag.Deselect
+                                if selection_model.isSelected(index)
+                                else QItemSelectionModel.SelectionFlag.Select
+                            ))
+
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+        """Reset dragging state when the mouse button is released."""
+        if isinstance(e, QMouseEvent):  # noqa: SIM102
+            if e.button() == Qt.MouseButton.LeftButton:
+                self._drag_selecting = False
+                self._previous_cell = None
+
+        super().mouseReleaseEvent(e)
+    # pylint: enable=invalid-name
+
+    # --------------------------------------------------------------------------
+    # Custom / internal management methods
+    # --------------------------------------------------------------------------
+
+    def setup_static_column_resizing(self) -> None:
+        """Set up static column resizing for the table."""
+        model = self.model()
+        horizontal_header = self.horizontalHeader()
+
+        for column in range(model.columnCount()):
+            header_label = model.headerData(column, Qt.Orientation.Horizontal)
+
+            if header_label in {
+                'First Seen', 'Last Rejoin', 'Last Seen', 'T. Session Time', 'Session Time', 'Rejoins',
+                'T. Packets', 'Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPS', 'PPM',
+                'Bandwith', 'T. Bandwith', 'Download', 'T. Download', 'Upload', 'T. Upload', 'BPS', 'BPM',
+                'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',
+                'R. Code', 'ZIP Code', 'Lat', 'Lon', 'Offset', 'Currency', 'Time Zone',
+            }:
+                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+            else:
+                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+
+    def adjust_username_column_width(self) -> None:
+        """Adjust the 'Usernames' column width based on whether any username is non-empty."""
+        model = self.model()
+        header = self.horizontalHeader()
+
+        found_username = False
+        for row in range(model.rowCount()):
+            index = model.index(row, model.username_column_index)
+            data = model.get_display_text(index)
+            if data and data.strip():  # Check for non-empty, non-whitespace
+                found_username = True
+                break
+
+        if found_username:
+            header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Stretch)
+        else:
+            header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.ResizeToContents)
+
+    def get_sorted_column(self) -> tuple[str, Qt.SortOrder]:
+        """Get the currently sorted column and its order for this table view."""
+        model = self.model()
+        horizontal_header = self.horizontalHeader()
+
+        # Get the index of the currently sorted column
+        sorted_column_index = horizontal_header.sortIndicatorSection()
+
+        # Get the sort order (ascending or descending)
+        sort_order = horizontal_header.sortIndicatorOrder()
+
+        # Get the name of the sorted column from the model
+        sorted_column_name = model.headerData(sorted_column_index, Qt.Orientation.Horizontal)
+        if sorted_column_name is None:
+            raise TypeError(format_type_error(sorted_column_name, str))
+
+        return sorted_column_name, sort_order
+
+    def handle_menu_hovered(self, action: QAction) -> None:
+        """Propagate QAction tooltip text to its parent menu."""
+        # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
+        action_parent = action.parent()
+        if isinstance(action_parent, QMenu):
+            action_parent.setToolTip(action.toolTip())
+
+    def on_section_clicked(self, section_index: int) -> None:
+        """Sort the table by the clicked header section and reset selections."""
+        model = self.model()
+        horizontal_header = self.horizontalHeader()
+        selection_model = self.selectionModel()
+
+        # Clear selections when a header section is clicked
+        selection_model.clearSelection()
+
+        # If it's the first click or sorting is being toggled
+        if self._previous_sort_section_index is None or self._previous_sort_section_index != section_index:
+            horizontal_header.setSortIndicator(section_index, Qt.SortOrder.DescendingOrder)
+
+        # Sort the model
+        model.sort(section_index, horizontal_header.sortIndicatorOrder())
+        self._previous_sort_section_index = section_index
+
+    def show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
+        """Show tooltip only if hovering exactly over the flag."""
+        # TODO(BUZZARDGTA): Make the tooltip appear precisely when hovering over the flag, using the pixmap or QIcon object if possible.
+        cell_rect = self.visualRect(index)   # Get cell rectangle
+        flag_x_start = cell_rect.left() + 4  # Assuming flag starts with a 4px horizontal padding
+        flag_x_end = flag_x_start + 14       # Assuming flag ends with a 14px horizontal padding
+        flag_y_start = cell_rect.top() + 10  # Assuming flag starts with a 10px vertical padding
+        flag_y_end = flag_y_start + 10       # Assuming flag ends with a 10px vertical padding
+        # Check if the mouse is over the flag both horizontally and vertically
+        if flag_x_start <= event.position().toPoint().x() <= flag_x_end and flag_y_start <= event.position().toPoint().y() <= flag_y_end:
+            QToolTip.showText(event.globalPosition().toPoint(), player.iplookup.geolite2.country, self)
+        else:
+            QToolTip.hideText()
+
+    def show_context_menu(self, pos: QPoint) -> None:
+        """Show the context menu at the specified position with options to interact with the table's content."""
+        def add_action(
+            menu: QMenu,
+            label: str,
+            shortcut: str | None = None,
+            tooltip: str | None = None,
+            handler: Callable[..., None] | None = None,
+        ) -> QAction:
+            """Helper to create and configure a QAction."""
+            action = ensure_instance(menu.addAction(label), QAction)  # pyright: ignore[reportUnknownMemberType]
+
+            if shortcut:
+                action.setShortcut(shortcut)
+            if tooltip:
+                action.setToolTip(tooltip)
+            if handler:
+                action.triggered.connect(handler)  # pyright: ignore[reportUnknownMemberType]
+
+            return action
+
+        def add_menu(parent_menu: QMenu, label: str, tooltip: str | None = None) -> QMenu:
+            """Helper to create and configure a QMenu."""
+            menu = ensure_instance(parent_menu.addMenu(label), QMenu)
+
+            if tooltip:
+                menu.setToolTip(tooltip)
+
+            return menu
+
+        # Determine the index at the clicked position
+        index = self.indexAt(pos)
+        if not index.isValid():
+            return  # Do nothing if the click is outside valid cells
+
+        selected_model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+
+        # Create the main context menu
+        context_menu = QMenu(self)
+        context_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+        context_menu.setToolTipsVisible(True)
+        context_menu.hovered.connect(self.handle_menu_hovered)  # pyright: ignore[reportUnknownMemberType]
+
+        # Add "Copy Selection" action
+        add_action(
+            context_menu,
+            'Copy Selection',
+            shortcut='Ctrl+C',
+            tooltip='Copy selected cells to your clipboard.',
+            handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
+        )
+        context_menu.addSeparator()
+
+        # Add "Remove Player" action if all selected cells are in IP Address column
+        if selected_indexes and all(  # Check if all selected cells are in the IP Address column
+            selected_model.headerData(idx.column(), Qt.Orientation.Horizontal) == 'IP Address'
+            for idx in selected_indexes
+        ):
+            ips_to_remove: set[str] = set()
+            for idx in selected_indexes:
+                displayed_ip = selected_model.get_display_text(idx)
+                if displayed_ip and displayed_ip not in ips_to_remove:
+                    ips_to_remove.add(displayed_ip)
+
+            if ips_to_remove:
+                # Use singular or plural label based on count
+                if len(ips_to_remove) == 1:
+                    label = '🗑️ Remove Player'
+                    tooltip = 'Remove this player from the table and registry.'
+                else:
+                    label = f'🗑️ Remove {len(ips_to_remove)} Players'
+                    tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
+
+                def create_remove_handler(ip_list: set[str]) -> Callable[[], None]:
+                    return lambda: self.remove_players_by_ip_from_table(ip_list)
+
+                add_action(
+                    context_menu,
+                    label,
+                    tooltip=tooltip,
+                    handler=create_remove_handler(ips_to_remove),
+                )
+        context_menu.addSeparator()
+
+        # "Select" submenu
+        select_menu = add_menu(context_menu, 'Select  ')
+        add_action(
+            select_menu,
+            'Select All',
+            shortcut='Ctrl+A',
+            tooltip='Select all cells in the table.',
+            handler=self.select_all_cells,
+        )
+        add_action(
+            select_menu,
+            'Select Row',
+            tooltip='Select all cells in this row.',
+            handler=lambda: self.select_row_cells(index.row()),
+        )
+        add_action(
+            select_menu,
+            'Select Column',
+            tooltip='Select all cells in this column.',
+            handler=lambda: self.select_column_cells(index.column()),
+        )
+
+        # "Unselect" submenu
+        unselect_menu = add_menu(context_menu, 'Unselect')
+        add_action(
+            unselect_menu,
+            'Unselect All',
+            tooltip='Unselect all cells in the table.',
+            handler=self.unselect_all_cells,
+        )
+        add_action(
+            unselect_menu,
+            'Unselect Row',
+            tooltip='Unselect all cells in this row.',
+            handler=lambda: self.unselect_row_cells(index.row()),
+        )
+        add_action(
+            unselect_menu,
+            'Unselect Column',
+            tooltip='Unselect all cells in this column.',
+            handler=lambda: self.unselect_column_cells(index.column()),
+        )
+        context_menu.addSeparator()
+
+        # Process if one cell is selected
+        if len(selected_indexes) == 1:
+            selected_column = selected_indexes[0].column()
+
+            column_name = ensure_instance(selected_model.headerData(selected_column, Qt.Orientation.Horizontal), str)
+            if column_name == 'IP Address':
+                # Get the IP address from the selected cell
+                displayed_ip = selected_model.get_display_text(selected_indexes[0])
+                if not displayed_ip:
+                    return
+
+                userip_database_filepaths = UserIPDatabases.get_userip_database_filepaths()
+                matched_player = PlayersRegistry.get_player_by_ip(displayed_ip)
+                if matched_player is None:
+                    return
+
+                # Create local copies to use in lambdas
+                ip_address = displayed_ip
+                player_obj = matched_player
+
+                add_action(
+                    context_menu,
+                    'IP Lookup Details',
+                    tooltip='Displays a notification with a detailed IP lookup report for selected player.',
+                    handler=lambda: self.show_detailed_ip_lookup_player_cell(player_obj),
+                )
+
+                ping_menu = add_menu(context_menu, 'Ping    ')
+                add_action(
+                    ping_menu,
+                    'Normal',
+                    tooltip='Checks if selected IP address responds to pings.',
+                    handler=lambda: self.ping(ip_address),
+                )
+                add_action(
+                    ping_menu,
+                    'TCP Port (paping.exe)',
+                    tooltip='Checks if selected IP address responds to TCP pings on a given port.',
+                    handler=lambda: self.tcp_port_ping(ip_address),
+                )
+
+                scripts_menu = add_menu(context_menu, 'User Scripts ')
+
+                def create_script_handler(script_path: Path) -> Callable[[], None]:
+                    return lambda: run_cmd_script(script_path, [ip_address])
+
+                def get_script_candidates(directory: Path) -> list[Path]:
+                    allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
+                    return [
+                        script
+                        for script in directory.glob('*')
+                        if (
+                            script.is_file()
+                            and not script.name.startswith(('_', '.'))
+                            and script.suffix.casefold() in allowed_suffixes
+                        )
+                    ]
+
+                def add_scripts_to_menu(menu: QMenu, scripts: list[Path]) -> None:
+                    for script in scripts:
+                        script_resolved = script.resolve()
+                        add_action(
+                            menu,
+                            script_resolved.name,
+                            tooltip='',
+                            handler=create_script_handler(script_resolved),
+                        )
+
+                builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
+                user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
+
+                add_scripts_to_menu(scripts_menu, builtin_scripts)
+
+                # Separator between builtin/user scripts
+                if builtin_scripts and user_scripts:
+                    scripts_menu.addSeparator()
+
+                add_scripts_to_menu(scripts_menu, user_scripts)
+
+                userip_menu = add_menu(context_menu, 'UserIP  ')
+
+                if matched_player.userip is None:
+                    add_userip_menu = add_menu(userip_menu, 'Add     ', 'Add selected IP address to UserIP database.')  # Extra spaces for alignment
+                    for database_path in userip_database_filepaths:
+                        def create_add_handler(db_path: Path) -> Callable[[], None]:
+                            return lambda: self.userip_manager__add([ip_address], db_path)
+
+                        add_action(
+                            add_userip_menu,
+                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
+                            tooltip='Add selected IP address to this UserIP database.',
+                            handler=create_add_handler(database_path),
+                        )
+                else:
+                    move_userip_menu = add_menu(userip_menu, 'Move    ', 'Move selected IP address to another database.')
+                    for database_path in userip_database_filepaths:
+                        def create_move_handler(db_path: Path) -> Callable[[], None]:
+                            return lambda: self.userip_manager__move([ip_address], db_path)
+
+                        action = add_action(
+                            move_userip_menu,
+                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
+                            tooltip='Move selected IP address to this UserIP database.',
+                            handler=create_move_handler(database_path),
+                        )
+                        action.setEnabled(matched_player.userip.database_path != database_path)
+                    add_action(
+                        userip_menu,
+                        'Delete  ',  # Extra spaces for alignment
+                        tooltip='Delete selected IP address from UserIP databases.',
+                        handler=lambda: self.userip_manager__del([ip_address]),
+                    )
+
+        # Check if all selected cells are in the "IP Address" column
+        elif all(
+            selected_model.headerData(index.column(), Qt.Orientation.Horizontal) == 'IP Address'
+            for index in selected_indexes
+        ):
+            all_ips: list[str] = []
+
+            # Get the IP addresses from the selected cells
+            for index in selected_indexes:
+                displayed_ip = selected_model.get_display_text(index)
+                if displayed_ip:
+                    all_ips.append(displayed_ip)
+
+            if all(ip not in UserIPDatabases.ips_set for ip in all_ips):
+                userip_menu = add_menu(context_menu, 'UserIP  ')
+
+                add_userip_menu = add_menu(userip_menu, 'Add Selected')
+                for database_path in UserIPDatabases.get_userip_database_filepaths():
+                    def create_multi_add_handler(db_path: Path, ip_list: list[str]) -> Callable[[], None]:
+                        return lambda: self.userip_manager__add(ip_list, db_path)
+
+                    add_action(
+                        add_userip_menu,
+                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
+                        tooltip='Add selected IP addresses to this UserIP database.',
+                        handler=create_multi_add_handler(database_path, all_ips),
+                    )
+            elif all(ip in UserIPDatabases.ips_set for ip in all_ips):
+                userip_menu = add_menu(context_menu, 'UserIP  ')
+
+                move_userip_menu = add_menu(userip_menu, 'Move Selected')
+                for database_path in UserIPDatabases.get_userip_database_filepaths():
+                    def create_multi_move_handler(db_path: Path, ip_list: list[str]) -> Callable[[], None]:
+                        return lambda: self.userip_manager__move(ip_list, db_path)
+
+                    add_action(
+                        move_userip_menu,
+                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
+                        tooltip='Move selected IP addresses to this UserIP database.',
+                        handler=create_multi_move_handler(database_path, all_ips),
+                    )
+
+                add_action(
+                    userip_menu,
+                    'Delete Selected',  # Extra spaces for alignment
+                    tooltip='Delete selected IP addresses from UserIP databases.',
+                    handler=lambda: self.userip_manager__del(all_ips),
+                )
+
+        # Execute the context menu at the right-click position
+        context_menu.exec(self.mapToGlobal(pos))  # pyright: ignore[reportUnknownMemberType]
+
+    def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
+        """Copy the selected cells data from the table to the clipboard."""
+        # Access the system clipboard from the centralized app instance
+        clipboard = ensure_instance(app.clipboard(), QClipboard)
+
+        # Prepare a list to store text data from selected cells
+        selected_texts: list[str] = []
+
+        # Iterate over each selected index and retrieve its display data
+        for index in selected_indexes:
+            cell_text = selected_model.get_display_text(index)
+            if cell_text is None:
+                continue  # Skip if no valid display text is available
+
+            selected_texts.append(cell_text)
+
+        # Return if no text was selected
+        if not selected_texts:
+            return
+
+        # Join all selected text entries with a newline to format for copying
+        clipboard_content = '\n'.join(selected_texts)
+
+        # Set the formatted text in the system clipboard
+        clipboard.setText(clipboard_content)
+
+    def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
+        """Remove multiple players from the table by calling the appropriate `MainWindow` method.
+
+        Args:
+            ips: Set of IP addresses of the players to remove.
+        """
+        # Get the MainWindow instance
+        main_window = self.window()
+
+        # Remove each player
+        for ip in ips:
+            if self._is_connected_table:
+                main_window.remove_player_from_connected(ip)
+            else:
+                main_window.remove_player_from_disconnected(ip)
+
+    def show_detailed_ip_lookup_player_cell(self, player: Player) -> None:
+        """Show a detailed information dialog for the given player."""
+        QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
+            ############ Player Infos #############
+            IP Address: {player.ip}
+            Hostname: {player.reverse_dns.hostname}
+            Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
+            In UserIP database: {(
+                player.userip_detection is not None
+                and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')}"
+            ) or "No"}
+            Last Port: {player.ports.last}
+            Middle Port{pluralize(len(player.ports.middle))}: {', '.join(map(str, player.ports.middle))}
+            First Port: {player.ports.first}
+
+            ########## IP Lookup Details ##########
+            Continent: {player.iplookup.ipapi.continent}
+            Country: {player.iplookup.geolite2.country}
+            Country Code: {player.iplookup.geolite2.country_code}
+            Region: {player.iplookup.ipapi.region}
+            Region Code: {player.iplookup.ipapi.region_code}
+            City: {player.iplookup.geolite2.city}
+            District: {player.iplookup.ipapi.district}
+            ZIP Code: {player.iplookup.ipapi.zip_code}
+            Lat: {player.iplookup.ipapi.lat}
+            Lon: {player.iplookup.ipapi.lon}
+            Time Zone: {player.iplookup.ipapi.time_zone}
+            Offset: {player.iplookup.ipapi.offset}
+            Currency: {player.iplookup.ipapi.currency}
+            Organization: {player.iplookup.ipapi.org}
+            ISP: {player.iplookup.ipapi.isp}
+            ASN / ISP: {player.iplookup.geolite2.asn}
+            AS: {player.iplookup.ipapi.asn}
+            ASN: {player.iplookup.ipapi.as_name}
+            Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
+            Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
+            Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
+
+            ############ Ping Response ############
+            Ping Times: {player.ping.ping_times}
+            Packets Transmitted: {player.ping.packets_transmitted}
+            Packets Received: {player.ping.packets_received}
+            Packet Loss: {player.ping.packet_loss}
+            Packet Errors: {player.ping.packet_errors}
+            Round-Trip Time Minimum: {player.ping.rtt_min}
+            Round-Trip Time Average: {player.ping.rtt_avg}
+            Round-Trip Time Maximum: {player.ping.rtt_max}
+            Round-Trip Time Mean Deviation: {player.ping.rtt_mdev}
+        """),
+        )
+
+    def ping(self, ip: str) -> None:
+        """Runs a continuous ping to a specified IP address in a new terminal window."""
+        run_cmd_command('ping', [ip, '-t'])
+
+    def tcp_port_ping(self, ip: str) -> None:
+        """Runs paping to check TCP connectivity to a host on a user-specified port indefinitely."""
+
+        def run_paping(host: str, port: int) -> None:
+            """Runs paping in a new terminal window to check TCP connectivity continuously."""
+            run_cmd_script(PAPING_PATH, [host, '-p', str(port)])
+
+        port_str, ok = QInputDialog.getText(self, 'Input Port', 'Enter the port number to check TCP connectivity:')
+
+        if not ok:
+            return
+
+        port_str = port_str.strip()
+
+        if not port_str.isdigit():
+            QMessageBox.warning(self, 'Error', 'No valid port number provided.')
+            return
+
+        port = int(port_str)
+
+        if not MIN_PORT <= port <= MAX_PORT:
+            QMessageBox.warning(self, 'Error', 'Please enter a valid port number between 1 and 65535.')
+            return
+
+        run_paping(ip, port)
+
+    def userip_manager__add(self, selected_ips: list[str], selected_database: Path) -> None:
+        """Add the selected IP address(es) to the chosen UserIP database."""
+        # Prompt the user for a username
+        username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:')
+
+        if not ok:
+            return
+
+        username = username.strip()
+
+        if username:  # Only proceed if the user clicked 'OK' and provided a username
+            # Append the username and associated IP(s) to the corresponding database file
+            write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in selected_ips])
+
+            QMessageBox.information(
+                self, TITLE,
+                (
+                    f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
+                    f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username "{username}" '
+                    f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".'
+                ),
+            )
+        else:
+            # If the user canceled or left the input empty, show an error
+            QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
+
+    def userip_manager__move(self, selected_ips: list[str], selected_database: Path) -> None:
+        """Move the selected IP address(es) to the chosen UserIP database."""
+        # Dictionary to store removed entries by database
+        deleted_entries_by_database: dict[Path, list[str]] = {}
+
+        # Iterate over each UserIP database
+        for database_path in UserIPDatabases.get_userip_database_filepaths():
+            if database_path == selected_database:
+                continue
+
+            # Read the database file
+            lines = database_path.read_text(encoding='utf-8').splitlines(keepends=True)
+            if not lines:
+                continue
+
+            # List to store deleted entries in this particular database
+            deleted_entries_in_this_database: list[str] = []
+
+            # Remove any lines containing the IP address
+            lines_to_keep: list[str] = []
+            for line in lines:
+                # Try to match the regex
+                match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+                if match:
+                    # Extract username and ip using named groups
+                    username, ip = match.group('username', 'ip')
+
+                    # Only process if username and ip are strings
+                    if isinstance(username, str) and isinstance(ip, str):
+                        # Ensure both username and ip are non-empty strings
+                        username, ip = username.strip(), ip.strip()
+
+                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
+                        if ip in selected_ips:
+                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
+                            continue  # skip appending this line
+
+                # All other lines should be kept
+                lines_to_keep.append(line)
+
+            if deleted_entries_in_this_database:
+                # Only update the database file if there were any deletions
+                write_lines_to_file(database_path, 'w', lines_to_keep)
+
+                # Store the deleted entries for this database
+                deleted_entries_by_database[database_path] = deleted_entries_in_this_database
+
+                # Move the deleted entries to the target database
+                write_lines_to_file(selected_database, 'a', [f'{entry}\n' for entry in deleted_entries_in_this_database])
+
+        # After processing all databases, show a detailed report
+        if deleted_entries_by_database:
+            report = (
+                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} moved from the following '
+                f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
+                f'"{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":</b><br><br><br>'
+            )
+            for database_path, deleted_entries in deleted_entries_by_database.items():
+                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
+                report += '<ul>'
+                for entry in deleted_entries:
+                    report += f'<li>{entry}</li>'
+                report += '</ul><br>'
+            report = report.removesuffix('<br>')
+
+            QMessageBox.information(self, TITLE, report)
+
+    def userip_manager__del(self, selected_ips: list[str]) -> None:
+        """Remove the selected IP address(es) from all enabled UserIP databases."""
+        # Dictionary to store removed entries by database
+        deleted_entries_by_database: dict[Path, list[str]] = {}
+
+        # Iterate over each UserIP database
+        for database_path in UserIPDatabases.get_userip_database_filepaths():
+            # Read the database file
+            lines = database_path.read_text(encoding='utf-8').splitlines(keepends=True)
+            if not lines:
+                continue
+
+            # List to store deleted entries in this particular database
+            deleted_entries_in_this_database: list[str] = []
+
+            # Remove any lines containing the IP address
+            lines_to_keep: list[str] = []
+            for line in lines:
+                # Try to match the regex
+                match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+                if match:
+                    # Extract username and ip using named groups
+                    username, ip = match.group('username', 'ip')
+
+                    # Only process if username and ip are strings
+                    if isinstance(username, str) and isinstance(ip, str):
+                        # Ensure both username and ip are non-empty strings
+                        username, ip = username.strip(), ip.strip()
+
+                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
+                        if ip in selected_ips:
+                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
+                            continue  # skip appending this line
+
+                # All other lines should be kept
+                lines_to_keep.append(line)
+
+            if deleted_entries_in_this_database:
+                # Only update the database file if there were any deletions
+                write_lines_to_file(database_path, 'w', lines_to_keep)
+
+                # Store the deleted entries for this database
+                deleted_entries_by_database[database_path] = deleted_entries_in_this_database
+
+        # After processing all databases, show a detailed report
+        if deleted_entries_by_database:
+            report = (
+                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} removed from the following '
+                f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
+            )
+            for database_path, deleted_entries in deleted_entries_by_database.items():
+                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
+                report += '<ul>'
+                for entry in deleted_entries:
+                    report += f'<li>{entry}</li>'
+                report += '</ul><br>'
+            report = report.removesuffix('<br>')
+
+            QMessageBox.information(self, TITLE, report)
+
+    def _select_all_cells_helper(self, *, select: bool) -> None:
+        """Helper function to select or deselect all cells in the table.
+
+        Args:
+            select: If True, select all cells; if False, deselect them.
+        """
+        selected_model = self.model()
+        selection_model = self.selectionModel()
+
+        # Early return if no rows exist in the table
+        if not selected_model.rowCount():
+            return
+
+        # Get the top-left and bottom-right QModelIndex for the entire table
+        top_left = selected_model.createIndex(0, 0)  # Top-left item (first row, first column)
+        bottom_right = selected_model.createIndex(
+            selected_model.rowCount() - 1, selected_model.columnCount() - 1,
+        )  # Bottom-right item (last row, last column)
+
+        # Create a selection range from top-left to bottom-right
+        selection = QItemSelection(top_left, bottom_right)
+
+        # Use the appropriate selection flag based on the `select` argument
+        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
+        selection_model.select(selection, flag)
+
+    def _select_row_cells_helper(self, row: int, *, select: bool) -> None:
+        """Helper function to select or unselect all cells in a specific row.
+
+        Args:
+            row: The index of the row to modify selection.
+            select: If True, select the row; if False, unselect it.
+        """
+        selected_model = self.model()
+        selection_model = self.selectionModel()
+
+        # Early return if no rows exist in the table
+        if not selected_model.rowCount():
+            return
+
+        top_index = selected_model.createIndex(row, 0)  # First column of the specified row
+        bottom_index = selected_model.createIndex(row, selected_model.columnCount() - 1)  # Last column of the specified row
+
+        # Create a selection range for the entire row
+        selection = QItemSelection(top_index, bottom_index)
+
+        # Use the appropriate selection flag based on the `select` argument
+        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
+        selection_model.select(selection, flag)
+
+    def _select_column_cells_helper(self, column: int, *, select: bool) -> None:
+        """Helper function to select or unselect all cells in a given column.
+
+        Args:
+            column: The index of the column to modify selection.
+            select: If True, select the column; if False, unselect it.
+        """
+        selected_model = self.model()
+        selection_model = self.selectionModel()
+
+        # Early return if no rows exist in the table
+        if not selected_model.rowCount():
+            return
+
+        top_index = selected_model.createIndex(0, column)  # First row of the specified column
+        bottom_index = selected_model.createIndex(selected_model.rowCount() - 1, column)  # Last row of the specified column
+
+        # Create a selection range for the entire column
+        selection = QItemSelection(top_index, bottom_index)
+
+        # Use the appropriate selection flag based on the `select` argument
+        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
+        selection_model.select(selection, flag)
+
+    def select_all_cells(self) -> None:
+        """Select all cells in the table."""
+        self._select_all_cells_helper(select=True)
+
+    def unselect_all_cells(self) -> None:
+        """Unselect all cells in the table."""
+        self._select_all_cells_helper(select=False)
+
+    def select_row_cells(self, row: int) -> None:
+        """Select all cells in the specified row."""
+        self._select_row_cells_helper(row, select=True)
+
+    def unselect_row_cells(self, row: int) -> None:
+        """Unselect all cells in the specified row."""
+        self._select_row_cells_helper(row, select=False)
+
+    def select_column_cells(self, column: int) -> None:
+        """Select all cells in the specified column."""
+        self._select_column_cells_helper(column, select=True)
+
+    def unselect_column_cells(self, column: int) -> None:
+        """Unselect all cells in the specified column."""
+        self._select_column_cells_helper(column, select=False)
+
+
+class GUIWorkerThread(QThread):
+    """Emit GUI update payloads compiled by the rendering core."""
+
+    update_signal = pyqtSignal(GUIUpdatePayload)
+
+    def __init__(
+        self,
+        connected_table_view: SessionTableView,
+        disconnected_table_view: SessionTableView,
+    ) -> None:
+        """Initialize the GUI worker thread.
+
+        Args:
+            connected_table_view: The connected players table view.
+            disconnected_table_view: The disconnected players table view.
+        """
+        super().__init__()
+
+        self.connected_table_view = connected_table_view
+        self.disconnected_table_view = disconnected_table_view
+
+    def run(self) -> None:
+        """Continuously emit GUI payloads while the app is running."""
+        last_snapshot_version = 0
+
+        while not gui_closed__event.is_set():
+            snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
+                timeout=0.1,
+                last_seen_version=last_snapshot_version,
+            )
+            if snapshot is None:
+                continue
+
+            header_text = snapshot.header_text
+            status_capture_text = snapshot.status_capture_text
+            status_config_text = snapshot.status_config_text
+            status_issues_text = snapshot.status_issues_text
+            status_performance_text = snapshot.status_performance_text
+            connected_num = snapshot.connected_num_rows
+            disconnected_num = snapshot.disconnected_num_rows
+
+            # Preprocess rows with colors
+            connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                (list(row), list(colors))
+                for row, colors in zip(snapshot.connected_rows, snapshot.connected_colors, strict=True)
+            ]
+            disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                (list(row), list(colors))
+                for row, colors in zip(snapshot.disconnected_rows, snapshot.disconnected_colors, strict=True)
+            ]
+
+            self.update_signal.emit(GUIUpdatePayload(
+                snapshot_version=last_snapshot_version,
+                header_text=header_text,
+                status_capture_text=status_capture_text,
+                status_config_text=status_config_text,
+                status_issues_text=status_issues_text,
+                status_performance_text=status_performance_text,
+                connected_rows_with_colors=connected_rows_with_colors,
+                disconnected_rows_with_colors=disconnected_rows_with_colors,
+                connected_num=connected_num,
+                disconnected_num=disconnected_num,
+            ))
+
+
+class PersistentMenu(QMenu):
+    """Custom QMenu that doesn't close when checkable actions are triggered."""
+
+    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Override mouse release event to prevent auto-closing on checkable actions."""
+        if event is None:
+            super().mouseReleaseEvent(event)
+            return
+
+        action = self.actionAt(event.pos())
+        if action and action.isCheckable():
+            # Trigger the action but don't close the menu
+            action.trigger()
+            event.accept()
+            return
+        # For non-checkable actions, use default behavior (close menu)
+        super().mouseReleaseEvent(event)
+
+
+def arp_spoofing_task(
+    selected_interface: SelectedInterface,
+    capture_obj: PacketCapture,
+) -> None:
+    """Manage ARP spoofing process lifecycle synchronized with packet capture state.
+
+    Credit: https://github.com/alandau/arpspoof
+    """
+    with ThreadsExceptionHandler():
+        if not ARPSPOOF_PATH.is_file():
+            logger.warning('Executable not found at: %s', ARPSPOOF_PATH)
+            return
+
+        # Validate required interface fields
+        if selected_interface.device_name is None:
+            logger.error('ARP spoofing cannot start: device_name is None')
+            return
+        if selected_interface.ip_address is None:
+            logger.error('ARP spoofing cannot start: ip_address is None')
+            return
+
+        proc: subprocess.Popen[str] | None = None
+        startup_probe_timeout = 3.0
+
+        def terminate_process(proc: subprocess.Popen[str]) -> None:
+            """Terminate the ARP spoofing process."""
+            proc.terminate()
+            proc.wait()
+
+        def report_failure(
+            stage: str,
+            *,
+            exit_code: int | None,
+            error_output: str | None,
+            msgbox_style: msgbox.Style,
+            spawn_msgbox_thread: bool,
+        ) -> None:
+            """Log, notify, and terminate the ARP spoofing task on failure."""
+            if exit_code is not None:
+                logger.error('%s. Exit code: %s.', stage.capitalize(), exit_code)
+            else:
+                logger.error('%s.', stage.capitalize())
+            if error_output:
+                logger.error('Error: %s', error_output)
+
+            error_message = format_arp_spoofing_failed_message(
+                selected_interface=selected_interface,
+                exit_code=exit_code,
+                error_details=error_output,
+            )
+
+            def show_msgbox() -> None:
+                msgbox.show(
+                    title='ARP Spoofing Failed',
+                    text=error_message,
+                    style=msgbox_style,
+                )
+
+            if spawn_msgbox_thread:
+                Thread(
+                    target=show_msgbox,
+                    name=f'ARPSpoof-{stage}-msgbox',
+                    daemon=True,
+                ).start()
+            else:
+                show_msgbox()
+            logger.info('Task terminated due to %s.', stage)
+
+        while not gui_closed__event.is_set():
+            # Wait for capture to be running
+            while not capture_obj.is_running() and not gui_closed__event.is_set():
+                time.sleep(0.5)
+
+            if gui_closed__event.is_set():
+                break
+
+            # Start arpspoof process
+            if proc is None or proc.poll() is not None:
+                proc = subprocess.Popen(  # pylint: disable=consider-using-with
+                    [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                logger.info('Started spoofing on interface %s', selected_interface.ip_address)
+
+                try:
+                    proc.wait(timeout=startup_probe_timeout)
+                except subprocess.TimeoutExpired:
+                    pass  # Process continues to run
+                else:
+                    exit_code = proc.returncode
+                    stdout_data, stderr_data = proc.communicate()
+                    error_output = (stderr_data or stdout_data or '').strip() or None
+                    proc = None
+                    report_failure(
+                        'startup failure',
+                        exit_code=exit_code,
+                        error_output=error_output,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=False,
+                    )
+                    return
+
+            # Wait for capture to stop or process to die
+            while proc and capture_obj.is_running() and not gui_closed__event.is_set():
+                try:
+                    proc.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    continue  # Process still healthy; keep monitoring
+
+                exit_code = proc.returncode
+                stdout_data, stderr_data = proc.communicate()
+                error_output = (stderr_data or stdout_data or '').strip() or None
+                proc = None
+
+                if exit_code:
+                    report_failure(
+                        'unexpected process exit',
+                        exit_code=exit_code,
+                        error_output=error_output,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=True,
+                    )
+
+                logger.info('Process died unexpectedly, respawning...')
+                break
+
+            # Stop the process if capture stopped
+            if proc and proc.poll() is None:
+                terminate_process(proc)
+                logger.info('Stopped spoofing.')
+                proc = None
+
+        # Final cleanup
+        if proc and proc.poll() is None:
+            terminate_process(proc)
+        logger.info('Task terminated.')
+
+
+def generate_gui_header_html(*, capture: PacketCapture) -> str:
+    """Generate the GUI header HTML based on capture state.
+
+    Args:
+        capture: The PacketCapture instance to read state from.
+
+    Returns:
+        HTML string for the header.
+    """
+    stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
+
+    return GUI_HEADER_HTML_TEMPLATE.format(
+        title=TITLE,
+        version=VERSION,
+        stop_status=stop_status,
+    )
+
+
+class MainWindow(QMainWindow):
+    """Main Qt window that hosts session tables and control UI."""
+
+    _min_accepted_snapshot_version: int
+
+    def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
+        """Initialize the main application window.
+
+        Args:
+            screen_width: Primary screen width in pixels.
+            screen_height: Primary screen height in pixels.
+            capture: Packet capture instance used by the GUI.
+        """
+        super().__init__()
+
+        self.capture = capture
+
+        # Set up the window
+        self.setWindowTitle(TITLE)
+        self.setMinimumSize(800, 600)
+        resize_window_for_screen(self, screen_width, screen_height)
+
+        # Central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Layout for the central widget
+        self.main_layout = QVBoxLayout(central_widget)
+
+        # Create the toolbar
+        toolbar = QToolBar('Main Toolbar', self)
+        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
+        toolbar.setFloatable(False)
+        toolbar.setMovable(False)
+        toolbar.setIconSize(QSize(16, 16))
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+
+        # ----- Stop/Start Capture Button -----
+        self.toggle_capture_action = QAction('⏹️ Stop Capture', self)
+        self.toggle_capture_action.setToolTip('Stop packet capture')
+        self.toggle_capture_action.triggered.connect(self.toggle_capture)  # pyright: ignore[reportUnknownMemberType]
+        toolbar.addAction(self.toggle_capture_action)  # pyright: ignore[reportUnknownMemberType]
+
+        toolbar.addSeparator()
+
+        # ----- Detection Menu -----
+        detection_menu_button = QPushButton(' 🔔 Detection ', self)
+        detection_menu_button.setToolTip('Configure notification settings for various player detection scenarios')
+
+        detection_menu = PersistentMenu(self)
+        detection_menu.setToolTipsVisible(True)
+
+        # Mobile Detection action
+        self.mobile_detection_action = QAction('Mobile (cellular) connection', self)
+        self.mobile_detection_action.setToolTip('Get notified when a player joins using a mobile/cellular internet connection')
+        self.mobile_detection_action.setCheckable(True)
+        self.mobile_detection_action.setChecked(GUIDetectionSettings.mobile_detection_enabled)
+        self.mobile_detection_action.triggered.connect(self.toggle_mobile_detection)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.mobile_detection_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # VPN Detection action
+        self.vpn_detection_action = QAction('Proxy, VPN or Tor exit address', self)
+        self.vpn_detection_action.setToolTip('Get notified when a player joins using a VPN, proxy, or Tor exit node')
+        self.vpn_detection_action.setCheckable(True)
+        self.vpn_detection_action.setChecked(GUIDetectionSettings.vpn_detection_enabled)
+        self.vpn_detection_action.triggered.connect(self.toggle_vpn_detection)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.vpn_detection_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Hosting Detection action
+        self.hosting_detection_action = QAction('Hosting, colocated or data center', self)
+        self.hosting_detection_action.setToolTip('Get notified when a player joins from a hosting provider or data center')
+        self.hosting_detection_action.setCheckable(True)
+        self.hosting_detection_action.setChecked(GUIDetectionSettings.hosting_detection_enabled)
+        self.hosting_detection_action.triggered.connect(self.toggle_hosting_detection)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.hosting_detection_action)  # pyright: ignore[reportUnknownMemberType]
+
+        detection_menu.addSeparator()
+
+        # Player Join Notification action
+        self.player_join_notification_action = QAction('Player join notifications', self)
+        self.player_join_notification_action.setToolTip('Get notified whenever any player joins your session')
+        self.player_join_notification_action.setCheckable(True)
+        self.player_join_notification_action.setChecked(GUIDetectionSettings.player_join_notifications_enabled)
+        self.player_join_notification_action.triggered.connect(self.toggle_player_join_notifications)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.player_join_notification_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Player Rejoin Notification action
+        self.player_rejoin_notification_action = QAction('Player rejoin notifications', self)
+        self.player_rejoin_notification_action.setToolTip('Get notified whenever any player rejoins your session after disconnecting')
+        self.player_rejoin_notification_action.setCheckable(True)
+        self.player_rejoin_notification_action.setChecked(GUIDetectionSettings.player_rejoin_notifications_enabled)
+        self.player_rejoin_notification_action.triggered.connect(self.toggle_player_rejoin_notifications)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.player_rejoin_notification_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Player Leave Notification action
+        self.player_leave_notification_action = QAction('Player leave notifications', self)
+        self.player_leave_notification_action.setToolTip('Get notified whenever any player leaves your session')
+        self.player_leave_notification_action.setCheckable(True)
+        self.player_leave_notification_action.setChecked(GUIDetectionSettings.player_leave_notifications_enabled)
+        self.player_leave_notification_action.triggered.connect(self.toggle_player_leave_notifications)  # pyright: ignore[reportUnknownMemberType]
+        detection_menu.addAction(self.player_leave_notification_action)  # pyright: ignore[reportUnknownMemberType]
+
+        detection_menu_button.setMenu(detection_menu)
+        toolbar.addWidget(detection_menu_button)
+
+        toolbar.addSeparator()
+
+        # ----- Help Menu -----
+        help_menu_button = QPushButton(' ❓ Help ', self)
+        help_menu_button.setToolTip('Access help resources, documentation, and community')
+
+        help_menu = PersistentMenu(self)
+        help_menu.setToolTipsVisible(True)
+
+        # Project Repository action
+        repo_action = QAction('📦 Project Repository', self)
+        repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
+        repo_action.triggered.connect(self.open_project_repo)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(repo_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Documentation action
+        docs_action = QAction('📚 Documentation', self)
+        docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
+        docs_action.triggered.connect(self.open_documentation)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(docs_action)  # pyright: ignore[reportUnknownMemberType]
+
+        # Discord action
+        discord_action = QAction('💬 Discord Server', self)
+        discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
+        discord_action.triggered.connect(self.join_discord)  # pyright: ignore[reportUnknownMemberType]
+        help_menu.addAction(discord_action)  # pyright: ignore[reportUnknownMemberType]
+
+        help_menu_button.setMenu(help_menu)
+        toolbar.addWidget(help_menu_button)
+
+        # Header text
+        self.header_text = QLabel()
+        self.header_text.setTextFormat(Qt.TextFormat.RichText)
+        self.header_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_text.setWordWrap(True)
+        self.header_text.setFont(QFont('Courier', 10, QFont.Weight.Bold))
+
+        # Create container for connected header and controls
+        self.connected_header_container = QWidget()
+        self.connected_header_container.setStyleSheet(CONNECTED_HEADER_CONTAINER_STYLESHEET)
+        self.connected_header_layout = QHBoxLayout(self.connected_header_container)
+        self.connected_header_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Custom header for the Session Connected table with matching background as first column
+        self.session_connected_header = QLabel('Players connected in your session (0):')
+        self.session_connected_header.setTextFormat(Qt.TextFormat.RichText)
+        self.session_connected_header.setStyleSheet(CONNECTED_HEADER_TEXT_STYLESHEET)
+        self.session_connected_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.session_connected_header.setFont(QFont('Courier', 9, QFont.Weight.Bold))
+
+        # Add connected header to container with stretch to fill available space
+        self.connected_header_layout.addWidget(self.session_connected_header, 1)
+
+        # Add clear button for connected table
+        self.connected_clear_button = QPushButton('CLEAR')
+        self.connected_clear_button.setToolTip('Clear all connected players')
+        self.connected_clear_button.setStyleSheet(CONNECTED_CLEAR_BUTTON_STYLESHEET)
+        self.connected_clear_button.clicked.connect(self.clear_connected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_header_layout.addWidget(self.connected_clear_button)
+
+        # Add sleek collapse icon button for connected table
+        self.connected_collapse_button = QPushButton('▼')
+        self.connected_collapse_button.setToolTip('Hide the connected players table')
+        self.connected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
+        self.connected_collapse_button.clicked.connect(self.minimize_connected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_header_layout.addWidget(self.connected_collapse_button)
+
+        # Create the table model and view
+        connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+        connected_column_names = [
+            column_name
+            for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+            if column_name not in connected_hidden_columns
+        ]
+
+        self.connected_table_model = SessionTableModel(connected_column_names)
+        self.connected_table_view = SessionTableView(
+            self.connected_table_model,
+            connected_column_names.index('Last Rejoin'),
+            Qt.SortOrder.DescendingOrder,
+            is_connected_table=True,
+        )
+        self.connected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
+        self.connected_table_view.setup_static_column_resizing()
+        self.connected_table_model.view = self.connected_table_view
+
+        # Add a horizontal line separator
+        self.tables_separator = QFrame(self)
+        self.tables_separator.setFrameShape(QFrame.Shape.HLine)
+        self.tables_separator.setFrameShadow(QFrame.Shadow.Sunken)  # Optional shadow effect
+
+        # Create container for disconnected header and controls
+        self.disconnected_header_container = QWidget()
+        self.disconnected_header_container.setStyleSheet(DISCONNECTED_HEADER_CONTAINER_STYLESHEET)
+        self.disconnected_header_layout = QHBoxLayout(self.disconnected_header_container)
+        self.disconnected_header_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Custom header for the Session Disconnected table with matching background as first column
+        self.session_disconnected_header = QLabel("Players who've left your session (0):")
+        self.session_disconnected_header.setTextFormat(Qt.TextFormat.RichText)
+        self.session_disconnected_header.setStyleSheet(DISCONNECTED_HEADER_TEXT_STYLESHEET)
+        self.session_disconnected_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.session_disconnected_header.setFont(QFont('Courier', 9, QFont.Weight.Bold))
+
+        # Add disconnected header to container with stretch to fill available space
+        self.disconnected_header_layout.addWidget(self.session_disconnected_header, 1)
+
+        # Add clear button for disconnected table
+        self.disconnected_clear_button = QPushButton('CLEAR')
+        self.disconnected_clear_button.setToolTip('Clear all disconnected players')
+        self.disconnected_clear_button.setStyleSheet(DISCONNECTED_CLEAR_BUTTON_STYLESHEET)
+        self.disconnected_clear_button.clicked.connect(self.clear_disconnected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_header_layout.addWidget(self.disconnected_clear_button)
+
+        # Add sleek collapse icon button for disconnected table
+        self.disconnected_collapse_button = QPushButton('▼')
+        self.disconnected_collapse_button.setToolTip('Hide the disconnected players table')
+        self.disconnected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
+        self.disconnected_collapse_button.clicked.connect(self.minimize_disconnected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_header_layout.addWidget(self.disconnected_collapse_button)
+
+        # Create expand button for when connected section is hidden
+        self.connected_expand_button = QPushButton('▲  Show Connected Players (0)')
+        self.connected_expand_button.setToolTip('Show the connected players table')
+        self.connected_expand_button.setStyleSheet(CONNECTED_EXPAND_BUTTON_STYLESHEET)
+        self.connected_expand_button.clicked.connect(self.expand_connected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_expand_button.setVisible(False)
+
+        # Create expand button for when disconnected section is hidden
+        self.disconnected_expand_button = QPushButton('▲  Show Disconnected Players (0)')
+        self.disconnected_expand_button.setToolTip('Show the disconnected players table')
+        self.disconnected_expand_button.setStyleSheet(DISCONNECTED_EXPAND_BUTTON_STYLESHEET)
+        self.disconnected_expand_button.clicked.connect(self.expand_disconnected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_expand_button.setVisible(False)
+
+        # Create the table model and view
+        disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
+        disconnected_column_names = [
+            column_name
+            for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+            if column_name not in disconnected_hidden_columns
+        ]
+
+        self.disconnected_table_model = SessionTableModel(disconnected_column_names)
+        self.disconnected_table_view = SessionTableView(
+            self.disconnected_table_model,
+            disconnected_column_names.index('Last Seen'),
+            Qt.SortOrder.AscendingOrder,
+            is_connected_table=False,
+        )
+        self.disconnected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
+        self.disconnected_table_view.setup_static_column_resizing()
+        self.disconnected_table_model.view = self.disconnected_table_view
+
+        # Layout to organize the widgets
+        self.main_layout.addSpacing(4)
+        self.main_layout.addWidget(self.header_text)
+        self.main_layout.addSpacing(14)
+        self.main_layout.addWidget(self.connected_header_container)
+        self.main_layout.addWidget(self.connected_table_view)
+        self.main_layout.addWidget(self.tables_separator)
+        self.main_layout.addWidget(self.disconnected_header_container)
+        self.main_layout.addWidget(self.disconnected_table_view)
+        self.main_layout.addWidget(self.connected_expand_button)
+        self.main_layout.addWidget(self.disconnected_expand_button)
+
+        # Initialize tracking variables for text updates optimization
+        self._last_connected_count = -1
+        self._last_disconnected_count = -1
+
+        # Initialize tracking variables for selection counts
+        self._connected_selected_count = 0
+        self._disconnected_selected_count = 0
+
+        # Ignore any queued GUI updates published before this version.
+        # This prevents a stale update from repopulating the tables right after CLEAR.
+        self._min_accepted_snapshot_version = 0
+
+        # Connect to selection change signals to track selected cells
+        self.connected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+            lambda: self._update_selection_count(self.connected_table_view, 'connected'),
+        )
+        self.disconnected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+            lambda: self._update_selection_count(self.disconnected_table_view, 'disconnected'),
+        )
+
+        # Create and configure the status bar
+        self.status_bar = QStatusBar(self)
+        self.setStatusBar(self.status_bar)
+        self.status_bar.setSizeGripEnabled(False)
+        self.status_bar.setStyleSheet(STATUS_BAR_STYLESHEET)
+
+        # Create individual status labels for better organization
+        self.status_capture_label = QLabel()
+        self.status_capture_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
+
+        self.status_config_label = QLabel()
+        self.status_config_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
+
+        self.status_issues_label = QLabel()
+        self.status_issues_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
+
+        self.status_performance_label = QLabel()
+        self.status_performance_label.setTextFormat(Qt.TextFormat.RichText)
+        self.status_performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.status_performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
+
+        # Add labels to status bar with proper spacing
+        self.status_bar.addWidget(self.status_capture_label)
+        self.status_bar.addWidget(self.status_config_label)
+        self.status_bar.addWidget(self.status_issues_label)
+        self.status_bar.addPermanentWidget(self.status_performance_label)  # Right-aligned performance
+
+        # Raise and activate window to ensure it gets focus
+        self.raise_()
+        self.activateWindow()
+
+        # Create the worker thread for table updates
+        self.worker_thread = GUIWorkerThread(
+            self.connected_table_view,
+            self.disconnected_table_view,
+        )
+        self.worker_thread.update_signal.connect(self.update_gui)  # pyright: ignore[reportUnknownMemberType]
+        self.worker_thread.start()
+
+        # Track window movement/dragging for opacity effect
+        self._window_being_moved = False
+
+        # Install event filter to detect window movement/dragging
+        self.installEventFilter(self)
+
+    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Filter events to detect window movement."""
+        if obj == self and event is not None:
+            event_type = event.type()
+
+            # Detect start of window movement/dragging
+            if (
+                event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange)
+                and not self._window_being_moved
+            ):
+                self._start_window_move()
+
+            # Detect end of window movement/dragging
+            elif (
+                event_type in (
+                    QEvent.Type.WindowActivate,
+                    QEvent.Type.WindowDeactivate,
+                    QEvent.Type.NonClientAreaMouseButtonRelease,
+                    QEvent.Type.Enter,
+                    QEvent.Type.HoverEnter,
+                )
+                and self._window_being_moved
+            ):
+                self._end_window_move()
+
+        return super().eventFilter(obj, event)
+
+    def _start_window_move(self) -> None:
+        """Apply transparency when window movement/dragging starts."""
+        self._window_being_moved = True
+        self.setWindowOpacity(0.85)
+        # Disable UI elements
+        self.header_text.setEnabled(False)
+        self.connected_header_container.setEnabled(False)
+        self.connected_table_view.setEnabled(False)
+        self.disconnected_header_container.setEnabled(False)
+        self.disconnected_table_view.setEnabled(False)
+        self.tables_separator.setEnabled(False)
+        self.status_bar.setEnabled(False)
+        self.connected_expand_button.setEnabled(False)
+        self.disconnected_expand_button.setEnabled(False)
+
+    def _end_window_move(self) -> None:
+        """Restore opacity and re-enable UI elements after window movement/dragging ends."""
+        self._window_being_moved = False
+        self.setWindowOpacity(1.0)
+        # Re-enable UI elements
+        self.header_text.setEnabled(True)
+        self.connected_header_container.setEnabled(True)
+        self.connected_table_view.setEnabled(True)
+        self.disconnected_header_container.setEnabled(True)
+        self.disconnected_table_view.setEnabled(True)
+        self.tables_separator.setEnabled(True)
+        self.status_bar.setEnabled(True)
+        self.connected_expand_button.setEnabled(True)
+        self.disconnected_expand_button.setEnabled(True)
+
+    def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Handle the main window close event and terminate background work."""
+        gui_closed__event.set()  # Signal the thread to stop
+        self.worker_thread.quit()  # Stop the QThread
+        self.worker_thread.wait()  # Wait for the thread to finish
+
+        if event is not None:
+            event.accept()
+
+        terminate_script('EXIT')
+
+    # --------------------------------------------------------------------------
+    # Custom / internal management methods
+    # --------------------------------------------------------------------------
+
+    def _update_connected_header_with_selection(self) -> None:
+        """Update the connected table header to include selection information."""
+        base_text = f'Players connected in your session ({self._last_connected_count}):'
+        if self._connected_selected_count > 0:
+            player_text = 'player' if self._connected_selected_count == 1 else 'players'
+            combined_text = f'{base_text} ({self._connected_selected_count} {player_text} selected)'
+        else:
+            combined_text = base_text
+
+        self.session_connected_header.setText(combined_text)
+
+    def _update_disconnected_header_with_selection(self) -> None:
+        """Update the disconnected table header to include selection information."""
+        base_text = f"Players who've left your session ({self._last_disconnected_count}):"
+        if self._disconnected_selected_count > 0:
+            player_text = 'player' if self._disconnected_selected_count == 1 else 'players'
+            combined_text = f'{base_text} ({self._disconnected_selected_count} {player_text} selected)'
+        else:
+            combined_text = base_text
+
+        self.session_disconnected_header.setText(combined_text)
+
+    def _update_selection_count(self, table_view: SessionTableView, table_type: str) -> None:
+        """Update the selection count for the specified table and refresh table headers."""
+        selection_model = table_view.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+
+        # Count unique rows (players) instead of individual cells
+        unique_rows = {index.row() for index in selected_indexes}
+        selected_count = len(unique_rows)
+
+        if table_type == 'connected':
+            self._connected_selected_count = selected_count
+            self._update_connected_header_with_selection()
+        elif table_type == 'disconnected':
+            self._disconnected_selected_count = selected_count
+            self._update_disconnected_header_with_selection()
+
+    def _update_separator_visibility(self) -> None:
+        """Update the separator visibility based on whether both tables are visible."""
+        both_tables_visible = (
+            self.connected_table_view.isVisible()
+            and self.disconnected_table_view.isVisible()
+        )
+        self.tables_separator.setVisible(both_tables_visible)
+
+    def expand_connected_section(self) -> None:
+        """Handle the expand button click to show the connected section."""
+        self.connected_expand_button.setVisible(False)
+        self.connected_header_container.setVisible(True)
+        self.connected_table_view.setVisible(True)
+        self._update_separator_visibility()
+        self.connected_clear_button.setVisible(True)
+        self.connected_collapse_button.setVisible(True)
+
+        self.connected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
+
+    def expand_disconnected_section(self) -> None:
+        """Handle the expand button click to show the disconnected section."""
+        self.disconnected_expand_button.setVisible(False)
+        self.disconnected_header_container.setVisible(True)
+        self.disconnected_table_view.setVisible(True)
+        self._update_separator_visibility()
+        self.disconnected_clear_button.setVisible(True)
+        self.disconnected_collapse_button.setVisible(True)
+
+        self.disconnected_table_model.refresh_view()  # Refresh the table view to ensure it's up to date after being hidden
+
+    def minimize_connected_section(self) -> None:
+        """Minimize the connected table completely."""
+        self.connected_clear_button.setVisible(False)
+        self.connected_collapse_button.setVisible(False)
+        self.connected_header_container.setVisible(False)
+        self.connected_table_view.setVisible(False)
+        self.tables_separator.setVisible(False)
+        self.connected_expand_button.setText(f'▲  Show Connected Players ({self.connected_table_model.rowCount()})')  # Set initial count on the expand button
+        self.connected_expand_button.setVisible(True)
+
+    def minimize_disconnected_section(self) -> None:
+        """Minimize the disconnected table completely."""
+        self.disconnected_clear_button.setVisible(False)
+        self.disconnected_collapse_button.setVisible(False)
+        self.disconnected_header_container.setVisible(False)
+        self.disconnected_table_view.setVisible(False)
+        self.tables_separator.setVisible(False)
+        self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({self.disconnected_table_model.rowCount()})')  # Set initial count on the expand button
+        self.disconnected_expand_button.setVisible(True)
+
+    def update_gui(self, payload: GUIUpdatePayload) -> None:
+        """Update header text, status bar, and table data for connected and disconnected players."""
+        if payload.snapshot_version < self._min_accepted_snapshot_version:
+            return
+
+        # Update the main header text
+        self.header_text.setText(payload.header_text)
+
+        # Update individual status bar sections
+        self.status_capture_label.setText(payload.status_capture_text)
+        self.status_config_label.setText(payload.status_config_text)
+        self.status_issues_label.setText(payload.status_issues_text)
+        self.status_performance_label.setText(payload.status_performance_text)
+
+        # Check if counts changed to optimize text updates
+        connected_count_changed = self._last_connected_count != payload.connected_num
+        disconnected_count_changed = self._last_disconnected_count != payload.disconnected_num
+
+        if connected_count_changed:
+            self._last_connected_count = payload.connected_num
+            self._update_connected_header_with_selection()
+
+        # Process connected players data
+        for processed_data, compiled_colors in payload.connected_rows_with_colors:
+            ip = self.connected_table_model.get_ip_from_data_safely(list(processed_data))
+
+            # Remove from disconnected table (maintain data consistency)
+            disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
+            if disconnected_row_index is not None:
+                self.disconnected_table_model.delete_row(disconnected_row_index)
+
+            # Update connected table data
+            connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
+            if connected_row_index is None:
+                self.connected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
+            else:
+                self.connected_table_model.update_row_without_refresh(connected_row_index, list(processed_data), list(compiled_colors))
+
+        # Only perform expensive UI operations if tables are visible
+        if self.connected_table_view.isVisible():
+            self.connected_table_model.sort_current_column()
+            self.connected_table_view.adjust_username_column_width()
+        elif connected_count_changed:
+            self.connected_expand_button.setText(f'▲  Show Connected Players ({payload.connected_num})')
+
+        if disconnected_count_changed:
+            self._last_disconnected_count = payload.disconnected_num
+            self._update_disconnected_header_with_selection()
+
+        # Process disconnected players data
+        for processed_data, compiled_colors in payload.disconnected_rows_with_colors:
+            ip = self.disconnected_table_model.get_ip_from_data_safely(list(processed_data))
+
+            # Remove from connected table (maintain data consistency)
+            connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
+            if connected_row_index is not None:
+                self.connected_table_model.delete_row(connected_row_index)
+
+            # Update disconnected table data
+            disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
+            if disconnected_row_index is None:
+                self.disconnected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
+            else:
+                self.disconnected_table_model.update_row_without_refresh(disconnected_row_index, list(processed_data), list(compiled_colors))
+
+        # Only perform expensive UI operations if tables are visible
+        if self.disconnected_table_view.isVisible():
+            self.disconnected_table_model.sort_current_column()
+            self.disconnected_table_view.adjust_username_column_width()
+        elif disconnected_count_changed:
+            self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
+
+    def open_project_repo(self) -> None:
+        """Open the GitHub repository in the default browser."""
+        webbrowser.open(GITHUB_REPO_URL)
+
+    def open_documentation(self) -> None:
+        """Open the documentation URL in the default browser."""
+        webbrowser.open(DOCUMENTATION_URL)
+
+    def join_discord(self) -> None:
+        """Open the Discord invite URL in the default browser."""
+        webbrowser.open(DISCORD_INVITE_URL)
+
+    def toggle_mobile_detection(self) -> None:
+        """Toggle Mobile detection on/off and save the setting."""
+        GUIDetectionSettings.mobile_detection_enabled = self.mobile_detection_action.isChecked()
+
+        # Clear the Mobile notifications set when disabling to allow re-detection
+        if not GUIDetectionSettings.mobile_detection_enabled:
+            MobileWarnings.clear_all_notified_ips()
+
+    def toggle_vpn_detection(self) -> None:
+        """Toggle VPN detection on/off and save the setting."""
+        GUIDetectionSettings.vpn_detection_enabled = self.vpn_detection_action.isChecked()
+
+        # Clear the VPN notifications set when disabling to allow re-detection
+        if not GUIDetectionSettings.vpn_detection_enabled:
+            VPNWarnings.clear_all_notified_ips()
+
+    def toggle_hosting_detection(self) -> None:
+        """Toggle Hosting detection on/off and save the setting."""
+        GUIDetectionSettings.hosting_detection_enabled = self.hosting_detection_action.isChecked()
+
+        # Clear the Hosting notifications set when disabling to allow re-detection
+        if not GUIDetectionSettings.hosting_detection_enabled:
+            HostingWarnings.clear_all_notified_ips()
+
+    def toggle_player_join_notifications(self) -> None:
+        """Toggle player join notifications on/off."""
+        GUIDetectionSettings.player_join_notifications_enabled = self.player_join_notification_action.isChecked()
+
+    def toggle_player_rejoin_notifications(self) -> None:
+        """Toggle player rejoin notifications on/off."""
+        GUIDetectionSettings.player_rejoin_notifications_enabled = self.player_rejoin_notification_action.isChecked()
+
+    def toggle_player_leave_notifications(self) -> None:
+        """Toggle player leave notifications on/off."""
+        GUIDetectionSettings.player_leave_notifications_enabled = self.player_leave_notification_action.isChecked()
+
+    def _update_header_capture_status(self) -> None:
+        """Immediately update the header text to reflect current capture state."""
+        header_html = generate_gui_header_html(capture=self.capture)
+        self.header_text.setText(header_html)
+
+    def toggle_capture(self) -> None:
+        """Toggle the packet capture on/off."""
+        if self.capture.is_running():
+            self.capture.stop()
+            self.toggle_capture_action.setText('▶️ Start Capture')
+            self.toggle_capture_action.setToolTip('Start packet capture')
+        else:
+            self.capture.start()
+            self.toggle_capture_action.setText('⏹️ Stop Capture')
+            self.toggle_capture_action.setToolTip('Stop packet capture')
+
+        # Immediately update header to show current status
+        self._update_header_capture_status()
+
+    def clear_connected_players(self) -> None:
+        """Clear all connected players from the table and registry."""
+        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+        connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
+        connected_ips = {player.ip for player in connected_players}
+
+        PlayersRegistry.clear_connected_players()
+        SessionHost.clear_session_host_data()
+        self.connected_table_model.clear_all_data()
+
+        # Reset selection count and update header
+        self._connected_selected_count = 0
+        self._update_connected_header_with_selection()
+
+        if connected_ips:
+            MobileWarnings.remove_notified_ips_batch(connected_ips)
+            VPNWarnings.remove_notified_ips_batch(connected_ips)
+            HostingWarnings.remove_notified_ips_batch(connected_ips)
+
+    def clear_disconnected_players(self) -> None:
+        """Clear all disconnected players from the table and registry."""
+        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+        disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
+        disconnected_ips = {player.ip for player in disconnected_players}
+
+        PlayersRegistry.clear_disconnected_players()
+        self.disconnected_table_model.clear_all_data()
+
+        # Reset selection count and update header
+        self._disconnected_selected_count = 0
+        self._update_disconnected_header_with_selection()
+
+        if disconnected_ips:
+            MobileWarnings.remove_notified_ips_batch(disconnected_ips)
+            VPNWarnings.remove_notified_ips_batch(disconnected_ips)
+            HostingWarnings.remove_notified_ips_batch(disconnected_ips)
+
+    def remove_player_from_connected(self, ip: str) -> None:
+        """Remove a single player from connected table and registry by IP address."""
+        removed_player = PlayersRegistry.remove_connected_player(ip)
+        if removed_player is None:
+            return
+
+        # Remove from session host if this was the host
+        if SessionHost.player and SessionHost.player.ip == ip:
+            SessionHost.player = None
+            SessionHost.search_player = True
+
+        # Remove from pending disconnection list
+        SessionHost.players_pending_for_disconnection = [
+            p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
+        ]
+
+        # Remove from table model
+        self.connected_table_model.remove_player_by_ip(ip)
+
+        # Update header
+        self._update_connected_header_with_selection()
+
+        # Remove from warning tracking
+        MobileWarnings.remove_notified_ip(ip)
+        VPNWarnings.remove_notified_ip(ip)
+        HostingWarnings.remove_notified_ip(ip)
+
+    def remove_player_from_disconnected(self, ip: str) -> None:
+        """Remove a single player from disconnected table and registry by IP address."""
+        removed_player = PlayersRegistry.remove_disconnected_player(ip)
+        if removed_player is None:
+            return
+
+        # Remove from table model
+        self.disconnected_table_model.remove_player_by_ip(ip)
+
+        # Update header
+        self._update_disconnected_header_with_selection()
+
+        # Remove from warning tracking
+        MobileWarnings.remove_notified_ip(ip)
+        VPNWarnings.remove_notified_ip(ip)
+        HostingWarnings.remove_notified_ip(ip)
+
+
+class ClickableLabel(QLabel):
+    """Emit a signal when the label is clicked."""
+
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+        """Emit `clicked` when left mouse button is pressed."""
+        if event is not None and event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+
+
+class DiscordIntro(QDialog):
+    """Show a modal dialog inviting the user to join the Discord server."""
+
+    def __init__(self) -> None:
+        """Initialize the Discord community intro dialog."""
+        super().__init__()
+
+        window_title = '🏆 Join our Discord Community! 🤝'
+
+        # Ensure the dialog is modal, blocking interaction with the main window
+        self.setModal(True)
+
+        # Set up the window
+        self.setWindowTitle(window_title)
+        self.setMinimumSize(460, 160)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.Dialog)  # | Qt.WindowType.WindowStaysOnTopHint
+
+        # Set window opacity to 0 for fade-in animation
+        self.setWindowOpacity(0)
+
+        # Styling for the main container window
+        self.setStyleSheet(DISCORD_POPUP_MAIN_STYLESHEET)
+
+        self.fade_out = QPropertyAnimation(self, b'windowOpacity')
+
+        # Exit button in the top right corner
+        self.exit_button = QPushButton('x', self)
+        self.exit_button.setFixedSize(16, 16)  # Make the width and height equal
+        self.exit_button.setToolTip('Close this popup')
+        self.exit_button.setStyleSheet(DISCORD_POPUP_EXIT_BUTTON_STYLESHEET)
+        self.exit_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.exit_button.clicked.connect(self.close_popup)  # pyright: ignore[reportUnknownMemberType]
+
+        # Layout for the window content
+        layout = QVBoxLayout()
+
+        # Add the exit button to the top right
+        exit_layout = QHBoxLayout()
+        exit_layout.addStretch(1)  # Spacer
+        exit_layout.addWidget(self.exit_button)
+        layout.addLayout(exit_layout)
+
+        # Label for the Discord message
+        self.title_label = QLabel(
+            f"<font size='6' color='#5865F2'><b>{window_title}</b></font>",
+            self)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(self.title_label)
+
+        layout.addItem(QSpacerItem(0, 4, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))  # Spacer
+
+        # Join button container
+        self.join_button = QPushButton('🔥 Join Now - Session Sniffer Discord! 🔥', self)
+        self.join_button.setToolTip('Open Discord and join the Session Sniffer community server')
+        self.join_button.setStyleSheet(DISCORD_POPUP_JOIN_BUTTON_STYLESHEET)
+        self.join_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.join_button.clicked.connect(self.open_discord)  # pyright: ignore[reportUnknownMemberType]
+
+        # Set button width to 75% of the window width
+        self.join_button.setMaximumWidth(int(self.width() * 0.75))
+
+        # Center the button horizontally using a layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # Spacer before the button
+        button_layout.addWidget(self.join_button)
+        button_layout.addStretch(1)  # Spacer after the button
+
+        layout.addLayout(button_layout)  # Add the button layout to the main layout
+
+        # Clickable text "Don't remind me again"
+        self.dont_remind_me_label = ClickableLabel("<font size='3' color='#B0B0B0'><u>Don't remind me again</u></font>", self)
+        self.dont_remind_me_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.dont_remind_me_label.setToolTip('Disable Discord popup notifications permanently')
+        self.dont_remind_me_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.dont_remind_me_label.clicked.connect(self.dont_remind_me)  # pyright: ignore[reportUnknownMemberType]
+
+        layout.addItem(QSpacerItem(0, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))  # Spacer
+        layout.addWidget(self.dont_remind_me_label)
+
+        # Apply margin here to adjust widget spacing
+        layout.setContentsMargins(10, 10, 10, 10)  # Add margin to the layout
+
+        # Set the main layout of the window
+        self.setLayout(layout)
+
+        # Show the window to allow size calculations
+        self.show()
+
+        # After the window is shown, center it
+        self.center_window()
+
+        # Fade-in animation
+        self.fade_in = QPropertyAnimation(self, b'windowOpacity')
+        self.fade_in.setDuration(1000)
+        self.fade_in.setStartValue(0)
+        self.fade_in.setEndValue(1)
+        self.fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.fade_in.start()
+
+        # Raise and activate window to ensure it gets focus
+        self.raise_()
+        self.activateWindow()
+
+        # Initialize variables to track mouse position
+        self._drag_pos: QPoint | None = None
+
+    # pylint: disable=invalid-name
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Begin drag when clicking the dialog background."""
+        if (
+            event is not None
+            and event.button() == Qt.MouseButton.LeftButton
+            and not self.exit_button.underMouse()
+            and not self.join_button.underMouse()
+            and not self.dont_remind_me_label.underMouse()  # Only allow dragging if the click is not on a button
+        ):
+            self._drag_pos = event.globalPosition().toPoint()
+
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Move the dialog while dragging."""
+        if (
+            event is not None
+            and self._drag_pos is not None  # If mouse is pressed, move the window
+        ):
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            self.move(self.pos() + delta)
+            self._drag_pos = event.globalPosition().toPoint()
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+        """Stop dragging the dialog on mouse release."""
+        self._drag_pos = None  # Reset drag position when mouse is released
+
+        super().mouseReleaseEvent(event)
+    # pylint: enable=invalid-name
+
+    def center_window(self) -> None:
+        """Center the dialog on the primary screen."""
+        screen = app.primaryScreen()
+        if screen is None:
+            raise PrimaryScreenNotFoundError
+
+        screen_geometry = screen.geometry()
+        x = (screen_geometry.width() - self.width()) // 2
+        y = (screen_geometry.height() - self.height()) // 2
+        self.move(x, y)
+
+    def open_discord(self) -> None:
+        """Open the Discord invite URL and disable future popup reminders."""
+        webbrowser.open(DISCORD_INVITE_URL)
+
+        if Settings.SHOW_DISCORD_POPUP:
+            Settings.SHOW_DISCORD_POPUP = False
+            Settings.rewrite_settings_file()
+
+        self.close_popup()
+
+    def dont_remind_me(self) -> None:
+        """Disable future Discord popup reminders and close the dialog."""
+        if Settings.SHOW_DISCORD_POPUP:
+            Settings.SHOW_DISCORD_POPUP = False
+            Settings.rewrite_settings_file()
+
+        self.close_popup()
+
+    def close_popup(self) -> None:
+        """Fade out and close the Discord popup dialog."""
+        # Smooth fade-out before closing
+        self.fade_out.setDuration(500)
+        self.fade_out.setStartValue(1)  # Start from fully opaque
+        self.fade_out.setEndValue(0)    # Fade to fully transparent
+        self.fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        self.fade_out.finished.connect(self.close)  # pyright: ignore[reportUnknownMemberType]  # Close the window after the fade-out finishes
+        self.fade_out.start()
+
+
+def main() -> None:
+    """Run environment checks, initialize dependencies, and start the GUI."""
+    colorama.init(autoreset=True)
+    os.chdir(SCRIPT_DIR)
+
+    if sys.platform != 'win32':
+        raise UnsupportedPlatformError(sys.platform)
+
+    # Check minimum screen resolution requirement early to avoid wasting user's time
+    try:
+        screen_width, screen_height = get_screen_size()
+    except UnsupportedScreenResolutionError as e:
+        msgbox.show(
+            title='Unsupported Screen Resolution',
+            text=e.msgbox_text,
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
+        )
+        sys.exit(1)
+
+    if not is_pyinstaller_compiled():
+        clear_screen()
+        set_window_title(f'Checking that your Python packages versions match project dependencies - {TITLE}')
+        console.print('\nChecking that your Python packages versions match project dependencies ...', highlight=False)
+
+        if outdated_packages := check_packages_version(get_dependencies_from_pyproject()):
+            msgbox_message = 'The following packages have version mismatches:\n\n'
+
+            # Iterate over outdated packages and add each package's information to the message box text
+            for package_name, required_version, installed_version in outdated_packages:
+                msgbox_message += f'{package_name} (required {required_version}, installed {installed_version})\n'
+
+            # Add additional message box text
+            msgbox_message += f'\nKeeping your packages synced with "{TITLE}" ensures smooth script execution and prevents compatibility issues.'
+            msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
+
+            # Show message box
+            msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
+            msgbox_title = TITLE
+            errorlevel = msgbox.show(msgbox_title, msgbox_message, msgbox_style)
+            if errorlevel != msgbox.ReturnValues.IDYES:
+                sys.exit(0)
+
+    clear_screen()
+    set_window_title(f'Applying your custom settings from "Settings.ini" - {TITLE}')
+    console.print('\nApplying your custom settings from "Settings.ini" ...\n', highlight=False)
+    Settings.load_from_settings_file(SETTINGS_PATH)
+
+    clear_screen()
+    set_window_title(f'Searching for a new update - {TITLE}')
+    console.print('\nSearching for a new update ...\n', highlight=False)
+    outcome = check_for_updates(updater_channel=Settings.UPDATER_CHANNEL)
+    if outcome is UpdateCheckOutcome.ABORT:
+        sys.exit(0)
+
+    clear_screen()
+    set_window_title(f'Checking that "Npcap" driver is installed on your system - {TITLE}')
+    console.print('\nChecking that "Npcap" driver is installed on your system ...\n', highlight=False)
+    ensure_npcap_installed()
+
+    clear_screen()
+    set_window_title(f"Initializing and updating MaxMind's GeoLite2 Country, City and ASN databases - {TITLE}")
+    console.print("\nInitializing and updating MaxMind's GeoLite2 Country, City and ASN databases ...\n", highlight=False)
+    geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = update_and_initialize_geolite2_readers()
+
+    clear_screen()
+    set_window_title(f'Initializing MacLookup module - {TITLE}')
+    console.print('\nInitializing MacLookup module ...\n', highlight=False)
+    mac_lookup = MacLookup(load_on_init=True)
+
+    clear_screen()
+    set_window_title(f'Capture network interface selection - {TITLE}')
+    console.print('\nCapture network interface selection ...\n', highlight=False)
+    populate_network_interfaces_info(mac_lookup)
+
+    # Get list of Interface objects that are available in tshark
+    available_interfaces: list[Interface] = []
+    tshark_interfaces = [
+        (i, device_name) for _, device_name, name in get_filtered_tshark_interfaces()
+        if (i := AllInterfaces.get_interface_by_name(name))
+    ]
+
+    for interface, device_name in tshark_interfaces:
+        # Populate the device_name from tshark
+        interface.device_name = device_name
+
+        if (
+            Settings.CAPTURE_INTERFACE_NAME is not None
+            and interface.name.casefold() == Settings.CAPTURE_INTERFACE_NAME.casefold()
+            and interface.name != Settings.CAPTURE_INTERFACE_NAME
+        ):
+            Settings.CAPTURE_INTERFACE_NAME = interface.name
+            Settings.rewrite_settings_file()
+
+        available_interfaces.append(interface)
+
+    selected_interface = select_interface(available_interfaces, screen_width, screen_height)
+    if selected_interface is None:
+        sys.exit(0)
+
+    clear_screen()
+    set_window_title(f'Initializing addresses and establishing connection to your PC / Console - {TITLE}')
+    console.print('\nInitializing addresses and establishing connection to your PC / Console ...\n', highlight=False)
+    need_rewrite_settings = False
+
+    if (
+        Settings.CAPTURE_INTERFACE_NAME is None
+        or selected_interface.name != Settings.CAPTURE_INTERFACE_NAME
+    ):
+        Settings.CAPTURE_INTERFACE_NAME = selected_interface.name
+        need_rewrite_settings = True
+
+    if selected_interface.mac_address != Settings.CAPTURE_MAC_ADDRESS:
+        Settings.CAPTURE_MAC_ADDRESS = selected_interface.mac_address
+        need_rewrite_settings = True
+
+    if selected_interface.ip_address != Settings.CAPTURE_IP_ADDRESS:
+        Settings.CAPTURE_IP_ADDRESS = selected_interface.ip_address
+        need_rewrite_settings = True
+
+    if need_rewrite_settings:
+        Settings.rewrite_settings_file()
+
+    capture_filter: list[str] = ['ip', 'udp']
+
+    if Settings.CAPTURE_IP_ADDRESS:
+        capture_filter.append(
+            f'((src host {Settings.CAPTURE_IP_ADDRESS} and (not (dst net {RESERVED_NETWORKS_FILTER}))) or '
+            f'(dst host {Settings.CAPTURE_IP_ADDRESS} and (not (src net {RESERVED_NETWORKS_FILTER}))))',
+        )
+
+    broadcast_support, multicast_support = check_broadcast_multicast_support(TSHARK_PATH, Settings.CAPTURE_INTERFACE_NAME)
+    if broadcast_support and multicast_support:
+        capture_filter.append('not (broadcast or multicast)')
+        vpn_mode_enabled = False
+    elif broadcast_support:
+        capture_filter.append('not broadcast')
+        vpn_mode_enabled = True
+    elif multicast_support:
+        capture_filter.append('not multicast')
+        vpn_mode_enabled = True
+    else:
+        vpn_mode_enabled = True
+
+    capture_filter.append('not (portrange 0-1023 or port 5353)')
+
+    excluded_protocols: list[str] = []
+
+    if Settings.CAPTURE_PROGRAM_PRESET:
+        if Settings.CAPTURE_PROGRAM_PRESET == 'GTA5':
+            capture_filter.append('(len >= 71 and len <= 1032)')
+        elif Settings.CAPTURE_PROGRAM_PRESET == 'Minecraft':
+            capture_filter.append('(len >= 49 and len <= 1498)')
+
+        # If the <CAPTURE_PROGRAM_PRESET> setting is set, automatically blocks RTCP connections.
+        # In case RTCP can be useful to get someone IP, I decided not to block them without using a <CAPTURE_PROGRAM_PRESET>.
+        # RTCP is known to be for example the Discord's server IP while you are in a call there.
+        # The "not rtcp" Display Filter have been heavily tested and I can confirm that it's indeed working correctly.
+        # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.
+        # It filters RTCP but some connections are STILL made out of it, but those are not RTCP ¯\_(ツ)_/¯.
+        # And that's exactly why the "Discord" (`class ThirdPartyServers`) IP ranges Capture Filters are useful for.
+        excluded_protocols.append('rtcp')
+
+    if Settings.CAPTURE_BLOCK_THIRD_PARTY_SERVERS:
+        capture_filter.append(f"not (net {' or '.join(ThirdPartyServers.get_all_ip_ranges())})")
+
+        # Here I'm trying to exclude various UDP protocols that are usefless for the srcipt.
+        # But there can be a lot more, those are just a couples I could find on my own usage.
+        excluded_protocols.extend(['ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'])
+
+    display_filter: list[str] = []
+
+    if excluded_protocols:
+        display_filter.append(
+            f"not ({' or '.join(excluded_protocols)})",
+        )
+
+    if Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
+        capture_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER})')
+
+    if Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
+        display_filter.insert(0, f'({Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER})')
+
+    capture_filter_str = ' and '.join(capture_filter) if capture_filter else None
+    display_filter_str = ' and '.join(display_filter) if display_filter else None
+
+    clear_screen()
+    set_window_title(f'DEBUG CONSOLE - {TITLE}')
+
+    def packet_callback(packet: Packet) -> None:
+        """Callback function to process each captured packet."""
+        with ThreadsExceptionHandler():
+            packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
+            TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
+            if packet_latency >= timedelta(seconds=Settings.CAPTURE_OVERFLOW_TIMER):
+                TsharkStats.restarted_times += 1
+                TsharkStats.packets_latencies.clear()
+                logger.warning(
+                    'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
+                    'Restarting capture now (restart #%d). Skipping this packet.',
+                    packet_latency.total_seconds(),
+                    Settings.CAPTURE_OVERFLOW_TIMER,
+                    TsharkStats.restarted_times,
+                )
+                capture.request_restart()
+                return  # Skip processing this packet
+
+            if Settings.CAPTURE_IP_ADDRESS:
+                if packet.ip.src == Settings.CAPTURE_IP_ADDRESS:
+                    target_ip = packet.ip.dst
+                    target_port = packet.port.dst
+                    sent_by_local_host = True
+                elif packet.ip.dst == Settings.CAPTURE_IP_ADDRESS:
+                    target_ip = packet.ip.src
+                    target_port = packet.port.src
+                    sent_by_local_host = False
+                else:
+                    return  # Neither source nor destination matches the specified `Settings.CAPTURE_IP_ADDRESS`.
+            else:
+                is_src_private_ip = is_private_device_ipv4(packet.ip.src)
+                is_dst_private_ip = is_private_device_ipv4(packet.ip.dst)
+
+                if is_src_private_ip and is_dst_private_ip:
+                    return  # Both source and destination are private IPs, no action needed.
+
+                if is_src_private_ip:
+                    target_ip = packet.ip.dst
+                    target_port = packet.port.dst
+                    sent_by_local_host = True
+                elif is_dst_private_ip:
+                    target_ip = packet.ip.src
+                    target_port = packet.port.src
+                    sent_by_local_host = False
+                else:
+                    return  # Neither source nor destination is a private IP address.
+
+            matched_player = PlayersRegistry.get_player_by_ip(target_ip)
+            if matched_player is None:
+                matched_player = PlayersRegistry.add_connected_player(
+                    Player(
+                        ip=target_ip,
+                        port=target_port,
+                        packet_datetime=packet.datetime,
+                        packet_length=packet.length,
+                        sent_by_local_host=sent_by_local_host,
+                    ),
+                )
+
+                if GUIDetectionSettings.player_join_notifications_enabled:
+                    show_detection_warning_popup(matched_player, 'player_joined')
+
+            elif matched_player.left_event.is_set():
+                matched_player.mark_as_rejoined(
+                    port=target_port,
+                    packet_datetime=packet.datetime,
+                    packet_length=packet.length,
+                    sent_by_local_host=sent_by_local_host,
+                )
+                PlayersRegistry.move_player_to_connected(matched_player)
+
+                if GUIDetectionSettings.player_join_notifications_enabled:
+                    show_detection_warning_popup(matched_player, 'player_joined')
+
+                if GUIDetectionSettings.player_rejoin_notifications_enabled:
+                    show_detection_warning_popup(matched_player, 'player_rejoined')
+            else:
+                matched_player.mark_as_seen(
+                    port=target_port,
+                    packet_datetime=packet.datetime,
+                    packet_length=packet.length,
+                    sent_by_local_host=sent_by_local_host,
+                )
+
+            if matched_player.ip in UserIPDatabases.ips_set and (
+                not matched_player.userip_detection
+                or not matched_player.userip_detection.as_processed_task
+            ):
+                matched_player.userip_detection = PlayerUserIPDetection(
+                    time=packet.datetime.strftime('%H:%M:%S'),
+                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
+                )
+                Thread(
+                    target=process_userip_task,
+                    name=f'ProcessUserIPTask-{matched_player.ip}-connected',
+                    args=(matched_player, 'connected'),
+                    daemon=True,
+                ).start()
+
+    capture = PacketCapture(
+        CaptureConfig(
+            interface=selected_interface,
+            tshark_path=TSHARK_PATH,
+            capture_filter=capture_filter_str,
+            display_filter=display_filter_str,
+            callback=packet_callback,
+        ),
+    )
+    capture.start()
+
+    if Settings.CAPTURE_ARP_SPOOFING:
+        Thread(
+            target=arp_spoofing_task,
+            name=f'ARPSpoofingTask-{selected_interface.ip_address}',
+            args=(
+                selected_interface,
+                capture,
+            ),
+            daemon=True,
+        ).start()
+
+    # Initialize GUI first - now it has all the data it needs
+    window = MainWindow(screen_width, screen_height, capture)
+    window.show()
+
+    # Start background processing threads FIRST
+    rendering_core__thread = Thread(
+        target=rendering_core,
+        name='rendering_core',
+        args=(
+            capture,
+            GeoIP2Readers(
+                enabled=geoip2_enabled,
+                asn_reader=geolite2_asn_reader,
+                city_reader=geolite2_city_reader,
+                country_reader=geolite2_country_reader,
+            ),
+        ),
+        kwargs={'vpn_mode_enabled': vpn_mode_enabled},
+        daemon=True,
+    )
+    rendering_core__thread.start()
+
+    hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
+    hostname_core__thread.start()
+
+    iplookup_core__thread = Thread(target=iplookup_core, name='iplookup_core', daemon=True)
+    iplookup_core__thread.start()
+
+    pinger_core__thread = Thread(target=pinger_core, name='pinger_core', daemon=True)
+    pinger_core__thread.start()
+
+    if Settings.SHOW_DISCORD_POPUP:
+        # Delay the popup opening by 3 seconds
+        QTimer.singleShot(3000, lambda: DiscordIntro().exec())  # pyright: ignore[reportUnknownMemberType]
+
+    # Start the application's event loop
+    sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    atexit.register(logging.shutdown)
+    main()
