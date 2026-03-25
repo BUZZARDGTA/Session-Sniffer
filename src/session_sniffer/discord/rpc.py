@@ -13,7 +13,7 @@ from pypresence.presence import Presence
 
 from session_sniffer.error_messages import ensure_instance
 
-QueueType = SimpleQueue[str | object]
+type QueueType = SimpleQueue[str | object]
 
 SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')  # pyright: ignore[reportUnknownMemberType]
 DISCORD_RPC_TITLE = "Sniffin' my babies IPs"
