@@ -151,6 +151,9 @@ section-order = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/spoofed_ping.py" = ["INP001"]
+
 
 [tool.ty.environment]
 python-platform = "win32"
