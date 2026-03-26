@@ -1,7 +1,7 @@
 """Ping an IP address using the Check-Host API.
 
 It continuously sends ping requests and displays results using Rich formatting.
-"""  # noqa: INP001
+"""
 import argparse
 import enum
 import statistics

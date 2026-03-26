@@ -15,7 +15,7 @@ from session_sniffer.error_messages import ensure_instance
 
 type QueueType = SimpleQueue[str | object]
 
-SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')  # pyright: ignore[reportUnknownMemberType]
+SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')
 DISCORD_RPC_TITLE = "Sniffin' my babies IPs"
 START_TIME_INT = int(time.time())
 DISCORD_RPC_BUTTONS = [
@@ -97,7 +97,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 connection_status.set()
 
         try:
-            rpc.update(  # pyright: ignore[reportUnknownMemberType]
+            rpc.update(
                 state=state_message,
                 details=DISCORD_RPC_TITLE,
                 start=START_TIME_INT,

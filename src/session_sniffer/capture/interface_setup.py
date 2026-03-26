@@ -224,12 +224,8 @@ def select_interface(
         screen_width,
         screen_height,
         interfaces,
-        hide_inactive_default=Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE,
-        hide_arp_default=Settings.GUI_INTERFACE_SELECTION_HIDE_ARP,
-        arp_spoofing_default=Settings.CAPTURE_ARP_SPOOFING,
-        saved_interface_name=Settings.CAPTURE_INTERFACE_NAME,
-        saved_ip_address=Settings.CAPTURE_IP_ADDRESS,
-        saved_mac_address=Settings.CAPTURE_MAC_ADDRESS,
+        (Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE, Settings.GUI_INTERFACE_SELECTION_HIDE_ARP, Settings.CAPTURE_ARP_SPOOFING),
+        (Settings.CAPTURE_INTERFACE_NAME, Settings.CAPTURE_IP_ADDRESS, Settings.CAPTURE_MAC_ADDRESS),
     )
 
     if selected_interface is None:

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class StatusBarSnapshot:  # pylint: disable=too-many-instance-attributes
+class StatusBarSnapshot:
     """Snapshot of global values used to compose status sections."""
 
     capture_ip_address: str | None

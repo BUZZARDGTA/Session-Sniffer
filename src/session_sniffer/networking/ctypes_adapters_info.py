@@ -1,4 +1,5 @@
 """The script retrieves network adapter information on Windows."""
+
 import ctypes
 import socket
 from ctypes import wintypes
@@ -20,7 +21,7 @@ class GetAdaptersAddressesError(OSError):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class AdapterData:  # pylint: disable=too-many-instance-attributes
+class AdapterData:
     """Represent Windows network adapter details used by the sniffer."""
 
     interface_index:      int
@@ -69,16 +70,17 @@ MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
 NETWORK_ADAPTER_DISABLED = 3
 
 
+# pylint: disable=invalid-name,too-few-public-methods
 # Structures
-class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_UNICAST_ADDRESS structure."""
 
 
-class IP_ADAPTER_ADDRESSES(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class IP_ADAPTER_ADDRESSES(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_ADDRESSES structure."""
 
 
-class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class _OPER_STATUS_FLAGS(ctypes.Structure):
     _fields_ = [
         ('HardwareInterface', ctypes.c_ubyte, 1),
         ('FilterInterface', ctypes.c_ubyte, 1),
@@ -91,7 +93,7 @@ class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801  # pylint: disable=inv
     ]
 
 
-class SOCKET_ADDRESS(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class SOCKET_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows SOCKET_ADDRESS structure."""
 
     _fields_ = [
@@ -137,7 +139,7 @@ IP_ADAPTER_ADDRESSES._fields_ = [
 # pylint: enable=protected-access
 
 
-class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class MIB_IF_ROW2(ctypes.Structure):
     """ctypes definition for a Windows MIB_IF_ROW2 structure."""
 
     _fields_ = [
@@ -185,7 +187,7 @@ class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-na
     ]
 
 
-class SOCKADDR_IN(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class SOCKADDR_IN(ctypes.Structure):
     """ctypes definition for a Windows IPv4 sockaddr_in structure."""
 
     _fields_ = [
@@ -213,7 +215,7 @@ GetIfEntry2.restype = wintypes.ULONG
 # Neighbor ("Neighborhood")
 # =========================
 
-class MIB_IPNETROW(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-name,too-few-public-methods
+class MIB_IPNETROW(ctypes.Structure):
     """IPv4 neighbor table row (classic ARP style for IPv4)."""
 
     _fields_ = [
@@ -223,6 +225,9 @@ class MIB_IPNETROW(ctypes.Structure):  # noqa: N801  # pylint: disable=invalid-n
         ('dwAddr', wintypes.DWORD),
         ('dwType', wintypes.DWORD),
     ]
+
+
+# pylint: enable=invalid-name,too-few-public-methods
 
 
 # GetIpNetTable returns a buffer with a DWORD count followed by an array of MIB_IPNETROW
@@ -272,7 +277,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
     if ret not in (ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS):
         return
 
-    if size.value == 0:  # pylint: disable=compare-to-zero
+    if not size.value:
         return
 
     buf = ctypes.create_string_buffer(size.value)
@@ -282,7 +287,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
 
     # First DWORD is number of entries
     num_entries = ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD)).contents.value
-    if num_entries == 0:  # pylint: disable=compare-to-zero
+    if not num_entries:
         return
 
     # Rows start right after the first DWORD
@@ -299,7 +304,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
 
         # Format MAC if present
         mac_address = (
-            None if row.dwPhysAddrLen == 0  # pylint: disable=use-implicit-booleaness-not-comparison-to-zero
+            None if not row.dwPhysAddrLen
             else ':'.join(f'{b:02X}' for b in row.bPhysAddr[: row.dwPhysAddrLen])
         )
 
@@ -340,7 +345,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
 
         # Handle multiple MAC addresses (if any)
         mac_address = (
-            None if addr.PhysicalAddressLength == 0  # pylint: disable=use-implicit-booleaness-not-comparison-to-zero
+            None if not addr.PhysicalAddressLength
             else ':'.join(f'{b:02X}' for b in addr.PhysicalAddress[:addr.PhysicalAddressLength])
         )
         ipv4_list: list[str] = []
@@ -355,7 +360,9 @@ def get_adapters_info() -> Iterator[AdapterData]:
 
         # Query MIB_IF_ROW2 by index
         row = MIB_IF_ROW2()
-        row.InterfaceIndex = addr.IfIndex  # pylint: disable=attribute-defined-outside-init,invalid-name
+        # pylint: disable=attribute-defined-outside-init,invalid-name
+        row.InterfaceIndex = addr.IfIndex
+        # pylint: enable=attribute-defined-outside-init,invalid-name
         if GetIfEntry2(ctypes.byref(row)) != ERROR_SUCCESS:
             packets_sent = packets_recv = 0
             media_connect_state = MEDIA_CONNECT_STATE_UNKNOWN

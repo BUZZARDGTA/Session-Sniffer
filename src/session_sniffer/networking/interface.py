@@ -34,7 +34,7 @@ class SelectedInterface:
 
 
 @dataclass(kw_only=True, slots=True)
-class Interface:  # pylint: disable=too-many-instance-attributes
+class Interface:
     """Represent a network interface and its live capture-related stats."""
 
     index: int

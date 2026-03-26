@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class DefaultSettings:  # pylint: disable=too-many-instance-attributes,invalid-name
+class DefaultSettings:
     """Class containing default setting values."""
     CAPTURE_INTERFACE_NAME: str | None = None
     CAPTURE_IP_ADDRESS: str | None = None

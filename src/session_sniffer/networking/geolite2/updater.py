@@ -4,7 +4,7 @@ import hashlib
 import json
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime  # noqa: TC003  # Pydantic needs this import at runtime for datetime parsing
+from datetime import datetime  # noqa: TC003
 from pathlib import Path
 from threading import Thread
 from typing import Literal

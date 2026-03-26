@@ -1,21 +1,22 @@
 """UserIP settings, database loading, and IP-to-user resolution."""
 
-from pathlib import Path  # noqa: TC003  # Required at runtime by pydantic validation
+from pathlib import Path  # noqa: TC003
 from threading import Lock, Thread
 from typing import ClassVar, Literal, NamedTuple
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from PyQt6.QtGui import QColor  # noqa: TC002  # Required at runtime by pydantic validation
+from PyQt6.QtGui import QColor  # noqa: TC002
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import format_userip_ip_conflict_message
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import format_triple_quoted_text
 
 
 @pydantic_dataclass(frozen=True, config={'arbitrary_types_allowed': True}, slots=True)
-class UserIPSettings:  # pylint: disable=too-many-instance-attributes,invalid-name,too-few-public-methods
+class UserIPSettings:
     """Class to represent settings with attributes for each setting key."""
     ENABLED: bool
     COLOR: QColor
@@ -60,9 +61,7 @@ class UserIPDatabases:
             kwargs={
                 'title': TITLE,
                 'text': format_triple_quoted_text(format_userip_ip_conflict_message(
-                    existing_database_path=existing_userip.database_path,
-                    existing_usernames=existing_userip.usernames,
-                    ip=existing_userip.ip,
+                    existing_userip=existing_userip,
                     conflicting_database_path=conflicting_database_path,
                     conflicting_username=conflicting_username,
                     userip_databases_dir=USERIP_DATABASES_DIR_PATH,
@@ -92,8 +91,6 @@ class UserIPDatabases:
 
         This method refreshes the cached data without clearing entire structures and avoids duplicates.
         """
-        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
         with cls._update_userip_database_lock:
             ips_set: set[str] = set()
             ip_to_userip: dict[str, UserIP] = {}

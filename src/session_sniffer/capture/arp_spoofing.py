@@ -3,15 +3,18 @@
 import subprocess
 import time
 from threading import Thread
+from typing import TYPE_CHECKING
 
 from session_sniffer import msgbox
 from session_sniffer.background import gui_closed__event
-from session_sniffer.capture.tshark_capture import PacketCapture
 from session_sniffer.constants.local import BIN_DIR_PATH
 from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.error_messages import format_arp_spoofing_failed_message
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.networking.interface import SelectedInterface
+
+if TYPE_CHECKING:
+    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.networking.interface import SelectedInterface
 
 logger = get_logger(__name__)
 
@@ -96,7 +99,7 @@ def arp_spoofing_task(
 
             # Start arpspoof process
             if proc is None or proc.poll() is not None:
-                proc = subprocess.Popen(  # pylint: disable=consider-using-with
+                proc = subprocess.Popen(
                     [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

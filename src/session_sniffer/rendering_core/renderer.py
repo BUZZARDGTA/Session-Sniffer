@@ -57,6 +57,8 @@ USERIP_INI_SETTINGS = [
 DISCORD_APPLICATION_ID = 1313304495958261781
 COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
+SECONDS_PER_MINUTE = 60.0
+DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 
 
 def generate_gui_header_html(*, capture: PacketCapture) -> str:
@@ -631,7 +633,7 @@ def rendering_core(
                 SESSIONS_LOGGING_PATH.touch()  # Create the file if it doesn't exist
 
             SESSIONS_LOGGING_PATH.write_text(
-                logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),  # pyright: ignore[reportUnknownMemberType]
+                logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),
                 encoding='utf-8',
             )
 
@@ -698,7 +700,7 @@ def rendering_core(
                     player.packets.pps.calculate_and_update_rate()
 
                 # Calculate PPM every minute
-                if (time.monotonic() - player.packets.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
+                if (time.monotonic() - player.packets.ppm.last_update_time) >= SECONDS_PER_MINUTE:
                     player.packets.ppm.calculate_and_update_rate()
 
                 # Calculate BPS every second
@@ -706,7 +708,7 @@ def rendering_core(
                     player.bandwidth.bps.calculate_and_update_rate()
 
                 # Calculate BPM every minute
-                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= 60.0:  # noqa: PLR2004
+                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= SECONDS_PER_MINUTE:
                     player.bandwidth.bpm.calculate_and_update_rate()
 
                 # Track current session bandwidth across all connected players
@@ -820,7 +822,7 @@ def rendering_core(
 
             if (Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and
                 (discord_rpc_manager.last_update_time is None or
-                 (time.monotonic() - discord_rpc_manager.last_update_time) >= 3.0)):  # noqa: PLR2004
+                 (time.monotonic() - discord_rpc_manager.last_update_time) >= DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS)):
                 discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
 
             connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)

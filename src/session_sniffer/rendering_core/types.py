@@ -54,7 +54,7 @@ class GUIUpdatePayload(NamedTuple):
 
 
 @dataclass(frozen=True, slots=True)
-class GUIRenderingSnapshot:  # pylint: disable=too-many-instance-attributes
+class GUIRenderingSnapshot:
     """A single published GUI rendering snapshot.
 
     Built off-thread, then published by replacement (no shared mutation).

@@ -8,7 +8,7 @@ This module provides a modular color system organized into layers:
 """
 
 
-class ColorPalette:  # pylint: disable=too-few-public-methods
+class ColorPalette:
     """Base Nordic-inspired color palette for the entire application.
 
     Provides a centralized set of primary colors used across all UI components.
@@ -26,7 +26,7 @@ class ColorPalette:  # pylint: disable=too-few-public-methods
     CRITICAL_RED = 'indianred'
 
 
-class StatusBarColors:  # pylint: disable=too-few-public-methods
+class StatusBarColors:
     """Color scheme specifically for status bar text rendering.
 
     Maps semantic meanings (enabled, disabled, divider, etc.) to specific colors
@@ -47,7 +47,7 @@ class StatusBarColors:  # pylint: disable=too-few-public-methods
     SECONDARY_ACCENT = ColorPalette.ACCENT_PURPLE
 
 
-class ThresholdColors:  # pylint: disable=too-few-public-methods
+class ThresholdColors:
     """Color scheme for metrics and threshold-based status indication.
 
     Maps performance thresholds and status conditions to visual indicators
@@ -60,7 +60,7 @@ class ThresholdColors:  # pylint: disable=too-few-public-methods
     HEALTHY = ColorPalette.GOOD_GREEN
 
 
-class TableColors:  # pylint: disable=too-few-public-methods
+class TableColors:
     """Color scheme for player table rows and cell rendering.
 
     Defines colors for connected and disconnected player rows in the session tables.

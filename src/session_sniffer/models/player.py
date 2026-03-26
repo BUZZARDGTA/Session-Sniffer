@@ -26,11 +26,11 @@ class PlayerReverseDNS:
 
     is_initialized: bool = False
 
-    hostname: Literal['...'] | str = '...'  # noqa: PYI051
+    hostname: str = '...'
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerPackets:  # pylint: disable=too-many-instance-attributes
+class PlayerPackets:
     """Class to manage player packet counts and statistics.
 
     Attributes:
@@ -193,7 +193,7 @@ class PlayerPackets:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerBandwidth:  # pylint: disable=too-many-instance-attributes
+class PlayerBandwidth:
     """Class to manage player bandwidth (upload/download) totals and rate calculations.
 
     Attributes:
@@ -484,36 +484,36 @@ class PlayerGeoLite2:
 
     is_initialized: bool = False
 
-    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    country: str = '...'
+    country_code: str = '...'
+    city: str = '...'
+    asn: str = '...'
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerIPAPI:  # pylint: disable=too-many-instance-attributes
+class PlayerIPAPI:
     """Store IP-API lookup state and cached values for a player."""
 
     is_initialized: bool = False
 
-    continent: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    continent_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    country: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    country_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    region: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    region_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    city: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    district: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    zip_code: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    continent: str = '...'
+    continent_code: str = '...'
+    country: str = '...'
+    country_code: str = '...'
+    region: str = '...'
+    region_code: str = '...'
+    city: str = '...'
+    district: str = '...'
+    zip_code: str = '...'
     lat: Literal['...', 'N/A'] | float | int = '...'
     lon: Literal['...', 'N/A'] | float | int = '...'
-    time_zone: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    time_zone: str = '...'
     offset: Literal['...', 'N/A'] | int = '...'
-    currency: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    org: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    isp: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    asn: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
-    as_name: Literal['...', 'N/A'] | str = '...'  # noqa: PYI051
+    currency: str = '...'
+    org: str = '...'
+    isp: str = '...'
+    asn: str = '...'
+    as_name: str = '...'
     mobile: Literal['...', 'N/A'] | bool = '...'
     proxy: Literal['...', 'N/A'] | bool = '...'
     hosting: Literal['...', 'N/A'] | bool = '...'
@@ -535,7 +535,7 @@ class PlayerIPLookup:
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerPing:  # pylint: disable=too-many-instance-attributes
+class PlayerPing:
     """Store ping lookup state and cached RTT/packet stats for a player."""
 
     is_initialized: bool = False
@@ -564,14 +564,19 @@ class PlayerUserIPDetection:
     type: Literal['Static IP'] = 'Static IP'
 
 
+def _empty_usernames() -> list[str]:
+    """Return a typed empty usernames list for dataclass defaults."""
+    return []
+
+
 @dataclass(kw_only=True, slots=True)
 class PlayerModMenus:
     """Store parsed mod menu usernames associated with a player."""
 
-    usernames: list[str] = dataclasses.field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
 
 
-class Player:  # pylint: disable=too-many-instance-attributes
+class Player:
     """Represent a remote player identified by IP and derived session metadata."""
 
     def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
@@ -622,7 +627,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
     def mark_as_rejoined(self, *, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
         """Handle a player rejoin by resetting current-session counters."""
-        from session_sniffer.settings import Settings  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        from session_sniffer.settings import Settings  # noqa: PLC0415
 
         self.left_event.clear()
         self.rejoins += 1
@@ -638,9 +643,9 @@ class Player:  # pylint: disable=too-many-instance-attributes
 
     def mark_as_left(self) -> None:
         """Mark the player as disconnected and move it to the disconnected registry."""
-        from session_sniffer.background.tasks import process_userip_task  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        from session_sniffer.background.tasks import process_userip_task  # noqa: PLC0415
+        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415
+        from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings  # noqa: PLC0415
 
         self.left_event.set()
 

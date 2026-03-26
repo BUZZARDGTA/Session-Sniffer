@@ -159,21 +159,19 @@ class SessionTableModel(QAbstractTableModel):
     # Qt model methods (overrides)
     # --------------------------------------------------------------------------
 
-    # pylint: disable=invalid-name
-    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
         """Return number of rows in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._data)
 
-    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    def columnCount(self, parent: QModelIndex | None = None) -> int:
         """Return number of columns in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._headers)
-    # pylint: enable=invalid-name
 
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:  # pylint: disable=too-many-return-statements # noqa: PLR0911
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:
         """Override data method to customize data retrieval and alignment."""
         if not index.isValid():
             return None
@@ -185,51 +183,43 @@ class SessionTableModel(QAbstractTableModel):
         if row_idx >= len(self._data) or col_idx >= len(self._data[row_idx]):
             return None  # Return None for invalid index
 
-        if role == Qt.ItemDataRole.DecorationRole:  # noqa: SIM102
-            if self.has_column('Country') and self.get_column_index('Country') == col_idx:
-                ip = self.get_ip_from_data_safely(self._data[row_idx])
+        output: str | QBrush | QIcon | None = None
 
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is not None and matched_player.country_flag is not None:
-                    return matched_player.country_flag.icon
+        if role == Qt.ItemDataRole.DecorationRole and self.has_column('Country') and self.get_column_index('Country') == col_idx:
+            ip = self.get_ip_from_data_safely(self._data[row_idx])
 
-        if role == Qt.ItemDataRole.DisplayRole:
+            matched_player = PlayersRegistry.get_player_by_ip(ip)
+            if matched_player is not None and matched_player.country_flag is not None:
+                output = matched_player.country_flag.icon
+        elif role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
-            return self._data[row_idx][col_idx]
-
-        if role == Qt.ItemDataRole.ForegroundRole:  # noqa: SIM102
+            output = self._data[row_idx][col_idx]
+        elif role == Qt.ItemDataRole.ForegroundRole and row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
             # Return the cell's foreground color
-            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
-                return QBrush(self._compiled_colors[row_idx][col_idx].foreground)
-
-        if role == Qt.ItemDataRole.BackgroundRole:  # noqa: SIM102
+            output = QBrush(self._compiled_colors[row_idx][col_idx].foreground)
+        elif role == Qt.ItemDataRole.BackgroundRole and row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
             # Return the cell's background color
-            if row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
-                return QBrush(self._compiled_colors[row_idx][col_idx].background)
-
-        if role == Qt.ItemDataRole.ToolTipRole:
+            output = QBrush(self._compiled_colors[row_idx][col_idx].background)
+        elif role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
             view = self.view
             horizontal_header = view.horizontalHeader()
             resize_mode = horizontal_header.sectionResizeMode(index.column())
 
             # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
-            if resize_mode != QHeaderView.ResizeMode.Stretch:
-                return None
+            if resize_mode == QHeaderView.ResizeMode.Stretch:
+                cell_text = self._data[row_idx][col_idx]
 
-            cell_text = self._data[row_idx][col_idx]
+                font_metrics = view.fontMetrics()
+                text_width = font_metrics.horizontalAdvance(cell_text)
+                column_width = view.columnWidth(index.column())
 
-            font_metrics = view.fontMetrics()
-            text_width = font_metrics.horizontalAdvance(cell_text)
-            column_width = view.columnWidth(index.column())
+                if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
+                    output = cell_text
 
-            if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
-                return cell_text
+        return output
 
-        return None
-
-    # pylint: disable=invalid-name
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:
         """Return header display text and tooltips for the table model."""
         if orientation == Qt.Orientation.Horizontal:
             if role == Qt.ItemDataRole.DisplayRole:
@@ -240,7 +230,6 @@ class SessionTableModel(QAbstractTableModel):
                 return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
 
         return None
-    # pylint: enable=invalid-name
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         """Return Qt flags controlling whether the item is enabled/selectable."""
@@ -399,7 +388,6 @@ class SessionTableModel(QAbstractTableModel):
         self._data, self._compiled_colors = map(list, zip(*combined, strict=True))
 
         self.layoutChanged.emit()
-    # pylint: enable=invalid-name
 
     # --------------------------------------------------------------------------
     # Custom / internal management methods

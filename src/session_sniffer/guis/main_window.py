@@ -61,7 +61,7 @@ DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 class PersistentMenu(QMenu):
     """Custom QMenu that doesn't close when checkable actions are triggered."""
 
-    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:
         """Override mouse release event to prevent auto-closing on checkable actions."""
         if event is None:
             super().mouseReleaseEvent(event)
@@ -135,8 +135,8 @@ class MainWindow(QMainWindow):
         # ----- Stop/Start Capture Button -----
         self.toggle_capture_action = QAction('⏹️ Stop Capture', self)
         self.toggle_capture_action.setToolTip('Stop packet capture')
-        self.toggle_capture_action.triggered.connect(self.toggle_capture)  # pyright: ignore[reportUnknownMemberType]
-        toolbar.addAction(self.toggle_capture_action)  # pyright: ignore[reportUnknownMemberType]
+        self.toggle_capture_action.triggered.connect(self.toggle_capture)
+        toolbar.addAction(self.toggle_capture_action)
 
         toolbar.addSeparator()
 
@@ -152,24 +152,24 @@ class MainWindow(QMainWindow):
         self.mobile_detection_action.setToolTip('Get notified when a player joins using a mobile/cellular internet connection')
         self.mobile_detection_action.setCheckable(True)
         self.mobile_detection_action.setChecked(GUIDetectionSettings.mobile_detection_enabled)
-        self.mobile_detection_action.triggered.connect(self.toggle_mobile_detection)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.mobile_detection_action)  # pyright: ignore[reportUnknownMemberType]
+        self.mobile_detection_action.triggered.connect(self.toggle_mobile_detection)
+        detection_menu.addAction(self.mobile_detection_action)
 
         # VPN Detection action
         self.vpn_detection_action = QAction('Proxy, VPN or Tor exit address', self)
         self.vpn_detection_action.setToolTip('Get notified when a player joins using a VPN, proxy, or Tor exit node')
         self.vpn_detection_action.setCheckable(True)
         self.vpn_detection_action.setChecked(GUIDetectionSettings.vpn_detection_enabled)
-        self.vpn_detection_action.triggered.connect(self.toggle_vpn_detection)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.vpn_detection_action)  # pyright: ignore[reportUnknownMemberType]
+        self.vpn_detection_action.triggered.connect(self.toggle_vpn_detection)
+        detection_menu.addAction(self.vpn_detection_action)
 
         # Hosting Detection action
         self.hosting_detection_action = QAction('Hosting, colocated or data center', self)
         self.hosting_detection_action.setToolTip('Get notified when a player joins from a hosting provider or data center')
         self.hosting_detection_action.setCheckable(True)
         self.hosting_detection_action.setChecked(GUIDetectionSettings.hosting_detection_enabled)
-        self.hosting_detection_action.triggered.connect(self.toggle_hosting_detection)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.hosting_detection_action)  # pyright: ignore[reportUnknownMemberType]
+        self.hosting_detection_action.triggered.connect(self.toggle_hosting_detection)
+        detection_menu.addAction(self.hosting_detection_action)
 
         detection_menu.addSeparator()
 
@@ -178,24 +178,24 @@ class MainWindow(QMainWindow):
         self.player_join_notification_action.setToolTip('Get notified whenever any player joins your session')
         self.player_join_notification_action.setCheckable(True)
         self.player_join_notification_action.setChecked(GUIDetectionSettings.player_join_notifications_enabled)
-        self.player_join_notification_action.triggered.connect(self.toggle_player_join_notifications)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.player_join_notification_action)  # pyright: ignore[reportUnknownMemberType]
+        self.player_join_notification_action.triggered.connect(self.toggle_player_join_notifications)
+        detection_menu.addAction(self.player_join_notification_action)
 
         # Player Rejoin Notification action
         self.player_rejoin_notification_action = QAction('Player rejoin notifications', self)
         self.player_rejoin_notification_action.setToolTip('Get notified whenever any player rejoins your session after disconnecting')
         self.player_rejoin_notification_action.setCheckable(True)
         self.player_rejoin_notification_action.setChecked(GUIDetectionSettings.player_rejoin_notifications_enabled)
-        self.player_rejoin_notification_action.triggered.connect(self.toggle_player_rejoin_notifications)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.player_rejoin_notification_action)  # pyright: ignore[reportUnknownMemberType]
+        self.player_rejoin_notification_action.triggered.connect(self.toggle_player_rejoin_notifications)
+        detection_menu.addAction(self.player_rejoin_notification_action)
 
         # Player Leave Notification action
         self.player_leave_notification_action = QAction('Player leave notifications', self)
         self.player_leave_notification_action.setToolTip('Get notified whenever any player leaves your session')
         self.player_leave_notification_action.setCheckable(True)
         self.player_leave_notification_action.setChecked(GUIDetectionSettings.player_leave_notifications_enabled)
-        self.player_leave_notification_action.triggered.connect(self.toggle_player_leave_notifications)  # pyright: ignore[reportUnknownMemberType]
-        detection_menu.addAction(self.player_leave_notification_action)  # pyright: ignore[reportUnknownMemberType]
+        self.player_leave_notification_action.triggered.connect(self.toggle_player_leave_notifications)
+        detection_menu.addAction(self.player_leave_notification_action)
 
         detection_menu_button.setMenu(detection_menu)
         toolbar.addWidget(detection_menu_button)
@@ -212,20 +212,20 @@ class MainWindow(QMainWindow):
         # Project Repository action
         repo_action = QAction('📦 Project Repository', self)
         repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
-        repo_action.triggered.connect(self.open_project_repo)  # pyright: ignore[reportUnknownMemberType]
-        help_menu.addAction(repo_action)  # pyright: ignore[reportUnknownMemberType]
+        repo_action.triggered.connect(self.open_project_repo)
+        help_menu.addAction(repo_action)
 
         # Documentation action
         docs_action = QAction('📚 Documentation', self)
         docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
-        docs_action.triggered.connect(self.open_documentation)  # pyright: ignore[reportUnknownMemberType]
-        help_menu.addAction(docs_action)  # pyright: ignore[reportUnknownMemberType]
+        docs_action.triggered.connect(self.open_documentation)
+        help_menu.addAction(docs_action)
 
         # Discord action
         discord_action = QAction('💬 Discord Server', self)
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
-        discord_action.triggered.connect(self.join_discord)  # pyright: ignore[reportUnknownMemberType]
-        help_menu.addAction(discord_action)  # pyright: ignore[reportUnknownMemberType]
+        discord_action.triggered.connect(self.join_discord)
+        help_menu.addAction(discord_action)
 
         help_menu_button.setMenu(help_menu)
         toolbar.addWidget(help_menu_button)
@@ -257,14 +257,14 @@ class MainWindow(QMainWindow):
         self.connected_clear_button = QPushButton('CLEAR')
         self.connected_clear_button.setToolTip('Clear all connected players')
         self.connected_clear_button.setStyleSheet(CONNECTED_CLEAR_BUTTON_STYLESHEET)
-        self.connected_clear_button.clicked.connect(self.clear_connected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_clear_button.clicked.connect(self.clear_connected_players)
         self.connected_header_layout.addWidget(self.connected_clear_button)
 
         # Add sleek collapse icon button for connected table
         self.connected_collapse_button = QPushButton('▼')
         self.connected_collapse_button.setToolTip('Hide the connected players table')
         self.connected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
-        self.connected_collapse_button.clicked.connect(self.minimize_connected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_collapse_button.clicked.connect(self.minimize_connected_section)
         self.connected_header_layout.addWidget(self.connected_collapse_button)
 
         # Create the table model and view
@@ -311,28 +311,28 @@ class MainWindow(QMainWindow):
         self.disconnected_clear_button = QPushButton('CLEAR')
         self.disconnected_clear_button.setToolTip('Clear all disconnected players')
         self.disconnected_clear_button.setStyleSheet(DISCONNECTED_CLEAR_BUTTON_STYLESHEET)
-        self.disconnected_clear_button.clicked.connect(self.clear_disconnected_players)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_clear_button.clicked.connect(self.clear_disconnected_players)
         self.disconnected_header_layout.addWidget(self.disconnected_clear_button)
 
         # Add sleek collapse icon button for disconnected table
         self.disconnected_collapse_button = QPushButton('▼')
         self.disconnected_collapse_button.setToolTip('Hide the disconnected players table')
         self.disconnected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
-        self.disconnected_collapse_button.clicked.connect(self.minimize_disconnected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_collapse_button.clicked.connect(self.minimize_disconnected_section)
         self.disconnected_header_layout.addWidget(self.disconnected_collapse_button)
 
         # Create expand button for when connected section is hidden
         self.connected_expand_button = QPushButton('▲  Show Connected Players (0)')
         self.connected_expand_button.setToolTip('Show the connected players table')
         self.connected_expand_button.setStyleSheet(CONNECTED_EXPAND_BUTTON_STYLESHEET)
-        self.connected_expand_button.clicked.connect(self.expand_connected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.connected_expand_button.clicked.connect(self.expand_connected_section)
         self.connected_expand_button.setVisible(False)
 
         # Create expand button for when disconnected section is hidden
         self.disconnected_expand_button = QPushButton('▲  Show Disconnected Players (0)')
         self.disconnected_expand_button.setToolTip('Show the disconnected players table')
         self.disconnected_expand_button.setStyleSheet(DISCONNECTED_EXPAND_BUTTON_STYLESHEET)
-        self.disconnected_expand_button.clicked.connect(self.expand_disconnected_section)  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_expand_button.clicked.connect(self.expand_disconnected_section)
         self.disconnected_expand_button.setVisible(False)
 
         # Create the table model and view
@@ -379,10 +379,10 @@ class MainWindow(QMainWindow):
         self._min_accepted_snapshot_version = 0
 
         # Connect to selection change signals to track selected cells
-        self.connected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+        self.connected_table_view.selectionModel().selectionChanged.connect(
             lambda: self._update_selection_count(self.connected_table_view, 'connected'),
         )
-        self.disconnected_table_view.selectionModel().selectionChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+        self.disconnected_table_view.selectionModel().selectionChanged.connect(
             lambda: self._update_selection_count(self.disconnected_table_view, 'disconnected'),
         )
 
@@ -425,7 +425,7 @@ class MainWindow(QMainWindow):
             self.connected_table_view,
             self.disconnected_table_view,
         )
-        self.worker_thread.update_signal.connect(self.update_gui)  # pyright: ignore[reportUnknownMemberType]
+        self.worker_thread.update_signal.connect(self.update_gui)
         self.worker_thread.start()
 
         # Track window movement/dragging for opacity effect
@@ -434,7 +434,7 @@ class MainWindow(QMainWindow):
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
-    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:
         """Filter events to detect window movement."""
         if obj == self and event is not None:
             event_type = event.type()
@@ -491,7 +491,7 @@ class MainWindow(QMainWindow):
         self.connected_expand_button.setEnabled(True)
         self.disconnected_expand_button.setEnabled(True)
 
-    def closeEvent(self, event: QCloseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+    def closeEvent(self, event: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         gui_closed__event.set()
         self.worker_thread.quit()

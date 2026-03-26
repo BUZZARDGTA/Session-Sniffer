@@ -28,28 +28,22 @@ if TYPE_CHECKING:
     from session_sniffer.networking.interface import Interface
 
 
-def _calculate_interface_score(  # pylint: disable=too-many-arguments  # noqa: PLR0913
-    interface: Interface,
-    ip_address: str,
-    *,
-    is_arp: bool,
-    saved_interface_name: str | None,
-    saved_ip_address: str | None,
-    saved_mac_address: str | None,
+def _calculate_interface_score(
+    interface_row: tuple[Interface, str, bool],
+    saved_selection: tuple[str | None, str | None, str | None],
 ) -> int:
     """Calculate weighted matching score for an interface row.
 
     Args:
-        interface: The interface object
-        ip_address: The IP address for this row
-        is_arp: Whether this row represents an ARP entry
-        saved_interface_name: Previously saved interface name
-        saved_ip_address: Previously saved IP address
-        saved_mac_address: Previously saved MAC address
+        interface_row: Tuple of (interface, ip_address, is_arp)
+        saved_selection: Tuple of (saved_interface_name, saved_ip_address, saved_mac_address)
 
     Returns:
         Weighted score: name match=4, MAC match=2, IP match=1
     """
+    interface, ip_address, is_arp = interface_row
+    saved_interface_name, saved_ip_address, saved_mac_address = saved_selection
+
     score = 0
     if saved_interface_name is not None and interface.name == saved_interface_name:
         score += 4
@@ -95,12 +89,8 @@ def _find_best_matching_interface_row(
 
     for idx, (interface, ip_address, is_arp) in enumerate(interface_rows):
         score = _calculate_interface_score(
-            interface,
-            ip_address,
-            is_arp=is_arp,
-            saved_interface_name=saved_interface_name,
-            saved_ip_address=saved_ip_address,
-            saved_mac_address=saved_mac_address,
+            (interface, ip_address, is_arp),
+            (saved_interface_name, saved_ip_address, saved_mac_address),
         )
         if not score:
             continue
@@ -121,33 +111,28 @@ def _find_best_matching_interface_row(
 class SafeQTableWidget(QTableWidget):
     """A subclass of QTableWidget that ensures the selection model is of the correct type."""
 
-    # pylint: disable=invalid-name
-    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
+    def selectionModel(self) -> QItemSelectionModel:
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
-    def verticalHeader(self) -> QHeaderView:  # noqa: N802
+    def verticalHeader(self) -> QHeaderView:
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
+    def horizontalHeader(self) -> QHeaderView:
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
-    # pylint: enable=invalid-name
 
 
-class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-attributes
+class InterfaceSelectionDialog(QDialog):
     """Display a dialog to select the capture network interface."""
 
-    def __init__(  # pylint: disable=too-many-arguments  # noqa: PLR0913
+    def __init__(
         self,
         screen_width: int,
         screen_height: int,
         interfaces: list[Interface],
-        *,
-        hide_inactive_default: bool,
-        hide_arp_default: bool,
-        arp_spoofing_default: bool,
+        filter_defaults: tuple[bool, bool, bool],
     ) -> None:
         """Initialize the interface selection dialog.
 
@@ -155,11 +140,11 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
             screen_width: Screen width in pixels.
             screen_height: Screen height in pixels.
             interfaces: Available Interface objects to display.
-            hide_inactive_default: Default state for hiding inactive interfaces.
-            hide_arp_default: Default state for hiding ARP interfaces.
-            arp_spoofing_default: Default state for ARP spoofing.
+            filter_defaults: Default states as (hide_inactive, hide_arp, arp_spoofing).
         """
         super().__init__()
+
+        hide_inactive_default, hide_arp_default, arp_spoofing_default = filter_defaults
 
         # Set up the window
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
@@ -190,7 +175,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
 
         # Table widget for displaying interfaces
         self.table = SafeQTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(  # pyright: ignore[reportUnknownMemberType]
+        self.table.setHorizontalHeaderLabels(
             ['Name', 'Description', 'Packets Sent', 'Packets Received', 'IP Address', 'MAC Address', 'Vendor Name'],
         )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -198,7 +183,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
         # Connect cell hover to tooltip logic
-        self.table.cellEntered.connect(self.show_tooltip_if_elided)  # pyright: ignore[reportUnknownMemberType]
+        self.table.cellEntered.connect(self.show_tooltip_if_elided)
 
         horizontal_header = self.table.horizontalHeader()
         horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -224,23 +209,23 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         self.hide_inactive_checkbox.setChecked(hide_inactive_default)
         self.hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
         self.hide_inactive_checkbox.setStyleSheet('font-size: 12pt;')
-        self.hide_inactive_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
+        self.hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         filter_layout.addWidget(self.hide_inactive_checkbox)
 
         self.hide_arp_checkbox = QCheckBox('Hide ARP Entries')
         self.hide_arp_checkbox.setChecked(hide_arp_default)
         self.hide_arp_checkbox.setToolTip('Hide external devices discovered via ARP protocol')
         self.hide_arp_checkbox.setStyleSheet('font-size: 12pt;')
-        self.hide_arp_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
-        self.hide_arp_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
+        self.hide_arp_checkbox.stateChanged.connect(self.apply_filters)
+        self.hide_arp_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         filter_layout.addWidget(self.hide_arp_checkbox)
 
         self.arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
         self.arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         self.arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network, not just this computer')
         self.arp_spoofing_checkbox.setStyleSheet('font-size: 12pt;')
-        self.arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)  # pyright: ignore[reportUnknownMemberType]
-        self.arp_spoofing_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
+        self.arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
+        self.arp_spoofing_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         filter_layout.addWidget(self.arp_spoofing_checkbox)
 
         # Will be set on accept
@@ -260,7 +245,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
         # Set fixed size for the button
         self.select_button.setFixedSize(300, 50)  # Adjusted width and height for slightly larger button
 
-        self.select_button.clicked.connect(self.select_interface)  # pyright: ignore[reportUnknownMemberType]
+        self.select_button.clicked.connect(self.select_interface)
 
         bottom_layout.addWidget(instruction_label)
         bottom_layout.addWidget(self.select_button)
@@ -277,11 +262,11 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
 
         # Connect selection change signal to enable/disable Select button
         selection_model = self.table.selectionModel()
-        selection_model.selectionChanged.connect(self.update_select_button_state)  # pyright: ignore[reportUnknownMemberType]
-        selection_model.selectionChanged.connect(self.enforce_spoofing_constraints)  # pyright: ignore[reportUnknownMemberType]
+        selection_model.selectionChanged.connect(self.update_select_button_state)
+        selection_model.selectionChanged.connect(self.enforce_spoofing_constraints)
 
         # Connect double-click signal to select interface (simulates Start button)
-        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)  # pyright: ignore[reportUnknownMemberType]
+        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
 
         # Apply initial constraints
         self.enforce_spoofing_constraints()
@@ -525,7 +510,7 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
 
         # Check if this row is disabled (greyed out due to ARP spoofing)
         item = self.table.item(row, 0)
-        if item is None or not (item.flags() & Qt.ItemFlag.ItemIsEnabled):  # pylint: disable=superfluous-parens
+        if item is None or not item.flags() & Qt.ItemFlag.ItemIsEnabled:
             return
 
         # Select the row and trigger selection
@@ -565,32 +550,34 @@ class InterfaceSelectionDialog(QDialog):  # pylint: disable=too-many-instance-at
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
-def show_interface_selection_dialog(  # pylint: disable=too-many-arguments  # noqa: PLR0913
+def show_interface_selection_dialog(
     screen_width: int,
     screen_height: int,
     interfaces: list[Interface],
-    *,
-    hide_inactive_default: bool,
-    hide_arp_default: bool,
-    arp_spoofing_default: bool,
-    saved_interface_name: str | None = None,
-    saved_ip_address: str | None = None,
-    saved_mac_address: str | None = None,
+    filter_defaults: tuple[bool, bool, bool],
+    saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
 ) -> tuple[SelectedInterface | None, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
+
+    Args:
+        screen_width: Screen width in pixels.
+        screen_height: Screen height in pixels.
+        interfaces: Available Interface objects to display.
+        filter_defaults: Default states as (hide_inactive, hide_arp, arp_spoofing).
+        saved_selection: Previously saved (interface_name, ip_address, mac_address).
 
     Returns:
         Tuple of (selected_interface, arp_spoofing_enabled,
                   hide_inactive_enabled, hide_arp_enabled)
     """
+    hide_inactive_default, hide_arp_default, arp_spoofing_default = filter_defaults
+    saved_interface_name, saved_ip_address, saved_mac_address = saved_selection
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_width,
         screen_height,
         interfaces,
-        hide_inactive_default=hide_inactive_default,
-        hide_arp_default=hide_arp_default,
-        arp_spoofing_default=arp_spoofing_default,
+        filter_defaults,
     )
     # Restore the previously saved interface selection
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)

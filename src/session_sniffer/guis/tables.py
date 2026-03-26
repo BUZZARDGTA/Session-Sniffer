@@ -66,7 +66,7 @@ class SessionTableView(QTableView):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         horizontal_header = self.horizontalHeader()
         horizontal_header.setSectionsClickable(True)
-        horizontal_header.sectionClicked.connect(self.on_section_clicked)  # pyright: ignore[reportUnknownMemberType]
+        horizontal_header.sectionClicked.connect(self.on_section_clicked)
         horizontal_header.setSectionsMovable(True)
         self.setSelectionMode(QTableView.SelectionMode.NoSelection)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
@@ -79,10 +79,9 @@ class SessionTableView(QTableView):
         horizontal_header.setSortIndicatorShown(True)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)  # pyright: ignore[reportUnknownMemberType]
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
-    # pylint: disable=invalid-name
-    def setModel(self, model: QAbstractItemModel | None) -> None:  # noqa: N802
+    def setModel(self, model: QAbstractItemModel | None) -> None:
         """Override the setModel method to ensure the model is of type SessionTableModel."""
         super().setModel(ensure_instance(model, SessionTableModel))
 
@@ -90,7 +89,7 @@ class SessionTableView(QTableView):
         """Override the model method to ensure it returns a SessionTableModel."""
         return ensure_instance(super().model(), SessionTableModel)
 
-    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
+    def selectionModel(self) -> QItemSelectionModel:
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
@@ -98,11 +97,11 @@ class SessionTableView(QTableView):
         """Override the viewport method to ensure it returns a QWidget."""
         return ensure_instance(super().viewport(), QWidget)
 
-    def verticalHeader(self) -> QHeaderView:  # noqa: N802
+    def verticalHeader(self) -> QHeaderView:
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
+    def horizontalHeader(self) -> QHeaderView:
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
@@ -112,11 +111,11 @@ class SessionTableView(QTableView):
         Raises:
             TypeError: If the view is not attached to a `MainWindow`.
         """
-        from session_sniffer.guis.main_window import MainWindow as _MainWindow  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
+        from session_sniffer.guis.main_window import MainWindow as _MainWindow
 
         return ensure_instance(super().window(), _MainWindow)
 
-    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # pylint: disable=redefined-builtin  # noqa: A002, N802
+    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:
         """Show country flag tooltips on hover and forward other events."""
         if isinstance(object, QWidget) and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
@@ -132,12 +131,12 @@ class SessionTableView(QTableView):
 
         return super().eventFilter(object, event)
 
-    def keyPressEvent(self, e: QKeyEvent | None) -> None:  # noqa: N802
+    def keyPressEvent(self, e: QKeyEvent | None) -> None:
         """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
 
         Fall back to default behavior for other key presses.
         """
-        if isinstance(e, QKeyEvent):  # noqa: SIM102
+        if isinstance(e, QKeyEvent):
             if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 if e.key() == Qt.Key.Key_A:
                     self.select_all_cells()
@@ -148,7 +147,7 @@ class SessionTableView(QTableView):
         # Fall back to default behavior
         super().keyPressEvent(e)
 
-    def mousePressEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
         """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
 
         Fall back to default behavior for non-cell areas.
@@ -177,7 +176,7 @@ class SessionTableView(QTableView):
                             else QItemSelectionModel.SelectionFlag.Select
                         )
 
-                elif e.button() == Qt.MouseButton.RightButton:  # noqa: SIM102
+                elif e.button() == Qt.MouseButton.RightButton:
                     if not selection_model.isSelected(index):
                         selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
 
@@ -187,15 +186,15 @@ class SessionTableView(QTableView):
         # Fall back to default behavior
         super().mousePressEvent(e)
 
-    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
         if isinstance(e, QMouseEvent):
             index = self.indexAt(e.pos())  # Get the index under the cursor
             if index.isValid():
                 selection_model = self.selectionModel()
 
-                if e.buttons() == Qt.MouseButton.LeftButton:  # noqa: SIM102
-                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:  # noqa: SIM102
+                if e.buttons() == Qt.MouseButton.LeftButton:
+                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
                         if self._drag_selecting and self._previous_cell != index:
                             self._previous_cell = index
 
@@ -207,15 +206,14 @@ class SessionTableView(QTableView):
 
         super().mouseMoveEvent(e)
 
-    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:
         """Reset dragging state when the mouse button is released."""
-        if isinstance(e, QMouseEvent):  # noqa: SIM102
+        if isinstance(e, QMouseEvent):
             if e.button() == Qt.MouseButton.LeftButton:
                 self._drag_selecting = False
                 self._previous_cell = None
 
         super().mouseReleaseEvent(e)
-    # pylint: enable=invalid-name
 
     # --------------------------------------------------------------------------
     # Custom / internal management methods
@@ -324,14 +322,14 @@ class SessionTableView(QTableView):
             handler: Callable[..., None] | None = None,
         ) -> QAction:
             """Helper to create and configure a QAction."""
-            action = ensure_instance(menu.addAction(label), QAction)  # pyright: ignore[reportUnknownMemberType]
+            action = ensure_instance(menu.addAction(label), QAction)
 
             if shortcut:
                 action.setShortcut(shortcut)
             if tooltip:
                 action.setToolTip(tooltip)
             if handler:
-                action.triggered.connect(handler)  # pyright: ignore[reportUnknownMemberType]
+                action.triggered.connect(handler)
 
             return action
 
@@ -357,7 +355,7 @@ class SessionTableView(QTableView):
         context_menu = QMenu(self)
         context_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
         context_menu.setToolTipsVisible(True)
-        context_menu.hovered.connect(self.handle_menu_hovered)  # pyright: ignore[reportUnknownMemberType]
+        context_menu.hovered.connect(self.handle_menu_hovered)
 
         # Add "Copy Selection" action
         add_action(
@@ -607,7 +605,7 @@ class SessionTableView(QTableView):
                 )
 
         # Execute the context menu at the right-click position
-        context_menu.exec(self.mapToGlobal(pos))  # pyright: ignore[reportUnknownMemberType]
+        context_menu.exec(self.mapToGlobal(pos))
 
     def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""

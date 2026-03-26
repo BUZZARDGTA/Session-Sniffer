@@ -2,7 +2,7 @@
 
 import ast
 import re
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
@@ -25,6 +25,8 @@ RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>
 
 class Settings(DefaultSettings):
     """Load, validate, and persist user settings for the application."""
+
+    MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[float] = 3.0
 
     ALL_SETTINGS: ClassVar = (
         'CAPTURE_INTERFACE_NAME',
@@ -391,13 +393,13 @@ class Settings(DefaultSettings):
                     try:
                         Settings.CAPTURE_INTERFACE_NAME, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
                     except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_INTERFACE_NAME = setting_value  # pyright: ignore[reportConstantRedefinition]
+                        Settings.CAPTURE_INTERFACE_NAME = setting_value
                 elif setting_name == 'CAPTURE_IP_ADDRESS':
                     try:
                         Settings.CAPTURE_IP_ADDRESS, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
                     except InvalidNoneTypeValueError:
                         if is_ipv4_address(setting_value):
-                            Settings.CAPTURE_IP_ADDRESS = setting_value  # pyright: ignore[reportConstantRedefinition]
+                            Settings.CAPTURE_IP_ADDRESS = setting_value
                         else:
                             need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_MAC_ADDRESS':
@@ -408,7 +410,7 @@ class Settings(DefaultSettings):
                         if is_mac_address(formatted_mac_address):
                             if formatted_mac_address != setting_value:
                                 need_rewrite_settings = True
-                            Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address  # pyright: ignore[reportConstantRedefinition]
+                            Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address
                         else:
                             need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_ARP_SPOOFING':
@@ -427,7 +429,7 @@ class Settings(DefaultSettings):
                     except InvalidNoneTypeValueError:
                         try:
                             case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('GTA5', 'Minecraft'))
-                            Settings.CAPTURE_PROGRAM_PRESET = normalized_match  # pyright: ignore[reportConstantRedefinition]
+                            Settings.CAPTURE_PROGRAM_PRESET = normalized_match
                             if not case_sensitive_match:
                                 need_rewrite_current_setting = True
                         except NoMatchFoundError:
@@ -446,14 +448,14 @@ class Settings(DefaultSettings):
                     try:
                         Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
                     except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
+                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER = validate_and_strip_balanced_outer_parens(setting_value)
                         if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
                             need_rewrite_settings = True
                 elif setting_name == 'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER':
                     try:
                         Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
                     except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)  # pyright: ignore[reportConstantRedefinition]
+                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)
                         if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
                             need_rewrite_settings = True
                 elif setting_name == 'GUI_SESSIONS_LOGGING':
@@ -467,71 +469,31 @@ class Settings(DefaultSettings):
                     except InvalidBooleanValueError:
                         need_rewrite_settings = True
                 elif setting_name == 'GUI_COLUMNS_CONNECTED_HIDDEN':
-                    try:
-                        gui_columns_to_hide = ast.literal_eval(setting_value)
-                    except (ValueError, SyntaxError):
+                    (
+                        normalized_hidden_columns,
+                        should_rewrite_current_setting,
+                        should_rewrite_settings,
+                    ) = cls._normalize_hidden_gui_columns(setting_value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS)
+
+                    if should_rewrite_current_setting:
+                        need_rewrite_current_setting = True
+                    if should_rewrite_settings:
                         need_rewrite_settings = True
-                    else:
-                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_connected_gui_columns_to_hide: list[str] = []
-
-                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
-                                try:
-                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
-                                    )
-                                    filtered_connected_gui_columns_to_hide.append(normalized_match)
-                                    if not case_sensitive_match:
-                                        need_rewrite_current_setting = True
-                                except NoMatchFoundError:
-                                    need_rewrite_settings = True
-
-                            # Sort columns according to internal order
-                            sorted_gui_columns_to_hide = [
-                                column for column in Settings.GUI_HIDEABLE_CONNECTED_COLUMNS
-                                if column in filtered_connected_gui_columns_to_hide
-                            ]
-
-                            # Check if sorting changed the order
-                            if filtered_connected_gui_columns_to_hide != sorted_gui_columns_to_hide:
-                                need_rewrite_current_setting = True
-
-                            Settings.GUI_COLUMNS_CONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
-                        else:
-                            need_rewrite_settings = True
+                    if normalized_hidden_columns is not None:
+                        Settings.GUI_COLUMNS_CONNECTED_HIDDEN = normalized_hidden_columns
                 elif setting_name == 'GUI_COLUMNS_DISCONNECTED_HIDDEN':
-                    try:
-                        gui_columns_to_hide = ast.literal_eval(setting_value)
-                    except (ValueError, SyntaxError):
+                    (
+                        normalized_hidden_columns,
+                        should_rewrite_current_setting,
+                        should_rewrite_settings,
+                    ) = cls._normalize_hidden_gui_columns(setting_value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS)
+
+                    if should_rewrite_current_setting:
+                        need_rewrite_current_setting = True
+                    if should_rewrite_settings:
                         need_rewrite_settings = True
-                    else:
-                        if isinstance(gui_columns_to_hide, tuple) and all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
-                            filtered_disconnected_gui_columns_to_hide: list[str] = []
-
-                            for value in gui_columns_to_hide:  # pyright: ignore[reportUnknownVariableType]
-                                try:
-                                    case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                        value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS,  # pyright: ignore[reportUnknownArgumentType]
-                                    )
-                                    filtered_disconnected_gui_columns_to_hide.append(normalized_match)
-                                    if not case_sensitive_match:
-                                        need_rewrite_current_setting = True
-                                except NoMatchFoundError:
-                                    need_rewrite_settings = True
-
-                            # Sort columns according to internal order
-                            sorted_gui_columns_to_hide = [
-                                column for column in Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS
-                                if column in filtered_disconnected_gui_columns_to_hide
-                            ]
-
-                            # Check if sorting changed the order
-                            if filtered_disconnected_gui_columns_to_hide != sorted_gui_columns_to_hide:
-                                need_rewrite_current_setting = True
-
-                            Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = tuple(sorted_gui_columns_to_hide)
-                        else:
-                            need_rewrite_settings = True
+                    if normalized_hidden_columns is not None:
+                        Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = normalized_hidden_columns
                 elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_DATE':
                     try:
                         Settings.GUI_COLUMNS_DATETIME_SHOW_DATE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
@@ -563,7 +525,7 @@ class Settings(DefaultSettings):
                     except (ValueError, TypeError):
                         need_rewrite_settings = True
                     else:
-                        if player_disconnected_timer >= 3.0:  # noqa: PLR2004
+                        if player_disconnected_timer >= cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS:
                             Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
                         else:
                             need_rewrite_settings = True
@@ -598,7 +560,7 @@ class Settings(DefaultSettings):
                     except InvalidNoneTypeValueError:
                         try:
                             case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('Stable', 'RC'))
-                            Settings.UPDATER_CHANNEL = normalized_match  # pyright: ignore[reportConstantRedefinition]
+                            Settings.UPDATER_CHANNEL = normalized_match
                             if not case_sensitive_match:
                                 need_rewrite_current_setting = True
                         except NoMatchFoundError:
@@ -632,3 +594,47 @@ class Settings(DefaultSettings):
 
         if need_rewrite_settings:
             cls.rewrite_settings_file()
+
+    @staticmethod
+    def _normalize_hidden_gui_columns(
+        setting_value: str,
+        allowed_columns: tuple[str, ...],
+    ) -> tuple[tuple[str, ...] | None, bool, bool]:
+        """Normalize hidden GUI columns and report whether settings should be rewritten."""
+        try:
+            gui_columns_to_hide: object = ast.literal_eval(setting_value)
+        except (ValueError, SyntaxError):
+            return None, False, True
+
+        if not isinstance(gui_columns_to_hide, tuple):
+            return None, False, True
+
+        if not all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
+            return None, False, True
+
+        gui_columns_to_hide = cast('tuple[str, ...]', gui_columns_to_hide)
+
+        filtered_gui_columns_to_hide: list[str] = []
+        need_rewrite_current_setting = False
+        need_rewrite_settings = False
+
+        for value in gui_columns_to_hide:
+            try:
+                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, allowed_columns)
+            except NoMatchFoundError:
+                need_rewrite_settings = True
+                continue
+
+            filtered_gui_columns_to_hide.append(normalized_match)
+            if not case_sensitive_match:
+                need_rewrite_current_setting = True
+
+        sorted_gui_columns_to_hide = [
+            column for column in allowed_columns
+            if column in filtered_gui_columns_to_hide
+        ]
+
+        if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
+            need_rewrite_current_setting = True
+
+        return tuple(sorted_gui_columns_to_hide), need_rewrite_current_setting, need_rewrite_settings

@@ -1,9 +1,9 @@
 """Discord intro popup dialog and clickable label widgets."""
 
 import webbrowser
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, pyqtSignal
-from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 
 from session_sniffer.constants.standalone import TITLE
@@ -16,6 +16,9 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.settings import Settings
 
+if TYPE_CHECKING:
+    from PyQt6.QtGui import QMouseEvent
+
 DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 
 
@@ -24,7 +27,7 @@ class ClickableLabel(QLabel):
 
     clicked = pyqtSignal()
 
-    def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # pylint: disable=invalid-name  # noqa: N802
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:
         """Emit `clicked` when left mouse button is pressed."""
         if event is not None and event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
@@ -61,7 +64,7 @@ class DiscordIntro(QDialog):
         self.exit_button.setToolTip('Close this popup')
         self.exit_button.setStyleSheet(DISCORD_POPUP_EXIT_BUTTON_STYLESHEET)
         self.exit_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.exit_button.clicked.connect(self.close_popup)  # pyright: ignore[reportUnknownMemberType]
+        self.exit_button.clicked.connect(self.close_popup)
 
         # Layout for the window content
         layout = QVBoxLayout()
@@ -87,7 +90,7 @@ class DiscordIntro(QDialog):
         self.join_button.setToolTip('Open Discord and join the Session Sniffer community server')
         self.join_button.setStyleSheet(DISCORD_POPUP_JOIN_BUTTON_STYLESHEET)
         self.join_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.join_button.clicked.connect(self.open_discord)  # pyright: ignore[reportUnknownMemberType]
+        self.join_button.clicked.connect(self.open_discord)
 
         # Set button width to 75% of the window width
         self.join_button.setMaximumWidth(int(self.width() * 0.75))
@@ -105,7 +108,7 @@ class DiscordIntro(QDialog):
         self.dont_remind_me_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.dont_remind_me_label.setToolTip('Disable Discord popup notifications permanently')
         self.dont_remind_me_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.dont_remind_me_label.clicked.connect(self.dont_remind_me)  # pyright: ignore[reportUnknownMemberType]
+        self.dont_remind_me_label.clicked.connect(self.dont_remind_me)
 
         layout.addItem(QSpacerItem(0, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))  # Spacer
         layout.addWidget(self.dont_remind_me_label)
@@ -137,8 +140,7 @@ class DiscordIntro(QDialog):
         # Initialize variables to track mouse position
         self._drag_pos: QPoint | None = None
 
-    # pylint: disable=invalid-name
-    def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:
         """Begin drag when clicking the dialog background."""
         if (
             event is not None
@@ -151,7 +153,7 @@ class DiscordIntro(QDialog):
 
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+    def mouseMoveEvent(self, event: QMouseEvent | None) -> None:
         """Move the dialog while dragging."""
         if (
             event is not None
@@ -163,12 +165,11 @@ class DiscordIntro(QDialog):
 
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]  # noqa: N802
+    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:
         """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 
         super().mouseReleaseEvent(event)
-    # pylint: enable=invalid-name
 
     def center_window(self) -> None:
         """Center the dialog on the primary screen."""
@@ -206,5 +207,5 @@ class DiscordIntro(QDialog):
         self.fade_out.setStartValue(1)  # Start from fully opaque
         self.fade_out.setEndValue(0)    # Fade to fully transparent
         self.fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
-        self.fade_out.finished.connect(self.close)  # pyright: ignore[reportUnknownMemberType]  # Close the window after the fade-out finishes
+        self.fade_out.finished.connect(self.close)
         self.fade_out.start()

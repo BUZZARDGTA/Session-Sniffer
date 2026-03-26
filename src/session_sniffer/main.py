@@ -422,7 +422,7 @@ def main() -> None:
 
     if Settings.SHOW_DISCORD_POPUP:
         # Delay the popup opening by 3 seconds
-        QTimer.singleShot(3000, lambda: DiscordIntro().exec())  # pyright: ignore[reportUnknownMemberType]
+        QTimer.singleShot(3000, lambda: DiscordIntro().exec())
 
     # Start the application's event loop
     sys.exit(app.exec())

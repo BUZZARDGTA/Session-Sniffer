@@ -1,4 +1,4 @@
-# noqa: D100, INP001  # pylint: disable=missing-module-docstring
+# noqa: D100, INP001
 import argparse
 import json
 from pathlib import Path

@@ -66,7 +66,7 @@ def iplookup_core() -> None:
                 continue
             except requests.exceptions.HTTPError as e:
                 # Handle rate limiting
-                if isinstance(e.response, requests.Response) and e.response.status_code == requests.codes.too_many_requests:  # pylint: disable=no-member
+                if isinstance(e.response, requests.Response) and e.response.status_code == requests.codes.too_many_requests:
                     throttle_until(int(e.response.headers['X-Rl']), int(e.response.headers['X-Ttl']))
                     continue
                 raise  # Re-raise other HTTP errors

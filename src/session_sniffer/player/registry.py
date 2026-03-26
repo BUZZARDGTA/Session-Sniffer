@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
+SESSION_HOST_CANDIDATE_PLAYERS_COUNT = 2
 
 
 class PlayersRegistry:
@@ -194,13 +195,13 @@ class SessionHost:
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players."""
-        connected_players: list[Player] = take(2, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
+        connected_players: list[Player] = take(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
 
         potential_session_host_player = None
 
         if len(connected_players) == 1:
             potential_session_host_player = connected_players[0]
-        elif len(connected_players) == 2:  # noqa: PLR2004
+        elif len(connected_players) == SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
             time_difference = connected_players[1].datetime.last_rejoin - connected_players[0].datetime.last_rejoin
             if time_difference >= timedelta(milliseconds=200):
                 potential_session_host_player = connected_players[0]

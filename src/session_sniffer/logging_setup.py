@@ -32,10 +32,10 @@ DEFAULT_CONSOLE_LEVEL = logging.INFO
 DEFAULT_FILE_LEVEL = logging.WARNING
 
 # --- Module-level flag to register atexit only once ---
-_atexit_registered = False  # pylint: disable=invalid-name
+_atexit_registered = False
 
 
-def setup_logging(  # pylint: disable=too-many-arguments  # noqa: PLR0913
+def setup_logging(
     console_level: int = DEFAULT_CONSOLE_LEVEL,
     file_level: int = DEFAULT_FILE_LEVEL,
     log_file: Path | str = ERROR_LOG_PATH,
@@ -58,7 +58,7 @@ def setup_logging(  # pylint: disable=too-many-arguments  # noqa: PLR0913
         show_path: Show file path in `RichHandler` output.
         show_time: Show timestamps in `RichHandler` output.
     """
-    global _atexit_registered  # pylint: disable=global-statement  # noqa: PLW0603
+    global _atexit_registered
 
     root = logging.getLogger()
 

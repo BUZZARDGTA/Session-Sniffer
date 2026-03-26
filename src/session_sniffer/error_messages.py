@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from session_sniffer.networking.interface import SelectedInterface
+    from session_sniffer.player.userip import UserIP
 
 
 def format_type_error(
@@ -58,7 +59,7 @@ def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...
         TypeError: If `obj` is not an instance of `expected_types`.
     """
     if isinstance(obj, expected_types):
-        return obj  # type: ignore[return-value]  # MyPy cannot narrow `object` → `T` through `type[T] | tuple[type[T], ...]`
+        return obj  # type: ignore[return-value]
     raise TypeError(format_type_error(obj, expected_types))
 
 
@@ -179,11 +180,9 @@ def format_outdated_packages_message(
     return msgbox_message
 
 
-def format_userip_ip_conflict_message(  # pylint: disable=too-many-arguments,  # noqa: PLR0913
+def format_userip_ip_conflict_message(
     *,
-    existing_database_path: Path,
-    existing_usernames: list[str],
-    ip: str,
+    existing_userip: UserIP,
     conflicting_database_path: Path,
     conflicting_username: str,
     userip_databases_dir: Path,
@@ -200,11 +199,11 @@ def format_userip_ip_conflict_message(  # pylint: disable=too-many-arguments,  #
             the conflict is resolved.
 
         DEBUG:
-            "{existing_database_path.relative_to(userip_databases_dir).with_suffix('')}":
-            {', '.join(existing_usernames)}={ip}
+            "{existing_userip.database_path.relative_to(userip_databases_dir).with_suffix('')}":
+            {', '.join(existing_userip.usernames)}={existing_userip.ip}
 
             "{conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')}":
-            {conflicting_username}={ip}
+            {conflicting_username}={existing_userip.ip}
     """
 
 

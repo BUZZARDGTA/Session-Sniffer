@@ -130,12 +130,12 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
 
 def set_window_title(title: str) -> None:
     """Set the terminal window title (best-effort)."""
-    print(f'\033]0;{title}\007', end='')  # noqa: T201
+    sys.stdout.write(f'\033]0;{title}\007')
 
 
 def clear_screen() -> None:
     """Clear the terminal screen (best-effort)."""
-    print('\033c', end='')  # noqa: T201
+    sys.stdout.write('\033c')
 
 
 def validate_file(file_path: Path) -> Path:
@@ -227,7 +227,7 @@ def get_pid_by_path(filepath: Path, /) -> int | None:
     """Get the process ID (PID) of a running process by its executable path."""
     target_path = filepath.resolve()
 
-    for process in psutil.process_iter(['exe', 'pid']):  # pyright: ignore[reportUnknownMemberType]
+    for process in psutil.process_iter(['exe', 'pid']):
         process_exe: str | None = process.info.get('exe')
         if process_exe is None:
             continue
@@ -430,7 +430,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     if args is not None:
         full_command.extend(args)
 
-    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)  # pylint: disable=consider-using-with
+    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
 def run_cmd_command(command: str, args: list[str] | None = None) -> None:
@@ -442,4 +442,4 @@ def run_cmd_command(command: str, args: list[str] | None = None) -> None:
     if args is not None:
         full_command.extend(args)
 
-    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)  # pylint: disable=consider-using-with
+    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)

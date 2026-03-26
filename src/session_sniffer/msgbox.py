@@ -6,6 +6,8 @@ It defines two main components:
 
 The msgbox.show() method can be used to display a message box with custom buttons, and behavior.
 """
+# pylint: disable=implicit-flag-alias
+
 import ctypes
 import enum
 
@@ -18,7 +20,7 @@ class Style(enum.IntFlag):
 
     This class defines the various button and icon configurations that can be used when displaying a message box.
     """
-    # pylint: disable=implicit-flag-alias
+
     MB_ABORTRETRYIGNORE = 0x00000002  # Contains Abort, Retry, and Ignore buttons.
     MB_CANCELTRYCONTINUE = 0x00000006  # Contains Cancel, Try Again, Continue buttons.
     MB_HELP = 0x00004000  # Adds a Help button to the message box.
@@ -48,7 +50,6 @@ class Style(enum.IntFlag):
     MB_SETFOREGROUND = 0x00010000  # Brings the message box to the foreground.
     MB_TOPMOST = 0x00040000  # Makes the message box topmost.
     MB_SERVICE_NOTIFICATION = 0x00200000  # For service notification (typically used by background services).
-    # pylint: enable=implicit-flag-alias
 
 
 # https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw#return-value

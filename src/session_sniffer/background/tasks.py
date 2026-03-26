@@ -267,7 +267,7 @@ def process_userip_task(
                     terminate_process_tree(process_pid)
 
                     if player.userip.settings.PROTECTION == 'Restart_Process' and isinstance(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH, Path):
-                        subprocess.Popen([str(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH.absolute())])  # pylint: disable=consider-using-with
+                        subprocess.Popen([str(player.userip.settings.PROTECTION_RESTART_PROCESS_PATH.absolute())])
 
             elif player.userip.settings.PROTECTION in {'Shutdown_PC', 'Restart_PC'}:
                 validate_file(SHUTDOWN_EXE)

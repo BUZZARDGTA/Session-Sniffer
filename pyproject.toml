@@ -91,6 +91,7 @@ max-line-length = 176
 [tool.pylint."messages control"]
 disable = [
     "fixme",
+    "global-statement",
     "locally-disabled",
     "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
@@ -101,11 +102,36 @@ disable = [
     "used-before-assignment",  # TODO (BUZZARDGTA): unsupported in Python 3.14
 ]
 
+[tool.pylint.basic]
+const-rgx = "(^[A-Z_][A-Z0-9_]*$|^_atexit_registered$)"
+good-names = [
+    "_atexit_registered",
+    "closeEvent",
+    "eventFilter",
+    "horizontalHeader",
+    "keyPressEvent",
+    "mouseMoveEvent",
+    "mousePressEvent",
+    "mouseReleaseEvent",
+    "columnCount",
+    "headerData",
+    "rowCount",
+    "selectionModel",
+    "setModel",
+    "verticalHeader",
+]
+method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|headerData|horizontalHeader|keyPressEvent|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|verticalHeader)$"
+
+[tool.pylint.variables]
+allowed-redefined-builtins = ["object"]
+
 
 [tool.pyright]
 pythonVersion = "3.14"
 pythonPlatform = "Windows"
 typeCheckingMode = "strict"
+reportIncompatibleMethodOverride = "none"
+reportUnknownMemberType = "none"
 extraPaths = ["src"]
 venvPath = "."
 venv = ".venv"
@@ -153,6 +179,13 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/spoofed_ping.py" = ["INP001"]
+"src/session_sniffer/guis/discord_intro.py" = ["N802"]
+"src/session_sniffer/guis/interface_selection_dialog.py" = ["N802"]
+"src/session_sniffer/guis/main_window.py" = ["N802"]
+"src/session_sniffer/guis/table_model.py" = ["N802"]
+"src/session_sniffer/guis/tables.py" = ["A002", "N802", "PLC0415", "SIM102"]
+"src/session_sniffer/logging_setup.py" = ["PLR0913", "PLW0603"]
+"src/session_sniffer/networking/ctypes_adapters_info.py" = ["N801"]
 
 
 [tool.ty.environment]
