@@ -6,17 +6,24 @@ functionality to update or close the presence. It uses threading to run the upda
 import time
 from queue import SimpleQueue
 from threading import Event, Thread
+from typing import NamedTuple
 
-import sentinel  # pyright: ignore[reportMissingTypeStubs]
+import sentinel
 from pypresence import exceptions
 from pypresence.presence import Presence
 
 from session_sniffer.error_messages import ensure_instance
 
-type QueueType = SimpleQueue[str | object]
+
+class _PresenceUpdate(NamedTuple):
+    """Payload queued for a Discord Rich Presence update."""
+    state_message: str
+    details: str
+
+
+type QueueType = SimpleQueue[_PresenceUpdate | object]
 
 SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')
-DISCORD_RPC_TITLE = "Sniffin' my babies IPs"
 START_TIME_INT = int(time.time())
 DISCORD_RPC_BUTTONS = [
     {'label': 'GitHub Repo', 'url': 'https://github.com/BUZZARDGTA/Session-Sniffer'},
@@ -41,25 +48,33 @@ class DiscordRPC:
         self._thread = Thread(
             target=_run,
             name='DiscordRPCThread',
+            daemon=True,
             args=(self._rpc, self._queue, self.connection_status),
         )
         self._thread.start()
 
         self.last_update_time: float | None = None
+        self._last_queued_update: _PresenceUpdate | None = None
 
-    def update(self, state_message: str = '') -> None:
+    def update(self, state_message: str = '', details: str = '') -> None:
         """Attempt to update the Discord Rich Presence.
 
         Args:
             state_message: If provided, the state message to display in Discord presence.
+            details: If provided, the details line to display in Discord presence.
         """
         if self._closed:
             return
 
         self.last_update_time = time.monotonic()
 
+        new_update = _PresenceUpdate(state_message, details)
+        if new_update == self._last_queued_update:
+            return
+
+        self._last_queued_update = new_update
         if self._thread.is_alive():
-            self._queue.put(state_message)
+            self._queue.put(new_update)
 
     def close(self) -> None:
         """Remove the Discord Rich Presence."""
@@ -81,7 +96,9 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 rpc.close()
             return
 
-        state_message = ensure_instance(queue_item, str)
+        update_payload = ensure_instance(queue_item, _PresenceUpdate)
+        state_message = update_payload.state_message
+        details = update_payload.details
 
         if not connection_status.is_set():
             try:
@@ -99,7 +116,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
         try:
             rpc.update(
                 state=state_message,
-                details=DISCORD_RPC_TITLE,
+                details=details,
                 start=START_TIME_INT,
                 buttons=DISCORD_RPC_BUTTONS,
             )

@@ -1,57 +1,81 @@
 """Core rendering loop that compiles GUI payloads from runtime state."""
 
+import json
 import re
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
+from itertools import chain
+from operator import attrgetter
 from threading import Thread
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import geoip2.errors
 from prettytable import PrettyTable, TableStyle
+from pydantic import ValidationError
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QIcon, QPixmap
+from PyQt6.QtGui import QImage
 
 from session_sniffer import msgbox
-from session_sniffer.background.tasks import gui_closed__event, show_detection_warning_popup
+from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
-from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH, VERSION
+from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
+from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.error_messages import (
     format_type_error,
     format_userip_corrupted_settings_message,
+    format_userip_duplicate_entries_message,
     format_userip_invalid_ip_entry_message,
     format_userip_missing_settings_message,
 )
-from session_sniffer.guis.html_templates import CAPTURE_STOPPED_HTML, GUI_HEADER_HTML_TEMPLATE
+from session_sniffer.guis.html_templates import generate_gui_header_html
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
-from session_sniffer.networking.utils import is_ipv4_address
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
-from session_sniffer.player.userip import UserIPDatabases, UserIPSettings
-from session_sniffer.player.warnings import GUIDetectionSettings, HostingWarnings, MobileWarnings, VPNWarnings
+from session_sniffer.models.userip_settings_model import UserIPSettingsModel
+from session_sniffer.networking.ip_range import is_valid_ip_range_entry
+from session_sniffer.player.registry import MINIMUM_PACKETS_FOR_SESSION_HOST, SESSION_HOST_CANDIDATE_PLAYERS_COUNT, PlayersRegistry, SessionHost
+from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
-from session_sniffer.rendering_core.session_table_renderer import SessionTableRenderContext, build_session_table_snapshot
+from session_sniffer.rendering_core.session_table_renderer import (
+    SessionTableRenderContext,
+    build_session_table_snapshot,
+    format_elapsed_time,
+    format_player_ip,
+    format_player_middle_ports,
+    format_player_usernames,
+)
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
-from session_sniffer.rendering_core.types import GeoIP2Readers, GUIRenderingSnapshot, GUIRenderingState, SessionTableSnapshot, TsharkStats
+from session_sniffer.rendering_core.types import (
+    GeoIP2Readers,
+    GUIColumnConfig,
+    GUIRenderingSnapshot,
+    GUIRenderingState,
+    GUIStatusTexts,
+    GUITableData,
+    SessionTableSnapshot,
+    TsharkStats,
+)
 from session_sniffer.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
-from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool, custom_str_to_nonetype, dedup_preserve_order, get_session_log_path, validate_file
-from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+from session_sniffer.utils import dedup_preserve_order, get_session_log_path, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     from session_sniffer.capture.tshark_capture import PacketCapture
+
+logger = get_logger(__name__)
 
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
-    'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
+    'PROTECTION_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
 ]
 
 DISCORD_APPLICATION_ID = 1313304495958261781
@@ -59,17 +83,6 @@ COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 SECONDS_PER_MINUTE = 60.0
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
-
-
-def generate_gui_header_html(*, capture: PacketCapture) -> str:
-    """Generate the GUI header HTML based on capture state."""
-    stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
-
-    return GUI_HEADER_HTML_TEMPLATE.format(
-        title=TITLE,
-        version=VERSION,
-        stop_status=stop_status,
-    )
 
 
 def rendering_core(
@@ -86,178 +99,86 @@ def rendering_core(
 
             validate_file(ini_path)
 
-            settings: dict[str, Any] = {}
+            raw_settings: dict[str, str] = {}
+            setting_line_indices: dict[str, int] = {}
             userip: dict[str, list[str]] = {}
+            duplicate_entries: list[tuple[str, str]] = []
             current_section = None
             matched_settings: list[str] = []
             ini_data = ini_path.read_text('utf-8')
             corrected_ini_data_lines: list[str] = []
 
             for line in map(process_ini_line_output, ini_data.splitlines(keepends=True)):
-                corrected_ini_data_lines.append(line)
-
                 if line.startswith('[') and line.endswith(']'):
-                    # we basically adding a newline if the previous line is not a newline for eyes visiblitly or idk how we say that
-                    if (
-                        corrected_ini_data_lines
-                        and len(corrected_ini_data_lines) > 1
-                        and corrected_ini_data_lines[-2]
-                    ):
-                        corrected_ini_data_lines.insert(-1, '')  # Insert an empty string before the last line
+                    # Add a blank line before each section header for readability (unless the previous kept line is already blank).
+                    if corrected_ini_data_lines and corrected_ini_data_lines[-1]:
+                        corrected_ini_data_lines.append('')
+
+                    corrected_ini_data_lines.append(line)
                     current_section = line[1:-1]
                     continue
 
                 if current_section is None:
+                    corrected_ini_data_lines.append(line)
                     continue
 
                 if current_section == 'Settings':
                     if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(line)):
-                        # If it's a newline or a comment we don't really care about rewritting at this point.
-                        if not line.startswith((';', '#')) or not line:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                        # Keep comments; drop other non-setting lines in [Settings] so the file can be normalized on rewrite.
+                        if line.startswith((';', '#')):
+                            corrected_ini_data_lines.append(line)
                         continue
 
                     if (setting := match.group('key')) is None:
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
                     if not isinstance(setting, str):
                         raise TypeError(format_type_error(setting, str))
                     if (value := match.group('value')) is None:
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
                     if not isinstance(value, str):
                         raise TypeError(format_type_error(value, str))
 
                     if not (setting := setting.strip()):
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
                     if not (value := value.strip()):
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
 
+                    # Unknown keys are dropped from the corrected output.
                     if setting not in USERIP_INI_SETTINGS:
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
                         continue
 
-                    if setting in settings:
-                        if corrected_ini_data_lines:
-                            corrected_ini_data_lines = corrected_ini_data_lines[:-1]
+                    # Duplicate keys: keep the first occurrence only.
+                    if setting in raw_settings:
                         continue
 
+                    corrected_ini_data_lines.append(line)
                     matched_settings.append(setting)
-                    need_rewrite_current_setting = False
-                    is_setting_corrupted = False
-
-                    if setting == 'ENABLED':
-                        try:
-                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value)
-                        except InvalidBooleanValueError:
-                            is_setting_corrupted = True
-                    elif setting == 'COLOR':
-                        if (q_color := QColor(value)).isValid():
-                            settings[setting] = q_color
-                        else:
-                            is_setting_corrupted = True
-                    elif setting in {'LOG', 'NOTIFICATIONS'}:
-                        try:
-                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value)
-                        except InvalidBooleanValueError:
-                            is_setting_corrupted = True
-                    elif setting == 'VOICE_NOTIFICATIONS':
-                        try:
-                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value, only_match_against=False)
-                        except InvalidBooleanValueError:
-                            try:
-                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, ('Male', 'Female'))
-                                settings[setting] = normalized_match
-                                if not case_sensitive_match:
-                                    need_rewrite_current_setting = True
-                            except NoMatchFoundError:
-                                is_setting_corrupted = True
-                    elif setting == 'PROTECTION':
-                        try:
-                            settings[setting], need_rewrite_current_setting = custom_str_to_bool(value, only_match_against=False)
-                        except InvalidBooleanValueError:
-                            try:
-                                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(
-                                    value, ('Suspend_Process', 'Exit_Process', 'Restart_Process', 'Shutdown_PC', 'Restart_PC'),
-                                )
-                                settings[setting] = normalized_match
-                                if not case_sensitive_match:
-                                    need_rewrite_current_setting = True
-                            except NoMatchFoundError:
-                                is_setting_corrupted = True
-                    elif setting in {'PROTECTION_PROCESS_PATH', 'PROTECTION_RESTART_PROCESS_PATH'}:
-                        try:
-                            settings[setting], need_rewrite_current_setting = custom_str_to_nonetype(value)
-                        except InvalidNoneTypeValueError:
-                            stripped_value = value.strip("\"'")
-                            if value != stripped_value:
-                                is_setting_corrupted = True
-                            settings[setting] = Path(stripped_value)
-                    elif setting == 'PROTECTION_SUSPEND_PROCESS_MODE':
-                        try:
-                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, ('Auto', 'Manual'))
-                            settings[setting] = normalized_match
-                            if not case_sensitive_match:
-                                need_rewrite_current_setting = True
-                        except NoMatchFoundError:
-                            try:
-                                protection_suspend_process_mode = float(value) if '.' in value else int(value)
-                            except (ValueError, TypeError):
-                                is_setting_corrupted = True
-                            else:
-                                if protection_suspend_process_mode >= 0:
-                                    settings[setting] = protection_suspend_process_mode
-                                else:
-                                    is_setting_corrupted = True
-
-                    if is_setting_corrupted:
-                        if ini_path not in UserIPDatabases.notified_settings_corrupted:
-                            UserIPDatabases.notified_settings_corrupted.add(ini_path)
-                            Thread(
-                                target=msgbox.show,
-                                name=f'UserIPConfigFileError-{ini_path.name}',
-                                kwargs={
-                                    'title': TITLE,
-                                    'text': format_triple_quoted_text(format_userip_corrupted_settings_message(
-                                        ini_path=ini_path,
-                                        setting=setting,
-                                        value=value,
-                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                                    )),
-                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                                },
-                                daemon=True,
-                            ).start()
-                        return None, None
-
-                    if need_rewrite_current_setting:
-                        corrected_ini_data_lines[-1] = f'{setting}={settings[setting]}'
+                    raw_settings[setting] = value
+                    setting_line_indices[setting] = len(corrected_ini_data_lines) - 1
 
                 elif current_section == 'UserIP':
                     if not (match := RE_USERIP_INI_PARSER_PATTERN.search(line)):
+                        corrected_ini_data_lines.append(line)
                         continue
                     if (username := match.group('username')) is None:
+                        corrected_ini_data_lines.append(line)
                         continue
                     if not isinstance(username, str):
                         raise TypeError(format_type_error(username, str))
                     if (ip := match.group('ip')) is None:
+                        corrected_ini_data_lines.append(line)
                         continue
                     if not isinstance(ip, str):
                         raise TypeError(format_type_error(ip, str))
 
                     if not (username := username.strip()):
+                        corrected_ini_data_lines.append(line)
                         continue
                     if not (ip := ip.strip()):
+                        corrected_ini_data_lines.append(line)
                         continue
 
-                    if not is_ipv4_address(ip):
+                    if not is_valid_ip_range_entry(ip):
                         unresolved_ip_invalid.add(f'{ini_path}={username}={ip}')
                         if f'{ini_path}={username}={ip}' not in UserIPDatabases.notified_ip_invalid:
                             Thread(
@@ -278,11 +199,35 @@ def rendering_core(
                             UserIPDatabases.notified_ip_invalid.add(f'{ini_path}={username}={ip}')
                         continue
 
+                    if username in userip and ip in userip[username]:
+                        # Exact duplicate entry — drop from corrected output.
+                        duplicate_entries.append((username, ip))
+                        continue
+
+                    corrected_ini_data_lines.append(line)
                     if username in userip:
-                        if ip not in userip[username]:
-                            userip[username].append(ip)
+                        userip[username].append(ip)
                     else:
                         userip[username] = [ip]
+
+            if duplicate_entries:
+                if ini_path not in UserIPDatabases.notified_duplicate_entries:
+                    UserIPDatabases.notified_duplicate_entries.add(ini_path)
+                    Thread(
+                        target=msgbox.show,
+                        name=f'UserIPDuplicateEntries-{ini_path.name}',
+                        kwargs={
+                            'title': TITLE,
+                            'text': format_triple_quoted_text(format_userip_duplicate_entries_message(
+                                ini_path=ini_path,
+                                duplicates=duplicate_entries,
+                            )),
+                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                        },
+                        daemon=True,
+                    ).start()
+            else:
+                UserIPDatabases.notified_duplicate_entries.discard(ini_path)
 
             list_of_missing_settings = [setting for setting in USERIP_INI_SETTINGS if setting not in matched_settings]
             number_of_settings_missing = len(list_of_missing_settings)
@@ -306,6 +251,38 @@ def rendering_core(
                     ).start()
                 return None, None
 
+            # Validate all collected settings via Pydantic model
+            try:
+                validated, ini_rewrites = UserIPSettingsModel.validate_settings(raw_settings)
+            except ValidationError as exc:
+                # Extract the first corrupted field for user notification
+                first_error = exc.errors()[0]
+                corrupted_setting = str(first_error['loc'][0]) if first_error['loc'] else 'UNKNOWN'
+                corrupted_value = raw_settings.get(corrupted_setting, '')
+                if ini_path not in UserIPDatabases.notified_settings_corrupted:
+                    UserIPDatabases.notified_settings_corrupted.add(ini_path)
+                    Thread(
+                        target=msgbox.show,
+                        name=f'UserIPConfigFileError-{ini_path.name}',
+                        kwargs={
+                            'title': TITLE,
+                            'text': format_triple_quoted_text(format_userip_corrupted_settings_message(
+                                ini_path=ini_path,
+                                setting=corrupted_setting,
+                                value=corrupted_value,
+                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                            )),
+                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                        },
+                        daemon=True,
+                    ).start()
+                return None, None
+
+            # Apply line rewrites from validated model
+            for field_name, rewrite_value in ini_rewrites.items():
+                if field_name in setting_line_indices:
+                    corrected_ini_data_lines[setting_line_indices[field_name]] = f'{field_name}={rewrite_value}'
+
             if ini_path in UserIPDatabases.notified_settings_corrupted:
                 UserIPDatabases.notified_settings_corrupted.remove(ini_path)
 
@@ -322,18 +299,30 @@ def rendering_core(
                 ini_path.write_text(fixed_ini_data, encoding='utf-8')
 
             return UserIPSettings(
-                settings['ENABLED'],
-                settings['COLOR'],
-                settings['LOG'],
-                settings['NOTIFICATIONS'],
-                settings['VOICE_NOTIFICATIONS'],
-                settings['PROTECTION'],
-                settings['PROTECTION_PROCESS_PATH'],
-                settings['PROTECTION_RESTART_PROCESS_PATH'],
-                settings['PROTECTION_SUSPEND_PROCESS_MODE'],
+                enabled=validated.ENABLED,
+                color=validated.COLOR,
+                log=validated.LOG,
+                notifications=validated.NOTIFICATIONS,
+                voice_notifications=validated.VOICE_NOTIFICATIONS,
+                protection=ProtectionSettings(
+                    enabled=bool(validated.PROTECTION),
+                    process_path=validated.PROTECTION_PROCESS_PATH,
+                    suspend_process_mode=validated.PROTECTION_SUSPEND_PROCESS_MODE,
+                ),
             ), userip
 
+        def _snapshot_userip_database_mod_times() -> dict[Path, float]:
+            """Return current modification times of all existing UserIP database INIs."""
+            return {
+                path.resolve(): path.stat().st_mtime
+                for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini')
+                if path.is_file()
+            }
+
+        last_known_userip_db_mod_times: dict[Path, float] = {}
+
         def update_userip_databases() -> float:
+            nonlocal last_known_userip_db_mod_times
             default_userip_file_header = format_triple_quoted_text(
                 USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
                     title=TITLE,
@@ -361,6 +350,15 @@ def rendering_core(
                 if not file_path.is_file():
                     UserIPDatabases.notified_settings_corrupted.remove(file_path)
 
+            current_userip_db_mod_times = _snapshot_userip_database_mod_times()
+            if current_userip_db_mod_times == last_known_userip_db_mod_times:
+                # Files unchanged, but new players may have joined since the last rebuild.
+                # This keeps per-player mapping up-to-date without re-validating/re-parsing INIs.
+                UserIPDatabases.build()
+                return time.monotonic()
+            if last_known_userip_db_mod_times:
+                logger.info('Detected changes in UserIP databases, re-parsing...')
+
             new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
             unresolved_ip_invalid: set[str] = set()
 
@@ -377,6 +375,9 @@ def rendering_core(
                 UserIPDatabases.notified_ip_invalid.remove(resolved_database_entry)
 
             UserIPDatabases.build()
+
+            # INI parsing may have rewritten files; re-snapshot so we don't immediately re-parse next tick.
+            last_known_userip_db_mod_times = _snapshot_userip_database_mod_times()
 
             return time.monotonic()
 
@@ -421,40 +422,6 @@ def rendering_core(
 
             return asn
 
-        def format_elapsed_time(duration: timedelta) -> str:
-            """Format a timedelta duration into a compact human-readable string."""
-            hours, remainder = divmod(duration.total_seconds(), 3600)
-            minutes, remainder = divmod(remainder, 60)
-            seconds, milliseconds = divmod(remainder * 1000, 1000)
-
-            duration_parts: list[str] = []
-            if hours >= 1:
-                duration_parts.append(f'{int(hours):02}h')
-            if duration_parts or minutes >= 1:
-                duration_parts.append(f'{int(minutes):02}m')
-            if duration_parts or seconds >= 1:
-                duration_parts.append(f'{int(seconds):02}s')
-            if not duration_parts and milliseconds > 0:
-                duration_parts.append(f'{int(milliseconds):03}ms')
-
-            return ' '.join(duration_parts) if duration_parts else '000ms'
-
-        def format_player_usernames(player: Player) -> str:
-            """Format player usernames as comma-separated string."""
-            return ', '.join(player.usernames) if player.usernames else ''
-
-        def format_player_ip(player_ip: str) -> str:
-            """Format player IP with crown emoji if session host."""
-            if SessionHost.player and SessionHost.player.ip == player_ip:
-                return f'{player_ip} 👑'
-            return player_ip
-
-        def format_player_middle_ports(player: Player) -> str:
-            """Format player middle ports as comma-separated string in reverse order."""
-            if player.ports.middle:
-                return ', '.join(map(str, reversed(player.ports.middle)))
-            return ''
-
         def process_session_logging() -> None:
             def format_player_logging_datetime(datetime_object: datetime) -> str:
                 return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
@@ -478,8 +445,8 @@ def rendering_core(
 
                 # Calculate optimal padding for connected players
                 for player in connected_players:
-                    country_len = len(player.iplookup.geolite2.country)
-                    continent_len = len(player.iplookup.ipapi.continent)
+                    country_len = len(str(player.iplookup.geolite2.country))
+                    continent_len = len(str(player.iplookup.ipapi.continent))
 
                     # Only include in padding calculation if within threshold
                     if country_len <= table_country_column_length_threshold:
@@ -489,8 +456,8 @@ def rendering_core(
 
                 # Calculate optimal padding for disconnected players
                 for player in disconnected_players:
-                    country_len = len(player.iplookup.geolite2.country)
-                    continent_len = len(player.iplookup.ipapi.continent)
+                    country_len = len(str(player.iplookup.geolite2.country))
+                    continent_len = len(str(player.iplookup.ipapi.continent))
 
                     # Only include in padding calculation if within threshold
                     if country_len <= table_country_column_length_threshold:
@@ -517,7 +484,8 @@ def rendering_core(
             logging_connected_players_table.set_style(TableStyle.SINGLE_BORDER)
             logging_connected_players_table.title = f'Player{pluralize(len(session_connected))} connected in your session ({len(session_connected)}):'
             logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
-            logging_connected_players_table.align = dict.fromkeys(logging_connected_players__column_names__with_down_arrow, 'l')
+            for field_name in logging_connected_players__column_names__with_down_arrow:
+                logging_connected_players_table.align[field_name] = 'l'
             for player in session_connected:
                 connected_row_texts: list[str] = []
                 connected_row_texts.append(f'{format_player_usernames(player)}')
@@ -564,17 +532,18 @@ def rendering_core(
                 connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
                 connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
                 connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                connected_row_texts.append(f'{player.ping.is_pinging}')
+                connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+                connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+                connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+                connected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
                 logging_connected_players_table.add_row(connected_row_texts)
 
             logging_disconnected_players_table = PrettyTable()
             logging_disconnected_players_table.set_style(TableStyle.SINGLE_BORDER)
             logging_disconnected_players_table.title = f"Player{pluralize(len(session_disconnected))} who've left your session ({len(session_disconnected)}):"
             logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
-            logging_disconnected_players_table.align = dict.fromkeys(logging_disconnected_players__column_names__with_down_arrow, 'l')
+            for field_name in logging_disconnected_players__column_names__with_down_arrow:
+                logging_disconnected_players_table.align[field_name] = 'l'
             for player in session_disconnected:
                 disconnected_row_texts: list[str] = []
                 disconnected_row_texts.append(f'{format_player_usernames(player)}')
@@ -618,32 +587,54 @@ def rendering_core(
                 disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-                disconnected_row_texts.append(f'{player.ping.is_pinging}')
+                disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+                disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+                disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+                disconnected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
                 logging_disconnected_players_table.add_row(disconnected_row_texts)
 
             # Check if the directories exist, if not create them
-            if not SESSIONS_LOGGING_PATH.parent.is_dir():
-                SESSIONS_LOGGING_PATH.parent.mkdir(parents=True)  # Create the directories if they don't exist
-
-            # Check if the file exists, if not create it
-            if not SESSIONS_LOGGING_PATH.is_file():
-                SESSIONS_LOGGING_PATH.touch()  # Create the file if it doesn't exist
+            SESSIONS_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
 
             SESSIONS_LOGGING_PATH.write_text(
                 logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),
                 encoding='utf-8',
             )
 
+            # Write structured JSON sibling for programmatic analysis (e.g. Seen Stats)
+            def _player_to_json_dict(player: Player) -> dict[str, object]:
+                return {
+                    'Usernames': player.usernames,
+                    'First Seen': player.datetime.first_seen.isoformat(),
+                    'Last Rejoin': player.datetime.last_rejoin.isoformat(),
+                    'Last Seen': player.datetime.last_seen.isoformat(),
+                    'Rejoins': player.rejoins,
+                    'Packets': player.packets.total_exchanged,
+                    'Country': str(player.iplookup.geolite2.country),
+                    'Country Code': str(player.iplookup.geolite2.country_code),
+                    'City': str(player.iplookup.geolite2.city),
+                    'ISP': str(player.iplookup.ipapi.isp),
+                    'ASN': str(player.iplookup.geolite2.asn),
+                    'Hostname': player.reverse_dns.hostname,
+                    'Mobile': player.iplookup.ipapi.mobile,
+                    'VPN': player.iplookup.ipapi.proxy,
+                    'Hosting': player.iplookup.ipapi.hosting,
+                }
+
+            json_snapshot: dict[str, dict[str, dict[str, object]]] = {
+                'connected': {player.ip: _player_to_json_dict(player) for player in session_connected},
+                'disconnected': {player.ip: _player_to_json_dict(player) for player in session_disconnected},
+            }
+            json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+            json_path.write_text(json.dumps(json_snapshot, ensure_ascii=False), encoding='utf-8')
+
         def process_gui_session_tables_rendering() -> SessionTableSnapshot:
             return build_session_table_snapshot(
                 SessionTableRenderContext(
                     session_connected=session_connected,
                     session_disconnected=session_disconnected,
-                    connected_hidden_columns=connected_hidden_columns,
-                    disconnected_hidden_columns=disconnected_hidden_columns,
+                    connected_shown_columns=connected_shown_columns,
+                    disconnected_shown_columns=disconnected_shown_columns,
                     connected_num_cols=connected_num_cols,
                     disconnected_num_cols=disconnected_num_cols,
                     connected_column_mapping=connected_column_mapping,
@@ -661,13 +652,15 @@ def rendering_core(
         logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
         last_userip_parse_time = None
         last_session_logging_processing_time = None
-        discord_rpc_manager = None
-        if Settings.DISCORD_PRESENCE:
-            discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
+        discord_rpc_manager: DiscordRPC | None = None
+
+        _rendering_slowdown = SlowdownDetector.get('rendering_loop')
 
         while not gui_closed__event.is_set():
+            _rendering_loop_start = time.monotonic()
+
             if ScriptControl.has_crashed():
-                return
+                break
 
             if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
                 last_userip_parse_time = update_userip_databases()
@@ -681,17 +674,27 @@ def rendering_core(
             global_pps_rate = 0
 
             session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
-            for player in session_connected.copy():
+            connected_ips: set[str] = {p.ip for p in session_connected}
+            players_to_disconnect: list[int] = []
+            for idx, player in enumerate(session_connected):
                 if (
                     not player.left_event.is_set()
-                    and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.GUI_DISCONNECTED_PLAYERS_TIMER
+                    and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer
                 ):
                     player.mark_as_left()
-                    session_connected.remove(player)
+                    players_to_disconnect.append(idx)
+                    connected_ips.discard(player.ip)
                     session_disconnected.append(player)
 
-                    if GUIDetectionSettings.player_leave_notifications_enabled:
-                        show_detection_warning_popup(player, 'player_left')
+                    if player.userip_detection and player.userip_detection.as_processed_task:
+                        player.userip_detection.as_processed_task = False
+                        Thread(
+                            target=process_userip_task,
+                            name=f'ProcessUserIPTask-{player.ip}-disconnected',
+                            args=(player, 'disconnected'), daemon=True,
+                        ).start()
+
+                    handle_detection_notification(player, 'player_left_session')
 
                     continue
 
@@ -725,8 +728,12 @@ def rendering_core(
             TsharkStats.global_bps_rate = global_bps_rate
             TsharkStats.global_pps_rate = global_pps_rate
 
-            for player in session_connected + session_disconnected:
-                if player.userip and player.ip not in UserIPDatabases.ips_set:
+            # Remove disconnected players from session_connected in reverse index order
+            for idx in reversed(players_to_disconnect):
+                del session_connected[idx]
+
+            for player in chain(session_connected, session_disconnected):
+                if player.userip and not UserIPDatabases.is_known_ip(player.ip):
                     player.userip = None
                     player.userip_detection = None
 
@@ -747,23 +754,20 @@ def rendering_core(
                 )
 
                 if player.country_flag is None:
-                    country_code = (
+                    country_code_value = (
                         player.iplookup.geolite2.country_code
-                        if player.iplookup.geolite2.country_code not in ['...', 'N/A']
+                        if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
                         else player.iplookup.ipapi.country_code
-                        if player.iplookup.ipapi.country_code not in ['...', 'N/A']
+                        if player.iplookup.ipapi.country_code not in {'...', 'N/A'}
                         else None
                     )
-                    if (
-                        country_code
-                        and (flag_path := COUNTRY_FLAGS_DIR_PATH / f'{country_code.upper()}.png').exists()
-                    ):
-                        pixmap = QPixmap()
-                        pixmap.loadFromData(flag_path.read_bytes())
-                        player.country_flag = PlayerCountryFlag(
-                            pixmap=pixmap,
-                            icon=QIcon(pixmap),
-                        )
+                    country_code = country_code_value if isinstance(country_code_value, str) else None
+                    if country_code:
+                        flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code.upper()}.png'
+                        if flag_path.exists():
+                            image = QImage()
+                            image.loadFromData(flag_path.read_bytes())
+                            player.country_flag = PlayerCountryFlag(image)
 
                 if not player.iplookup.geolite2.is_initialized:
                     player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
@@ -771,71 +775,92 @@ def rendering_core(
                     player.iplookup.geolite2.asn = get_asn_info(player.ip)
                     player.iplookup.geolite2.is_initialized = True
 
-                if player in session_connected:
-                    if (
-                        player.iplookup.ipapi.mobile is True
-                        and GUIDetectionSettings.mobile_detection_enabled
-                        and not MobileWarnings.is_ip_notified(player.ip)
-                        and MobileWarnings.add_notified_ip(player.ip)
-                    ):
-                        show_detection_warning_popup(player, 'mobile')
-
-                    if (
-                        player.iplookup.ipapi.proxy is True
-                        and GUIDetectionSettings.vpn_detection_enabled
-                        and not VPNWarnings.is_ip_notified(player.ip)
-                        and VPNWarnings.add_notified_ip(player.ip)
-                    ):
-                        show_detection_warning_popup(player, 'vpn')
-
-                    if (
-                        player.iplookup.ipapi.hosting is True
-                        and GUIDetectionSettings.hosting_detection_enabled
-                        and not HostingWarnings.is_ip_notified(player.ip)
-                        and HostingWarnings.add_notified_ip(player.ip)
-                    ):
-                        show_detection_warning_popup(player, 'hosting')
-
-            if Settings.CAPTURE_PROGRAM_PRESET == 'GTA5':
+            if Settings.capture_program_preset == 'GTA5':
                 if SessionHost.player and SessionHost.player.left_event.is_set():
+                    logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
                     SessionHost.player = None
                 # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
+                    logger.debug(
+                        '[SessionHost] All %d pending disconnection players have left, resetting host and triggering search',
+                        len(SessionHost.players_pending_for_disconnection),
+                    )
                     SessionHost.player = None
                     SessionHost.search_player = True
                     SessionHost.players_pending_for_disconnection.clear()
 
                 if not session_connected:
+                    if SessionHost.player or not SessionHost.search_player:
+                        logger.debug('[SessionHost] No connected players, resetting host and triggering search')
                     SessionHost.player = None
                     SessionHost.search_player = True
                     SessionHost.players_pending_for_disconnection.clear()
                 elif len(session_connected) >= 1 and all(
                     not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
                 ):
+                    logger.debug(
+                        '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
+                        len(session_connected),
+                    )
                     SessionHost.players_pending_for_disconnection = session_connected
                 elif SessionHost.search_player:
+                    logger.debug(
+                        '[SessionHost] search_player=True, calling get_host_player with %d connected players',
+                        len(session_connected),
+                    )
                     SessionHost.get_host_player(session_connected)
+                elif (
+                    not SessionHost.player
+                    and SessionHost.last_ambiguous_candidates is not None
+                    and len(session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
+                ):
+                    top2 = sorted(session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
+                    current_pair = (top2[0].ip, top2[1].ip)
+                    if current_pair != SessionHost.last_ambiguous_candidates:
+                        logger.debug(
+                            '[SessionHost] Top candidates changed from %s to %s, re-triggering search',
+                            SessionHost.last_ambiguous_candidates, current_pair,
+                        )
+                        SessionHost.last_ambiguous_candidates = None
+                        SessionHost.search_player = True
+                    elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in top2):
+                        logger.debug(
+                            '[SessionHost] Both ambiguous candidates now have >= %d packets, re-triggering search for packet count tiebreaker',
+                            MINIMUM_PACKETS_FOR_SESSION_HOST,
+                        )
+                        SessionHost.last_ambiguous_candidates = None
+                        SessionHost.search_player = True
 
-            if Settings.GUI_SESSIONS_LOGGING and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
+            if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
                 last_session_logging_processing_time = time.monotonic()
                 process_session_logging()
 
-            if (Settings.DISCORD_PRESENCE and discord_rpc_manager is not None and
+            # Runtime Discord RPC toggle: create or close based on current setting
+            if Settings.discord_presence and discord_rpc_manager is None:
+                discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
+            elif not Settings.discord_presence and discord_rpc_manager is not None:
+                discord_rpc_manager.close()
+                discord_rpc_manager = None
+
+            if (discord_rpc_manager is not None and
                 (discord_rpc_manager.last_update_time is None or
                  (time.monotonic() - discord_rpc_manager.last_update_time) >= DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS)):
-                discord_rpc_manager.update(f'{len(session_connected)} player{pluralize(len(session_connected))} connected')
+                discord_rpc_manager.update(
+                    state_message=f'{len(session_connected)} player{pluralize(len(session_connected))} connected',
+                    details=Settings.discord_presence_title,
+                )
 
-            connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
-            disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
+            connected_shown_columns = set(Settings.gui_columns_connected_shown)
+            disconnected_shown_columns = set(Settings.gui_columns_disconnected_shown)
             connected_column_names = [
                 column_name
                 for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
-                if column_name not in connected_hidden_columns
+                if column_name in connected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
             disconnected_column_names = [
                 column_name
                 for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-                if column_name not in disconnected_hidden_columns
+                if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
             connected_num_cols = len(connected_column_names)
             disconnected_num_cols = len(disconnected_column_names)
@@ -851,24 +876,37 @@ def rendering_core(
 
             GUIRenderingState.publish_rendering_snapshot(
                 GUIRenderingSnapshot(
-                    connected_hidden_columns=connected_hidden_columns,
-                    disconnected_hidden_columns=disconnected_hidden_columns,
-                    connected_column_names=connected_column_names,
-                    disconnected_column_names=disconnected_column_names,
-                    header_text=header_text,
-                    status_capture_text=status_capture_text,
-                    status_config_text=status_config_text,
-                    status_issues_text=status_issues_text,
-                    status_performance_text=status_performance_text,
-                    connected_num_cols=connected_num_cols,
-                    connected_num_rows=session_table_snapshot.connected_num,
-                    connected_rows=session_table_snapshot.connected_rows,
-                    connected_colors=session_table_snapshot.connected_colors,
-                    disconnected_num_cols=disconnected_num_cols,
-                    disconnected_num_rows=session_table_snapshot.disconnected_num,
-                    disconnected_rows=session_table_snapshot.disconnected_rows,
-                    disconnected_colors=session_table_snapshot.disconnected_colors,
+                    column_config=GUIColumnConfig(
+                        connected_shown_columns=connected_shown_columns,
+                        disconnected_shown_columns=disconnected_shown_columns,
+                        connected_column_names=connected_column_names,
+                        disconnected_column_names=disconnected_column_names,
+                    ),
+                    status=GUIStatusTexts(
+                        header_text=header_text,
+                        status_capture_text=status_capture_text,
+                        status_config_text=status_config_text,
+                        status_issues_text=status_issues_text,
+                        status_performance_text=status_performance_text,
+                    ),
+                    connected=GUITableData(
+                        num_cols=connected_num_cols,
+                        num_rows=session_table_snapshot.connected_num,
+                        rows=session_table_snapshot.connected_rows,
+                        colors=session_table_snapshot.connected_colors,
+                    ),
+                    disconnected=GUITableData(
+                        num_cols=disconnected_num_cols,
+                        num_rows=session_table_snapshot.disconnected_num,
+                        rows=session_table_snapshot.disconnected_rows,
+                        colors=session_table_snapshot.disconnected_colors,
+                    ),
                 ),
             )
 
+            _rendering_slowdown.check(time.monotonic() - _rendering_loop_start, 'rendering_loop')
+
             gui_closed__event.wait(1)
+
+        if discord_rpc_manager is not None:
+            discord_rpc_manager.close()

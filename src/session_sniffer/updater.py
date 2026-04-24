@@ -60,7 +60,8 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
         try:
             versions = _fetch_github_versions()
         except requests.exceptions.RequestException as exc:
-            http_code = exc.response.status_code if exc.response is not None else None
+            response = exc.response
+            http_code = response.status_code if response is not None else None
 
             choice = msgbox.show(
                 title=TITLE,

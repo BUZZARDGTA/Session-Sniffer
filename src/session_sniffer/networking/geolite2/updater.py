@@ -4,7 +4,7 @@ import hashlib
 import json
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime  # noqa: TC003
+from datetime import datetime
 from pathlib import Path
 from threading import Thread
 from typing import Literal
@@ -86,6 +86,9 @@ def _load_geolite2_current_versions(*, geolite2_version_file_path: Path, geolite
     try:
         raw_data = json.loads(geolite2_version_file_path.read_text(encoding='utf-8'))
     except FileNotFoundError:
+        return
+    except json.JSONDecodeError:
+        logger.warning('Corrupted GeoLite2 JSON version file at %s, re-downloading databases', geolite2_version_file_path)
         return
 
     try:
@@ -206,6 +209,7 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
         )
 
     failed_fetching_flag_list: list[str] = []
+    first_download_error: GeoLite2UpdateResult | None = None
 
     for database_name, database_info in geolite2_databases.items():
         last_version = database_info.last_version
@@ -223,7 +227,10 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
 
         download_error, file_bytes = _download_geolite2_asset_bytes(download_url)
         if download_error is not None or file_bytes is None:
-            return download_error if download_error is not None else GeoLite2UpdateResult()
+            if first_download_error is None:
+                first_download_error = download_error if download_error is not None else GeoLite2UpdateResult()
+            failed_fetching_flag_list.append(database_name)
+            continue
 
         database_info.current_version = _persist_geolite2_database_bytes(
             database_name=database_name,
@@ -235,4 +242,4 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
     _notify_geolite2_download_flags_failed(failed_fetching_flag_list)
     _write_geolite2_version_file(geolite2_version_file_path, geolite2_databases)
 
-    return GeoLite2UpdateResult()
+    return first_download_error if first_download_error is not None else GeoLite2UpdateResult()

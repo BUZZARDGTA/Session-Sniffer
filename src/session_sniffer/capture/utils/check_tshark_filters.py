@@ -1,9 +1,6 @@
 """Module for checking support for broadcast and multicast capture filters on a specified network interface using tshark."""
 import subprocess
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path  # noqa: TC003
 
 
 def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tuple[bool, bool]:
@@ -34,8 +31,8 @@ def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tupl
             '-Q',
         )
         try:
-            subprocess.run(cmd, capture_output=True, check=True, encoding='utf-8', text=True)
-        except subprocess.CalledProcessError:
+            subprocess.run(cmd, capture_output=True, check=True, encoding='utf-8', text=True, timeout=10)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
         return True
 

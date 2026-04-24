@@ -4,7 +4,7 @@ This module provides validation for GitHub release API responses
 used for GeoLite2 database updates.
 """
 
-from datetime import datetime  # noqa: TC003
+from datetime import datetime
 
 from pydantic import BaseModel, HttpUrl
 

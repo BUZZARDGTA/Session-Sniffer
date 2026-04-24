@@ -1,34 +1,70 @@
 """Settings loading, validation, and persistence."""
 
-import ast
 import re
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
-from session_sniffer.logging_setup import console
-from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
-from session_sniffer.settings.defaults import DefaultSettings
+from session_sniffer.logging_setup import get_logger
+from session_sniffer.models.settings_ini_model import SettingsIniModel
+from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_templates import SETTINGS_INI_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool, custom_str_to_nonetype, validate_and_strip_balanced_outer_parens, validate_file
-from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+from session_sniffer.utils import validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+logger = get_logger(__name__)
+
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 
 
-class Settings(DefaultSettings):
+class Settings:
     """Load, validate, and persist user settings for the application."""
 
-    MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[float] = 3.0
+    capture_interface_name: str | None = SETTING_DEFAULTS['capture_interface_name']
+    capture_ip_address: str | None = SETTING_DEFAULTS['capture_ip_address']
+    capture_mac_address: str | None = SETTING_DEFAULTS['capture_mac_address']
+    capture_arp_spoofing: bool = SETTING_DEFAULTS['capture_arp_spoofing']
+    capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
+    capture_program_preset: str | None = SETTING_DEFAULTS['capture_program_preset']
+    capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
+    capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
+    capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
+    gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
+    gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
+    gui_interface_selection_hide_arp: bool = SETTING_DEFAULTS['gui_interface_selection_hide_arp']
+    gui_sessions_logging: bool = SETTING_DEFAULTS['gui_sessions_logging']
+    gui_reset_ports_on_rejoins: bool = SETTING_DEFAULTS['gui_reset_ports_on_rejoins']
+    gui_rate_graph_always_on_top: bool = SETTING_DEFAULTS['gui_rate_graph_always_on_top']
+    gui_rate_graph_max_history: int = SETTING_DEFAULTS['gui_rate_graph_max_history']
+    gui_columns_connected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_connected_shown']
+    gui_columns_disconnected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_disconnected_shown']
+    gui_columns_datetime_show_date: bool = SETTING_DEFAULTS['gui_columns_datetime_show_date']
+    gui_columns_datetime_show_time: bool = SETTING_DEFAULTS['gui_columns_datetime_show_time']
+    gui_columns_datetime_show_elapsed_time: bool = SETTING_DEFAULTS['gui_columns_datetime_show_elapsed_time']
+    gui_columns_geo_country_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_country_append_alpha2']
+    gui_columns_geo_continent_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_continent_append_alpha2']
+    gui_connected_table_rows_per_page: int = SETTING_DEFAULTS['gui_connected_table_rows_per_page']
+    gui_disconnected_table_rows_per_page: int = SETTING_DEFAULTS['gui_disconnected_table_rows_per_page']
+    gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
+    discord_presence: bool = SETTING_DEFAULTS['discord_presence']
+    discord_presence_title: str = SETTING_DEFAULTS['discord_presence_title']
+    show_discord_popup: bool = SETTING_DEFAULTS['show_discord_popup']
+    updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
 
-    ALL_SETTINGS: ClassVar = (
+    is_arp_interface: ClassVar[bool] = False
+    is_protection_supported: ClassVar[bool] = False
+
+    MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
+    MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
+
+    ALL_SETTINGS: ClassVar[tuple[str, ...]] = (
         'CAPTURE_INTERFACE_NAME',
         'CAPTURE_IP_ADDRESS',
         'CAPTURE_MAC_ADDRESS',
@@ -43,22 +79,27 @@ class Settings(DefaultSettings):
         'GUI_INTERFACE_SELECTION_HIDE_ARP',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
-        'GUI_COLUMNS_CONNECTED_HIDDEN',
-        'GUI_COLUMNS_DISCONNECTED_HIDDEN',
+        'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
+        'GUI_RATE_GRAPH_MAX_HISTORY',
+        'GUI_COLUMNS_CONNECTED_SHOWN',
+        'GUI_COLUMNS_DISCONNECTED_SHOWN',
         'GUI_COLUMNS_DATETIME_SHOW_DATE',
         'GUI_COLUMNS_DATETIME_SHOW_TIME',
         'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
         'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
         'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
+        'GUI_CONNECTED_TABLE_ROWS_PER_PAGE',
+        'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE',
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'DISCORD_PRESENCE',
+        'DISCORD_PRESENCE_TITLE',
         'SHOW_DISCORD_POPUP',
         'UPDATER_CHANNEL',
     )
 
-    _ALL_SETTINGS_SET: ClassVar = frozenset(ALL_SETTINGS)
+    _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)
 
-    GUI_COLUMNS_MAPPING: ClassVar = {
+    GUI_COLUMNS_MAPPING: ClassVar[dict[str, str]] = {
         'Usernames': 'usernames',
         'First Seen': 'datetime.first_seen',
         'Last Rejoin': 'datetime.last_rejoin',
@@ -109,8 +150,9 @@ class Settings(DefaultSettings):
         'Hosting': 'iplookup.ipapi.hosting',
         'Pinging': 'ping.is_pinging',
     }
-    GUI_FORCED_COLUMNS: ClassVar = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
-    GUI_HIDEABLE_CONNECTED_COLUMNS: ClassVar = (
+    GUI_FORCED_COLUMNS: ClassVar[tuple[str, ...]] = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
+    ALL_THIRD_PARTY_SERVERS: ClassVar[tuple[str, ...]] = ALL_THIRD_PARTY_SERVER_NAMES
+    GUI_TOGGLEABLE_CONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'T. Session Time',
         'Session Time',
         'T. Packets',
@@ -155,7 +197,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_HIDEABLE_DISCONNECTED_COLUMNS: ClassVar = (
+    GUI_TOGGLEABLE_DISCONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'T. Session Time',
         'Session Time',
         'T. Packets',
@@ -196,7 +238,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_ALL_CONNECTED_COLUMNS: ClassVar = (
+    GUI_ALL_CONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'Usernames',
         'First Seen',
         'Last Rejoin',
@@ -246,7 +288,7 @@ class Settings(DefaultSettings):
         'Hosting',
         'Pinging',
     )
-    GUI_ALL_DISCONNECTED_COLUMNS: ClassVar = (
+    GUI_ALL_DISCONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'Usernames',
         'First Seen',
         'Last Rejoin',
@@ -298,7 +340,7 @@ class Settings(DefaultSettings):
     def iterate_over_settings(cls) -> Iterator[tuple[str, Any]]:
         """Iterate over all settings and their current values."""
         for setting_name in cls.ALL_SETTINGS:
-            yield setting_name, getattr(cls, setting_name)
+            yield setting_name, getattr(cls, setting_name.lower())
 
     @classmethod
     def get_settings_length(cls) -> int:
@@ -313,8 +355,6 @@ class Settings(DefaultSettings):
     @classmethod
     def rewrite_settings_file(cls) -> None:
         """Rewrite the settings file from current in-memory values."""
-        console.print('Rewriting "Settings.ini" file ...', highlight=False)
-
         text = format_triple_quoted_text(
             SETTINGS_INI_HEADER_TEMPLATE.format(
                 title=TITLE,
@@ -326,7 +366,9 @@ class Settings(DefaultSettings):
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
 
-        SETTINGS_PATH.write_text(text, encoding='utf-8')
+        tmp_path: Path = SETTINGS_PATH.with_suffix('.tmp')
+        tmp_path.write_text(text, encoding='utf-8')
+        tmp_path.replace(SETTINGS_PATH)
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
@@ -374,267 +416,38 @@ class Settings(DefaultSettings):
     @classmethod
     def load_from_settings_file(cls, settings_path: Path) -> None:
         """Load settings from disk into `Settings` and rewrite when necessary."""
-        matched_settings_count = 0
-
         try:
-            settings, need_rewrite_settings = cls.parse_settings_ini_file(settings_path)
+            raw_settings, need_rewrite_settings = cls.parse_settings_ini_file(settings_path)
         except FileNotFoundError:
             need_rewrite_settings = True
         else:
-            for setting_name, setting_value in settings.items():
-                if not cls.has_setting(setting_name):
-                    need_rewrite_settings = True
-                    continue
+            # Build UPPER_CASE defaults dict for the model
+            upper_defaults: dict[str, Any] = {k.upper(): v for k, v in SETTING_DEFAULTS.items()}
 
-                matched_settings_count += 1
-                need_rewrite_current_setting = False
-
-                if setting_name == 'CAPTURE_INTERFACE_NAME':
-                    try:
-                        Settings.CAPTURE_INTERFACE_NAME, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_INTERFACE_NAME = setting_value
-                elif setting_name == 'CAPTURE_IP_ADDRESS':
-                    try:
-                        Settings.CAPTURE_IP_ADDRESS, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        if is_ipv4_address(setting_value):
-                            Settings.CAPTURE_IP_ADDRESS = setting_value
-                        else:
-                            need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_MAC_ADDRESS':
-                    try:
-                        Settings.CAPTURE_MAC_ADDRESS, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        formatted_mac_address = format_mac_address(setting_value)
-                        if is_mac_address(formatted_mac_address):
-                            if formatted_mac_address != setting_value:
-                                need_rewrite_settings = True
-                            Settings.CAPTURE_MAC_ADDRESS = formatted_mac_address
-                        else:
-                            need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_ARP_SPOOFING':
-                    try:
-                        Settings.CAPTURE_ARP_SPOOFING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_BLOCK_THIRD_PARTY_SERVERS':
-                    try:
-                        Settings.CAPTURE_BLOCK_THIRD_PARTY_SERVERS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_PROGRAM_PRESET':
-                    try:
-                        Settings.CAPTURE_PROGRAM_PRESET, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        try:
-                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('GTA5', 'Minecraft'))
-                            Settings.CAPTURE_PROGRAM_PRESET = normalized_match
-                            if not case_sensitive_match:
-                                need_rewrite_current_setting = True
-                        except NoMatchFoundError:
-                            need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_OVERFLOW_TIMER':
-                    try:
-                        capture_overflow_timer = float(setting_value)
-                    except (ValueError, TypeError):
-                        need_rewrite_settings = True
-                    else:
-                        if capture_overflow_timer >= 1:
-                            Settings.CAPTURE_OVERFLOW_TIMER = capture_overflow_timer
-                        else:
-                            need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER':
-                    try:
-                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER = validate_and_strip_balanced_outer_parens(setting_value)
-                        if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER:
-                            need_rewrite_settings = True
-                elif setting_name == 'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER':
-                    try:
-                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER = validate_and_strip_balanced_outer_parens(setting_value)
-                        if setting_value != Settings.CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER:
-                            need_rewrite_settings = True
-                elif setting_name == 'GUI_SESSIONS_LOGGING':
-                    try:
-                        Settings.GUI_SESSIONS_LOGGING, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_RESET_PORTS_ON_REJOINS':
-                    try:
-                        Settings.GUI_RESET_PORTS_ON_REJOINS, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_COLUMNS_CONNECTED_HIDDEN':
-                    (
-                        normalized_hidden_columns,
-                        should_rewrite_current_setting,
-                        should_rewrite_settings,
-                    ) = cls._normalize_hidden_gui_columns(setting_value, Settings.GUI_HIDEABLE_CONNECTED_COLUMNS)
-
-                    if should_rewrite_current_setting:
-                        need_rewrite_current_setting = True
-                    if should_rewrite_settings:
-                        need_rewrite_settings = True
-                    if normalized_hidden_columns is not None:
-                        Settings.GUI_COLUMNS_CONNECTED_HIDDEN = normalized_hidden_columns
-                elif setting_name == 'GUI_COLUMNS_DISCONNECTED_HIDDEN':
-                    (
-                        normalized_hidden_columns,
-                        should_rewrite_current_setting,
-                        should_rewrite_settings,
-                    ) = cls._normalize_hidden_gui_columns(setting_value, Settings.GUI_HIDEABLE_DISCONNECTED_COLUMNS)
-
-                    if should_rewrite_current_setting:
-                        need_rewrite_current_setting = True
-                    if should_rewrite_settings:
-                        need_rewrite_settings = True
-                    if normalized_hidden_columns is not None:
-                        Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN = normalized_hidden_columns
-                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_DATE':
-                    try:
-                        Settings.GUI_COLUMNS_DATETIME_SHOW_DATE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_TIME':
-                    try:
-                        Settings.GUI_COLUMNS_DATETIME_SHOW_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME':
-                    try:
-                        Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2':
-                    try:
-                        Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2':
-                    try:
-                        Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_DISCONNECTED_PLAYERS_TIMER':
-                    try:
-                        player_disconnected_timer = float(setting_value)
-                    except (ValueError, TypeError):
-                        need_rewrite_settings = True
-                    else:
-                        if player_disconnected_timer >= cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS:
-                            Settings.GUI_DISCONNECTED_PLAYERS_TIMER = player_disconnected_timer
-                        else:
-                            need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_SELECTION_AUTO_CONNECT':
-                    try:
-                        Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_INACTIVE':
-                    try:
-                        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'GUI_INTERFACE_SELECTION_HIDE_ARP':
-                    try:
-                        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'DISCORD_PRESENCE':
-                    try:
-                        Settings.DISCORD_PRESENCE, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'SHOW_DISCORD_POPUP':
-                    try:
-                        Settings.SHOW_DISCORD_POPUP, need_rewrite_current_setting = custom_str_to_bool(setting_value)
-                    except InvalidBooleanValueError:
-                        need_rewrite_settings = True
-                elif setting_name == 'UPDATER_CHANNEL':
-                    try:
-                        Settings.UPDATER_CHANNEL, need_rewrite_current_setting = custom_str_to_nonetype(setting_value)
-                    except InvalidNoneTypeValueError:
-                        try:
-                            case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(setting_value, ('Stable', 'RC'))
-                            Settings.UPDATER_CHANNEL = normalized_match
-                            if not case_sensitive_match:
-                                need_rewrite_current_setting = True
-                        except NoMatchFoundError:
-                            need_rewrite_settings = True
-
-                if need_rewrite_current_setting:
-                    need_rewrite_settings = True
-
-            if matched_settings_count != cls.get_settings_length():
-                need_rewrite_settings = True
-
-        if (
-            Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False
-            and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False
-            and Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False
-        ):
-            need_rewrite_settings = True
-
-            msgbox.show(
-                title=TITLE,
-                text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
-                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+            validated, _ini_rewrites, flags = SettingsIniModel.validate_and_get_rewrites(
+                raw_settings,
+                defaults=upper_defaults,
+                all_setting_names=cls.ALL_SETTINGS,
+                toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
+                toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
+                all_third_party_servers=cls.ALL_THIRD_PARTY_SERVERS,
+                max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
+                min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
             )
 
-            for setting_name in (
-                'GUI_COLUMNS_DATETIME_SHOW_DATE',
-                'GUI_COLUMNS_DATETIME_SHOW_TIME',
-                'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
-            ):
-                setattr(Settings, setting_name, getattr(DefaultSettings, setting_name))
+            # Apply all validated fields to Settings class attrs (UPPER model field → lower class attr)
+            for field_name in cls.ALL_SETTINGS:
+                setattr(cls, field_name.lower(), getattr(validated, field_name))
+
+            if flags.get('should_rewrite'):
+                need_rewrite_settings = True
+
+            if flags.get('invalid_datetime_columns_corrected'):
+                msgbox.show(
+                    title=TITLE,
+                    text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
+                    style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
+                )
 
         if need_rewrite_settings:
             cls.rewrite_settings_file()
-
-    @staticmethod
-    def _normalize_hidden_gui_columns(
-        setting_value: str,
-        allowed_columns: tuple[str, ...],
-    ) -> tuple[tuple[str, ...] | None, bool, bool]:
-        """Normalize hidden GUI columns and report whether settings should be rewritten."""
-        try:
-            gui_columns_to_hide: object = ast.literal_eval(setting_value)
-        except (ValueError, SyntaxError):
-            return None, False, True
-
-        if not isinstance(gui_columns_to_hide, tuple):
-            return None, False, True
-
-        if not all(isinstance(item, str) for item in gui_columns_to_hide):  # pyright: ignore[reportUnknownVariableType]
-            return None, False, True
-
-        gui_columns_to_hide = cast('tuple[str, ...]', gui_columns_to_hide)
-
-        filtered_gui_columns_to_hide: list[str] = []
-        need_rewrite_current_setting = False
-        need_rewrite_settings = False
-
-        for value in gui_columns_to_hide:
-            try:
-                case_sensitive_match, normalized_match = check_case_insensitive_and_exact_match(value, allowed_columns)
-            except NoMatchFoundError:
-                need_rewrite_settings = True
-                continue
-
-            filtered_gui_columns_to_hide.append(normalized_match)
-            if not case_sensitive_match:
-                need_rewrite_current_setting = True
-
-        sorted_gui_columns_to_hide = [
-            column for column in allowed_columns
-            if column in filtered_gui_columns_to_hide
-        ]
-
-        if filtered_gui_columns_to_hide != sorted_gui_columns_to_hide:
-            need_rewrite_current_setting = True
-
-        return tuple(sorted_gui_columns_to_hide), need_rewrite_current_setting, need_rewrite_settings

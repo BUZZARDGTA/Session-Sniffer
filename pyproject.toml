@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.4.3.post4+20260110.1727"
+version = "v1.4.4b1+20260424.0433"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
@@ -15,13 +15,14 @@ dependencies = [
     "packaging==26.0",
     "prettytable==3.17.0",
     "psutil==7.2.2",
-    "pydantic==2.12.5",
+    "pydantic==2.13.3",
     "pypresence==4.6.1",
+    "pyqtgraph==0.14.0",
     "PyQt6==6.8.1",
     "pywin32==311; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
-    "requests==2.32.5",
-    "rich==14.3.3",
+    "requests==2.33.1",
+    "rich==15.0.0",
     "sentinel==1.0.0",
     "toml==0.10.2",
     "tzlocal==5.3.1",
@@ -39,7 +40,6 @@ description = "A packet sniffer (also known as an IP sniffer/puller) specificall
 license = { file = "COPYING" }
 readme = "README.md"
 
-
 [project.urls]
 Documentation = "https://github.com/BUZZARDGTA/Session-Sniffer/wiki"
 Repository = "https://github.com/BUZZARDGTA/Session-Sniffer"
@@ -56,8 +56,9 @@ dev = [
     "ruff",
     "safety",
     "ty",
-    "types-requests==2.32.4.20260107",
-    "types-toml==0.10.8.20240310",
+    "types-psutil==7.2.2.20260408",
+    "types-requests==2.33.0.20260408",
+    "types-toml==0.10.8.20260408",
     "vulture",
 ]
 
@@ -90,12 +91,14 @@ max-line-length = 176
 
 [tool.pylint."messages control"]
 disable = [
+    "consider-using-with",
     "fixme",
     "global-statement",
     "locally-disabled",
     "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
+    "too-many-instance-attributes",
     "too-many-branches",
     "too-many-locals",
     "too-many-statements",
@@ -106,21 +109,32 @@ disable = [
 const-rgx = "(^[A-Z_][A-Z0-9_]*$|^_atexit_registered$)"
 good-names = [
     "_atexit_registered",
+    "_OPER_STATUS_FLAGS",
     "closeEvent",
     "eventFilter",
+    "filterAcceptsRow",
+    "highlightBlock",
     "horizontalHeader",
+    "InterfaceIndex",
+    "IP_ADAPTER_ADDRESSES",
+    "IP_ADAPTER_GATEWAY_ADDRESS",
+    "IP_ADAPTER_UNICAST_ADDRESS",
     "keyPressEvent",
+    "MIB_IF_ROW2",
+    "MIB_IPNETROW",
     "mouseMoveEvent",
     "mousePressEvent",
     "mouseReleaseEvent",
     "columnCount",
     "headerData",
     "rowCount",
+    "SOCKET_ADDRESS",
+    "SOCKADDR_IN",
     "selectionModel",
     "setModel",
     "verticalHeader",
 ]
-method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|headerData|horizontalHeader|keyPressEvent|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|verticalHeader)$"
+method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|verticalHeader)$"
 
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]
@@ -154,6 +168,7 @@ ignore = [
     "PLR0915", # too-many-statements
     "S602",    # subprocess-popen-with-shell-equals-true
     "S603",    # subprocess-without-shell-equals-true
+    "S606",    # start-process-with-no-shell
     "TD003",   # missing-todo-link
     "TD005",   # missing-todo-description
 ]
@@ -177,14 +192,26 @@ section-order = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "typing.NamedTuple",
+]
+
 [tool.ruff.lint.per-file-ignores]
+".github/workflows/scripts/update_release_versions.py" = ["INP001"]
 "scripts/spoofed_ping.py" = ["INP001"]
 "src/session_sniffer/guis/discord_intro.py" = ["N802"]
 "src/session_sniffer/guis/interface_selection_dialog.py" = ["N802"]
+"src/session_sniffer/guis/logs_manager/*.py" = ["FBT001", "FBT003", "N802", "TC003"]
 "src/session_sniffer/guis/main_window.py" = ["N802"]
+"src/session_sniffer/guis/logs_manager/_csv_tab.py" = ["PLR0913"]
+"src/session_sniffer/guis/settings_dialog.py" = ["PLR0911"]
 "src/session_sniffer/guis/table_model.py" = ["N802"]
-"src/session_sniffer/guis/tables.py" = ["A002", "N802", "PLC0415", "SIM102"]
+"src/session_sniffer/guis/tables.py" = ["A002", "N802", "SIM102"]
+"src/session_sniffer/guis/userip_manager.py" = ["FBT001", "FBT003", "N802"]
 "src/session_sniffer/logging_setup.py" = ["PLR0913", "PLW0603"]
+"src/session_sniffer/models/settings_ini_model.py" = ["PLR0913"]
 "src/session_sniffer/networking/ctypes_adapters_info.py" = ["N801"]
 
 
@@ -196,6 +223,9 @@ python-version = "3.14"
 exclude = [
     ".history",
 ]
+
+[tool.ty.rules]
+all = "error"
 
 [tool.ty.terminal]
 error-on-warning = true  # Error if ty emits any warning-level diagnostics.

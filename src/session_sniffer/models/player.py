@@ -3,15 +3,19 @@
 import dataclasses
 import time
 from dataclasses import dataclass
-from threading import Event, Thread
-from typing import TYPE_CHECKING, Literal, NamedTuple, Self
+from datetime import datetime as datetime_type
+from threading import Event
+from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple, Self
+
+from PyQt6.QtGui import QIcon, QImage, QPixmap
 
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
+from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
+from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from datetime import datetime, timedelta
-
-    from PyQt6.QtGui import QIcon, QPixmap
+    from datetime import timedelta as timedelta_type
 
     from session_sniffer.player.userip import UserIP
 
@@ -102,7 +106,6 @@ class PlayerPackets:
             self.accumulated_packets = 0
             self.calculated_rate = 0
 
-    total_exchanged: int = 1
     exchanged: int = 1
 
     total_received: int = 0
@@ -112,6 +115,11 @@ class PlayerPackets:
 
     pps: PPS = dataclasses.field(default_factory=PPS)
     ppm: PPM = dataclasses.field(default_factory=PPM)
+
+    @property
+    def total_exchanged(self) -> int:
+        """Total packets exchanged across all sessions."""
+        return self.total_received + self.total_sent
 
     @classmethod
     def from_packet_direction(cls, *, sent_by_local_host: bool) -> Self:
@@ -125,7 +133,6 @@ class PlayerPackets:
         """
         if sent_by_local_host:
             return cls(
-                total_exchanged=1,
                 exchanged=1,
 
                 total_received=0,
@@ -137,7 +144,6 @@ class PlayerPackets:
                 ppm=cls.PPM(accumulated_packets=1),
             )
         return cls(
-            total_exchanged=1,
             exchanged=1,
 
             total_received=1,
@@ -155,7 +161,6 @@ class PlayerPackets:
         Args:
             sent_by_local_host: Whether the packet was sent by local host
         """
-        self.total_exchanged += 1
         self.exchanged += 1
 
         if sent_by_local_host:
@@ -174,7 +179,6 @@ class PlayerPackets:
         Args:
             sent_by_local_host: Whether the rejoin packet was sent by local host
         """
-        self.total_exchanged += 1
         self.exchanged = 1
 
         if sent_by_local_host:
@@ -265,7 +269,6 @@ class PlayerBandwidth:
             self.accumulated_bytes = 0
             self.calculated_rate = 0
 
-    total_exchanged: int = 0
     exchanged: int = 0
 
     total_download: int = 0
@@ -275,6 +278,11 @@ class PlayerBandwidth:
 
     bps: BPS = dataclasses.field(default_factory=BPS)
     bpm: BPM = dataclasses.field(default_factory=BPM)
+
+    @property
+    def total_exchanged(self) -> int:
+        """Total bytes exchanged across all sessions."""
+        return self.total_download + self.total_upload
 
     @classmethod
     def from_packet_direction(cls, *, packet_length: int, sent_by_local_host: bool) -> Self:
@@ -289,7 +297,6 @@ class PlayerBandwidth:
         """
         if sent_by_local_host:
             return cls(
-                total_exchanged=packet_length,
                 exchanged=packet_length,
 
                 total_download=0,
@@ -301,7 +308,6 @@ class PlayerBandwidth:
                 bpm=cls.BPM(accumulated_bytes=packet_length),
             )
         return cls(
-            total_exchanged=packet_length,
             exchanged=packet_length,
 
             total_download=packet_length,
@@ -320,7 +326,6 @@ class PlayerBandwidth:
             packet_length: The length of the packet in bytes
             sent_by_local_host: Whether the packet was sent by local host
         """
-        self.total_exchanged += packet_length
         self.exchanged += packet_length
 
         if sent_by_local_host:
@@ -340,7 +345,6 @@ class PlayerBandwidth:
             packet_length: The length of the rejoin packet in bytes
             sent_by_local_host: Whether the rejoin packet was sent by local host
         """
-        self.total_exchanged += packet_length
         self.exchanged = packet_length
 
         if sent_by_local_host:
@@ -399,11 +403,11 @@ class PlayerPorts:
 class PlayerDateTime:
     """Track per-player timestamps and compute session durations."""
 
-    first_seen: datetime
-    last_rejoin: datetime
-    last_seen: datetime
-    total_session_time: timedelta | None
-    session_time: timedelta | None
+    first_seen: datetime_type
+    last_rejoin: datetime_type
+    last_seen: datetime_type
+    total_session_time: timedelta_type | None
+    session_time: timedelta_type | None
 
     def set_session_time(self) -> None:
         """Finalize and store the session duration.
@@ -427,7 +431,7 @@ class PlayerDateTime:
                 self.total_session_time += self.session_time
             self.session_time = None
 
-    def get_session_time(self) -> timedelta:
+    def get_session_time(self) -> timedelta_type:
         """Return current session duration.
 
         Returns:
@@ -441,7 +445,7 @@ class PlayerDateTime:
             return self.last_seen - self.last_rejoin
         return self.session_time
 
-    def get_total_session_time(self) -> timedelta:
+    def get_total_session_time(self) -> timedelta_type:
         """Return total cumulative session duration across all sessions.
 
         Returns:
@@ -460,7 +464,7 @@ class PlayerDateTime:
         return self.total_session_time + self.session_time
 
     @classmethod
-    def from_packet_datetime(cls, packet_datetime: datetime) -> Self:
+    def from_packet_datetime(cls, packet_datetime: datetime_type) -> Self:
         """Create a PlayerDateTime instance from a packet timestamp.
 
         Args:
@@ -490,40 +494,109 @@ class PlayerGeoLite2:
     asn: str = '...'
 
 
+def _default_ipapi_values() -> dict[str, object]:
+    """Return default placeholder values for IP-API lookup fields."""
+    return {
+        'continent': '...',
+        'continent_code': '...',
+        'country': '...',
+        'country_code': '...',
+        'region': '...',
+        'region_code': '...',
+        'city': '...',
+        'district': '...',
+        'zip_code': '...',
+        'lat': '...',
+        'lon': '...',
+        'time_zone': '...',
+        'offset': '...',
+        'currency': '...',
+        'org': '...',
+        'isp': '...',
+        'asn': '...',
+        'as_name': '...',
+        'mobile': '...',
+        'proxy': '...',
+        'hosting': '...',
+    }
+
+
+def _default_ping_values() -> dict[str, object]:
+    """Return default placeholder values for ping lookup fields."""
+    return {
+        'is_pinging': '...',
+        'ping_times': '...',
+        'packets_transmitted': '...',
+        'packets_received': '...',
+        'packet_duplicates': '...',
+        'packet_loss': '...',
+        'packet_errors': '...',
+        'rtt_min': '...',
+        'rtt_avg': '...',
+        'rtt_max': '...',
+        'rtt_mdev': '...',
+    }
+
+
 @dataclass(kw_only=True, slots=True)
 class PlayerIPAPI:
     """Store IP-API lookup state and cached values for a player."""
 
+    _FIELD_NAMES: ClassVar[frozenset[str]] = frozenset(_default_ipapi_values())
+
     is_initialized: bool = False
 
-    continent: str = '...'
-    continent_code: str = '...'
-    country: str = '...'
-    country_code: str = '...'
-    region: str = '...'
-    region_code: str = '...'
-    city: str = '...'
-    district: str = '...'
-    zip_code: str = '...'
-    lat: Literal['...', 'N/A'] | float | int = '...'
-    lon: Literal['...', 'N/A'] | float | int = '...'
-    time_zone: str = '...'
-    offset: Literal['...', 'N/A'] | int = '...'
-    currency: str = '...'
-    org: str = '...'
-    isp: str = '...'
-    asn: str = '...'
-    as_name: str = '...'
-    mobile: Literal['...', 'N/A'] | bool = '...'
-    proxy: Literal['...', 'N/A'] | bool = '...'
-    hosting: Literal['...', 'N/A'] | bool = '...'
+    _values: dict[str, object] = dataclasses.field(default_factory=_default_ipapi_values)
+
+    def __getattr__(self, name: str) -> object:
+        """Provide backward-compatible dotted attribute access for IP-API fields."""
+        if name in self._FIELD_NAMES:
+            return self._values[name]
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Provide backward-compatible dotted attribute assignment for IP-API fields."""
+        if name in {'is_initialized', '_values'}:
+            object.__setattr__(self, name, value)
+            return
+        if name in self._FIELD_NAMES:
+            self._values[name] = value
+            return
+        object.__setattr__(self, name, value)
+
+    def update_fields(self, data: dict[str, object]) -> None:
+        """Batch-update IP-API lookup fields from a pre-validated mapping."""
+        self._values.update(data)
 
 
-class PlayerCountryFlag(NamedTuple):
-    """Hold the rendered country flag assets for a player."""
+class PlayerCountryFlag:
+    """Hold the rendered country flag assets for a player.
 
-    pixmap: QPixmap
-    icon: QIcon
+    The QImage is created from a background thread (safe), while QPixmap/QIcon
+    are lazily created on first access from the GUI thread (required by Qt).
+    """
+
+    __slots__ = ('_icon', '_image', '_pixmap')
+
+    def __init__(self, image: QImage) -> None:
+        """Initialize with a QImage (safe to create from any thread)."""
+        self._image: QImage = image
+        self._pixmap: QPixmap | None = None
+        self._icon: QIcon | None = None
+
+    @property
+    def pixmap(self) -> QPixmap:
+        """Return the QPixmap, creating it lazily (must be called from GUI thread)."""
+        if self._pixmap is None:
+            self._pixmap = QPixmap.fromImage(self._image)
+        return self._pixmap
+
+    @property
+    def icon(self) -> QIcon:
+        """Return the QIcon, creating it lazily (must be called from GUI thread)."""
+        if self._icon is None:
+            self._icon = QIcon(self.pixmap)
+        return self._icon
 
 
 @dataclass(kw_only=True, slots=True)
@@ -538,19 +611,31 @@ class PlayerIPLookup:
 class PlayerPing:
     """Store ping lookup state and cached RTT/packet stats for a player."""
 
+    _FIELD_NAMES: ClassVar[frozenset[str]] = frozenset(_default_ping_values())
+
     is_initialized: bool = False
 
-    is_pinging: Literal['...'] | bool = '...'
-    ping_times: Literal['...'] | list[float] = '...'
-    packets_transmitted: Literal['...'] | int | None = '...'
-    packets_received: Literal['...'] | int | None = '...'
-    packet_duplicates: Literal['...'] | int | None = '...'
-    packet_loss: Literal['...'] | float | None = '...'
-    packet_errors: Literal['...'] | int | None = '...'
-    rtt_min: Literal['...'] | float | None = '...'
-    rtt_avg: Literal['...'] | float | None = '...'
-    rtt_max: Literal['...'] | float | None = '...'
-    rtt_mdev: Literal['...'] | float | None = '...'
+    _values: dict[str, object] = dataclasses.field(default_factory=_default_ping_values)
+
+    def __getattr__(self, name: str) -> object:
+        """Provide backward-compatible dotted attribute access for ping fields."""
+        if name in self._FIELD_NAMES:
+            return self._values[name]
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Provide backward-compatible dotted attribute assignment for ping fields."""
+        if name in {'is_initialized', '_values'}:
+            object.__setattr__(self, name, value)
+            return
+        if name in self._FIELD_NAMES:
+            self._values[name] = value
+            return
+        object.__setattr__(self, name, value)
+
+    def update_fields(self, data: dict[str, object]) -> None:
+        """Batch-update ping lookup fields from a pre-validated mapping."""
+        self._values.update(data)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -576,40 +661,149 @@ class PlayerModMenus:
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
 
 
+@dataclass(slots=True)
+class _PlayerLifecycleState:
+    """Runtime lifecycle state for a player."""
+
+    left_event: Event = dataclasses.field(default_factory=Event)
+    rejoins: int = 0
+    protection_checked: bool = False
+    usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
+
+
+@dataclass(slots=True)
+class _PlayerTrafficState:
+    """Packet, bandwidth, ports, and datetime tracking state for a player."""
+
+    datetime: PlayerDateTime
+    packets: PlayerPackets
+    bandwidth: PlayerBandwidth
+    ports: PlayerPorts
+
+
+@dataclass(slots=True)
+class _PlayerLookupState:
+    """Lookup and network metadata for a player."""
+
+    reverse_dns: PlayerReverseDNS = dataclasses.field(default_factory=PlayerReverseDNS)
+    iplookup: PlayerIPLookup = dataclasses.field(default_factory=PlayerIPLookup)
+    ping: PlayerPing = dataclasses.field(default_factory=PlayerPing)
+
+
+@dataclass(slots=True)
+class _PlayerOptionalState:
+    """Optional enrichments that may be filled asynchronously."""
+
+    country_flag: PlayerCountryFlag | None = None
+    userip: UserIP | None = None
+    userip_detection: PlayerUserIPDetection | None = None
+    mod_menus: PlayerModMenus | None = None
+
+
+class PacketInfo(NamedTuple):
+    """Bundle the fields from a single observed packet."""
+
+    datetime: datetime_type
+    length: int
+    port: int
+    sent_by_local_host: bool
+
+
 class Player:
     """Represent a remote player identified by IP and derived session metadata."""
 
-    def __init__(self, *, ip: str, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:  # pylint: disable=too-many-arguments
+    ip: str
+    left_event: Event
+    usernames: list[str]
+    packets: PlayerPackets
+    bandwidth: PlayerBandwidth
+    ports: PlayerPorts
+    reverse_dns: PlayerReverseDNS
+    iplookup: PlayerIPLookup
+    ping: PlayerPing
+    country_flag: PlayerCountryFlag | None
+    userip: UserIP | None
+    userip_detection: PlayerUserIPDetection | None
+    mod_menus: PlayerModMenus | None
+
+    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({'left_event', 'rejoins', 'protection_checked', 'usernames'})
+    _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
+    _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
+    _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus'})
+
+    def __init__(self, *, ip: str, packet: PacketInfo) -> None:
         """Initialize a `Player` from the first observed packet.
 
         Args:
             ip: The player's IP address.
-            packet_datetime: Timestamp of the packet used to create the player.
-            packet_length: Length of the packet in bytes.
-            port: Source/destination port observed for the player.
-            sent_by_local_host: Whether the packet direction is from the local host.
+            packet: The first observed packet's metadata.
         """
         self.ip = ip
-        self.left_event = Event()
-        self.rejoins = 0
-        self.usernames: list[str] = []
+        self._lifecycle = _PlayerLifecycleState()
+        self._traffic = _PlayerTrafficState(
+            datetime=PlayerDateTime.from_packet_datetime(packet.datetime),
+            packets=PlayerPackets.from_packet_direction(sent_by_local_host=packet.sent_by_local_host),
+            bandwidth=PlayerBandwidth.from_packet_direction(packet_length=packet.length, sent_by_local_host=packet.sent_by_local_host),
+            ports=PlayerPorts.from_packet_port(packet.port),
+        )
+        self._lookup = _PlayerLookupState()
+        self._optional = _PlayerOptionalState()
 
-        self.datetime = PlayerDateTime.from_packet_datetime(packet_datetime)
-        self.packets = PlayerPackets.from_packet_direction(sent_by_local_host=sent_by_local_host)
-        self.bandwidth = PlayerBandwidth.from_packet_direction(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
-        self.ports = PlayerPorts.from_packet_port(port)
-        self.reverse_dns = PlayerReverseDNS()
-        self.iplookup = PlayerIPLookup()
-        self.ping = PlayerPing()
+    def __getattr__(self, name: str) -> object:
+        """Provide backward-compatible attribute access for grouped state fields."""
+        if name in self._LIFECYCLE_FIELDS:
+            return getattr(self._lifecycle, name)
+        if name in self._TRAFFIC_FIELDS:
+            return getattr(self._traffic, name)
+        if name in self._LOOKUP_FIELDS:
+            return getattr(self._lookup, name)
+        if name in self._OPTIONAL_FIELDS:
+            return getattr(self._optional, name)
+        raise AttributeError(name)
 
-        self.country_flag: PlayerCountryFlag | None = None
-        self.userip: UserIP | None = None
-        self.userip_detection: PlayerUserIPDetection | None = None
-        self.mod_menus: PlayerModMenus | None = None
+    def __setattr__(self, name: str, value: object) -> None:
+        """Provide backward-compatible assignment for grouped state fields."""
+        if name in {'ip', '_lifecycle', '_traffic', '_lookup', '_optional'}:
+            object.__setattr__(self, name, value)
+            return
+        if name in self._LIFECYCLE_FIELDS:
+            setattr(self._lifecycle, name, value)
+            return
+        if name in self._TRAFFIC_FIELDS:
+            setattr(self._traffic, name, value)
+            return
+        if name in self._LOOKUP_FIELDS:
+            setattr(self._lookup, name, value)
+            return
+        if name in self._OPTIONAL_FIELDS:
+            setattr(self._optional, name, value)
+            return
+        object.__setattr__(self, name, value)
 
-    def mark_as_seen(self, *, port: int, packet_datetime: datetime, packet_length: int, sent_by_local_host: bool) -> None:
+    @property
+    def datetime(self) -> PlayerDateTime:
+        """Access packet datetime tracking state with a concrete type."""
+        return self._traffic.datetime
+
+    @datetime.setter
+    def datetime(self, value: PlayerDateTime) -> None:
+        """Set packet datetime tracking state."""
+        self._traffic.datetime = value
+
+    @property
+    def rejoins(self) -> int:
+        """Number of times this player has rejoined the session."""
+        return self._lifecycle.rejoins
+
+    @rejoins.setter
+    def rejoins(self, value: int) -> None:
+        """Set the player's rejoin count."""
+        self._lifecycle.rejoins = value
+
+    def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
-        self.datetime.last_seen = packet_datetime
+        player_datetime = self.datetime
+        player_datetime.last_seen = packet_datetime
         self.packets.increment(sent_by_local_host=sent_by_local_host)
         self.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
@@ -625,31 +819,30 @@ class Player:
 
             self.ports.last = port
 
-    def mark_as_rejoined(self, *, packet_datetime: datetime, packet_length: int, port: int, sent_by_local_host: bool) -> None:
+    def mark_as_rejoined(self, *, packet_datetime: datetime_type, packet_length: int, port: int, sent_by_local_host: bool) -> None:
         """Handle a player rejoin by resetting current-session counters."""
-        from session_sniffer.settings import Settings  # noqa: PLC0415
+        player_datetime = self.datetime
 
         self.left_event.clear()
         self.rejoins += 1
+        self.protection_checked = False  # pylint: disable=attribute-defined-outside-init
 
-        self.datetime.accumulate_session_to_total()
-        self.datetime.last_rejoin = packet_datetime
-        self.datetime.last_seen = packet_datetime
+        player_datetime.accumulate_session_to_total()
+        player_datetime.last_rejoin = packet_datetime
+        player_datetime.last_seen = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
-        if Settings.GUI_RESET_PORTS_ON_REJOINS:
+        if Settings.gui_reset_ports_on_rejoins:
             self.ports.reset(port)
 
     def mark_as_left(self) -> None:
         """Mark the player as disconnected and move it to the disconnected registry."""
-        from session_sniffer.background.tasks import process_userip_task  # noqa: PLC0415
-        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415
-        from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings  # noqa: PLC0415
+        player_datetime = self.datetime
 
         self.left_event.set()
 
-        self.datetime.set_session_time()
+        player_datetime.set_session_time()
         self.packets.pps.reset()
         self.packets.ppm.reset()
         self.bandwidth.bps.reset()
@@ -661,11 +854,3 @@ class Player:
         MobileWarnings.remove_notified_ip(self.ip)
         VPNWarnings.remove_notified_ip(self.ip)
         HostingWarnings.remove_notified_ip(self.ip)
-
-        if self.userip_detection and self.userip_detection.as_processed_task:
-            self.userip_detection.as_processed_task = False
-            Thread(
-                target=process_userip_task,
-                name=f'ProcessUserIPTask-{self.ip}-disconnected',
-                args=(self, 'disconnected'), daemon=True,
-            ).start()

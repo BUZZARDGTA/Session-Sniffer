@@ -1,0 +1,879 @@
+"""UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
+
+from datetime import UTC, datetime
+from ipaddress import IPv4Address
+from pathlib import Path
+
+from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QUrl
+from PyQt6.QtGui import QCloseEvent, QColor, QDesktopServices, QFileSystemModel, QStandardItem, QStandardItemModel
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
+
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.logs_manager._helpers import _human_readable_timestamp
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.userip_manager_context_menu_mixin import _EntriesContextMenuMixin
+from session_sniffer.guis.userip_manager_helpers import (
+    DATABASE_COLUMN,
+    DUPLICATE_HIGHLIGHT_BRUSH,
+    INDEX_COLUMN,
+    IP_COLUMN,
+    RANGE_COLUMN,
+    SETTINGS_DEFAULTS,
+    SETTINGS_KEYS_ORDER,
+    USERNAME_COLUMN,
+    IPRangeBuilderDialog,
+    _ElidedTooltipFilter,
+    _EntriesSortProxy,
+    human_readable_size,
+    iter_userip_entries,
+    parse_settings_from_lines,
+    read_preserved_sections,
+)
+from session_sniffer.guis.userip_manager_settings_mixin import _SettingsPanelMixin
+from session_sniffer.guis.userip_manager_tree_ops import _TreeOperationsMixin
+from session_sniffer.networking.ip_range import is_valid_ip_range_entry
+from session_sniffer.text_utils import pluralize
+
+
+class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _TreeOperationsMixin, QDialog):  # pylint: disable=too-many-instance-attributes
+    """Modal dialog for managing UserIP database files and their entries."""
+
+    def __init__(self, parent: QWidget | None) -> None:
+        """Build the UserIP Databases Manager dialog."""
+        super().__init__(parent)
+        self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setMinimumSize(920, 560)
+        self.resize(1060, 680)
+
+        self._current_path: Path | None = None
+        self._dirty = False
+        self._global_search_active = False
+        self._next_index = 1
+
+        root_layout = QVBoxLayout(self)
+
+        # === Main splitter: file tree (left) | entries editor (right) ===
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # ------ LEFT PANEL: file tree ------
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Tree toolbar buttons
+        tree_buttons = QHBoxLayout()
+
+        new_db_button = QPushButton('📄 New DB')
+        new_db_button.setAutoDefault(False)
+        new_db_button.setToolTip('Create a new UserIP database file')
+        new_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        new_db_button.clicked.connect(self._new_database)
+        tree_buttons.addWidget(new_db_button)
+
+        new_folder_button = QPushButton('📁 New Folder')
+        new_folder_button.setAutoDefault(False)
+        new_folder_button.setToolTip('Create a new folder to organize databases')
+        new_folder_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        new_folder_button.clicked.connect(self._new_folder)
+        tree_buttons.addWidget(new_folder_button)
+
+        self._delete_tree_button = QPushButton('🗑️ Delete')
+        self._delete_tree_button.setAutoDefault(False)
+        self._delete_tree_button.setToolTip('Delete the selected database or folder')
+        self._delete_tree_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._delete_tree_button.setEnabled(False)
+        self._delete_tree_button.clicked.connect(self._delete_tree_item)
+        tree_buttons.addWidget(self._delete_tree_button)
+
+        left_layout.addLayout(tree_buttons)
+
+        # Filesystem-backed tree view
+        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+
+        self._fs_model = QFileSystemModel()
+        self._fs_model.setRootPath(str(USERIP_DATABASES_DIR_PATH))
+        self._fs_model.setReadOnly(False)
+        self._fs_model.setNameFilters(['*.ini'])
+        self._fs_model.setNameFilterDisables(False)
+
+        self._tree = QTreeView()
+        self._tree.setModel(self._fs_model)
+        self._tree.setRootIndex(self._fs_model.index(str(USERIP_DATABASES_DIR_PATH)))
+        self._tree.setHeaderHidden(True)
+        self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+        # Enable drag-and-drop to move files/folders within the tree
+        self._tree.setDragEnabled(True)
+        self._tree.setAcceptDrops(True)
+        self._tree.setDropIndicatorShown(True)
+        self._tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+
+        # Hide size / type / date-modified columns — keep only the name
+        for col in range(1, self._fs_model.columnCount()):
+            self._tree.setColumnHidden(col, True)
+
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._show_tree_context_menu)
+
+        tree_selection = self._tree.selectionModel()
+        if tree_selection is not None:
+            tree_selection.selectionChanged.connect(self._on_tree_selection_changed)
+
+        left_layout.addWidget(self._tree, stretch=1)
+
+        # Stats summary
+        self._stats_label = QLabel('')
+        self._stats_label.setWordWrap(True)
+        left_layout.addWidget(self._stats_label)
+
+        splitter.addWidget(left_panel)
+
+        # ------ RIGHT PANEL: entries editor ------
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Search / filter bar
+        search_bar = QHBoxLayout()
+        search_bar.addWidget(QLabel('Search:'))
+
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText('Filter entries by username or IP ...')
+        self._search_input.setClearButtonEnabled(True)
+        self._search_input.textChanged.connect(self._on_search_changed)
+        self._search_input.returnPressed.connect(self._on_search_return_pressed)
+        search_bar.addWidget(self._search_input)
+
+        self._global_search_checkbox = QCheckBox('Search All Databases')
+        self._global_search_checkbox.setToolTip('Search across all UserIP database files (read-only)')
+        self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
+        search_bar.addWidget(self._global_search_checkbox)
+
+        right_layout.addLayout(search_bar)
+
+        # ------ Settings panel (collapsible, built by mixin) ------
+        self._build_settings_panel(right_layout)
+
+        # Entries table
+        self._model = QStandardItemModel(0, 5)
+        self._model.setHorizontalHeaderLabels(['#', 'Username', 'IP', 'Range', 'Database'])
+        self._model.dataChanged.connect(self._on_data_changed)
+
+        self._proxy = _EntriesSortProxy()
+        self._proxy.setSourceModel(self._model)
+        self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._proxy.setFilterKeyColumn(-1)
+
+        self._entries_table = QTreeView()
+        self._entries_table.setModel(self._proxy)
+        self._entries_table.setRootIsDecorated(False)
+        self._entries_table.setAlternatingRowColors(True)
+        self._entries_table.setSortingEnabled(True)
+        self._entries_table.sortByColumn(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)
+        self._entries_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._entries_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed,
+        )
+
+        header = self._entries_table.header()
+        if header is not None:
+            header.setStretchLastSection(False)
+            header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
+            for col, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+                header.resizeSection(col, width)
+
+        self._entries_table.setColumnHidden(DATABASE_COLUMN, True)
+
+        self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._entries_table.customContextMenuRequested.connect(self._show_entries_context_menu)
+        self._entries_table.doubleClicked.connect(self._on_entry_double_clicked)
+
+        self._tooltip_filter = _ElidedTooltipFilter(self._entries_table)
+        viewport = self._entries_table.viewport()
+        if viewport is not None:
+            viewport.installEventFilter(self._tooltip_filter)
+
+        right_layout.addWidget(self._entries_table, stretch=1)
+
+        # Entry action buttons
+        entry_buttons = QHBoxLayout()
+
+        self._add_button = QPushButton('\u2795 Add Entry')
+        self._add_button.setAutoDefault(False)
+        self._add_button.setToolTip('Add a new username=IP entry to the current database')
+        self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._add_button.setEnabled(False)
+        self._add_button.clicked.connect(self._add_entry)
+        entry_buttons.addWidget(self._add_button)
+
+        self._add_range_button = QPushButton('📡 Add Range')
+        self._add_range_button.setAutoDefault(False)
+        self._add_range_button.setToolTip('Add an IP range entry using a guided builder (supports subnets and IP ranges)')
+        self._add_range_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._add_range_button.setEnabled(False)
+        self._add_range_button.clicked.connect(self._add_range_entry)
+        entry_buttons.addWidget(self._add_range_button)
+
+        self._delete_button = QPushButton('🗑️ Delete Selected')
+        self._delete_button.setAutoDefault(False)
+        self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
+        self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._delete_button.setEnabled(False)
+        self._delete_button.clicked.connect(self._delete_selected)
+        entry_buttons.addWidget(self._delete_button)
+
+        self._open_db_button = QPushButton('📝 Open DB')
+        self._open_db_button.setAutoDefault(False)
+        self._open_db_button.setToolTip('Open the current database file in the default text editor')
+        self._open_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._open_db_button.setEnabled(False)
+        self._open_db_button.clicked.connect(self._open_db_in_editor)
+        entry_buttons.addWidget(self._open_db_button)
+
+        entry_buttons.addStretch()
+
+        self._save_button = QPushButton('💾 Save')
+        self._save_button.setAutoDefault(False)
+        self._save_button.setToolTip('Save all changes to the current database file')
+        self._save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        self._save_button.setEnabled(False)
+        self._save_button.clicked.connect(self._save_database)
+        entry_buttons.addWidget(self._save_button)
+
+        right_layout.addLayout(entry_buttons)
+
+        # File metadata
+        self._file_info_label = QLabel('')
+        right_layout.addWidget(self._file_info_label)
+
+        # Status bar
+        self._status_label = QLabel('')
+        right_layout.addWidget(self._status_label)
+
+        splitter.addWidget(right_panel)
+        splitter.setSizes([300, 700])
+
+        root_layout.addWidget(splitter)
+
+        self._refresh_stats()
+
+    # ------------------------------------------------------------------
+    # Tree: selection
+    # ------------------------------------------------------------------
+
+    def _on_tree_selection_changed(self) -> None:
+        """Load the selected database when a .ini file is clicked in the tree."""
+        indexes = self._tree.selectedIndexes()
+        self._delete_tree_button.setEnabled(bool(indexes))
+
+        if not indexes:
+            return
+
+        file_path_str = self._fs_model.filePath(indexes[0])
+        if not file_path_str:
+            return
+
+        path = Path(file_path_str)
+        if not path.is_file() or path.suffix.lower() != '.ini':
+            return
+
+        if path == self._current_path and not self._global_search_active:
+            return
+
+        if self._global_search_active:
+            self._global_search_checkbox.setChecked(False)
+
+        if self._dirty and not self._confirm_discard():
+            self._reselect_current_path()
+            return
+
+        self._current_path = path
+        self._load_database(path)
+        self._open_db_button.setEnabled(True)
+        self._add_button.setEnabled(True)
+        self._add_range_button.setEnabled(True)
+        self._delete_button.setEnabled(True)
+        self._save_button.setEnabled(True)
+
+    def _reselect_current_path(self) -> None:
+        """Revert the tree selection back to the currently loaded database file."""
+        if self._current_path is None:
+            return
+
+        selection = self._tree.selectionModel()
+        if selection is None:
+            return
+
+        current_index = self._fs_model.index(str(self._current_path))
+        if not current_index.isValid():
+            return
+
+        selection.blockSignals(True)
+        self._tree.setCurrentIndex(current_index)
+        selection.blockSignals(False)
+
+    # ------------------------------------------------------------------
+    # Discard confirmation
+    # ------------------------------------------------------------------
+
+    def _confirm_discard(self) -> bool:
+        """Ask the user whether to discard unsaved changes."""
+        result = QMessageBox.warning(
+            self,
+            TITLE,
+            'You have unsaved changes. Discard them?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    # ------------------------------------------------------------------
+    # Load / parse
+    # ------------------------------------------------------------------
+
+    def _open_db_in_editor(self) -> None:
+        """Open the current database file in the system's default text editor."""
+        if self._current_path is not None and self._current_path.is_file():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._current_path)))
+
+    def _load_database(self, path: Path) -> None:
+        """Parse the INI file and populate the entries table model and settings panel."""
+        self._model.removeRows(0, self._model.rowCount())
+        self._dirty = False
+        self._search_input.clear()
+
+        if not path.is_file():
+            self._set_status(f'File not found: {path.name}')
+            self._settings_container.setVisible(False)
+            return
+
+        content = path.read_text('utf-8')
+
+        # Load settings panel
+        _, settings_lines = read_preserved_sections(path)
+        settings_dict = parse_settings_from_lines(settings_lines)
+        self._populate_settings_widgets(settings_dict)
+        self._settings_container.setVisible(True)
+
+        entry_count = 0
+        for entry_count, (username, ip) in enumerate(iter_userip_entries(content), start=1):
+            self._append_row(username, ip, index=entry_count)
+
+        self._next_index = entry_count + 1
+        self._update_file_info(path)
+        duplicate_count = self._highlight_duplicates()
+        status = f'Loaded {entry_count} entries from {path.name}'
+        if duplicate_count > 0:
+            status += f' ({duplicate_count} duplicate{"s" if duplicate_count != 1 else ""} found)'
+        self._set_status(status)
+
+    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None:
+        """Add a single row to the entries model."""
+        index_item = QStandardItem(str(index))
+        index_item.setData(index, Qt.ItemDataRole.UserRole)
+        index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        username_item = QStandardItem(username)
+        db_item = QStandardItem(database[0] if database else '')
+        if database is not None:
+            db_item.setData(str(database[1]), Qt.ItemDataRole.UserRole)
+
+        # Determine whether the value is a single IP or a range
+        is_single_ip = False
+        try:
+            IPv4Address(ip)
+            is_single_ip = True
+        except (ValueError, TypeError):
+            pass
+
+        if is_single_ip:
+            ip_item = QStandardItem(ip)
+            range_item = QStandardItem('')
+        else:
+            ip_item = QStandardItem('')
+            range_item = QStandardItem(ip)
+
+        self._model.appendRow([index_item, username_item, ip_item, range_item, db_item])
+
+    # ------------------------------------------------------------------
+    # Search / filter
+    # ------------------------------------------------------------------
+
+    def _on_search_changed(self, text: str) -> None:
+        """Apply a case-insensitive filter across all columns."""
+        self._proxy.setFilterFixedString(text)
+        self._update_entry_counts()
+
+    def _on_search_return_pressed(self) -> None:
+        """Activate global search when the user presses Enter in the search field."""
+        if not self._global_search_active:
+            self._global_search_checkbox.setChecked(True)
+
+    def _on_global_search_toggled(self, checked: bool) -> None:
+        """Switch between single-database editing mode and read-only global search mode."""
+        if checked:
+            if self._dirty and not self._confirm_discard():
+                self._global_search_checkbox.blockSignals(True)
+                self._global_search_checkbox.setChecked(False)
+                self._global_search_checkbox.blockSignals(False)
+                return
+            self._dirty = False
+            self._global_search_active = True
+            self._update_file_info(None)
+            self._load_all_databases()
+        else:
+            self._global_search_active = False
+            if self._current_path is not None:
+                self._load_database(self._current_path)
+            else:
+                self._model.removeRows(0, self._model.rowCount())
+                self._set_status('')
+
+        db_available = not self._global_search_active and self._current_path is not None
+        self._add_button.setEnabled(db_available)
+        self._add_range_button.setEnabled(db_available)
+        self._delete_button.setEnabled(db_available)
+        self._save_button.setEnabled(db_available)
+        self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
+        self._entries_table.setColumnHidden(DATABASE_COLUMN, not self._global_search_active)
+        self._settings_container.setVisible(not self._global_search_active and self._current_path is not None)
+
+        editable = QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed
+        self._entries_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers if self._global_search_active else editable,
+        )
+
+    def _load_all_databases(self) -> None:
+        """Parse all .ini files and populate the table with entries from every database."""
+        self._model.removeRows(0, self._model.rowCount())
+
+        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+
+        total_entries = 0
+        total_files = 0
+
+        for ini_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini')):
+            if not ini_path.is_file():
+                continue
+
+            content = ini_path.read_text('utf-8')
+
+            total_files += 1
+            db_label = ini_path.stem
+
+            for username, ip in iter_userip_entries(content):
+                total_entries += 1
+                self._append_row(username, ip, index=total_entries, database=(db_label, ini_path))
+
+        self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
+        self._proxy.setFilterFixedString(self._search_input.text())
+        self._update_entry_counts()
+
+    # ------------------------------------------------------------------
+    # Edit tracking
+    # ------------------------------------------------------------------
+
+    def _on_data_changed(self, _top_left: QModelIndex, _bottom_right: QModelIndex, _roles: list[int]) -> None:
+        """Mark the current database as having unsaved changes."""
+        self._dirty = True
+        self._highlight_duplicates()
+
+    # ------------------------------------------------------------------
+    # Add / delete entries
+    # ------------------------------------------------------------------
+
+    def _add_entry(self) -> None:
+        """Add a blank row for the user to fill in."""
+        if self._current_path is None:
+            return
+
+        self._append_row('', '', index=self._next_index)
+        self._next_index += 1
+        self._dirty = True
+
+        # Scroll to and select the new row
+        last_source_row = self._model.rowCount() - 1
+        proxy_index = self._proxy.mapFromSource(self._model.index(last_source_row, USERNAME_COLUMN))
+        if proxy_index.isValid():
+            self._entries_table.scrollTo(proxy_index)
+            self._entries_table.setCurrentIndex(proxy_index)
+            self._entries_table.edit(proxy_index)
+
+    def _add_range_entry(self) -> None:
+        """Open the IP Range Builder dialog and insert the result as a new entry."""
+        if self._current_path is None:
+            return
+
+        dialog = IPRangeBuilderDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        ip_range_text = dialog.result_entry()
+        if not ip_range_text:
+            return
+
+        self._append_row('', ip_range_text, index=self._next_index)
+        self._next_index += 1
+        self._dirty = True
+
+        # Scroll to the new row and start editing the Username column
+        last_source_row = self._model.rowCount() - 1
+        proxy_index = self._proxy.mapFromSource(self._model.index(last_source_row, USERNAME_COLUMN))
+        if proxy_index.isValid():
+            self._entries_table.scrollTo(proxy_index)
+            self._entries_table.setCurrentIndex(proxy_index)
+            self._entries_table.edit(proxy_index)
+
+    def _insert_entry_at(self, source_row: int) -> None:
+        """Insert a blank row at a specific position in the source model."""
+        if self._current_path is None:
+            return
+
+        index_item = QStandardItem('')
+        index_item.setData(0, Qt.ItemDataRole.UserRole)
+        index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        username_item = QStandardItem('')
+        db_item = QStandardItem('')
+        self._model.insertRow(source_row, [index_item, username_item, QStandardItem(''), QStandardItem(''), db_item])
+
+        self._renumber_indexes()
+        self._dirty = True
+
+        proxy_index = self._proxy.mapFromSource(self._model.index(source_row, USERNAME_COLUMN))
+        if proxy_index.isValid():
+            self._entries_table.scrollTo(proxy_index)
+            self._entries_table.setCurrentIndex(proxy_index)
+            self._entries_table.edit(proxy_index)
+
+    def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
+        """Move selected rows up (direction=-1) or down (direction=+1) in the source model."""
+        selection = self._entries_table.selectionModel()
+        if selection is None:
+            return
+
+        selected_proxy_rows = selection.selectedRows()
+        if not selected_proxy_rows:
+            selected_proxy_rows = [proxy_index]
+
+        source_rows = sorted({self._proxy.mapToSource(idx).row() for idx in selected_proxy_rows})
+
+        if direction < 0:
+            if source_rows[0] <= 0:
+                return
+            for src_row in source_rows:
+                items = self._model.takeRow(src_row)
+                self._model.insertRow(src_row - 1, items)
+        else:
+            if source_rows[-1] >= self._model.rowCount() - 1:
+                return
+            for src_row in reversed(source_rows):
+                items = self._model.takeRow(src_row)
+                self._model.insertRow(src_row + 1, items)
+
+        self._renumber_indexes()
+        self._dirty = True
+
+        # Reselect the moved rows
+        new_source_rows = [r + direction for r in source_rows]
+        selection_model = self._entries_table.selectionModel()
+        if selection_model is not None:
+            selection_model.clearSelection()
+            for src_row in new_source_rows:
+                proxy_idx = self._proxy.mapFromSource(self._model.index(src_row, 0))
+                if proxy_idx.isValid():
+                    selection_model.select(
+                        proxy_idx,
+                        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                    )
+            # Scroll to the first moved row
+            first_proxy = self._proxy.mapFromSource(self._model.index(new_source_rows[0], 0))
+            if first_proxy.isValid():
+                self._entries_table.scrollTo(first_proxy)
+
+    def _renumber_indexes(self) -> None:
+        """Reassign sequential index numbers (1-based) to all rows in the source model."""
+        for row in range(self._model.rowCount()):
+            index_item = self._model.item(row, INDEX_COLUMN)
+            if index_item is not None:
+                index_item.setText(str(row + 1))
+                index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
+        self._next_index = self._model.rowCount() + 1
+
+    def _delete_selected(self) -> None:
+        """Delete selected rows after confirmation."""
+        selection = self._entries_table.selectionModel()
+        if selection is None:
+            return
+
+        selected_indexes = selection.selectedRows()
+        if not selected_indexes:
+            QMessageBox.information(self, TITLE, 'No entries selected.')
+            return
+
+        count = len(selected_indexes)
+        result = QMessageBox.warning(
+            self,
+            TITLE,
+            f'Are you sure you want to delete {count} selected {"entry" if count == 1 else "entries"}?\n\n'
+            f'This action cannot be undone after saving.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        # Map proxy indexes to source and remove in reverse order
+        source_rows = sorted(
+            {self._proxy.mapToSource(idx).row() for idx in selected_indexes},
+            reverse=True,
+        )
+        for row in source_rows:
+            self._model.removeRow(row)
+
+        self._renumber_indexes()
+        self._dirty = True
+        self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"}. Remember to save.')
+
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
+    def _save_database(self) -> None:
+        """Validate entries and write the database file back to disk."""
+        if self._current_path is None:
+            return
+
+        # --- Validate all entries ---
+        errors: list[str] = []
+        entries: list[tuple[str, str]] = []
+
+        for row in range(self._model.rowCount()):
+            username_item = self._model.item(row, USERNAME_COLUMN)
+            if username_item is None:
+                continue
+
+            username = username_item.text().strip()
+            ip = self._get_row_entry_value(row)
+
+            if not username and not ip:
+                continue  # skip completely empty rows
+
+            if not username:
+                errors.append(f'Row {row + 1}: Username is empty.')
+            if not ip:
+                errors.append(f'Row {row + 1}: IP or Range is empty.')
+            elif not is_valid_ip_range_entry(ip):
+                errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
+
+            if username and ip:
+                entries.append((username, ip))
+
+        if errors:
+            QMessageBox.critical(self, TITLE, '\n'.join(errors))
+            return
+
+        # --- Deduplicate exact (username, ip) pairs ---
+        seen: set[tuple[str, str]] = set()
+        unique_entries: list[tuple[str, str]] = []
+        duplicate_count = 0
+        for entry in entries:
+            if entry in seen:
+                duplicate_count += 1
+                continue
+            seen.add(entry)
+            unique_entries.append(entry)
+        entries = unique_entries
+
+        if duplicate_count > 0:
+            QMessageBox.information(
+                self,
+                TITLE,
+                f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} '
+                f'removed before saving.',
+            )
+
+        # --- Read existing file to preserve header ---
+        header_lines, _ = read_preserved_sections(self._current_path)
+
+        # --- Build settings from widgets ---
+        settings_values = self._read_settings_from_widgets()
+
+        # --- Validate COLOR ---
+        color_value = settings_values.get('COLOR', '')
+        if color_value and not QColor(color_value).isValid():
+            QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #FF00FF).')
+            return
+
+        # --- Build new file content ---
+        output_lines: list[str] = [*header_lines]
+
+        output_lines.append('[Settings]')
+        output_lines.extend(f'{key}={settings_values.get(key, SETTINGS_DEFAULTS[key])}' for key in SETTINGS_KEYS_ORDER)
+        output_lines.append('')
+
+        output_lines.append('[UserIP]')
+        for username, ip in entries:
+            output_lines.append(f'{username}={ip}')
+        output_lines.append('')  # trailing newline
+
+        self._current_path.write_text('\n'.join(output_lines), encoding='utf-8')
+
+        self._dirty = False
+        self._update_file_info(self._current_path)
+        self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
+        self._refresh_stats()
+        if duplicate_count > 0:
+            self._load_database(self._current_path)
+
+    # ------------------------------------------------------------------
+    # Duplicate highlighting
+    # ------------------------------------------------------------------
+
+    def _highlight_duplicates(self) -> int:
+        """Scan all rows for exact (username, ip) duplicates and highlight them.
+
+        Returns:
+            The number of duplicate rows found.
+        """
+        seen: dict[tuple[str, str], int] = {}
+        duplicate_rows: set[int] = set()
+
+        for row in range(self._model.rowCount()):
+            username_item = self._model.item(row, USERNAME_COLUMN)
+            if username_item is None:
+                continue
+
+            username = username_item.text().strip()
+            ip = self._get_row_entry_value(row)
+            if not username or not ip:
+                continue
+
+            key = (username, ip)
+            if key in seen:
+                duplicate_rows.add(row)
+                duplicate_rows.add(seen[key])
+            else:
+                seen[key] = row
+
+        self._model.blockSignals(True)
+        try:
+            for row in range(self._model.rowCount()):
+                for col in range(DATABASE_COLUMN):
+                    item = self._model.item(row, col)
+                    if item is None:
+                        continue
+                    if row in duplicate_rows:
+                        item.setBackground(DUPLICATE_HIGHLIGHT_BRUSH)
+                    else:
+                        item.setData(None, Qt.ItemDataRole.BackgroundRole)
+        finally:
+            self._model.blockSignals(False)
+
+        return len(duplicate_rows)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_row_entry_value(self, row: int) -> str:
+        """Return the effective IP or Range value from a row (whichever is non-empty)."""
+        ip_item = self._model.item(row, IP_COLUMN)
+        ip_text = ip_item.text().strip() if ip_item else ''
+        if ip_text:
+            return ip_text
+        range_item = self._model.item(row, RANGE_COLUMN)
+        return range_item.text().strip() if range_item else ''
+
+    def _set_status(self, text: str) -> None:
+        """Update the status label at the bottom of the right panel."""
+        self._status_label.setText(text)
+
+    def _update_entry_counts(self) -> None:
+        """Update the status label with visible/total entry counts."""
+        total = self._model.rowCount()
+        visible = self._proxy.rowCount()
+        parts = [f'{total} entr{"y" if total == 1 else "ies"}']
+        if visible != total:
+            parts.append(f'{visible} visible')
+        self._status_label.setText('  |  '.join(parts))
+
+    def _update_file_info(self, path: Path | None) -> None:
+        """Update the file metadata label for the given database file."""
+        if path is None or not path.is_file():
+            self._file_info_label.setText('')
+            return
+        stat = path.stat()
+        size = human_readable_size(int(stat.st_size))
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
+        self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {_human_readable_timestamp(modified)}')
+
+    def _refresh_stats(self) -> None:
+        """Scan all UserIP databases and update the stats summary label."""
+        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+
+        total_files = 0
+        total_entries = 0
+        unique_ips: set[str] = set()
+        unique_usernames: set[str] = set()
+
+        for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
+            if not ini_path.is_file():
+                continue
+
+            content = ini_path.read_text('utf-8')
+
+            total_files += 1
+
+            for username, ip in iter_userip_entries(content):
+                total_entries += 1
+                unique_ips.add(ip)
+                unique_usernames.add(username)
+
+        parts = [
+            f'{total_files} database{pluralize(total_files)}',
+            f'{total_entries} entr{"y" if total_entries == 1 else "ies"}',
+            f'{len(unique_usernames)} unique user{pluralize(len(unique_usernames))}',
+            f'{len(unique_ips)} unique IP{pluralize(len(unique_ips))}',
+        ]
+        self._stats_label.setText('\n'.join(parts))
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Prompt to save if there are unsaved changes before closing."""
+        if self._dirty:
+            result = QMessageBox.warning(
+                self,
+                TITLE,
+                'You have unsaved changes. Save before closing?',
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if result == QMessageBox.StandardButton.Save:
+                self._save_database()
+                if self._dirty:
+                    # Save failed — don't close
+                    if a0 is not None:
+                        a0.ignore()
+                    return
+            elif result == QMessageBox.StandardButton.Cancel:
+                if a0 is not None:
+                    a0.ignore()
+                return
+
+        if a0 is not None:
+            a0.accept()

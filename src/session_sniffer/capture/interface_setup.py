@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from session_sniffer.capture.exceptions import TSharkOutputParsingError
 from session_sniffer.guis.interface_selection_dialog import show_interface_selection_dialog
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
-from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, SelectedInterface
+from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, InterfaceIdentity, InterfaceTraffic, SelectedInterface
 from session_sniffer.networking.utils import is_valid_non_special_ipv4
 from session_sniffer.settings import Settings
 
@@ -29,20 +29,25 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
 
     for adapter in adapters:
         interface = AllInterfaces.add_interface(Interface(
-            index=adapter.interface_index,
-            ip_enabled=adapter.ip_enabled,
-            state=adapter.operational_status,
-            media_connect_state=adapter.media_connect_state,
-            name=adapter.friendly_name,
-            packets_sent=adapter.packets_sent,
-            packets_recv=adapter.packets_recv,
-            transmit_link_speed=adapter.transmit_link_speed,
-            receive_link_speed=adapter.receive_link_speed,
-            description=adapter.description,
+            identity=InterfaceIdentity(
+                index=adapter.identity.interface_index,
+                name=adapter.identity.friendly_name,
+                description=adapter.identity.description,
+                mac_address=adapter.identity.mac_address,
+                device_name=None,
+                vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
+            ),
+            traffic=InterfaceTraffic(
+                packets_sent=adapter.traffic.packets_sent,
+                packets_recv=adapter.traffic.packets_recv,
+                transmit_link_speed=adapter.traffic.transmit_link_speed,
+                receive_link_speed=adapter.traffic.receive_link_speed,
+            ),
+            ip_enabled=adapter.status.ip_enabled,
+            state=adapter.status.operational_status,
+            media_connect_state=adapter.status.media_connect_state,
             ip_addresses=adapter.ipv4_addresses,
-            mac_address=adapter.mac_address,
-            device_name=None,
-            vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.mac_address) if adapter.mac_address else None,
+            gateway_addresses=adapter.gateway_addresses,
         ))
 
         for neighbor_ip, neighbor_mac in adapter.neighbors:
@@ -88,15 +93,52 @@ def get_filtered_tshark_interfaces(tshark_path: str) -> list[tuple[int, str, str
     ]
 
 
+def refresh_available_interfaces(mac_lookup: MacLookup, tshark_path: str) -> list[Interface]:
+    """Re-query the OS for network adapters and return the current TShark-capable interfaces.
+
+    Clears the AllInterfaces registry, re-populates it from the Windows API,
+    then matches against TShark-discoverable interfaces and populates device names.
+
+    Args:
+        mac_lookup: MAC vendor lookup instance.
+        tshark_path: Path to the TShark executable.
+
+    Returns:
+        The updated list of TShark-capable Interface objects.
+    """
+    AllInterfaces.clear()
+    populate_network_interfaces_info(mac_lookup)
+
+    available: list[Interface] = []
+    for _index, device_name, name in get_filtered_tshark_interfaces(tshark_path):
+        interface = AllInterfaces.get_interface_by_name(name)
+        if interface is None:
+            continue
+        interface.identity.device_name = device_name
+        available.append(interface)
+
+    return available
+
+
 def select_interface(
     interfaces: list[Interface],
     screen_width: int,
     screen_height: int,
+    *,
+    mac_lookup: MacLookup | None = None,
+    tshark_path: str | None = None,
 ) -> SelectedInterface | None:
     """Select the best matching interface based on current settings.
 
     If auto-selection is not possible or results in ambiguity,
     prompt the user with the interface selection dialog.
+
+    Args:
+        interfaces: Available Interface objects to choose from.
+        screen_width: Screen width in pixels.
+        screen_height: Screen height in pixels.
+        mac_lookup: Optional MacLookup instance for live refresh in the dialog.
+        tshark_path: Optional TShark path for live refresh in the dialog.
 
     Returns:
         A SelectedInterface snapshot, or None if cancelled.
@@ -105,15 +147,15 @@ def select_interface(
 
     def _can_auto_select_interface() -> bool:
         """Whether the application has enough configuration to attempt auto-selecting an interface."""
-        if not Settings.GUI_INTERFACE_SELECTION_AUTO_CONNECT:
+        if not Settings.gui_interface_selection_auto_connect:
             return False
 
         return any(
             setting is not None
             for setting in (
-                Settings.CAPTURE_INTERFACE_NAME,
-                Settings.CAPTURE_MAC_ADDRESS,
-                Settings.CAPTURE_IP_ADDRESS,
+                Settings.capture_interface_name,
+                Settings.capture_mac_address,
+                Settings.capture_ip_address,
             )
         )
 
@@ -121,21 +163,22 @@ def select_interface(
         mac_address = (
             next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
             if is_arp
-            else interface.mac_address
+            else interface.identity.mac_address
         )
         vendor_name = (
             next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
             if is_arp
-            else interface.vendor_name
+            else interface.identity.vendor_name
         )
 
         return SelectedInterface(
-            name=interface.name,
-            description=interface.description,
-            device_name=interface.device_name,
+            name=interface.identity.name,
+            description=interface.identity.description,
+            device_name=interface.identity.device_name,
             ip_address=ip_address,
             mac_address=mac_address,
             vendor_name=vendor_name,
+            gateway_ip=interface.gateway_addresses[0] if interface.gateway_addresses else None,
             is_arp=is_arp,
         )
 
@@ -153,19 +196,19 @@ def select_interface(
                 is_arp: Whether this is an ARP entry
             """
             score = 0
-            if Settings.CAPTURE_INTERFACE_NAME is not None and interface.name == Settings.CAPTURE_INTERFACE_NAME:
+            if Settings.capture_interface_name is not None and interface.identity.name == Settings.capture_interface_name:
                 score += 4
 
             # Get the MAC address for this specific row
             mac_address = (
                 next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
                 if is_arp
-                else interface.mac_address
+                else interface.identity.mac_address
             )
 
-            if Settings.CAPTURE_MAC_ADDRESS is not None and mac_address == Settings.CAPTURE_MAC_ADDRESS:
+            if Settings.capture_mac_address is not None and mac_address == Settings.capture_mac_address:
                 score += 2
-            if Settings.CAPTURE_IP_ADDRESS is not None and ip_address == Settings.CAPTURE_IP_ADDRESS:
+            if Settings.capture_ip_address is not None and ip_address == Settings.capture_ip_address:
                 score += 1
             return score
 
@@ -224,8 +267,10 @@ def select_interface(
         screen_width,
         screen_height,
         interfaces,
-        (Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE, Settings.GUI_INTERFACE_SELECTION_HIDE_ARP, Settings.CAPTURE_ARP_SPOOFING),
-        (Settings.CAPTURE_INTERFACE_NAME, Settings.CAPTURE_IP_ADDRESS, Settings.CAPTURE_MAC_ADDRESS),
+        (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_arp, Settings.capture_arp_spoofing),
+        (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
+        mac_lookup=mac_lookup,
+        tshark_path=tshark_path,
     )
 
     if selected_interface is None:
@@ -233,16 +278,16 @@ def select_interface(
 
     need_rewrite_settings = False
 
-    if arp_spoofing_enabled != Settings.CAPTURE_ARP_SPOOFING:
-        Settings.CAPTURE_ARP_SPOOFING = arp_spoofing_enabled
+    if arp_spoofing_enabled != Settings.capture_arp_spoofing:
+        Settings.capture_arp_spoofing = arp_spoofing_enabled
         need_rewrite_settings = True
 
-    if hide_inactive_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE:
-        Settings.GUI_INTERFACE_SELECTION_HIDE_INACTIVE = hide_inactive_enabled
+    if hide_inactive_enabled != Settings.gui_interface_selection_hide_inactive:
+        Settings.gui_interface_selection_hide_inactive = hide_inactive_enabled
         need_rewrite_settings = True
 
-    if hide_arp_enabled != Settings.GUI_INTERFACE_SELECTION_HIDE_ARP:
-        Settings.GUI_INTERFACE_SELECTION_HIDE_ARP = hide_arp_enabled
+    if hide_arp_enabled != Settings.gui_interface_selection_hide_arp:
+        Settings.gui_interface_selection_hide_arp = hide_arp_enabled
         need_rewrite_settings = True
 
     if need_rewrite_settings:

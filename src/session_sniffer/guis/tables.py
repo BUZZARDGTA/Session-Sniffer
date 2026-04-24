@@ -1,22 +1,31 @@
 """Session table view for connected and disconnected players tables."""
 
-import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
-from PyQt6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import QHeaderView, QInputDialog, QMenu, QMessageBox, QSizePolicy, QTableView, QToolTip, QWidget
+from PyQt6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt, QUrl
+from PyQt6.QtGui import QAction, QClipboard, QDesktopServices, QHoverEvent, QKeyEvent, QMouseEvent
+from PyQt6.QtWidgets import QHeaderView, QMenu, QSizePolicy, QTableView, QToolTip, QWidget
 
-from session_sniffer.constants.local import BIN_DIR_PATH, BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
+from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
+from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, show_seen_stats, tcp_port_ping
+from session_sniffer.guis.tables_protections_mixin import build_protections_menu, build_protections_menu_multi
+from session_sniffer.guis.tables_userip_mixin import (
+    MIN_USERNAMES_FOR_REMOVAL,
+    userip_add,
+    userip_add_username,
+    userip_delete,
+    userip_move,
+    userip_remove_username,
+    userip_rename,
+)
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.text_utils import format_triple_quoted_text, pluralize
-from session_sniffer.utils import run_cmd_command, run_cmd_script, write_lines_to_file
+from session_sniffer.settings.settings import Settings
+from session_sniffer.utils import run_cmd_script
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,9 +33,6 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
-
-RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
-PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
 
 
 class SessionTableView(QTableView):
@@ -51,9 +57,11 @@ class SessionTableView(QTableView):
         super().__init__()
 
         self._is_connected_table = is_connected_table  # Store which table type this is
+        self.open_rate_graph_callback: Callable[[str], None] | None = None  # Optional callback to open a rate graph for an IP
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
         self._previous_sort_section_index: int | None = None
+        self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -62,12 +70,17 @@ class SessionTableView(QTableView):
         # Configure table view settings
         vertical_header = self.verticalHeader()
         vertical_header.setVisible(False)  # Hide row index
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)  # Fixed row heights for faster layout
+        self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)  # Smooth pixel-based scrolling
+        self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setAlternatingRowColors(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         horizontal_header = self.horizontalHeader()
         horizontal_header.setSectionsClickable(True)
-        horizontal_header.sectionClicked.connect(self.on_section_clicked)
+        horizontal_header.sectionClicked.connect(self._on_section_clicked)
         horizontal_header.setSectionsMovable(True)
+        horizontal_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        horizontal_header.customContextMenuRequested.connect(self._show_header_context_menu)
         self.setSelectionMode(QTableView.SelectionMode.NoSelection)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
         self.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
@@ -79,7 +92,7 @@ class SessionTableView(QTableView):
         horizontal_header.setSortIndicatorShown(True)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
 
     def setModel(self, model: QAbstractItemModel | None) -> None:
         """Override the setModel method to ensure the model is of type SessionTableModel."""
@@ -106,28 +119,21 @@ class SessionTableView(QTableView):
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
     def window(self) -> MainWindow:
-        """Override the window method to ensure it returns the parent `MainWindow`.
-
-        Raises:
-            TypeError: If the view is not attached to a `MainWindow`.
-        """
-        from session_sniffer.guis.main_window import MainWindow as _MainWindow
-
-        return ensure_instance(super().window(), _MainWindow)
+        """Override the window method to ensure it returns the parent `MainWindow`."""
+        return cast('MainWindow', super().window())
 
     def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:
         """Show country flag tooltips on hover and forward other events."""
-        if isinstance(object, QWidget) and isinstance(event, QHoverEvent):
+        if isinstance(object, QObject) and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
             if index.isValid():
                 model = self.model()
-
-                if model.has_column('Country') and model.get_column_index('Country') == index.column():
+                if (country_col := model.get_column_index('Country')) is not None and country_col == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
                         matched_player = PlayersRegistry.get_player_by_ip(ip)
                         if matched_player is not None and matched_player.country_flag is not None:
-                            self.show_flag_tooltip(event, index, matched_player)
+                            self._show_flag_tooltip(event, index, matched_player)
 
         return super().eventFilter(object, event)
 
@@ -139,9 +145,9 @@ class SessionTableView(QTableView):
         if isinstance(e, QKeyEvent):
             if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 if e.key() == Qt.Key.Key_A:
-                    self.select_all_cells()
+                    self._select_all_cells()
                 elif e.key() == Qt.Key.Key_C:
-                    self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
+                    self._copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
                 return
 
         # Fall back to default behavior
@@ -152,7 +158,7 @@ class SessionTableView(QTableView):
 
         Fall back to default behavior for non-cell areas.
         """
-        if isinstance(e, QMouseEvent):
+        if e is not None:
             index = self.indexAt(e.pos())  # Determine the index of the clicked item
             if index.isValid():
                 selection_model = self.selectionModel()
@@ -188,7 +194,7 @@ class SessionTableView(QTableView):
 
     def mouseMoveEvent(self, e: QMouseEvent | None) -> None:
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
-        if isinstance(e, QMouseEvent):
+        if e is not None:
             index = self.indexAt(e.pos())  # Get the index under the cursor
             if index.isValid():
                 selection_model = self.selectionModel()
@@ -208,7 +214,7 @@ class SessionTableView(QTableView):
 
     def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:
         """Reset dragging state when the mouse button is released."""
-        if isinstance(e, QMouseEvent):
+        if e is not None:
             if e.button() == Qt.MouseButton.LeftButton:
                 self._drag_selecting = False
                 self._previous_cell = None
@@ -243,20 +249,28 @@ class SessionTableView(QTableView):
         model = self.model()
         header = self.horizontalHeader()
 
-        found_username = False
-        for row in range(model.rowCount()):
-            index = model.index(row, model.username_column_index)
-            data = model.get_display_text(index)
-            if data and data.strip():  # Check for non-empty, non-whitespace
-                found_username = True
-                break
-
-        if found_username:
+        if self._has_any_username():
             header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Stretch)
         else:
             header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.ResizeToContents)
 
-    def get_sorted_column(self) -> tuple[str, Qt.SortOrder]:
+    def sort_current_column(self) -> None:
+        """Sort the table by the currently indicated header column and order."""
+        model = self.model()
+        horizontal_header = self.horizontalHeader()
+        model.sort(horizontal_header.sortIndicatorSection(), horizontal_header.sortIndicatorOrder())
+
+    def _has_any_username(self) -> bool:
+        """Return True if any row has a non-empty username value."""
+        model = self.model()
+        col = model.username_column_index
+        for row in range(model.rowCount()):
+            text = model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)
+            if isinstance(text, str) and text.strip():
+                return True
+        return False
+
+    def _get_sorted_column(self) -> tuple[str, Qt.SortOrder]:
         """Get the currently sorted column and its order for this table view."""
         model = self.model()
         horizontal_header = self.horizontalHeader()
@@ -274,21 +288,49 @@ class SessionTableView(QTableView):
 
         return sorted_column_name, sort_order
 
-    def handle_menu_hovered(self, action: QAction) -> None:
+    def capture_selection(self) -> None:
+        """Save the current cell selection by player IP for later restoration."""
+        selected_indexes = self.selectionModel().selectedIndexes()
+        if not selected_indexes:
+            self._saved_selection.clear()
+            return
+
+        model = self.model()
+        self._saved_selection.clear()
+        for index in selected_indexes:
+            row = index.row()
+            if 0 <= row < model.rowCount():
+                ip = model.get_ip_for_row(row)
+                self._saved_selection.append((ip, index.column()))
+
+    def restore_selection(self) -> None:
+        """Restore cell selection from previously captured player IPs."""
+        if not self._saved_selection:
+            return
+
+        model = self.model()
+        selection = QItemSelection()
+
+        for ip, column in self._saved_selection:
+            row = model.get_row_index_by_ip(ip)
+            if row is not None:
+                index = model.index(row, column)
+                selection.select(index, index)
+
+        self.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        self._saved_selection.clear()
+
+    def _handle_menu_hovered(self, action: QAction) -> None:
         """Propagate QAction tooltip text to its parent menu."""
         # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
         action_parent = action.parent()
         if isinstance(action_parent, QMenu):
             action_parent.setToolTip(action.toolTip())
 
-    def on_section_clicked(self, section_index: int) -> None:
-        """Sort the table by the clicked header section and reset selections."""
+    def _on_section_clicked(self, section_index: int) -> None:
+        """Sort the table by the clicked header section."""
         model = self.model()
         horizontal_header = self.horizontalHeader()
-        selection_model = self.selectionModel()
-
-        # Clear selections when a header section is clicked
-        selection_model.clearSelection()
 
         # If it's the first click or sorting is being toggled
         if self._previous_sort_section_index is None or self._previous_sort_section_index != section_index:
@@ -298,7 +340,56 @@ class SessionTableView(QTableView):
         model.sort(section_index, horizontal_header.sortIndicatorOrder())
         self._previous_sort_section_index = section_index
 
-    def show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
+    def _show_header_context_menu(self, pos: QPoint) -> None:
+        """Show a context menu on the column header with checkboxes to toggle column visibility."""
+        if self._is_connected_table:
+            toggleable_columns = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+            shown_columns = set(Settings.gui_columns_connected_shown)
+        else:
+            toggleable_columns = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+            shown_columns = set(Settings.gui_columns_disconnected_shown)
+
+        menu = QMenu(self)
+        menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+
+        for col_name in toggleable_columns:
+            action = QAction(col_name, menu)
+            action.setCheckable(True)
+            action.setChecked(col_name in shown_columns)
+
+            def _on_toggled(checked: bool, name: str = col_name) -> None:  # noqa: FBT001
+                self._toggle_column_visibility(name, checked=checked)
+
+            action.toggled.connect(_on_toggled)
+            menu.addAction(action)
+
+        menu.popup(self.horizontalHeader().mapToGlobal(pos))
+
+    def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
+        """Toggle a column's visibility and persist the change to settings."""
+        if self._is_connected_table:
+            shown = set(Settings.gui_columns_connected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+        else:
+            shown = set(Settings.gui_columns_disconnected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+
+        if checked:
+            shown.add(column_name)
+        else:
+            shown.discard(column_name)
+
+        # Preserve ordering from the toggleable columns tuple
+        new_shown = tuple(col for col in toggleable if col in shown)
+
+        if self._is_connected_table:
+            Settings.gui_columns_connected_shown = new_shown
+        else:
+            Settings.gui_columns_disconnected_shown = new_shown
+
+        Settings.rewrite_settings_file()
+
+    def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
         """Show tooltip only if hovering exactly over the flag."""
         # TODO(BUZZARDGTA): Make the tooltip appear precisely when hovering over the flag, using the pixmap or QIcon object if possible.
         cell_rect = self.visualRect(index)   # Get cell rectangle
@@ -312,7 +403,7 @@ class SessionTableView(QTableView):
         else:
             QToolTip.hideText()
 
-    def show_context_menu(self, pos: QPoint) -> None:
+    def _show_context_menu(self, pos: QPoint) -> None:
         """Show the context menu at the specified position with options to interact with the table's content."""
         def add_action(
             menu: QMenu,
@@ -342,6 +433,37 @@ class SessionTableView(QTableView):
 
             return menu
 
+        def populate_db_menu(
+            parent_menu: QMenu,
+            database_paths: list[Path],
+            tooltip: str,
+            handler_factory: Callable[[Path], Callable[[], None]],
+            disabled_path: Path | None = None,
+        ) -> None:
+            """Add database entries to *parent_menu*, nesting subfolders as child menus."""
+            folder_menus: dict[tuple[str, ...], QMenu] = {}
+
+            for database_path in database_paths:
+                rel = database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+                parts = rel.parts
+
+                if len(parts) == 1:
+                    action = add_action(parent_menu, parts[0], tooltip=tooltip, handler=handler_factory(database_path))
+                    if disabled_path is not None and database_path == disabled_path:
+                        action.setEnabled(False)
+                else:
+                    # Build / reuse nested submenus for each folder level
+                    current_menu = parent_menu
+                    for depth in range(len(parts) - 1):
+                        folder_key = parts[: depth + 1]
+                        if folder_key not in folder_menus:
+                            folder_menus[folder_key] = add_menu(current_menu, parts[depth])
+                        current_menu = folder_menus[folder_key]
+
+                    action = add_action(current_menu, parts[-1], tooltip=tooltip, handler=handler_factory(database_path))
+                    if disabled_path is not None and database_path == disabled_path:
+                        action.setEnabled(False)
+
         # Determine the index at the clicked position
         index = self.indexAt(pos)
         if not index.isValid():
@@ -355,7 +477,7 @@ class SessionTableView(QTableView):
         context_menu = QMenu(self)
         context_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
         context_menu.setToolTipsVisible(True)
-        context_menu.hovered.connect(self.handle_menu_hovered)
+        context_menu.hovered.connect(self._handle_menu_hovered)
 
         # Add "Copy Selection" action
         add_action(
@@ -363,20 +485,22 @@ class SessionTableView(QTableView):
             'Copy Selection',
             shortcut='Ctrl+C',
             tooltip='Copy selected cells to your clipboard.',
-            handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
+            handler=lambda: self._copy_selected_cells(selected_model, selected_indexes),
         )
         context_menu.addSeparator()
 
-        # Add "Remove Player" action if all selected cells are in IP Address column
-        if selected_indexes and all(  # Check if all selected cells are in the IP Address column
-            selected_model.headerData(idx.column(), Qt.Orientation.Horizontal) == 'IP Address'
-            for idx in selected_indexes
-        ):
+        # Add "Remove Player" action for any selection (resolve IPs from selected rows)
+        if selected_indexes:
             ips_to_remove: set[str] = set()
+            seen_rows: set[int] = set()
             for idx in selected_indexes:
-                displayed_ip = selected_model.get_display_text(idx)
-                if displayed_ip and displayed_ip not in ips_to_remove:
-                    ips_to_remove.add(displayed_ip)
+                row = idx.row()
+                if row not in seen_rows:
+                    seen_rows.add(row)
+                    ip_idx = selected_model.index(row, selected_model.ip_column_index)
+                    displayed_ip = selected_model.get_display_text(ip_idx)
+                    if displayed_ip:
+                        ips_to_remove.add(displayed_ip)
 
             if ips_to_remove:
                 # Use singular or plural label based on count
@@ -388,7 +512,7 @@ class SessionTableView(QTableView):
                     tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
 
                 def create_remove_handler(ip_list: set[str]) -> Callable[[], None]:
-                    return lambda: self.remove_players_by_ip_from_table(ip_list)
+                    return lambda: self._remove_players_by_ip_from_table(ip_list)
 
                 add_action(
                     context_menu,
@@ -405,19 +529,19 @@ class SessionTableView(QTableView):
             'Select All',
             shortcut='Ctrl+A',
             tooltip='Select all cells in the table.',
-            handler=self.select_all_cells,
+            handler=self._select_all_cells,
         )
         add_action(
             select_menu,
             'Select Row',
             tooltip='Select all cells in this row.',
-            handler=lambda: self.select_row_cells(index.row()),
+            handler=lambda: self._select_row_cells(index.row()),
         )
         add_action(
             select_menu,
             'Select Column',
             tooltip='Select all cells in this column.',
-            handler=lambda: self.select_column_cells(index.column()),
+            handler=lambda: self._select_column_cells(index.column()),
         )
 
         # "Unselect" submenu
@@ -426,188 +550,233 @@ class SessionTableView(QTableView):
             unselect_menu,
             'Unselect All',
             tooltip='Unselect all cells in the table.',
-            handler=self.unselect_all_cells,
+            handler=self._unselect_all_cells,
         )
         add_action(
             unselect_menu,
             'Unselect Row',
             tooltip='Unselect all cells in this row.',
-            handler=lambda: self.unselect_row_cells(index.row()),
+            handler=lambda: self._unselect_row_cells(index.row()),
         )
         add_action(
             unselect_menu,
             'Unselect Column',
             tooltip='Unselect all cells in this column.',
-            handler=lambda: self.unselect_column_cells(index.column()),
+            handler=lambda: self._unselect_column_cells(index.column()),
         )
         context_menu.addSeparator()
 
         # Process if one cell is selected
         if len(selected_indexes) == 1:
-            selected_column = selected_indexes[0].column()
-
-            column_name = ensure_instance(selected_model.headerData(selected_column, Qt.Orientation.Horizontal), str)
-            if column_name == 'IP Address':
-                # Get the IP address from the selected cell
-                displayed_ip = selected_model.get_display_text(selected_indexes[0])
-                if not displayed_ip:
-                    return
-
+            # Resolve the IP address from the selected row regardless of which column was clicked
+            ip_index = selected_model.index(selected_indexes[0].row(), selected_model.ip_column_index)
+            displayed_ip = selected_model.get_display_text(ip_index)
+            if displayed_ip:
                 userip_database_filepaths = UserIPDatabases.get_userip_database_filepaths()
                 matched_player = PlayersRegistry.get_player_by_ip(displayed_ip)
-                if matched_player is None:
-                    return
+                if matched_player is not None:
+                    # Create local copies to use in lambdas
+                    ip_address = displayed_ip
+                    player_obj = matched_player
 
-                # Create local copies to use in lambdas
-                ip_address = displayed_ip
-                player_obj = matched_player
-
-                add_action(
-                    context_menu,
-                    'IP Lookup Details',
-                    tooltip='Displays a notification with a detailed IP lookup report for selected player.',
-                    handler=lambda: self.show_detailed_ip_lookup_player_cell(player_obj),
-                )
-
-                ping_menu = add_menu(context_menu, 'Ping    ')
-                add_action(
-                    ping_menu,
-                    'Normal',
-                    tooltip='Checks if selected IP address responds to pings.',
-                    handler=lambda: self.ping(ip_address),
-                )
-                add_action(
-                    ping_menu,
-                    'TCP Port (paping.exe)',
-                    tooltip='Checks if selected IP address responds to TCP pings on a given port.',
-                    handler=lambda: self.tcp_port_ping(ip_address),
-                )
-
-                scripts_menu = add_menu(context_menu, 'User Scripts ')
-
-                def create_script_handler(script_path: Path) -> Callable[[], None]:
-                    return lambda: run_cmd_script(script_path, [ip_address])
-
-                def get_script_candidates(directory: Path) -> list[Path]:
-                    allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
-                    return [
-                        script
-                        for script in directory.glob('*')
-                        if (
-                            script.is_file()
-                            and not script.name.startswith(('_', '.'))
-                            and script.suffix.casefold() in allowed_suffixes
-                        )
-                    ]
-
-                def add_scripts_to_menu(menu: QMenu, scripts: list[Path]) -> None:
-                    for script in scripts:
-                        script_resolved = script.resolve()
-                        add_action(
-                            menu,
-                            script_resolved.name,
-                            tooltip='',
-                            handler=create_script_handler(script_resolved),
-                        )
-
-                builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
-                user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
-
-                add_scripts_to_menu(scripts_menu, builtin_scripts)
-
-                # Separator between builtin/user scripts
-                if builtin_scripts and user_scripts:
-                    scripts_menu.addSeparator()
-
-                add_scripts_to_menu(scripts_menu, user_scripts)
-
-                userip_menu = add_menu(context_menu, 'UserIP  ')
-
-                if matched_player.userip is None:
-                    add_userip_menu = add_menu(userip_menu, 'Add     ', 'Add selected IP address to UserIP database.')  # Extra spaces for alignment
-                    for database_path in userip_database_filepaths:
-                        def create_add_handler(db_path: Path) -> Callable[[], None]:
-                            return lambda: self.userip_manager__add([ip_address], db_path)
-
-                        add_action(
-                            add_userip_menu,
-                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
-                            tooltip='Add selected IP address to this UserIP database.',
-                            handler=create_add_handler(database_path),
-                        )
-                else:
-                    move_userip_menu = add_menu(userip_menu, 'Move    ', 'Move selected IP address to another database.')
-                    for database_path in userip_database_filepaths:
-                        def create_move_handler(db_path: Path) -> Callable[[], None]:
-                            return lambda: self.userip_manager__move([ip_address], db_path)
-
-                        action = add_action(
-                            move_userip_menu,
-                            str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
-                            tooltip='Move selected IP address to this UserIP database.',
-                            handler=create_move_handler(database_path),
-                        )
-                        action.setEnabled(matched_player.userip.database_path != database_path)
                     add_action(
-                        userip_menu,
-                        'Delete  ',  # Extra spaces for alignment
-                        tooltip='Delete selected IP address from UserIP databases.',
-                        handler=lambda: self.userip_manager__del([ip_address]),
+                        context_menu,
+                        'IP Lookup Details',
+                        tooltip='Displays a notification with a detailed IP lookup report for selected player.',
+                        handler=lambda: show_detailed_ip_lookup(self, player_obj),
                     )
 
-        # Check if all selected cells are in the "IP Address" column
-        elif all(
-            selected_model.headerData(index.column(), Qt.Orientation.Horizontal) == 'IP Address'
-            for index in selected_indexes
-        ):
-            all_ips: list[str] = []
+                    add_action(
+                        context_menu,
+                        'Seen Stats',
+                        tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
+                        handler=lambda: show_seen_stats(self, player_obj),
+                    )
 
-            # Get the IP addresses from the selected cells
-            for index in selected_indexes:
-                displayed_ip = selected_model.get_display_text(index)
-                if displayed_ip:
+                    if self._is_connected_table and self.open_rate_graph_callback is not None:
+                        _graph_cb = self.open_rate_graph_callback
+                        add_action(
+                            context_menu,
+                            'Rate Graph',
+                            tooltip='Open a live PPS/BPS graph for this player.',
+                            handler=lambda: _graph_cb(ip_address),
+                        )
+
+                    ping_menu = add_menu(context_menu, 'Ping    ')
+                    add_action(
+                        ping_menu,
+                        'Normal',
+                        tooltip='Checks if selected IP address responds to pings.',
+                        handler=lambda: ping_ip(ip_address),
+                    )
+                    add_action(
+                        ping_menu,
+                        'TCP Port (paping.exe)',
+                        tooltip='Checks if selected IP address responds to TCP pings on a given port.',
+                        handler=lambda: tcp_port_ping(self, ip_address),
+                    )
+
+                    # --- Protections submenu (single IP) ---
+                    if Settings.is_protection_supported:
+                        protections_menu = add_menu(context_menu, 'Protections')
+                        build_protections_menu(protections_menu, add_action, player_obj)
+
+                    scripts_menu = add_menu(context_menu, 'User Scripts ')
+
+                    def create_script_handler(script_path: Path) -> Callable[[], None]:
+                        return lambda: run_cmd_script(script_path, [ip_address])
+
+                    def get_script_candidates(directory: Path) -> list[Path]:
+                        allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
+                        return [
+                            script
+                            for script in directory.glob('*')
+                            if (
+                                script.is_file()
+                                and not script.name.startswith(('_', '.'))
+                                and script.suffix.casefold() in allowed_suffixes
+                            )
+                        ]
+
+                    def add_scripts_to_menu(menu: QMenu, scripts: list[Path]) -> None:
+                        for script in scripts:
+                            script_resolved = script.resolve()
+                            add_action(
+                                menu,
+                                script_resolved.name,
+                                tooltip='',
+                                handler=create_script_handler(script_resolved),
+                            )
+
+                    builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
+                    user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
+
+                    add_scripts_to_menu(scripts_menu, builtin_scripts)
+
+                    # Separator between builtin/user scripts
+                    if builtin_scripts and user_scripts:
+                        scripts_menu.addSeparator()
+
+                    add_scripts_to_menu(scripts_menu, user_scripts)
+
+                    userip_menu = add_menu(context_menu, 'UserIP  ')
+
+                    if matched_player.userip is None:
+                        add_userip_menu = add_menu(userip_menu, 'Add     ', 'Add selected IP address to UserIP database.')  # Extra spaces for alignment
+                        populate_db_menu(
+                            add_userip_menu,
+                            userip_database_filepaths,
+                            tooltip='Add selected IP address to this UserIP database.',
+                            handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
+                        )
+                    else:
+                        userip = player_obj.userip
+                        if userip is None:
+                            msg = 'Expected player_obj.userip to be set in else branch'
+                            raise TypeError(msg)
+
+                        def _open_userip_database() -> None:
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(userip.database_path)))
+
+                        add_action(
+                            userip_menu,
+                            'Open Database',
+                            tooltip="Open this player's UserIP database file in the default text editor.",
+                            handler=_open_userip_database,
+                        )
+                        userip_menu.addSeparator()
+                        add_action(
+                            userip_menu,
+                            'Add Username',
+                            tooltip='Add an additional username for this IP address in its UserIP database.',
+                            handler=lambda: userip_add_username(self, ip_address, player_obj),
+                        )
+                        add_action(
+                            userip_menu,
+                            'Rename  ',
+                            tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
+                            handler=lambda: userip_rename(self, ip_address, player_obj),
+                        )
+                        if userip.usernames and len(userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
+                            add_action(
+                                userip_menu,
+                                'Remove Username',
+                                tooltip='Remove selected username(s) for this IP address while keeping others.',
+                                handler=lambda: userip_remove_username(self, ip_address, player_obj),
+                            )
+                        move_userip_menu = add_menu(userip_menu, 'Move    ', 'Move selected IP address to another database.')
+                        populate_db_menu(
+                            move_userip_menu,
+                            userip_database_filepaths,
+                            tooltip='Move selected IP address to this UserIP database.',
+                            handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
+                            disabled_path=userip.database_path,
+                        )
+                        add_action(
+                            userip_menu,
+                            'Delete  ',  # Extra spaces for alignment
+                            tooltip='Delete selected IP address from UserIP databases.',
+                            handler=lambda: userip_delete(self, [ip_address]),
+                        )
+
+        # Check if multiple cells are selected in the same column
+        elif len(selected_indexes) > 1:
+            # Resolve unique IPs from all selected rows
+            seen_multi_rows: set[int] = set()
+            all_ips: list[str] = []
+            for idx in selected_indexes:
+                row = idx.row()
+                if row in seen_multi_rows:
+                    continue
+                seen_multi_rows.add(row)
+                ip_idx = selected_model.index(row, selected_model.ip_column_index)
+                displayed_ip = selected_model.get_display_text(ip_idx)
+                if displayed_ip and displayed_ip not in all_ips:
                     all_ips.append(displayed_ip)
 
-            if all(ip not in UserIPDatabases.ips_set for ip in all_ips):
-                userip_menu = add_menu(context_menu, 'UserIP  ')
+            if all_ips:
+                # --- Protections submenu (multi-IP) ---
+                matched_players = [
+                    player
+                    for ip in all_ips
+                    if (player := PlayersRegistry.get_player_by_ip(ip)) is not None
+                ]
+                if matched_players and Settings.is_protection_supported:
+                    protections_menu = add_menu(context_menu, 'Protections')
+                    build_protections_menu_multi(protections_menu, add_action, matched_players)
 
-                add_userip_menu = add_menu(userip_menu, 'Add Selected')
-                for database_path in UserIPDatabases.get_userip_database_filepaths():
-                    def create_multi_add_handler(db_path: Path, ip_list: list[str]) -> Callable[[], None]:
-                        return lambda: self.userip_manager__add(ip_list, db_path)
+                if all(not UserIPDatabases.is_known_ip(ip) for ip in all_ips):
+                    userip_menu = add_menu(context_menu, 'UserIP  ')
 
-                    add_action(
+                    add_userip_menu = add_menu(userip_menu, 'Add Selected')
+                    populate_db_menu(
                         add_userip_menu,
-                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
+                        UserIPDatabases.get_userip_database_filepaths(),
                         tooltip='Add selected IP addresses to this UserIP database.',
-                        handler=create_multi_add_handler(database_path, all_ips),
+                        handler_factory=lambda db_path: lambda: userip_add(self, all_ips, db_path),
                     )
-            elif all(ip in UserIPDatabases.ips_set for ip in all_ips):
-                userip_menu = add_menu(context_menu, 'UserIP  ')
+                elif all(UserIPDatabases.is_known_ip(ip) for ip in all_ips):
+                    userip_menu = add_menu(context_menu, 'UserIP  ')
 
-                move_userip_menu = add_menu(userip_menu, 'Move Selected')
-                for database_path in UserIPDatabases.get_userip_database_filepaths():
-                    def create_multi_move_handler(db_path: Path, ip_list: list[str]) -> Callable[[], None]:
-                        return lambda: self.userip_manager__move(ip_list, db_path)
+                    move_userip_menu = add_menu(userip_menu, 'Move Selected')
+                    populate_db_menu(
+                        move_userip_menu,
+                        UserIPDatabases.get_userip_database_filepaths(),
+                        tooltip='Move selected IP addresses to this UserIP database.',
+                        handler_factory=lambda db_path: lambda: userip_move(self, all_ips, db_path),
+                    )
 
                     add_action(
-                        move_userip_menu,
-                        str(database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')),
-                        tooltip='Move selected IP addresses to this UserIP database.',
-                        handler=create_multi_move_handler(database_path, all_ips),
+                        userip_menu,
+                        'Delete Selected',  # Extra spaces for alignment
+                        tooltip='Delete selected IP addresses from UserIP databases.',
+                        handler=lambda: userip_delete(self, all_ips),
                     )
-
-                add_action(
-                    userip_menu,
-                    'Delete Selected',  # Extra spaces for alignment
-                    tooltip='Delete selected IP addresses from UserIP databases.',
-                    handler=lambda: self.userip_manager__del(all_ips),
-                )
 
         # Execute the context menu at the right-click position
-        context_menu.exec(self.mapToGlobal(pos))
+        context_menu.popup(self.mapToGlobal(pos))
 
-    def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
+    def _copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
         # Access the system clipboard from the centralized app instance
         clipboard = ensure_instance(app.clipboard(), QClipboard)
@@ -633,7 +802,7 @@ class SessionTableView(QTableView):
         # Set the formatted text in the system clipboard
         clipboard.setText(clipboard_content)
 
-    def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
+    def _remove_players_by_ip_from_table(self, ips: set[str]) -> None:
         """Remove multiple players from the table by calling the appropriate `MainWindow` method.
 
         Args:
@@ -648,240 +817,6 @@ class SessionTableView(QTableView):
                 main_window.remove_player_from_connected(ip)
             else:
                 main_window.remove_player_from_disconnected(ip)
-
-    def show_detailed_ip_lookup_player_cell(self, player: Player) -> None:
-        """Show a detailed information dialog for the given player."""
-        QMessageBox.information(self, TITLE, format_triple_quoted_text(f"""
-            ############ Player Infos #############
-            IP Address: {player.ip}
-            Hostname: {player.reverse_dns.hostname}
-            Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
-            In UserIP database: {(
-                player.userip_detection is not None
-                and f"{player.userip and player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')}"
-            ) or "No"}
-            Last Port: {player.ports.last}
-            Middle Port{pluralize(len(player.ports.middle))}: {', '.join(map(str, player.ports.middle))}
-            First Port: {player.ports.first}
-
-            ########## IP Lookup Details ##########
-            Continent: {player.iplookup.ipapi.continent}
-            Country: {player.iplookup.geolite2.country}
-            Country Code: {player.iplookup.geolite2.country_code}
-            Region: {player.iplookup.ipapi.region}
-            Region Code: {player.iplookup.ipapi.region_code}
-            City: {player.iplookup.geolite2.city}
-            District: {player.iplookup.ipapi.district}
-            ZIP Code: {player.iplookup.ipapi.zip_code}
-            Lat: {player.iplookup.ipapi.lat}
-            Lon: {player.iplookup.ipapi.lon}
-            Time Zone: {player.iplookup.ipapi.time_zone}
-            Offset: {player.iplookup.ipapi.offset}
-            Currency: {player.iplookup.ipapi.currency}
-            Organization: {player.iplookup.ipapi.org}
-            ISP: {player.iplookup.ipapi.isp}
-            ASN / ISP: {player.iplookup.geolite2.asn}
-            AS: {player.iplookup.ipapi.asn}
-            ASN: {player.iplookup.ipapi.as_name}
-            Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
-            Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
-            Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
-
-            ############ Ping Response ############
-            Ping Times: {player.ping.ping_times}
-            Packets Transmitted: {player.ping.packets_transmitted}
-            Packets Received: {player.ping.packets_received}
-            Packet Loss: {player.ping.packet_loss}
-            Packet Errors: {player.ping.packet_errors}
-            Round-Trip Time Minimum: {player.ping.rtt_min}
-            Round-Trip Time Average: {player.ping.rtt_avg}
-            Round-Trip Time Maximum: {player.ping.rtt_max}
-            Round-Trip Time Mean Deviation: {player.ping.rtt_mdev}
-        """),
-        )
-
-    def ping(self, ip: str) -> None:
-        """Runs a continuous ping to a specified IP address in a new terminal window."""
-        run_cmd_command('ping', [ip, '-t'])
-
-    def tcp_port_ping(self, ip: str) -> None:
-        """Runs paping to check TCP connectivity to a host on a user-specified port indefinitely."""
-
-        def run_paping(host: str, port: int) -> None:
-            """Runs paping in a new terminal window to check TCP connectivity continuously."""
-            run_cmd_script(PAPING_PATH, [host, '-p', str(port)])
-
-        port_str, ok = QInputDialog.getText(self, 'Input Port', 'Enter the port number to check TCP connectivity:')
-
-        if not ok:
-            return
-
-        port_str = port_str.strip()
-
-        if not port_str.isdigit():
-            QMessageBox.warning(self, 'Error', 'No valid port number provided.')
-            return
-
-        port = int(port_str)
-
-        if not MIN_PORT <= port <= MAX_PORT:
-            QMessageBox.warning(self, 'Error', 'Please enter a valid port number between 1 and 65535.')
-            return
-
-        run_paping(ip, port)
-
-    def userip_manager__add(self, selected_ips: list[str], selected_database: Path) -> None:
-        """Add the selected IP address(es) to the chosen UserIP database."""
-        # Prompt the user for a username
-        username, ok = QInputDialog.getText(self, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:')
-
-        if not ok:
-            return
-
-        username = username.strip()
-
-        if username:  # Only proceed if the user clicked 'OK' and provided a username
-            # Append the username and associated IP(s) to the corresponding database file
-            write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in selected_ips])
-
-            QMessageBox.information(
-                self, TITLE,
-                (
-                    f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
-                    f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username "{username}" '
-                    f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".'
-                ),
-            )
-        else:
-            # If the user canceled or left the input empty, show an error
-            QMessageBox.warning(self, TITLE, 'ERROR:\nNo username was provided.')
-
-    def userip_manager__move(self, selected_ips: list[str], selected_database: Path) -> None:
-        """Move the selected IP address(es) to the chosen UserIP database."""
-        # Dictionary to store removed entries by database
-        deleted_entries_by_database: dict[Path, list[str]] = {}
-
-        # Iterate over each UserIP database
-        for database_path in UserIPDatabases.get_userip_database_filepaths():
-            if database_path == selected_database:
-                continue
-
-            # Read the database file
-            lines = database_path.read_text(encoding='utf-8').splitlines(keepends=True)
-            if not lines:
-                continue
-
-            # List to store deleted entries in this particular database
-            deleted_entries_in_this_database: list[str] = []
-
-            # Remove any lines containing the IP address
-            lines_to_keep: list[str] = []
-            for line in lines:
-                # Try to match the regex
-                match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-                if match:
-                    # Extract username and ip using named groups
-                    username, ip = match.group('username', 'ip')
-
-                    # Only process if username and ip are strings
-                    if isinstance(username, str) and isinstance(ip, str):
-                        # Ensure both username and ip are non-empty strings
-                        username, ip = username.strip(), ip.strip()
-
-                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
-                        if ip in selected_ips:
-                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
-                            continue  # skip appending this line
-
-                # All other lines should be kept
-                lines_to_keep.append(line)
-
-            if deleted_entries_in_this_database:
-                # Only update the database file if there were any deletions
-                write_lines_to_file(database_path, 'w', lines_to_keep)
-
-                # Store the deleted entries for this database
-                deleted_entries_by_database[database_path] = deleted_entries_in_this_database
-
-                # Move the deleted entries to the target database
-                write_lines_to_file(selected_database, 'a', [f'{entry}\n' for entry in deleted_entries_in_this_database])
-
-        # After processing all databases, show a detailed report
-        if deleted_entries_by_database:
-            report = (
-                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} moved from the following '
-                f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
-                f'"{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":</b><br><br><br>'
-            )
-            for database_path, deleted_entries in deleted_entries_by_database.items():
-                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
-                report += '<ul>'
-                for entry in deleted_entries:
-                    report += f'<li>{entry}</li>'
-                report += '</ul><br>'
-            report = report.removesuffix('<br>')
-
-            QMessageBox.information(self, TITLE, report)
-
-    def userip_manager__del(self, selected_ips: list[str]) -> None:
-        """Remove the selected IP address(es) from all enabled UserIP databases."""
-        # Dictionary to store removed entries by database
-        deleted_entries_by_database: dict[Path, list[str]] = {}
-
-        # Iterate over each UserIP database
-        for database_path in UserIPDatabases.get_userip_database_filepaths():
-            # Read the database file
-            lines = database_path.read_text(encoding='utf-8').splitlines(keepends=True)
-            if not lines:
-                continue
-
-            # List to store deleted entries in this particular database
-            deleted_entries_in_this_database: list[str] = []
-
-            # Remove any lines containing the IP address
-            lines_to_keep: list[str] = []
-            for line in lines:
-                # Try to match the regex
-                match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-                if match:
-                    # Extract username and ip using named groups
-                    username, ip = match.group('username', 'ip')
-
-                    # Only process if username and ip are strings
-                    if isinstance(username, str) and isinstance(ip, str):
-                        # Ensure both username and ip are non-empty strings
-                        username, ip = username.strip(), ip.strip()
-
-                        # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
-                        if ip in selected_ips:
-                            deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
-                            continue  # skip appending this line
-
-                # All other lines should be kept
-                lines_to_keep.append(line)
-
-            if deleted_entries_in_this_database:
-                # Only update the database file if there were any deletions
-                write_lines_to_file(database_path, 'w', lines_to_keep)
-
-                # Store the deleted entries for this database
-                deleted_entries_by_database[database_path] = deleted_entries_in_this_database
-
-        # After processing all databases, show a detailed report
-        if deleted_entries_by_database:
-            report = (
-                f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} removed from the following '
-                f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
-            )
-            for database_path, deleted_entries in deleted_entries_by_database.items():
-                report += f'<b>{database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
-                report += '<ul>'
-                for entry in deleted_entries:
-                    report += f'<li>{entry}</li>'
-                report += '</ul><br>'
-            report = report.removesuffix('<br>')
-
-            QMessageBox.information(self, TITLE, report)
 
     def _select_all_cells_helper(self, *, select: bool) -> None:
         """Helper function to select or deselect all cells in the table.
@@ -957,26 +892,26 @@ class SessionTableView(QTableView):
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
 
-    def select_all_cells(self) -> None:
+    def _select_all_cells(self) -> None:
         """Select all cells in the table."""
         self._select_all_cells_helper(select=True)
 
-    def unselect_all_cells(self) -> None:
+    def _unselect_all_cells(self) -> None:
         """Unselect all cells in the table."""
         self._select_all_cells_helper(select=False)
 
-    def select_row_cells(self, row: int) -> None:
+    def _select_row_cells(self, row: int) -> None:
         """Select all cells in the specified row."""
         self._select_row_cells_helper(row, select=True)
 
-    def unselect_row_cells(self, row: int) -> None:
+    def _unselect_row_cells(self, row: int) -> None:
         """Unselect all cells in the specified row."""
         self._select_row_cells_helper(row, select=False)
 
-    def select_column_cells(self, column: int) -> None:
+    def _select_column_cells(self, column: int) -> None:
         """Select all cells in the specified column."""
         self._select_column_cells_helper(column, select=True)
 
-    def unselect_column_cells(self, column: int) -> None:
+    def _unselect_column_cells(self, column: int) -> None:
         """Unselect all cells in the specified column."""
         self._select_column_cells_helper(column, select=False)

@@ -5,291 +5,117 @@ from threading import Lock
 from typing import ClassVar
 
 
-class MobileWarnings:
+class _DetectionWarnings:
+    """Base class for thread-safe IP detection warning tracking."""
+
+    _lock: ClassVar[Lock]
+    _notified_ips: ClassVar[set[str]]
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._lock = Lock()
+        cls._notified_ips = set()
+
+    @classmethod
+    def add_notified_ip(cls, ip: str) -> bool:
+        """Add an IP to the notified set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to add.
+
+        Returns:
+            Whether the IP was newly added.
+        """
+        with cls._lock:
+            if ip in cls._notified_ips:
+                return False
+            cls._notified_ips.add(ip)
+            return True
+
+    @classmethod
+    def is_ip_notified(cls, ip: str) -> bool:
+        """Check if an IP has already been notified.
+
+        Args:
+            ip: The IP address to check.
+
+        Returns:
+            Whether the IP has been notified.
+        """
+        with cls._lock:
+            return ip in cls._notified_ips
+
+    @classmethod
+    def remove_notified_ip(cls, ip: str) -> bool:
+        """Remove an IP from the notified set in a thread-safe manner.
+
+        Args:
+            ip: The IP address to remove.
+
+        Returns:
+            Whether the IP was present and removed.
+        """
+        with cls._lock:
+            if ip in cls._notified_ips:
+                cls._notified_ips.discard(ip)
+                return True
+            return False
+
+    @classmethod
+    def clear_all_notified_ips(cls) -> None:
+        """Clear all notified IPs in a thread-safe manner."""
+        with cls._lock:
+            cls._notified_ips.clear()
+
+    @classmethod
+    def get_notified_ips_count(cls) -> int:
+        """Get the count of notified IPs in a thread-safe manner."""
+        with cls._lock:
+            return len(cls._notified_ips)
+
+    @classmethod
+    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+        """Remove multiple IPs from the notified set in a single thread-safe operation.
+
+        Args:
+            ips: Set of IP addresses to remove.
+
+        Returns:
+            The number of IPs that were actually removed.
+        """
+        with cls._lock:
+            initial_count = len(cls._notified_ips)
+            cls._notified_ips -= ips
+            return initial_count - len(cls._notified_ips)
+
+    @classmethod
+    def get_notified_ips_copy(cls) -> set[str]:
+        """Get a copy of the notified IPs set in a thread-safe manner."""
+        with cls._lock:
+            return cls._notified_ips.copy()
+
+
+class MobileWarnings(_DetectionWarnings):
     """Track which IPs have triggered the mobile detection warning."""
 
-    lock: ClassVar = Lock()
-    notified_mobile_ips: ClassVar[set[str]] = set()
 
-    @classmethod
-    def add_notified_ip(cls, ip: str) -> bool:
-        """Add an IP to the notified mobile IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to add
-
-        Returns:
-            Whether the IP was newly added.
-        """
-        with cls.lock:
-            if ip in cls.notified_mobile_ips:
-                return False
-            cls.notified_mobile_ips.add(ip)
-            return True
-
-    @classmethod
-    def is_ip_notified(cls, ip: str) -> bool:
-        """Check if an IP has already been notified for mobile detection.
-
-        Args:
-            ip: The IP address to check
-
-        Returns:
-            Whether the IP has been notified.
-        """
-        with cls.lock:
-            return ip in cls.notified_mobile_ips
-
-    @classmethod
-    def remove_notified_ip(cls, ip: str) -> bool:
-        """Remove an IP from the notified mobile IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to remove
-
-        Returns:
-            Whether the IP was present and removed.
-        """
-        with cls.lock:
-            if ip in cls.notified_mobile_ips:
-                cls.notified_mobile_ips.remove(ip)
-                return True
-            return False
-
-    @classmethod
-    def clear_all_notified_ips(cls) -> None:
-        """Clear all notified mobile IPs in a thread-safe manner."""
-        with cls.lock:
-            cls.notified_mobile_ips.clear()
-
-    @classmethod
-    def get_notified_ips_count(cls) -> int:
-        """Get the count of notified mobile IPs in a thread-safe manner.
-
-        Returns:
-            The number of notified mobile IPs
-        """
-        with cls.lock:
-            return len(cls.notified_mobile_ips)
-
-    @classmethod
-    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
-        """Remove multiple IPs from the notified mobile IPs set in a single thread-safe operation.
-
-        Args:
-            ips: Set of IP addresses to remove.
-
-        Returns:
-            The number of IPs that were actually removed.
-        """
-        with cls.lock:
-            initial_count = len(cls.notified_mobile_ips)
-            cls.notified_mobile_ips -= ips
-            return initial_count - len(cls.notified_mobile_ips)
-
-    @classmethod
-    def get_notified_ips_copy(cls) -> set[str]:
-        """Get a copy of the notified mobile IPs set in a thread-safe manner.
-
-        Returns:
-            A copy of the notified mobile IPs set
-        """
-        with cls.lock:
-            return cls.notified_mobile_ips.copy()
-
-
-class VPNWarnings:
+class VPNWarnings(_DetectionWarnings):
     """Track which IPs have triggered the VPN detection warning."""
 
-    lock: ClassVar = Lock()
-    notified_vpn_ips: ClassVar[set[str]] = set()
 
-    @classmethod
-    def add_notified_ip(cls, ip: str) -> bool:
-        """Add an IP to the notified VPN IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to add
-
-        Returns:
-            Whether the IP was newly added.
-        """
-        with cls.lock:
-            if ip in cls.notified_vpn_ips:
-                return False
-            cls.notified_vpn_ips.add(ip)
-            return True
-
-    @classmethod
-    def is_ip_notified(cls, ip: str) -> bool:
-        """Check if an IP has already been notified for VPN detection.
-
-        Args:
-            ip: The IP address to check
-
-        Returns:
-            Whether the IP has been notified.
-        """
-        with cls.lock:
-            return ip in cls.notified_vpn_ips
-
-    @classmethod
-    def remove_notified_ip(cls, ip: str) -> bool:
-        """Remove an IP from the notified VPN IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to remove
-
-        Returns:
-            Whether the IP was present and removed.
-        """
-        with cls.lock:
-            if ip in cls.notified_vpn_ips:
-                cls.notified_vpn_ips.remove(ip)
-                return True
-            return False
-
-    @classmethod
-    def clear_all_notified_ips(cls) -> None:
-        """Clear all notified VPN IPs in a thread-safe manner."""
-        with cls.lock:
-            cls.notified_vpn_ips.clear()
-
-    @classmethod
-    def get_notified_ips_count(cls) -> int:
-        """Get the count of notified VPN IPs in a thread-safe manner.
-
-        Returns:
-            The number of notified VPN IPs
-        """
-        with cls.lock:
-            return len(cls.notified_vpn_ips)
-
-    @classmethod
-    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
-        """Remove multiple IPs from the notified VPN IPs set in a single thread-safe operation.
-
-        Args:
-            ips: Set of IP addresses to remove.
-
-        Returns:
-            The number of IPs that were actually removed.
-        """
-        with cls.lock:
-            initial_count = len(cls.notified_vpn_ips)
-            cls.notified_vpn_ips -= ips
-            return initial_count - len(cls.notified_vpn_ips)
-
-    @classmethod
-    def get_notified_ips_copy(cls) -> set[str]:
-        """Get a copy of the notified VPN IPs set in a thread-safe manner.
-
-        Returns:
-            A copy of the notified VPN IPs set
-        """
-        with cls.lock:
-            return cls.notified_vpn_ips.copy()
-
-
-class HostingWarnings:
+class HostingWarnings(_DetectionWarnings):
     """Track which IPs have triggered the hosting detection warning."""
 
-    lock: ClassVar = Lock()
-    notified_hosting_ips: ClassVar[set[str]] = set()
 
-    @classmethod
-    def add_notified_ip(cls, ip: str) -> bool:
-        """Add an IP to the notified hosting IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to add
-
-        Returns:
-            Whether the IP was newly added.
-        """
-        with cls.lock:
-            if ip in cls.notified_hosting_ips:
-                return False
-            cls.notified_hosting_ips.add(ip)
-            return True
-
-    @classmethod
-    def is_ip_notified(cls, ip: str) -> bool:
-        """Check if an IP has already been notified for hosting detection.
-
-        Args:
-            ip: The IP address to check
-
-        Returns:
-            Whether the IP has been notified.
-        """
-        with cls.lock:
-            return ip in cls.notified_hosting_ips
-
-    @classmethod
-    def remove_notified_ip(cls, ip: str) -> bool:
-        """Remove an IP from the notified hosting IPs set in a thread-safe manner.
-
-        Args:
-            ip: The IP address to remove
-
-        Returns:
-            Whether the IP was present and removed.
-        """
-        with cls.lock:
-            if ip in cls.notified_hosting_ips:
-                cls.notified_hosting_ips.remove(ip)
-                return True
-            return False
-
-    @classmethod
-    def clear_all_notified_ips(cls) -> None:
-        """Clear all notified hosting IPs in a thread-safe manner."""
-        with cls.lock:
-            cls.notified_hosting_ips.clear()
-
-    @classmethod
-    def get_notified_ips_count(cls) -> int:
-        """Get the count of notified hosting IPs in a thread-safe manner.
-
-        Returns:
-            The number of notified hosting IPs
-        """
-        with cls.lock:
-            return len(cls.notified_hosting_ips)
-
-    @classmethod
-    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
-        """Remove multiple IPs from the notified hosting IPs set in a single thread-safe operation.
-
-        Args:
-            ips: Set of IP addresses to remove.
-
-        Returns:
-            The number of IPs that were actually removed.
-        """
-        with cls.lock:
-            initial_count = len(cls.notified_hosting_ips)
-            cls.notified_hosting_ips -= ips
-            return initial_count - len(cls.notified_hosting_ips)
-
-    @classmethod
-    def get_notified_ips_copy(cls) -> set[str]:
-        """Get a copy of the notified hosting IPs set in a thread-safe manner.
-
-        Returns:
-            A copy of the notified hosting IPs set
-        """
-        with cls.lock:
-            return cls.notified_hosting_ips.copy()
-
-
-@dataclass(kw_only=True, slots=True)
-class GUIDetectionSettings:
+@dataclass(slots=True)
+class _GUIDetectionSettings:
     """Runtime GUI detection settings that persist during application execution but are not saved to settings file."""
-    mobile_detection_enabled: ClassVar[bool] = False
-    vpn_detection_enabled: ClassVar[bool] = False
-    hosting_detection_enabled: ClassVar[bool] = False
-    player_join_notifications_enabled: ClassVar[bool] = False
-    player_rejoin_notifications_enabled: ClassVar[bool] = False
-    player_leave_notifications_enabled: ClassVar[bool] = False
+    mobile_detection_enabled: bool = False
+    vpn_detection_enabled: bool = False
+    hosting_detection_enabled: bool = False
+    player_join_notifications_enabled: bool = False
+    player_rejoin_notifications_enabled: bool = False
+    player_leave_notifications_enabled: bool = False
+
+
+GUI_DETECTION_SETTINGS = _GUIDetectionSettings()

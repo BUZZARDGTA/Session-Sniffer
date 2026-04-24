@@ -282,6 +282,31 @@ def format_userip_missing_settings_message(
     """
 
 
+def format_userip_duplicate_entries_message(
+    *,
+    ini_path: Path,
+    duplicates: Sequence[tuple[str, str]],
+) -> str:
+    """Format the warning shown when exact duplicate entries are found and auto-removed."""
+    duplicate_count = len(duplicates)
+    max_examples = 10
+    examples = '\n                '.join(f'{username}={ip}' for username, ip in duplicates[:max_examples])
+    truncation_note = f'\n                ... and {duplicate_count - max_examples} more' if duplicate_count > max_examples else ''
+    return f"""
+        WARNING:
+            Duplicate entries removed from UserIP Database
+
+        INFOS:
+            {duplicate_count} exact duplicate entr{"y" if duplicate_count == 1 else "ies"}
+            {"was" if duplicate_count == 1 else "were"} found and automatically removed from:
+            "{ini_path}"
+
+        DEBUG:
+            Removed duplicate{pluralize(duplicate_count)}:
+                {examples}{truncation_note}
+    """
+
+
 def format_arp_spoofing_failed_message(
     selected_interface: SelectedInterface,
     exit_code: int | None,
@@ -305,6 +330,7 @@ def format_arp_spoofing_failed_message(
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'Name: {selected_interface.name}\n'
         f'Description: {selected_interface.description}\n'
+        f'Gateway IP: {selected_interface.gateway_ip or "N/A"}\n'
         f'IP Address: {interface_ip}\n'
         f'MAC Address: {interface_mac}\n'
         f'Vendor Name: {interface_vendor_name}\n\n'

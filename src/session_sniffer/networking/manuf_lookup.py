@@ -3,7 +3,7 @@
 Includes functions to fetch, parse, and search the database, with support for longest-prefix matching.
 """
 import re
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.networking.exceptions import (
@@ -15,8 +15,7 @@ from session_sniffer.networking.exceptions import (
 )
 from session_sniffer.networking.utils import is_mac_address
 
-if TYPE_CHECKING:
-    ManufDatabaseType = dict[str, list['ManufEntry']]
+type ManufDatabaseType = dict[str, list[ManufEntry]]
 
 MANUF_FILE_PATH = RESOURCES_DIR_PATH / 'manuf'
 RE_MANUF_ENTRY_PATTERN = re.compile(

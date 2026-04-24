@@ -6,13 +6,17 @@ from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import take
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
+logger = get_logger(__name__)
+
 MINIMUM_PACKETS_FOR_SESSION_HOST = 50
 SESSION_HOST_CANDIDATE_PLAYERS_COUNT = 2
+SESSION_HOST_AMBIGUITY_THRESHOLD_MS = 50
 
 
 class PlayersRegistry:
@@ -20,10 +24,10 @@ class PlayersRegistry:
 
     This class provides methods to add, retrieve, and iterate over players in the registry.
     """
-    _DEFAULT_CONNECTED_SORT_ORDER: ClassVar = 'datetime.last_rejoin'
-    _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar = 'datetime.last_seen'
+    _DEFAULT_CONNECTED_SORT_ORDER: ClassVar[str] = 'datetime.last_rejoin'
+    _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar[str] = 'datetime.last_seen'
 
-    _registry_lock: ClassVar = RLock()
+    _registry_lock: ClassVar[RLock] = RLock()
     _connected_players_registry: ClassVar[dict[str, Player]] = {}
     _disconnected_players_registry: ClassVar[dict[str, Player]] = {}
 
@@ -52,7 +56,7 @@ class PlayersRegistry:
         Returns:
             The player object that was added.
 
-        Raies:
+        Raises:
             PlayerAlreadyExistsError: If the player already exists in the registry.
         """
         with cls._registry_lock:
@@ -109,6 +113,16 @@ class PlayersRegistry:
         """
         with cls._registry_lock:
             return cls._connected_players_registry.get(ip) or cls._disconnected_players_registry.get(ip)
+
+    @classmethod
+    def get_connected_players(cls) -> list[Player]:
+        """Return a snapshot of connected players (unsorted).
+
+        Use this instead of ``get_default_sorted_players`` when sort order
+        is irrelevant, to avoid an unnecessary O(n log n) sort.
+        """
+        with cls._registry_lock:
+            return list(cls._connected_players_registry.values())
 
     @classmethod
     def get_default_sorted_players(
@@ -184,6 +198,7 @@ class SessionHost:
     player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
     players_pending_for_disconnection: ClassVar[list[Player]] = []
+    last_ambiguous_candidates: ClassVar[tuple[str, str] | None] = None
 
     @classmethod
     def clear_session_host_data(cls) -> None:
@@ -191,20 +206,53 @@ class SessionHost:
         cls.players_pending_for_disconnection.clear()
         cls.search_player = False
         cls.player = None
+        cls.last_ambiguous_candidates = None
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players."""
+        logger.debug(
+            '[SessionHost] get_host_player called with %d total connected players',
+            len(session_connected),
+        )
         connected_players: list[Player] = take(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
+
+        for i, p in enumerate(connected_players):
+            logger.debug(
+                '[SessionHost]   candidate[%d]: ip=%s, last_rejoin=%s, packets_exchanged=%d',
+                i, p.ip, p.datetime.last_rejoin, p.packets.exchanged,
+            )
 
         potential_session_host_player = None
 
         if len(connected_players) == 1:
+            logger.debug('[SessionHost] Single candidate, selecting as potential host')
             potential_session_host_player = connected_players[0]
         elif len(connected_players) == SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
             time_difference = connected_players[1].datetime.last_rejoin - connected_players[0].datetime.last_rejoin
-            if time_difference >= timedelta(milliseconds=200):
+            logger.debug(
+                '[SessionHost] Two candidates, time_difference=%s (threshold=%sms)',
+                time_difference, SESSION_HOST_AMBIGUITY_THRESHOLD_MS,
+            )
+            if time_difference >= timedelta(milliseconds=SESSION_HOST_AMBIGUITY_THRESHOLD_MS):
+                logger.debug('[SessionHost] Gap >= %sms, selecting candidate[0] as potential host', SESSION_HOST_AMBIGUITY_THRESHOLD_MS)
                 potential_session_host_player = connected_players[0]
+            elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in connected_players):
+                # Time gap is ambiguous, but both candidates have enough packets.
+                # Use packet count as tiebreaker — the host relays all traffic, so it typically exchanges more packets.
+                potential_session_host_player = max(connected_players, key=attrgetter('packets.exchanged'))
+                logger.debug(
+                    '[SessionHost] Gap < %sms but both have >= %d packets, using packet count tiebreaker: %s (%d packets)',
+                    SESSION_HOST_AMBIGUITY_THRESHOLD_MS, MINIMUM_PACKETS_FOR_SESSION_HOST,
+                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged,
+                )
+            else:
+                logger.debug('[SessionHost] Gap < %sms, not enough packets for tiebreaker yet', SESSION_HOST_AMBIGUITY_THRESHOLD_MS)
+                # Timestamps are immutable — retrying the same pair will always produce the same result.
+                # Once both candidates accumulate enough packets, the renderer will re-trigger the search
+                # so the packet count tiebreaker can be applied.
+                SessionHost.last_ambiguous_candidates = (connected_players[0].ip, connected_players[1].ip)
+                SessionHost.search_player = False
         else:
             raise UnexpectedPlayerCountError(len(connected_players))
 
@@ -217,8 +265,21 @@ class SessionHost:
             # However, increasing this value also increases the risk, as the host may have already disconnected.
             or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_SESSION_HOST
         ):
+            if not potential_session_host_player:
+                logger.debug('[SessionHost] Rejected: no potential host candidate was selected')
+            elif potential_session_host_player in SessionHost.players_pending_for_disconnection:
+                logger.debug(
+                    '[SessionHost] Rejected: candidate %s is in players_pending_for_disconnection (%d pending)',
+                    potential_session_host_player.ip, len(SessionHost.players_pending_for_disconnection),
+                )
+            else:
+                logger.debug(
+                    '[SessionHost] Rejected: candidate %s has %d packets (need >= %d)',
+                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged, MINIMUM_PACKETS_FOR_SESSION_HOST,
+                )
             return None
 
+        logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
         SessionHost.player = potential_session_host_player
         SessionHost.search_player = False
         return potential_session_host_player

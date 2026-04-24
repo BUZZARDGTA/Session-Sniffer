@@ -1,7 +1,9 @@
 """Session table model for connected and disconnected player tables."""
 
 import ipaddress
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from operator import attrgetter
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import (
@@ -81,7 +83,16 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
 }
 
 
-class SessionTableModel(QAbstractTableModel):
+@dataclass(frozen=True, slots=True)
+class _ColumnIndices:
+    """Immutable cache of frequently used column indices."""
+
+    ip: int
+    username: int
+    country: int | None
+
+
+class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public-methods
     """Provide a Qt table model for rendering connected/disconnected sessions."""
 
     TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
@@ -98,15 +109,19 @@ class SessionTableModel(QAbstractTableModel):
         self._data: list[list[str]] = []  # The data to be displayed in the table
         self._compiled_colors: list[list[CellColor]] = []  # The compiled colors for the table
         self._headers = headers  # The column headers
-        self._ip_column_index = self._headers.index('IP Address')
-        self._username_column_index = self._headers.index('Usernames')
+        self._col_indices = _ColumnIndices(
+            ip=self._headers.index('IP Address'),
+            username=self._headers.index('Usernames'),
+            country=self.get_column_index('Country'),
+        )
+        self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
 
     # --------------------------------------------------------------------------
     # Public properties
     # --------------------------------------------------------------------------
 
-    @classmethod
-    def remove_session_host_crown_from_ip(cls, ip_address: str) -> str:
+    @staticmethod
+    def _remove_session_host_crown_from_ip(ip_address: str) -> str:
         """Remove the crown suffix from an IP address string if present.
 
         The crown emoji (👑) is used to indicate that this IP address belongs to the session host.
@@ -138,13 +153,18 @@ class SessionTableModel(QAbstractTableModel):
     # --------------------------------------------------------------------------
 
     @property
+    def column_names(self) -> list[str]:
+        """Return the current column header names."""
+        return self._headers
+
+    @property
     def ip_column_index(self) -> int:
         """Returns the index of the 'IP Address' column in this table model.
 
         This value is computed during initialization based on the `headers` provided.<br>
         It is read-only and specific to this instance.
         """
-        return self._ip_column_index
+        return self._col_indices.ip
 
     @property
     def username_column_index(self) -> int:
@@ -153,7 +173,7 @@ class SessionTableModel(QAbstractTableModel):
         This value is computed during initialization based on the `headers` provided.<br>
         It is read-only and specific to this instance.
         """
-        return self._username_column_index
+        return self._col_indices.username
 
     # --------------------------------------------------------------------------
     # Qt model methods (overrides)
@@ -185,7 +205,7 @@ class SessionTableModel(QAbstractTableModel):
 
         output: str | QBrush | QIcon | None = None
 
-        if role == Qt.ItemDataRole.DecorationRole and self.has_column('Country') and self.get_column_index('Country') == col_idx:
+        if role == Qt.ItemDataRole.DecorationRole and self._col_indices.country is not None and self._col_indices.country == col_idx:
             ip = self.get_ip_from_data_safely(self._data[row_idx])
 
             matched_player = PlayersRegistry.get_player_by_ip(ip)
@@ -269,53 +289,53 @@ class SessionTableModel(QAbstractTableModel):
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
-            # Sort by raw datetime values from player objects
-            def extract_datetime_for_ip(ip: str) -> datetime:
-                """Extract datetime value for a given IP address."""
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is None:
-                    return datetime.min.replace(tzinfo=UTC)
-
-                datetime_mapping = {
-                    'First Seen': matched_player.datetime.first_seen,
-                    'Last Rejoin': matched_player.datetime.last_rejoin,
-                    'Last Seen': matched_player.datetime.last_seen,
-                }
-                return datetime_mapping[sorted_column_name]
+            # Precompute datetime values once to avoid O(n log n) registry lookups in the sort key
+            _datetime_attr = {'First Seen': 'first_seen', 'Last Rejoin': 'last_rejoin', 'Last Seen': 'last_seen'}[sorted_column_name]
+            _default_dt = datetime.min.replace(tzinfo=UTC)
+            _ip_datetime_map: dict[str, datetime] = {
+                self.get_ip_from_data_safely(row): (
+                    getattr(p.datetime, _datetime_attr)
+                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else _default_dt
+                )
+                for row, _ in combined
+            }
 
             combined.sort(
-                key=lambda row: extract_datetime_for_ip(self.get_ip_from_data_safely(row[0])),
+                key=lambda row: _ip_datetime_map[self.get_ip_from_data_safely(row[0])],
                 reverse=not sort_order_bool,
             )
         elif sorted_column_name == 'T. Session Time':
-            # Sort by total session time duration from player objects
-            def extract_total_session_time_for_ip(ip: str) -> timedelta:
-                """Extract total session time value for a given IP address."""
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is None:
-                    return timedelta(0)
-                return matched_player.datetime.get_total_session_time()
+            # Precompute total session time values once to avoid O(n log n) registry lookups in the sort key
+            _ip_total_session_time_map: dict[str, timedelta] = {
+                self.get_ip_from_data_safely(row): (
+                    p.datetime.get_total_session_time()
+                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else timedelta(0)
+                )
+                for row, _ in combined
+            }
 
             combined.sort(
-                key=lambda row: extract_total_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
+                key=lambda row: _ip_total_session_time_map[self.get_ip_from_data_safely(row[0])],
                 reverse=sort_order_bool,
             )
         elif sorted_column_name == 'Session Time':
-            # Sort by session time duration from player objects
-            def extract_session_time_for_ip(ip: str) -> timedelta:
-                """Extract session time value for a given IP address."""
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is None:
-                    return timedelta(0)
-                return matched_player.datetime.get_session_time()
+            # Precompute session time values once to avoid O(n log n) registry lookups in the sort key
+            _ip_session_time_map: dict[str, timedelta] = {
+                self.get_ip_from_data_safely(row): (
+                    p.datetime.get_session_time()
+                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else timedelta(0)
+                )
+                for row, _ in combined
+            }
 
             combined.sort(
-                key=lambda row: extract_session_time_for_ip(self.get_ip_from_data_safely(row[0])),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name == 'IP Address':
-            combined.sort(
-                key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
+                key=lambda row: (
+                    _ip_session_time_map[self.get_ip_from_data_safely(row[0])],
+                    ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
+                ),
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {
@@ -331,27 +351,29 @@ class SessionTableModel(QAbstractTableModel):
         elif sorted_column_name in {
             'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
         }:
-            # Sort by raw bandwidth integer values from player objects
-            def extract_bandwidth_for_ip(ip: str) -> int:
-                """Extract bandwidth value for a given IP address."""
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is None:
-                    return 0
-
-                bandwidth_mapping = {
-                    'T. Bandwith': matched_player.bandwidth.total_exchanged,
-                    'Bandwith': matched_player.bandwidth.exchanged,
-                    'T. Download': matched_player.bandwidth.total_download,
-                    'Download': matched_player.bandwidth.download,
-                    'T. Upload': matched_player.bandwidth.total_upload,
-                    'Upload': matched_player.bandwidth.upload,
-                    'BPS': matched_player.bandwidth.bps.calculated_rate,
-                    'BPM': matched_player.bandwidth.bpm.calculated_rate,
-                }
-                return bandwidth_mapping[sorted_column_name]
+            # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
+            _bandwidth_attr_map = {
+                'T. Bandwith': 'bandwidth.total_exchanged',
+                'Bandwith': 'bandwidth.exchanged',
+                'T. Download': 'bandwidth.total_download',
+                'Download': 'bandwidth.download',
+                'T. Upload': 'bandwidth.total_upload',
+                'Upload': 'bandwidth.upload',
+                'BPS': 'bandwidth.bps.calculated_rate',
+                'BPM': 'bandwidth.bpm.calculated_rate',
+            }
+            _bw_attr = _bandwidth_attr_map[sorted_column_name]
+            _ip_bandwidth_map: dict[str, int] = {
+                self.get_ip_from_data_safely(row): (
+                    attrgetter(_bw_attr)(p)
+                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else 0
+                )
+                for row, _ in combined
+            }
 
             combined.sort(
-                key=lambda row: extract_bandwidth_for_ip(self.get_ip_from_data_safely(row[0])),
+                key=lambda row: _ip_bandwidth_map[self.get_ip_from_data_safely(row[0])],
                 reverse=sort_order_bool,
             )
         elif sorted_column_name == 'Middle Ports':
@@ -366,17 +388,18 @@ class SessionTableModel(QAbstractTableModel):
                 key=lambda row: float(row[0][column]) if row[0][column] != '...' else float('-inf'),
                 reverse=sort_order_bool,
             )
+        elif sorted_column_name == 'IP Address':
+            # Sort by numeric IP address value
+            combined.sort(
+                key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
+                reverse=sort_order_bool,
+            )
         elif sorted_column_name in {
             'Hostname', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code',
             'Time Zone', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN',
+            'Mobile', 'VPN', 'Hosting', 'Pinging',
         }:
             # Sort by string representation of the column value
-            combined.sort(
-                key=lambda row: str(row[0][column]).casefold(),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in {'Mobile', 'VPN', 'Hosting', 'Pinging'}:
-            # Sort by boolean representation of the column value
             combined.sort(
                 key=lambda row: str(row[0][column]).casefold(),
                 reverse=sort_order_bool,
@@ -386,6 +409,7 @@ class SessionTableModel(QAbstractTableModel):
 
         # Unpack the sorted data
         self._data, self._compiled_colors = map(list, zip(*combined, strict=True))
+        self._rebuild_ip_index()
 
         self.layoutChanged.emit()
 
@@ -393,30 +417,26 @@ class SessionTableModel(QAbstractTableModel):
     # Custom / internal management methods
     # --------------------------------------------------------------------------
 
-    def has_column(self, column_name: str, /) -> bool:
-        """Check if a column is visible in the table.
+    def _rebuild_ip_index(self) -> None:
+        """Rebuild the IP-to-row-index cache from current data."""
+        self._ip_to_row_index = {
+            self.get_ip_from_data_safely(row): idx
+            for idx, row in enumerate(self._data)
+        }
 
-        Args:
-            column_name: The column name to check.
-
-        Returns:
-            Whether the column exists.
-        """
-        return column_name in self._headers
-
-    def get_column_index(self, column_name: str, /) -> int:
-        """Get the table index of a specified column.
+    def get_column_index(self, column_name: str, /) -> int | None:
+        """Get the table index of a specified column, or None if not present.
 
         Args:
             column_name: The column name to look for.
 
         Returns:
-            The column index.
-
-        Raises:
-            ValueError: If the column is not visible.
+            The column index, or None if the column is not visible.
         """
-        return self._headers.index(column_name)
+        try:
+            return self._headers.index(column_name)
+        except ValueError:
+            return None
 
     def get_row_index_by_ip(self, ip: str, /) -> int | None:
         """Find the row index for the given IP address.
@@ -427,10 +447,25 @@ class SessionTableModel(QAbstractTableModel):
         Returns:
             The index of the row containing the IP address, or None if not found.
         """
-        for row_index, row_data in enumerate(self._data):
-            if self.get_ip_from_data_safely(row_data) == ip:
-                return row_index
-        return None
+        return self._ip_to_row_index.get(ip)
+
+    def get_ip_for_row(self, row: int, /) -> str:
+        """Return the IP address for the given row index.
+
+        Args:
+            row: The row index.
+
+        Returns:
+            The IP address string for the row.
+
+        Raises:
+            IndexError: If the row index is out of bounds.
+        """
+        return self.get_ip_from_data_safely(self._data[row])
+
+    def get_all_ips(self) -> list[str]:
+        """Return the IP address for every row currently in the model."""
+        return [self.get_ip_from_data_safely(row_data) for row_data in self._data]
 
     def get_ip_from_data_safely(self, row_data: list[str]) -> str:
         """Safely extract an IP address as a string from row data.
@@ -453,7 +488,7 @@ class SessionTableModel(QAbstractTableModel):
 
         ip_data = row_data[self.ip_column_index]
 
-        return self.remove_session_host_crown_from_ip(ip_data)
+        return self._remove_session_host_crown_from_ip(ip_data)
 
     def get_display_text(self, index: QModelIndex) -> str | None:
         """Extract display text as a string from model data.
@@ -480,22 +515,9 @@ class SessionTableModel(QAbstractTableModel):
 
         # If this is an IP Address column, remove the crown suffix
         if index.column() == self.ip_column_index:
-            return self.remove_session_host_crown_from_ip(display_data)
+            return self._remove_session_host_crown_from_ip(display_data)
 
         return display_data
-
-    def sort_current_column(self) -> None:
-        """Call the sort method with the current column index and order.
-
-        Ensures sorting reflects the current state of the header.
-        """
-        # Retrieve the current sort column and order
-        horizontal_header = self.view.horizontalHeader()
-        sort_column = horizontal_header.sortIndicatorSection()
-        sort_order = horizontal_header.sortIndicatorOrder()
-
-        # Call the sort function with the retrieved arguments
-        self.sort(sort_column, sort_order)
 
     def add_row_without_refresh(self, row_data: list[str], row_colors: list[CellColor]) -> None:
         """Add a new row to the model without notifying the view in real time.
@@ -505,8 +527,11 @@ class SessionTableModel(QAbstractTableModel):
             row_colors: A list of `CellColor` objects corresponding to the row's colors.
         """
         # Only update internal data without triggering signals
+        row_index = len(self._data)
         self._data.append(row_data)
         self._compiled_colors.append(row_colors)
+        ip = self.get_ip_from_data_safely(row_data)
+        self._ip_to_row_index[ip] = row_index
 
     def update_row_without_refresh(self, row_index: int, row_data: list[str], row_colors: list[CellColor]) -> None:
         """Update an existing row in the model with new data and colors without notifying the view in real time.
@@ -517,8 +542,13 @@ class SessionTableModel(QAbstractTableModel):
             row_colors: A list of `CellColor` objects corresponding to the row's colors.
         """
         if 0 <= row_index < self.rowCount():
+            # Remove old IP mapping before updating
+            old_ip = self.get_ip_from_data_safely(self._data[row_index])
+            self._ip_to_row_index.pop(old_ip, None)
             self._data[row_index] = row_data
             self._compiled_colors[row_index] = row_colors
+            new_ip = self.get_ip_from_data_safely(row_data)
+            self._ip_to_row_index[new_ip] = row_index
 
     def delete_row(self, row_index: int) -> None:
         """Delete a row from the model along with its associated colors.
@@ -544,11 +574,12 @@ class SessionTableModel(QAbstractTableModel):
                     selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
 
             # Notify the view that rows are about to be removed
-            self.beginRemoveRows(self.index(row_index, 0), row_index, row_index)
+            self.beginRemoveRows(QModelIndex(), row_index, row_index)
 
             # Remove the data and compiled colors at the specified index
             self._data.pop(row_index)
             self._compiled_colors.pop(row_index)
+            self._rebuild_ip_index()
 
             # Adjust selection for rows below the deleted one
             for index in selection_model.selection().indexes():
@@ -576,6 +607,7 @@ class SessionTableModel(QAbstractTableModel):
                 self.beginResetModel()
                 self._data = []
                 self._compiled_colors = []
+                self._ip_to_row_index.clear()
                 # End reset and notify the view that the model has been reset
                 self.endResetModel()
 
@@ -583,11 +615,26 @@ class SessionTableModel(QAbstractTableModel):
             # view.resizeRowsToContents()
             # view.viewport().update()
 
-    def clear_all_data(self) -> None:
-        """Clear all data from the table model."""
+    def reset_columns(self, headers: list[str] | None = None) -> None:
+        """Replace column headers and clear all data.
+
+        When *headers* is `None` the current headers are kept and only the
+        row data is cleared (equivalent to the old `clear_all_data`).
+
+        Args:
+            headers: New column header labels, or `None` to keep the current ones.
+        """
         self.beginResetModel()
+        if headers is not None:
+            self._headers = headers
+            self._col_indices = _ColumnIndices(
+                ip=self._headers.index('IP Address'),
+                username=self._headers.index('Usernames'),
+                country=self.get_column_index('Country'),
+            )
         self._data = []
         self._compiled_colors = []
+        self._ip_to_row_index.clear()
         self.endResetModel()
 
     def remove_player_by_ip(self, ip: str) -> None:
@@ -596,17 +643,17 @@ class SessionTableModel(QAbstractTableModel):
         Args:
             ip: The IP address of the player to remove.
         """
-        # Find the row containing this IP address
-        for row_idx, row_data in enumerate(self._data):
-            row_ip = self.get_ip_from_data_safely(row_data)
-            if row_ip == ip:
-                # Remove the row
-                self.beginRemoveRows(QModelIndex(), row_idx, row_idx)
-                self._data.pop(row_idx)
-                if row_idx < len(self._compiled_colors):
-                    self._compiled_colors.pop(row_idx)
-                self.endRemoveRows()
-                break
+        row_idx = self._ip_to_row_index.get(ip)
+        if row_idx is None:
+            return
+
+        # Remove the row
+        self.beginRemoveRows(QModelIndex(), row_idx, row_idx)
+        self._data.pop(row_idx)
+        if row_idx < len(self._compiled_colors):
+            self._compiled_colors.pop(row_idx)
+        self._rebuild_ip_index()
+        self.endRemoveRows()
 
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""

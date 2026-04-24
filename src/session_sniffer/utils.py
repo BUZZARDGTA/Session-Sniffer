@@ -92,7 +92,7 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
 
     Use `scope='local'` for machine-specific and/or potentially large, non-syncable data,
     such as:
-    - Logs (e.g., `error.log`, session logs)
+    - Logs (e.g., `warnings.log`, `errors.log`, session logs)
     - Large databases/caches (e.g., GeoLite2 databases)
 
     This function prefers the Windows environment variables (`APPDATA` and `LOCALAPPDATA`)
@@ -130,12 +130,14 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
 
 def set_window_title(title: str) -> None:
     """Set the terminal window title (best-effort)."""
-    sys.stdout.write(f'\033]0;{title}\007')
+    if sys.stdout is not None:
+        sys.stdout.write(f'\033]0;{title}\007')
 
 
 def clear_screen() -> None:
     """Clear the terminal screen (best-effort)."""
-    sys.stdout.write('\033c')
+    if sys.stdout is not None:
+        sys.stdout.write('\033c')
 
 
 def validate_file(file_path: Path) -> Path:
@@ -203,20 +205,22 @@ def write_lines_to_file(file: Path, mode: Literal['w', 'x', 'a'], lines: list[st
         mode: The file mode ('w', 'x' or 'a').
         lines: A list of lines to write to the file.
     """
-    # Copy the input lines to avoid modifying the original list
-    content = lines[:]
-
     # If the content list is empty, exit early without writing to the file
-    if not content:
+    if not lines:
         return
 
-    # If appending to a file, ensure a leading newline is added if the file exists, otherwise creates it.
-    if mode == 'a' and is_file_need_newline_ending(file):
-        content.insert(0, '')
+    # Copy the input lines to avoid modifying the original list only when mutation is needed
+    need_leading_newline = mode == 'a' and is_file_need_newline_ending(file)
+    need_trailing_newline = not lines[-1].endswith('\n')
 
-    # Ensure the last line ends with a newline character
-    if not content[-1].endswith('\n'):
-        content[-1] += '\n'
+    if need_leading_newline or need_trailing_newline:
+        content = lines[:]
+        if need_leading_newline:
+            content.insert(0, '')
+        if need_trailing_newline:
+            content[-1] += '\n'
+    else:
+        content = lines
 
     # Write content to the file
     with file.open(mode, encoding='utf-8') as f:
@@ -281,7 +285,7 @@ def check_case_insensitive_and_exact_match(input_value: str, custom_values_tuple
     It also returns the correctly capitalized version of the matched value from the tuple if a case-insensitive match is found.
     If no match is found, raises a NoMatchFoundError.
 
-    Returns a tuple of three values:
+    Returns a tuple of two values:
     - The first boolean is True if the exact case-sensitive match is found.
     - The second value is the correctly capitalized version of the matched string, never None.
     """
@@ -430,7 +434,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     if args is not None:
         full_command.extend(args)
 
-    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
 
 
 def run_cmd_command(command: str, args: list[str] | None = None) -> None:
@@ -442,4 +446,4 @@ def run_cmd_command(command: str, args: list[str] | None = None) -> None:
     if args is not None:
         full_command.extend(args)
 
-    subprocess.Popen(full_command, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)

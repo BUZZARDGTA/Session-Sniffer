@@ -27,10 +27,9 @@ Important import note: even with the `src/` layout, Python imports remain `from 
 Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `src/session_sniffer/constants/local.py`.
 
 - Local AppData (`scope='local'`) is for machine-specific and/or potentially large data (logs / databases / caches):
-	- `error.log`
-	- GeoLite2 databases
-	- `Sessions Logging`
-	- `UserIP_Logging.log`
+	- `Debug/` — debug log files (`errors.log`, `warnings.log`)
+	- `Logging/` — application CSV logs (`Detection_Logging.csv`, `Protection_Logging.csv`, `UserIP_Logging.csv`) and `Sessions/` subdirectory
+	- `GeoLite2 Databases/`
 - Roaming AppData (`scope='roaming'`) is for user-owned and potentially syncable data (config / user-managed content):
 	- `Settings.ini`
 	- UserIP databases
@@ -55,7 +54,7 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - **Future Imports**: Never use `from __future__ import annotations`. The project uses Python 3.14, which has native support for postponed annotation evaluation and does not require this import.
 - **Type Hints**: Never use quoted forward references. Python 3.14 resolves annotations natively, so always use unquoted types (e.g., `selected_interface: SelectedInterface`).
 - Avoid blocking operations or high‑latency lookups in the packet callback; offload to threads as done for user IP tasks.
-- GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `clear_all_data`); do not mutate Qt widgets from background threads.
+- GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `reset_columns`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
 - Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.reconstruct_settings()` once per batch.
 - User-data paths: Do not write into the repo/install directory. Use the path constants from `src/session_sniffer/constants/local.py`.
@@ -65,11 +64,11 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Logging:
 	- Configure once at startup via `session_sniffer.logging_setup.setup_logging(...)` (imported from `src/session_sniffer/logging_setup.py`; already done in `src/session_sniffer/main.py`).
 	- Obtain loggers via `session_sniffer.logging_setup.get_logger(__name__)` (imported from `src/session_sniffer/logging_setup.py`; idempotent and safe anywhere).
-	- Console output is Rich-formatted; file logging writes WARNING+ to a rotating `error.log` under LOCALAPPDATA (the app data directory; not the current working directory).
+	- Console output is Rich-formatted; file logging is split into `warnings.log` (WARNING only) and `errors.log` (ERROR+) under LOCALAPPDATA (the app data directory; not the current working directory).
 	- Prefer `logger.debug/info/warning/error/exception(...)` over `print()` for diagnostics; use the shared Rich `console` only for intentional rich terminal output.
 
 ## Safe Extension Examples
-- Adding a new player column: Append to `Settings.GUI_ALL_CONNECTED_COLUMNS`, ensure not in `CONNECTED_HIDDEN_COLUMNS` or `DISCONNECTED_HIDDEN_COLUMNS`, update rendering_core mapping, and refresh header texts.
+- Adding a new player column: Append to `Settings.GUI_ALL_CONNECTED_COLUMNS`, add to `GUI_TOGGLEABLE_CONNECTED_COLUMNS` and/or `GUI_TOGGLEABLE_DISCONNECTED_COLUMNS`, update rendering_core mapping, and refresh header texts.
 - Adding a resource directory: Place under repo root, then append to `datas` in `Session_Sniffer.spec` with correct relative path mapping.
 - Adding a detection toggle: Create a flag in `GUIDetectionSettings`, add QAction in the Detection menu mirroring existing pattern, and integrate logic where warnings are issued.
 

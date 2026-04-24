@@ -62,17 +62,17 @@ def format_player_middle_ports(player: Player) -> str:
 def _format_player_gui_datetime(datetime_object: datetime) -> str:
     formatted_elapsed = None
 
-    if Settings.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME:
+    if Settings.gui_columns_datetime_show_elapsed_time:
         elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
         formatted_elapsed = format_elapsed_time(elapsed_time)
 
-        if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE is False and Settings.GUI_COLUMNS_DATETIME_SHOW_TIME is False:
+        if Settings.gui_columns_datetime_show_date is False and Settings.gui_columns_datetime_show_time is False:
             return formatted_elapsed
 
     datetime_parts: list[str] = []
-    if Settings.GUI_COLUMNS_DATETIME_SHOW_DATE:
+    if Settings.gui_columns_datetime_show_date:
         datetime_parts.append(datetime_object.strftime('%m/%d/%Y'))
-    if Settings.GUI_COLUMNS_DATETIME_SHOW_TIME:
+    if Settings.gui_columns_datetime_show_time:
         datetime_parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
     if not datetime_parts:
         raise InvalidDateColumnConfigurationError
@@ -85,35 +85,12 @@ def _format_player_gui_datetime(datetime_object: datetime) -> str:
     return formatted_datetime
 
 
-def _get_player_pps_gradient_color(default_color: QColor, player_pps_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
+def _get_rate_gradient_color(default_color: QColor, rate: int, threshold: int, *, is_first_calculation: bool = False) -> QColor:
+    """Return a red-to-green gradient color based on rate relative to threshold."""
     if is_first_calculation:
         return default_color
 
-    val = min(max(player_pps_calculated_rate, 0), PPS_MAX_THRESHOLD) * 0xFF // PPS_MAX_THRESHOLD
-    return QColor(0xFF - val, val, 0)
-
-
-def _get_player_ppm_gradient_color(default_color: QColor, player_ppm_calculated_rate: int, *, is_first_calculation: bool = False) -> QColor:
-    if is_first_calculation:
-        return default_color
-
-    val = min(max(player_ppm_calculated_rate, 0), PPM_MAX_THRESHOLD) * 0xFF // PPM_MAX_THRESHOLD
-    return QColor(0xFF - val, val, 0)
-
-
-def _get_player_bps_gradient_color(default_color: QColor, player_bps_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
-    if is_first_calculation:
-        return default_color
-
-    val = min(max(player_bps_calculated_bytes, 0), BPS_MAX_THRESHOLD) * 0xFF // BPS_MAX_THRESHOLD
-    return QColor(0xFF - val, val, 0)
-
-
-def _get_player_bpm_gradient_color(default_color: QColor, player_bpm_calculated_bytes: int, *, is_first_calculation: bool = False) -> QColor:
-    if is_first_calculation:
-        return default_color
-
-    val = min(max(player_bpm_calculated_bytes, 0), BPM_MAX_THRESHOLD) * 0xFF // BPM_MAX_THRESHOLD
+    val = min(max(rate, 0), threshold) * 0xFF // threshold
     return QColor(0xFF - val, val, 0)
 
 
@@ -123,8 +100,8 @@ class SessionTableRenderContext:
 
     session_connected: list[Player]
     session_disconnected: list[Player]
-    connected_hidden_columns: set[str]
-    disconnected_hidden_columns: set[str]
+    connected_shown_columns: set[str]
+    disconnected_shown_columns: set[str]
     connected_num_cols: int
     disconnected_num_cols: int
     connected_column_mapping: dict[str, int]
@@ -136,8 +113,8 @@ def build_session_table_snapshot(
     """Build connected and disconnected table rows plus compiled colors."""
     session_connected = context.session_connected
     session_disconnected = context.session_disconnected
-    connected_hidden_columns = context.connected_hidden_columns
-    disconnected_hidden_columns = context.disconnected_hidden_columns
+    connected_shown_columns = context.connected_shown_columns
+    disconnected_shown_columns = context.disconnected_shown_columns
     connected_num_cols = context.connected_num_cols
     disconnected_num_cols = context.disconnected_num_cols
     connected_column_mapping = context.connected_column_mapping
@@ -150,7 +127,7 @@ def build_session_table_snapshot(
     for player in session_connected:
         if player.userip and player.userip.usernames:
             row_fg_color = QColor(TableColors.CONNECTED_USERIP_TEXT)
-            row_bg_color = player.userip.settings.COLOR
+            row_bg_color = player.userip.settings.color
         else:
             row_fg_color = QColor(TableColors.CONNECTED_TEXT)
             row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
@@ -164,128 +141,132 @@ def build_session_table_snapshot(
         connected_row_texts.append(f'{format_player_usernames(player)}')
         connected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.first_seen)}')
         connected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_rejoin)}')
-        if 'T. Session Time' not in connected_hidden_columns:
+        if 'T. Session Time' in connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-        if 'Session Time' not in connected_hidden_columns:
+        if 'Session Time' in connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
         connected_row_texts.append(f'{player.rejoins}')
-        if 'T. Packets' not in connected_hidden_columns:
+        if 'T. Packets' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_exchanged}')
-        if 'Packets' not in connected_hidden_columns:
+        if 'Packets' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.exchanged}')
-        if 'T. Packets Received' not in connected_hidden_columns:
+        if 'T. Packets Received' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_received}')
-        if 'Packets Received' not in connected_hidden_columns:
+        if 'Packets Received' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.received}')
-        if 'T. Packets Sent' not in connected_hidden_columns:
+        if 'T. Packets Sent' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_sent}')
-        if 'Packets Sent' not in connected_hidden_columns:
+        if 'Packets Sent' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.sent}')
-        if 'PPS' not in connected_hidden_columns:
+        if 'PPS' in connected_shown_columns:
             row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
-                foreground=_get_player_pps_gradient_color(
+                foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.packets.pps.calculated_rate,
+                    PPS_MAX_THRESHOLD,
                     is_first_calculation=player.packets.pps.is_first_calculation,
                 ),
             )
             connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
-        if 'PPM' not in connected_hidden_columns:
+        if 'PPM' in connected_shown_columns:
             row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
-                foreground=_get_player_ppm_gradient_color(
+                foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.packets.ppm.calculated_rate,
+                    PPM_MAX_THRESHOLD,
                     is_first_calculation=player.packets.ppm.is_first_calculation,
                 ),
             )
             connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
-        if 'T. Bandwith' not in connected_hidden_columns:
+        if 'T. Bandwith' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwith' not in connected_hidden_columns:
+        if 'Bandwith' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-        if 'T. Download' not in connected_hidden_columns:
+        if 'T. Download' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-        if 'Download' not in connected_hidden_columns:
+        if 'Download' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-        if 'T. Upload' not in connected_hidden_columns:
+        if 'T. Upload' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-        if 'Upload' not in connected_hidden_columns:
+        if 'Upload' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-        if 'BPS' not in connected_hidden_columns:
+        if 'BPS' in connected_shown_columns:
             row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
-                foreground=_get_player_bps_gradient_color(
+                foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.bandwidth.bps.calculated_rate,
+                    BPS_MAX_THRESHOLD,
                     is_first_calculation=player.bandwidth.bps.is_first_calculation,
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
-        if 'BPM' not in connected_hidden_columns:
+        if 'BPM' in connected_shown_columns:
             row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
-                foreground=_get_player_bpm_gradient_color(
+                foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.bandwidth.bpm.calculated_rate,
+                    BPM_MAX_THRESHOLD,
                     is_first_calculation=player.bandwidth.bpm.is_first_calculation,
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
         connected_row_texts.append(f'{format_player_ip(player.ip)}')
-        if 'Hostname' not in connected_hidden_columns:
+        if 'Hostname' in connected_shown_columns:
             connected_row_texts.append(f'{player.reverse_dns.hostname}')
-        if 'Last Port' not in connected_hidden_columns:
+        if 'Last Port' in connected_shown_columns:
             connected_row_texts.append(f'{player.ports.last}')
-        if 'Middle Ports' not in connected_hidden_columns:
+        if 'Middle Ports' in connected_shown_columns:
             connected_row_texts.append(f'{format_player_middle_ports(player)}')
-        if 'First Port' not in connected_hidden_columns:
+        if 'First Port' in connected_shown_columns:
             connected_row_texts.append(f'{player.ports.first}')
-        if 'Continent' not in connected_hidden_columns:
-            if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
+        if 'Continent' in connected_shown_columns:
+            if Settings.gui_columns_geo_continent_append_alpha2:
                 connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
             else:
                 connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-        if 'Country' not in connected_hidden_columns:
-            if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
+        if 'Country' in connected_shown_columns:
+            if Settings.gui_columns_geo_country_append_alpha2:
                 connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
             else:
                 connected_row_texts.append(f'{player.iplookup.geolite2.country}')
-        if 'Region' not in connected_hidden_columns:
+        if 'Region' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region}')
-        if 'R. Code' not in connected_hidden_columns:
+        if 'R. Code' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-        if 'City' not in connected_hidden_columns:
+        if 'City' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.geolite2.city}')
-        if 'District' not in connected_hidden_columns:
+        if 'District' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.district}')
-        if 'ZIP Code' not in connected_hidden_columns:
+        if 'ZIP Code' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-        if 'Lat' not in connected_hidden_columns:
+        if 'Lat' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-        if 'Lon' not in connected_hidden_columns:
+        if 'Lon' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-        if 'Time Zone' not in connected_hidden_columns:
+        if 'Time Zone' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-        if 'Offset' not in connected_hidden_columns:
+        if 'Offset' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-        if 'Currency' not in connected_hidden_columns:
+        if 'Currency' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-        if 'Organization' not in connected_hidden_columns:
+        if 'Organization' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.org}')
-        if 'ISP' not in connected_hidden_columns:
+        if 'ISP' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-        if 'ASN / ISP' not in connected_hidden_columns:
+        if 'ASN / ISP' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
-        if 'AS' not in connected_hidden_columns:
+        if 'AS' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-        if 'ASN' not in connected_hidden_columns:
+        if 'ASN' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-        if 'Mobile' not in connected_hidden_columns:
-            connected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-        if 'VPN' not in connected_hidden_columns:
-            connected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-        if 'Hosting' not in connected_hidden_columns:
-            connected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-        if 'Pinging' not in connected_hidden_columns:
-            connected_row_texts.append(f'{player.ping.is_pinging}')
+        if 'Mobile' in connected_shown_columns:
+            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+        if 'VPN' in connected_shown_columns:
+            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+        if 'Hosting' in connected_shown_columns:
+            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+        if 'Pinging' in connected_shown_columns:
+            connected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
 
         session_connected_table__processed_data.append(connected_row_texts)
         session_connected_table__compiled_colors.append(row_colors)
@@ -293,7 +274,7 @@ def build_session_table_snapshot(
     for player in session_disconnected:
         if player.userip and player.userip.usernames:
             row_fg_color = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
-            row_bg_color = player.userip.settings.COLOR
+            row_bg_color = player.userip.settings.color
         else:
             row_fg_color = QColor(TableColors.DISCONNECTED_TEXT)
             row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
@@ -305,92 +286,92 @@ def build_session_table_snapshot(
         disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.first_seen)}')
         disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_rejoin)}')
         disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_seen)}')
-        if 'T. Session Time' not in disconnected_hidden_columns:
+        if 'T. Session Time' in disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-        if 'Session Time' not in disconnected_hidden_columns:
+        if 'Session Time' in disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
         disconnected_row_texts.append(f'{player.rejoins}')
-        if 'T. Packets' not in disconnected_hidden_columns:
+        if 'T. Packets' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_exchanged}')
-        if 'Packets' not in disconnected_hidden_columns:
+        if 'Packets' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.exchanged}')
-        if 'T. Packets Received' not in disconnected_hidden_columns:
+        if 'T. Packets Received' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_received}')
-        if 'Packets Received' not in disconnected_hidden_columns:
+        if 'Packets Received' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.received}')
-        if 'T. Packets Sent' not in disconnected_hidden_columns:
+        if 'T. Packets Sent' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_sent}')
-        if 'Packets Sent' not in disconnected_hidden_columns:
+        if 'Packets Sent' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.sent}')
-        if 'T. Bandwith' not in disconnected_hidden_columns:
+        if 'T. Bandwith' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwith' not in disconnected_hidden_columns:
+        if 'Bandwith' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-        if 'T. Download' not in disconnected_hidden_columns:
+        if 'T. Download' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-        if 'Download' not in disconnected_hidden_columns:
+        if 'Download' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-        if 'T. Upload' not in disconnected_hidden_columns:
+        if 'T. Upload' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-        if 'Upload' not in disconnected_hidden_columns:
+        if 'Upload' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
         disconnected_row_texts.append(f'{player.ip}')
-        if 'Hostname' not in disconnected_hidden_columns:
+        if 'Hostname' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
-        if 'Last Port' not in disconnected_hidden_columns:
+        if 'Last Port' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.last}')
-        if 'Middle Ports' not in disconnected_hidden_columns:
+        if 'Middle Ports' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
-        if 'First Port' not in disconnected_hidden_columns:
+        if 'First Port' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.first}')
-        if 'Continent' not in disconnected_hidden_columns:
-            if Settings.GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2:
+        if 'Continent' in disconnected_shown_columns:
+            if Settings.gui_columns_geo_continent_append_alpha2:
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
             else:
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-        if 'Country' not in disconnected_hidden_columns:
-            if Settings.GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2:
+        if 'Country' in disconnected_shown_columns:
+            if Settings.gui_columns_geo_country_append_alpha2:
                 disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
             else:
                 disconnected_row_texts.append(f'{player.iplookup.geolite2.country}')
-        if 'Region' not in disconnected_hidden_columns:
+        if 'Region' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
-        if 'R. Code' not in disconnected_hidden_columns:
+        if 'R. Code' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-        if 'City' not in disconnected_hidden_columns:
+        if 'City' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
-        if 'District' not in disconnected_hidden_columns:
+        if 'District' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
-        if 'ZIP Code' not in disconnected_hidden_columns:
+        if 'ZIP Code' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-        if 'Lat' not in disconnected_hidden_columns:
+        if 'Lat' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-        if 'Lon' not in disconnected_hidden_columns:
+        if 'Lon' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-        if 'Time Zone' not in disconnected_hidden_columns:
+        if 'Time Zone' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-        if 'Offset' not in disconnected_hidden_columns:
+        if 'Offset' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-        if 'Currency' not in disconnected_hidden_columns:
+        if 'Currency' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-        if 'Organization' not in disconnected_hidden_columns:
+        if 'Organization' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
-        if 'ISP' not in disconnected_hidden_columns:
+        if 'ISP' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-        if 'ASN / ISP' not in disconnected_hidden_columns:
+        if 'ASN / ISP' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
-        if 'AS' not in disconnected_hidden_columns:
+        if 'AS' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-        if 'ASN' not in disconnected_hidden_columns:
+        if 'ASN' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-        if 'Mobile' not in disconnected_hidden_columns:
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.mobile}')
-        if 'VPN' not in disconnected_hidden_columns:
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.proxy}')
-        if 'Hosting' not in disconnected_hidden_columns:
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.hosting}')
-        if 'Pinging' not in disconnected_hidden_columns:
-            disconnected_row_texts.append(f'{player.ping.is_pinging}')
+        if 'Mobile' in disconnected_shown_columns:
+            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+        if 'VPN' in disconnected_shown_columns:
+            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+        if 'Hosting' in disconnected_shown_columns:
+            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+        if 'Pinging' in disconnected_shown_columns:
+            disconnected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
 
         session_disconnected_table__processed_data.append(disconnected_row_texts)
         session_disconnected_table__compiled_colors.append(row_colors)

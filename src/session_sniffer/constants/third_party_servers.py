@@ -18,6 +18,7 @@ class ThirdPartyServers(enum.Enum):
     PC_UK_MINISTRY_OF_DEFENCE = ('25.0.0.0/8',)
     PC_SERVERS_COM = ('173.237.26.0/24',)
     PC_OTHERS = ('113.117.15.193/32',)
+    PC_MICROSOFT = ('20.202.1.0/24',)
     PC_RUSTDESK = ('209.250.240.0/20',)
     PS_SONY_INTERACTIVE = ('104.142.128.0/17',)
     PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
@@ -33,3 +34,35 @@ class ThirdPartyServers(enum.Enum):
     def get_all_ip_ranges(cls) -> list[str]:
         """Return a flat list of all IP ranges from the Enum."""
         return [ip_range for server in cls for ip_range in server.value]
+
+    @classmethod
+    def get_ip_ranges_for(cls, server_names: tuple[str, ...]) -> list[str]:
+        """Return a flat list of IP ranges for the specified server names only."""
+        names_set = set(server_names)
+        return [ip_range for server in cls if server.name in names_set for ip_range in server.value]
+
+
+THIRD_PARTY_SERVER_DISPLAY_NAMES: dict[str, str] = {
+    'PC_DISCORD': 'Discord',
+    'PC_VALVE': 'Valve (Steam)',
+    'PC_GOOGLE': 'Google',
+    'PC_MULTICAST': 'Multicast',
+    'PC_ANDROID_OMETV_OVH': 'Android OmeTV / OVH',
+    'PC_OMETV_GOOGLE': 'OmeTV Google',
+    'PC_UK_MINISTRY_OF_DEFENCE': 'UK Ministry of Defence',
+    'PC_SERVERS_COM': 'Servers.com',
+    'PC_OTHERS': 'Others',
+    'PC_MICROSOFT': 'Microsoft',
+    'PC_RUSTDESK': 'RustDesk',
+    'PS_SONY_INTERACTIVE': 'Sony Interactive (PS)',
+    'PS_AMAZON': 'Amazon (PS)',
+    'GTAV_TAKETWO': 'Take-Two (GTA V)',
+    'GTAV_PC_MICROSOFT': 'Microsoft (GTA V PC)',
+    'GTAV_PC_DOD_NETWORK_INFORMATION_CENTER': 'DoD Network Info Center (GTA V PC)',
+    'GTAV_PC_BATTLEYE': 'BattlEye (GTA V PC)',
+    'GTAV_PS5_TELLAS_GREECE': 'Tellas Greece (GTA V PS5)',
+    'GTAV_XBOXONE_MICROSOFT': 'Microsoft (GTA V Xbox One)',
+    'MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT': 'Microsoft (Minecraft Bedrock)',
+}
+
+ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(member.name for member in ThirdPartyServers)

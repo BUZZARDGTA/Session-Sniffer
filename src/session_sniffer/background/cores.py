@@ -1,11 +1,16 @@
 """Background core loops for IP lookup, hostname resolution, and ping."""
 
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from http import HTTPStatus
 
 import requests
+from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
 from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
+from session_sniffer.diagnostics import SlowdownDetector
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
@@ -13,27 +18,34 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.networking.reverse_dns import lookup as reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 
+logger = get_logger(__name__)
+
+# API limits taken from https://ip-api.com/docs/api:batch the 03/04/2024.
+_IPAPI_MAX_REQUESTS = 15
+_IPAPI_MAX_THROTTLE_TIME = 60
+_IPAPI_MAX_BATCH_IPS = 100
+_IPAPI_FIELDS = (
+    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
+    'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+)
+
 
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
     with ThreadsExceptionHandler():
-        def throttle_until(requests_remaining: int, throttle_time: int) -> None:
-            # Calculate sleep time only if there are remaining requests
-            sleep_time = throttle_time / requests_remaining if requests_remaining > 0 else throttle_time
+        _slowdown = SlowdownDetector.get('iplookup_core', baseline_floor=0.15)
 
-            # We sleep x seconds (just in case) to avoid triggering a "429" status code.
+        def throttle_until(requests_remaining: int, throttle_time: int) -> None:
+            # Spread remaining requests evenly across the reset window to stay within the rate limit.
+            sleep_time = throttle_time / requests_remaining
             gui_closed__event.wait(sleep_time)
 
-        # Following values taken from https://ip-api.com/docs/api:batch the 03/04/2024.
-        # max_requests = 15
-        # max_throttle_time = 60
-        max_batch_ip_api_ips = 100
-        fields_to_lookup = (
-            'continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
-            'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
-        )
+        requests_remaining = _IPAPI_MAX_REQUESTS
+        ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
 
         while not gui_closed__event.is_set():
+            _iter_start = time.monotonic()
+
             if ScriptControl.has_crashed():
                 return
 
@@ -45,7 +57,7 @@ def iplookup_core() -> None:
 
                 ips_to_lookup.append(player.ip)
 
-                if len(ips_to_lookup) == max_batch_ip_api_ips:
+                if len(ips_to_lookup) == _IPAPI_MAX_BATCH_IPS:
                     break
 
             if not ips_to_lookup:
@@ -55,7 +67,7 @@ def iplookup_core() -> None:
             try:
                 response = session.post(
                     'http://ip-api.com/batch',
-                    params={'fields': fields_to_lookup},
+                    params={'fields': _IPAPI_FIELDS},
                     headers={'Content-Type': 'application/json'},
                     json=ips_to_lookup,
                     timeout=3,
@@ -66,45 +78,51 @@ def iplookup_core() -> None:
                 continue
             except requests.exceptions.HTTPError as e:
                 # Handle rate limiting
-                if isinstance(e.response, requests.Response) and e.response.status_code == requests.codes.too_many_requests:
-                    throttle_until(int(e.response.headers['X-Rl']), int(e.response.headers['X-Ttl']))
+                if isinstance(e.response, requests.Response) and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    requests_remaining = int(e.response.headers.get('X-Rl', '0'))
+                    ttl_seconds = int(e.response.headers.get('X-Ttl', str(_IPAPI_MAX_THROTTLE_TIME)))
+                    gui_closed__event.wait(ttl_seconds)
+                    requests_remaining = _IPAPI_MAX_REQUESTS
+                    ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                     continue
                 raise  # Re-raise other HTTP errors
 
+            requests_remaining = int(response.headers.get('X-Rl', str(_IPAPI_MAX_REQUESTS - 1)))
+            ttl_seconds = int(response.headers.get('X-Ttl', str(_IPAPI_MAX_THROTTLE_TIME)))
+
             iplookup_results_data = response.json()
-            iplookup_results = [IpApiResponse.model_validate(item) for item in iplookup_results_data]
+            iplookup_results: list[IpApiResponse] = []
+            for item in iplookup_results_data:
+                try:
+                    iplookup_results.append(IpApiResponse.model_validate(item))
+                except ValidationError:
+                    # Mark IPs with a failed status as initialized so they are never retried.
+                    if item.get('status') == 'fail':
+                        failed_player = PlayersRegistry.get_player_by_ip(item.get('query', ''))
+                        if failed_player is not None:
+                            failed_player.iplookup.ipapi.is_initialized = True
+                            logger.debug('ip-api returned fail for %s (%s) — marking as initialized', item.get('query'), item.get('message', ''))
+                    else:
+                        logger.warning('Failed to validate ip-api response item: %s', item)
+                    continue
 
             for iplookup in iplookup_results:
                 matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
                 if matched_player is None:
                     continue
 
-                matched_player.iplookup.ipapi.continent = iplookup.continent
-                matched_player.iplookup.ipapi.continent_code = iplookup.continent_code
-                matched_player.iplookup.ipapi.country = iplookup.country
-                matched_player.iplookup.ipapi.country_code = iplookup.country_code
-                matched_player.iplookup.ipapi.region = iplookup.region
-                matched_player.iplookup.ipapi.region_code = iplookup.region_code
-                matched_player.iplookup.ipapi.city = iplookup.city
-                matched_player.iplookup.ipapi.district = iplookup.district
-                matched_player.iplookup.ipapi.zip_code = iplookup.zip_code
-                matched_player.iplookup.ipapi.lat = iplookup.lat
-                matched_player.iplookup.ipapi.lon = iplookup.lon
-                matched_player.iplookup.ipapi.time_zone = iplookup.time_zone
-                matched_player.iplookup.ipapi.offset = iplookup.offset
-                matched_player.iplookup.ipapi.currency = iplookup.currency
-                matched_player.iplookup.ipapi.isp = iplookup.isp
-                matched_player.iplookup.ipapi.org = iplookup.org
-                matched_player.iplookup.ipapi.asn = iplookup.asn
-                matched_player.iplookup.ipapi.as_name = iplookup.as_name
-
-                matched_player.iplookup.ipapi.mobile = iplookup.mobile
-                matched_player.iplookup.ipapi.proxy = iplookup.proxy
-                matched_player.iplookup.ipapi.hosting = iplookup.hosting
-
+                matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
                 matched_player.iplookup.ipapi.is_initialized = True
 
-            throttle_until(int(response.headers['X-Rl']), int(response.headers['X-Ttl']))
+            _slowdown.check(time.monotonic() - _iter_start, 'iplookup_core')
+
+            if requests_remaining <= 0:
+                throttle_until(1, ttl_seconds)
+                requests_remaining = _IPAPI_MAX_REQUESTS
+                ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+                continue
+
+            throttle_until(requests_remaining, ttl_seconds)
 
 
 def hostname_core() -> None:
@@ -117,6 +135,7 @@ def hostname_core() -> None:
             if ScriptControl.has_crashed():
                 return
 
+            submitted_new = False
             for player in PlayersRegistry.get_default_sorted_players():
                 if player.reverse_dns.is_initialized or player.ip in pending_ips:
                     continue
@@ -124,17 +143,20 @@ def hostname_core() -> None:
                 future = executor.submit(reverse_dns_lookup, player.ip)
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
+                submitted_new = True
 
             if not futures:
                 gui_closed__event.wait(1)
                 continue
 
+            resolved_any = False
             for future, ip in list(futures.items()):
                 if not future.done():
                     continue
 
                 futures.pop(future)
                 pending_ips.remove(ip)
+                resolved_any = True
 
                 hostname = future.result()
 
@@ -145,7 +167,11 @@ def hostname_core() -> None:
                 matched_player.reverse_dns.hostname = hostname
                 matched_player.reverse_dns.is_initialized = True
 
-            gui_closed__event.wait(0.1)
+            # Only poll quickly if there's active work; otherwise wait longer
+            if not submitted_new and not resolved_any:
+                gui_closed__event.wait(1)
+            else:
+                gui_closed__event.wait(0.1)
 
 
 def pinger_core() -> None:
@@ -158,6 +184,7 @@ def pinger_core() -> None:
             if ScriptControl.has_crashed():
                 return
 
+            submitted_new = False
             for player in PlayersRegistry.get_default_sorted_players():
                 if player.ping.is_initialized or player.ip in pending_ips:
                     continue
@@ -165,38 +192,40 @@ def pinger_core() -> None:
                 future = executor.submit(fetch_and_parse_ping, player.ip)
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
+                submitted_new = True
 
             if not futures:
                 gui_closed__event.wait(1)
                 continue
 
+            resolved_any = False
             for future, ip in list(futures.items()):
                 if not future.done():
                     continue
 
                 futures.pop(future)
                 pending_ips.remove(ip)
+                resolved_any = True
 
                 try:
                     ping_result = future.result()
                 except AllEndpointsExhaustedError:
+                    matched_player = PlayersRegistry.get_player_by_ip(ip)
+                    if matched_player is not None:
+                        matched_player.ping.is_pinging = False
+                        matched_player.ping.is_initialized = True
                     continue
 
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is None:
                     continue
 
+                matched_player.ping.update_fields(ping_result._asdict())
                 matched_player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
-                matched_player.ping.ping_times = ping_result.ping_times
-                matched_player.ping.packets_transmitted = ping_result.packets_transmitted
-                matched_player.ping.packets_received = ping_result.packets_received
-                matched_player.ping.packet_duplicates = ping_result.packet_duplicates
-                matched_player.ping.packet_loss = ping_result.packet_loss
-                matched_player.ping.packet_errors = ping_result.packet_errors
-                matched_player.ping.rtt_min = ping_result.rtt_min
-                matched_player.ping.rtt_avg = ping_result.rtt_avg
-                matched_player.ping.rtt_max = ping_result.rtt_max
-                matched_player.ping.rtt_mdev = ping_result.rtt_mdev
                 matched_player.ping.is_initialized = True
 
-            gui_closed__event.wait(0.1)
+            # Only poll quickly if there's active work; otherwise wait longer
+            if not submitted_new and not resolved_any:
+                gui_closed__event.wait(1)
+            else:
+                gui_closed__event.wait(0.1)

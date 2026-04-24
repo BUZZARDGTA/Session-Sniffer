@@ -99,13 +99,19 @@ def arp_spoofing_task(
 
             # Start arpspoof process
             if proc is None or proc.poll() is not None:
+                cmd: list[str] = [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address]
+                if selected_interface.gateway_ip is not None:
+                    cmd.append(selected_interface.gateway_ip)
                 proc = subprocess.Popen(
-                    [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address],
+                    cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                 )
-                logger.info('Started spoofing on interface %s', selected_interface.ip_address)
+                log_msg = f'Started spoofing on interface {selected_interface.ip_address}'
+                if selected_interface.gateway_ip:
+                    log_msg += f' (gateway: {selected_interface.gateway_ip})'
+                logger.info(log_msg)
 
                 try:
                     proc.wait(timeout=startup_probe_timeout)

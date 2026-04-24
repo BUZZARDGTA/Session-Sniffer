@@ -13,6 +13,9 @@ class IpApiResponse(BaseModel):
     Used to validate individual items returned by the ip-api.com batch endpoint.
     """
 
+    # Response status
+    status: str
+
     # Location information
     continent: str
     continent_code: str = Field(alias='continentCode')

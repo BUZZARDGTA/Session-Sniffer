@@ -1,20 +1,70 @@
 """Type definitions for the rendering core and GUI update payloads."""
 
+from collections import deque
 from dataclasses import dataclass
 from threading import Condition, Lock
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
+
+from PyQt6.QtGui import QColor
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
 
     import geoip2.database
-    from PyQt6.QtGui import QColor
+
+_MAX_LATENCY_ENTRIES = 5000
 
 
-@dataclass(kw_only=True, slots=True)
-class TsharkStats:
+class PaginationState:
+    """Thread-safe pagination state shared between the GUI and the worker thread."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _connected_rows_per_page: ClassVar[int] = 0
+    _disconnected_rows_per_page: ClassVar[int] = 0
+    _connected_page: ClassVar[int] = 1
+    _disconnected_page: ClassVar[int] = 1
+
+    @classmethod
+    def set_connected(cls, *, rows_per_page: int, page: int) -> None:
+        """Set connected-table pagination state."""
+        with cls._lock:
+            cls._connected_rows_per_page = rows_per_page
+            cls._connected_page = page
+
+    @classmethod
+    def set_disconnected(cls, *, rows_per_page: int, page: int) -> None:
+        """Set disconnected-table pagination state."""
+        with cls._lock:
+            cls._disconnected_rows_per_page = rows_per_page
+            cls._disconnected_page = page
+
+    @classmethod
+    def set_connected_page(cls, page: int) -> None:
+        """Set only the connected-table current page."""
+        with cls._lock:
+            cls._connected_page = page
+
+    @classmethod
+    def set_disconnected_page(cls, page: int) -> None:
+        """Set only the disconnected-table current page."""
+        with cls._lock:
+            cls._disconnected_page = page
+
+    @classmethod
+    def get(cls) -> tuple[int, int, int, int]:
+        """Return (connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page)."""
+        with cls._lock:
+            return (
+                cls._connected_rows_per_page,
+                cls._connected_page,
+                cls._disconnected_rows_per_page,
+                cls._disconnected_page,
+            )
+
+
+class TsharkStats:  # pylint: disable=too-few-public-methods
     """Statistics and data tracking for TShark packet capture performance."""
-    packets_latencies: ClassVar[list[tuple[datetime, timedelta]]] = []
+    packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
     restarted_times: ClassVar[int] = 0
     global_bandwidth: ClassVar[int] = 0
     global_download: ClassVar[int] = 0
@@ -42,6 +92,7 @@ class SessionTableSnapshot(NamedTuple):
 class GUIUpdatePayload(NamedTuple):
     """Payload containing all data needed for GUI updates."""
     snapshot_version: int
+    column_config: GUIColumnConfig
     header_text: str
     status_capture_text: str
     status_config_text: str
@@ -51,6 +102,40 @@ class GUIUpdatePayload(NamedTuple):
     disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
     connected_num: int
     disconnected_num: int
+    connected_rows_per_page: int
+    disconnected_rows_per_page: int
+    connected_page: int
+    disconnected_page: int
+    connected_total_pages: int
+    disconnected_total_pages: int
+
+
+@dataclass(frozen=True, slots=True)
+class GUIColumnConfig:
+    """Column visibility and name config for both tables."""
+    connected_shown_columns: set[str]
+    disconnected_shown_columns: set[str]
+    connected_column_names: list[str]
+    disconnected_column_names: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class GUIStatusTexts:
+    """Header and status-bar text strings for the GUI."""
+    header_text: str
+    status_capture_text: str
+    status_config_text: str
+    status_issues_text: str
+    status_performance_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class GUITableData:
+    """Row/color data for a single session table (connected or disconnected)."""
+    num_cols: int
+    num_rows: int
+    rows: tuple[tuple[str, ...], ...]
+    colors: tuple[tuple[CellColor, ...], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,31 +144,10 @@ class GUIRenderingSnapshot:
 
     Built off-thread, then published by replacement (no shared mutation).
     """
-
-    # Column config
-    connected_hidden_columns: set[str]
-    disconnected_hidden_columns: set[str]
-    connected_column_names: list[str]
-    disconnected_column_names: list[str]
-
-    # Header + status
-    header_text: str
-    status_capture_text: str
-    status_config_text: str
-    status_issues_text: str
-    status_performance_text: str
-
-    # Connected table
-    connected_num_cols: int
-    connected_num_rows: int
-    connected_rows: tuple[tuple[str, ...], ...]
-    connected_colors: tuple[tuple[CellColor, ...], ...]
-
-    # Disconnected table
-    disconnected_num_cols: int
-    disconnected_num_rows: int
-    disconnected_rows: tuple[tuple[str, ...], ...]
-    disconnected_colors: tuple[tuple[CellColor, ...], ...]
+    column_config: GUIColumnConfig
+    status: GUIStatusTexts
+    connected: GUITableData
+    disconnected: GUITableData
 
 
 class GUIRenderingState:

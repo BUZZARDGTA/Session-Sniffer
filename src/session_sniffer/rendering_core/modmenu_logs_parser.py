@@ -37,7 +37,7 @@ LOGS_PATHS = (
 class ModMenuLogsParser:
     """Thread-safe parser to extract and track IP-to-username mappings from mod menu logs."""
 
-    _lock: ClassVar = Lock()
+    _lock: ClassVar[Lock] = Lock()
     _last_mod_times: ClassVar[FileModTimes] = {}
     _ip_to_usernames_map: ClassVar[UsernamesByIP] = defaultdict(list)
 
@@ -98,4 +98,5 @@ class ModMenuLogsParser:
     def get_usernames_by_ip(cls, ip: str) -> list[str]:
         """Thread-safe retrieval of usernames associated with the given IP."""
         with cls._lock:
-            return cls._ip_to_usernames_map[ip].copy()  # return a copy to prevent external modification
+            usernames = cls._ip_to_usernames_map.get(ip)
+            return usernames.copy() if usernames is not None else []

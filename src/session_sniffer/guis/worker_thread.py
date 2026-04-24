@@ -1,14 +1,32 @@
 """Background QThread that polls rendering snapshots and emits GUI update payloads."""
 
-from typing import TYPE_CHECKING
-
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from session_sniffer.background.tasks import gui_closed__event
-from session_sniffer.rendering_core.types import CellColor, GUIRenderingState, GUIUpdatePayload
+from session_sniffer.logging_setup import get_logger
+from session_sniffer.rendering_core.types import CellColor, GUIRenderingState, GUIUpdatePayload, PaginationState
 
-if TYPE_CHECKING:
-    from session_sniffer.guis.tables import SessionTableView
+logger = get_logger(__name__)
+
+
+def _paginate(
+    rows: list[tuple[list[str], list[CellColor]]],
+    total_rows: int,
+    rows_per_page: int,
+    requested_page: int,
+) -> tuple[list[tuple[list[str], list[CellColor]]], int, int]:
+    """Slice rows into a single page.
+
+    Returns:
+        (page_rows, clamped_page, total_pages)
+    """
+    if rows_per_page <= 0:
+        return rows, 1, 1
+
+    total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
+    page = min(max(1, requested_page), total_pages)
+    start_index = (page - 1) * rows_per_page
+    return rows[start_index:start_index + rows_per_page], page, total_pages
 
 
 class GUIWorkerThread(QThread):
@@ -16,61 +34,66 @@ class GUIWorkerThread(QThread):
 
     update_signal = pyqtSignal(GUIUpdatePayload)
 
-    def __init__(
-        self,
-        connected_table_view: SessionTableView,
-        disconnected_table_view: SessionTableView,
-    ) -> None:
-        """Initialize the GUI worker thread.
-
-        Args:
-            connected_table_view: The connected players table view.
-            disconnected_table_view: The disconnected players table view.
-        """
-        super().__init__()
-
-        self.connected_table_view = connected_table_view
-        self.disconnected_table_view = disconnected_table_view
-
     def run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
         last_snapshot_version = 0
 
         while not gui_closed__event.is_set():
-            snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
-                timeout=0.1,
-                last_seen_version=last_snapshot_version,
-            )
+            try:
+                snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
+                    timeout=0.1,
+                    last_seen_version=last_snapshot_version,
+                )
+            except RuntimeError:
+                logger.exception('Error waiting for rendering snapshot')
+                continue
+
             if snapshot is None:
                 continue
 
-            header_text = snapshot.header_text
-            status_capture_text = snapshot.status_capture_text
-            status_config_text = snapshot.status_config_text
-            status_issues_text = snapshot.status_issues_text
-            status_performance_text = snapshot.status_performance_text
-            connected_num = snapshot.connected_num_rows
-            disconnected_num = snapshot.disconnected_num_rows
+            status = snapshot.status
+            connected_num = snapshot.connected.num_rows
+            disconnected_num = snapshot.disconnected.num_rows
 
             # Preprocess rows with colors
-            connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
-                (list(row), list(colors))
-                for row, colors in zip(snapshot.connected_rows, snapshot.connected_colors, strict=True)
-            ]
-            disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
-                (list(row), list(colors))
-                for row, colors in zip(snapshot.disconnected_rows, snapshot.disconnected_colors, strict=True)
-            ]
+            try:
+                connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                    (list(row), list(colors))
+                    for row, colors in zip(snapshot.connected.rows, snapshot.connected.colors, strict=True)
+                ]
+                disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
+                    (list(row), list(colors))
+                    for row, colors in zip(snapshot.disconnected.rows, snapshot.disconnected.colors, strict=True)
+                ]
 
-            self.update_signal.emit(GUIUpdatePayload(
-                snapshot_version=last_snapshot_version,
-                header_text=header_text,
-                status_capture_text=status_capture_text,
-                status_config_text=status_config_text,
-                status_issues_text=status_issues_text,
-                status_performance_text=status_performance_text,
-                connected_rows_with_colors=connected_rows_with_colors,
-                disconnected_rows_with_colors=disconnected_rows_with_colors,
-                connected_num=connected_num,
-                disconnected_num=disconnected_num,
-            ))
+                # Apply pagination
+                c_rpp, c_page, d_rpp, d_page = PaginationState.get()
+
+                connected_rows_with_colors, connected_page, connected_total_pages = _paginate(
+                    connected_rows_with_colors, connected_num, c_rpp, c_page,
+                )
+                disconnected_rows_with_colors, disconnected_page, disconnected_total_pages = _paginate(
+                    disconnected_rows_with_colors, disconnected_num, d_rpp, d_page,
+                )
+
+                self.update_signal.emit(GUIUpdatePayload(
+                    snapshot_version=last_snapshot_version,
+                    column_config=snapshot.column_config,
+                    header_text=status.header_text,
+                    status_capture_text=status.status_capture_text,
+                    status_config_text=status.status_config_text,
+                    status_issues_text=status.status_issues_text,
+                    status_performance_text=status.status_performance_text,
+                    connected_rows_with_colors=connected_rows_with_colors,
+                    disconnected_rows_with_colors=disconnected_rows_with_colors,
+                    connected_num=connected_num,
+                    disconnected_num=disconnected_num,
+                    connected_rows_per_page=c_rpp,
+                    disconnected_rows_per_page=d_rpp,
+                    connected_page=connected_page,
+                    disconnected_page=disconnected_page,
+                    connected_total_pages=connected_total_pages,
+                    disconnected_total_pages=disconnected_total_pages,
+                ))
+            except (ValueError, RuntimeError):
+                logger.exception('Error processing or emitting GUI update payload')

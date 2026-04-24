@@ -3,6 +3,14 @@
 Keep HTML blobs used for Qt/Rich-text rendering here so non-GUI modules don't depend on GUI styling.
 """
 
+from typing import TYPE_CHECKING
+
+from session_sniffer.constants.local import VERSION
+from session_sniffer.constants.standalone import TITLE
+
+if TYPE_CHECKING:
+    from session_sniffer.capture.tshark_capture import PacketCapture
+
 
 CAPTURE_STOPPED_HTML = """
 <div style="background: linear-gradient(90deg, #bf616a, #d08770); padding: 10px;
@@ -25,3 +33,14 @@ GUI_HEADER_HTML_TEMPLATE: str = """
     {stop_status}
 </div>
 """
+
+
+def generate_gui_header_html(*, capture: PacketCapture) -> str:
+    """Generate the GUI header HTML based on capture state."""
+    stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
+
+    return GUI_HEADER_HTML_TEMPLATE.format(
+        title=TITLE,
+        version=VERSION,
+        stop_status=stop_status,
+    )

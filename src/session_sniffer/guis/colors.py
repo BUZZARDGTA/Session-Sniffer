@@ -7,8 +7,10 @@ This module provides a modular color system organized into layers:
 4. TableColors - Row coloring for connected/disconnected player tables
 """
 
+import enum
 
-class ColorPalette:
+
+class ColorPalette(enum.StrEnum):
     """Base Nordic-inspired color palette for the entire application.
 
     Provides a centralized set of primary colors used across all UI components.
@@ -26,7 +28,7 @@ class ColorPalette:
     CRITICAL_RED = 'indianred'
 
 
-class StatusBarColors:
+class StatusBarColors(enum.StrEnum):
     """Color scheme specifically for status bar text rendering.
 
     Maps semantic meanings (enabled, disabled, divider, etc.) to specific colors
@@ -47,7 +49,7 @@ class StatusBarColors:
     SECONDARY_ACCENT = ColorPalette.ACCENT_PURPLE
 
 
-class ThresholdColors:
+class ThresholdColors(enum.StrEnum):
     """Color scheme for metrics and threshold-based status indication.
 
     Maps performance thresholds and status conditions to visual indicators
@@ -60,7 +62,7 @@ class ThresholdColors:
     HEALTHY = ColorPalette.GOOD_GREEN
 
 
-class TableColors:
+class TableColors(enum.StrEnum):
     """Color scheme for player table rows and cell rendering.
 
     Defines colors for connected and disconnected player rows in the session tables.

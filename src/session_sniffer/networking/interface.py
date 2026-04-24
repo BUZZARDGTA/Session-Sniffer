@@ -4,7 +4,7 @@ This module provides dataclasses and utilities for managing network interface in
 including the Interface class, SelectedInterface, ARPEntry, and the AllInterfaces registry.
 """
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
+from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from session_sniffer.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, NETWORK_ADAPTER_DISABLED
 from session_sniffer.networking.exceptions import InterfaceAlreadyExistsError
@@ -30,28 +30,44 @@ class SelectedInterface:
     vendor_name: str | None
     ip_address: str | None
     mac_address: str | None
+    gateway_ip: str | None
     is_arp: bool
+
+
+@dataclass(kw_only=True, slots=True)
+class InterfaceIdentity:
+    """Identity fields for a network interface."""
+
+    index:       int
+    name:        str
+    description: str
+    mac_address: str | None
+    device_name: str | None
+    vendor_name: str | None
+
+
+@dataclass(kw_only=True, slots=True)
+class InterfaceTraffic:
+    """Traffic statistics for a network interface."""
+
+    packets_sent:       int
+    packets_recv:       int
+    transmit_link_speed: int
+    receive_link_speed:  int
 
 
 @dataclass(kw_only=True, slots=True)
 class Interface:
     """Represent a network interface and its live capture-related stats."""
 
-    index: int
+    identity: InterfaceIdentity
+    traffic: InterfaceTraffic
     ip_enabled: bool
     state: int
     media_connect_state: int
-    name: str
-    packets_sent: int
-    packets_recv: int
-    transmit_link_speed: int
-    receive_link_speed: int
-    description: str
-    ip_addresses: list[str] = field(default_factory=lambda: cast('list[str]', []))
-    arp_entries: list[ARPEntry] = field(default_factory=lambda: cast('list[ARPEntry]', []))
-    mac_address: str | None
-    device_name: str | None
-    vendor_name: str | None
+    ip_addresses: list[str] = field(default_factory=list)
+    gateway_addresses: list[str] = field(default_factory=list)
+    arp_entries: list[ARPEntry] = field(default_factory=list)
 
     def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
         """Add an ARP entry for the given interface."""
@@ -73,7 +89,7 @@ class Interface:
             self.media_connect_state == MEDIA_CONNECT_STATE_DISCONNECTED,
             not self.ip_addresses,
             not self.ip_enabled and not self.ip_addresses,
-            not self.transmit_link_speed and not self.receive_link_speed,
+            not self.traffic.transmit_link_speed and not self.traffic.receive_link_speed,
         ]
 
         if any(inactive_conditions):
@@ -81,19 +97,19 @@ class Interface:
 
         # Zero link speeds combined with no IP/traffic suggests inactive virtual adapters
         if (
-            not self.transmit_link_speed
-            and not self.receive_link_speed
+            not self.traffic.transmit_link_speed
+            and not self.traffic.receive_link_speed
             and not self.ip_addresses
-            and not self.packets_sent
-            and not self.packets_recv
+            and not self.traffic.packets_sent
+            and not self.traffic.packets_recv
         ):
             return True
 
         # Check if all identifying details and traffic data are missing
         return (
-            not self.packets_sent
-            and not self.packets_recv
-            and not self.description
+            not self.traffic.packets_sent
+            and not self.traffic.packets_recv
+            and not self.identity.description
             and not self.ip_addresses
             and not self.arp_entries
         )
@@ -158,13 +174,19 @@ class AllInterfaces:
         Raises:
             InterfaceAlreadyExistsError: If an interface with the same index already exists.
         """
-        if new_interface.index in cls.all_interfaces:
-            raise InterfaceAlreadyExistsError(new_interface.index, new_interface.name)
+        if new_interface.identity.index in cls.all_interfaces:
+            raise InterfaceAlreadyExistsError(new_interface.identity.index, new_interface.identity.name)
 
-        cls.all_interfaces[new_interface.index] = new_interface
-        if new_interface.name:
-            cls._name_map[new_interface.name.casefold()] = new_interface.index
+        cls.all_interfaces[new_interface.identity.index] = new_interface
+        if new_interface.identity.name:
+            cls._name_map[new_interface.identity.name.casefold()] = new_interface.identity.index
         return new_interface
+
+    @classmethod
+    def clear(cls) -> None:
+        """Remove all interfaces from the registry."""
+        cls.all_interfaces.clear()
+        cls._name_map.clear()
 
     @classmethod
     def delete_interface(cls, index: int) -> bool:
@@ -178,7 +200,7 @@ class AllInterfaces:
         """
         interface = cls.all_interfaces.pop(index, None)
         if interface:
-            if interface.name:
-                cls._name_map.pop(interface.name.casefold(), None)
+            if interface.identity.name:
+                cls._name_map.pop(interface.identity.name.casefold(), None)
             return True
         return False

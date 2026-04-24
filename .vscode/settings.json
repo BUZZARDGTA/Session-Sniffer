@@ -21,7 +21,34 @@
     },
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
+    "pylint.enabled": true,
+    "pylint.path": [
+        "${workspaceFolder}/.venv/Scripts/pylint.exe"
+    ],
+    "pylint.args": [
+        "--rcfile",
+        "${workspaceFolder}/pyproject.toml"
+    ],
+    "pylint.severity": {
+        "convention": "Warning",
+        "refactor": "Warning",
+        "warning": "Warning",
+        "error": "Error",
+        "fatal": "Error",
+        "info": "Information"
+    },
     "search.useIgnoreFiles": false,
     "extensions.ignoreRecommendations": false,
-    "snyk.advanced.autoSelectOrganization": true
+    "snyk.advanced.autoSelectOrganization": true,
+    "snyk.advanced.organization": "eb736547-7db6-4fd5-93e4-acf89de308a3"
+   ,
+   "python.analysis.typeCheckingMode": "strict",
+   "python.analysis.diagnosticSeverityOverrides": {
+       "reportUnknownVariableType": "warning",
+       "reportUnknownMemberType": "warning",
+       "reportUnknownArgumentType": "warning",
+       "reportUnknownLambdaType": "warning",
+       "reportUnknownParameterType": "warning",
+       "reportUnknownReturnType": "warning"
+   }
 }

@@ -2,20 +2,20 @@
 
 import signal
 import sys
+import threading
 import time
-from threading import Lock, Thread
+from threading import Lock
+from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
-from rich.text import Text
-
 from session_sniffer import msgbox
-from session_sniffer.constants.local import VERSION
+from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.logging_setup import console, get_logger
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import terminate_process_tree
 
 if TYPE_CHECKING:
-    from types import FrameType, TracebackType
+    from types import FrameType
 
 logger = get_logger(__name__)
 
@@ -31,7 +31,7 @@ class ExceptionInfo(NamedTuple):
 class ScriptControl:
     """Track global crash state and crash message across threads."""
 
-    _lock: ClassVar = Lock()
+    _lock: ClassVar[Lock] = Lock()
     _crashed: ClassVar[bool] = False
     _crash_message: ClassVar[str | None] = None
 
@@ -70,14 +70,10 @@ def terminate_script(
 ) -> None:
     """Terminate the application and optionally display crash information."""
     def should_terminate_gracefully() -> bool:
-        for thread_name in ('rendering_core__thread', 'hostname_core__thread', 'iplookup_core__thread', 'pinger_core__thread'):
-            if thread_name in globals():
-                thread = globals()[thread_name]
-                if isinstance(thread, Thread) and thread.is_alive():
-                    return False
-
         # TODO(BUZZARDGTA): Gracefully exit the script even when the `capture` module is running.
         return False
+
+    ProcessSuspendManager.shutdown()
 
     ScriptControl.set_crashed(None if stdout_crash_text is None else f'\n\n{stdout_crash_text}\n')
 
@@ -88,23 +84,6 @@ def terminate_script(
             exception_info.exc_value,
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
         )
-
-        error_message = Text.from_markup(
-            (
-                '\n\n\nAn unexpected (uncaught) error occurred. [bold]Please kindly report it to:[/bold]\n'
-                '[link=https://github.com/BUZZARDGTA/Session-Sniffer/issues]'
-                'https://github.com/BUZZARDGTA/Session-Sniffer/issues[/link].\n\n'
-                'DEBUG:\n'
-                f'VERSION={VERSION}'
-            ),
-            style='white',
-        )
-        console.print(error_message, highlight=False)
-
-    if stdout_crash_text is not None:
-        crash_message = ScriptControl.get_crash_message()
-        if crash_message:
-            console.print(crash_message, highlight=False)
 
     if msgbox_crash_text is not None:
         msgbox_title = TITLE
@@ -145,7 +124,7 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
     """Handle Ctrl+C by terminating the script if not already crashing."""
     if not ScriptControl.has_crashed():
         # Block CTRL+C if script is already crashing under control
-        console.print('Ctrl+C pressed. Exiting script ...', highlight=False)
+        logger.info('Ctrl+C pressed. Exiting script ...')
         terminate_script('SIGINT')
 
 
@@ -213,6 +192,25 @@ class ThreadsExceptionHandler:
         return True
 
 
+def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
+    """Handle uncaught exceptions in threads not wrapped by ThreadsExceptionHandler."""
+    if args.exc_type is SystemExit:
+        return
+
+    exc_value = args.exc_value if args.exc_value is not None else RuntimeError('Unknown thread error')
+    exception_info = ExceptionInfo(args.exc_type, exc_value, args.exc_traceback)
+    terminate_script(
+        'THREAD_RAISED',
+        (
+            'An unexpected (uncaught) error occurred.\n\n'
+            'Please kindly report it to:\n'
+            'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
+        ),
+        exception_info=exception_info,
+    )
+
+
 # Install global exception/signal handlers at import time
 sys.excepthook = handle_exception
+threading.excepthook = _handle_thread_exception
 signal.signal(signal.SIGINT, handle_sigint)

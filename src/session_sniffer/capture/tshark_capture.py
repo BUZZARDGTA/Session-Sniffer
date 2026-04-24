@@ -1,4 +1,5 @@
 """Module for packet capture using TShark, including packet processing and handling of TShark crashes."""
+import contextlib
 import subprocess
 import threading
 from dataclasses import dataclass, field
@@ -186,12 +187,16 @@ class CaptureConfig:
         interface: The selected network interface to capture packets from.
         tshark_path: The path to the TShark executable.
         callback: A callback function to process captured packets.
+        broadcast_support: Whether the interface supports the `broadcast` capture filter.
+        multicast_support: Whether the interface supports the `multicast` capture filter.
         capture_filter: An optional capture filter string for TShark.
         display_filter: An optional display filter string for TShark.
     """
     interface: SelectedInterface
     tshark_path: Path
     callback: PacketCallback
+    broadcast_support: bool
+    multicast_support: bool
     capture_filter: str | None = None
     display_filter: str | None = None
 
@@ -343,23 +348,71 @@ class PacketCapture:
             if process.stdout is None or process.stderr is None:
                 raise TSharkProcessInitializationError
 
-            # Iterate over stdout line by line as it is being produced
-            for line in process.stdout:
-                raw_line = line.rstrip()
+            # Capture stderr reference now (non-None after guard) so the lambda has a typed binding.
+            stderr = process.stderr
 
-                packet_fields = _process_tshark_stdout(raw_line)
-                if packet_fields is None:
-                    continue
+            # Drain stderr concurrently to prevent pipe-buffer deadlock if TShark writes
+            # more than the OS pipe buffer (~64 KB) before exiting.
+            stderr_chunks: list[str] = []
+            stderr_drain_thread = threading.Thread(
+                target=lambda: stderr_chunks.extend(stderr.readlines()),
+                name='TSharkCapture-StderrDrain',
+                daemon=True,
+            )
+            stderr_drain_thread.start()
 
-                try:
-                    yield Packet.from_fields(packet_fields)
-                except MalformedPacketError as exc:
-                    _log_malformed_packet_skip(
-                        str(exc),
-                        raw_line=raw_line,
-                    )
+            try:
+                # Iterate over stdout line by line as it is being produced
+                for line in process.stdout:
+                    raw_line = line.rstrip()
 
-            # After stdout is done, check if there were any errors in stderr
-            stderr_output = process.stderr.read()
-            if isinstance(process.returncode, int) and process.returncode:
-                raise TSharkCrashExceptionError(process.returncode, stderr_output)
+                    packet_fields = _process_tshark_stdout(raw_line)
+                    if packet_fields is None:
+                        continue
+
+                    try:
+                        yield Packet.from_fields(packet_fields)
+                    except MalformedPacketError as exc:
+                        _log_malformed_packet_skip(
+                            str(exc),
+                            raw_line=raw_line,
+                        )
+            finally:
+                # If the generator is closed early (e.g., restart requested), ensure the process exits.
+                if process.poll() is None:
+                    with contextlib.suppress(OSError, ProcessLookupError):
+                        process.terminate()
+
+                with contextlib.suppress(subprocess.TimeoutExpired, OSError):
+                    process.wait(timeout=5)
+
+                if process.poll() is None:
+                    logger.warning('TShark did not exit in time; forcing kill()')
+                    with contextlib.suppress(OSError, ProcessLookupError):
+                        process.kill()
+                    with contextlib.suppress(subprocess.TimeoutExpired, OSError):
+                        process.wait(timeout=5)
+
+                # Ensure the drain thread does not keep the pipe open.
+                stderr_drain_thread.join(timeout=2)
+                if stderr_drain_thread.is_alive():
+                    with contextlib.suppress(OSError, ValueError):
+                        stderr.close()
+                    stderr_drain_thread.join(timeout=2)
+
+                with self._state.control_lock:
+                    if self._state.tshark_process is process:
+                        self._state.tshark_process = None
+
+            stderr_output = ''.join(stderr_chunks)
+            # Only treat non-zero exit as a crash if capture was still intended to run.
+            # Manual stop clears running_event; restart requests set restart_requested.
+            # The lock ensures we read running_event atomically with respect to stop().
+            with self._state.control_lock:
+                if (
+                    isinstance(process.returncode, int)
+                    and process.returncode
+                    and self._state.running_event.is_set()
+                    and not self._state.restart_requested.is_set()
+                ):
+                    raise TSharkCrashExceptionError(process.returncode, stderr_output)

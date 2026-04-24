@@ -170,3 +170,27 @@ class TSharkThreadAlreadyRunningError(TSharkError):
     def __init__(self) -> None:
         """Initialize the exception."""
         super().__init__('Capture thread is already running')
+
+
+class MissingGatewayIPForARPSpoofingError(Exception):
+    """Raised when ARP spoofing is enabled but the selected interface has no usable gateway IP."""
+
+    def __init__(
+        self,
+        *,
+        interface_name: str,
+        interface_ip: str,
+        gateway_ip: str | None,
+    ) -> None:
+        """Initialize with the interface details that caused the error."""
+        self.interface_name = interface_name
+        self.interface_ip = interface_ip
+        self.gateway_ip = gateway_ip
+        self.msgbox_text = (
+            'ARP spoofing requires a valid gateway IP for the selected capture interface.\n\n'
+            f'Interface: {interface_name}\n'
+            f'Interface IP: {interface_ip}\n'
+            f'Gateway IP: {gateway_ip or "N/A"}\n\n'
+            'Select a different interface that has a gateway, or disable ARP spoofing.'
+        )
+        super().__init__(self.msgbox_text)

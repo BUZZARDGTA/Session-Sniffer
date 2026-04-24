@@ -2,6 +2,7 @@
 
 It includes a function `lookup` which resolves hostnames from IP addresses.
 """
+import dns.exception
 import dns.resolver
 import dns.reversename
 
@@ -27,7 +28,7 @@ def lookup(target_ip: str) -> str:
 
     try:
         answer = resolver.resolve(rev_name, 'PTR')
-    except (dns.resolver.LifetimeTimeout, dns.resolver.NXDOMAIN, dns.resolver.YXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+    except dns.exception.DNSException:
         return target_ip
 
     ptr_record = next(iter(answer), None)

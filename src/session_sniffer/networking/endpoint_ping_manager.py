@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from requests import exceptions
 
 from session_sniffer.error_messages import ensure_instance, format_type_error
-from session_sniffer.networking.exceptions import AllEndpointsExhaustedError, InvalidPingResultError
+from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 
 RE_BYTES_PATTERN = re.compile(
@@ -42,7 +42,7 @@ class EndpointInfo:
     failures: int = 0
     total_time: float = 0.0
     cooldown_until: float = 0.0
-    failed_ips: dict[str, int] = dataclasses.field(default_factory=dict[str, int])
+    failed_ips: dict[str, int] = dataclasses.field(default_factory=dict)
 
     def update_success(self, duration: float, ip: str) -> None:
         """Record a successful ping attempt and clear any per-IP failure tracking."""
@@ -198,6 +198,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             continue  # Skip this endpoint host if already at the 10-request limit
 
         request_start_time = time.monotonic()
+        ping_result: PingResult | None = None
 
         try:
             response = session.get(f'{endpoint_info.url}?host={ip}', timeout=30)
@@ -207,22 +208,28 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
 
             unescaped_response_text = response.content.decode('utf-8').replace('\\/', '/')
 
-            ping_result = parse_ping_response(unescaped_response_text)
-            if ping_result.is_invalid(unescaped_response_text):
-                raise InvalidPingResultError(ip, unescaped_response_text, ping_result)
+            parsed = parse_ping_response(unescaped_response_text)
+            if not parsed.is_invalid(unescaped_response_text):
+                ping_result = parsed
 
         except exceptions.RequestException as e:
             cooldown = DEFAULT_RETRY_COOLDOWN
-            if e.response is not None and (retry_after := e.response.headers.get('Retry-After')):
-                cooldown = float(retry_after)
+            if e.response is not None:
+                retry_after = e.response.headers.get('Retry-After')
+                if retry_after:
+                    cooldown = float(retry_after)
 
             with _endpoints_lock:
                 endpoint_info.update_failure(time.monotonic() - request_start_time, cooldown, ip)
 
         else:
+            if ping_result is not None:
+                with _endpoints_lock:
+                    endpoint_info.update_success(time.monotonic() - request_start_time, ip)
+                return ping_result
+
             with _endpoints_lock:
-                endpoint_info.update_success(time.monotonic() - request_start_time, ip)
-            return ping_result
+                endpoint_info.update_failure(time.monotonic() - request_start_time, DEFAULT_RETRY_COOLDOWN, ip)
 
         finally:
             semaphore.release()  # Release slot after request

@@ -3,7 +3,7 @@
 This module ensures there's only one QApplication instance throughout the application.
 """
 
-import qdarkstyle  # pyright: ignore[reportMissingTypeStubs]
+import qdarkstyle
 from PyQt6.QtWidgets import QApplication
 
 # Create the single QApplication instance for the entire application

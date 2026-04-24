@@ -1,18 +1,22 @@
-"""Main window implementation for Session Sniffer."""
+"""Main window implementation for Session Sniffer."""  # pylint: disable=too-many-lines
 
+import os
 import webbrowser
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QEvent, QObject, QSize, Qt
+from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QFont, QMouseEvent
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMenu,
     QPushButton,
+    QSpinBox,
     QStatusBar,
     QToolBar,
     QVBoxLayout,
@@ -20,10 +24,32 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.background import gui_closed__event
-from session_sniffer.constants.local import VERSION
+from session_sniffer.background.suspend_manager import ProcessSuspendManager
+from session_sniffer.constants.local import (
+    APP_DIR_LOCAL,
+    APP_DIR_ROAMING,
+    DEBUG_DIR_PATH,
+    DEBUG_LOG_PATH,
+    DETECTION_LOGGING_PATH,
+    ERRORS_LOG_PATH,
+    LIBS_DEBUG_LOG_PATH,
+    LOGGING_DIR_PATH,
+    PROTECTION_LOGGING_PATH,
+    SESSIONS_LOGGING_DIR_PATH,
+    SETTINGS_PATH,
+    USER_SCRIPTS_DIR_PATH,
+    USERIP_DATABASES_DIR_PATH,
+    USERIP_LOGGING_PATH,
+    WARNINGS_LOG_PATH,
+)
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
-from session_sniffer.guis.html_templates import CAPTURE_STOPPED_HTML, GUI_HEADER_HTML_TEMPLATE
+from session_sniffer.guis.html_templates import generate_gui_header_html
+from session_sniffer.guis.logs_manager import LogsManager
+from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
+from session_sniffer.guis.player_resolver import PlayerResolverWindow
+from session_sniffer.guis.protections_manager import ProtectionsManagerDialog
+from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
     CONNECTED_CLEAR_BUTTON_STYLESHEET,
@@ -42,16 +68,23 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
+from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
-from session_sniffer.player.warnings import GUIDetectionSettings, HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload
+from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
+from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
     from session_sniffer.capture.tshark_capture import PacketCapture
     from session_sniffer.models.player import Player
+
+logger = get_logger(__name__)
 
 GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
 DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
@@ -61,44 +94,428 @@ DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 class PersistentMenu(QMenu):
     """Custom QMenu that doesn't close when checkable actions are triggered."""
 
-    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
         """Override mouse release event to prevent auto-closing on checkable actions."""
-        if event is None:
-            super().mouseReleaseEvent(event)
+        if a0 is None:
+            super().mouseReleaseEvent(a0)
             return
 
-        action = self.actionAt(event.pos())
+        action = self.actionAt(a0.pos())
         if action and action.isCheckable():
             # Trigger the action but don't close the menu
             action.trigger()
-            event.accept()
+            a0.accept()
             return
         # For non-checkable actions, use default behavior (close menu)
-        super().mouseReleaseEvent(event)
+        super().mouseReleaseEvent(a0)
 
 
-def generate_gui_header_html(*, capture: PacketCapture) -> str:
-    """Generate the GUI header HTML based on capture state.
+@dataclass(frozen=True, slots=True)
+class _ToolbarActions:
+    """Toolbar QAction references."""
+    toggle_capture: QAction
 
-    Args:
-        capture: The PacketCapture instance to read state from.
 
-    Returns:
-        HTML string for the header.
-    """
-    stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
+@dataclass(slots=True)
+class _WindowState:
+    """Mutable runtime state for the main window."""
+    worker_thread: GUIWorkerThread
+    window_being_moved: bool
+    min_accepted_snapshot_version: int
 
-    return GUI_HEADER_HTML_TEMPLATE.format(
-        title=TITLE,
-        version=VERSION,
-        stop_status=stop_status,
-    )
+
+class SessionStatusBar(QStatusBar):
+    """Status bar with dedicated labels for capture, config, issues, and performance info."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Create the status bar and add the four section labels."""
+        super().__init__(parent)
+        self.setSizeGripEnabled(False)
+        self.setStyleSheet(STATUS_BAR_STYLESHEET)
+
+        self._capture_label = QLabel()
+        self._capture_label.setTextFormat(Qt.TextFormat.RichText)
+        self._capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
+
+        self._config_label = QLabel()
+        self._config_label.setTextFormat(Qt.TextFormat.RichText)
+        self._config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
+
+        self._issues_label = QLabel()
+        self._issues_label.setTextFormat(Qt.TextFormat.RichText)
+        self._issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
+
+        self._performance_label = QLabel()
+        self._performance_label.setTextFormat(Qt.TextFormat.RichText)
+        self._performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
+
+        self.addWidget(self._capture_label)
+        self.addWidget(self._config_label)
+        self.addWidget(self._issues_label)
+        self.addPermanentWidget(self._performance_label)
+
+    def set_texts(self, *, capture: str, config: str, issues: str, performance: str) -> None:
+        """Update all four status label texts at once."""
+        self._capture_label.setText(capture)
+        self._config_label.setText(config)
+        self._issues_label.setText(issues)
+        self._performance_label.setText(performance)
+
+
+class SessionTableSection(QWidget):
+    """Self-contained collapsible widget containing a session table with header controls."""
+
+    section_toggled = pyqtSignal()
+    table_model: SessionTableModel
+    table_view: SessionTableView
+
+    def __init__(
+        self,
+        *,
+        is_connected: bool,
+        column_names: list[str],
+        clear_slot: Callable[[], None],
+        parent: QWidget | None = None,
+    ) -> None:
+        """Build the header, table, and expand button for a collapsible session section."""
+        super().__init__(parent)
+
+        self._section_name = 'Connected' if is_connected else 'Disconnected'
+        self.last_count: int = -1
+        self._selected_count: int = 0
+
+        self._is_connected = is_connected
+        self._rows_keyboard_editing = False
+
+        if is_connected:
+            header_container_stylesheet = CONNECTED_HEADER_CONTAINER_STYLESHEET
+            header_text_stylesheet = CONNECTED_HEADER_TEXT_STYLESHEET
+            clear_button_stylesheet = CONNECTED_CLEAR_BUTTON_STYLESHEET
+            expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
+            collapse_tooltip = 'Hide the connected players table'
+            clear_tooltip = 'Clear all connected players'
+            expand_tooltip = 'Show the connected players table'
+            sort_column_name = 'Last Rejoin'
+            sort_order = Qt.SortOrder.DescendingOrder
+        else:
+            header_container_stylesheet = DISCONNECTED_HEADER_CONTAINER_STYLESHEET
+            header_text_stylesheet = DISCONNECTED_HEADER_TEXT_STYLESHEET
+            clear_button_stylesheet = DISCONNECTED_CLEAR_BUTTON_STYLESHEET
+            expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
+            collapse_tooltip = 'Hide the disconnected players table'
+            clear_tooltip = 'Clear all disconnected players'
+            expand_tooltip = 'Show the disconnected players table'
+            sort_column_name = 'Last Seen'
+            sort_order = Qt.SortOrder.AscendingOrder
+
+        # Header container
+        header_container = QWidget()
+        header_container.setStyleSheet(header_container_stylesheet)
+        header_layout = QHBoxLayout(header_container)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+
+        self._header_label = QLabel(self._header_label_text())
+        self._header_label.setTextFormat(Qt.TextFormat.RichText)
+        self._header_label.setStyleSheet(header_text_stylesheet)
+        self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header_label.setFont(QFont('Courier', 9, QFont.Weight.Bold))
+
+        clear_button = QPushButton('CLEAR')
+        clear_button.setToolTip(clear_tooltip)
+        clear_button.setStyleSheet(clear_button_stylesheet)
+        clear_button.clicked.connect(clear_slot)
+
+        collapse_button = QPushButton('▼')
+        collapse_button.setToolTip(collapse_tooltip)
+        collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
+        collapse_button.clicked.connect(self.minimize)
+
+        header_layout.addWidget(self._header_label, 1)
+
+        # Pagination controls — rows per page
+        rows_label = QLabel('Rows:')
+        rows_label.setToolTip('Rows per page (0 = show all)')
+        header_layout.addWidget(rows_label)
+
+        initial_rpp = (
+            Settings.gui_connected_table_rows_per_page
+            if is_connected
+            else Settings.gui_disconnected_table_rows_per_page
+        )
+
+        self._rows_per_page_spinbox = QSpinBox()
+        self._rows_per_page_spinbox.setRange(0, 5000)
+        self._rows_per_page_spinbox.setSpecialValueText('All')
+        self._rows_per_page_spinbox.setSuffix(' rows/page')
+        self._rows_per_page_spinbox.setValue(initial_rpp)
+        self._rows_per_page_spinbox.setToolTip(
+            f'Limit how many {self._section_name.lower()} players are shown per page. Set 0 to show all.',
+        )
+        self._rows_per_page_spinbox.setKeyboardTracking(False)
+        self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
+        self._rows_per_page_spinbox.editingFinished.connect(self._finalize_rows_edit)
+        header_layout.addWidget(self._rows_per_page_spinbox)
+        self._install_spinbox_input_filter(self._rows_per_page_spinbox)
+
+        # Pagination controls — page number
+        page_label = QLabel('Page:')
+        page_label.setToolTip('Current page when rows are limited.')
+        header_layout.addWidget(page_label)
+
+        self._page_spinbox = QSpinBox()
+        self._page_spinbox.setRange(1, 1)
+        self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
+        self._page_spinbox.setSuffix(' / 1')
+        self._page_spinbox.valueChanged.connect(self._handle_page_changed)
+        header_layout.addWidget(self._page_spinbox)
+
+        # Internal paging state
+        self._rows_per_page: int = initial_rpp
+        self._current_page: int = 1
+        self._total_pages: int = 1
+
+        # Seed PaginationState so the worker thread knows the initial values
+        if is_connected:
+            PaginationState.set_connected(rows_per_page=initial_rpp, page=1)
+        else:
+            PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
+
+        header_layout.addWidget(clear_button)
+        header_layout.addWidget(collapse_button)
+
+        # Table model and view
+        self.table_model = SessionTableModel(column_names)
+        self.table_view = SessionTableView(
+            self.table_model,
+            column_names.index(sort_column_name),
+            sort_order,
+            is_connected_table=is_connected,
+        )
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
+        self.table_view.setup_static_column_resizing()
+        self.table_model.view = self.table_view
+
+        # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
+        self.expand_button = QPushButton(f'▲  Show {self._section_name} Players (0)')
+        self.expand_button.setToolTip(expand_tooltip)
+        self.expand_button.setStyleSheet(expand_button_stylesheet)
+        self.expand_button.setVisible(False)
+        self.expand_button.clicked.connect(self.expand)
+
+        # Section layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(header_container)
+        layout.addWidget(self.table_view, 1)
+
+        self.table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
+
+    @property
+    def _header_widget(self) -> QWidget:
+        """The header container widget, accessed via the header label's parent."""
+        return cast('QWidget', self._header_label.parentWidget())
+
+    @property
+    def is_expanded(self) -> bool:
+        """True when the section content (header + table) is visible."""
+        return self.isVisible()
+
+    def expand(self) -> None:
+        """Show section content and hide the expand button."""
+        self.expand_button.setVisible(False)
+        self.setVisible(True)
+        self.table_model.refresh_view()
+        self.section_toggled.emit()
+
+    def minimize(self) -> None:
+        """Collapse section to just an expand button."""
+        self.setVisible(False)
+        self.expand_button.setText(
+            f'▲  Show {self._section_name} Players ({max(self.last_count, 0)})',
+        )
+        self.expand_button.setVisible(True)
+        self.section_toggled.emit()
+
+    def update_current_count(self, count: int) -> None:
+        """Update the player count, refresh the header, and sync the expand button text."""
+        self.last_count = count
+        self._update_header_label()
+        if not self.is_expanded:
+            self.expand_button.setText(
+                f'▲  Show {self._section_name} Players ({count})',
+            )
+
+    def clear_table(self) -> None:
+        """Clear all table data and reset selection count."""
+        self.table_model.reset_columns()
+        self._selected_count = 0
+        self._update_header_label()
+
+    def update_columns(self, column_names: list[str]) -> None:
+        """Replace the column set at runtime and reconfigure the view."""
+        sort_col_name = 'Last Rejoin' if self._section_name == 'Connected' else 'Last Seen'
+        self.table_model.reset_columns(column_names)
+        sort_index = column_names.index(sort_col_name)
+        header = self.table_view.horizontalHeader()
+        header.setSortIndicator(sort_index, header.sortIndicatorOrder())
+        self.table_view.setup_static_column_resizing()
+
+    def set_all_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable all interactive child widgets."""
+        self._header_widget.setEnabled(enabled)
+        self.table_view.setEnabled(enabled)
+        self.expand_button.setEnabled(enabled)
+
+    def _header_label_text(self) -> str:
+        intro = 'Players connected in your session' if self._section_name == 'Connected' else "Players who've left your session"
+        base = f'{intro} ({max(0, self.last_count)}):'
+        if self._selected_count > 0:
+            noun = 'player' if self._selected_count == 1 else 'players'
+            return f'{base} ({self._selected_count} {noun} selected)'
+        return base
+
+    def _update_header_label(self) -> None:
+        self._header_label.setText(self._header_label_text())
+
+    def refresh_selection_count(self) -> None:
+        """Recompute the selected-row count and update the header label."""
+        self._on_selection_changed()
+
+    def _on_selection_changed(self) -> None:
+        self._selected_count = len({idx.row() for idx in self.table_view.selectionModel().selectedIndexes()})
+        self._update_header_label()
+
+    # -- Pagination handlers --------------------------------------------------
+
+    def _handle_rows_per_page_changed(self, value: int) -> None:
+        self._rows_per_page = max(value, 0)
+        self._current_page, self._total_pages = self._sync_paging_controls(
+            total_rows=max(self.last_count, 0),
+            rows_per_page=self._rows_per_page,
+            requested_page=1,
+        )
+        self._push_pagination_state()
+        self._update_header_label()
+
+    def _handle_page_changed(self, value: int) -> None:
+        self._current_page = max(value, 1)
+        self._push_pagination_state()
+        self._update_header_label()
+
+    def _finalize_rows_edit(self) -> None:
+        val = self._rows_per_page_spinbox.value()
+        self._handle_rows_per_page_changed(val)
+        self._rows_per_page_spinbox.clearFocus()
+
+    def _push_pagination_state(self) -> None:
+        """Write current pagination state to the shared PaginationState."""
+        if self._is_connected:
+            PaginationState.set_connected(rows_per_page=self._rows_per_page, page=self._current_page)
+        else:
+            PaginationState.set_disconnected(rows_per_page=self._rows_per_page, page=self._current_page)
+
+    def _sync_paging_controls(
+        self,
+        *,
+        total_rows: int,
+        rows_per_page: int,
+        requested_page: int,
+    ) -> tuple[int, int]:
+        """Update the page spinbox range/value and return (clamped_page, total_pages)."""
+        if not rows_per_page:
+            total_pages = 1
+            page = 1
+        else:
+            total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
+            page = min(max(1, requested_page), total_pages)
+
+        block = True
+        self._page_spinbox.blockSignals(block)
+        self._page_spinbox.setMinimum(1)
+        self._page_spinbox.setMaximum(total_pages)
+        self._page_spinbox.setEnabled(0 < rows_per_page < total_rows)
+        self._page_spinbox.setValue(page)
+        unblock = False
+        self._page_spinbox.blockSignals(unblock)
+
+        return page, total_pages
+
+    def sync_paging_from_payload(
+        self,
+        *,
+        total_count: int,
+        rows_per_page: int,
+        page: int,
+    ) -> None:
+        """Called from _update_gui to keep spinbox decorations in sync."""
+        self._rows_per_page = rows_per_page
+
+        if not self._rows_keyboard_editing:
+            self._rows_per_page_spinbox.setRange(0, 5000)
+            if self._rows_per_page > 0:
+                self._rows_per_page_spinbox.setPrefix(f'{total_count} / ')
+                self._rows_per_page_spinbox.setSuffix('')
+                self._rows_per_page_spinbox.setSpecialValueText('')
+            else:
+                self._rows_per_page_spinbox.setPrefix('')
+                self._rows_per_page_spinbox.setSuffix('')
+                self._rows_per_page_spinbox.setSpecialValueText(f'All ({total_count})')
+
+        self._current_page, self._total_pages = self._sync_paging_controls(
+            total_rows=max(self.last_count, 0),
+            rows_per_page=self._rows_per_page,
+            requested_page=page,
+        )
+        self._push_pagination_state()
+
+        if not self._rows_keyboard_editing:
+            self._page_spinbox.setSuffix(f' / {self._total_pages}')
+
+    def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
+        """Attach an event filter that tracks keyboard vs. wheel editing."""
+        line_edit = spinbox.lineEdit()
+        if line_edit is None:
+            return
+
+        section = self
+
+        class _SpinboxInputGuard(QObject):
+            def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+                """Track input method to distinguish keyboard edits from wheel/spin changes."""
+                _ = a0
+                if a1 is None:
+                    return False
+                et = a1.type()
+                if et == QEvent.Type.KeyPress:
+                    section.set_keyboard_editing(is_editing=True)
+                elif et in (QEvent.Type.FocusOut, QEvent.Type.Hide, QEvent.Type.Wheel):
+                    section.set_keyboard_editing(is_editing=False)
+                return False
+
+        guard = _SpinboxInputGuard(self)
+        spinbox.installEventFilter(guard)
+        line_edit.installEventFilter(guard)
+        # prevent GC
+        self._spinbox_guard = guard
+
+    def set_keyboard_editing(self, *, is_editing: bool) -> None:
+        """Set the keyboard editing state for the rows-per-page spinbox."""
+        self._rows_keyboard_editing = is_editing
 
 
 class MainWindow(QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
-    _min_accepted_snapshot_version: int
+    _actions: _ToolbarActions
+    _connected: SessionTableSection
+    _disconnected: SessionTableSection
+
+    def _update_separator_visibility(self) -> None:
+        self._tables_separator.setVisible(
+            self._connected.is_expanded or self._disconnected.is_expanded,
+        )
 
     def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
         """Initialize the main application window.
@@ -111,6 +528,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.capture = capture
+        self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips, self)
+        self._leaderboard_window: PlayerLeaderboardWindow | None = None
 
         # Set up the window
         self.setWindowTitle(TITLE)
@@ -122,7 +541,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Layout for the central widget
-        self.main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(central_widget)
 
         # Create the toolbar
         toolbar = QToolBar('Main Toolbar', self)
@@ -133,72 +552,195 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
         # ----- Stop/Start Capture Button -----
-        self.toggle_capture_action = QAction('⏹️ Stop Capture', self)
-        self.toggle_capture_action.setToolTip('Stop packet capture')
-        self.toggle_capture_action.triggered.connect(self.toggle_capture)
-        toolbar.addAction(self.toggle_capture_action)
+        toggle_capture_action = QAction('⏹️ Stop Capture', self)
+        toggle_capture_action.setToolTip('Stop packet capture')
+        toggle_capture_action.triggered.connect(self._toggle_capture)
+        toolbar.addAction(toggle_capture_action)
 
         toolbar.addSeparator()
 
-        # ----- Detection Menu -----
-        detection_menu_button = QPushButton(' 🔔 Detection ', self)
-        detection_menu_button.setToolTip('Configure notification settings for various player detection scenarios')
+        # ----- Protections Manager -----
+        protections_button = QPushButton(' \U0001f6e1\ufe0f Protections Manager ', self)
+        protections_button.setToolTip('Configure detection, notifications, and protection rules')
+        protections_button.clicked.connect(self._open_protections_manager)  # pyright: ignore[reportUnknownMemberType]
+        protections_button.setVisible(Settings.is_protection_supported)
+        toolbar.addWidget(protections_button)
 
-        detection_menu = PersistentMenu(self)
-        detection_menu.setToolTipsVisible(True)
+        toolbar.addSeparator()
 
-        # Mobile Detection action
-        self.mobile_detection_action = QAction('Mobile (cellular) connection', self)
-        self.mobile_detection_action.setToolTip('Get notified when a player joins using a mobile/cellular internet connection')
-        self.mobile_detection_action.setCheckable(True)
-        self.mobile_detection_action.setChecked(GUIDetectionSettings.mobile_detection_enabled)
-        self.mobile_detection_action.triggered.connect(self.toggle_mobile_detection)
-        detection_menu.addAction(self.mobile_detection_action)
+        # ----- Player Resolver Button -----
+        player_resolver_button = QPushButton(' \U0001f50d Player Resolver ', self)
+        player_resolver_button.setToolTip('High Rate Monitor and Player Identifier tools')
+        player_resolver_button.clicked.connect(self._open_player_resolver)
+        toolbar.addWidget(player_resolver_button)
 
-        # VPN Detection action
-        self.vpn_detection_action = QAction('Proxy, VPN or Tor exit address', self)
-        self.vpn_detection_action.setToolTip('Get notified when a player joins using a VPN, proxy, or Tor exit node')
-        self.vpn_detection_action.setCheckable(True)
-        self.vpn_detection_action.setChecked(GUIDetectionSettings.vpn_detection_enabled)
-        self.vpn_detection_action.triggered.connect(self.toggle_vpn_detection)
-        detection_menu.addAction(self.vpn_detection_action)
+        toolbar.addSeparator()
 
-        # Hosting Detection action
-        self.hosting_detection_action = QAction('Hosting, colocated or data center', self)
-        self.hosting_detection_action.setToolTip('Get notified when a player joins from a hosting provider or data center')
-        self.hosting_detection_action.setCheckable(True)
-        self.hosting_detection_action.setChecked(GUIDetectionSettings.hosting_detection_enabled)
-        self.hosting_detection_action.triggered.connect(self.toggle_hosting_detection)
-        detection_menu.addAction(self.hosting_detection_action)
+        # ----- Most Seen Players Leaderboard Button -----
+        leaderboard_button = QPushButton(' \U0001f3c6 Most Seen Players ', self)
+        leaderboard_button.setToolTip('View a leaderboard of the most frequently seen players across sessions')
+        leaderboard_button.clicked.connect(self._open_player_leaderboard)
+        toolbar.addWidget(leaderboard_button)
 
-        detection_menu.addSeparator()
+        toolbar.addSeparator()
 
-        # Player Join Notification action
-        self.player_join_notification_action = QAction('Player join notifications', self)
-        self.player_join_notification_action.setToolTip('Get notified whenever any player joins your session')
-        self.player_join_notification_action.setCheckable(True)
-        self.player_join_notification_action.setChecked(GUIDetectionSettings.player_join_notifications_enabled)
-        self.player_join_notification_action.triggered.connect(self.toggle_player_join_notifications)
-        detection_menu.addAction(self.player_join_notification_action)
+        # ----- Data & Files Menu -----
+        data_menu_button = QPushButton(' 📁 Data & Files ', self)
+        data_menu_button.setToolTip('Open Session Sniffer folders and files stored in AppData')
 
-        # Player Rejoin Notification action
-        self.player_rejoin_notification_action = QAction('Player rejoin notifications', self)
-        self.player_rejoin_notification_action.setToolTip('Get notified whenever any player rejoins your session after disconnecting')
-        self.player_rejoin_notification_action.setCheckable(True)
-        self.player_rejoin_notification_action.setChecked(GUIDetectionSettings.player_rejoin_notifications_enabled)
-        self.player_rejoin_notification_action.triggered.connect(self.toggle_player_rejoin_notifications)
-        detection_menu.addAction(self.player_rejoin_notification_action)
+        data_menu = PersistentMenu(self)
+        data_menu.setToolTipsVisible(True)
 
-        # Player Leave Notification action
-        self.player_leave_notification_action = QAction('Player leave notifications', self)
-        self.player_leave_notification_action.setToolTip('Get notified whenever any player leaves your session')
-        self.player_leave_notification_action.setCheckable(True)
-        self.player_leave_notification_action.setChecked(GUIDetectionSettings.player_leave_notifications_enabled)
-        self.player_leave_notification_action.triggered.connect(self.toggle_player_leave_notifications)
-        detection_menu.addAction(self.player_leave_notification_action)
+        # --- AppData Roots ---
+        open_local_appdata_action = QAction('📂 Open Local AppData Folder', self)
+        open_local_appdata_action.setToolTip('Open Local AppData\\Session Sniffer in Windows Explorer')
+        open_local_appdata_action.triggered.connect(self._open_local_appdata_folder)
+        data_menu.addAction(open_local_appdata_action)
 
-        detection_menu_button.setMenu(detection_menu)
-        toolbar.addWidget(detection_menu_button)
+        open_roaming_appdata_action = QAction('📂 Open Roaming AppData Folder', self)
+        open_roaming_appdata_action.setToolTip('Open Roaming AppData\\Session Sniffer in Windows Explorer')
+        open_roaming_appdata_action.triggered.connect(self._open_roaming_appdata_folder)
+        data_menu.addAction(open_roaming_appdata_action)
+
+        data_menu.addSeparator()
+
+        # --- Configuration ---
+        open_settings_action = QAction('📄 Open Settings.ini', self)
+        open_settings_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
+        open_settings_action.triggered.connect(self._open_settings_file)
+        data_menu.addAction(open_settings_action)
+
+        data_menu.addSeparator()
+
+        # --- Folders ---
+        open_userip_databases_action = QAction('🗂️ Open UserIP Databases Folder', self)
+        open_userip_databases_action.setToolTip('Open Roaming AppData\\Session Sniffer\\UserIP Databases')
+        open_userip_databases_action.triggered.connect(self._open_userip_databases_folder)
+        data_menu.addAction(open_userip_databases_action)
+
+        open_user_scripts_action = QAction('🗂️ Open User Scripts Folder', self)
+        open_user_scripts_action.setToolTip('Open Roaming AppData\\Session Sniffer\\scripts')
+        open_user_scripts_action.triggered.connect(self._open_user_scripts_folder)
+        data_menu.addAction(open_user_scripts_action)
+
+        data_menu.addSeparator()
+
+        # --- Debug Logs Submenu ---
+        debug_logs_submenu = data_menu.addMenu('🐛 Debug Logs')
+        assert debug_logs_submenu is not None
+        debug_logs_submenu.setToolTipsVisible(True)
+
+        open_debug_logs_folder_action = QAction('📂 Open Debug Logs Folder', self)
+        open_debug_logs_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug')
+        open_debug_logs_folder_action.triggered.connect(self._open_debug_logs_folder)
+        debug_logs_submenu.addAction(open_debug_logs_folder_action)
+
+        debug_logs_submenu.addSeparator()
+
+        open_debug_log_action = QAction('📄 debug.log', self)
+        open_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\debug.log')
+        open_debug_log_action.triggered.connect(self._open_debug_log_file)
+        debug_logs_submenu.addAction(open_debug_log_action)
+
+        open_libs_debug_log_action = QAction('📄 libs_debug.log', self)
+        open_libs_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\libs_debug.log')
+        open_libs_debug_log_action.triggered.connect(self._open_libs_debug_log_file)
+        debug_logs_submenu.addAction(open_libs_debug_log_action)
+
+        open_warnings_log_action = QAction('📄 warnings.log', self)
+        open_warnings_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\warnings.log')
+        open_warnings_log_action.triggered.connect(self._open_warnings_log_file)
+        debug_logs_submenu.addAction(open_warnings_log_action)
+
+        open_error_log_action = QAction('📄 errors.log', self)
+        open_error_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\errors.log')
+        open_error_log_action.triggered.connect(self._open_error_log_file)
+        debug_logs_submenu.addAction(open_error_log_action)
+
+        # --- Application Logs Submenu ---
+        app_logs_submenu = data_menu.addMenu('📋 Application Logs')
+        assert app_logs_submenu is not None
+        app_logs_submenu.setToolTipsVisible(True)
+
+        open_logging_folder_action = QAction('📂 Open Logging Folder', self)
+        open_logging_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging')
+        open_logging_folder_action.triggered.connect(self._open_logging_folder)
+        app_logs_submenu.addAction(open_logging_folder_action)
+
+        open_sessions_logs_action = QAction('🗂️ Open Sessions Folder', self)
+        open_sessions_logs_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Sessions')
+        open_sessions_logs_action.triggered.connect(self._open_sessions_logging_folder)
+        app_logs_submenu.addAction(open_sessions_logs_action)
+
+        app_logs_submenu.addSeparator()
+
+        open_detection_log_action = QAction('📄 Detection_Logging.csv', self)
+        open_detection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Detection_Logging.csv')
+        open_detection_log_action.triggered.connect(self._open_detection_log_file)
+        app_logs_submenu.addAction(open_detection_log_action)
+
+        open_protection_log_action = QAction('📄 Protection_Logging.csv', self)
+        open_protection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Protection_Logging.csv')
+        open_protection_log_action.triggered.connect(self._open_protection_log_file)
+        app_logs_submenu.addAction(open_protection_log_action)
+
+        open_userip_log_action = QAction('📄 UserIP_Logging.csv', self)
+        open_userip_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\UserIP_Logging.csv')
+        open_userip_log_action.triggered.connect(self._open_userip_log_file)
+        app_logs_submenu.addAction(open_userip_log_action)
+
+        data_menu_button.setMenu(data_menu)
+        toolbar.addWidget(data_menu_button)
+
+        toolbar.addSeparator()
+
+        # ----- Logs Manager Button -----
+        logs_manager_button = QPushButton(' 📋 Logs Manager ', self)
+        logs_manager_button.setToolTip('View, search, filter, and manage application log files')
+        logs_manager_button.clicked.connect(self._open_logs_manager)
+        toolbar.addWidget(logs_manager_button)
+
+        toolbar.addSeparator()
+
+        # ----- UserIP Databases Manager Button -----
+        userip_manager_button = QPushButton(' 🗃️ UserIP Manager ', self)
+        userip_manager_button.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
+        userip_manager_button.clicked.connect(self._open_userip_manager)
+        toolbar.addWidget(userip_manager_button)
+
+        toolbar.addSeparator()
+
+        # ----- Discord Menu -----
+        discord_menu_button = QPushButton(' 🎮 Discord ', self)
+        discord_menu_button.setToolTip('Discord Rich Presence settings')
+
+        discord_menu = PersistentMenu(self)
+        discord_menu.setToolTipsVisible(True)
+
+        discord_rpc_toggle_action = QAction('Enable Rich Presence', self)
+        discord_rpc_toggle_action.setCheckable(True)
+        discord_rpc_toggle_action.setChecked(Settings.discord_presence)
+        discord_rpc_toggle_action.setToolTip('Toggle Discord Rich Presence on or off (takes effect immediately)')
+        discord_rpc_toggle_action.toggled.connect(self._toggle_discord_presence)
+        discord_menu.addAction(discord_rpc_toggle_action)
+
+        discord_menu.addSeparator()
+
+        edit_title_action = QAction('✏️ Edit Presence Title...', self)
+        edit_title_action.setToolTip('Customize the title text shown in your Discord status')
+        edit_title_action.triggered.connect(self._edit_discord_presence_title)
+        discord_menu.addAction(edit_title_action)
+
+        discord_menu_button.setMenu(discord_menu)
+        toolbar.addWidget(discord_menu_button)
+
+        toolbar.addSeparator()
+
+        # ----- Settings Button -----
+        settings_button = QPushButton(' ⚙️ Settings ', self)
+        settings_button.setToolTip('View and edit all application settings')
+        settings_button.clicked.connect(self._open_settings_dialog)
+        toolbar.addWidget(settings_button)
 
         toolbar.addSeparator()
 
@@ -212,237 +754,107 @@ class MainWindow(QMainWindow):
         # Project Repository action
         repo_action = QAction('📦 Project Repository', self)
         repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
-        repo_action.triggered.connect(self.open_project_repo)
+        repo_action.triggered.connect(self._open_project_repo)
         help_menu.addAction(repo_action)
 
         # Documentation action
         docs_action = QAction('📚 Documentation', self)
         docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
-        docs_action.triggered.connect(self.open_documentation)
+        docs_action.triggered.connect(self._open_documentation)
         help_menu.addAction(docs_action)
 
         # Discord action
         discord_action = QAction('💬 Discord Server', self)
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
-        discord_action.triggered.connect(self.join_discord)
+        discord_action.triggered.connect(self._join_discord)
         help_menu.addAction(discord_action)
 
         help_menu_button.setMenu(help_menu)
         toolbar.addWidget(help_menu_button)
 
-        # Header text
-        self.header_text = QLabel()
-        self.header_text.setTextFormat(Qt.TextFormat.RichText)
-        self.header_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.header_text.setWordWrap(True)
-        self.header_text.setFont(QFont('Courier', 10, QFont.Weight.Bold))
+        # Main title header
+        self._header = QLabel()
+        self._header.setTextFormat(Qt.TextFormat.RichText)
+        self._header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header.setWordWrap(True)
+        self._header.setFont(QFont('Courier', 10, QFont.Weight.Bold))
 
-        # Create container for connected header and controls
-        self.connected_header_container = QWidget()
-        self.connected_header_container.setStyleSheet(CONNECTED_HEADER_CONTAINER_STYLESHEET)
-        self.connected_header_layout = QHBoxLayout(self.connected_header_container)
-        self.connected_header_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Custom header for the Session Connected table with matching background as first column
-        self.session_connected_header = QLabel('Players connected in your session (0):')
-        self.session_connected_header.setTextFormat(Qt.TextFormat.RichText)
-        self.session_connected_header.setStyleSheet(CONNECTED_HEADER_TEXT_STYLESHEET)
-        self.session_connected_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.session_connected_header.setFont(QFont('Courier', 9, QFont.Weight.Bold))
-
-        # Add connected header to container with stretch to fill available space
-        self.connected_header_layout.addWidget(self.session_connected_header, 1)
-
-        # Add clear button for connected table
-        self.connected_clear_button = QPushButton('CLEAR')
-        self.connected_clear_button.setToolTip('Clear all connected players')
-        self.connected_clear_button.setStyleSheet(CONNECTED_CLEAR_BUTTON_STYLESHEET)
-        self.connected_clear_button.clicked.connect(self.clear_connected_players)
-        self.connected_header_layout.addWidget(self.connected_clear_button)
-
-        # Add sleek collapse icon button for connected table
-        self.connected_collapse_button = QPushButton('▼')
-        self.connected_collapse_button.setToolTip('Hide the connected players table')
-        self.connected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
-        self.connected_collapse_button.clicked.connect(self.minimize_connected_section)
-        self.connected_header_layout.addWidget(self.connected_collapse_button)
-
-        # Create the table model and view
-        connected_hidden_columns = set(Settings.GUI_COLUMNS_CONNECTED_HIDDEN)
+        # Connected and disconnected table sections
         connected_column_names = [
-            column_name
-            for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
-            if column_name not in connected_hidden_columns
+            col for col in Settings.GUI_ALL_CONNECTED_COLUMNS
+            if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS
         ]
-
-        self.connected_table_model = SessionTableModel(connected_column_names)
-        self.connected_table_view = SessionTableView(
-            self.connected_table_model,
-            connected_column_names.index('Last Rejoin'),
-            Qt.SortOrder.DescendingOrder,
-            is_connected_table=True,
+        self._connected = SessionTableSection(
+            is_connected=True,
+            column_names=connected_column_names,
+            clear_slot=self._clear_connected_players,
+            parent=self,
         )
-        self.connected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
-        self.connected_table_view.setup_static_column_resizing()
-        self.connected_table_model.view = self.connected_table_view
+        self._connected.table_view.open_rate_graph_callback = self._player_resolver_window.high_rate_monitor.open_graph
 
-        # Add a horizontal line separator
-        self.tables_separator = QFrame(self)
-        self.tables_separator.setFrameShape(QFrame.Shape.HLine)
-        self.tables_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self._tables_separator = QFrame(self)
+        self._tables_separator.setFrameShape(QFrame.Shape.HLine)
+        self._tables_separator.setFrameShadow(QFrame.Shadow.Sunken)
 
-        # Create container for disconnected header and controls
-        self.disconnected_header_container = QWidget()
-        self.disconnected_header_container.setStyleSheet(DISCONNECTED_HEADER_CONTAINER_STYLESHEET)
-        self.disconnected_header_layout = QHBoxLayout(self.disconnected_header_container)
-        self.disconnected_header_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Custom header for the Session Disconnected table with matching background as first column
-        self.session_disconnected_header = QLabel("Players who've left your session (0):")
-        self.session_disconnected_header.setTextFormat(Qt.TextFormat.RichText)
-        self.session_disconnected_header.setStyleSheet(DISCONNECTED_HEADER_TEXT_STYLESHEET)
-        self.session_disconnected_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.session_disconnected_header.setFont(QFont('Courier', 9, QFont.Weight.Bold))
-
-        # Add disconnected header to container with stretch to fill available space
-        self.disconnected_header_layout.addWidget(self.session_disconnected_header, 1)
-
-        # Add clear button for disconnected table
-        self.disconnected_clear_button = QPushButton('CLEAR')
-        self.disconnected_clear_button.setToolTip('Clear all disconnected players')
-        self.disconnected_clear_button.setStyleSheet(DISCONNECTED_CLEAR_BUTTON_STYLESHEET)
-        self.disconnected_clear_button.clicked.connect(self.clear_disconnected_players)
-        self.disconnected_header_layout.addWidget(self.disconnected_clear_button)
-
-        # Add sleek collapse icon button for disconnected table
-        self.disconnected_collapse_button = QPushButton('▼')
-        self.disconnected_collapse_button.setToolTip('Hide the disconnected players table')
-        self.disconnected_collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
-        self.disconnected_collapse_button.clicked.connect(self.minimize_disconnected_section)
-        self.disconnected_header_layout.addWidget(self.disconnected_collapse_button)
-
-        # Create expand button for when connected section is hidden
-        self.connected_expand_button = QPushButton('▲  Show Connected Players (0)')
-        self.connected_expand_button.setToolTip('Show the connected players table')
-        self.connected_expand_button.setStyleSheet(CONNECTED_EXPAND_BUTTON_STYLESHEET)
-        self.connected_expand_button.clicked.connect(self.expand_connected_section)
-        self.connected_expand_button.setVisible(False)
-
-        # Create expand button for when disconnected section is hidden
-        self.disconnected_expand_button = QPushButton('▲  Show Disconnected Players (0)')
-        self.disconnected_expand_button.setToolTip('Show the disconnected players table')
-        self.disconnected_expand_button.setStyleSheet(DISCONNECTED_EXPAND_BUTTON_STYLESHEET)
-        self.disconnected_expand_button.clicked.connect(self.expand_disconnected_section)
-        self.disconnected_expand_button.setVisible(False)
-
-        # Create the table model and view
-        disconnected_hidden_columns = set(Settings.GUI_COLUMNS_DISCONNECTED_HIDDEN)
         disconnected_column_names = [
-            column_name
-            for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-            if column_name not in disconnected_hidden_columns
+            col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+            if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS
         ]
-
-        self.disconnected_table_model = SessionTableModel(disconnected_column_names)
-        self.disconnected_table_view = SessionTableView(
-            self.disconnected_table_model,
-            disconnected_column_names.index('Last Seen'),
-            Qt.SortOrder.AscendingOrder,
-            is_connected_table=False,
-        )
-        self.disconnected_table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
-        self.disconnected_table_view.setup_static_column_resizing()
-        self.disconnected_table_model.view = self.disconnected_table_view
-
-        # Layout to organize the widgets
-        self.main_layout.addSpacing(4)
-        self.main_layout.addWidget(self.header_text)
-        self.main_layout.addSpacing(14)
-        self.main_layout.addWidget(self.connected_header_container)
-        self.main_layout.addWidget(self.connected_table_view)
-        self.main_layout.addWidget(self.tables_separator)
-        self.main_layout.addWidget(self.disconnected_header_container)
-        self.main_layout.addWidget(self.disconnected_table_view)
-        self.main_layout.addWidget(self.connected_expand_button)
-        self.main_layout.addWidget(self.disconnected_expand_button)
-
-        # Initialize tracking variables for text updates optimization
-        self._last_connected_count = -1
-        self._last_disconnected_count = -1
-
-        # Initialize tracking variables for selection counts
-        self._connected_selected_count = 0
-        self._disconnected_selected_count = 0
-
-        # Ignore any queued GUI updates published before this version.
-        # This prevents a stale update from repopulating the tables right after CLEAR.
-        self._min_accepted_snapshot_version = 0
-
-        # Connect to selection change signals to track selected cells
-        self.connected_table_view.selectionModel().selectionChanged.connect(
-            lambda: self._update_selection_count(self.connected_table_view, 'connected'),
-        )
-        self.disconnected_table_view.selectionModel().selectionChanged.connect(
-            lambda: self._update_selection_count(self.disconnected_table_view, 'disconnected'),
+        self._disconnected = SessionTableSection(
+            is_connected=False,
+            column_names=disconnected_column_names,
+            clear_slot=self._clear_disconnected_players,
+            parent=self,
         )
 
-        # Create and configure the status bar
-        self.status_bar = QStatusBar(self)
-        self.setStatusBar(self.status_bar)
-        self.status_bar.setSizeGripEnabled(False)
-        self.status_bar.setStyleSheet(STATUS_BAR_STYLESHEET)
+        # Status bar
+        self.setStatusBar(SessionStatusBar(self))
 
-        # Create individual status labels for better organization
-        self.status_capture_label = QLabel()
-        self.status_capture_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
+        # Toolbar action container
+        self._actions = _ToolbarActions(
+            toggle_capture=toggle_capture_action,
+        )
 
-        self.status_config_label = QLabel()
-        self.status_config_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
+        # Layout
+        main_layout.addSpacing(4)
+        main_layout.addWidget(self._header)
+        main_layout.addSpacing(14)
+        main_layout.addWidget(self._connected, 1)
+        main_layout.addWidget(self._tables_separator)
+        main_layout.addWidget(self._disconnected, 1)
+        main_layout.addWidget(self._connected.expand_button)
+        main_layout.addWidget(self._disconnected.expand_button)
 
-        self.status_issues_label = QLabel()
-        self.status_issues_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
-
-        self.status_performance_label = QLabel()
-        self.status_performance_label.setTextFormat(Qt.TextFormat.RichText)
-        self.status_performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.status_performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
-
-        # Add labels to status bar with proper spacing
-        self.status_bar.addWidget(self.status_capture_label)
-        self.status_bar.addWidget(self.status_config_label)
-        self.status_bar.addWidget(self.status_issues_label)
-        self.status_bar.addPermanentWidget(self.status_performance_label)
+        # Update separator when either section expands or collapses
+        self._connected.section_toggled.connect(self._update_separator_visibility)
+        self._disconnected.section_toggled.connect(self._update_separator_visibility)
 
         # Raise and activate window to ensure it gets focus
         self.raise_()
         self.activateWindow()
 
         # Create the worker thread for table updates
-        self.worker_thread = GUIWorkerThread(
-            self.connected_table_view,
-            self.disconnected_table_view,
+        worker_thread = GUIWorkerThread()
+        self._state = _WindowState(
+            worker_thread=worker_thread,
+            window_being_moved=False,
+            min_accepted_snapshot_version=0,
         )
-        self.worker_thread.update_signal.connect(self.update_gui)
-        self.worker_thread.start()
-
-        # Track window movement/dragging for opacity effect
-        self._window_being_moved = False
+        self._state.worker_thread.update_signal.connect(self._update_gui)
+        self._state.worker_thread.start()
 
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
-    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         """Filter events to detect window movement."""
-        if obj == self and event is not None:
-            event_type = event.type()
+        if a0 == self and a1 is not None:
+            event_type = a1.type()
 
             # Detect start of window movement/dragging
             if (
                 event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange)
-                and not self._window_being_moved
+                and not self._state.window_being_moved
             ):
                 self._start_window_move()
 
@@ -455,287 +867,348 @@ class MainWindow(QMainWindow):
                     QEvent.Type.Enter,
                     QEvent.Type.HoverEnter,
                 )
-                and self._window_being_moved
+                and self._state.window_being_moved
             ):
                 self._end_window_move()
 
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
     def _start_window_move(self) -> None:
         """Apply transparency when window movement/dragging starts."""
-        self._window_being_moved = True
+        self._state.window_being_moved = True
         self.setWindowOpacity(0.85)
-        # Disable UI elements
-        self.header_text.setEnabled(False)
-        self.connected_header_container.setEnabled(False)
-        self.connected_table_view.setEnabled(False)
-        self.disconnected_header_container.setEnabled(False)
-        self.disconnected_table_view.setEnabled(False)
-        self.tables_separator.setEnabled(False)
-        self.status_bar.setEnabled(False)
-        self.connected_expand_button.setEnabled(False)
-        self.disconnected_expand_button.setEnabled(False)
+        self._header.setEnabled(False)
+        self._connected.set_all_enabled(enabled=False)
+        self._disconnected.set_all_enabled(enabled=False)
+        self._tables_separator.setEnabled(False)
+        status_bar = self.statusBar()
+        if status_bar is None:
+            return
+        status_bar.setEnabled(False)
 
     def _end_window_move(self) -> None:
         """Restore opacity and re-enable UI elements after window movement/dragging ends."""
-        self._window_being_moved = False
+        self._state.window_being_moved = False
         self.setWindowOpacity(1.0)
-        # Re-enable UI elements
-        self.header_text.setEnabled(True)
-        self.connected_header_container.setEnabled(True)
-        self.connected_table_view.setEnabled(True)
-        self.disconnected_header_container.setEnabled(True)
-        self.disconnected_table_view.setEnabled(True)
-        self.tables_separator.setEnabled(True)
-        self.status_bar.setEnabled(True)
-        self.connected_expand_button.setEnabled(True)
-        self.disconnected_expand_button.setEnabled(True)
+        self._header.setEnabled(True)
+        self._connected.set_all_enabled(enabled=True)
+        self._disconnected.set_all_enabled(enabled=True)
+        self._tables_separator.setEnabled(True)
+        status_bar = self.statusBar()
+        if status_bar is None:
+            return
+        status_bar.setEnabled(True)
 
-    def closeEvent(self, event: QCloseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         gui_closed__event.set()
-        self.worker_thread.quit()
-        self.worker_thread.wait()
-
-        if event is not None:
-            event.accept()
-
+        if self.capture.is_running():
+            self.capture.stop()
+        ProcessSuspendManager.shutdown()
+        self._state.worker_thread.quit()
+        self._state.worker_thread.wait()
+        if a0 is not None:
+            a0.accept()
         terminate_script('EXIT')
 
-    def _update_connected_header_with_selection(self) -> None:
-        """Update the connected table header to include selection information."""
-        base_text = f'Players connected in your session ({self._last_connected_count}):'
-        if self._connected_selected_count > 0:
-            player_text = 'player' if self._connected_selected_count == 1 else 'players'
-            combined_text = f'{base_text} ({self._connected_selected_count} {player_text} selected)'
-        else:
-            combined_text = base_text
+    def _update_gui(self, payload: GUIUpdatePayload) -> None:
+        self._header.setText(payload.header_text)
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            cast('SessionStatusBar', status_bar).set_texts(
+                capture=payload.status_capture_text,
+                config=payload.status_config_text,
+                issues=payload.status_issues_text,
+                performance=payload.status_performance_text,
+            )
 
-        self.session_connected_header.setText(combined_text)
+        # Detect column config changes and rebuild tables when needed
+        col_cfg = payload.column_config
+        if col_cfg.connected_column_names != self._connected.table_model.column_names:
+            self._connected.update_columns(col_cfg.connected_column_names)
+        if col_cfg.disconnected_column_names != self._disconnected.table_model.column_names:
+            self._disconnected.update_columns(col_cfg.disconnected_column_names)
 
-    def _update_disconnected_header_with_selection(self) -> None:
-        """Update the disconnected table header to include selection information."""
-        base_text = f"Players who've left your session ({self._last_disconnected_count}):"
-        if self._disconnected_selected_count > 0:
-            player_text = 'player' if self._disconnected_selected_count == 1 else 'players'
-            combined_text = f'{base_text} ({self._disconnected_selected_count} {player_text} selected)'
-        else:
-            combined_text = base_text
-
-        self.session_disconnected_header.setText(combined_text)
-
-    def _update_selection_count(self, table_view: SessionTableView, table_type: str) -> None:
-        """Update the selection count for the specified table and refresh table headers."""
-        selection_model = table_view.selectionModel()
-        selected_indexes = selection_model.selectedIndexes()
-
-        unique_rows = {index.row() for index in selected_indexes}
-        selected_count = len(unique_rows)
-
-        if table_type == 'connected':
-            self._connected_selected_count = selected_count
-            self._update_connected_header_with_selection()
-        elif table_type == 'disconnected':
-            self._disconnected_selected_count = selected_count
-            self._update_disconnected_header_with_selection()
-
-    def _update_separator_visibility(self) -> None:
-        """Update the separator visibility based on whether both tables are visible."""
-        both_tables_visible = self.connected_table_view.isVisible() and self.disconnected_table_view.isVisible()
-        self.tables_separator.setVisible(both_tables_visible)
-
-    def expand_connected_section(self) -> None:
-        """Handle the expand button click to show the connected section."""
-        self.connected_expand_button.setVisible(False)
-        self.connected_header_container.setVisible(True)
-        self.connected_table_view.setVisible(True)
-        self._update_separator_visibility()
-        self.connected_clear_button.setVisible(True)
-        self.connected_collapse_button.setVisible(True)
-        self.connected_table_model.refresh_view()
-
-    def expand_disconnected_section(self) -> None:
-        """Handle the expand button click to show the disconnected section."""
-        self.disconnected_expand_button.setVisible(False)
-        self.disconnected_header_container.setVisible(True)
-        self.disconnected_table_view.setVisible(True)
-        self._update_separator_visibility()
-        self.disconnected_clear_button.setVisible(True)
-        self.disconnected_collapse_button.setVisible(True)
-        self.disconnected_table_model.refresh_view()
-
-    def minimize_connected_section(self) -> None:
-        """Minimize the connected table completely."""
-        self.connected_clear_button.setVisible(False)
-        self.connected_collapse_button.setVisible(False)
-        self.connected_header_container.setVisible(False)
-        self.connected_table_view.setVisible(False)
-        self.tables_separator.setVisible(False)
-        self.connected_expand_button.setText(f'▲  Show Connected Players ({self.connected_table_model.rowCount()})')
-        self.connected_expand_button.setVisible(True)
-
-    def minimize_disconnected_section(self) -> None:
-        """Minimize the disconnected table completely."""
-        self.disconnected_clear_button.setVisible(False)
-        self.disconnected_collapse_button.setVisible(False)
-        self.disconnected_header_container.setVisible(False)
-        self.disconnected_table_view.setVisible(False)
-        self.tables_separator.setVisible(False)
-        self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({self.disconnected_table_model.rowCount()})')
-        self.disconnected_expand_button.setVisible(True)
-
-    def update_gui(self, payload: GUIUpdatePayload) -> None:
-        """Update header text, status bar, and table data for connected and disconnected players."""
-        if payload.snapshot_version < self._min_accepted_snapshot_version:
-            return
-
-        self.header_text.setText(payload.header_text)
-        self.status_capture_label.setText(payload.status_capture_text)
-        self.status_config_label.setText(payload.status_config_text)
-        self.status_issues_label.setText(payload.status_issues_text)
-        self.status_performance_label.setText(payload.status_performance_text)
-
-        connected_count_changed = self._last_connected_count != payload.connected_num
-        disconnected_count_changed = self._last_disconnected_count != payload.disconnected_num
+        connected_count_changed = self._connected.last_count != payload.connected_num
+        disconnected_count_changed = self._disconnected.last_count != payload.disconnected_num
 
         if connected_count_changed:
-            self._last_connected_count = payload.connected_num
-            self._update_connected_header_with_selection()
+            self._connected.update_current_count(payload.connected_num)
 
+        self._connected.table_view.capture_selection()
+        self._disconnected.table_view.capture_selection()
+
+        connected_payload_ips: set[str] = set()
         for processed_data, compiled_colors in payload.connected_rows_with_colors:
-            ip = self.connected_table_model.get_ip_from_data_safely(list(processed_data))
+            ip = self._connected.table_model.get_ip_from_data_safely(processed_data)
+            connected_payload_ips.add(ip)
 
-            disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
+            disconnected_row_index = self._disconnected.table_model.get_row_index_by_ip(ip)
             if disconnected_row_index is not None:
-                self.disconnected_table_model.delete_row(disconnected_row_index)
+                self._disconnected.table_model.delete_row(disconnected_row_index)
 
-            connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
+            connected_row_index = self._connected.table_model.get_row_index_by_ip(ip)
             if connected_row_index is None:
-                self.connected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
+                self._connected.table_model.add_row_without_refresh(processed_data, compiled_colors)
             else:
-                self.connected_table_model.update_row_without_refresh(connected_row_index, list(processed_data), list(compiled_colors))
+                self._connected.table_model.update_row_without_refresh(connected_row_index, processed_data, compiled_colors)
 
-        if self.connected_table_view.isVisible():
-            self.connected_table_model.sort_current_column()
-            self.connected_table_view.adjust_username_column_width()
-        elif connected_count_changed:
-            self.connected_expand_button.setText(f'▲  Show Connected Players ({payload.connected_num})')
+        self._prune_missing_rows(self._connected.table_model, connected_payload_ips)
+
+        if self._connected.table_view.isVisible():
+            self._connected.table_view.sort_current_column()
+            self._connected.table_view.adjust_username_column_width()
 
         if disconnected_count_changed:
-            self._last_disconnected_count = payload.disconnected_num
-            self._update_disconnected_header_with_selection()
+            self._disconnected.update_current_count(payload.disconnected_num)
 
+        disconnected_payload_ips: set[str] = set()
         for processed_data, compiled_colors in payload.disconnected_rows_with_colors:
-            ip = self.disconnected_table_model.get_ip_from_data_safely(list(processed_data))
+            ip = self._disconnected.table_model.get_ip_from_data_safely(processed_data)
+            disconnected_payload_ips.add(ip)
 
-            connected_row_index = self.connected_table_model.get_row_index_by_ip(ip)
+            connected_row_index = self._connected.table_model.get_row_index_by_ip(ip)
             if connected_row_index is not None:
-                self.connected_table_model.delete_row(connected_row_index)
+                self._connected.table_model.delete_row(connected_row_index)
 
-            disconnected_row_index = self.disconnected_table_model.get_row_index_by_ip(ip)
+            disconnected_row_index = self._disconnected.table_model.get_row_index_by_ip(ip)
             if disconnected_row_index is None:
-                self.disconnected_table_model.add_row_without_refresh(list(processed_data), list(compiled_colors))
+                self._disconnected.table_model.add_row_without_refresh(processed_data, compiled_colors)
             else:
-                self.disconnected_table_model.update_row_without_refresh(disconnected_row_index, list(processed_data), list(compiled_colors))
+                self._disconnected.table_model.update_row_without_refresh(disconnected_row_index, processed_data, compiled_colors)
 
-        if self.disconnected_table_view.isVisible():
-            self.disconnected_table_model.sort_current_column()
-            self.disconnected_table_view.adjust_username_column_width()
-        elif disconnected_count_changed:
-            self.disconnected_expand_button.setText(f'▲  Show Disconnected Players ({payload.disconnected_num})')
+        self._prune_missing_rows(self._disconnected.table_model, disconnected_payload_ips)
 
-    def open_project_repo(self) -> None:
+        if self._disconnected.table_view.isVisible():
+            self._disconnected.table_view.sort_current_column()
+            self._disconnected.table_view.adjust_username_column_width()
+
+        self._connected.table_view.restore_selection()
+        self._disconnected.table_view.restore_selection()
+
+        # Refresh selection counts after potential row removals
+        self._connected.refresh_selection_count()
+        self._disconnected.refresh_selection_count()
+
+        # Sync pagination controls with payload data
+        self._connected.sync_paging_from_payload(
+            total_count=payload.connected_num,
+            rows_per_page=payload.connected_rows_per_page,
+            page=payload.connected_page,
+        )
+        self._disconnected.sync_paging_from_payload(
+            total_count=payload.disconnected_num,
+            rows_per_page=payload.disconnected_rows_per_page,
+            page=payload.disconnected_page,
+        )
+
+    @staticmethod
+    def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:
+        """Remove rows from the model whose IPs are not in the current payload."""
+        stale_ips = set(model.get_all_ips()) - ips_to_keep
+        for ip in stale_ips:
+            model.remove_player_by_ip(ip)
+
+    def _open_project_repo(self) -> None:
         """Open the GitHub repository in the default browser."""
         webbrowser.open(GITHUB_REPO_URL)
 
-    def open_documentation(self) -> None:
+    def _open_documentation(self) -> None:
         """Open the documentation URL in the default browser."""
         webbrowser.open(DOCUMENTATION_URL)
 
-    def join_discord(self) -> None:
+    def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
 
-    def toggle_mobile_detection(self) -> None:
-        """Toggle Mobile detection on/off and save the setting."""
-        GUIDetectionSettings.mobile_detection_enabled = self.mobile_detection_action.isChecked()
+    def _toggle_discord_presence(self, checked: bool) -> None:
+        """Toggle Discord Rich Presence on or off for this session only."""
+        Settings.discord_presence = checked
 
-        if not GUIDetectionSettings.mobile_detection_enabled:
-            MobileWarnings.clear_all_notified_ips()
+    def _edit_discord_presence_title(self) -> None:
+        """Open an input dialog to edit the Discord Rich Presence title text."""
+        text, ok = QInputDialog.getText(
+            self,
+            'Edit Presence Title',
+            'Title displayed in your Discord status:',
+            text=Settings.discord_presence_title,
+        )
+        if ok:
+            Settings.discord_presence_title = text.strip() or Settings.discord_presence_title
+            Settings.rewrite_settings_file()
 
-    def toggle_vpn_detection(self) -> None:
-        """Toggle VPN detection on/off and save the setting."""
-        GUIDetectionSettings.vpn_detection_enabled = self.vpn_detection_action.isChecked()
+    def _open_directory(self, directory_path: Path) -> None:
+        """Ensure a directory exists and open it in Windows Explorer."""
+        directory_path.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(directory_path))
 
-        if not GUIDetectionSettings.vpn_detection_enabled:
-            VPNWarnings.clear_all_notified_ips()
+    def _open_file(self, file_path: Path) -> None:
+        """Ensure a file path exists and open the file using the default Windows association."""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.touch(exist_ok=True)
+        os.startfile(str(file_path))
 
-    def toggle_hosting_detection(self) -> None:
-        """Toggle Hosting detection on/off and save the setting."""
-        GUIDetectionSettings.hosting_detection_enabled = self.hosting_detection_action.isChecked()
+    def _open_local_appdata_folder(self) -> None:
+        """Open the Local AppData Session Sniffer directory."""
+        self._open_directory(APP_DIR_LOCAL)
 
-        if not GUIDetectionSettings.hosting_detection_enabled:
-            HostingWarnings.clear_all_notified_ips()
+    def _open_roaming_appdata_folder(self) -> None:
+        """Open the Roaming AppData Session Sniffer directory."""
+        self._open_directory(APP_DIR_ROAMING)
 
-    def toggle_player_join_notifications(self) -> None:
-        """Toggle player join notifications on/off."""
-        GUIDetectionSettings.player_join_notifications_enabled = self.player_join_notification_action.isChecked()
+    def _open_userip_databases_folder(self) -> None:
+        """Open the UserIP databases directory."""
+        self._open_directory(USERIP_DATABASES_DIR_PATH)
 
-    def toggle_player_rejoin_notifications(self) -> None:
-        """Toggle player rejoin notifications on/off."""
-        GUIDetectionSettings.player_rejoin_notifications_enabled = self.player_rejoin_notification_action.isChecked()
+    def _open_sessions_logging_folder(self) -> None:
+        """Open the sessions logging directory."""
+        self._open_directory(SESSIONS_LOGGING_DIR_PATH)
 
-    def toggle_player_leave_notifications(self) -> None:
-        """Toggle player leave notifications on/off."""
-        GUIDetectionSettings.player_leave_notifications_enabled = self.player_leave_notification_action.isChecked()
+    def _open_user_scripts_folder(self) -> None:
+        """Open the user scripts directory."""
+        self._open_directory(USER_SCRIPTS_DIR_PATH)
+
+    def _open_settings_file(self) -> None:
+        """Open the Settings.ini file."""
+        self._open_file(SETTINGS_PATH)
+
+    def _open_userip_log_file(self) -> None:
+        """Open the UserIP_Logging.csv file."""
+        self._open_file(USERIP_LOGGING_PATH)
+
+    def _open_detection_log_file(self) -> None:
+        """Open the Detection_Logging.csv file."""
+        self._open_file(DETECTION_LOGGING_PATH)
+
+    def _open_protection_log_file(self) -> None:
+        """Open the Protection_Logging.csv file."""
+        self._open_file(PROTECTION_LOGGING_PATH)
+
+    def _open_error_log_file(self) -> None:
+        """Open the errors.log file."""
+        self._open_file(ERRORS_LOG_PATH)
+
+    def _open_warnings_log_file(self) -> None:
+        """Open the warnings.log file."""
+        self._open_file(WARNINGS_LOG_PATH)
+
+    def _open_debug_log_file(self) -> None:
+        """Open the debug.log file."""
+        self._open_file(DEBUG_LOG_PATH)
+
+    def _open_libs_debug_log_file(self) -> None:
+        """Open the libs_debug.log file."""
+        self._open_file(LIBS_DEBUG_LOG_PATH)
+
+    def _open_debug_logs_folder(self) -> None:
+        """Open the Debug logs directory."""
+        self._open_directory(DEBUG_DIR_PATH)
+
+    def _open_logging_folder(self) -> None:
+        """Open the Logging directory."""
+        self._open_directory(LOGGING_DIR_PATH)
+
+    def _open_settings_dialog(self) -> None:
+        """Open the settings dialog for viewing and editing all application settings."""
+        dialog = SettingsDialog(self, self.capture)
+        dialog.exec()
+
+    def _open_userip_manager(self) -> None:
+        """Open the UserIP Databases Manager dialog."""
+        dialog = UserIPDatabasesManager(self)
+        dialog.exec()
+
+    def _open_logs_manager(self) -> None:
+        """Open the Logs Manager dialog."""
+        dialog = LogsManager(self)
+        dialog.exec()
+
+    def _open_protections_manager(self) -> None:
+        """Open the Protections Manager dialog."""
+        dialog = ProtectionsManagerDialog(self)
+        dialog.exec()
+
+    def _open_player_resolver(self) -> None:
+        """Open the Player Resolver window, or focus the existing one."""
+        self._player_resolver_window.show()
+        self._player_resolver_window.raise_()
+        self._player_resolver_window.activateWindow()
+
+    def _highlight_connected_ips(self, ips: list[str]) -> None:
+        """Select and scroll to player rows by IP in the connected table."""
+        model = self._connected.table_model
+        view = self._connected.table_view
+        selection = QItemSelection()
+        first_index = None
+        for ip in ips:
+            row = model.get_row_index_by_ip(ip)
+            if row is None:
+                continue
+            top_left = model.index(row, 0)
+            bottom_right = model.index(row, model.columnCount() - 1)
+            selection.select(top_left, bottom_right)
+            if first_index is None:
+                first_index = top_left
+        if first_index is None:
+            return
+        if not self._connected.is_expanded:
+            self._connected.expand()
+        view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        view.scrollTo(first_index)
+
+    def _open_player_leaderboard(self) -> None:
+        """Open the Most Seen Players leaderboard, or focus the existing one."""
+        if self._leaderboard_window is not None and self._leaderboard_window.isVisible():
+            self._leaderboard_window.raise_()
+            self._leaderboard_window.activateWindow()
+            return
+        self._leaderboard_window = PlayerLeaderboardWindow(self)
+        self._leaderboard_window.destroyed.connect(self._on_leaderboard_window_destroyed)
+        self._leaderboard_window.show()
+
+    def _on_leaderboard_window_destroyed(self) -> None:
+        self._leaderboard_window = None
 
     def _update_header_capture_status(self) -> None:
         """Immediately update the header text to reflect current capture state."""
-        header_html = generate_gui_header_html(capture=self.capture)
-        self.header_text.setText(header_html)
+        self._header.setText(generate_gui_header_html(capture=self.capture))
 
-    def toggle_capture(self) -> None:
+    def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
         if self.capture.is_running():
             self.capture.stop()
-            self.toggle_capture_action.setText('▶️ Start Capture')
-            self.toggle_capture_action.setToolTip('Start packet capture')
+            self._actions.toggle_capture.setText('▶️ Start Capture')
+            self._actions.toggle_capture.setToolTip('Start packet capture')
         else:
             self.capture.start()
-            self.toggle_capture_action.setText('⏹️ Stop Capture')
-            self.toggle_capture_action.setToolTip('Stop packet capture')
+            self._actions.toggle_capture.setText('⏹️ Stop Capture')
+            self._actions.toggle_capture.setToolTip('Stop packet capture')
 
         self._update_header_capture_status()
 
-    def clear_connected_players(self) -> None:
+    def _clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
-        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+        self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
         connected_ips = {player.ip for player in connected_players}
 
         PlayersRegistry.clear_connected_players()
         SessionHost.clear_session_host_data()
-        self.connected_table_model.clear_all_data()
-
-        self._connected_selected_count = 0
-        self._update_connected_header_with_selection()
+        self._connected.clear_table()
 
         if connected_ips:
             MobileWarnings.remove_notified_ips_batch(connected_ips)
             VPNWarnings.remove_notified_ips_batch(connected_ips)
             HostingWarnings.remove_notified_ips_batch(connected_ips)
 
-    def clear_disconnected_players(self) -> None:
+    def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
-        self._min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+        self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
         disconnected_ips = {player.ip for player in disconnected_players}
 
         PlayersRegistry.clear_disconnected_players()
-        self.disconnected_table_model.clear_all_data()
-
-        self._disconnected_selected_count = 0
-        self._update_disconnected_header_with_selection()
+        self._disconnected.clear_table()
 
         if disconnected_ips:
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
@@ -749,6 +1222,7 @@ class MainWindow(QMainWindow):
             return
 
         if SessionHost.player and SessionHost.player.ip == ip:
+            logger.debug('[SessionHost] Removed player %s was the current host, triggering re-search', ip)
             SessionHost.player = None
             SessionHost.search_player = True
 
@@ -756,8 +1230,7 @@ class MainWindow(QMainWindow):
             p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
         ]
 
-        self.connected_table_model.remove_player_by_ip(ip)
-        self._update_connected_header_with_selection()
+        self._connected.table_model.remove_player_by_ip(ip)
 
         MobileWarnings.remove_notified_ip(ip)
         VPNWarnings.remove_notified_ip(ip)
@@ -769,8 +1242,7 @@ class MainWindow(QMainWindow):
         if removed_player is None:
             return
 
-        self.disconnected_table_model.remove_player_by_ip(ip)
-        self._update_disconnected_header_with_selection()
+        self._disconnected.table_model.remove_player_by_ip(ip)
 
         MobileWarnings.remove_notified_ip(ip)
         VPNWarnings.remove_notified_ip(ip)

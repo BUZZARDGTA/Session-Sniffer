@@ -27,10 +27,11 @@ class ClickableLabel(QLabel):
 
     clicked = pyqtSignal()
 
-    def mousePressEvent(self, event: QMouseEvent | None) -> None:
+    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
         """Emit `clicked` when left mouse button is pressed."""
-        if event is not None and event.button() == Qt.MouseButton.LeftButton:
+        if ev is not None and ev.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
+        super().mousePressEvent(ev)
 
 
 class DiscordIntro(QDialog):
@@ -140,36 +141,36 @@ class DiscordIntro(QDialog):
         # Initialize variables to track mouse position
         self._drag_pos: QPoint | None = None
 
-    def mousePressEvent(self, event: QMouseEvent | None) -> None:
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
         """Begin drag when clicking the dialog background."""
         if (
-            event is not None
-            and event.button() == Qt.MouseButton.LeftButton
+            a0 is not None
+            and a0.button() == Qt.MouseButton.LeftButton
             and not self.exit_button.underMouse()
             and not self.join_button.underMouse()
             and not self.dont_remind_me_label.underMouse()  # Only allow dragging if the click is not on a button
         ):
-            self._drag_pos = event.globalPosition().toPoint()
+            self._drag_pos = a0.globalPosition().toPoint()
 
-        super().mousePressEvent(event)
+        super().mousePressEvent(a0)
 
-    def mouseMoveEvent(self, event: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
         """Move the dialog while dragging."""
         if (
-            event is not None
+            a0 is not None
             and self._drag_pos is not None  # If mouse is pressed, move the window
         ):
-            delta = event.globalPosition().toPoint() - self._drag_pos
+            delta = a0.globalPosition().toPoint() - self._drag_pos
             self.move(self.pos() + delta)
-            self._drag_pos = event.globalPosition().toPoint()
+            self._drag_pos = a0.globalPosition().toPoint()
 
-        super().mouseMoveEvent(event)
+        super().mouseMoveEvent(a0)
 
-    def mouseReleaseEvent(self, event: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
         """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 
-        super().mouseReleaseEvent(event)
+        super().mouseReleaseEvent(a0)
 
     def center_window(self) -> None:
         """Center the dialog on the primary screen."""
@@ -186,16 +187,16 @@ class DiscordIntro(QDialog):
         """Open the Discord invite URL and disable future popup reminders."""
         webbrowser.open(DISCORD_INVITE_URL)
 
-        if Settings.SHOW_DISCORD_POPUP:
-            Settings.SHOW_DISCORD_POPUP = False
+        if Settings.show_discord_popup:
+            Settings.show_discord_popup = False
             Settings.rewrite_settings_file()
 
         self.close_popup()
 
     def dont_remind_me(self) -> None:
         """Disable future Discord popup reminders and close the dialog."""
-        if Settings.SHOW_DISCORD_POPUP:
-            Settings.SHOW_DISCORD_POPUP = False
+        if Settings.show_discord_popup:
+            Settings.show_discord_popup = False
             Settings.rewrite_settings_file()
 
         self.close_popup()
