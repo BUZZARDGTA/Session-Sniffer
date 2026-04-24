@@ -26,10 +26,10 @@ jobs:
         shell: cmd
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Python for x64 Build
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: 3.x
           architecture: x64
@@ -52,7 +52,7 @@ jobs:
         working-directory: .github/workflows
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4.5.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: Session_Sniffer.exe
           path: .github/workflows/dist/Session_Sniffer.exe
@@ -63,10 +63,10 @@ jobs:
     name: Upload Release Artifact
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Download Build Artifact
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@v8.0.1
         with:
           path: artifacts
           name: Session_Sniffer.exe
@@ -86,7 +86,7 @@ jobs:
     name: Update Version Info
     steps:
       - name: Checkout Version Branch
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
         with:
           ref: version
 
@@ -105,7 +105,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Setup Python Environment
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: 3.x
 
