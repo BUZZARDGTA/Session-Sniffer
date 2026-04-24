@@ -411,7 +411,7 @@ def handle_detection_notification(
                             ISP: {player.iplookup.ipapi.isp}
                             ASN: {player.iplookup.ipapi.as_name}
                             Conditions: {conditions_summary}
-                            Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                            Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                         """),
                         style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
                     )
@@ -616,7 +616,7 @@ def check_global_protections(player: Player) -> None:
                     IP Address: {player.ip}
                     Country: {player.iplookup.geolite2.country}
                     ISP: {player.iplookup.ipapi.isp}
-                    Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                 """,
                 voice_setting=GUIProtectionSettings.mobile_voice_notifications,
                 logging_setting=GUIProtectionSettings.mobile_logging,
@@ -640,7 +640,7 @@ def check_global_protections(player: Player) -> None:
                     IP Address: {player.ip}
                     Country: {player.iplookup.geolite2.country}
                     ISP: {player.iplookup.ipapi.isp}
-                    Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                 """,
                 voice_setting=GUIProtectionSettings.vpn_voice_notifications,
                 logging_setting=GUIProtectionSettings.vpn_logging,
@@ -664,7 +664,7 @@ def check_global_protections(player: Player) -> None:
                     IP Address: {player.ip}
                     Country: {player.iplookup.geolite2.country}
                     Organization: {player.iplookup.ipapi.org}
-                    Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                 """,
                 voice_setting=GUIProtectionSettings.hosting_voice_notifications,
                 logging_setting=GUIProtectionSettings.hosting_logging,
@@ -689,7 +689,7 @@ def check_global_protections(player: Player) -> None:
                         \U0001f30d Blocked Country Detected
                         IP Address: {player.ip}
                         Country: {country_name}
-                        Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                     """,
                     voice_setting=GUIProtectionSettings.country_voice_notifications,
                     logging_setting=GUIProtectionSettings.country_logging,
@@ -731,7 +731,7 @@ def check_global_protections(player: Player) -> None:
                         Matched Entry: {matched_isp}
                         AS Name: {as_name}
                         ISP: {isp}
-                        Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                     """,
                     voice_setting=GUIProtectionSettings.isp_voice_notifications,
                     logging_setting=GUIProtectionSettings.isp_logging,
@@ -779,7 +779,7 @@ def check_global_protections(player: Player) -> None:
                             ASN: {asn_display}
                             AS Name: {player.iplookup.ipapi.as_name}
                             ISP: {player.iplookup.ipapi.isp}
-                            Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                            Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                         """,
                         voice_setting=GUIProtectionSettings.asn_voice_notifications,
                         logging_setting=GUIProtectionSettings.asn_logging,
@@ -809,7 +809,7 @@ def check_global_protections(player: Player) -> None:
                     ISP: {player.iplookup.ipapi.isp}
                     ASN: {player.iplookup.ipapi.as_name}
                     Conditions: {conditions_summary}
-                    Time: {datetime.now(LOCAL_TZ).strftime('%H:%M:%S')}
+                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                 """,
                 voice_setting=rule.voice_notifications,
                 logging_setting=rule.logging,
