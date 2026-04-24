@@ -23,21 +23,20 @@ HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
 
 def format_elapsed_time(duration: timedelta) -> str:
     """Format a timedelta duration into a compact human-readable string."""
-    hours, remainder = divmod(duration.total_seconds(), 3600)
-    minutes, remainder = divmod(remainder, 60)
-    seconds, milliseconds = divmod(remainder * 1000, 1000)
+    total_ms = duration // timedelta(milliseconds=1)
+    hours, remainder = divmod(total_ms, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
 
-    duration_parts: list[str] = []
-    if hours >= 1:
-        duration_parts.append(f'{int(hours):02}h')
-    if duration_parts or minutes >= 1:
-        duration_parts.append(f'{int(minutes):02}m')
-    if duration_parts or seconds >= 1:
-        duration_parts.append(f'{int(seconds):02}s')
-    if not duration_parts and milliseconds > 0:
-        duration_parts.append(f'{int(milliseconds):03}ms')
-
-    return ' '.join(duration_parts) if duration_parts else '000ms'
+    if hours:
+        return f'{hours:02}h {minutes:02}m {seconds:02}s'
+    if minutes:
+        return f'{minutes:02}m {seconds:02}s'
+    if seconds:
+        return f'{seconds:02}s'
+    if milliseconds:
+        return f'{milliseconds:03}ms'
+    return '000ms'
 
 
 def format_player_usernames(player: Player) -> str:
