@@ -58,6 +58,7 @@ from session_sniffer.rendering_core.types import (
     TsharkStats,
 )
 from session_sniffer.settings import Settings
+from session_sniffer.settings.settings import RE_SETTINGS_INI_PARSER_PATTERN
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
 from session_sniffer.utils import dedup_preserve_order, get_session_log_path, validate_file
@@ -70,7 +71,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 
 USERIP_INI_SETTINGS = [
