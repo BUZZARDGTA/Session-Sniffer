@@ -1,15 +1,13 @@
 """The module provides functionality for performing reverse DNS lookups.
 
-It includes a function `lookup` which resolves hostnames from IP addresses.
+It includes a function `reverse_dns_lookup` which resolves hostnames from IP addresses.
 """
 import dns.exception
 import dns.resolver
 import dns.reversename
 
-NAMESERVERS = ['1.1.1.1', '1.0.0.1']
-
-resolver = dns.resolver.Resolver()
-resolver.nameservers = NAMESERVERS
+_resolver = dns.resolver.Resolver()
+_resolver.nameservers = ['1.1.1.1', '1.0.0.1']
 
 
 def reverse_dns_lookup(target_ip: str) -> str:
@@ -27,7 +25,7 @@ def reverse_dns_lookup(target_ip: str) -> str:
     rev_name = dns.reversename.from_address(target_ip)
 
     try:
-        answer = resolver.resolve(rev_name, 'PTR')
+        answer = _resolver.resolve(rev_name, 'PTR')
     except dns.exception.DNSException:
         return target_ip
 
