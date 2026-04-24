@@ -15,7 +15,7 @@ from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.reverse_dns import lookup as reverse_dns_lookup
+from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 
 logger = get_logger(__name__)

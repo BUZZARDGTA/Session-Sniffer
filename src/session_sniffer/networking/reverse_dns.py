@@ -12,7 +12,7 @@ resolver = dns.resolver.Resolver()
 resolver.nameservers = NAMESERVERS
 
 
-def lookup(target_ip: str) -> str:
+def reverse_dns_lookup(target_ip: str) -> str:
     """Perform a reverse DNS lookup for the given IP address.
 
     If a hostname is found, it returns the hostname. If no valid hostname
