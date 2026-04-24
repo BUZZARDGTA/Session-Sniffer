@@ -173,7 +173,11 @@ def wait_for_player_data_ready(
         'iplookup.ipapi': check_iplookup_ipapi,
     }
 
-    while not player.left_event.is_set() and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen) < timedelta(seconds=timeout):
+    while (
+        not player.left_event.is_set()
+        and not gui_closed__event.is_set()
+        and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen) < timedelta(seconds=timeout)
+    ):
         if all(field_checkers[field](player) for field in data_fields if field in field_checkers):
             return True
 
