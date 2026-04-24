@@ -126,12 +126,9 @@ def clear_voice_notification_queue() -> None:
     _voice_notification_queue.clear()
 
 
-_DETECTION_PATH_MARKERS = ('\\detection\\', '/detection/')
-
-
 def clear_detection_voice_notifications() -> None:
     """Remove only detection voice notifications from the queue, keeping userip ones."""
-    _voice_notification_queue.remove_matching(lambda p: any(m in p for m in _DETECTION_PATH_MARKERS))
+    _voice_notification_queue.remove_matching(lambda p: 'detection' in Path(p).parts)
 
 
 def wait_for_player_data_ready(
