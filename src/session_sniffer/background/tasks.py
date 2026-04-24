@@ -444,7 +444,7 @@ def process_userip_task(
             if time.monotonic() - start_time > timeout:
                 raise TypeError(format_type_error(player.userip, UserIP))
 
-            time.sleep(0.01)  # Sleep to prevent high CPU usage
+            gui_closed__event.wait(0.01)  # Wait to prevent high CPU usage
 
         # We wants to run this as fast as possible so it's on top of the function.
         # Protection actions are skipped when protection is not supported.
