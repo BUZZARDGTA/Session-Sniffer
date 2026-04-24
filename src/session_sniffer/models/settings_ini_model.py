@@ -426,6 +426,19 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('int', cls._get_default_for_field(info) or 10)
 
+    @field_validator('DISCORD_PRESENCE_TITLE', mode='before')
+    @classmethod
+    def _parse_discord_presence_title(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str) and len(value) == 1:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            default_value = cls._get_default_for_field(info)
+            return default_value if isinstance(default_value, str) else ''
+        if isinstance(value, str):
+            return value
+        cls._set_flag(info, 'should_rewrite', value=True)
+        default_value = cls._get_default_for_field(info)
+        return default_value if isinstance(default_value, str) else ''
+
     @field_validator('UPDATER_CHANNEL', mode='before')
     @classmethod
     def _parse_updater_channel(cls, value: object, info: ValidationInfo) -> str | None:

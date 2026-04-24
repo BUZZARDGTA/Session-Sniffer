@@ -847,7 +847,7 @@ def rendering_core(
                  (time.monotonic() - discord_rpc_manager.last_update_time) >= DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS)):
                 discord_rpc_manager.update(
                     state_message=f'{len(session_connected)} player{pluralize(len(session_connected))} connected',
-                    details=Settings.discord_presence_title,
+                    details=Settings.discord_presence_title or None,
                 )
 
             connected_shown_columns = set(Settings.gui_columns_connected_shown)

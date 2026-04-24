@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMenu,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QStatusBar,
@@ -1030,11 +1031,19 @@ class MainWindow(QMainWindow):
         text, ok = QInputDialog.getText(
             self,
             'Edit Presence Title',
-            'Title displayed in your Discord status:',
+            'Title displayed in your Discord status (leave empty to disable):',
             text=Settings.discord_presence_title,
         )
         if ok:
-            Settings.discord_presence_title = text.strip() or Settings.discord_presence_title
+            stripped = text.strip()
+            if len(stripped) == 1:
+                QMessageBox.warning(
+                    self,
+                    'Invalid Presence Title',
+                    'The presence title must be either empty (to disable) or at least 2 characters long.',
+                )
+                return
+            Settings.discord_presence_title = stripped
             Settings.rewrite_settings_file()
 
     def _open_directory(self, directory_path: Path) -> None:

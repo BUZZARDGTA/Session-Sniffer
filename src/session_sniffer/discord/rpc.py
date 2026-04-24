@@ -18,7 +18,7 @@ from session_sniffer.error_messages import ensure_instance
 class _PresenceUpdate(NamedTuple):
     """Payload queued for a Discord Rich Presence update."""
     state_message: str
-    details: str
+    details: str | None
 
 
 type QueueType = SimpleQueue[_PresenceUpdate | object]
@@ -56,7 +56,7 @@ class DiscordRPC:
         self.last_update_time: float | None = None
         self._last_queued_update: _PresenceUpdate | None = None
 
-    def update(self, state_message: str = '', details: str = '') -> None:
+    def update(self, state_message: str = '', details: str | None = None) -> None:
         """Attempt to update the Discord Rich Presence.
 
         Args:
