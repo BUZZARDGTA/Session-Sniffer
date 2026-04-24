@@ -31,7 +31,7 @@ def check_broadcast_multicast_support(tshark_path: Path, interface: str) -> tupl
             '-Q',
         )
         try:
-            subprocess.run(cmd, capture_output=True, check=True, encoding='utf-8', text=True, timeout=10)
+            subprocess.run(cmd, capture_output=True, check=True, encoding='utf-8', text=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
         return True

@@ -84,7 +84,7 @@ def get_filtered_tshark_interfaces(tshark_path: str) -> list[tuple[int, str, str
 
         return index, device_name, name
 
-    tshark_output = subprocess.check_output([tshark_path, '-D'], encoding='utf-8', text=True)
+    tshark_output = subprocess.check_output([tshark_path, '-D'], encoding='utf-8', text=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
     return [
         (index, device_name, name)

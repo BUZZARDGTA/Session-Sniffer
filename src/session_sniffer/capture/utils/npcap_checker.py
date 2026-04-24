@@ -21,7 +21,7 @@ NPCAP_DOWNLOAD_URL = 'https://npcap.com/#download'
 def is_npcap_installed() -> bool:
     """Check if the Npcap driver is installed on the system."""
     with suppress(subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        subprocess.run(NPCAP_SERVICE_QUERY_CMD, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=10)
+        subprocess.run(NPCAP_SERVICE_QUERY_CMD, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
     return False
 

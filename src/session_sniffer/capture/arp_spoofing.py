@@ -107,6 +107,7 @@ def arp_spoofing_task(
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 log_msg = f'Started spoofing on interface {selected_interface.ip_address}'
                 if selected_interface.gateway_ip:
