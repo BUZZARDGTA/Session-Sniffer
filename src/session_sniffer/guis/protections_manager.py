@@ -402,7 +402,7 @@ class _ComboRuleEditorDialog(QDialog):
                 if child is not None:
                     widget = child.widget()
                     if widget is not None:
-                        widget.setParent(None)  # type: ignore[call-overload]
+                        widget.setParent(None)
                         widget.deleteLater()
 
             if key in ('mobile', 'vpn', 'hosting'):
