@@ -42,6 +42,7 @@ class EndpointInfo:
     failures: int = 0
     total_time: float = 0.0
     cooldown_until: float = 0.0
+    last_request_at: float = 0.0
     failed_ips: dict[str, int] = dataclasses.field(default_factory=dict[str, int])
 
     def update_success(self, duration: float, ip: str) -> None:
@@ -101,6 +102,7 @@ class PingResult(NamedTuple):
 
 MAX_RETRIES_PER_IP = 3
 DEFAULT_RETRY_COOLDOWN = 3.0
+_MIN_REQUEST_INTERVAL = 0.1  # minimum seconds between consecutive requests to the same endpoint
 
 
 # Global dictionary to track semaphores per endpoint host
@@ -184,13 +186,17 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
     Limits to 10 concurrent requests per ip but prioritizes trying other available endpoints before waiting.
     """
     for endpoint_info in get_sorted_endpoints():
-        time.sleep(0.1)
-
         if ip in endpoint_info.failed_ips and endpoint_info.failed_ips[ip] >= MAX_RETRIES_PER_IP:
             continue  # Skip this endpoint for this ip
 
         if time.monotonic() < endpoint_info.cooldown_until:
             continue  # Skip if still in cooldown
+
+        with _endpoints_lock:
+            now = time.monotonic()
+            if now - endpoint_info.last_request_at < _MIN_REQUEST_INTERVAL:
+                continue  # Skip if this endpoint was used too recently
+            endpoint_info.last_request_at = now
 
         semaphore = get_host_semaphore(endpoint_info.url)
 

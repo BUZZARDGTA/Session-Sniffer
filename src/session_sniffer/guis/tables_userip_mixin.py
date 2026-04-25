@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.userip_manager_helpers import RemoveUsernameDialog, RenameUsernameDialog
+from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, RemoveUsernameDialog, RenameUsernameDialog
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import write_lines_to_file
@@ -45,6 +45,38 @@ def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path
     else:
         # If the user canceled or left the input empty, show an error
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
+
+
+def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Path) -> None:
+    """Add the selected IP address as a range entry to the chosen UserIP database."""
+    range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address)
+    if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
+        return
+
+    range_input = range_dlg.result_entry()
+
+    username, ok = QInputDialog.getText(
+        parent,
+        'Input Username',
+        f'Enter the username to associate with range "{range_input}":',
+    )
+
+    if not ok:
+        return
+
+    username = username.strip()
+
+    if not username:
+        QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
+        return
+
+    write_lines_to_file(selected_database, 'a', [f'{username}={range_input}\n'])
+
+    db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    QMessageBox.information(
+        parent, TITLE,
+        f'Range "{range_input}" has been added with username "{username}" to UserIP database "{db_display}".',
+    )
 
 
 def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> None:

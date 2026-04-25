@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 import geoip2.errors
 from prettytable import PrettyTable, TableStyle
 from pydantic import ValidationError
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QImage
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
-from session_sniffer import msgbox
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
@@ -36,7 +36,7 @@ from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountry
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.registry import MINIMUM_PACKETS_FOR_SESSION_HOST, SESSION_HOST_CANDIDATE_PLAYERS_COUNT, PlayersRegistry, SessionHost
-from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
+from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings, _gui_dispatcher
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.session_table_renderer import (
     SessionTableRenderContext,
@@ -67,9 +67,30 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.tshark_capture import CaptureHolder
 
 logger = get_logger(__name__)
+
+
+def _warn_on_gui(text: str) -> None:
+    """Show a non-modal PyQt6 warning dialog on the GUI thread from any thread."""
+    def _show() -> None:
+        parent = next(
+            (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
+            None,
+        )
+        if parent is None:
+            QTimer.singleShot(500, _show)
+            return
+        dlg = QMessageBox(parent)
+        dlg.setWindowModality(Qt.WindowModality.NonModal)
+        dlg.setWindowTitle(TITLE)
+        dlg.setText(text)
+        dlg.setIcon(QMessageBox.Icon.Warning)
+        dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dlg.show()
+    _gui_dispatcher.invoke(_show)
+
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 
@@ -86,10 +107,8 @@ DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 
 
 def rendering_core(
-    capture: PacketCapture,
+    capture_holder: CaptureHolder,
     geoip2_readers: GeoIP2Readers,
-    *,
-    vpn_mode_enabled: bool,
 ) -> None:
     """Compile GUI payloads from runtime state and emit updates."""
     with ThreadsExceptionHandler():
@@ -102,6 +121,7 @@ def rendering_core(
             raw_settings: dict[str, str] = {}
             setting_line_indices: dict[str, int] = {}
             userip: dict[str, list[str]] = {}
+            all_seen_ips: set[str] = set()
             duplicate_entries: list[tuple[str, str]] = []
             current_section = None
             matched_settings: list[str] = []
@@ -181,30 +201,22 @@ def rendering_core(
                     if not is_valid_ip_range_entry(ip):
                         unresolved_ip_invalid.add(f'{ini_path}={username}={ip}')
                         if f'{ini_path}={username}={ip}' not in UserIPDatabases.notified_ip_invalid:
-                            Thread(
-                                target=msgbox.show,
-                                name=f'UserIPInvalidEntryError-{ini_path.name}_{username}={ip}',
-                                kwargs={
-                                    'title': TITLE,
-                                    'text': format_triple_quoted_text(format_userip_invalid_ip_entry_message(
-                                        ini_path=ini_path,
-                                        username=username,
-                                        ip=ip,
-                                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                                    )),
-                                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                                },
-                                daemon=True,
-                            ).start()
+                            _warn_on_gui(format_triple_quoted_text(format_userip_invalid_ip_entry_message(
+                                ini_path=ini_path,
+                                username=username,
+                                ip=ip,
+                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                            )))
                             UserIPDatabases.notified_ip_invalid.add(f'{ini_path}={username}={ip}')
                         continue
 
-                    if username in userip and ip in userip[username]:
-                        # Exact duplicate entry — drop from corrected output.
+                    if ip in all_seen_ips:
+                        # Duplicate IP entry (same or different username) — drop from corrected output.
                         duplicate_entries.append((username, ip))
                         continue
 
                     corrected_ini_data_lines.append(line)
+                    all_seen_ips.add(ip)
                     if username in userip:
                         userip[username].append(ip)
                     else:
@@ -213,19 +225,10 @@ def rendering_core(
             if duplicate_entries:
                 if ini_path not in UserIPDatabases.notified_duplicate_entries:
                     UserIPDatabases.notified_duplicate_entries.add(ini_path)
-                    Thread(
-                        target=msgbox.show,
-                        name=f'UserIPDuplicateEntries-{ini_path.name}',
-                        kwargs={
-                            'title': TITLE,
-                            'text': format_triple_quoted_text(format_userip_duplicate_entries_message(
-                                ini_path=ini_path,
-                                duplicates=duplicate_entries,
-                            )),
-                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                        },
-                        daemon=True,
-                    ).start()
+                    _warn_on_gui(format_triple_quoted_text(format_userip_duplicate_entries_message(
+                        ini_path=ini_path,
+                        duplicates=duplicate_entries,
+                    )))
             else:
                 UserIPDatabases.notified_duplicate_entries.discard(ini_path)
 
@@ -235,20 +238,11 @@ def rendering_core(
             if number_of_settings_missing > 0:
                 if ini_path not in UserIPDatabases.notified_settings_corrupted:
                     UserIPDatabases.notified_settings_corrupted.add(ini_path)
-                    Thread(
-                        target=msgbox.show,
-                        name=f'UserIPConfigFileError-{ini_path.name}',
-                        kwargs={
-                            'title': TITLE,
-                            'text': format_triple_quoted_text(format_userip_missing_settings_message(
-                                ini_path=ini_path,
-                                missing_settings=list_of_missing_settings,
-                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                            )),
-                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                        },
-                        daemon=True,
-                    ).start()
+                    _warn_on_gui(format_triple_quoted_text(format_userip_missing_settings_message(
+                        ini_path=ini_path,
+                        missing_settings=list_of_missing_settings,
+                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                    )))
                 return None, None
 
             # Validate all collected settings via Pydantic model
@@ -261,21 +255,12 @@ def rendering_core(
                 corrupted_value = raw_settings.get(corrupted_setting, '')
                 if ini_path not in UserIPDatabases.notified_settings_corrupted:
                     UserIPDatabases.notified_settings_corrupted.add(ini_path)
-                    Thread(
-                        target=msgbox.show,
-                        name=f'UserIPConfigFileError-{ini_path.name}',
-                        kwargs={
-                            'title': TITLE,
-                            'text': format_triple_quoted_text(format_userip_corrupted_settings_message(
-                                ini_path=ini_path,
-                                setting=corrupted_setting,
-                                value=corrupted_value,
-                                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                            )),
-                            'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                        },
-                        daemon=True,
-                    ).start()
+                    _warn_on_gui(format_triple_quoted_text(format_userip_corrupted_settings_message(
+                        ini_path=ini_path,
+                        setting=corrupted_setting,
+                        value=corrupted_value,
+                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                    )))
                 return None, None
 
             # Apply line rewrites from validated model
@@ -644,7 +629,7 @@ def rendering_core(
         def generate_gui_status_text() -> tuple[str, str, str, str]:
             return build_gui_status_text(
                 capture=capture,
-                vpn_mode_enabled=vpn_mode_enabled,
+                vpn_mode_enabled=TsharkStats.vpn_mode_enabled,
                 discord_rpc_manager=discord_rpc_manager,
             )
 
@@ -657,6 +642,7 @@ def rendering_core(
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
 
         while not gui_closed__event.is_set():
+            capture = capture_holder.get()  # Resolve the active capture each iteration
             _rendering_loop_start = time.monotonic()
 
             if ScriptControl.has_crashed():

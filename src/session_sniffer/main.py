@@ -6,8 +6,9 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from threading import Thread
+from threading import Event, Thread
 
 import colorama
 from PyQt6.QtCore import QTimer
@@ -23,8 +24,8 @@ from session_sniffer.background import (
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.interface_setup import get_filtered_tshark_interfaces, populate_network_interfaces_info, select_interface
-from session_sniffer.capture.tshark_capture import CaptureConfig, Packet, PacketCapture
+from session_sniffer.capture.interface_setup import get_filtered_tshark_interfaces, populate_network_interfaces_info, refresh_available_interfaces, select_interface
+from session_sniffer.capture.tshark_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
 from session_sniffer.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
@@ -227,7 +228,7 @@ def main() -> None:
                     Settings.capture_overflow_timer,
                     TsharkStats.restarted_times,
                 )
-                capture.request_restart()
+                capture_holder.request_restart()
                 return  # Skip processing this packet
 
             if Settings.capture_ip_address:
@@ -332,19 +333,116 @@ def main() -> None:
     )
     splash.run_with_spinner(capture.start)
 
+    # Wrap in a mutable holder so background threads pick up a new capture on interface switch
+    capture_holder = CaptureHolder(capture)
+    TsharkStats.vpn_mode_enabled = vpn_mode_enabled
+
+    arp_stop_event = Event()
     if Settings.capture_arp_spoofing:
         Thread(
             target=arp_spoofing_task,
             name=f'ARPSpoofingTask-{selected_interface.ip_address}',
             args=(
                 selected_interface,
-                capture,
+                capture_holder,
+                arp_stop_event,
             ),
             daemon=True,
         ).start()
 
     # Initialize GUI first - now it has all the data it needs
-    window = MainWindow(screen_width, screen_height, capture)
+    def _switch_interface() -> None:
+        nonlocal arp_stop_event
+
+        # Lock the button immediately to prevent double-clicks
+        window.set_change_interface_button_enabled(enabled=False)
+
+        # Refresh interface list then show the selection dialog.
+        # Capture keeps running at this point — no flash of "CAPTURE STOPPED".
+        new_available_interfaces = refresh_available_interfaces(mac_lookup, str(TSHARK_PATH))
+        new_interface = select_interface(
+            new_available_interfaces,
+            screen_width,
+            screen_height,
+            force_dialog=True,
+            mac_lookup=mac_lookup,
+            tshark_path=str(TSHARK_PATH),
+        )
+
+        if new_interface is None:
+            # User cancelled — just re-enable the button, everything else is untouched
+            window.set_change_interface_button_enabled(enabled=True)
+            return
+
+        # User confirmed a new interface — now stop capture and lock the full UI
+        was_running = capture_holder.is_running()
+        if was_running:
+            capture_holder.stop()
+        window.set_interface_switching_mode(switching=True)
+
+        # Run the ~200 ms tshark probe off the Qt thread so the UI stays responsive.
+        with ThreadPoolExecutor(max_workers=1) as _pool:
+            _future = _pool.submit(check_broadcast_multicast_support, TSHARK_PATH, new_interface.name)
+            while not _future.done():
+                app.processEvents()
+                time.sleep(0.016)
+            new_broadcast, new_multicast = _future.result()
+        new_vpn_mode = not (new_broadcast and new_multicast)
+
+        # Settings must be updated before build_capture_filters() — it reads Settings.capture_ip_address.
+        Settings.is_arp_interface = new_interface.is_arp
+        Settings.is_protection_supported = Settings.capture_program_preset == 'GTA5' and not new_interface.is_arp
+        Settings.capture_interface_name = new_interface.name
+        Settings.capture_mac_address = new_interface.mac_address
+        Settings.capture_ip_address = new_interface.ip_address
+        Settings.rewrite_settings_file()
+
+        new_capture_filter, new_display_filter = build_capture_filters(
+            broadcast_support=new_broadcast,
+            multicast_support=new_multicast,
+        )
+
+        TsharkStats.vpn_mode_enabled = new_vpn_mode
+        TsharkStats.restarted_times = 0
+        TsharkStats.packets_latencies.clear()
+        TsharkStats.global_bandwidth = 0
+        TsharkStats.global_download = 0
+        TsharkStats.global_upload = 0
+        TsharkStats.global_bps_rate = 0
+        TsharkStats.global_pps_rate = 0
+
+        window.reset_players_for_interface_switch()
+        window.reset_session_graph()
+
+        new_capture = PacketCapture(
+            CaptureConfig(
+                interface=new_interface,
+                tshark_path=TSHARK_PATH,
+                broadcast_support=new_broadcast,
+                multicast_support=new_multicast,
+                capture_filter=new_capture_filter,
+                display_filter=new_display_filter,
+                callback=packet_callback,
+            ),
+        )
+        new_capture.start()
+        capture_holder.set(new_capture)
+
+        # Stop old ARP spoofing thread and start a new one if needed
+        arp_stop_event.set()
+        arp_stop_event = Event()
+        if Settings.capture_arp_spoofing:
+            Thread(
+                target=arp_spoofing_task,
+                name=f'ARPSpoofingTask-{new_interface.ip_address}',
+                args=(new_interface, capture_holder, arp_stop_event),
+                daemon=True,
+            ).start()
+
+        window.on_interface_switched()
+        window.set_interface_switching_mode(switching=False)
+
+    window = MainWindow(screen_width, screen_height, capture_holder, on_change_interface=_switch_interface)
 
     splash.finish_loading()
     QTimer.singleShot(1500, splash.close_splash)
@@ -355,7 +453,7 @@ def main() -> None:
         target=rendering_core,
         name='rendering_core',
         args=(
-            capture,
+            capture_holder,
             GeoIP2Readers(
                 enabled=geoip2_enabled,
                 asn_reader=geolite2_asn_reader,
@@ -363,7 +461,6 @@ def main() -> None:
                 country_reader=geolite2_country_reader,
             ),
         ),
-        kwargs={'vpn_mode_enabled': vpn_mode_enabled},
         daemon=True,
     )
     rendering_core__thread.start()

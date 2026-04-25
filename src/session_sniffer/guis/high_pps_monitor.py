@@ -52,6 +52,7 @@ class _PlayerRateData:
     ip: str
     pps: int
     bps: int = 0
+    usernames: list[str] = field(default_factory=list)
 
     # Rate history (rolling window matching graph length)
     pps_history: deque[int] = field(default_factory=_make_rate_history)
@@ -115,13 +116,15 @@ class _PlayerRateData:
 
 
 class _HighRateTableModel(QAbstractTableModel):
-    _COL_PPS = 0
-    _COL_BPS = 1
-    _COL_IP = 2
-    _COL_DURATION = 3
-    _COL_TOTAL_DURATION = 4
-    _HEADERS = ('PPS', 'BPS', 'IP', 'Duration (s)', 'Total Duration (s)')
+    _COL_USERNAME = 0
+    _COL_PPS = 1
+    _COL_BPS = 2
+    _COL_IP = 3
+    _COL_DURATION = 4
+    _COL_TOTAL_DURATION = 5
+    _HEADERS = ('Username', 'PPS', 'BPS', 'IP', 'Duration (s)', 'Total Duration (s)')
     _HEADER_TOOLTIPS = (
+        'Username(s) associated with this IP.',
         'Packets Per Second — the number of network packets this IP is sending/receiving right now.',
         'Bytes Per Second — the amount of data (bandwidth) this IP is sending/receiving right now.',
         'The IP address of the player being tracked.',
@@ -163,9 +166,9 @@ class _HighRateTableModel(QAbstractTableModel):
             return PlayerBandwidth.format_bytes(player.bps)
         if col == self._COL_IP:
             return player.ip
-        if col == self._COL_DURATION:
-            return player.current_pps_duration
-        return player.total_pps_duration
+        if col == self._COL_USERNAME:
+            return ', '.join(player.usernames) if player.usernames else '—'
+        return player.current_pps_duration if col == self._COL_DURATION else player.total_pps_duration
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:  # noqa: N802
         """Return column header labels and tooltips."""
@@ -190,6 +193,7 @@ class _HighRateTableModel(QAbstractTableModel):
             bps_rate = player.bandwidth.bps.calculated_rate
             if ip not in self._tracked:
                 self._tracked[ip] = _PlayerRateData(ip=ip, pps=pps_rate, bps=bps_rate)
+            self._tracked[ip].usernames = list(player.usernames)
             self._tracked[ip].update_pps_stats(
                 now=now,
                 pps=pps_rate,
@@ -220,6 +224,7 @@ class _HighRateTableModel(QAbstractTableModel):
                 a.ip != b.ip or a.pps != b.pps or a.bps != b.bps
                 or a.current_pps_duration != b.current_pps_duration
                 or a.total_pps_duration != b.total_pps_duration
+                or a.usernames != b.usernames
                 for a, b in zip(new_visible, self._visible, strict=True)
             ):
                 self._visible = new_visible

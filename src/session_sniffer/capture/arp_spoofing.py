@@ -2,7 +2,7 @@
 
 import subprocess
 import time
-from threading import Thread
+from threading import Event, Thread
 from typing import TYPE_CHECKING
 
 from session_sniffer import msgbox
@@ -13,7 +13,7 @@ from session_sniffer.error_messages import format_arp_spoofing_failed_message
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.tshark_capture import CaptureHolder
     from session_sniffer.networking.interface import SelectedInterface
 
 logger = get_logger(__name__)
@@ -23,9 +23,12 @@ ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 def arp_spoofing_task(
     selected_interface: SelectedInterface,
-    capture_obj: PacketCapture,
+    capture_holder: CaptureHolder,
+    stop_event: Event,
 ) -> None:
     """Manage ARP spoofing process lifecycle synchronized with packet capture state.
+
+    Exits when *stop_event* is set (interface switch) or *gui_closed__event* is set (app close).
 
     Credit: https://github.com/alandau/arpspoof
     """
@@ -89,12 +92,15 @@ def arp_spoofing_task(
                 show_msgbox()
             logger.info('Task terminated due to %s.', stage)
 
-        while not gui_closed__event.is_set():
+        def _should_exit() -> bool:
+            return gui_closed__event.is_set() or stop_event.is_set()
+
+        while not _should_exit():
             # Wait for capture to be running
-            while not capture_obj.is_running() and not gui_closed__event.is_set():
+            while not capture_holder.is_running() and not _should_exit():
                 time.sleep(0.5)
 
-            if gui_closed__event.is_set():
+            if _should_exit():
                 break
 
             # Start arpspoof process
@@ -133,7 +139,7 @@ def arp_spoofing_task(
                     return
 
             # Wait for capture to stop or process to die
-            while proc and capture_obj.is_running() and not gui_closed__event.is_set():
+            while proc and capture_holder.is_running() and not _should_exit():
                 try:
                     proc.wait(timeout=0.5)
                 except subprocess.TimeoutExpired:

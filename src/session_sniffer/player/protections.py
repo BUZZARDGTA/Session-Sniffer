@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
 
+from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
+
 
 def _parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
     """Parse a voice notification setting string to its typed value."""
@@ -208,3 +210,8 @@ class GUIProtectionSettings:
         if 'asn' in data:
             cls._import_common_fields('asn', data['asn'])
             cls.asn_block_list = data['asn'].get('list', [])
+
+    @classmethod
+    def save_to_settings(cls) -> None:
+        """Persist current protection settings to the default protections JSON file."""
+        cls.export_to_file(PROTECTIONS_JSON_PATH)

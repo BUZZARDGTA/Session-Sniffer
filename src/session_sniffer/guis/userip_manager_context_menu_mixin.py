@@ -6,7 +6,7 @@ from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
 
-from session_sniffer.guis.userip_manager_helpers import DATABASE_COLUMN, RANGE_COLUMN, USERNAME_COLUMN, _EntriesSortProxy
+from session_sniffer.guis.userip_manager_helpers import DATABASE_COLUMN, RANGE_COLUMN, RE_USERIP_INI_PARSER_PATTERN, SECTION_USERIP, USERNAME_COLUMN, _EntriesSortProxy
 
 _MixinBase = QDialog
 
@@ -43,6 +43,8 @@ class _EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-me
         return ''
 
     def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
+
+    def _update_entry_counts(self) -> None: ...
 
     @staticmethod
     def _open_in_explorer(path: Path) -> None: ...  # pylint: disable=unused-argument
@@ -172,6 +174,46 @@ class _EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-me
             open_explorer_action = QAction(f'📂 Open in Explorer  ({db_path.stem})', self)
             open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
             menu.addAction(open_explorer_action)
+
+            if username and ip_or_range:
+                menu.addSeparator()
+
+                delete_action = QAction(f'🗑 Delete Entry  ({db_path.stem})', self)
+                delete_action.triggered.connect(lambda: self._delete_global_search_entry(db_path, username, ip_or_range, row))
+                menu.addAction(delete_action)
+
+    def _delete_global_search_entry(self, db_path: Path, username: str, ip_or_range: str, source_row: int) -> None:
+        """Remove a single entry from the database file and from the search results table."""
+        content = db_path.read_text('utf-8')
+        lines = content.splitlines()
+        new_lines: list[str] = []
+        in_userip_section = False
+        removed = False
+
+        for raw_line in lines:
+            stripped = raw_line.strip()
+            if stripped.startswith('[') and stripped.endswith(']'):
+                in_userip_section = stripped[1:-1] == SECTION_USERIP
+                new_lines.append(raw_line)
+                continue
+
+            if in_userip_section and not removed:
+                m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+                if m:
+                    u_raw = m.group('username')
+                    ip_raw = m.group('ip')
+                    if u_raw is not None and ip_raw is not None and u_raw.strip() == username and ip_raw.strip() == ip_or_range:
+                        removed = True
+                        continue
+
+            new_lines.append(raw_line)
+
+        if not removed:
+            return
+
+        db_path.write_text('\n'.join(new_lines), encoding='utf-8')
+        self._model.removeRow(source_row)
+        self._update_entry_counts()
 
     @staticmethod
     def _copy_to_clipboard(text: str) -> None:

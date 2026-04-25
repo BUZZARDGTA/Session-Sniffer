@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
 
@@ -102,9 +102,9 @@ class ComboRule:
                 if isinstance(value, bool):
                     conditions[key] = value
             elif key == _EVENT_CONDITION and isinstance(value, list):
-                    valid_events: list[str] = [e for e in value if isinstance(e, str) and e in _VALID_EVENTS]  # pyright: ignore[reportUnknownVariableType]
-                    if valid_events:
-                        conditions[key] = valid_events
+                valid_events: list[str] = [e for e in value if isinstance(e, str) and e in _VALID_EVENTS]  # pyright: ignore[reportUnknownVariableType]
+                if valid_events:
+                    conditions[key] = valid_events
 
         path_str = str(data.get('process_path', ''))
 
@@ -300,4 +300,4 @@ class ComboRulesManager:
         cls.rules = []
         for entry in rules_data:
             if isinstance(entry, dict):
-                cls.rules.append(ComboRule.from_dict(entry))  # pyright: ignore[reportUnknownArgumentType]
+                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))  # pyright: ignore[reportUnknownArgumentType]

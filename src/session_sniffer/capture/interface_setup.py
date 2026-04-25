@@ -120,11 +120,12 @@ def refresh_available_interfaces(mac_lookup: MacLookup, tshark_path: str) -> lis
     return available
 
 
-def select_interface(
+def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     interfaces: list[Interface],
     screen_width: int,
     screen_height: int,
     *,
+    force_dialog: bool = False,
     mac_lookup: MacLookup | None = None,
     tshark_path: str | None = None,
 ) -> SelectedInterface | None:
@@ -137,6 +138,7 @@ def select_interface(
         interfaces: Available Interface objects to choose from.
         screen_width: Screen width in pixels.
         screen_height: Screen height in pixels.
+        force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
         mac_lookup: Optional MacLookup instance for live refresh in the dialog.
         tshark_path: Optional TShark path for live refresh in the dialog.
 
@@ -254,8 +256,10 @@ def select_interface(
         interface, ip_address, is_arp = best_match
         return _build_selected_interface(interface, ip_address, is_arp=is_arp)
 
-    if auto_selected := _auto_select_best_interface():
-        return auto_selected
+    if not force_dialog:
+        auto_selected = _auto_select_best_interface()
+        if auto_selected is not None:
+            return auto_selected
 
     # If no suitable interface was found, prompt the user to select an interface
     (

@@ -4,7 +4,7 @@ import subprocess
 import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, NamedTuple, Self
+from typing import TYPE_CHECKING, NamedTuple, Self, final
 
 from session_sniffer.capture.exceptions import (
     InvalidIPv4AddressFormatError,
@@ -416,3 +416,51 @@ class PacketCapture:
                     and not self._state.restart_requested.is_set()
                 ):
                     raise TSharkCrashExceptionError(process.returncode, stderr_output)
+
+
+@final
+class CaptureHolder:
+    """Thread-safe mutable reference to the active PacketCapture instance.
+
+    Allows background threads (rendering_core, packet_callback) to transparently
+    reference whichever capture is currently active without needing to be restarted
+    when the user switches to a different network interface.
+    """
+
+    def __init__(self, capture: PacketCapture) -> None:
+        """Initialise the holder with an initial capture instance."""
+        self._capture = capture
+        self._lock = threading.Lock()
+
+    def get(self) -> PacketCapture:
+        """Return the currently active capture instance."""
+        with self._lock:
+            return self._capture
+
+    def set(self, capture: PacketCapture) -> None:
+        """Atomically swap the active capture instance."""
+        with self._lock:
+            self._capture = capture
+
+    # --- Delegating helpers so callers can use CaptureHolder in place of PacketCapture ---
+
+    @property
+    def config(self) -> CaptureConfig:
+        """Return the config of the currently active capture."""
+        return self.get().config
+
+    def is_running(self) -> bool:
+        """Return whether the active capture is running."""
+        return self.get().is_running()
+
+    def start(self) -> None:
+        """Start the active capture."""
+        self.get().start()
+
+    def stop(self) -> None:
+        """Stop the active capture."""
+        self.get().stop()
+
+    def request_restart(self) -> None:
+        """Request an async restart of the active capture."""
+        self.get().request_restart()

@@ -16,6 +16,7 @@ from session_sniffer.guis.tables_protections_mixin import build_protections_menu
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
     userip_add,
+    userip_add_as_range,
     userip_add_username,
     userip_delete,
     userip_move,
@@ -668,6 +669,13 @@ class SessionTableView(QTableView):
                             userip_database_filepaths,
                             tooltip='Add selected IP address to this UserIP database.',
                             handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
+                        )
+                        add_range_userip_menu = add_menu(userip_menu, 'Add as Range', 'Add selected IP as a range entry to a UserIP database.')
+                        populate_db_menu(
+                            add_range_userip_menu,
+                            userip_database_filepaths,
+                            tooltip='Add selected IP as a range to this UserIP database.',
+                            handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path),
                         )
                     else:
                         userip = player_obj.userip

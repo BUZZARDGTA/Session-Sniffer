@@ -1,5 +1,6 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
+from collections import defaultdict
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -14,6 +15,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -33,6 +35,8 @@ from session_sniffer.guis.userip_manager_helpers import (
     INDEX_COLUMN,
     IP_COLUMN,
     RANGE_COLUMN,
+    RE_USERIP_INI_PARSER_PATTERN,
+    SECTION_USERIP,
     SETTINGS_DEFAULTS,
     SETTINGS_KEYS_ORDER,
     USERNAME_COLUMN,
@@ -137,6 +141,44 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
 
         left_layout.addWidget(self._tree, stretch=1)
 
+        # Import / Export buttons (below the tree, above stats)
+        transfer_buttons = QHBoxLayout()
+
+        import_menu = QMenu(self)
+        import_files_action = import_menu.addAction('📂 Import .ini file(s)…')
+        if import_files_action is not None:
+            import_files_action.triggered.connect(self._import_database_files)
+        import_zip_action = import_menu.addAction('📦 Import from ZIP…')
+        if import_zip_action is not None:
+            import_zip_action.triggered.connect(self._import_from_zip)
+
+        import_button = QPushButton('📥 Import…')
+        import_button.setAutoDefault(False)
+        import_button.setMaximumWidth(130)
+        import_button.setToolTip('Import database files into the databases directory')
+        import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        import_button.setMenu(import_menu)
+        transfer_buttons.addWidget(import_button)
+
+        export_menu = QMenu(self)
+        self._export_selected_action = export_menu.addAction('📤 Export selected database…')
+        if self._export_selected_action is not None:
+            self._export_selected_action.triggered.connect(self._export_selected_database)
+            self._export_selected_action.setEnabled(False)
+        export_zip_action = export_menu.addAction('📦 Export all as ZIP…')
+        if export_zip_action is not None:
+            export_zip_action.triggered.connect(self._export_all_as_zip)
+
+        export_button = QPushButton('📤 Export…')
+        export_button.setAutoDefault(False)
+        export_button.setMaximumWidth(130)
+        export_button.setToolTip('Export databases to an external location')
+        export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        export_button.setMenu(export_menu)
+        transfer_buttons.addWidget(export_button)
+
+        left_layout.addLayout(transfer_buttons)
+
         # Stats summary
         self._stats_label = QLabel('')
         self._stats_label.setWordWrap(True)
@@ -204,6 +246,10 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._entries_table.customContextMenuRequested.connect(self._show_entries_context_menu)
         self._entries_table.doubleClicked.connect(self._on_entry_double_clicked)
+
+        entries_selection = self._entries_table.selectionModel()
+        if entries_selection is not None:
+            entries_selection.selectionChanged.connect(self._on_entries_selection_changed)
 
         self._tooltip_filter = _ElidedTooltipFilter(self._entries_table)
         viewport = self._entries_table.viewport()
@@ -311,6 +357,8 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         self._add_range_button.setEnabled(True)
         self._delete_button.setEnabled(True)
         self._save_button.setEnabled(True)
+        if self._export_selected_action is not None:
+            self._export_selected_action.setEnabled(True)
 
     def _reselect_current_path(self) -> None:
         """Revert the tree selection back to the currently loaded database file."""
@@ -349,8 +397,17 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
     # ------------------------------------------------------------------
 
     def _open_db_in_editor(self) -> None:
-        """Open the current database file in the system's default text editor."""
-        if self._current_path is not None and self._current_path.is_file():
+        """Open the current (or selected row's) database file in the system's default text editor."""
+        if self._global_search_active:
+            selection = self._entries_table.selectionModel()
+            selected_rows = selection.selectedRows() if selection is not None else []
+            if len(selected_rows) == 1:
+                source_row = self._proxy.mapToSource(selected_rows[0]).row()
+                db_item = self._model.item(source_row, DATABASE_COLUMN)
+                db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+                if db_path_str:
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(db_path_str))
+        elif self._current_path is not None and self._current_path.is_file():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._current_path)))
 
     def _load_database(self, path: Path) -> None:
@@ -415,8 +472,28 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
     # Search / filter
     # ------------------------------------------------------------------
 
+    def _on_entries_selection_changed(self) -> None:
+        """Update action buttons based on the current entries-table selection."""
+        selection = self._entries_table.selectionModel()
+        selected_rows = selection.selectedRows() if selection is not None else []
+        has_selection = bool(selected_rows)
+
+        self._delete_button.setEnabled(has_selection)
+
+        if self._global_search_active:
+            # Enable Open DB only when a single row is selected (unambiguous DB target)
+            if len(selected_rows) == 1:
+                source_row = self._proxy.mapToSource(selected_rows[0]).row()
+                db_item = self._model.item(source_row, DATABASE_COLUMN)
+                db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+                self._open_db_button.setEnabled(bool(db_path_str))
+            else:
+                self._open_db_button.setEnabled(False)
+
     def _on_search_changed(self, text: str) -> None:
         """Apply a case-insensitive filter across all columns."""
+        if text and not self._global_search_active and self._current_path is None:
+            self._global_search_checkbox.setChecked(True)
         self._proxy.setFilterFixedString(text)
         self._update_entry_counts()
 
@@ -446,11 +523,15 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
                 self._set_status('')
 
         db_available = not self._global_search_active and self._current_path is not None
+        self._add_button.setVisible(not self._global_search_active)
+        self._add_range_button.setVisible(not self._global_search_active)
         self._add_button.setEnabled(db_available)
         self._add_range_button.setEnabled(db_available)
-        self._delete_button.setEnabled(db_available)
+        self._delete_button.setEnabled(False)  # driven by selection
         self._save_button.setEnabled(db_available)
         self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
+        if self._export_selected_action is not None:
+            self._export_selected_action.setEnabled(db_available)
         self._entries_table.setColumnHidden(DATABASE_COLUMN, not self._global_search_active)
         self._settings_container.setVisible(not self._global_search_active and self._current_path is not None)
 
@@ -485,6 +566,8 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         self._proxy.setFilterFixedString(self._search_input.text())
         self._update_entry_counts()
 
+    # ------------------------------------------------------------------
+    # Import: merge entries
     # ------------------------------------------------------------------
     # Edit tracking
     # ------------------------------------------------------------------
@@ -627,28 +710,80 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
             return
 
         count = len(selected_indexes)
+        source_rows = sorted(
+            {self._proxy.mapToSource(idx).row() for idx in selected_indexes},
+            reverse=True,
+        )
+
+        if self._global_search_active:
+            consequence = 'This will immediately write the changes to the database files.'
+        else:
+            consequence = 'This action cannot be undone after saving.'
+
         result = QMessageBox.warning(
             self,
             TITLE,
             f'Are you sure you want to delete {count} selected {"entry" if count == 1 else "entries"}?\n\n'
-            f'This action cannot be undone after saving.',
+            f'{consequence}',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if result != QMessageBox.StandardButton.Yes:
             return
 
-        # Map proxy indexes to source and remove in reverse order
-        source_rows = sorted(
-            {self._proxy.mapToSource(idx).row() for idx in selected_indexes},
-            reverse=True,
-        )
+        if self._global_search_active:
+            self._delete_global_search_rows(count, source_rows)
+        else:
+            for row in source_rows:
+                self._model.removeRow(row)
+            self._renumber_indexes()
+            self._dirty = True
+            self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"}. Remember to save.')
+
+    def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
+        """Write deletions directly to database files and remove rows from the global search model."""
+        rows_by_db: dict[str, list[int]] = defaultdict(list)
+        for row in source_rows:
+            db_item = self._model.item(row, DATABASE_COLUMN)
+            db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+            if db_path_str:
+                rows_by_db[db_path_str].append(row)
+
+        for db_path_str, rows in rows_by_db.items():
+            db_path = Path(db_path_str)
+            if not db_path.is_file():
+                continue
+            to_remove: set[tuple[str, str]] = set()
+            for row in rows:
+                u_item = self._model.item(row, USERNAME_COLUMN)
+                username = u_item.text() if u_item else ''
+                ip = self._get_row_entry_value(row)
+                if username and ip:
+                    to_remove.add((username, ip))
+            self._rewrite_db_without_entries(db_path, to_remove)
+
         for row in source_rows:
             self._model.removeRow(row)
+        self._update_entry_counts()
+        self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"} from database files.')
 
-        self._renumber_indexes()
-        self._dirty = True
-        self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"}. Remember to save.')
+    def _rewrite_db_without_entries(self, db_path: Path, to_remove: set[tuple[str, str]]) -> None:
+        """Remove specific (username, ip) pairs from a database file in-place."""
+        new_lines: list[str] = []
+        in_userip_section = False
+        for raw_line in db_path.read_text('utf-8').splitlines():
+            stripped = raw_line.strip()
+            if stripped.startswith('[') and stripped.endswith(']'):
+                in_userip_section = stripped[1:-1] == SECTION_USERIP
+                new_lines.append(raw_line)
+                continue
+            if in_userip_section and to_remove:
+                m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+                if m and (u := m.group('username')) and (i := m.group('ip')) and (u.strip(), i.strip()) in to_remove:
+                    to_remove.discard((u.strip(), i.strip()))
+                    continue
+            new_lines.append(raw_line)
+        db_path.write_text('\n'.join(new_lines), encoding='utf-8')
 
     # ------------------------------------------------------------------
     # Save

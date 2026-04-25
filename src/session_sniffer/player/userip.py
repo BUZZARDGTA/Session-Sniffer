@@ -2,12 +2,13 @@
 
 from ipaddress import IPv4Address
 from pathlib import Path
-from threading import Lock, Thread
-from typing import ClassVar, Literal, NamedTuple
+from threading import Lock
+from typing import Callable, ClassVar, Literal, NamedTuple
 
+from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
-from session_sniffer import msgbox
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import format_userip_ip_conflict_message
@@ -17,6 +18,24 @@ from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import format_triple_quoted_text
 
 logger = get_logger(__name__)
+
+
+class _GUIThreadDispatcher(QObject):
+    """Schedule callables on the GUI thread from any thread via Qt's auto-queued connection."""
+
+    _call: ClassVar[pyqtSignal] = pyqtSignal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._call.connect(lambda fn: fn())
+
+    def invoke(self, fn: Callable[[], None]) -> None:
+        """Emit `fn` as a signal — Qt will queue it to the GUI thread automatically."""
+        self._call.emit(fn)
+
+
+# Module-level singleton created on the main thread at import time.
+_gui_dispatcher = _GUIThreadDispatcher()
 
 
 class ProtectionSettings(NamedTuple):
@@ -65,6 +84,7 @@ class UserIPDatabases:
     notified_ip_invalid: ClassVar[set[str]] = set()
     notified_ip_conflicts: ClassVar[set[str]] = set()
     notified_duplicate_entries: ClassVar[set[Path]] = set()
+    _open_conflict_dialogs: ClassVar[dict[str, QMessageBox]] = {}
 
     @staticmethod
     def _notify_ip_conflict(
@@ -73,21 +93,39 @@ class UserIPDatabases:
         conflicting_database_path: Path,
         conflicting_username: str,
     ) -> None:
-        Thread(
-            target=msgbox.show,
-            name=f'UserIPConflictError-{existing_userip.ip}',
-            kwargs={
-                'title': TITLE,
-                'text': format_triple_quoted_text(format_userip_ip_conflict_message(
-                    existing_userip=existing_userip,
-                    conflicting_database_path=conflicting_database_path,
-                    conflicting_username=conflicting_username,
-                    userip_databases_dir=USERIP_DATABASES_DIR_PATH,
-                )),
-                'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
-            },
-            daemon=True,
-        ).start()
+        ip = existing_userip.ip
+        text = format_triple_quoted_text(format_userip_ip_conflict_message(
+            existing_userip=existing_userip,
+            conflicting_database_path=conflicting_database_path,
+            conflicting_username=conflicting_username,
+            userip_databases_dir=USERIP_DATABASES_DIR_PATH,
+        ))
+
+        def _show_on_gui() -> None:
+            parent = next(
+                (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
+                None,
+            )
+            if parent is None:
+                QTimer.singleShot(500, _show_on_gui)
+                return
+            dlg = QMessageBox(parent)
+            dlg.setWindowModality(Qt.WindowModality.NonModal)
+            dlg.setWindowTitle(TITLE)
+            dlg.setText(text)
+            dlg.setIcon(QMessageBox.Icon.Warning)
+            dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            dlg.finished.connect(lambda _result: UserIPDatabases._open_conflict_dialogs.pop(ip, None))
+            UserIPDatabases._open_conflict_dialogs[ip] = dlg
+            dlg.show()
+
+        _gui_dispatcher.invoke(_show_on_gui)
+
+    @classmethod
+    def _close_conflict_dialog(cls, ip: str) -> None:
+        dlg = cls._open_conflict_dialogs.pop(ip, None)
+        if dlg is not None:
+            dlg.accept()
 
     @classmethod
     def populate(cls, database_entries: list[tuple[Path, UserIPSettings, dict[str, list[str]]]]) -> None:
@@ -216,10 +254,25 @@ class UserIPDatabases:
                     except (ValueError, TypeError):
                         continue
 
-            # Remove resolved conflicts
+            # Strip conflicting IPs from the lookup structures so they are fully ignored.
+            # Also retroactively clear any player that already has a conflicting userip assigned.
+            for conflict_ip in unresolved_conflicts:
+                ips_set.discard(conflict_ip)
+                ip_to_userip.pop(conflict_ip, None)
+                if matched_player := PlayersRegistry.get_player_by_ip(conflict_ip):
+                    matched_player.userip = None
+
+            # Remove resolved conflicts and auto-close their dialogs
             resolved_conflicts = cls.notified_ip_conflicts - unresolved_conflicts
-            for resolved_ip in resolved_conflicts:
-                cls.notified_ip_conflicts.remove(resolved_ip)
+            cls.notified_ip_conflicts -= resolved_conflicts
+            if resolved_conflicts:
+                _to_close = frozenset(resolved_conflicts)
+
+                def _close_resolved() -> None:
+                    for _ip in _to_close:
+                        UserIPDatabases._close_conflict_dialog(_ip)
+
+                _gui_dispatcher.invoke(_close_resolved)
 
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip

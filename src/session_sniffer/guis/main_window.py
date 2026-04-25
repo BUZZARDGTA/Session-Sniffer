@@ -5,7 +5,7 @@ import webbrowser
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QFont, QMouseEvent
 from PyQt6.QtWidgets import (
     QFrame,
@@ -48,6 +48,15 @@ from session_sniffer.core import terminate_script
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
+from session_sniffer.guis.avg_session_duration import AvgSessionDurationWindow
+from session_sniffer.guis.capture_health_window import CaptureHealthWindow
+from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
+from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
+from session_sniffer.guis.port_heatmap import PortHeatmapWindow
+from session_sniffer.guis.reconnect_frequency import ReconnectFrequencyWindow
+from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
+from session_sniffer.guis.session_summary import SessionSummaryWindow
+from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.protections_manager import ProtectionsManagerDialog
 from session_sniffer.guis.settings_dialog import SettingsDialog
@@ -75,14 +84,14 @@ from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState
+from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.tshark_capture import CaptureHolder
     from session_sniffer.models.player import Player
 
 logger = get_logger(__name__)
@@ -115,6 +124,7 @@ class PersistentMenu(QMenu):
 class _ToolbarActions:
     """Toolbar QAction references."""
     toggle_capture: QAction
+    change_interface: QAction
 
 
 @dataclass(slots=True)
@@ -518,19 +528,29 @@ class MainWindow(QMainWindow):
             self._connected.is_expanded or self._disconnected.is_expanded,
         )
 
-    def __init__(self, screen_width: int, screen_height: int, capture: PacketCapture) -> None:
+    def __init__(self, screen_width: int, screen_height: int, capture_holder: CaptureHolder, on_change_interface: Callable[[], None]) -> None:
         """Initialize the main application window.
 
         Args:
             screen_width: Primary screen width in pixels.
             screen_height: Primary screen height in pixels.
-            capture: Packet capture instance used by the GUI.
+            capture_holder: Mutable reference to the active packet capture instance.
+            on_change_interface: Callback invoked when the user requests an interface switch.
         """
         super().__init__()
 
-        self.capture = capture
+        self.capture = capture_holder
         self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips, self)
         self._leaderboard_window: PlayerLeaderboardWindow | None = None
+        self._session_rate_graph_window: SessionRateGraphWindow | None = None
+        self._packets_latency_graph_window: PacketsLatencyGraphWindow | None = None
+        self._session_summary_window: SessionSummaryWindow | None = None
+        self._country_breakdown_window: CountryBreakdownWindow | None = None
+        self._reconnect_frequency_window: ReconnectFrequencyWindow | None = None
+        self._session_timeline_window: SessionTimelineWindow | None = None
+        self._port_heatmap_window: PortHeatmapWindow | None = None
+        self._avg_session_duration_window: AvgSessionDurationWindow | None = None
+        self._capture_health_window: CaptureHealthWindow | None = None
 
         # Set up the window
         self.setWindowTitle(TITLE)
@@ -551,6 +571,7 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(16, 16))
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+        self._toolbar = toolbar
 
         # ----- Stop/Start Capture Button -----
         toggle_capture_action = QAction('⏹️ Stop Capture', self)
@@ -560,12 +581,21 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        # ----- Change Interface Button -----
+        change_interface_action = QAction('🔄 Change Interface', self)
+        change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
+        change_interface_action.triggered.connect(on_change_interface)
+        toolbar.addAction(change_interface_action)
+
+        toolbar.addSeparator()
+
         # ----- Protections Manager -----
         protections_button = QPushButton(' \U0001f6e1\ufe0f Protections Manager ', self)
         protections_button.setToolTip('Configure detection, notifications, and protection rules')
         protections_button.clicked.connect(self._open_protections_manager)  # pyright: ignore[reportUnknownMemberType]
         protections_button.setVisible(Settings.is_protection_supported)
         toolbar.addWidget(protections_button)
+        self._protections_button = protections_button
 
         toolbar.addSeparator()
 
@@ -582,6 +612,71 @@ class MainWindow(QMainWindow):
         leaderboard_button.setToolTip('View a leaderboard of the most frequently seen players across sessions')
         leaderboard_button.clicked.connect(self._open_player_leaderboard)
         toolbar.addWidget(leaderboard_button)
+
+        toolbar.addSeparator()
+
+        # ----- Statistics Menu -----
+        statistics_menu_button = QPushButton(' 📊 Statistics ', self)
+        statistics_menu_button.setToolTip('Session statistics and live graphs')
+
+        statistics_menu = PersistentMenu(self)
+        statistics_menu.setToolTipsVisible(True)
+
+        session_rate_graph_action = QAction('📈 Session Rate Graph', self)
+        session_rate_graph_action.setToolTip('View live PPS and KB/s graphs for the entire session')
+        session_rate_graph_action.triggered.connect(self._open_session_rate_graph)
+        statistics_menu.addAction(session_rate_graph_action)
+
+        packets_latency_graph_action = QAction('📉 Packets Latency Graph', self)
+        packets_latency_graph_action.setToolTip('View live per-packet latency in milliseconds')
+        packets_latency_graph_action.triggered.connect(self._open_packets_latency_graph)
+        statistics_menu.addAction(packets_latency_graph_action)
+
+        statistics_menu.addSeparator()
+
+        session_summary_action = QAction('📋 Session Summary', self)
+        session_summary_action.setToolTip('Overview of player counts, bandwidth, rates and uptime')
+        session_summary_action.triggered.connect(self._open_session_summary)
+        statistics_menu.addAction(session_summary_action)
+
+        session_timeline_action = QAction('🕐 Session Timeline', self)
+        session_timeline_action.setToolTip('Gantt chart showing when each player was present')
+        session_timeline_action.triggered.connect(self._open_session_timeline)
+        statistics_menu.addAction(session_timeline_action)
+
+        statistics_menu.addSeparator()
+
+        country_breakdown_action = QAction('🌍 Country Breakdown', self)
+        country_breakdown_action.setToolTip('Rank players by country of origin')
+        country_breakdown_action.triggered.connect(self._open_country_breakdown)
+        statistics_menu.addAction(country_breakdown_action)
+
+        reconnect_frequency_action = QAction('🔁 Reconnect Frequency', self)
+        reconnect_frequency_action.setToolTip('List players sorted by reconnect count')
+        reconnect_frequency_action.triggered.connect(self._open_reconnect_frequency)
+        statistics_menu.addAction(reconnect_frequency_action)
+
+        avg_session_duration_action = QAction('⏱️ Average Session Duration', self)
+        avg_session_duration_action.setToolTip('Disconnected players ranked by their session duration')
+        avg_session_duration_action.triggered.connect(self._open_avg_session_duration)
+        statistics_menu.addAction(avg_session_duration_action)
+
+        statistics_menu.addSeparator()
+
+        port_heatmap_action = QAction('📡 Port Heatmap', self)
+        port_heatmap_action.setToolTip('Rank observed ports by frequency across all players')
+        port_heatmap_action.triggered.connect(self._open_port_heatmap)
+        statistics_menu.addAction(port_heatmap_action)
+
+        statistics_menu.addSeparator()
+
+        capture_health_action = QAction('🚦 Capture Health', self)
+        capture_health_action.setToolTip('Tshark restart count and packet latency statistics')
+        capture_health_action.triggered.connect(self._open_capture_health)
+        statistics_menu.addAction(capture_health_action)
+
+        statistics_menu_button.setMenu(statistics_menu)
+        toolbar.addWidget(statistics_menu_button)
 
         toolbar.addSeparator()
 
@@ -814,6 +909,7 @@ class MainWindow(QMainWindow):
         # Toolbar action container
         self._actions = _ToolbarActions(
             toggle_capture=toggle_capture_action,
+            change_interface=change_interface_action,
         )
 
         # Layout
@@ -843,6 +939,12 @@ class MainWindow(QMainWindow):
         )
         self._state.worker_thread.update_signal.connect(self._update_gui)
         self._state.worker_thread.start()
+
+        # Session rate graph polling timer
+        self._stats_timer = QTimer(self)
+        self._stats_timer.setInterval(1_000)
+        self._stats_timer.timeout.connect(self._tick_stats)
+        self._stats_timer.start()
 
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
@@ -1119,7 +1221,7 @@ class MainWindow(QMainWindow):
 
     def _open_settings_dialog(self) -> None:
         """Open the settings dialog for viewing and editing all application settings."""
-        dialog = SettingsDialog(self, self.capture)
+        dialog = SettingsDialog(self, self.capture.get())
         dialog.exec()
 
     def _open_userip_manager(self) -> None:
@@ -1180,7 +1282,7 @@ class MainWindow(QMainWindow):
 
     def _update_header_capture_status(self) -> None:
         """Immediately update the header text to reflect current capture state."""
-        self._header.setText(generate_gui_header_html(capture=self.capture))
+        self._header.setText(generate_gui_header_html(capture=self.capture.get()))
 
     def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
@@ -1193,6 +1295,194 @@ class MainWindow(QMainWindow):
             self._actions.toggle_capture.setText('⏹️ Stop Capture')
             self._actions.toggle_capture.setToolTip('Stop packet capture')
 
+        self._update_header_capture_status()
+
+    def set_interface_switching_mode(self, *, switching: bool) -> None:
+        """Disable or re-enable the UI while an interface switch is in progress."""
+        self._toolbar.setEnabled(not switching)
+        self._actions.change_interface.setEnabled(not switching)
+        self._connected.set_all_enabled(enabled=not switching)
+        self._disconnected.set_all_enabled(enabled=not switching)
+        self._tables_separator.setEnabled(not switching)
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.setEnabled(not switching)
+
+    def set_change_interface_button_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable only the Change Interface toolbar button."""
+        self._actions.change_interface.setEnabled(enabled)
+
+    def reset_players_for_interface_switch(self) -> None:
+        """Clear all player data in preparation for a new capture interface."""
+        self._clear_connected_players()
+        self._clear_disconnected_players()
+
+    def reset_session_graph(self) -> None:
+        """Reset graph history for all open statistics windows (called on capture restart)."""
+        if self._session_rate_graph_window is not None:
+            self._session_rate_graph_window.reset()
+        if self._packets_latency_graph_window is not None:
+            self._packets_latency_graph_window.reset()
+
+    def _open_session_rate_graph(self) -> None:
+        """Open or focus the session-wide rate graph window."""
+        if self._session_rate_graph_window is not None:
+            self._session_rate_graph_window.show()
+            self._session_rate_graph_window.raise_()
+            self._session_rate_graph_window.activateWindow()
+            return
+
+        window = SessionRateGraphWindow(
+            max_history=Settings.gui_rate_graph_max_history,
+            always_on_top=Settings.gui_rate_graph_always_on_top,
+        )
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None))
+        self._session_rate_graph_window = window
+
+    def _tick_stats(self) -> None:
+        """Tick all open statistics windows with the latest data."""
+        if self._session_rate_graph_window is not None:
+            self._session_rate_graph_window.update_rates(
+                pps=TsharkStats.global_pps_rate,
+                bps=TsharkStats.global_bps_rate,
+            )
+        if self._packets_latency_graph_window is not None:
+            latencies = TsharkStats.packets_latencies
+            latency_ms = latencies[-1][1].total_seconds() * 1000 if latencies else 0.0
+            self._packets_latency_graph_window.update_latency(latency_ms)
+        if self._session_summary_window is not None:
+            self._session_summary_window.refresh()
+        if self._country_breakdown_window is not None:
+            self._country_breakdown_window.refresh()
+        if self._reconnect_frequency_window is not None:
+            self._reconnect_frequency_window.refresh()
+        if self._session_timeline_window is not None:
+            self._session_timeline_window.refresh()
+        if self._port_heatmap_window is not None:
+            self._port_heatmap_window.refresh()
+        if self._avg_session_duration_window is not None:
+            self._avg_session_duration_window.refresh()
+        if self._capture_health_window is not None:
+            self._capture_health_window.refresh()
+
+    def _open_packets_latency_graph(self) -> None:
+        """Open or focus the packets latency graph window."""
+        if self._packets_latency_graph_window is not None:
+            self._packets_latency_graph_window.show()
+            self._packets_latency_graph_window.raise_()
+            self._packets_latency_graph_window.activateWindow()
+            return
+
+        window = PacketsLatencyGraphWindow(
+            max_history=Settings.gui_rate_graph_max_history,
+            always_on_top=Settings.gui_rate_graph_always_on_top,
+        )
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None))
+        self._packets_latency_graph_window = window
+
+    def _open_session_summary(self) -> None:
+        """Open or focus the session summary window."""
+        if self._session_summary_window is not None:
+            self._session_summary_window.show()
+            self._session_summary_window.raise_()
+            self._session_summary_window.activateWindow()
+            return
+
+        window = SessionSummaryWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_session_summary_window', None))
+        self._session_summary_window = window
+
+    def _open_country_breakdown(self) -> None:
+        """Open or focus the country breakdown window."""
+        if self._country_breakdown_window is not None:
+            self._country_breakdown_window.show()
+            self._country_breakdown_window.raise_()
+            self._country_breakdown_window.activateWindow()
+            return
+
+        window = CountryBreakdownWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None))
+        self._country_breakdown_window = window
+
+    def _open_reconnect_frequency(self) -> None:
+        """Open or focus the reconnect frequency window."""
+        if self._reconnect_frequency_window is not None:
+            self._reconnect_frequency_window.show()
+            self._reconnect_frequency_window.raise_()
+            self._reconnect_frequency_window.activateWindow()
+            return
+
+        window = ReconnectFrequencyWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None))
+        self._reconnect_frequency_window = window
+
+    def _open_session_timeline(self) -> None:
+        """Open or focus the session timeline window."""
+        if self._session_timeline_window is not None:
+            self._session_timeline_window.show()
+            self._session_timeline_window.raise_()
+            self._session_timeline_window.activateWindow()
+            return
+
+        window = SessionTimelineWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None))
+        self._session_timeline_window = window
+
+    def _open_port_heatmap(self) -> None:
+        """Open or focus the port heatmap window."""
+        if self._port_heatmap_window is not None:
+            self._port_heatmap_window.show()
+            self._port_heatmap_window.raise_()
+            self._port_heatmap_window.activateWindow()
+            return
+
+        window = PortHeatmapWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None))
+        self._port_heatmap_window = window
+
+    def _open_avg_session_duration(self) -> None:
+        """Open or focus the session duration window."""
+        if self._avg_session_duration_window is not None:
+            self._avg_session_duration_window.show()
+            self._avg_session_duration_window.raise_()
+            self._avg_session_duration_window.activateWindow()
+            return
+
+        window = AvgSessionDurationWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_avg_session_duration_window', None))
+        self._avg_session_duration_window = window
+
+    def _open_capture_health(self) -> None:
+        """Open or focus the capture health window."""
+        if self._capture_health_window is not None:
+            self._capture_health_window.show()
+            self._capture_health_window.raise_()
+            self._capture_health_window.activateWindow()
+            return
+
+        window = CaptureHealthWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_capture_health_window', None))
+        self._capture_health_window = window
+
+    def on_interface_switched(self) -> None:
+        """Synchronize GUI state after the capture interface has been replaced."""
+        self._protections_button.setVisible(Settings.is_protection_supported)
+        # Sync the toggle button text to reflect the running state of the new capture
+        if self.capture.is_running():
+            self._actions.toggle_capture.setText('⏹️ Stop Capture')
+            self._actions.toggle_capture.setToolTip('Stop packet capture')
+        else:
+            self._actions.toggle_capture.setText('▶️ Start Capture')
+            self._actions.toggle_capture.setToolTip('Start packet capture')
         self._update_header_capture_status()
 
     def _clear_connected_players(self) -> None:

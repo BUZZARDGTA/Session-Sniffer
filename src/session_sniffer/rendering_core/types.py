@@ -71,6 +71,7 @@ class TsharkStats:  # pylint: disable=too-few-public-methods
     global_upload: ClassVar[int] = 0
     global_bps_rate: ClassVar[int] = 0
     global_pps_rate: ClassVar[int] = 0
+    vpn_mode_enabled: ClassVar[bool] = False
 
 
 class CellColor(NamedTuple):

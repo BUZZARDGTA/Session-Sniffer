@@ -5,7 +5,7 @@ import csv
 import time
 import winsound
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
@@ -170,15 +170,26 @@ def wait_for_player_data_ready(
         'iplookup.ipapi': check_iplookup_ipapi,
     }
 
-    while (
-        not player.left_event.is_set()
-        and not gui_closed__event.is_set()
-        and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen) < timedelta(seconds=timeout)
-    ):
-        if all(field_checkers[field](player) for field in data_fields if field in field_checkers):
+    deadline = time.monotonic() + timeout
+
+    checker_items = [
+        field_checkers[field]
+        for field in data_fields
+        if field in field_checkers
+    ]
+
+    while True:
+        if player.left_event.is_set() or gui_closed__event.is_set():
+            break
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+
+        if all(checker(player) for checker in checker_items):
             return True
 
-        gui_closed__event.wait(0.1)
+        gui_closed__event.wait(min(0.1, remaining))
 
     return False
 
