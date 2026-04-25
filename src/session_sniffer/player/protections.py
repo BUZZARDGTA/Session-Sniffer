@@ -97,6 +97,15 @@ class GUIProtectionSettings:
     player_leave_logging: ClassVar[bool] = False
     player_leave_message_box: ClassVar[bool] = False
 
+    # GTA5 relay protection (GTA5 preset only)
+    gta5_relay_enabled: ClassVar[bool] = False
+    gta5_relay_packet_threshold: ClassVar[int] = 40
+    gta5_relay_process_path: ClassVar[Path | None] = None
+    gta5_relay_duration: ClassVar[int | Literal['Auto', 'Manual', 'Adaptive']] = 'Auto'
+    gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
+    gta5_relay_logging: ClassVar[bool] = False
+    gta5_relay_message_box: ClassVar[bool] = False
+
     @classmethod
     def load_from_file_or_defaults(cls, file_path: Path) -> None:
         """Load protection settings from JSON if the file exists, otherwise keep class defaults."""
@@ -170,6 +179,11 @@ class GUIProtectionSettings:
         # Player Leave
         export_data['player_leave'] = cls._export_common_fields('player_leave')
 
+        # GTA5 Relay
+        gta5_relay = cls._export_common_fields('gta5_relay')
+        gta5_relay['packet_threshold'] = cls.gta5_relay_packet_threshold
+        export_data['gta5_relay'] = gta5_relay
+
         file_path.write_text(json.dumps(export_data, indent=4), encoding='utf-8')
 
     @classmethod
@@ -198,6 +212,11 @@ class GUIProtectionSettings:
         for key in ('mobile', 'vpn', 'hosting', 'player_join', 'player_rejoin', 'player_leave'):
             if key in data:
                 cls._import_common_fields(key, data[key])
+
+        if 'gta5_relay' in data:
+            cls._import_common_fields('gta5_relay', data['gta5_relay'])
+            raw_threshold = data['gta5_relay'].get('packet_threshold', 40)
+            cls.gta5_relay_packet_threshold = int(raw_threshold) if isinstance(raw_threshold, (int, float, str)) else 40
 
         if 'country' in data:
             cls._import_common_fields('country', data['country'])

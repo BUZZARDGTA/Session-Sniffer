@@ -6,6 +6,7 @@ import time
 import winsound
 from collections import deque
 from datetime import datetime
+from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
@@ -15,6 +16,7 @@ from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.models.player import Player, PlayerUserIPDetection
@@ -536,6 +538,108 @@ def process_userip_task(
                     },
                     daemon=True,
                 ).start()
+
+
+_GTAV_TAKETWO_NETWORKS: tuple[IPv4Network, ...] = tuple(
+    IPv4Network(cidr, strict=False)
+    for cidr in ThirdPartyServers.GTAV_TAKETWO.value
+)
+
+
+def _is_gta5_relay_ip(ip: str) -> bool:
+    """Return True if *ip* belongs to the GTAV Take-Two relay IP ranges."""
+    addr = IPv4Address(ip)
+    return any(addr in network for network in _GTAV_TAKETWO_NETWORKS)
+
+
+def monitor_gta5_relay_task(player: Player) -> None:
+    """Monitor a GTA5 relay IP and suspend the game process when the packet threshold is reached.
+
+    Only active when:
+    - The GTA5 game preset is selected.
+    - The player IP belongs to the Take-Two / GTA5 relay CIDR ranges.
+    - GTA5 relay protection is enabled and a process path is configured.
+
+    The monitor polls the player's packet count until it reaches the
+    configurable ``GUIProtectionSettings.gta5_relay_packet_threshold`` while
+    the player is still connected.
+    The suspension respects the configured duration mode and triggers
+    voice/logging/message-box notifications identical to other protections.
+
+    Args:
+        player: The player object to monitor.
+    """
+    with ThreadsExceptionHandler():
+        if Settings.capture_program_preset != 'GTA5':
+            return
+
+        if not _is_gta5_relay_ip(player.ip):
+            return
+
+        # Poll until threshold reached, player disconnects, or GUI closes.
+        while not player.left_event.is_set() and not gui_closed__event.is_set():
+            if player.packets.exchanged >= GUIProtectionSettings.gta5_relay_packet_threshold:
+                break
+            gui_closed__event.wait(0.25)
+
+        if player.left_event.is_set() or gui_closed__event.is_set():
+            return
+
+        if not GUIProtectionSettings.gta5_relay_enabled:
+            return
+
+        process_path = GUIProtectionSettings.gta5_relay_process_path
+        duration = GUIProtectionSettings.gta5_relay_duration
+
+        if Settings.is_protection_supported and process_path:
+            ProcessSuspendManager.request_suspend(
+                process_path=process_path,
+                reason_key=f'gta5_relay:{player.ip}',
+                left_event=player.left_event,
+                duration=duration,
+                is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if duration == 'Adaptive' else None,
+            )
+
+        voice_setting = GUIProtectionSettings.gta5_relay_voice_notifications
+        if voice_setting:
+            tts_voice_name = 'Liam' if voice_setting == 'Male' else 'Jane'
+            tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'detection' / 'gta5_relay_detected.wav'
+            _voice_notification_queue.put(str(tts_candidate_path))
+
+        if GUIProtectionSettings.gta5_relay_logging:
+            with _protection_logging_file_write_lock:
+                now = datetime.now(tz=LOCAL_TZ)
+                PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
+                write_csv_header = not PROTECTION_LOGGING_PATH.exists() or not PROTECTION_LOGGING_PATH.stat().st_size
+                with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    if write_csv_header:
+                        writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                    writer.writerow([
+                        'GTA5 RELAY DETECTED!',
+                        ', '.join(player.usernames),
+                        player.ip,
+                        now.strftime('%Y-%m-%d'),
+                        now.strftime('%H:%M:%S'),
+                        player.iplookup.geolite2.country,
+                    ])
+
+        if GUIProtectionSettings.gta5_relay_message_box and player.userip is None:
+            Thread(
+                target=msgbox.show,
+                name=f'GTA5RelayDetectionNotif-{player.ip}',
+                kwargs={
+                    'title': TITLE,
+                    'text': format_triple_quoted_text(f"""
+                        \U0001f6e1 GTA5 Relay Detected
+                        IP Address: {player.ip}
+                        Packets: {player.packets.exchanged}
+                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
+                    """),
+                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+                },
+                daemon=True,
+            ).start()
 
 
 def check_global_protections(player: Player) -> None:

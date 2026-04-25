@@ -11,6 +11,8 @@ from session_sniffer.networking.utils import is_valid_non_special_ipv4
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from session_sniffer.networking.manuf_lookup import MacLookup
 
 EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
@@ -126,6 +128,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     screen_height: int,
     *,
     force_dialog: bool = False,
+    before_dialog: Callable[[], None] | None = None,
     mac_lookup: MacLookup | None = None,
     tshark_path: str | None = None,
 ) -> SelectedInterface | None:
@@ -139,6 +142,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         screen_width: Screen width in pixels.
         screen_height: Screen height in pixels.
         force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
+        before_dialog: Optional callback invoked once, right before the dialog is shown (skipped on auto-select).
         mac_lookup: Optional MacLookup instance for live refresh in the dialog.
         tshark_path: Optional TShark path for live refresh in the dialog.
 
@@ -262,6 +266,8 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
             return auto_selected
 
     # If no suitable interface was found, prompt the user to select an interface
+    if before_dialog is not None:
+        before_dialog()
     (
         selected_interface,
         arp_spoofing_enabled,

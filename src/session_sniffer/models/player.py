@@ -668,6 +668,7 @@ class _PlayerLifecycleState:
     left_event: Event = dataclasses.field(default_factory=Event)
     rejoins: int = 0
     protection_checked: bool = False
+    relay_monitor_started: bool = False
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
 
 
@@ -726,7 +727,7 @@ class Player:
     userip_detection: PlayerUserIPDetection | None
     mod_menus: PlayerModMenus | None
 
-    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({'left_event', 'rejoins', 'protection_checked', 'usernames'})
+    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({'left_event', 'rejoins', 'protection_checked', 'relay_monitor_started', 'usernames'})
     _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
     _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
     _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus'})
@@ -826,6 +827,7 @@ class Player:
         self.left_event.clear()
         self.rejoins += 1
         self.protection_checked = False  # pylint: disable=attribute-defined-outside-init
+        self.relay_monitor_started = False  # pylint: disable=attribute-defined-outside-init
 
         player_datetime.accumulate_session_to_total()
         player_datetime.last_rejoin = packet_datetime

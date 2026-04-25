@@ -164,3 +164,8 @@ class SplashScreen(QWidget):
         self._spinner_timer.stop()
         self._executor.shutdown(wait=False)
         self.close()
+
+    def lower_to_back(self) -> None:
+        """Remove the always-on-top hint so other windows (e.g. dialogs) can appear above the splash."""
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+        self.show()

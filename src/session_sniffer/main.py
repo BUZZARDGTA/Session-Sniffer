@@ -19,6 +19,7 @@ from session_sniffer.background import (
     handle_detection_notification,
     hostname_core,
     iplookup_core,
+    monitor_gta5_relay_task,
     pinger_core,
     process_userip_task,
 )
@@ -168,7 +169,12 @@ def main() -> None:
 
         available_interfaces.append(interface)
 
-    selected_interface = select_interface(available_interfaces, screen_width, screen_height, mac_lookup=mac_lookup, tshark_path=str(TSHARK_PATH))
+    selected_interface = select_interface(
+        available_interfaces, screen_width, screen_height,
+        before_dialog=splash.lower_to_back,
+        mac_lookup=mac_lookup,
+        tshark_path=str(TSHARK_PATH),
+    )
     if selected_interface is None:
         sys.exit(0)
 
@@ -299,6 +305,15 @@ def main() -> None:
                 Thread(
                     target=check_global_protections,
                     name=f'CheckProtections-{matched_player.ip}',
+                    args=(matched_player,),
+                    daemon=True,
+                ).start()
+
+            if not matched_player.relay_monitor_started:
+                matched_player.relay_monitor_started = True
+                Thread(
+                    target=monitor_gta5_relay_task,
+                    name=f'GTA5RelayMonitor-{matched_player.ip}',
                     args=(matched_player,),
                     daemon=True,
                 ).start()

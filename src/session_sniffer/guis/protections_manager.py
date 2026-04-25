@@ -682,6 +682,15 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         self.player_leave_voice_combo: QComboBox
         self.player_leave_logging_checkbox: QCheckBox
         self.player_leave_msgbox_checkbox: QCheckBox
+        # -- GTA5 Relays (GTA5 preset only) --
+        self.gta5_relay_enable_checkbox: QCheckBox
+        self.gta5_relay_packet_threshold_spin: QSpinBox
+        self.gta5_relay_process_edit: QLineEdit
+        self.gta5_relay_duration_combo: QComboBox
+        self.gta5_relay_duration_spin: QSpinBox
+        self.gta5_relay_voice_combo: QComboBox
+        self.gta5_relay_logging_checkbox: QCheckBox
+        self.gta5_relay_msgbox_checkbox: QCheckBox
         # -- Combo rules --
         self._combo_rules_list: QListWidget
 
@@ -704,6 +713,8 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         tabs.addTab(self._create_network_based_tab(), '\U0001f310 Network-Based')
         tabs.addTab(self._create_geo_based_tab(), '\U0001f30d Geography-Based')
         tabs.addTab(self._create_combo_rules_tab(), '\U0001f517 Combo Rules')
+        if Settings.capture_program_preset == 'GTA5':
+            tabs.addTab(self._create_gta5_relays_tab(), '\U0001f3ae GTA5 Relays')
         layout.addWidget(tabs)
 
         # Bottom buttons
@@ -747,7 +758,9 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
 
     def _apply_protection_restrictions(self) -> None:
         """Hide all protection action widgets when protection is not supported (non-GTA5 preset or ARP interface)."""
-        for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave'):
+        for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
+            if not hasattr(self, f'{prefix}_enable_checkbox'):
+                continue
             enable_section: QWidget = getattr(self, f'{prefix}_enable_section')
             enable_section.setVisible(False)
 
@@ -871,6 +884,60 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
             'asn',
         )
         scroll_layout.addWidget(asn_group)
+
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
+
+        return widget
+
+    def _create_gta5_relays_tab(self) -> QWidget:
+        """Create the GTA5 Relays protection tab (only shown with the GTA5 preset)."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(15)
+
+        desc = QLabel(
+            'Automatically suspend GTA5 when a Take-Two relay IP exceeds the configured '
+            'packet threshold while still connected. '
+            'Relay IPs are identified by the GTAV Take-Two CIDR ranges '
+            '(104.255.104.0/22, 185.56.64.0/22, 192.81.240.0/21).',
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
+        layout.addWidget(desc)
+
+        # Packet threshold row (tab-level setting, not part of the standard protection group)
+        threshold_row = QWidget()
+        threshold_layout = QHBoxLayout(threshold_row)
+        threshold_layout.setContentsMargins(5, 0, 5, 0)
+        threshold_label = QLabel('Packet Threshold:')
+        threshold_label.setStyleSheet('font-weight: bold;')
+        threshold_label.setToolTip('Suspend GTA5 once the relay IP has exchanged this many packets and is still connected.')
+        threshold_layout.addWidget(threshold_label)
+        threshold_spin = QSpinBox()
+        threshold_spin.setRange(10, 10000)
+        threshold_spin.setValue(40)
+        threshold_spin.setSuffix(' packets')
+        threshold_spin.setToolTip('Suspend GTA5 once the relay IP has exchanged this many packets and is still connected.')
+        self.gta5_relay_packet_threshold_spin = threshold_spin
+        threshold_layout.addWidget(threshold_spin)
+        threshold_layout.addStretch()
+        layout.addWidget(threshold_row)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(20)
+
+        relay_group = self._create_protection_group(
+            '\U0001f6e1 GTA5 Relay Protection',
+            'Suspend GTA5 when a relay IP exceeds the packet threshold and is still connected',
+            'gta5_relay',
+        )
+        scroll_layout.addWidget(relay_group)
 
         scroll_layout.addStretch()
         scroll.setWidget(scroll_content)
@@ -1565,6 +1632,16 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         self.player_leave_logging_checkbox.setChecked(GUIProtectionSettings.player_leave_logging)
         self.player_leave_msgbox_checkbox.setChecked(GUIProtectionSettings.player_leave_message_box)
 
+        # GTA5 Relay (only when the tab is present)
+        if hasattr(self, 'gta5_relay_enable_checkbox'):
+            self.gta5_relay_enable_checkbox.setChecked(GUIProtectionSettings.gta5_relay_enabled)
+            self.gta5_relay_packet_threshold_spin.setValue(GUIProtectionSettings.gta5_relay_packet_threshold)
+            self.gta5_relay_process_edit.setText(str(GUIProtectionSettings.gta5_relay_process_path) if GUIProtectionSettings.gta5_relay_process_path else '')
+            self._set_duration_widgets(self.gta5_relay_duration_combo, self.gta5_relay_duration_spin, GUIProtectionSettings.gta5_relay_duration)
+            self._set_voice_combo(self.gta5_relay_voice_combo, GUIProtectionSettings.gta5_relay_voice_notifications)
+            self.gta5_relay_logging_checkbox.setChecked(GUIProtectionSettings.gta5_relay_logging)
+            self.gta5_relay_msgbox_checkbox.setChecked(GUIProtectionSettings.gta5_relay_message_box)
+
         # Combo Rules
         self._refresh_combo_rules_list()
 
@@ -1575,12 +1652,16 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
             'mobile_suspend_enabled', 'vpn_suspend_enabled', 'hosting_suspend_enabled',
             'country_block_enabled', 'isp_block_enabled',
             'asn_block_enabled', 'player_join_enabled', 'player_rejoin_enabled', 'player_leave_enabled',
+            'gta5_relay_enabled',
         ]
         checkbox_prefixes = [
             'mobile', 'vpn', 'hosting', 'country', 'isp', 'asn',
             'player_join', 'player_rejoin', 'player_leave',
+            'gta5_relay',
         ]
         for field, prefix in zip(enabled_fields, checkbox_prefixes, strict=True):
+            if not hasattr(self, f'{prefix}_enable_checkbox'):
+                continue
             checkbox: QCheckBox = getattr(self, f'{prefix}_enable_checkbox')
             if not checkbox.isChecked() and getattr(GUIProtectionSettings, field):
                 clear_voice_notification_queue()
@@ -1737,3 +1818,14 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         GUIProtectionSettings.player_leave_voice_notifications = self._read_voice_combo(self.player_leave_voice_combo)
         GUIProtectionSettings.player_leave_logging = self.player_leave_logging_checkbox.isChecked()
         GUIProtectionSettings.player_leave_message_box = self.player_leave_msgbox_checkbox.isChecked()
+
+        # GTA5 Relay (only when the tab is present)
+        if hasattr(self, 'gta5_relay_enable_checkbox'):
+            GUIProtectionSettings.gta5_relay_enabled = self.gta5_relay_enable_checkbox.isChecked()
+            GUIProtectionSettings.gta5_relay_packet_threshold = self.gta5_relay_packet_threshold_spin.value()
+            path_text = self.gta5_relay_process_edit.text().strip()
+            GUIProtectionSettings.gta5_relay_process_path = Path(path_text) if path_text else None
+            GUIProtectionSettings.gta5_relay_duration = self._read_duration_widgets(self.gta5_relay_duration_combo, self.gta5_relay_duration_spin)
+            GUIProtectionSettings.gta5_relay_voice_notifications = self._read_voice_combo(self.gta5_relay_voice_combo)
+            GUIProtectionSettings.gta5_relay_logging = self.gta5_relay_logging_checkbox.isChecked()
+            GUIProtectionSettings.gta5_relay_message_box = self.gta5_relay_msgbox_checkbox.isChecked()
