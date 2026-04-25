@@ -407,8 +407,8 @@ class _ComboRuleEditorDialog(QDialog):
 
             if key in ('mobile', 'vpn', 'hosting'):
                 bool_combo = QComboBox()
-                bool_combo.addItem('Yes', True)
-                bool_combo.addItem('No', False)
+                bool_combo.addItem('Yes', userData=True)
+                bool_combo.addItem('No', userData=False)
                 value_layout.addWidget(bool_combo)
             elif key == 'event':
                 events_widget = QWidget()
