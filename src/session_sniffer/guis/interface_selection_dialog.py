@@ -114,7 +114,7 @@ def _find_best_matching_interface_row(
 @dataclass(slots=True)
 class _InterfaceData:
     all_interfaces: list[Interface]
-    interface_rows: list[tuple[Interface, str, bool]] = field(default_factory=list[tuple[Interface, str, bool]])
+    interface_rows: list[tuple[Interface, str, bool]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

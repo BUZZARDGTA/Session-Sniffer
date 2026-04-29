@@ -20,7 +20,7 @@ def _parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
 
 @dataclass(kw_only=True, slots=True)
 class GUIProtectionSettings:
-    """Runtime GUI protection settings that persist during application execution and can be saved to settings file."""
+    """Runtime GUI protection settings that persist during application execution and can be saved to protections.json."""
 
     # Mobile-based protection
     mobile_suspend_enabled: ClassVar[bool] = False

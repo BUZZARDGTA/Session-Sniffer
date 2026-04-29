@@ -261,11 +261,15 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
         self._table.setSortingEnabled(True)
 
         vertical_header = self._table.verticalHeader()
-        assert vertical_header is not None  # noqa: S101
+        if vertical_header is None:
+            msg = 'Failed to get vertical header'
+            raise RuntimeError(msg)
         vertical_header.setVisible(False)
 
         header = self._table.horizontalHeader()
-        assert header is not None  # noqa: S101
+        if header is None:
+            msg = 'Failed to get horizontal header'
+            raise RuntimeError(msg)
         header.setStretchLastSection(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # IP

@@ -43,14 +43,18 @@ class ReconnectFrequencyWindow(QWidget):
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['IP', 'Rejoins', 'Usernames'])
         h_header = self._table.horizontalHeader()
-        assert h_header is not None  # noqa: S101
+        if h_header is None:
+            msg = 'Failed to get horizontal header'
+            raise RuntimeError(msg)
         h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         h_header.setStretchLastSection(True)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSortingEnabled(True)
         v_header = self._table.verticalHeader()
-        assert v_header is not None  # noqa: S101
+        if v_header is None:
+            msg = 'Failed to get vertical header'
+            raise RuntimeError(msg)
         v_header.setVisible(False)
         layout.addWidget(self._table)
 

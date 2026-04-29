@@ -38,7 +38,9 @@ class SessionTimelineWindow(QWidget):
         self._widget.setMouseEnabled(x=True, y=False)
 
         plot = self._widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        assert plot is not None  # noqa: S101
+        if plot is None:
+            msg = 'Failed to get plot item'
+            raise RuntimeError(msg)
         self._y_axis = plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
 
         layout.addWidget(self._widget)
@@ -84,10 +86,7 @@ class SessionTimelineWindow(QWidget):
 
         for i, player in enumerate(ordered):
             start_sec = max((player.datetime.first_seen - session_start).total_seconds(), 0.0)
-            if player.left_event.is_set():
-                end_sec = (player.datetime.last_seen - session_start).total_seconds()
-            else:
-                end_sec = (now - session_start).total_seconds()
+            end_sec = (player.datetime.last_seen - session_start).total_seconds() if player.left_event.is_set() else (now - session_start).total_seconds()
 
             end_sec = max(end_sec, start_sec + _MIN_BAR_WIDTH)
             width = end_sec - start_sec

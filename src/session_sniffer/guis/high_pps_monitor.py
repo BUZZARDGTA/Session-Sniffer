@@ -279,10 +279,14 @@ class HighRateMonitorWidget(QWidget):
             'A stationary player may not exceed the thresholds.',
         )
         vertical_header = self._table.verticalHeader()
-        assert vertical_header is not None  # noqa: S101
+        if vertical_header is None:
+            msg = 'Failed to get vertical header'
+            raise RuntimeError(msg)
         vertical_header.setVisible(False)
         header = self._table.horizontalHeader()
-        assert header is not None  # noqa: S101
+        if header is None:
+            msg = 'Failed to get horizontal header'
+            raise RuntimeError(msg)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionsClickable(False)
         header.setSortIndicatorShown(False)
@@ -478,7 +482,9 @@ class HighRateMonitorWidget(QWidget):
         menu.addAction(graph_action)
 
         viewport = self._table.viewport()
-        assert viewport is not None  # noqa: S101
+        if viewport is None:
+            msg = 'Failed to get table viewport'
+            raise RuntimeError(msg)
         menu.popup(viewport.mapToGlobal(pos))
 
     def _blacklist_ip(self, ip: str) -> None:

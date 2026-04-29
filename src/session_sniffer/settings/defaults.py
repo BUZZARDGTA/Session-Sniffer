@@ -43,6 +43,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Capture',
     'Session',
     'Columns',
+    'Discord',
 )
 
 
@@ -242,22 +243,19 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     # ------------------------------------------------------------------
     'discord_presence': SettingMeta(
-        category='Launcher',
-        group='Discord',
+        category='Discord',
         display_label='Discord Rich Presence',
         setting_type=SettingType.BOOLEAN,
         tooltip='Enable Discord Rich Presence (RPC) status updates.',
     ),
     'discord_presence_title': SettingMeta(
-        category='Launcher',
-        group='Discord',
+        category='Discord',
         display_label='Presence Title',
         setting_type=SettingType.STRING,
-        tooltip='Custom title text displayed in your Discord Rich Presence status.',
+        tooltip='Custom title text displayed in your Discord Rich Presence status (leave empty to disable, or use 2+ characters).',
     ),
     'show_discord_popup': SettingMeta(
-        category='Launcher',
-        group='Discord',
+        category='Discord',
         display_label='Show Discord Popup',
         setting_type=SettingType.BOOLEAN,
         tooltip='Show the Discord intro popup on application startup.',
@@ -292,7 +290,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_rate_graph_max_history': 3600,
     'gui_columns_connected_shown': (
         'Packets', 'PPS',
-        'Bandwith',
+        'Bandwidth',
         'BPS',
         'Hostname', 'Last Port',
         'Country', 'Region',
@@ -302,7 +300,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_columns_disconnected_shown': (
         'T. Session Time', 'Session Time',
         'Packets',
-        'Bandwith',
+        'Bandwidth',
         'Hostname', 'Last Port',
         'Country', 'Region',
         'ASN / ISP',

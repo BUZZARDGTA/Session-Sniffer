@@ -223,15 +223,6 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, tuple):
             return cast('tuple[str, ...]', value)
         if isinstance(value, str):
-            # Legacy boolean support
-            try:
-                legacy_bool, _ = custom_str_to_bool(value)
-            except InvalidBooleanValueError:
-                pass
-            else:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return all_servers if legacy_bool else ()
-
             normalized, need_rewrite_current, need_rewrite_settings = _normalize_tuple_column(value, all_servers)
             if need_rewrite_current:
                 cls._record_rewrite(info, str(normalized) if normalized is not None else str(cls._get_default_for_field(info)))

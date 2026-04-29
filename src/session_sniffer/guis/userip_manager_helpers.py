@@ -159,6 +159,7 @@ class _ElidedTooltipFilter(QObject):
     """Event filter that shows a tooltip only when the cell text is visually truncated."""
 
     def __init__(self, view: QAbstractItemView) -> None:
+        """Initialize the filter attached to the given item view."""
         super().__init__(view)
         self._view = view
 

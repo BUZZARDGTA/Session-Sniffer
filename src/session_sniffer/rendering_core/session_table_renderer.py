@@ -137,9 +137,9 @@ def build_session_table_snapshot(
         ]
 
         connected_row_texts: list[str] = []
-        connected_row_texts.append(f'{format_player_usernames(player)}')
-        connected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.first_seen)}')
-        connected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_rejoin)}')
+        connected_row_texts.append(format_player_usernames(player))
+        connected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
+        connected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
         if 'T. Session Time' in connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
         if 'Session Time' in connected_shown_columns:
@@ -177,9 +177,9 @@ def build_session_table_snapshot(
                 ),
             )
             connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
-        if 'T. Bandwith' in connected_shown_columns:
+        if 'T. Bandwidth' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwith' in connected_shown_columns:
+        if 'Bandwidth' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
         if 'T. Download' in connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
@@ -209,13 +209,13 @@ def build_session_table_snapshot(
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
-        connected_row_texts.append(f'{format_player_ip(player.ip)}')
+        connected_row_texts.append(format_player_ip(player.ip))
         if 'Hostname' in connected_shown_columns:
-            connected_row_texts.append(f'{player.reverse_dns.hostname}')
+            connected_row_texts.append(player.reverse_dns.hostname)
         if 'Last Port' in connected_shown_columns:
             connected_row_texts.append(f'{player.ports.last}')
         if 'Middle Ports' in connected_shown_columns:
-            connected_row_texts.append(f'{format_player_middle_ports(player)}')
+            connected_row_texts.append(format_player_middle_ports(player))
         if 'First Port' in connected_shown_columns:
             connected_row_texts.append(f'{player.ports.first}')
         if 'Continent' in connected_shown_columns:
@@ -227,13 +227,13 @@ def build_session_table_snapshot(
             if Settings.gui_columns_geo_country_append_alpha2:
                 connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
             else:
-                connected_row_texts.append(f'{player.iplookup.geolite2.country}')
+                connected_row_texts.append(player.iplookup.geolite2.country)
         if 'Region' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
         if 'City' in connected_shown_columns:
-            connected_row_texts.append(f'{player.iplookup.geolite2.city}')
+            connected_row_texts.append(player.iplookup.geolite2.city)
         if 'District' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.district}')
         if 'ZIP Code' in connected_shown_columns:
@@ -253,7 +253,7 @@ def build_session_table_snapshot(
         if 'ISP' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
         if 'ASN / ISP' in connected_shown_columns:
-            connected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+            connected_row_texts.append(player.iplookup.geolite2.asn)
         if 'AS' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
         if 'ASN' in connected_shown_columns:
@@ -281,10 +281,10 @@ def build_session_table_snapshot(
         row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(disconnected_num_cols)]
 
         disconnected_row_texts: list[str] = []
-        disconnected_row_texts.append(f'{format_player_usernames(player)}')
-        disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.first_seen)}')
-        disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_rejoin)}')
-        disconnected_row_texts.append(f'{_format_player_gui_datetime(player.datetime.last_seen)}')
+        disconnected_row_texts.append(format_player_usernames(player))
+        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
+        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
+        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_seen))
         if 'T. Session Time' in disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
         if 'Session Time' in disconnected_shown_columns:
@@ -302,9 +302,9 @@ def build_session_table_snapshot(
             disconnected_row_texts.append(f'{player.packets.total_sent}')
         if 'Packets Sent' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.sent}')
-        if 'T. Bandwith' in disconnected_shown_columns:
+        if 'T. Bandwidth' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwith' in disconnected_shown_columns:
+        if 'Bandwidth' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
         if 'T. Download' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
@@ -314,13 +314,13 @@ def build_session_table_snapshot(
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
         if 'Upload' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-        disconnected_row_texts.append(f'{player.ip}')
+        disconnected_row_texts.append(player.ip)
         if 'Hostname' in disconnected_shown_columns:
-            disconnected_row_texts.append(f'{player.reverse_dns.hostname}')
+            disconnected_row_texts.append(player.reverse_dns.hostname)
         if 'Last Port' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.last}')
         if 'Middle Ports' in disconnected_shown_columns:
-            disconnected_row_texts.append(f'{format_player_middle_ports(player)}')
+            disconnected_row_texts.append(format_player_middle_ports(player))
         if 'First Port' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.first}')
         if 'Continent' in disconnected_shown_columns:
@@ -332,13 +332,13 @@ def build_session_table_snapshot(
             if Settings.gui_columns_geo_country_append_alpha2:
                 disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
             else:
-                disconnected_row_texts.append(f'{player.iplookup.geolite2.country}')
+                disconnected_row_texts.append(player.iplookup.geolite2.country)
         if 'Region' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
         if 'City' in disconnected_shown_columns:
-            disconnected_row_texts.append(f'{player.iplookup.geolite2.city}')
+            disconnected_row_texts.append(player.iplookup.geolite2.city)
         if 'District' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
         if 'ZIP Code' in disconnected_shown_columns:
@@ -358,7 +358,7 @@ def build_session_table_snapshot(
         if 'ISP' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
         if 'ASN / ISP' in disconnected_shown_columns:
-            disconnected_row_texts.append(f'{player.iplookup.geolite2.asn}')
+            disconnected_row_texts.append(player.iplookup.geolite2.asn)
         if 'AS' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
         if 'ASN' in disconnected_shown_columns:

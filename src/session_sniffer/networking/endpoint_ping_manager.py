@@ -43,7 +43,7 @@ class EndpointInfo:
     total_time: float = 0.0
     cooldown_until: float = 0.0
     last_request_at: float = 0.0
-    failed_ips: dict[str, int] = dataclasses.field(default_factory=dict[str, int])
+    failed_ips: dict[str, int] = dataclasses.field(default_factory=dict)
 
     def update_success(self, duration: float, ip: str) -> None:
         """Record a successful ping attempt and clear any per-IP failure tracking."""

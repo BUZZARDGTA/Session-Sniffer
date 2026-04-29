@@ -47,8 +47,8 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Packets Sent': 'The number of packets sent to the player during the current session.',
     'PPS': 'The number of Packets exchanged (Received + Sent) with the player Per Second during the current session.',
     'PPM': 'The number of Packets exchanged (Received + Sent) with the player Per Minute during the current session.',
-    'T. Bandwith': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
-    'Bandwith': 'The amount of bytes transferred (Download + Upload) with the player during the current session.',
+    'T. Bandwidth': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
+    'Bandwidth': 'The amount of bytes transferred (Download + Upload) with the player during the current session.',
     'T. Download': 'The total amount of bytes downloaded from the player across all sessions.',
     'Download': 'The amount of bytes downloaded from the player during the current session.',
     'T. Upload': 'The total amount of bytes uploaded to the player across all sessions.',
@@ -349,12 +349,12 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {
-            'T. Bandwith', 'Bandwith', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
+            'T. Bandwidth', 'Bandwidth', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
         }:
             # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
             _bandwidth_attr_map = {
-                'T. Bandwith': 'bandwidth.total_exchanged',
-                'Bandwith': 'bandwidth.exchanged',
+                'T. Bandwidth': 'bandwidth.total_exchanged',
+                'Bandwidth': 'bandwidth.exchanged',
                 'T. Download': 'bandwidth.total_download',
                 'Download': 'bandwidth.download',
                 'T. Upload': 'bandwidth.total_upload',

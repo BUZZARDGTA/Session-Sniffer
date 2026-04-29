@@ -3,7 +3,7 @@
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Lock
-from typing import Callable, ClassVar, Literal, NamedTuple
+from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -17,6 +17,9 @@ from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import format_triple_quoted_text
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 logger = get_logger(__name__)
 
 
@@ -27,7 +30,7 @@ class _GUIThreadDispatcher(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._call.connect(lambda fn: fn())
+        self._call.connect(lambda fn: fn())  # pyright: ignore[reportUnknownLambdaType]
 
     def invoke(self, fn: Callable[[], None]) -> None:
         """Emit `fn` as a signal — Qt will queue it to the GUI thread automatically."""
@@ -35,7 +38,7 @@ class _GUIThreadDispatcher(QObject):
 
 
 # Module-level singleton created on the main thread at import time.
-_gui_dispatcher = _GUIThreadDispatcher()
+gui_dispatcher = _GUIThreadDispatcher()
 
 
 class ProtectionSettings(NamedTuple):
@@ -115,11 +118,11 @@ class UserIPDatabases:
             dlg.setText(text)
             dlg.setIcon(QMessageBox.Icon.Warning)
             dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
-            dlg.finished.connect(lambda _result: UserIPDatabases._open_conflict_dialogs.pop(ip, None))
+            dlg.finished.connect(lambda _result: UserIPDatabases._open_conflict_dialogs.pop(ip, None))  # pyright: ignore[reportUnknownLambdaType]
             UserIPDatabases._open_conflict_dialogs[ip] = dlg
             dlg.show()
 
-        _gui_dispatcher.invoke(_show_on_gui)
+        gui_dispatcher.invoke(_show_on_gui)
 
     @classmethod
     def _close_conflict_dialog(cls, ip: str) -> None:
@@ -272,7 +275,7 @@ class UserIPDatabases:
                     for _ip in _to_close:
                         UserIPDatabases._close_conflict_dialog(_ip)
 
-                _gui_dispatcher.invoke(_close_resolved)
+                gui_dispatcher.invoke(_close_resolved)
 
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip

@@ -44,7 +44,9 @@ class SessionRateGraphWindow(QWidget):
         self._pps_widget.setLabel('bottom', 'Time (seconds ago)')
 
         pps_plot = self._pps_widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        assert pps_plot is not None  # noqa: S101
+        if pps_plot is None:
+            msg = 'Failed to get PPS plot item'
+            raise RuntimeError(msg)
         pps_left = pps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
         pps_left.setTextPen(pg.mkPen('lime'))  # pyright: ignore[reportUnknownMemberType]
 
@@ -73,7 +75,9 @@ class SessionRateGraphWindow(QWidget):
         self._bps_widget.setLabel('bottom', 'Time (seconds ago)')
 
         bps_plot = self._bps_widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        assert bps_plot is not None  # noqa: S101
+        if bps_plot is None:
+            msg = 'Failed to get BPS plot item'
+            raise RuntimeError(msg)
         bps_left = bps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
         bps_left.setTextPen(pg.mkPen('#00bcd4'))  # pyright: ignore[reportUnknownMemberType]
 

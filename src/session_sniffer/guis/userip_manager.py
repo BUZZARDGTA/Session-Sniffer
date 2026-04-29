@@ -715,10 +715,7 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
             reverse=True,
         )
 
-        if self._global_search_active:
-            consequence = 'This will immediately write the changes to the database files.'
-        else:
-            consequence = 'This action cannot be undone after saving.'
+        consequence = 'This will immediately write the changes to the database files.' if self._global_search_active else 'This action cannot be undone after saving.'
 
         result = QMessageBox.warning(
             self,

@@ -54,7 +54,8 @@ class StatusBarUserIPInfo:
 class StatusBarInterfaceInfo:
     """Network interface info for the status bar."""
     name: str
-    is_arp: bool
+    is_arp_interface: bool
+    arp_spoofing: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +121,8 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
         ),
         interface=StatusBarInterfaceInfo(
             name=capture.config.interface.name,
-            is_arp=capture.config.interface.is_arp,
+            is_arp_interface=capture.config.interface.is_arp,
+            arp_spoofing=Settings.capture_arp_spoofing,
         ),
         system=StatusBarSystemInfo(
             memory_mb=psutil.Process().memory_info().rss / _BYTES_PER_MB,
@@ -171,9 +173,9 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
 
 
 def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool, discord_rpc_manager: DiscordRPC | None) -> str:
-    is_arp_enabled = 'Enabled' if snapshot.interface.is_arp else 'Disabled'
+    arp_label = ('Enabled (Spoofing)' if snapshot.interface.arp_spoofing else 'Enabled') if snapshot.interface.is_arp_interface else 'Disabled'
     is_vpn_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-    arp_color = StatusBarColors.ENABLED if is_arp_enabled == 'Enabled' else StatusBarColors.DISABLED
+    arp_color = StatusBarColors.ENABLED if snapshot.interface.is_arp_interface else StatusBarColors.DISABLED
     vpn_color = StatusBarColors.ENABLED if is_vpn_enabled == 'Enabled' else StatusBarColors.DISABLED
 
     discord_display = ''
@@ -190,7 +192,7 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
         f'<span style="font-size: 11px;">'
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> '
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> '
-        f'<span style="color: {arp_color};">{is_arp_enabled}</span> '
+        f'<span style="color: {arp_color};">{arp_label}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> '
         f'<span style="color: {vpn_color};">{is_vpn_enabled}</span> '

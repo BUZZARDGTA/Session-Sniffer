@@ -167,7 +167,9 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         )
         self._zscore_table.setHorizontalHeaderItem(5, _streak_header)
         _zscore_header_view = self._zscore_table.horizontalHeader()
-        assert _zscore_header_view is not None  # noqa: S101
+        if _zscore_header_view is None:
+            msg = 'Failed to get horizontal header view'
+            raise RuntimeError(msg)
         _zscore_header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         _zscore_header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         _zscore_header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
