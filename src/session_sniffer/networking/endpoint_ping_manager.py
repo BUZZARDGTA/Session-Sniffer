@@ -2,7 +2,6 @@
 
 It is used to determine whether each player's IP is responsive to pings.
 """
-import contextlib
 import dataclasses
 import re
 import time
@@ -229,8 +228,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             if e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')
                 if retry_after:
-                    with contextlib.suppress(ValueError):  # Retry-After may be an HTTP date string
-                        cooldown = float(retry_after)
+                    cooldown = float(retry_after)
 
             with _endpoints_lock:
                 endpoint_info.update_failure(time.monotonic() - request_start_time, cooldown, ip)
