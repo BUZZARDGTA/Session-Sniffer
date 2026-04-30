@@ -11,11 +11,9 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QHeaderView,
-    QInputDialog,
     QLabel,
     QMainWindow,
     QMenu,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QStatusBar,
@@ -806,32 +804,6 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # ----- Discord Menu -----
-        discord_menu_button = QPushButton(' 🎮 Discord ', self)
-        discord_menu_button.setToolTip('Discord Rich Presence settings')
-
-        discord_menu = PersistentMenu(self)
-        discord_menu.setToolTipsVisible(True)
-
-        discord_rpc_toggle_action = QAction('Enable Rich Presence', self)
-        discord_rpc_toggle_action.setCheckable(True)
-        discord_rpc_toggle_action.setChecked(Settings.discord_presence)
-        discord_rpc_toggle_action.setToolTip('Toggle Discord Rich Presence on or off (takes effect immediately)')
-        discord_rpc_toggle_action.toggled.connect(self._toggle_discord_presence)
-        discord_menu.addAction(discord_rpc_toggle_action)
-
-        discord_menu.addSeparator()
-
-        edit_title_action = QAction('✏️ Edit Presence Title...', self)
-        edit_title_action.setToolTip('Customize the title text shown in your Discord status')
-        edit_title_action.triggered.connect(self._edit_discord_presence_title)
-        discord_menu.addAction(edit_title_action)
-
-        discord_menu_button.setMenu(discord_menu)
-        toolbar.addWidget(discord_menu_button)
-
-        toolbar.addSeparator()
-
         # ----- Settings Button -----
         settings_button = QPushButton(' ⚙️ Settings ', self)
         settings_button.setToolTip('View and edit all application settings')
@@ -1123,30 +1095,6 @@ class MainWindow(QMainWindow):
     def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
-
-    def _toggle_discord_presence(self, checked: bool) -> None:
-        """Toggle Discord Rich Presence on or off for this session only."""
-        Settings.discord_presence = checked
-
-    def _edit_discord_presence_title(self) -> None:
-        """Open an input dialog to edit the Discord Rich Presence title text."""
-        text, ok = QInputDialog.getText(
-            self,
-            'Edit Presence Title',
-            'Title displayed in your Discord status (leave empty to disable):',
-            text=Settings.discord_presence_title,
-        )
-        if ok:
-            stripped = text.strip()
-            if len(stripped) == 1:
-                QMessageBox.warning(
-                    self,
-                    'Invalid Presence Title',
-                    'The presence title must be either empty (to disable) or at least 2 characters long.',
-                )
-                return
-            Settings.discord_presence_title = stripped
-            Settings.rewrite_settings_file()
 
     def _open_directory(self, directory_path: Path) -> None:
         """Ensure a directory exists and open it in Windows Explorer."""

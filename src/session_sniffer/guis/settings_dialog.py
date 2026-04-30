@@ -1,5 +1,6 @@
 """Settings dialog for viewing, editing, saving, and resetting all application settings."""
 
+import webbrowser
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -46,6 +47,8 @@ if TYPE_CHECKING:
 _NONE_PLACEHOLDER = 'None'
 
 _RESTART_INDICATOR = ' \u27F3'
+
+_DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
@@ -140,6 +143,18 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
                 grouped.setdefault(meta.group, []).append((key, meta))
             else:
                 ungrouped.append((key, meta))
+
+        # For the Discord tab, add a join button at the top.
+        if category == 'Discord':
+            join_row = QHBoxLayout()
+            join_button = QPushButton('🎮 Join Discord Server')
+            join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
+            join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+            join_button.clicked.connect(lambda: webbrowser.open(_DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
+            join_row.addStretch()
+            join_row.addWidget(join_button)
+            join_row.addStretch()
+            outer_layout.addLayout(join_row)
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
@@ -456,6 +471,9 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
                 except ParenthesisMismatchError:
                     errors.append(f'{meta.display_label}: filter expression has unbalanced parentheses.')
 
+            elif key == 'discord_presence_title' and isinstance(value, str) and len(value) == 1:
+                errors.append('Presence Title must be either empty (to disable) or at least 2 characters long.')
+
         if not any((
             values.get('gui_columns_datetime_show_date'),
             values.get('gui_columns_datetime_show_time'),
@@ -580,7 +598,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             return
         try:
             Settings.load_from_settings_file(Path(file_path))
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except  # noqa: BLE001
             QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{exc}')
             return
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
