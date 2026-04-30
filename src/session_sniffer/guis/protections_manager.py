@@ -610,7 +610,13 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         self.setWindowTitle(f'{TITLE} - Protections Manager')
         self.setMinimumSize(720, 560)
         self.resize(800, 640)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint,
+        )
 
         # Widget references (populated by tab builders)
         # -- Network-based (mobile, vpn, hosting) --
@@ -1672,7 +1678,7 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         GUIProtectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         QMessageBox.information(self, TITLE, 'Protection settings saved and applied successfully.')
-        self.accept()
+        self.close()
 
     def _export_protections(self) -> None:
         """Export current protection settings (including combo rules) to a JSON file."""

@@ -58,7 +58,13 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         """Build the tabbed settings dialog from setting metadata."""
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint,
+        )
         self.setMinimumSize(700, 520)
         self.resize(780, 600)
 
@@ -108,7 +114,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         cancel_button = QPushButton('\u274c Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.clicked.connect(self.reject)
+        cancel_button.clicked.connect(self.close)
         button_row.addWidget(cancel_button)
 
         root_layout.addLayout(button_row)

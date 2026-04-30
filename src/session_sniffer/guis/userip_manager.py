@@ -61,7 +61,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         """Build the UserIP Databases Manager dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint,
+        )
         self.setMinimumSize(920, 560)
         self.resize(1060, 680)
 

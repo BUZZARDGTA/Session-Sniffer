@@ -34,7 +34,13 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         """Build the Logs Manager dialog with tabs for each log file type."""
         super().__init__(parent)
         self.setWindowTitle(f'Logs Manager - {TITLE}')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint,
+        )
         self.setMinimumSize(1000, 600)
         self.resize(1100, 700)
 
@@ -93,7 +99,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         close_button = QPushButton('\u2716 Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.setToolTip('Close the Logs Manager')
-        close_button.clicked.connect(self.accept)
+        close_button.clicked.connect(self.close)
         button_row.addWidget(close_button)
 
         root_layout.addLayout(button_row)

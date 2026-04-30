@@ -538,6 +538,10 @@ class MainWindow(QMainWindow):
 
         self.capture = capture_holder
         self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips, self)
+        self._protections_manager_window: ProtectionsManagerDialog | None = None
+        self._logs_manager_window: LogsManager | None = None
+        self._settings_dialog_window: SettingsDialog | None = None
+        self._userip_manager_window: UserIPDatabasesManager | None = None
         self._leaderboard_window: PlayerLeaderboardWindow | None = None
         self._session_rate_graph_window: SessionRateGraphWindow | None = None
         self._packets_latency_graph_window: PacketsLatencyGraphWindow | None = None
@@ -1167,24 +1171,44 @@ class MainWindow(QMainWindow):
         self._open_directory(LOGGING_DIR_PATH)
 
     def _open_settings_dialog(self) -> None:
-        """Open the settings dialog for viewing and editing all application settings."""
-        dialog = SettingsDialog(self, self.capture.get())
-        dialog.exec()
+        """Open the Settings window, or focus the existing one."""
+        if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
+            self._settings_dialog_window.raise_()
+            self._settings_dialog_window.activateWindow()
+            return
+        self._settings_dialog_window = SettingsDialog(self, self.capture.get())
+        self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))
+        self._settings_dialog_window.show()
 
     def _open_userip_manager(self) -> None:
-        """Open the UserIP Databases Manager dialog."""
-        dialog = UserIPDatabasesManager(self)
-        dialog.exec()
+        """Open the UserIP Databases Manager window, or focus the existing one."""
+        if self._userip_manager_window is not None and self._userip_manager_window.isVisible():
+            self._userip_manager_window.raise_()
+            self._userip_manager_window.activateWindow()
+            return
+        self._userip_manager_window = UserIPDatabasesManager(self)
+        self._userip_manager_window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None))
+        self._userip_manager_window.show()
 
     def _open_logs_manager(self) -> None:
-        """Open the Logs Manager dialog."""
-        dialog = LogsManager(self)
-        dialog.exec()
+        """Open the Logs Manager window, or focus the existing one."""
+        if self._logs_manager_window is not None and self._logs_manager_window.isVisible():
+            self._logs_manager_window.raise_()
+            self._logs_manager_window.activateWindow()
+            return
+        self._logs_manager_window = LogsManager(self)
+        self._logs_manager_window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None))
+        self._logs_manager_window.show()
 
     def _open_protections_manager(self) -> None:
-        """Open the Protections Manager dialog."""
-        dialog = ProtectionsManagerDialog(self)
-        dialog.exec()
+        """Open the Protections Manager window, or focus the existing one."""
+        if self._protections_manager_window is not None and self._protections_manager_window.isVisible():
+            self._protections_manager_window.raise_()
+            self._protections_manager_window.activateWindow()
+            return
+        self._protections_manager_window = ProtectionsManagerDialog(self)
+        self._protections_manager_window.destroyed.connect(lambda: setattr(self, '_protections_manager_window', None))
+        self._protections_manager_window.show()
 
     def _open_player_resolver(self) -> None:
         """Open the Player Resolver window, or focus the existing one."""
