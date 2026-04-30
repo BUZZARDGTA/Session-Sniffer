@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.text_utils import parse_voice_notifications
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -21,15 +22,6 @@ _EVENT_CONDITION: str = 'event'
 _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 
 ALL_CONDITION_KEYS: frozenset[str] = _STRING_CONDITIONS | _BOOL_CONDITIONS | {_EVENT_CONDITION}
-
-
-def _parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
-    upper = value.upper()
-    if upper == 'MALE':
-        return 'Male'
-    if upper == 'FEMALE':
-        return 'Female'
-    return False
 
 
 def _parse_duration(raw: str) -> int | Literal['Auto', 'Manual', 'Adaptive']:
@@ -115,7 +107,7 @@ class ComboRule:
             protection_enabled=bool(data.get('protection_enabled', False)),
             process_path=Path(path_str) if path_str else None,
             duration=_parse_duration(str(data.get('duration', 'Auto'))),
-            voice_notifications=_parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
+            voice_notifications=parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
             logging=bool(data.get('logging', False)),
             message_box=bool(data.get('message_box', False)),
         )

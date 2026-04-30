@@ -4,6 +4,7 @@ Keep this module dependency-free and safe to import from anywhere.
 """
 
 import textwrap
+from typing import Literal
 
 
 def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
@@ -45,3 +46,13 @@ def format_triple_quoted_text(
         formatted_text += '\n'
 
     return formatted_text
+
+
+def parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
+    """Parse a voice notification setting string to its typed value."""
+    upper = value.upper()
+    if upper == 'MALE':
+        return 'Male'
+    if upper == 'FEMALE':
+        return 'Female'
+    return False

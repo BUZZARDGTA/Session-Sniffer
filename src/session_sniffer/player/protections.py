@@ -1,24 +1,13 @@
 """Global protection settings singleton and persistence."""
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
 
 from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
+from session_sniffer.text_utils import parse_voice_notifications
 
 
-def _parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
-    """Parse a voice notification setting string to its typed value."""
-    upper = value.upper()
-    if upper == 'MALE':
-        return 'Male'
-    if upper == 'FEMALE':
-        return 'Female'
-    return False
-
-
-@dataclass(kw_only=True, slots=True)
 class GUIProtectionSettings:
     """Runtime GUI protection settings that persist during application execution and can be saved to protections.json."""
 
@@ -200,7 +189,7 @@ class GUIProtectionSettings:
         setattr(cls, duration_attr, cls._load_duration(str(section.get('duration', 'Auto'))))
 
         voice_str = str(section.get('voice_notifications', 'False'))
-        setattr(cls, f'{prefix}_voice_notifications', _parse_voice_notifications(voice_str))
+        setattr(cls, f'{prefix}_voice_notifications', parse_voice_notifications(voice_str))
         setattr(cls, f'{prefix}_logging', section.get('logging', False))
         setattr(cls, f'{prefix}_message_box', section.get('message_box', False))
 
