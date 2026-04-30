@@ -20,18 +20,18 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.logs_manager._helpers import (
-    _AUTO_REFRESH_INTERVAL_MS,
-    _LARGE_TEXT_FILE_LIMIT,
-    _backup_file,
-    _file_metadata_text,
-    _LogLevelHighlighter,
-    _open_file_location,
+    AUTO_REFRESH_INTERVAL_MS,
+    LARGE_TEXT_FILE_LIMIT,
+    LogLevelHighlighter,
+    backup_file,
+    file_metadata_text,
+    open_file_location,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
 
-class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
+class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
     """Plain-text log viewer with search highlighting, auto-refresh, and log-level coloring."""
 
     def __init__(self, file_path: Path, parent: QWidget | None = None) -> None:
@@ -93,7 +93,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
 
         document = self._viewer.document()
-        self._highlighter = _LogLevelHighlighter(document) if document is not None else None
+        self._highlighter = LogLevelHighlighter(document) if document is not None else None
 
         layout.addWidget(self._viewer, stretch=1)
 
@@ -127,7 +127,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         open_location_button = QPushButton('📂 Open File Location')
         open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         open_location_button.setToolTip('Open the containing folder in Windows Explorer')
-        open_location_button.clicked.connect(lambda: _open_file_location(self._file_path))
+        open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
         button_row.addWidget(open_location_button)
 
         layout.addLayout(button_row)
@@ -148,16 +148,16 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         if not self._file_path.exists():
             self._viewer.setPlainText(f'[{self._file_path.name} not found]')
             self._line_count_label.setText('0 lines')
-            self._metadata_label.setText(_file_metadata_text(self._file_path))
+            self._metadata_label.setText(file_metadata_text(self._file_path))
             return
 
         try:
             file_size = self._file_path.stat().st_size
-            truncated = file_size > _LARGE_TEXT_FILE_LIMIT
+            truncated = file_size > LARGE_TEXT_FILE_LIMIT
 
             with self._file_path.open(encoding='utf-8', errors='replace') as f:
                 if truncated:
-                    f.seek(max(0, file_size - _LARGE_TEXT_FILE_LIMIT))
+                    f.seek(max(0, file_size - LARGE_TEXT_FILE_LIMIT))
                     f.readline()  # Skip partial first line
                 text = f.read()
 
@@ -166,7 +166,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
             old_scroll = scrollbar.value() if scrollbar else 0
             old_max = scrollbar.maximum() if scrollbar else 0
 
-            prefix = f'[... truncated \u2014 showing last {human_readable_size(_LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)} ...]\n\n' if truncated else ''
+            prefix = f'[... truncated \u2014 showing last {human_readable_size(LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)} ...]\n\n' if truncated else ''
             self._viewer.setPlainText(prefix + text)
 
             if scrollbar is not None:
@@ -183,7 +183,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
             self._viewer.setPlainText(f'[Cannot read {self._file_path.name}: file is locked]')
             self._line_count_label.setText('')
 
-        self._metadata_label.setText(_file_metadata_text(self._file_path))
+        self._metadata_label.setText(file_metadata_text(self._file_path))
 
         if self._search_input.text():
             self._on_search_changed(self._search_input.text())
@@ -261,7 +261,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
     def _on_auto_refresh_toggled(self, checked: bool) -> None:
         if checked:
-            self._refresh_timer.start(_AUTO_REFRESH_INTERVAL_MS)
+            self._refresh_timer.start(AUTO_REFRESH_INTERVAL_MS)
         else:
             self._refresh_timer.stop()
 
@@ -300,7 +300,7 @@ class _TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        backup = _backup_file(self._file_path)
+        backup = backup_file(self._file_path)
         self._file_path.write_text('', encoding='utf-8')
 
         msg = f'Purged {self._file_path.name}.'

@@ -23,25 +23,25 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.guis._player_identifier_core import (
-    _BASELINE_CONTAMINATION_MIN_SAMPLES,
-    _BASELINE_CONTAMINATION_SECS,
-    _BASELINE_CONTAMINATION_ZSCORE,
-    _BASELINE_MAX_SECONDS,
-    _BASELINE_MIN_SAMPLES,
-    _BUTTON_WIDTH,
-    _CONVERGENCE_GREEN,
-    _CONVERGENCE_RECENT_WINDOW,
-    _CONVERGENCE_YELLOW,
-    _MIN_CONNECTED_PLAYERS,
-    _SESSION_DRIFT_ZSCORE_THRESHOLD,
-    _SPIKE_MIN_ZSCORE,
-    _SPIKE_SUSTAINED_SECS,
-    _UPDATE_INTERVAL_MS,
-    _ZSCORE_ELEVATED,
-    _IPBaseline,
-    _Phase,
-    _ResolvedIP,
-    _zscore_to_confidence,
+    BASELINE_CONTAMINATION_MIN_SAMPLES,
+    BASELINE_CONTAMINATION_SECS,
+    BASELINE_CONTAMINATION_ZSCORE,
+    BASELINE_MAX_SECONDS,
+    BASELINE_MIN_SAMPLES,
+    BUTTON_WIDTH,
+    CONVERGENCE_GREEN,
+    CONVERGENCE_RECENT_WINDOW,
+    CONVERGENCE_YELLOW,
+    MIN_CONNECTED_PLAYERS,
+    SESSION_DRIFT_ZSCORE_THRESHOLD,
+    SPIKE_MIN_ZSCORE,
+    SPIKE_SUSTAINED_SECS,
+    UPDATE_INTERVAL_MS,
+    ZSCORE_ELEVATED,
+    IPBaseline,
+    Phase,
+    ResolvedIP,
+    zscore_to_confidence,
 )
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -61,23 +61,23 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         super().__init__(parent)
 
         self._highlight_ips = highlight_ips_callback
-        self._phase = _Phase.IDLE
+        self._phase = Phase.IDLE
         self._baseline_ips: set[str] = set()
-        self._baselines: dict[str, _IPBaseline] = {}
+        self._baselines: dict[str, IPBaseline] = {}
         self._sample_count = 0
         self._spike_streak: dict[str, int] = {}
         self._contamination_streak: dict[str, int] = {}
-        self._resolved_ips: list[_ResolvedIP] = []
+        self._resolved_ips: list[ResolvedIP] = []
 
         # Tweakable detection parameters (adjusted via the control panel)
-        self._spike_min_zscore: float = _SPIKE_MIN_ZSCORE
-        self._spike_sustained_secs: int = _SPIKE_SUSTAINED_SECS
-        self._contamination_zscore: float = _BASELINE_CONTAMINATION_ZSCORE
-        self._contamination_secs: int = _BASELINE_CONTAMINATION_SECS
-        self._contamination_min_samples: int = _BASELINE_CONTAMINATION_MIN_SAMPLES
-        self._baseline_min_samples: int = _BASELINE_MIN_SAMPLES
-        self._baseline_max_seconds: int = _BASELINE_MAX_SECONDS
-        self._session_drift_threshold: float = _SESSION_DRIFT_ZSCORE_THRESHOLD
+        self._spike_min_zscore: float = SPIKE_MIN_ZSCORE
+        self._spike_sustained_secs: int = SPIKE_SUSTAINED_SECS
+        self._contamination_zscore: float = BASELINE_CONTAMINATION_ZSCORE
+        self._contamination_secs: int = BASELINE_CONTAMINATION_SECS
+        self._contamination_min_samples: int = BASELINE_CONTAMINATION_MIN_SAMPLES
+        self._baseline_min_samples: int = BASELINE_MIN_SAMPLES
+        self._baseline_max_seconds: int = BASELINE_MAX_SECONDS
+        self._session_drift_threshold: float = SESSION_DRIFT_ZSCORE_THRESHOLD
 
         # Widget update caches — skip redundant repaints when values haven't changed
         self._prev_stability_pct: int | None = None
@@ -113,7 +113,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._stability_bar.setValue(0)
         self._stability_bar.setTextVisible(True)
         self._stability_bar.setFormat('Waiting...')
-        self._stability_bar.setFixedWidth(_BUTTON_WIDTH)
+        self._stability_bar.setFixedWidth(BUTTON_WIDTH)
         self._stability_bar.setToolTip(
             'Progress toward a stable baseline.\n\n'
             'During baseline: fills up as traffic patterns stabilize. '
@@ -200,7 +200,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             'Only IPs connected RIGHT NOW will be tracked. Anyone who joins later is ignored.\n\n'
             f'The baseline runs until traffic is stable or {self._baseline_max_seconds}s have elapsed, then automatically locks in.',
         )
-        self._start_btn.setFixedWidth(_BUTTON_WIDTH)
+        self._start_btn.setFixedWidth(BUTTON_WIDTH)
         self._start_btn.clicked.connect(self._on_start_baseline)
         btn_layout.addWidget(self._start_btn)
 
@@ -215,14 +215,14 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             'Tip: Detection works best when the target player is moving \u2014 '
             'a moving player generates significantly more traffic than a stationary one.',
         )
-        self._resolve_btn.setFixedWidth(_BUTTON_WIDTH)
+        self._resolve_btn.setFixedWidth(BUTTON_WIDTH)
         self._resolve_btn.clicked.connect(self._on_resolve)
         self._resolve_btn.setEnabled(False)
         btn_layout.addWidget(self._resolve_btn)
 
         self._reset_btn = QPushButton('Reset')
         self._reset_btn.setToolTip('Discard all data and start over from scratch.')
-        self._reset_btn.setFixedWidth(_BUTTON_WIDTH)
+        self._reset_btn.setFixedWidth(BUTTON_WIDTH)
         self._reset_btn.clicked.connect(self._on_reset)
         self._reset_btn.setEnabled(False)
         btn_layout.addWidget(self._reset_btn)
@@ -365,16 +365,16 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
     def _on_start_baseline(self) -> None:
         # Snapshot the IPs present right now — only these will be baselined
         players = PlayersRegistry.get_connected_players()
-        if len(players) < _MIN_CONNECTED_PLAYERS:
+        if len(players) < MIN_CONNECTED_PLAYERS:
             QMessageBox.warning(
                 self,
                 'Not Enough Players',
-                f'There must be at least {_MIN_CONNECTED_PLAYERS} connected players to use the Player Identifier.\n\n'
+                f'There must be at least {MIN_CONNECTED_PLAYERS} connected players to use the Player Identifier.\n\n'
                 'With only 0 or 1 players, there is nothing to resolve.',
             )
             return
 
-        self._phase = _Phase.BASELINE
+        self._phase = Phase.BASELINE
         self._baselines.clear()
         self._sample_count = 0
         self._spike_streak.clear()
@@ -391,7 +391,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
 
         self._baseline_ips = {p.ip for p in players}
         for ip in self._baseline_ips:
-            self._baselines[ip] = _IPBaseline()
+            self._baselines[ip] = IPBaseline()
 
         n_ips = len(self._baseline_ips)
         self._instructions.setText(
@@ -411,13 +411,13 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._zscore_table.setRowCount(0)
         self._zscore_table.setVisible(True)
         self._params_box.setVisible(False)
-        self._timer.start(_UPDATE_INTERVAL_MS)
+        self._timer.start(UPDATE_INTERVAL_MS)
 
     def _auto_stop_baseline(self, reason: str) -> None:
         """Finalize baselines and transition to READY (timer keeps running for contamination monitoring)."""
         for bl in self._baselines.values():
             bl.finalize()
-        self._phase = _Phase.READY
+        self._phase = Phase.READY
         self._resolve_btn.setEnabled(True)
         n_ips = len(self._baselines)
         self._instructions.setText(
@@ -434,7 +434,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._contamination_streak.clear()
 
     def _on_resolve(self) -> None:
-        self._phase = _Phase.RESOLVING
+        self._phase = Phase.RESOLVING
         self._spike_streak.clear()
         self._resolved_ips = []
         self._resolve_btn.setEnabled(False)
@@ -453,7 +453,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
 
     def _on_reset(self) -> None:
         self._timer.stop()
-        self._phase = _Phase.IDLE
+        self._phase = Phase.IDLE
         self._baseline_ips.clear()
         self._baselines.clear()
         self._sample_count = 0
@@ -480,7 +480,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
     def _abort_insufficient_players(self) -> None:
         """Stop the current phase because too many players disconnected."""
         self._timer.stop()
-        self._phase = _Phase.IDLE
+        self._phase = Phase.IDLE
         self._start_btn.setEnabled(True)
         self._resolve_btn.setEnabled(False)
         self._params_box.setVisible(True)
@@ -491,14 +491,14 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             'Stability: <span style="color:red;">Aborted \u2014 not enough players remaining</span>',
         )
         self._instructions.setText(
-            f'<b style="color:#e74c3c;">Aborted:</b> fewer than {_MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
+            f'<b style="color:#e74c3c;">Aborted:</b> fewer than {MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
             'Players disconnected while the scan was running. Click <b>Reset</b> and try again\u2026',
         )
 
     def _abort_contaminated(self, ip: str, zscore: float) -> None:
         """Stop the baseline because a dramatic traffic spike was detected (contamination)."""
         self._timer.stop()
-        self._phase = _Phase.IDLE
+        self._phase = Phase.IDLE
         self._start_btn.setEnabled(True)
         self._resolve_btn.setEnabled(False)
         self._params_box.setVisible(True)
@@ -519,7 +519,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
     def _abort_session_changed(self) -> None:
         """Stop the current phase because overall session traffic drifted too far from the baseline."""
         self._timer.stop()
-        self._phase = _Phase.IDLE
+        self._phase = Phase.IDLE
         self._start_btn.setEnabled(True)
         self._resolve_btn.setEnabled(False)
         self._params_box.setVisible(True)
@@ -555,7 +555,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             if bl is None:
                 continue
             scores.append(bl.spike_score(player.packets.pps.calculated_rate, player.bandwidth.bps.calculated_rate))
-        if len(scores) < _MIN_CONNECTED_PLAYERS:
+        if len(scores) < MIN_CONNECTED_PLAYERS:
             return None
         scores.sort()
         mid = len(scores) // 2
@@ -565,11 +565,11 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
 
     def _tick(self) -> None:
         players = PlayersRegistry.get_connected_players()
-        if self._phase == _Phase.BASELINE:
+        if self._phase == Phase.BASELINE:
             self._tick_baseline(players)
-        elif self._phase == _Phase.READY:
+        elif self._phase == Phase.READY:
             self._tick_ready(players)
-        elif self._phase == _Phase.RESOLVING:
+        elif self._phase == Phase.RESOLVING:
             self._tick_resolving(players)
 
     def _tick_baseline(self, players: list[Player]) -> None:
@@ -595,7 +595,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
                 self._baselines.pop(ip, None)
 
         # Compute convergence: are the running means still shifting?
-        if len(self._baselines) < _MIN_CONNECTED_PLAYERS:
+        if len(self._baselines) < MIN_CONNECTED_PLAYERS:
             self._abort_insufficient_players()
             return
 
@@ -618,29 +618,29 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
                 else:
                     self._contamination_streak.pop(ip, None)
 
-        if self._sample_count >= _CONVERGENCE_RECENT_WINDOW:
-            shifts: list[float] = [bl.mean_shift(_CONVERGENCE_RECENT_WINDOW) for bl in self._baselines.values()]
+        if self._sample_count >= CONVERGENCE_RECENT_WINDOW:
+            shifts: list[float] = [bl.mean_shift(CONVERGENCE_RECENT_WINDOW) for bl in self._baselines.values()]
             avg_shift = sum(shifts) / len(shifts)
             # Scale convergence thresholds with sample count.
             # More samples = baseline is more established, so natural noise
             # (PPS/BPS jitter) should not block convergence.
             # Uses sqrt to model the expected decrease in noise floor.
-            confidence_factor = sqrt(min(self._sample_count / _CONVERGENCE_RECENT_WINDOW, 4.0))
-            effective_green = _CONVERGENCE_GREEN * confidence_factor
-            effective_yellow = _CONVERGENCE_YELLOW * confidence_factor
+            confidence_factor = sqrt(min(self._sample_count / CONVERGENCE_RECENT_WINDOW, 4.0))
+            effective_green = CONVERGENCE_GREEN * confidence_factor
+            effective_yellow = CONVERGENCE_YELLOW * confidence_factor
             # Require minimum samples before allowing convergence to lock
             converged = avg_shift <= effective_green and self._sample_count >= self._baseline_min_samples
         else:
             avg_shift = None
-            effective_green = _CONVERGENCE_GREEN
-            effective_yellow = _CONVERGENCE_YELLOW
+            effective_green = CONVERGENCE_GREEN
+            effective_yellow = CONVERGENCE_YELLOW
             converged = False
 
         # Map convergence to progress (lower shift = higher progress)
         if avg_shift is None:
             # Still collecting initial samples — ramp progress smoothly toward 50%
-            remaining = _CONVERGENCE_RECENT_WINDOW - self._sample_count
-            pct = int(self._sample_count / _CONVERGENCE_RECENT_WINDOW * 50)
+            remaining = CONVERGENCE_RECENT_WINDOW - self._sample_count
+            pct = int(self._sample_count / CONVERGENCE_RECENT_WINDOW * 50)
             style = 'QProgressBar::chunk { background-color: #f39c12; }'
             label = f'Stability: <span style="color:orange;">Collecting data ({remaining}s left)</span>'
         elif self._sample_count < self._baseline_min_samples:
@@ -708,7 +708,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             return
 
         connected_baselined = sum(1 for p in players if p.ip in self._baselines)
-        if connected_baselined < _MIN_CONNECTED_PLAYERS:
+        if connected_baselined < MIN_CONNECTED_PLAYERS:
             self._abort_insufficient_players()
             return
 
@@ -736,7 +736,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._update_zscore_table(table_rows)
 
     def _tick_resolving(self, players: list[Player]) -> None:
-        confirmed_baselined: list[_ResolvedIP] = []
+        confirmed_baselined: list[ResolvedIP] = []
         max_streak = 0
 
         # --- 1. Check baselined IPs for spikes FIRST ---
@@ -754,7 +754,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
             if score > self._spike_min_zscore:
                 streak = self._spike_streak[ip] = self._spike_streak.get(ip, 0) + 1
                 if streak >= self._spike_sustained_secs:
-                    confirmed_baselined.append(_ResolvedIP(ip, _zscore_to_confidence(score), f'PPS/BPS spike (z={score:.1f})', player.usernames[0] if player.usernames else ''))
+                    confirmed_baselined.append(ResolvedIP(ip, zscore_to_confidence(score), f'PPS/BPS spike (z={score:.1f})', player.usernames[0] if player.usernames else ''))
                 max_streak = max(max_streak, streak)
             else:
                 self._spike_streak.pop(ip, None)
@@ -775,7 +775,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
 
         # --- 3. Abort if too many baselined IPs disconnected ---
         connected_baselined = sum(1 for p in players if p.ip in self._baselines)
-        if connected_baselined < _MIN_CONNECTED_PLAYERS:
+        if connected_baselined < MIN_CONNECTED_PLAYERS:
             self._abort_insufficient_players()
             return
 
@@ -822,9 +822,9 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         table_rows.sort(key=lambda r: r[4], reverse=True)
         self._update_zscore_table(table_rows)
 
-    def _resolve_matches(self, resolved: list[_ResolvedIP]) -> None:
+    def _resolve_matches(self, resolved: list[ResolvedIP]) -> None:
         self._timer.stop()
-        self._phase = _Phase.RESOLVED
+        self._phase = Phase.RESOLVED
         self._resolved_ips = resolved
 
         # Build ranked result text
@@ -904,7 +904,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
                 zscore_item.setForeground(QColor('#e74c3c'))  # red — at/above contamination threshold
             elif zscore >= self._spike_min_zscore:
                 zscore_item.setForeground(QColor('#f39c12'))  # orange — in spike zone
-            elif zscore >= _ZSCORE_ELEVATED:
+            elif zscore >= ZSCORE_ELEVATED:
                 zscore_item.setForeground(QColor('#f1c40f'))  # yellow — slightly elevated
             else:
                 zscore_item.setForeground(QColor('#27ae60'))  # green — normal

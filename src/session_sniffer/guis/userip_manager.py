@@ -1,4 +1,4 @@
-"""UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
+"""UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""  # pylint: disable=too-many-lines
 
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -26,9 +26,9 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.logs_manager._helpers import _human_readable_timestamp
+from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
-from session_sniffer.guis.userip_manager_context_menu_mixin import _EntriesContextMenuMixin
+from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -40,21 +40,21 @@ from session_sniffer.guis.userip_manager_helpers import (
     SETTINGS_DEFAULTS,
     SETTINGS_KEYS_ORDER,
     USERNAME_COLUMN,
+    ElidedTooltipFilter,
+    EntriesSortProxy,
     IPRangeBuilderDialog,
-    _ElidedTooltipFilter,
-    _EntriesSortProxy,
     human_readable_size,
     iter_userip_entries,
     parse_settings_from_lines,
     read_preserved_sections,
 )
-from session_sniffer.guis.userip_manager_settings_mixin import _SettingsPanelMixin
-from session_sniffer.guis.userip_manager_tree_ops import _TreeOperationsMixin
+from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
+from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
 
-class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _TreeOperationsMixin, QDialog):  # pylint: disable=too-many-instance-attributes
+class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, QDialog):  # pylint: disable=too-many-instance-attributes
     """Modal dialog for managing UserIP database files and their entries."""
 
     def __init__(self, parent: QWidget | None) -> None:
@@ -217,7 +217,7 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         self._model.setHorizontalHeaderLabels(['#', 'Username', 'IP', 'Range', 'Database'])
         self._model.dataChanged.connect(self._on_data_changed)
 
-        self._proxy = _EntriesSortProxy()
+        self._proxy = EntriesSortProxy()
         self._proxy.setSourceModel(self._model)
         self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._proxy.setFilterKeyColumn(-1)
@@ -251,7 +251,7 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         if entries_selection is not None:
             entries_selection.selectionChanged.connect(self._on_entries_selection_changed)
 
-        self._tooltip_filter = _ElidedTooltipFilter(self._entries_table)
+        self._tooltip_filter = ElidedTooltipFilter(self._entries_table)
         viewport = self._entries_table.viewport()
         if viewport is not None:
             viewport.installEventFilter(self._tooltip_filter)
@@ -953,7 +953,7 @@ class UserIPDatabasesManager(_EntriesContextMenuMixin, _SettingsPanelMixin, _Tre
         stat = path.stat()
         size = human_readable_size(int(stat.st_size))
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
-        self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {_human_readable_timestamp(modified)}')
+        self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}')
 
     def _refresh_stats(self) -> None:
         """Scan all UserIP databases and update the stats summary label."""

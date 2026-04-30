@@ -5,7 +5,7 @@ import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QWidget
 
-from session_sniffer.guis.player_rate_graph import _DragCursorViewBox, _PositiveTicksAxis
+from session_sniffer.guis.player_rate_graph import DragCursorViewBox, PositiveTicksAxis
 
 VISIBLE_WINDOW = 60
 _FLOOR_MS = 1.0
@@ -32,8 +32,8 @@ class PacketsLatencyGraphWindow(QWidget):
 
         # ── Latency graph — orange tones ─────────────────────────────────
         self._widget = pg.PlotWidget(
-            axisItems={'bottom': _PositiveTicksAxis(orientation='bottom')},
-            viewBox=_DragCursorViewBox(),
+            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+            viewBox=DragCursorViewBox(),
         )
         self._widget.setMouseEnabled(x=True, y=True)
         self._widget.setBackground('black')
@@ -43,7 +43,9 @@ class PacketsLatencyGraphWindow(QWidget):
         self._widget.setLabel('bottom', 'Time (seconds ago)')
 
         plot = self._widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        assert plot is not None  # noqa: S101
+        if plot is None:
+            msg = 'Failed to get plot item'
+            raise RuntimeError(msg)
         left = plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
         left.setTextPen(pg.mkPen('#ff9800'))  # pyright: ignore[reportUnknownMemberType]
 

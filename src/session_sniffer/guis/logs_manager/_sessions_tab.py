@@ -22,12 +22,12 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.logs_manager._helpers import _open_file_location
+from session_sniffer.guis.logs_manager._helpers import open_file_location
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
 
-class _SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-many-instance-attributes
+class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-many-instance-attributes
     """Browse and view session log files in a YYYY/MM/DD folder hierarchy."""
 
     def __init__(self, sessions_dir: Path, parent: QWidget | None = None) -> None:
@@ -373,6 +373,6 @@ class _SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-m
             if self._selected_path.is_dir():
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._selected_path)))
             else:
-                _open_file_location(self._selected_path)
+                open_file_location(self._selected_path)
         elif self._sessions_dir.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sessions_dir)))

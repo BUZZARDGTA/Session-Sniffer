@@ -5,7 +5,7 @@ import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QWidget
 
-from session_sniffer.guis.player_rate_graph import _DragCursorViewBox, _PositiveTicksAxis
+from session_sniffer.guis.player_rate_graph import DragCursorViewBox, PositiveTicksAxis
 
 VISIBLE_WINDOW = 60
 
@@ -33,8 +33,8 @@ class SessionRateGraphWindow(QWidget):
 
         # ── PPS graph (top) — lime green tones ──────────────────────────
         self._pps_widget = pg.PlotWidget(
-            axisItems={'bottom': _PositiveTicksAxis(orientation='bottom')},
-            viewBox=_DragCursorViewBox(),
+            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+            viewBox=DragCursorViewBox(),
         )
         self._pps_widget.setMouseEnabled(x=True, y=True)
         self._pps_widget.setBackground('black')
@@ -64,8 +64,8 @@ class SessionRateGraphWindow(QWidget):
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
         self._bps_widget = pg.PlotWidget(
-            axisItems={'bottom': _PositiveTicksAxis(orientation='bottom')},
-            viewBox=_DragCursorViewBox(),
+            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+            viewBox=DragCursorViewBox(),
         )
         self._bps_widget.setMouseEnabled(x=True, y=True)
         self._bps_widget.setBackground('black')

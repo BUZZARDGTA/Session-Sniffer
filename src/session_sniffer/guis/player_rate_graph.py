@@ -38,8 +38,8 @@ class PlayerRateGraphWindow(QWidget):
 
         # ── PPS graph (top) — lime green tones ──────────────────────────
         self._pps_widget = pg.PlotWidget(
-            axisItems={'bottom': _PositiveTicksAxis(orientation='bottom')},
-            viewBox=_DragCursorViewBox(),
+            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+            viewBox=DragCursorViewBox(),
         )
         self._pps_widget.setMouseEnabled(x=True, y=True)
         self._pps_widget.setBackground('black')
@@ -77,8 +77,8 @@ class PlayerRateGraphWindow(QWidget):
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
         self._bps_widget = pg.PlotWidget(
-            axisItems={'bottom': _PositiveTicksAxis(orientation='bottom')},
-            viewBox=_DragCursorViewBox(),
+            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+            viewBox=DragCursorViewBox(),
         )
         self._bps_widget.setMouseEnabled(x=True, y=True)
         self._bps_widget.setBackground('black')
@@ -233,7 +233,7 @@ class PlayerRateGraphWindow(QWidget):
         self.show()
 
 
-class _PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]  # pylint: disable=abstract-method
+class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]  # pylint: disable=abstract-method
     """Axis that displays tick labels as positive integers."""
 
     def tickStrings(self, values: list[float], _scale: float, _spacing: float) -> list[str]:  # ty: ignore[invalid-method-override]  # noqa: N802
@@ -241,7 +241,7 @@ class _PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]  # pylint: disable=
         return [str(abs(int(v))) for v in values]
 
 
-class _DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]  # pylint: disable=abstract-method
+class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]  # pylint: disable=abstract-method
     """ViewBox that changes cursor shape during vertical drag."""
 
     def mouseDragEvent(self, ev: Any, axis: int | None = None) -> None:  # noqa: ANN401, N802

@@ -6,12 +6,12 @@ from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
 
-from session_sniffer.guis.userip_manager_helpers import DATABASE_COLUMN, RANGE_COLUMN, RE_USERIP_INI_PARSER_PATTERN, SECTION_USERIP, USERNAME_COLUMN, _EntriesSortProxy
+from session_sniffer.guis.userip_manager_helpers import DATABASE_COLUMN, RANGE_COLUMN, RE_USERIP_INI_PARSER_PATTERN, SECTION_USERIP, USERNAME_COLUMN, EntriesSortProxy
 
 _MixinBase = QDialog
 
 
-class _EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-methods
+class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     """Mixin providing entries-table context menu and related navigation helpers.
 
     Expects these attributes on the concrete class:
@@ -24,7 +24,7 @@ class _EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-me
 
     # -- Attribute stubs for type checkers --
     _entries_table: QTreeView
-    _proxy: _EntriesSortProxy
+    _proxy: EntriesSortProxy
     _model: QStandardItemModel
     _global_search_active: bool
     _current_path: Path | None

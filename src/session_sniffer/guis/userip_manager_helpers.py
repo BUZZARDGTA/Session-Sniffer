@@ -102,7 +102,7 @@ def parse_settings_from_lines(settings_lines: list[str]) -> dict[str, str]:
     return parsed
 
 
-class _EntriesSortProxy(QSortFilterProxyModel):
+class EntriesSortProxy(QSortFilterProxyModel):
     """Proxy that uses IP address as a secondary sort key when the primary column values are equal."""
 
     @staticmethod
@@ -155,7 +155,7 @@ class _EntriesSortProxy(QSortFilterProxyModel):
         return bool(super().lessThan(left, right))
 
 
-class _ElidedTooltipFilter(QObject):
+class ElidedTooltipFilter(QObject):
     """Event filter that shows a tooltip only when the cell text is visually truncated."""
 
     def __init__(self, view: QAbstractItemView) -> None:
@@ -189,7 +189,7 @@ class _ElidedTooltipFilter(QObject):
         return super().eventFilter(a0, a1)
 
 
-_BYTES_PER_UNIT = 1024
+BYTES_PER_UNIT = 1024
 
 NEW_DATABASE_TEMPLATE = """\
 [Settings]
@@ -210,9 +210,9 @@ def human_readable_size(size_bytes: int) -> str:
     """Format a byte count into a human-readable string."""
     value = float(size_bytes)
     for unit in ('B', 'KB', 'MB', 'GB'):
-        if value < _BYTES_PER_UNIT:
+        if value < BYTES_PER_UNIT:
             return f'{value:.1f} {unit}' if unit != 'B' else f'{int(value)} {unit}'
-        value /= _BYTES_PER_UNIT
+        value /= BYTES_PER_UNIT
     return f'{value:.1f} TB'
 
 

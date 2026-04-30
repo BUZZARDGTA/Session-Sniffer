@@ -17,7 +17,7 @@ from session_sniffer.guis.userip_manager_helpers import NEW_DATABASE_TEMPLATE, i
 _MixinBase = QDialog
 
 
-class _TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
+class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     """Mixin providing tree-panel context menu and file-system operations.
 
     Expects these attributes on the concrete class:

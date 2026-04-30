@@ -5,26 +5,28 @@ from enum import Enum, auto
 from itertools import islice
 from math import sqrt
 
-_UPDATE_INTERVAL_MS = 1_000
-_CONVERGENCE_RECENT_WINDOW = 10
-_CONVERGENCE_GREEN = 0.10
-_CONVERGENCE_YELLOW = 0.25
-_SPIKE_SUSTAINED_SECS = 5
-_SPIKE_MIN_ZSCORE = 6.0
-_BUTTON_WIDTH = 250
-_MIN_CONNECTED_PLAYERS = 2
-_BASELINE_CONTAMINATION_ZSCORE = 10.0
-_BASELINE_CONTAMINATION_SECS = 5
-_BASELINE_CONTAMINATION_MIN_SAMPLES = 15
-_BASELINE_MIN_SAMPLES = 20
-_BASELINE_MAX_SECONDS = 30
-_SESSION_DRIFT_ZSCORE_THRESHOLD = 6.0
+UPDATE_INTERVAL_MS = 1_000
+CONVERGENCE_RECENT_WINDOW = 10
+CONVERGENCE_GREEN = 0.10
+CONVERGENCE_YELLOW = 0.25
+SPIKE_SUSTAINED_SECS = 5
+SPIKE_MIN_ZSCORE = 6.0
+BUTTON_WIDTH = 250
+MIN_CONNECTED_PLAYERS = 2
+BASELINE_CONTAMINATION_ZSCORE = 10.0
+BASELINE_CONTAMINATION_SECS = 5
+BASELINE_CONTAMINATION_MIN_SAMPLES = 15
+BASELINE_MIN_SAMPLES = 20
+BASELINE_MAX_SECONDS = 30
+SESSION_DRIFT_ZSCORE_THRESHOLD = 6.0
 
 _MIN_VARIANCE_SAMPLES = 2
-_ZSCORE_ELEVATED = 3.0
+ZSCORE_ELEVATED = 3.0
 
 
-class _Phase(Enum):
+class Phase(Enum):
+    """Phases of the player identifier workflow."""
+
     IDLE = auto()
     BASELINE = auto()
     READY = auto()
@@ -32,7 +34,7 @@ class _Phase(Enum):
     RESOLVED = auto()
 
 
-class _ResolvedIP:  # pylint: disable=too-few-public-methods
+class ResolvedIP:  # pylint: disable=too-few-public-methods
     """A resolved IP with its confidence score and reason."""
 
     __slots__ = ('confidence', 'ip', 'reason', 'username')
@@ -44,7 +46,7 @@ class _ResolvedIP:  # pylint: disable=too-few-public-methods
         self.username = username
 
 
-class _IPBaseline:
+class IPBaseline:
     """Stores PPS/BPS samples for a single IP during the baseline phase."""
 
     __slots__ = ('_bps_sum', '_pps_sum', 'bps_mean', 'bps_samples', 'bps_std', 'bps_std_floor', 'pps_mean', 'pps_samples', 'pps_std', 'pps_std_floor')
@@ -145,7 +147,7 @@ def _mean_std(samples: deque[int]) -> tuple[float, float]:
     return mean, sqrt(variance)
 
 
-def _zscore_to_confidence(zscore: float) -> float:
+def zscore_to_confidence(zscore: float) -> float:
     """Map a z-score to a 0-100 confidence percentage using a sigmoid-like curve."""
     # z=6 -> ~50%, z=10 -> ~70%, z=20 -> ~87%
     return min(100.0 * (1.0 - 1.0 / (1.0 + zscore / 6.0)), 99.0)

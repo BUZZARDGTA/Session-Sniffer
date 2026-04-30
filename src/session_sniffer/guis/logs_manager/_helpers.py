@@ -9,33 +9,33 @@ from typing import TYPE_CHECKING, cast
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
 
-from session_sniffer.guis.userip_manager_helpers import _BYTES_PER_UNIT, human_readable_size
+from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QStandardItemModel
     from PyQt6.QtWidgets import QWidget
 
-_MAX_CSV_ROWS = 50_000
-_AUTO_REFRESH_INTERVAL_MS = 2000
-_LARGE_TEXT_FILE_LIMIT = 5 * _BYTES_PER_UNIT * _BYTES_PER_UNIT  # 5 MB
+MAX_CSV_ROWS = 50_000
+AUTO_REFRESH_INTERVAL_MS = 2000
+LARGE_TEXT_FILE_LIMIT = 5 * BYTES_PER_UNIT * BYTES_PER_UNIT  # 5 MB
 _DAYS_IN_WEEK = 7
 
-_DATE_COLUMN_NAME = 'Date'
+DATE_COLUMN_NAME = 'Date'
 
 _DATE_FILTER_ALL = 'All'
-_DATE_FILTER_TODAY = 'Today'
-_DATE_FILTER_7_DAYS = 'Last 7 Days'
-_DATE_FILTER_30_DAYS = 'Last 30 Days'
+DATE_FILTER_TODAY = 'Today'
+DATE_FILTER_7_DAYS = 'Last 7 Days'
+DATE_FILTER_30_DAYS = 'Last 30 Days'
 
-_DATE_FILTER_CHOICES = (
+DATE_FILTER_CHOICES = (
     _DATE_FILTER_ALL,
-    _DATE_FILTER_TODAY,
-    _DATE_FILTER_7_DAYS,
-    _DATE_FILTER_30_DAYS,
+    DATE_FILTER_TODAY,
+    DATE_FILTER_7_DAYS,
+    DATE_FILTER_30_DAYS,
 )
 
 
-def _human_readable_timestamp(dt: datetime) -> str:
+def human_readable_timestamp(dt: datetime) -> str:
     """Convert a datetime to a human-friendly relative string like 'Today at 9:23 PM'."""
     now = datetime.now(tz=dt.tzinfo)
     today = now.date()
@@ -52,17 +52,17 @@ def _human_readable_timestamp(dt: datetime) -> str:
     return f'{dt.strftime("%b %d, %Y")} at {time_str}'
 
 
-def _file_metadata_text(file_path: Path) -> str:
+def file_metadata_text(file_path: Path) -> str:
     """Build a metadata summary string for a file."""
     if not file_path.exists():
         return f'{file_path.name}  —  File not found'
     stat = file_path.stat()
     size = human_readable_size(int(stat.st_size))
     modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
-    return f'{file_path.name}  |  {size}  |  Last modified: {_human_readable_timestamp(modified)}'
+    return f'{file_path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}'
 
 
-def _open_file_location(file_path: Path) -> None:
+def open_file_location(file_path: Path) -> None:
     """Open the containing folder and select the file in Windows Explorer."""
     if file_path.exists():
         explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
@@ -71,7 +71,7 @@ def _open_file_location(file_path: Path) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
 
 
-def _backup_file(file_path: Path) -> Path | None:
+def backup_file(file_path: Path) -> Path | None:
     """Create a .bak backup of a file. Returns backup path or `None` on failure."""
     if not file_path.exists():
         return None
@@ -84,7 +84,7 @@ def _backup_file(file_path: Path) -> Path | None:
 # Log-level syntax highlighter for plain-text log viewers
 # ---------------------------------------------------------------------------
 
-class _LogLevelHighlighter(QSyntaxHighlighter):
+class LogLevelHighlighter(QSyntaxHighlighter):
     """Highlight WARNING / ERROR / CRITICAL lines in a plain-text log."""
 
     def __init__(self, document: QTextDocument) -> None:
@@ -121,7 +121,7 @@ class _LogLevelHighlighter(QSyntaxHighlighter):
 # Multi-column filter proxy for CSV tables
 # ---------------------------------------------------------------------------
 
-class _MultiColumnFilterProxy(QSortFilterProxyModel):
+class MultiColumnFilterProxy(QSortFilterProxyModel):
     """Proxy model that filters rows by text match across a specific column or all columns."""
 
     def __init__(self, parent: QWidget | None = None) -> None:

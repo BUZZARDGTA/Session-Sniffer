@@ -25,22 +25,22 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.logs_manager._helpers import (
-    _DATE_COLUMN_NAME,
-    _DATE_FILTER_7_DAYS,
-    _DATE_FILTER_30_DAYS,
-    _DATE_FILTER_CHOICES,
-    _DATE_FILTER_TODAY,
-    _MAX_CSV_ROWS,
-    _backup_file,
-    _file_metadata_text,
-    _MultiColumnFilterProxy,
-    _open_file_location,
+    DATE_COLUMN_NAME,
+    DATE_FILTER_7_DAYS,
+    DATE_FILTER_30_DAYS,
+    DATE_FILTER_CHOICES,
+    DATE_FILTER_TODAY,
+    MAX_CSV_ROWS,
+    MultiColumnFilterProxy,
+    backup_file,
+    file_metadata_text,
+    open_file_location,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.userip_manager_helpers import _ElidedTooltipFilter
+from session_sniffer.guis.userip_manager_helpers import ElidedTooltipFilter
 
 
-class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
+class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
     """Structured CSV log viewer with table, search, filter, sort, and management actions."""
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -85,7 +85,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         top_bar.addWidget(QLabel('Period:'))
         self._date_combo = QComboBox()
-        for choice in _DATE_FILTER_CHOICES:
+        for choice in DATE_FILTER_CHOICES:
             self._date_combo.addItem(choice)
         self._date_combo.currentTextChanged.connect(self._on_date_filter_changed)
         top_bar.addWidget(self._date_combo)
@@ -105,7 +105,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._model = QStandardItemModel(self)
         self._model.setHorizontalHeaderLabels(list(expected_headers))
 
-        self._proxy = _MultiColumnFilterProxy(self)
+        self._proxy = MultiColumnFilterProxy(self)
         self._proxy.setSourceModel(self._model)
         self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
@@ -135,7 +135,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         layout.addWidget(self._table, stretch=1)
 
-        self._tooltip_filter = _ElidedTooltipFilter(self._table)
+        self._tooltip_filter = ElidedTooltipFilter(self._table)
         viewport = self._table.viewport()
         if viewport is not None:
             viewport.installEventFilter(self._tooltip_filter)
@@ -176,7 +176,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         open_location_button = QPushButton('📂 Open File Location')
         open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         open_location_button.setToolTip('Open the containing folder in Windows Explorer')
-        open_location_button.clicked.connect(lambda: _open_file_location(self._file_path))
+        open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
         button_row.addWidget(open_location_button)
 
         edit_file_button = QPushButton('📝 Edit File')
@@ -202,7 +202,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         if not self._file_path.exists():
             self._update_counts()
-            self._metadata_label.setText(_file_metadata_text(self._file_path))
+            self._metadata_label.setText(file_metadata_text(self._file_path))
             return
 
         with self._file_path.open(newline='', encoding='utf-8') as f:
@@ -210,7 +210,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
             file_headers = next(reader, None)
             if file_headers is None:
                 self._update_counts()
-                self._metadata_label.setText(_file_metadata_text(self._file_path))
+                self._metadata_label.setText(file_metadata_text(self._file_path))
                 return
 
             self._model.setHorizontalHeaderLabels(file_headers)
@@ -218,7 +218,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
             skipped = 0
             for row_num, row in enumerate(reader):
-                if row_num >= _MAX_CSV_ROWS:
+                if row_num >= MAX_CSV_ROWS:
                     self._truncated = True
                     break
                 if len(row) != len(file_headers):
@@ -238,7 +238,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         self._apply_default_sort()
         self._update_counts()
-        self._metadata_label.setText(_file_metadata_text(self._file_path))
+        self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _apply_default_sort(self) -> None:
         """Apply the default sort using stable-sort chaining."""
@@ -286,17 +286,17 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]
         date_col = -1
         for i, h in enumerate(headers):
-            if h == _DATE_COLUMN_NAME:
+            if h == DATE_COLUMN_NAME:
                 date_col = i
                 break
 
         cutoff: datetime | None = None
         now = datetime.now(tz=UTC)
-        if choice == _DATE_FILTER_TODAY:
+        if choice == DATE_FILTER_TODAY:
             cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        elif choice == _DATE_FILTER_7_DAYS:
+        elif choice == DATE_FILTER_7_DAYS:
             cutoff = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
-        elif choice == _DATE_FILTER_30_DAYS:
+        elif choice == DATE_FILTER_30_DAYS:
             cutoff = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
 
         self._proxy.set_date_filter(date_col, cutoff)
@@ -309,7 +309,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         if visible != total:
             parts.append(f'{visible} visible')
         if self._truncated:
-            parts.append(f'(display limited to {_MAX_CSV_ROWS:,} rows)')
+            parts.append(f'(display limited to {MAX_CSV_ROWS:,} rows)')
         self._count_label.setText('  |  '.join(parts))
 
     # ------------------------------------------------------------------
@@ -395,7 +395,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         self._rewrite_csv_from_model()
         self._update_counts()
-        self._metadata_label.setText(_file_metadata_text(self._file_path))
+        self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _purge_file(self) -> None:
         if not self._file_path.exists():
@@ -409,7 +409,7 @@ class _CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        backup = _backup_file(self._file_path)
+        backup = backup_file(self._file_path)
         self._file_path.write_text('', encoding='utf-8')
 
         msg = f'Purged {self._file_path.name}.'

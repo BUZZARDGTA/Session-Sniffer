@@ -132,7 +132,7 @@ QPushButton:hover {
 """
 
 
-class _SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """Mixin that builds and manages the database settings panel.
 
     Expects these attributes on the concrete class:

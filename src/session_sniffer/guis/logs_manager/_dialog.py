@@ -20,10 +20,10 @@ from session_sniffer.constants.local import (
     WARNINGS_LOG_PATH,
 )
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.logs_manager._csv_tab import _CsvLogTab
-from session_sniffer.guis.logs_manager._helpers import _backup_file
-from session_sniffer.guis.logs_manager._sessions_tab import _SessionsLogTab
-from session_sniffer.guis.logs_manager._text_tab import _TextLogTab
+from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab
+from session_sniffer.guis.logs_manager._helpers import backup_file
+from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
+from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 
 
@@ -43,7 +43,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         # --- Tab widget ---
         tabs = QTabWidget()
 
-        self._userip_tab = _CsvLogTab(
+        self._userip_tab = CsvLogTab(
             file_path=USERIP_LOGGING_PATH,
             expected_headers=('Database', 'Username', 'IP', 'Date', 'Time', 'Country'),
             default_sort_columns=('Date', 'Time'),
@@ -52,7 +52,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         )
         tabs.addTab(self._userip_tab, '📄 UserIP Logging')
 
-        self._detection_tab = _CsvLogTab(
+        self._detection_tab = CsvLogTab(
             file_path=DETECTION_LOGGING_PATH,
             expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
             default_sort_columns=('Date', 'Time'),
@@ -60,7 +60,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
             column_min_widths={0: 220, 5: 160},
         )
         tabs.addTab(self._detection_tab, '🔍 Detection Logging')
-        self._protection_tab = _CsvLogTab(
+        self._protection_tab = CsvLogTab(
             file_path=PROTECTION_LOGGING_PATH,
             expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
             default_sort_columns=('Date', 'Time'),
@@ -68,14 +68,14 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
             column_min_widths={0: 220, 5: 160},
         )
         tabs.addTab(self._protection_tab, '\U0001f6e1\ufe0f Protection Logging')
-        self._warnings_tab = _TextLogTab(file_path=WARNINGS_LOG_PATH)
+        self._warnings_tab = TextLogTab(file_path=WARNINGS_LOG_PATH)
         tabs.addTab(self._warnings_tab, '⚠️ Warnings Log')
-        self._errors_tab = _TextLogTab(file_path=ERRORS_LOG_PATH)
+        self._errors_tab = TextLogTab(file_path=ERRORS_LOG_PATH)
         tabs.addTab(self._errors_tab, '❌ Errors Log')
-        self._debug_tab = _TextLogTab(file_path=LIBS_DEBUG_LOG_PATH)
+        self._debug_tab = TextLogTab(file_path=LIBS_DEBUG_LOG_PATH)
         tabs.addTab(self._debug_tab, '🔧 Libs Debug Log')
 
-        self._sessions_tab = _SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
+        self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
         tabs.addTab(self._sessions_tab, '📂 Sessions Logging')
 
         root_layout.addWidget(tabs, stretch=1)
@@ -125,7 +125,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         for path in (USERIP_LOGGING_PATH, DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, WARNINGS_LOG_PATH, ERRORS_LOG_PATH):
             if not path.exists():
                 continue
-            _backup_file(path)
+            backup_file(path)
             path.write_text('', encoding='utf-8')
             purged.append(path.name)
 
