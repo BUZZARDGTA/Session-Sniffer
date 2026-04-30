@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, pyqtSignal
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.guis.app import app
 from session_sniffer.guis.exceptions import PrimaryScreenNotFoundError
 from session_sniffer.guis.stylesheets import (
@@ -18,8 +18,6 @@ from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
-
-DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 
 
 class ClickableLabel(QLabel):

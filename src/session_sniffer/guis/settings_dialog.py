@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
@@ -47,8 +47,6 @@ if TYPE_CHECKING:
 _NONE_PLACEHOLDER = 'None'
 
 _RESTART_INDICATOR = ' \u27F3'
-
-_DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
@@ -150,7 +148,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             join_button = QPushButton('🎮 Join Discord Server')
             join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
             join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            join_button.clicked.connect(lambda: webbrowser.open(_DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
+            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
             join_row.addStretch()
             join_row.addWidget(join_button)
             join_row.addStretch()

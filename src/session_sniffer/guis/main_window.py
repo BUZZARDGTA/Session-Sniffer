@@ -41,7 +41,7 @@ from session_sniffer.constants.local import (
     USERIP_LOGGING_PATH,
     WARNINGS_LOG_PATH,
 )
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
@@ -95,7 +95,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
-DISCORD_INVITE_URL = 'https://discord.gg/hMZ7MsPX7G'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 
 
