@@ -79,16 +79,16 @@ def iplookup_core() -> None:
             except requests.exceptions.HTTPError as e:
                 # Handle rate limiting
                 if isinstance(e.response, requests.Response) and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                    requests_remaining = int(e.response.headers.get('X-Rl', '0'))
-                    ttl_seconds = int(e.response.headers.get('X-Ttl', str(_IPAPI_MAX_THROTTLE_TIME)))
+                    requests_remaining = int(e.response.headers.get('X-Rl') or '0')
+                    ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
                     gui_closed__event.wait(ttl_seconds)
                     requests_remaining = _IPAPI_MAX_REQUESTS
                     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                     continue
                 raise  # Re-raise other HTTP errors
 
-            requests_remaining = int(response.headers.get('X-Rl', str(_IPAPI_MAX_REQUESTS - 1)))
-            ttl_seconds = int(response.headers.get('X-Ttl', str(_IPAPI_MAX_THROTTLE_TIME)))
+            requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
+            ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
 
             iplookup_results_data = response.json()
             iplookup_results: list[IpApiResponse] = []

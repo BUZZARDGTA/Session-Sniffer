@@ -8,6 +8,7 @@ import dns.reversename
 
 _resolver = dns.resolver.Resolver()
 _resolver.nameservers = ['1.1.1.1', '1.0.0.1']
+_resolver.lifetime = 5.0
 
 
 def reverse_dns_lookup(target_ip: str) -> str:

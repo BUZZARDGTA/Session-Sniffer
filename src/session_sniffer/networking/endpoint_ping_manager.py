@@ -2,6 +2,7 @@
 
 It is used to determine whether each player's IP is responsive to pings.
 """
+import contextlib
 import dataclasses
 import re
 import time
@@ -108,24 +109,29 @@ _MIN_REQUEST_INTERVAL = 0.1  # minimum seconds between consecutive requests to t
 # Global dictionary to track semaphores per endpoint host
 host_locks: dict[str, Semaphore] = {}
 
-# Global lock to protect shared endpoint metrics.
+# Lock protecting shared endpoint metrics.
 _endpoints_lock = Lock()
 
+# Lock protecting host_locks dict.
+_host_locks_lock = Lock()
+
+_PING_ENDPOINT_URLS: tuple[str, ...] = (
+    'https://steakovercooked.com/api/ping/',
+    'https://helloacm.com/api/ping/',
+    'https://uploadbeta.com/api/ping/',
+    'https://happyukgo.com/api/ping/',
+    'https://isvbscriptdead.com/api/ping/',
+    'https://api.justyy.workers.dev/api/ping/',
+)
+
 # Create a mapping of endpoint URL to its EndpointInfo instance.
-endpoints_info: dict[str, EndpointInfo] = {
-    'https://steakovercooked.com/api/ping/':    EndpointInfo('https://steakovercooked.com/api/ping/'),
-    'https://helloacm.com/api/ping/':           EndpointInfo('https://helloacm.com/api/ping/'),
-    'https://uploadbeta.com/api/ping/':         EndpointInfo('https://uploadbeta.com/api/ping/'),
-    'https://happyukgo.com/api/ping/':          EndpointInfo('https://happyukgo.com/api/ping/'),
-    'https://isvbscriptdead.com/api/ping/':     EndpointInfo('https://isvbscriptdead.com/api/ping/'),
-    'https://api.justyy.workers.dev/api/ping/': EndpointInfo('https://api.justyy.workers.dev/api/ping/'),
-}
+endpoints_info: dict[str, EndpointInfo] = {url: EndpointInfo(url) for url in _PING_ENDPOINT_URLS}
 
 
 def get_host_semaphore(url: str) -> Semaphore:
     """Return a semaphore for the given endpoint host, ensuring at most 10 concurrent requests."""
     hostname = urlparse(url).netloc
-    with _endpoints_lock:
+    with _host_locks_lock:
         if hostname not in host_locks:
             host_locks[hostname] = Semaphore(10)
         return host_locks[hostname]
@@ -223,7 +229,8 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             if e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')
                 if retry_after:
-                    cooldown = float(retry_after)
+                    with contextlib.suppress(ValueError):  # Retry-After may be an HTTP date string
+                        cooldown = float(retry_after)
 
             with _endpoints_lock:
                 endpoint_info.update_failure(time.monotonic() - request_start_time, cooldown, ip)
