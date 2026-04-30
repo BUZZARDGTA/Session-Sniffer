@@ -7,7 +7,7 @@ from session_sniffer.capture.exceptions import TSharkOutputParsingError
 from session_sniffer.guis.interface_selection_dialog import show_interface_selection_dialog
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, InterfaceIdentity, InterfaceTraffic, SelectedInterface
-from session_sniffer.networking.utils import is_valid_non_special_ipv4
+from session_sniffer.networking.utils import is_valid_private_ipv4
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             if (
                 not neighbor_ip or not neighbor_mac
                 or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
-                or not is_valid_non_special_ipv4(neighbor_ip)
+                or not is_valid_private_ipv4(neighbor_ip)
             ):
                 continue
 

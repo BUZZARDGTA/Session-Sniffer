@@ -80,21 +80,16 @@ def is_private_device_ipv4(ip_address: str, /) -> bool:
     return ipv4_obj.is_private
 
 
-def is_valid_non_special_ipv4(ip_address: str, /) -> bool:
-    """Return whether the address is a valid IPv4 and not a special/reserved address."""
+def is_valid_private_ipv4(ip_address: str, /) -> bool:
+    """Return True if the address is a valid, usable private IPv4 address."""
     try:
-        ipv4_obj = IPv4Address(ip_address)
+        ip = IPv4Address(ip_address)
     except AddressValueError:
         return False
 
-    invalid_conditions = (
-        ipv4_obj.packed[-1] == IPV4_LAST_OCTET_VALUE,
-        ipv4_obj.is_link_local,  # might want to remove this
-        ipv4_obj.is_loopback,
-        ipv4_obj.is_reserved,
-        ipv4_obj.is_unspecified,
-        ipv4_obj.is_global,
-        ipv4_obj.is_multicast,
+    return (
+        ip.is_private
+        and not ip.is_loopback
+        and not ip.is_link_local
+        and not ip.is_unspecified
     )
-
-    return not any(invalid_conditions)
