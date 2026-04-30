@@ -32,18 +32,11 @@ def check_for_updates(*, updater_channel: str | None) -> UpdateCheckOutcome:
     """Fetch versions, handle failures, and prompt for update if needed."""
     outcome, versions = _fetch_versions_with_retries()
 
-    match outcome:
-        case UpdateCheckOutcome.PROCEED if versions is not None:
-            return _handle_update_decision(
-                updater_channel=updater_channel,
-                versions=versions,
-            )
-        case UpdateCheckOutcome.ABORT:
-            return outcome
-        case UpdateCheckOutcome.IGNORE | UpdateCheckOutcome.FAILED:
-            return UpdateCheckOutcome.IGNORE
-        case _:
-            return UpdateCheckOutcome.IGNORE
+    if outcome is UpdateCheckOutcome.PROCEED and versions is not None:
+        return _handle_update_decision(updater_channel=updater_channel, versions=versions)
+    if outcome is UpdateCheckOutcome.ABORT:
+        return outcome
+    return UpdateCheckOutcome.IGNORE
 
 
 def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckOutcome, GithubVersionsResponse | None]:
@@ -111,6 +104,9 @@ def _handle_update_decision(
     latest_stable = Version(versions.latest_stable.version)
     latest_rc = Version(versions.latest_prerelease.version)
 
+    if CURRENT_VERSION.is_prerelease:
+        return _handle_prerelease_update_decision(latest_stable=latest_stable, latest_rc=latest_rc)
+
     is_rc_updater_channel = updater_channel == 'RC'
     candidate = latest_rc if is_rc_updater_channel else latest_stable
 
@@ -128,6 +124,61 @@ def _handle_update_decision(
                 Current version: {format_project_version(CURRENT_VERSION)}
                 Latest version: {format_project_version(candidate)}
             """),
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
+        )
+        == msgbox.ReturnValues.IDYES
+    ):
+        webbrowser.open(GITHUB_RELEASES_URL)
+
+    return UpdateCheckOutcome.PROCEED
+
+
+def _handle_prerelease_update_decision(
+    *,
+    latest_stable: Version,
+    latest_rc: Version,
+) -> UpdateCheckOutcome:
+    """Prompt the user about available updates when running a pre-release build.
+
+    Checks both the latest stable and latest pre-release candidates independently.
+    Any candidate strictly above CURRENT_VERSION is reported, regardless of the
+    user's updater channel setting.
+    """
+    stable_newer = latest_stable > CURRENT_VERSION
+    prerelease_newer = latest_rc > CURRENT_VERSION and latest_rc != latest_stable
+
+    if not stable_newer and not prerelease_newer:
+        return UpdateCheckOutcome.PROCEED
+
+    current_str = format_project_version(CURRENT_VERSION)
+
+    if stable_newer and prerelease_newer:
+        message = format_triple_quoted_text(f"""
+            You are running a pre-release version ({current_str}). Newer versions are available. Do you want to update?
+
+            Current version: {current_str}
+            Latest stable release: {format_project_version(latest_stable)}
+            Latest pre-release: {format_project_version(latest_rc)}
+        """)
+    elif stable_newer:
+        message = format_triple_quoted_text(f"""
+            You are running a pre-release version ({current_str}). A newer stable release is available. Do you want to update?
+
+            Current version: {current_str}
+            Latest stable release: {format_project_version(latest_stable)}
+        """)
+    else:
+        message = format_triple_quoted_text(f"""
+            You are running a pre-release version ({current_str}). A newer pre-release is available. Do you want to update?
+
+            Current version: {current_str}
+            Latest pre-release: {format_project_version(latest_rc)}
+        """)
+
+    if (
+        msgbox.show(
+            title=TITLE,
+            text=message,
             style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
         )
         == msgbox.ReturnValues.IDYES
