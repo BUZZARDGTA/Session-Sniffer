@@ -223,8 +223,9 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
         super().__init__(parent)
 
         self.setWindowTitle('Most Seen Players')
-        self.setMinimumSize(750, 450)
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.setMinimumSize(1100, 550)
+        self.resize(1400, 700)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         layout = QVBoxLayout(self)
@@ -270,7 +271,7 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
         if header is None:
             msg = 'Failed to get horizontal header'
             raise RuntimeError(msg)
-        header.setStretchLastSection(True)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # IP
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Usernames
@@ -278,7 +279,7 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # First Seen
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Last Seen
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Country
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # ISP
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # ISP
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # Mobile
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)  # VPN
         header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)  # Hosting

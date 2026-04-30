@@ -209,4 +209,4 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
             if isinstance(raw_hosting, bool):
                 entry.hosting = raw_hosting
 
-    return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)
+    return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)[:1000]
