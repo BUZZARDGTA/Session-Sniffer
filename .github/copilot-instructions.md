@@ -77,6 +77,7 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Long synchronous tasks inside `packet_callback`.
 - Reformatting unrelated large sections (keeps diff noise low for PyInstaller & release processes).
 - Changing constant naming style (mix of ALL_CAPS and CamelCase retained for backward compatibility).
+- Using `assert` for runtime checks — always use `raise` with an appropriate exception (e.g., `raise RuntimeError(...)`, `raise ValueError(...)`) instead. `assert` is stripped by Python's optimizer (`-O`) and triggers Ruff S101.
 
 ## Before Committing Changes
 1. Run `📦 Install Dependencies` if you changed dependency files.

@@ -191,6 +191,7 @@ class CaptureConfig:
         multicast_support: Whether the interface supports the `multicast` capture filter.
         capture_filter: An optional capture filter string for TShark.
         display_filter: An optional display filter string for TShark.
+        on_capture_lost: An optional callback invoked when TShark exits unexpectedly while capture was running.
     """
     interface: SelectedInterface
     tshark_path: Path
@@ -199,6 +200,7 @@ class CaptureConfig:
     multicast_support: bool
     capture_filter: str | None = None
     display_filter: str | None = None
+    on_capture_lost: Callable[[], None] | None = None
 
     def build_tshark_cmd(self) -> tuple[str, ...]:
         """Build the TShark command-line arguments for this capture config."""
@@ -315,12 +317,21 @@ class PacketCapture:
         while self._state.running_event.is_set():
             self._state.restart_requested.clear()  # Clear any previous restart request before starting new capture iteration
 
-            for packet in self._capture_packets():
-                self.config.callback(packet)
+            try:
+                for packet in self._capture_packets():
+                    self.config.callback(packet)
 
-                if self._state.restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
-                    logger.debug('Capture loop exiting due to restart request')
+                    if self._state.restart_requested.is_set():  # Check if restart was requested (e.g., due to packet overflow)
+                        logger.debug('Capture loop exiting due to restart request')
+                        break
+            except TSharkCrashExceptionError as exc:
+                logger.warning('TShark crashed unexpectedly: %s', exc)
+                with self._state.control_lock:
+                    self._state.running_event.clear()
+                if self.config.on_capture_lost is not None:
+                    self.config.on_capture_lost()
                     break
+                raise
 
         self._state.capture_thread = None
 
@@ -405,13 +416,14 @@ class PacketCapture:
                         self._state.tshark_process = None
 
             stderr_output = ''.join(stderr_chunks)
-            # Only treat non-zero exit as a crash if capture was still intended to run.
-            # Manual stop clears running_event; restart requests set restart_requested.
+            logger.debug('TShark process exited with return code %r; stderr=%r', process.returncode, stderr_output or '<empty>')
+            # Treat any unexpected TShark exit as a crash if capture was still intended to run.
+            # Exit code 0 also counts — adapters being removed cause a clean (code 0) exit.
+            # Manual stop clears running_event first; restart requests set restart_requested.
             # The lock ensures we read running_event atomically with respect to stop().
             with self._state.control_lock:
                 if (
-                    isinstance(process.returncode, int)
-                    and process.returncode
+                    process.returncode is not None
                     and self._state.running_event.is_set()
                     and not self._state.restart_requested.is_set()
                 ):

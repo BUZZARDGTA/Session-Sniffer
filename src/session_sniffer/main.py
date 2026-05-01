@@ -12,10 +12,12 @@ from threading import Event, Thread
 
 import colorama
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QMessageBox
 
 from session_sniffer import msgbox
 from session_sniffer.background import (
     check_global_protections,
+    gui_closed__event,
     handle_detection_notification,
     hostname_core,
     iplookup_core,
@@ -335,6 +337,8 @@ def main() -> None:
 
             _packet_slowdown.check(time.monotonic() - _pkt_start, 'packet_callback')
 
+    _adapter_lost_event = Event()
+
     capture = PacketCapture(
         CaptureConfig(
             interface=selected_interface,
@@ -344,6 +348,7 @@ def main() -> None:
             capture_filter=capture_filter_str,
             display_filter=display_filter_str,
             callback=packet_callback,
+            on_capture_lost=_adapter_lost_event.set,
         ),
     )
     splash.run_with_spinner(capture.start)
@@ -438,6 +443,7 @@ def main() -> None:
                 capture_filter=new_capture_filter,
                 display_filter=new_display_filter,
                 callback=packet_callback,
+                on_capture_lost=_adapter_lost_event.set,
             ),
         )
         new_capture.start()
@@ -458,6 +464,29 @@ def main() -> None:
         window.set_interface_switching_mode(switching=False)
 
     window = MainWindow(screen_width, screen_height, capture_holder, on_change_interface=_switch_interface)
+
+    def _on_adapter_lost_poll() -> None:
+        """Poll for unexpected TShark crashes and re-show the interface selection dialog."""
+        if gui_closed__event.is_set():
+            return
+        if not _adapter_lost_event.is_set():
+            return
+        _adapter_lost_event.clear()
+        window.on_interface_switched()
+        window.set_capture_toggle_enabled(enabled=False)
+        QMessageBox.warning(
+            window,
+            'Capture Interrupted',
+            'TShark has stopped unexpectedly.\n\n'
+            'This is likely caused by your network adapter being removed or disabled.\n\n'
+            'Please select a network interface to resume capture.',
+        )
+        _switch_interface()
+
+    _adapter_lost_timer = QTimer()
+    _adapter_lost_timer.setInterval(500)
+    _adapter_lost_timer.timeout.connect(_on_adapter_lost_poll)
+    _adapter_lost_timer.start()
 
     splash.finish_loading()
     QTimer.singleShot(1500, splash.close_splash)

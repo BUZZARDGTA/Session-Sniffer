@@ -43,20 +43,20 @@ from session_sniffer.constants.local import (
 )
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.core import terminate_script
-from session_sniffer.guis.html_templates import generate_gui_header_html
-from session_sniffer.guis.logs_manager import LogsManager
-from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
 from session_sniffer.guis.avg_session_duration import AvgSessionDurationWindow
 from session_sniffer.guis.capture_health_window import CaptureHealthWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
+from session_sniffer.guis.html_templates import generate_gui_header_html
+from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
+from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
+from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_heatmap import PortHeatmapWindow
+from session_sniffer.guis.protections_manager import ProtectionsManagerDialog
 from session_sniffer.guis.reconnect_frequency import ReconnectFrequencyWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_summary import SessionSummaryWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
-from session_sniffer.guis.player_resolver import PlayerResolverWindow
-from session_sniffer.guis.protections_manager import ProtectionsManagerDialog
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import (
     COMMON_COLLAPSE_BUTTON_STYLESHEET,
@@ -724,7 +724,9 @@ class MainWindow(QMainWindow):
 
         # --- Debug Logs Submenu ---
         debug_logs_submenu = data_menu.addMenu('🐛 Debug Logs')
-        assert debug_logs_submenu is not None
+        if debug_logs_submenu is None:
+            msg = 'Failed to create Debug Logs submenu'
+            raise RuntimeError(msg)
         debug_logs_submenu.setToolTipsVisible(True)
 
         open_debug_logs_folder_action = QAction('📂 Open Debug Logs Folder', self)
@@ -756,7 +758,9 @@ class MainWindow(QMainWindow):
 
         # --- Application Logs Submenu ---
         app_logs_submenu = data_menu.addMenu('📋 Application Logs')
-        assert app_logs_submenu is not None
+        if app_logs_submenu is None:
+            msg = 'Failed to create Application Logs submenu'
+            raise RuntimeError(msg)
         app_logs_submenu.setToolTipsVisible(True)
 
         open_logging_folder_action = QAction('📂 Open Logging Folder', self)
@@ -1444,6 +1448,10 @@ class MainWindow(QMainWindow):
         window.destroyed.connect(lambda: setattr(self, '_capture_health_window', None))
         self._capture_health_window = window
 
+    def set_capture_toggle_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable the Stop/Start Capture toolbar button."""
+        self._actions.toggle_capture.setEnabled(enabled)
+
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
         self._protections_button.setVisible(Settings.is_protection_supported)
@@ -1454,6 +1462,7 @@ class MainWindow(QMainWindow):
         else:
             self._actions.toggle_capture.setText('▶️ Start Capture')
             self._actions.toggle_capture.setToolTip('Start packet capture')
+        self._actions.toggle_capture.setEnabled(True)
         self._update_header_capture_status()
 
     def _clear_connected_players(self) -> None:
