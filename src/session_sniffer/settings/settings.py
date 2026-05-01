@@ -56,6 +56,16 @@ class Settings:
     discord_presence: bool = SETTING_DEFAULTS['discord_presence']
     discord_presence_title: str = SETTING_DEFAULTS['discord_presence_title']
     show_discord_popup: bool = SETTING_DEFAULTS['show_discord_popup']
+    discord_webhook_enabled: bool = SETTING_DEFAULTS['discord_webhook_enabled']
+    discord_webhook_url: str | None = SETTING_DEFAULTS['discord_webhook_url']
+    discord_webhook_refresh_interval: int = SETTING_DEFAULTS['discord_webhook_refresh_interval']
+    discord_webhook_include_connected: bool = SETTING_DEFAULTS['discord_webhook_include_connected']
+    discord_webhook_include_disconnected: bool = SETTING_DEFAULTS['discord_webhook_include_disconnected']
+    discord_webhook_max_rows_per_table: int = SETTING_DEFAULTS['discord_webhook_max_rows_per_table']
+    discord_webhook_format: str = SETTING_DEFAULTS['discord_webhook_format']
+    discord_webhook_columns_connected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_connected']
+    discord_webhook_columns_disconnected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_disconnected']
+    discord_webhook_message_ids: str | None = SETTING_DEFAULTS['discord_webhook_message_ids']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
@@ -91,6 +101,16 @@ class Settings:
         'DISCORD_PRESENCE',
         'DISCORD_PRESENCE_TITLE',
         'SHOW_DISCORD_POPUP',
+        'DISCORD_WEBHOOK_ENABLED',
+        'DISCORD_WEBHOOK_URL',
+        'DISCORD_WEBHOOK_REFRESH_INTERVAL',
+        'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
+        'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
+        'DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE',
+        'DISCORD_WEBHOOK_FORMAT',
+        'DISCORD_WEBHOOK_COLUMNS_CONNECTED',
+        'DISCORD_WEBHOOK_COLUMNS_DISCONNECTED',
+        'DISCORD_WEBHOOK_MESSAGE_IDS',
         'UPDATER_CHANNEL',
     )
 
@@ -427,6 +447,8 @@ class Settings:
                 all_setting_names=cls.ALL_SETTINGS,
                 toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
                 toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
+                webhook_all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
+                webhook_all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
                 all_third_party_servers=cls.ALL_THIRD_PARTY_SERVERS,
                 max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
                 min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,

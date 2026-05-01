@@ -23,6 +23,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.discord.rpc import DiscordRPC
+from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
 from session_sniffer.error_messages import (
     format_type_error,
     format_userip_corrupted_settings_message,
@@ -58,6 +59,7 @@ from session_sniffer.rendering_core.types import (
     SessionTableSnapshot,
     TsharkStats,
 )
+from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
 from session_sniffer.settings.settings import RE_SETTINGS_INI_PARSER_PATTERN
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
@@ -105,6 +107,7 @@ COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 SECONDS_PER_MINUTE = 60.0
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
+DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
 
 
 def rendering_core(
@@ -638,7 +641,9 @@ def rendering_core(
         logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
         last_userip_parse_time = None
         last_session_logging_processing_time = None
+        last_webhook_submit_time: float | None = None
         discord_rpc_manager: DiscordRPC | None = None
+        discord_webhook_sender: DiscordWebhookSender | None = None
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
 
@@ -837,6 +842,52 @@ def rendering_core(
                     details=Settings.discord_presence_title or None,
                 )
 
+            # Runtime Discord Webhook toggle: create or close based on current setting
+            if Settings.discord_webhook_enabled and discord_webhook_sender is None:
+                discord_webhook_sender = DiscordWebhookSender.instance()
+            elif not Settings.discord_webhook_enabled and discord_webhook_sender is not None:
+                discord_webhook_sender.close()
+                discord_webhook_sender = None
+
+            if discord_webhook_sender is not None and (
+                last_webhook_submit_time is None
+                or (time.monotonic() - last_webhook_submit_time) >= DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS
+            ):
+                last_webhook_submit_time = time.monotonic()
+                use_mobile_text = Settings.discord_webhook_format in ('Mobile', 'Embed')
+                webhook_cols_connected = Settings.discord_webhook_columns_connected
+                webhook_cols_disconnected = Settings.discord_webhook_columns_disconnected
+                if Settings.discord_webhook_include_connected:
+                    connected_text = (
+                        build_webhook_mobile_text(session_connected, webhook_cols_connected) if use_mobile_text
+                        else build_webhook_table_text(
+                            session_connected,
+                            columns=webhook_cols_connected,
+                            title=f'Connected ({len(session_connected)})',
+                        )
+                    )
+                else:
+                    connected_text = None
+                if Settings.discord_webhook_include_disconnected:
+                    disconnected_text = (
+                        build_webhook_mobile_text(session_disconnected, webhook_cols_disconnected) if use_mobile_text
+                        else build_webhook_table_text(
+                            session_disconnected,
+                            columns=webhook_cols_disconnected,
+                            title=f'Disconnected ({len(session_disconnected)})',
+                        )
+                    )
+                else:
+                    disconnected_text = None
+                discord_webhook_sender.submit(DiscordWebhookPayload(
+                    connected_text=connected_text,
+                    disconnected_text=disconnected_text,
+                    connected_count=len(session_connected),
+                    disconnected_count=len(session_disconnected),
+                    generated_at=datetime.now(tz=LOCAL_TZ),
+                    capture_running=capture.is_running(),
+                ))
+
             connected_shown_columns = set(Settings.gui_columns_connected_shown)
             disconnected_shown_columns = set(Settings.gui_columns_disconnected_shown)
             connected_column_names = [
@@ -897,3 +948,5 @@ def rendering_core(
 
         if discord_rpc_manager is not None:
             discord_rpc_manager.close()
+        if discord_webhook_sender is not None:
+            discord_webhook_sender.close()

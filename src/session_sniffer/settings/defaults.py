@@ -36,6 +36,7 @@ class SettingMeta:  # pylint: disable=too-many-instance-attributes
     allowed_columns_attr: str | None = None
     display_labels: dict[str, str] | None = None
     group: str | None = None
+    hidden: bool = False
 
 
 SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
@@ -244,21 +245,107 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     # ------------------------------------------------------------------
     'discord_presence': SettingMeta(
         category='Discord',
-        display_label='Discord Rich Presence',
+        group='Rich Presence (RPC)',
+        display_label='Enabled',
         setting_type=SettingType.BOOLEAN,
         tooltip='Enable Discord Rich Presence (RPC) status updates.',
     ),
     'discord_presence_title': SettingMeta(
         category='Discord',
+        group='Rich Presence (RPC)',
         display_label='Presence Title',
         setting_type=SettingType.STRING,
         tooltip='Custom title text displayed in your Discord Rich Presence status (leave empty to disable, or use 2+ characters).',
     ),
     'show_discord_popup': SettingMeta(
-        category='Discord',
-        display_label='Show Discord Popup',
+        category='Launcher',
+        group='Startup',
+        display_label='Show Discord Intro Popup',
         setting_type=SettingType.BOOLEAN,
         tooltip='Show the Discord intro popup on application startup.',
+    ),
+    'discord_webhook_enabled': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Enabled',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Mirror the live Connected/Disconnected players tables to a Discord channel via webhook.',
+    ),
+    'discord_webhook_url': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Webhook URL',
+        setting_type=SettingType.STRING,
+        tooltip='Discord channel webhook URL (e.g. https://discord.com/api/webhooks/<id>/<token>).',
+    ),
+    'discord_webhook_refresh_interval': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Refresh Interval (s)',
+        setting_type=SettingType.INTEGER,
+        tooltip='Seconds between webhook updates. Lower values risk Discord rate limits (minimum 5).',
+        min_value=5,
+        max_value=300,
+        step=1,
+    ),
+    'discord_webhook_include_connected': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Include Connected Table',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Post the connected-players table.',
+    ),
+    'discord_webhook_include_disconnected': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Include Disconnected Table',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Post the disconnected-players table.',
+    ),
+    'discord_webhook_max_rows_per_table': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Max Rows Per Table',
+        setting_type=SettingType.INTEGER,
+        tooltip='Maximum rows shown per table (extra rows are summarized as "… and N more").',
+        min_value=1,
+        max_value=100,
+        step=1,
+    ),
+    'discord_webhook_format': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Output Format',
+        setting_type=SettingType.ENUM,
+        tooltip=(
+            'Desktop: wide bordered table inside a code block (best on PC).\n'
+            'Mobile: per-player markdown blocks rendered inside a Discord embed (readable on phone Discord).'
+        ),
+        allowed_values=('Desktop', 'Mobile'),
+    ),
+    'discord_webhook_columns_connected': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Connected Columns',
+        setting_type=SettingType.COLUMN_TUPLE,
+        tooltip='Columns shown in the connected-players webhook table.',
+        allowed_columns_attr='GUI_ALL_CONNECTED_COLUMNS',
+    ),
+    'discord_webhook_columns_disconnected': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Disconnected Columns',
+        setting_type=SettingType.COLUMN_TUPLE,
+        tooltip='Columns shown in the disconnected-players webhook table.',
+        allowed_columns_attr='GUI_ALL_DISCONNECTED_COLUMNS',
+    ),
+    'discord_webhook_message_ids': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Message IDs (internal)',
+        setting_type=SettingType.STRING,
+        tooltip='Internal storage for webhook message IDs (do not edit).',
+        hidden=True,
     ),
     'updater_channel': SettingMeta(
         category='Launcher',
@@ -317,5 +404,19 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'discord_presence': True,
     'discord_presence_title': "Sniffin' my babies IPs",
     'show_discord_popup': True,
+    'discord_webhook_enabled': False,
+    'discord_webhook_url': None,
+    'discord_webhook_refresh_interval': 15,
+    'discord_webhook_include_connected': True,
+    'discord_webhook_include_disconnected': True,
+    'discord_webhook_max_rows_per_table': 25,
+    'discord_webhook_format': 'Desktop',
+    'discord_webhook_columns_connected': (
+        'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Rejoin',
+    ),
+    'discord_webhook_columns_disconnected': (
+        'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Seen',
+    ),
+    'discord_webhook_message_ids': None,
     'updater_channel': 'Stable',
 }

@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
+from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
@@ -120,6 +121,11 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         root_layout.addLayout(button_row)
 
         self._load_current_values()
+        # Force the webhook enable cascade once even if the value matches the
+        # default (in which case `setChecked` would not fire `toggled`).
+        webhook_enabled_widget = self._widgets.get('discord_webhook_enabled')
+        if isinstance(webhook_enabled_widget, QCheckBox):
+            webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())  # pyright: ignore[reportUnknownMemberType]
 
     # ------------------------------------------------------------------
     # Tab / widget construction
@@ -143,22 +149,15 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         for key, meta in SETTING_METADATA.items():
             if meta.category != category:
                 continue
+            if meta.hidden:
+                continue
             if meta.group:
                 grouped.setdefault(meta.group, []).append((key, meta))
             else:
                 ungrouped.append((key, meta))
 
-        # For the Discord tab, add a join button at the top.
-        if category == 'Discord':
-            join_row = QHBoxLayout()
-            join_button = QPushButton('🎮 Join Discord Server')
-            join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
-            join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
-            join_row.addStretch()
-            join_row.addWidget(join_button)
-            join_row.addStretch()
-            outer_layout.addLayout(join_row)
+        # For the Discord tab, the join button is appended at the bottom of
+        # the page (see below). Other tabs have no extra page-level widgets.
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
@@ -171,6 +170,12 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         # Render each group as a titled QGroupBox.
         for group_name, items in grouped.items():
+            # The Discord Webhook group has a custom layout (masked URL, enable
+            # cascade, reset-messages, automod warning).
+            if category == 'Discord' and group_name == 'Server Webhook':
+                outer_layout.addWidget(self._build_discord_webhook_group(items))
+                continue
+
             group_box = QGroupBox(group_name)
             group_form = QFormLayout(group_box)
             group_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -178,6 +183,18 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             for key, meta in items:
                 self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
+
+        # Append the Discord join button at the bottom of the Discord tab.
+        if category == 'Discord':
+            join_row = QHBoxLayout()
+            join_button = QPushButton('\U0001f3ae Join Session Sniffer Discord Server')
+            join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
+            join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
+            join_row.addStretch()
+            join_row.addWidget(join_button)
+            join_row.addStretch()
+            outer_layout.addLayout(join_row)
 
         outer_layout.addStretch()
         scroll.setWidget(container)
@@ -196,7 +213,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
-        widget = self._create_widget(meta)
+        widget = self._create_widget(key, meta)
         self._widgets[key] = widget
 
         label_text = meta.display_label
@@ -209,9 +226,161 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             tooltip += ' (requires capture restart)' if tooltip else 'Requires capture restart'
         if tooltip:
             label.setToolTip(tooltip)
+
         form.addRow(label, widget)
 
-    def _create_widget(self, meta: SettingMeta) -> QWidget:  # pylint: disable=too-many-return-statements
+    def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:  # pylint: disable=too-many-locals,too-many-statements
+        """Build the custom Discord Webhook group with masked URL and enable cascade."""
+        group_box = QGroupBox('Server Webhook')
+        outer = QVBoxLayout(group_box)
+        outer.setSpacing(8)
+
+        meta_by_key = dict(items)
+
+        # Top form: Enabled + Webhook URL row (with Show + Test buttons).
+        top_form = QFormLayout()
+        top_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        top_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        # Enabled checkbox
+        enabled_meta = meta_by_key.get('discord_webhook_enabled')
+        if enabled_meta is not None:
+            enabled_widget = self._create_widget('discord_webhook_enabled', enabled_meta)
+            self._widgets['discord_webhook_enabled'] = enabled_widget
+            enabled_label = QLabel(enabled_meta.display_label + ':')
+            if enabled_meta.tooltip:
+                enabled_label.setToolTip(enabled_meta.tooltip)
+            top_form.addRow(enabled_label, enabled_widget)
+
+        # URL row: QLineEdit (masked) + 'Show' toggle + 'Test' button
+        url_meta = meta_by_key.get('discord_webhook_url')
+        url_line: QLineEdit | None = None
+        if url_meta is not None:
+            url_line = QLineEdit()
+            url_line.setEchoMode(QLineEdit.EchoMode.Password)
+            url_line.setPlaceholderText('https://discord.com/api/webhooks/<id>/<token>')
+            url_line.setToolTip(
+                url_meta.tooltip
+                or 'Discord channel webhook URL. Treat this like a password \u2014 anyone with it can post to the channel.',
+            )
+            self._widgets['discord_webhook_url'] = url_line
+
+            url_row = QWidget()
+            url_row_layout = QHBoxLayout(url_row)
+            url_row_layout.setContentsMargins(0, 0, 0, 0)
+            url_row_layout.setSpacing(6)
+            url_row_layout.addWidget(url_line, 1)
+
+            show_button = QPushButton('\U0001f441 Show')
+            show_button.setCheckable(True)
+            show_button.setToolTip('Reveal or hide the webhook URL')
+            show_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+            show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))  # pyright: ignore[reportUnknownMemberType]
+            url_row_layout.addWidget(show_button)
+
+            test_button = QPushButton('\U0001f527 Test')
+            test_button.setToolTip('Send a one-time test message to this webhook URL')
+            test_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+            test_button.clicked.connect(partial(self._test_webhook, url_line))  # pyright: ignore[reportUnknownMemberType]
+            url_row_layout.addWidget(test_button)
+
+            url_label = QLabel(url_meta.display_label + ':')
+            url_label.setToolTip(url_line.toolTip())
+            top_form.addRow(url_label, url_row)
+
+        outer.addLayout(top_form)
+
+        # Remaining settings (refresh interval, include flags, max rows) in a
+        # separate form so we can disable them all when 'Enabled' is unchecked.
+        details_widget = QWidget()
+        details_form = QFormLayout(details_widget)
+        details_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        details_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        details_form.setContentsMargins(0, 0, 0, 0)
+
+        for key, meta in items:
+            if key in ('discord_webhook_enabled', 'discord_webhook_url'):
+                continue
+            self._add_setting_row(details_form, key, meta)
+
+        outer.addWidget(details_widget)
+
+        # Reset Stored Messages button (separate row, also gated on enabled).
+        reset_msgs_row = QHBoxLayout()
+        reset_msgs_row.addStretch()
+        reset_msgs_button = QPushButton('\U0001f5d1 Reset Stored Messages')
+        reset_msgs_button.setToolTip(
+            'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
+            'Use this after changing channels or after Wick/automod deletes the old messages.',
+        )
+        reset_msgs_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        reset_msgs_button.clicked.connect(self._reset_stored_messages)  # pyright: ignore[reportUnknownMemberType]
+        reset_msgs_row.addWidget(reset_msgs_button)
+        outer.addLayout(reset_msgs_row)
+
+        # Footer note about automod / Wick.
+        note = QLabel(
+            '\u26a0 If your server runs Wick or another automod with a "wall of text" filter, '
+            'whitelist this webhook (or its channel) to prevent the messages \u2014 and the webhook itself \u2014 from being deleted.',
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet('color: #888; font-size: 11px;')
+        outer.addWidget(note)
+
+        # Wire enable cascade.
+        if enabled_meta is not None:
+            enabled_cb = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
+            enabled_cb.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))  # pyright: ignore[reportUnknownMemberType]
+
+        return group_box
+
+    def _on_webhook_enabled_toggled(self, details_widget: QWidget, url_line: QLineEdit | None, checked: bool) -> None:  # noqa: FBT001
+        """Enable/disable child webhook fields based on the master checkbox."""
+        details_widget.setEnabled(checked)
+        if url_line is not None:
+            url_line.setEnabled(checked)
+
+    def _toggle_url_visibility(self, url_line: QLineEdit, show_button: QPushButton, checked: bool) -> None:  # noqa: FBT001
+        """Toggle masked/plain echo for the webhook URL."""
+        if checked:
+            url_line.setEchoMode(QLineEdit.EchoMode.Normal)
+            show_button.setText('\U0001f648 Hide')
+        else:
+            url_line.setEchoMode(QLineEdit.EchoMode.Password)
+            show_button.setText('\U0001f441 Show')
+
+    def _reset_stored_messages(self) -> None:
+        """Clear persisted Discord webhook message IDs so the next post creates new messages."""
+        if Settings.discord_webhook_message_ids in (None, ''):
+            QMessageBox.information(self, TITLE, 'No stored Discord messages to reset.')
+            return
+        confirm = QMessageBox.question(
+            self,
+            TITLE,
+            'Forget the IDs of the two posted Discord messages?\n\n'
+            'The next refresh will create two fresh messages instead of editing the old ones.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        Settings.discord_webhook_message_ids = None
+        Settings.rewrite_settings_file()
+        QMessageBox.information(self, TITLE, 'Stored Discord message IDs cleared.')
+
+    def _test_webhook(self, url_widget: QLineEdit) -> None:
+        """Send a test message to the URL currently in the URL widget."""
+        url = url_widget.text().strip()
+        if not url:
+            QMessageBox.warning(self, TITLE, 'Please enter a Discord webhook URL first.')
+            return
+        ok, message = send_test_message(url)
+        if ok:
+            QMessageBox.information(self, TITLE, message)
+        else:
+            QMessageBox.critical(self, TITLE, message)
+
+    def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:  # pylint: disable=too-many-return-statements
         """Return the appropriate input widget for a single setting."""
         if meta.setting_type == SettingType.BOOLEAN:
             return self._create_boolean_widget(meta)
@@ -226,7 +395,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         if meta.setting_type == SettingType.BOOL_OR_ENUM:
             return self._create_bool_or_enum_widget(meta)
         if meta.setting_type == SettingType.COLUMN_TUPLE:
-            return self._create_column_tuple_widget(meta)
+            return self._create_column_tuple_widget(key, meta)
         return QLineEdit()
 
     def _create_boolean_widget(self, meta: SettingMeta) -> QCheckBox:
@@ -282,10 +451,11 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             combo.setToolTip(meta.tooltip)
         return combo
 
-    def _create_column_tuple_widget(self, meta: SettingMeta) -> QGroupBox:
+    def _create_column_tuple_widget(self, key: str, meta: SettingMeta) -> QGroupBox:
         """Create a scrollable multi-column grid of checkboxes for column visibility."""
         allowed_attr = meta.allowed_columns_attr or ''
         allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
+        default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
 
         group = QGroupBox()
         group.setFlat(True)
@@ -313,6 +483,8 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         btn_select_all = QPushButton('Select All')
         btn_deselect_all = QPushButton('Deselect All')
+        btn_reset = QPushButton('Reset')
+        btn_reset.setToolTip('Reset to default selected columns')
         compact_btn_style = (
             'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
             ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
@@ -325,18 +497,20 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
             ' border: 1px solid rgba(41,128,185,1.0); }'
         )
-        for btn in (btn_select_all, btn_deselect_all):
+        for btn in (btn_select_all, btn_deselect_all, btn_reset):
             btn.setStyleSheet(compact_btn_style)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         btn_select_all.clicked.connect(lambda: self._set_all_checkboxes(inner, checked=True))
         btn_deselect_all.clicked.connect(lambda: self._set_all_checkboxes(inner, checked=False))
+        btn_reset.clicked.connect(lambda: self._set_checkboxes_to(inner, default_columns))
 
         btn_row = QHBoxLayout()
         btn_row.setContentsMargins(0, 0, 0, 0)
         btn_row.setSpacing(6)
         btn_row.addWidget(btn_select_all)
         btn_row.addWidget(btn_deselect_all)
+        btn_row.addWidget(btn_reset)
         btn_row.addStretch()
 
         outer = QVBoxLayout(group)
@@ -351,6 +525,13 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         """Set all QCheckBox children of *container* to *checked*."""
         for cb in container.findChildren(QCheckBox):
             cb.setChecked(checked)
+
+    @staticmethod
+    def _set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
+        """Check exactly the QCheckBox children whose objectName is in *selected*."""
+        wanted = set(selected)
+        for cb in container.findChildren(QCheckBox):
+            cb.setChecked(cb.objectName() in wanted)
 
     # ------------------------------------------------------------------
     # Load / save / reset
@@ -477,6 +658,14 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
             elif key == 'discord_presence_title' and isinstance(value, str) and len(value) == 1:
                 errors.append('Presence Title must be either empty (to disable) or at least 2 characters long.')
+
+        if values.get('discord_webhook_enabled'):
+            url_value = values.get('discord_webhook_url')
+            if not isinstance(url_value, str) or not is_valid_webhook_url(url_value):
+                errors.append(
+                    'Discord Webhook is enabled but the Webhook URL is missing or invalid. '
+                    'Expected format: https://discord.com/api/webhooks/<id>/<token>',
+                )
 
         if not any((
             values.get('gui_columns_datetime_show_date'),

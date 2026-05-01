@@ -64,6 +64,16 @@ class SettingsIniModel(BaseModel):
     DISCORD_PRESENCE: bool
     DISCORD_PRESENCE_TITLE: str
     SHOW_DISCORD_POPUP: bool
+    DISCORD_WEBHOOK_ENABLED: bool
+    DISCORD_WEBHOOK_URL: str | None
+    DISCORD_WEBHOOK_REFRESH_INTERVAL: int
+    DISCORD_WEBHOOK_INCLUDE_CONNECTED: bool
+    DISCORD_WEBHOOK_INCLUDE_DISCONNECTED: bool
+    DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE: int
+    DISCORD_WEBHOOK_FORMAT: str
+    DISCORD_WEBHOOK_COLUMNS_CONNECTED: tuple[str, ...]
+    DISCORD_WEBHOOK_COLUMNS_DISCONNECTED: tuple[str, ...]
+    DISCORD_WEBHOOK_MESSAGE_IDS: str | None
     UPDATER_CHANNEL: str | None
 
     # --- Internal context helpers ---
@@ -83,6 +93,9 @@ class SettingsIniModel(BaseModel):
         'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
         'DISCORD_PRESENCE',
         'SHOW_DISCORD_POPUP',
+        'DISCORD_WEBHOOK_ENABLED',
+        'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
+        'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
     })
 
     @staticmethod
@@ -313,6 +326,28 @@ class SettingsIniModel(BaseModel):
                 allowed = cast('tuple[str, ...]', obj)
         return cls._parse_shown_columns(value, allowed, info)
 
+    @field_validator('DISCORD_WEBHOOK_COLUMNS_CONNECTED', mode='before')
+    @classmethod
+    def _parse_webhook_columns_connected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
+        context = cls._get_context(info)
+        allowed: tuple[str, ...] = ()
+        if context is not None:
+            obj = context.get('webhook_all_connected_columns')
+            if isinstance(obj, tuple):
+                allowed = cast('tuple[str, ...]', obj)
+        return cls._parse_shown_columns(value, allowed, info)
+
+    @field_validator('DISCORD_WEBHOOK_COLUMNS_DISCONNECTED', mode='before')
+    @classmethod
+    def _parse_webhook_columns_disconnected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
+        context = cls._get_context(info)
+        allowed: tuple[str, ...] = ()
+        if context is not None:
+            obj = context.get('webhook_all_disconnected_columns')
+            if isinstance(obj, tuple):
+                allowed = cast('tuple[str, ...]', obj)
+        return cls._parse_shown_columns(value, allowed, info)
+
     @classmethod
     def _parse_shown_columns(cls, value: object, allowed: tuple[str, ...], info: ValidationInfo) -> tuple[str, ...]:
         if isinstance(value, tuple):
@@ -430,6 +465,93 @@ class SettingsIniModel(BaseModel):
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, str) else ''
 
+    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', mode='before')
+    @classmethod
+    def _parse_optional_string(cls, value: object, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                none_value, need_rewrite = custom_str_to_nonetype(value)
+            except InvalidNoneTypeValueError:
+                return value
+            if need_rewrite:
+                cls._record_rewrite(info, 'None')
+            return none_value
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str | None', cls._get_default_for_field(info))
+
+    @field_validator('DISCORD_WEBHOOK_REFRESH_INTERVAL', mode='before')
+    @classmethod
+    def _parse_webhook_refresh_interval(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 5
+        max_val = 300
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 15
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except (ValueError, TypeError):
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE', mode='before')
+    @classmethod
+    def _parse_webhook_max_rows(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 1
+        max_val = 100
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 25
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except (ValueError, TypeError):
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('DISCORD_WEBHOOK_FORMAT', mode='before')
+    @classmethod
+    def _parse_webhook_format(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Desktop', 'Mobile'))
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
     @field_validator('UPDATER_CHANNEL', mode='before')
     @classmethod
     def _parse_updater_channel(cls, value: object, info: ValidationInfo) -> str | None:
@@ -487,6 +609,8 @@ class SettingsIniModel(BaseModel):
         all_setting_names: tuple[str, ...],
         toggleable_connected_columns: tuple[str, ...],
         toggleable_disconnected_columns: tuple[str, ...],
+        webhook_all_connected_columns: tuple[str, ...],
+        webhook_all_disconnected_columns: tuple[str, ...],
         all_third_party_servers: tuple[str, ...],
         max_gui_table_rows_per_page: int,
         min_gui_disconnected_players_timer: int,
@@ -499,6 +623,8 @@ class SettingsIniModel(BaseModel):
             all_setting_names: Tuple of known setting names (UPPER_CASE).
             toggleable_connected_columns: Allowed column names for connected shown columns.
             toggleable_disconnected_columns: Allowed column names for disconnected shown columns.
+            webhook_all_connected_columns: Allowed column names for the connected webhook table.
+            webhook_all_disconnected_columns: Allowed column names for the disconnected webhook table.
             all_third_party_servers: All third-party server names for block list.
             max_gui_table_rows_per_page: Maximum allowed rows per page.
             min_gui_disconnected_players_timer: Minimum allowed disconnected timer.
@@ -522,6 +648,8 @@ class SettingsIniModel(BaseModel):
             'defaults': dict(defaults),
             'toggleable_connected_columns': toggleable_connected_columns,
             'toggleable_disconnected_columns': toggleable_disconnected_columns,
+            'webhook_all_connected_columns': webhook_all_connected_columns,
+            'webhook_all_disconnected_columns': webhook_all_disconnected_columns,
             'all_third_party_servers': all_third_party_servers,
             'max_gui_table_rows_per_page': max_gui_table_rows_per_page,
             'min_gui_disconnected_players_timer': min_gui_disconnected_players_timer,
