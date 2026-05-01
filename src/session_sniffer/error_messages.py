@@ -58,9 +58,9 @@ def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...
     Raises:
         TypeError: If `obj` is not an instance of `expected_types`.
     """
-    if isinstance(obj, expected_types):
-        return obj  # type: ignore[return-value]
-    raise TypeError(format_type_error(obj, expected_types))
+    if not isinstance(obj, expected_types):
+        raise TypeError(format_type_error(obj, expected_types))
+    return obj  # type: ignore[return-value]
 
 
 def format_invalid_datetime_columns_settings_message() -> str:

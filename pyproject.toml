@@ -73,6 +73,10 @@ strict = true
 module = "session_sniffer.discord.rpc"
 disable_error_code = ["no-untyped-call"]
 
+[[tool.mypy.overrides]]
+module = "session_sniffer.error_messages"
+warn_unused_ignores = false
+
 
 [tool.pylint.master]
 enable = "all"
