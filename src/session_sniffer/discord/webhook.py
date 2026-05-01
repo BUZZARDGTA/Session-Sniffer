@@ -429,6 +429,8 @@ class DiscordWebhookSender:
                     empty_label=empty_label,
                     color=color,
                 )
+                # Always include 'content' (empty string) so that if the
+                # message previously had a Desktop text body it is cleared.
                 request_payload: dict[str, object] = {
                     'content': '',
                     'embeds': [embed],
@@ -442,8 +444,11 @@ class DiscordWebhookSender:
                     max_rows=max_rows,
                     empty_label=empty_label,
                 )
+                # Always include 'embeds': [] so that if the message previously
+                # had a Mobile embed it is removed when switching to Desktop.
                 request_payload = {
                     'content': content,
+                    'embeds': [],
                     # Disable @everyone/@here/role/user pings just in case a username contains them.
                     'allowed_mentions': {'parse': []},
                 }
