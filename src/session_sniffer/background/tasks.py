@@ -24,7 +24,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP
-from session_sniffer.rendering_core.types import CaptureState, TsharkStats
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
 
@@ -651,9 +651,9 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
 
 def check_global_protections(player: Player) -> None:
-    """Check and apply global protection settings from Protections Manager.
+    """Check and apply global protection settings from Detections Manager.
 
-    This function evaluates various protection rules configured in the Protections Manager
+    This function evaluates various protection rules configured in the Detections Manager
     and triggers appropriate actions when conditions are met.
 
     Args:

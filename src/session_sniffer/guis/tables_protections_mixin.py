@@ -1,36 +1,42 @@
-"""Right-click Protections menu helpers for session tables."""
+"""Right-click Protections menu helpers for manual process suspension."""
 
-from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.player.protections import GUIProtectionSettings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     from PyQt6.QtGui import QAction
     from PyQt6.QtWidgets import QMenu
 
     from session_sniffer.models.player import Player
 
-_PLACEHOLDER = '...'
+_CTX_REASON_PREFIX = 'manual_ctx:'
 
 
-def _toggle_protection_list(target_list: list[str], value: str, *, add: bool) -> None:
-    """Add or remove *value* from a GUIProtectionSettings list and persist."""
-    if add:
-        if value not in target_list:
-            target_list.append(value)
-    else:
-        with suppress(ValueError):
-            target_list.remove(value)
-    GUIProtectionSettings.save_to_settings()
+def _manual_reason_key(ip: str) -> str:
+    return f'{_CTX_REASON_PREFIX}{ip}'
 
 
-def _safe_str(value: object) -> str | None:
-    """Return *value* as `str` if it is a non-placeholder string, else `None`."""
-    if isinstance(value, str) and value and value != _PLACEHOLDER:
-        return value
+def _get_any_process_path() -> Path | None:
+    for attr in (
+        'player_join_process_path',
+        'player_rejoin_process_path',
+        'player_leave_process_path',
+        'mobile_suspend_process_path',
+        'vpn_suspend_process_path',
+        'hosting_suspend_process_path',
+        'country_block_process_path',
+        'isp_block_process_path',
+        'asn_block_process_path',
+        'gta5_relay_process_path',
+    ):
+        path = cast('Path | None', getattr(GUIProtectionSettings, attr, None))
+        if path is not None:
+            return path
     return None
 
 
@@ -40,65 +46,39 @@ def build_protections_menu(
     player: Player,
 ) -> None:
     """Build a Protections submenu for a single player."""
-    country_name = _safe_str(player.iplookup.geolite2.country)
-    isp = _safe_str(player.iplookup.ipapi.isp)
-    as_name = _safe_str(player.iplookup.ipapi.as_name)
-    asn_geolite2 = _safe_str(player.iplookup.geolite2.asn)
+    process_path = _get_any_process_path()
+    if process_path is None:
+        action = add_action(
+            menu,
+            'No process path configured',
+            tooltip='Configure a process path in the Detections Manager to enable protections.',
+            handler=None,
+        )
+        action.setEnabled(False)
+        return
 
-    # --- Country ---
-    if country_name:
-        country_in_list = country_name in GUIProtectionSettings.country_block_list
-        if country_in_list:
-            add_action(
-                menu,
-                f'\u2705 Remove Country ({country_name})',
-                tooltip=f'Remove {country_name} from the country block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.country_block_list, country_name, add=False),
-            )
-        else:
-            add_action(
-                menu,
-                f'Add Country ({country_name})',
-                tooltip=f'Add {country_name} to the country block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.country_block_list, country_name, add=True),
-            )
+    reason_key = _manual_reason_key(player.ip)
+    is_suspended = ProcessSuspendManager.has_reason(reason_key)
 
-    # --- ISP ---
-    if isp:
-        isp_in_list = isp in GUIProtectionSettings.isp_block_list
-        if isp_in_list:
-            add_action(
-                menu,
-                f'\u2705 Remove ISP ({isp})',
-                tooltip=f'Remove ISP "{isp}" from the ISP block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.isp_block_list, isp, add=False),
-            )
-        else:
-            add_action(
-                menu,
-                f'Add ISP ({isp})',
-                tooltip=f'Add ISP "{isp}" to the ISP block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.isp_block_list, isp, add=True),
-            )
-
-    # --- ASN ---
-    asn_value = as_name or asn_geolite2
-    if asn_value:
-        asn_in_list = asn_value in GUIProtectionSettings.asn_block_list
-        if asn_in_list:
-            add_action(
-                menu,
-                f'\u2705 Remove ASN ({asn_value})',
-                tooltip=f'Remove ASN "{asn_value}" from the ASN block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.asn_block_list, asn_value, add=False),
-            )
-        else:
-            add_action(
-                menu,
-                f'Add ASN ({asn_value})',
-                tooltip=f'Add ASN "{asn_value}" to the ASN block list.',
-                handler=lambda: _toggle_protection_list(GUIProtectionSettings.asn_block_list, asn_value, add=True),
-            )
+    if is_suspended:
+        add_action(
+            menu,
+            '\u2705 Release Suspension',
+            tooltip=f'Remove the manual suspension for {player.ip}.',
+            handler=lambda: ProcessSuspendManager.release_reason_global(reason_key),
+        )
+    else:
+        add_action(
+            menu,
+            '\U0001f6e1\ufe0f Suspend Process (Manual)',
+            tooltip=f'Manually suspend the game process for player {player.ip}.',
+            handler=lambda: ProcessSuspendManager.request_suspend(
+                process_path=process_path,
+                reason_key=reason_key,
+                left_event=player.left_event,
+                duration='Manual',
+            ),
+        )
 
 
 def build_protections_menu_multi(
@@ -107,119 +87,48 @@ def build_protections_menu_multi(
     players: list[Player],
 ) -> None:
     """Build a Protections submenu for multiple selected players."""
-    # Collect unique values from all players
-    countries: list[str] = sorted({
-        cn
-        for p in players
-        if (cn := _safe_str(p.iplookup.geolite2.country))
-    })
-    isps: list[str] = sorted({
-        i
-        for p in players
-        if (i := _safe_str(p.iplookup.ipapi.isp))
-    })
-    asns: list[str] = sorted({
-        a
-        for p in players
-        if (a := _safe_str(p.iplookup.ipapi.as_name) or _safe_str(p.iplookup.geolite2.asn))
-    })
+    process_path = _get_any_process_path()
+    if process_path is None:
+        action = add_action(
+            menu,
+            'No process path configured',
+            tooltip='Configure a process path in the Detections Manager to enable protections.',
+            handler=None,
+        )
+        action.setEnabled(False)
+        return
 
-    has_items = False
+    not_suspended = [p for p in players if not ProcessSuspendManager.has_reason(_manual_reason_key(p.ip))]
+    suspended = [p for p in players if ProcessSuspendManager.has_reason(_manual_reason_key(p.ip))]
 
-    # --- Country ---
-    new_countries = [c for c in countries if c not in GUIProtectionSettings.country_block_list]
-    existing_countries = [c for c in countries if c in GUIProtectionSettings.country_block_list]
-    if new_countries or existing_countries:
-        has_items = True
-    if new_countries:
-        def _add_countries(names: list[str] = new_countries) -> None:
-            for c in names:
-                if c not in GUIProtectionSettings.country_block_list:
-                    GUIProtectionSettings.country_block_list.append(c)
-            GUIProtectionSettings.save_to_settings()
+    if not_suspended:
+        def _suspend_all() -> None:
+            for p in not_suspended:
+                ProcessSuspendManager.request_suspend(
+                    process_path=process_path,
+                    reason_key=_manual_reason_key(p.ip),
+                    left_event=p.left_event,
+                    duration='Manual',
+                )
 
         add_action(
             menu,
-            f'Add {len(new_countries)} Country/Countries to Block List',
-            tooltip=f'Add {", ".join(new_countries)} to the country block list.',
-            handler=_add_countries,
-        )
-    if existing_countries:
-        def _remove_countries(names: list[str] = existing_countries) -> None:
-            for c in names:
-                with suppress(ValueError):
-                    GUIProtectionSettings.country_block_list.remove(c)
-            GUIProtectionSettings.save_to_settings()
-
-        add_action(
-            menu,
-            f'\u2705 Remove {len(existing_countries)} Country/Countries from Block List',
-            tooltip=f'Remove {", ".join(existing_countries)} from the country block list.',
-            handler=_remove_countries,
+            f'\U0001f6e1\ufe0f Suspend {len(not_suspended)} Player(s) (Manual)',
+            tooltip='Manually suspend the game process for the selected players.',
+            handler=_suspend_all,
         )
 
-    # --- ISP ---
-    new_isps = [i for i in isps if i not in GUIProtectionSettings.isp_block_list]
-    existing_isps = [i for i in isps if i in GUIProtectionSettings.isp_block_list]
-    if new_isps or existing_isps:
-        if has_items:
-            menu.addSeparator()
-        has_items = True
-    if new_isps:
-        def _add_isps(isp_list: list[str] = new_isps) -> None:
-            for i in isp_list:
-                if i not in GUIProtectionSettings.isp_block_list:
-                    GUIProtectionSettings.isp_block_list.append(i)
-            GUIProtectionSettings.save_to_settings()
-
-        add_action(
-            menu,
-            f'Add {len(new_isps)} ISP(s) to Block List',
-            tooltip=f'Add {", ".join(new_isps)} to the ISP block list.',
-            handler=_add_isps,
-        )
-    if existing_isps:
-        def _remove_isps(isp_list: list[str] = existing_isps) -> None:
-            for i in isp_list:
-                with suppress(ValueError):
-                    GUIProtectionSettings.isp_block_list.remove(i)
-            GUIProtectionSettings.save_to_settings()
-
-        add_action(
-            menu,
-            f'\u2705 Remove {len(existing_isps)} ISP(s) from Block List',
-            tooltip=f'Remove {", ".join(existing_isps)} from the ISP block list.',
-            handler=_remove_isps,
-        )
-
-    # --- ASN ---
-    new_asns = [a for a in asns if a not in GUIProtectionSettings.asn_block_list]
-    existing_asns = [a for a in asns if a in GUIProtectionSettings.asn_block_list]
-    if (new_asns or existing_asns) and has_items:
+    if not_suspended and suspended:
         menu.addSeparator()
-    if new_asns:
-        def _add_asns(asn_list: list[str] = new_asns) -> None:
-            for a in asn_list:
-                if a not in GUIProtectionSettings.asn_block_list:
-                    GUIProtectionSettings.asn_block_list.append(a)
-            GUIProtectionSettings.save_to_settings()
+
+    if suspended:
+        def _release_all(ps: list[Player] = suspended) -> None:
+            for p in ps:
+                ProcessSuspendManager.release_reason_global(_manual_reason_key(p.ip))
 
         add_action(
             menu,
-            f'Add {len(new_asns)} ASN(s) to Block List',
-            tooltip=f'Add {", ".join(new_asns)} to the ASN block list.',
-            handler=_add_asns,
-        )
-    if existing_asns:
-        def _remove_asns(asn_list: list[str] = existing_asns) -> None:
-            for a in asn_list:
-                with suppress(ValueError):
-                    GUIProtectionSettings.asn_block_list.remove(a)
-            GUIProtectionSettings.save_to_settings()
-
-        add_action(
-            menu,
-            f'\u2705 Remove {len(existing_asns)} ASN(s) from Block List',
-            tooltip=f'Remove {", ".join(existing_asns)} from the ASN block list.',
-            handler=_remove_asns,
+            f'\u2705 Release Suspension for {len(suspended)} Player(s)',
+            tooltip='Remove manual suspension for the selected suspended players.',
+            handler=_release_all,
         )

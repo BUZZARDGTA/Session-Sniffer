@@ -1,4 +1,4 @@
-"""Protections Manager dialog for configuring advanced per-detection protection rules."""  # pylint: disable=too-many-lines
+"""Detections Manager dialog for configuring advanced per-detection protection rules."""  # pylint: disable=too-many-lines
 
 import json
 from pathlib import Path
@@ -612,13 +612,13 @@ class _ComboRuleEditorDialog(QDialog):
         )
 
 
-class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-attributes,too-few-public-methods
-    """Comprehensive protections manager with VPN, IP range, and advanced threat detection capabilities."""
+class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+    """Comprehensive detections manager with VPN, IP range, and advanced threat detection capabilities."""
 
     def __init__(self, parent: QWidget) -> None:  # pylint: disable=too-many-statements
-        """Initialize the Protections Manager dialog."""
+        """Initialize the Detections Manager dialog."""
         super().__init__(parent)
-        self.setWindowTitle(f'{TITLE} - Protections Manager')
+        self.setWindowTitle(f'{TITLE} - Detections Manager')
         self.setMinimumSize(720, 560)
         self.resize(800, 640)
         self.setWindowModality(Qt.WindowModality.NonModal)

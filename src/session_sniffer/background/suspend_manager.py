@@ -160,6 +160,23 @@ class ProcessSuspendManager:
         ).start()
 
     @classmethod
+    def has_reason(cls, reason_key: str) -> bool:
+        """Return ``True`` if any tracked process has an active reason with this exact key."""
+        with cls._lock:
+            return any(reason_key in state.reasons for state in cls._states.values())
+
+    @classmethod
+    def release_reason_global(cls, reason_key: str) -> None:
+        """Remove *reason_key* from every tracked process.
+
+        The monitor thread for each affected process will resume it once all
+        remaining reasons are satisfied.
+        """
+        with cls._lock:
+            for state in cls._states.values():
+                state.reasons.pop(reason_key, None)
+
+    @classmethod
     def shutdown(cls) -> None:
         """Resume every suspended process and stop all monitor threads.
 

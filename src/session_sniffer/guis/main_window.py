@@ -46,13 +46,13 @@ from session_sniffer.core import terminate_script
 from session_sniffer.guis.avg_session_duration import AvgSessionDurationWindow
 from session_sniffer.guis.capture_health_window import CaptureHealthWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
+from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
 from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_heatmap import PortHeatmapWindow
-from session_sniffer.guis.protections_manager import ProtectionsManagerDialog
 from session_sniffer.guis.reconnect_frequency import ReconnectFrequencyWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_summary import SessionSummaryWindow
@@ -82,7 +82,7 @@ from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
+from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -542,7 +542,7 @@ class MainWindow(QMainWindow):
 
         self.capture = capture_holder
         self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips, self)
-        self._protections_manager_window: ProtectionsManagerDialog | None = None
+        self._detections_manager_window: DetectionsManagerDialog | None = None
         self._logs_manager_window: LogsManager | None = None
         self._settings_dialog_window: SettingsDialog | None = None
         self._userip_manager_window: UserIPDatabasesManager | None = None
@@ -594,12 +594,11 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # ----- Protections Manager -----
-        protections_button = QPushButton(' \U0001f6e1\ufe0f Protections Manager ', self)
+        # ----- Detections Manager -----
+        protections_button = QPushButton(' \U0001f6e1\ufe0f Detections Manager ', self)
         protections_button.setToolTip('Configure detection, notifications, and protection rules')
-        protections_button.clicked.connect(self._open_protections_manager)  # pyright: ignore[reportUnknownMemberType]
+        protections_button.clicked.connect(self._open_detections_manager)  # pyright: ignore[reportUnknownMemberType]
         protections_action = cast('QAction', toolbar.addWidget(protections_button))
-        protections_action.setVisible(Settings.capture_program_preset == 'GTA5')
         self._protections_button = protections_button
         self._protections_action = protections_action
 
@@ -617,7 +616,6 @@ class MainWindow(QMainWindow):
         self._player_resolver_action = player_resolver_action
 
         gta5_sep_after_resolver = cast('QAction', toolbar.addSeparator())
-        gta5_sep_after_resolver.setVisible(Settings.capture_program_preset == 'GTA5')
         self._gta5_sep_after_resolver = gta5_sep_after_resolver
 
         # ----- Most Seen Players Leaderboard Button -----
@@ -1217,15 +1215,15 @@ class MainWindow(QMainWindow):
         self._logs_manager_window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None))
         self._logs_manager_window.show()
 
-    def _open_protections_manager(self) -> None:
-        """Open the Protections Manager window, or focus the existing one."""
-        if self._protections_manager_window is not None and self._protections_manager_window.isVisible():
-            self._protections_manager_window.raise_()
-            self._protections_manager_window.activateWindow()
+    def _open_detections_manager(self) -> None:
+        """Open the Detections Manager window, or focus the existing one."""
+        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
+            self._detections_manager_window.raise_()
+            self._detections_manager_window.activateWindow()
             return
-        self._protections_manager_window = ProtectionsManagerDialog(self)
-        self._protections_manager_window.destroyed.connect(lambda: setattr(self, '_protections_manager_window', None))
-        self._protections_manager_window.show()
+        self._detections_manager_window = DetectionsManagerDialog(self)
+        self._detections_manager_window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None))
+        self._detections_manager_window.show()
 
     def _open_player_resolver(self) -> None:
         """Open the Player Resolver window, or focus the existing one."""
@@ -1468,13 +1466,10 @@ class MainWindow(QMainWindow):
     def _update_gta5_toolbar_visibility(self) -> None:
         """Show or hide GTA5-exclusive toolbar items based on current protection support."""
         gta5_preset = Settings.capture_program_preset == 'GTA5'
-        visible = gta5_preset and not CaptureState.is_arp_interface
-        if not visible:
-            SessionHost.clear_session_host_data()
-        self._protections_action.setVisible(gta5_preset)
+        SessionHost.clear_session_host_data()
+        self._protections_action.setVisible(True)
         self._gta5_sep_between.setVisible(gta5_preset)
         self._player_resolver_action.setVisible(gta5_preset)
-        self._gta5_sep_after_resolver.setVisible(gta5_preset)
 
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
