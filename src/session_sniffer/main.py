@@ -36,6 +36,7 @@ from session_sniffer.constants.local import BIN_DIR_PATH, COMBO_RULES_PATH, PROT
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
+from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis.app import app
 from session_sniffer.guis.discord_intro import DiscordIntro
@@ -108,15 +109,10 @@ def main() -> None:
         deps = splash.run_with_spinner(get_dependencies_from_pyproject)
         outdated_packages = splash.run_with_spinner(check_packages_version, deps)
         if outdated_packages:
-            msgbox_message = 'The following packages have version mismatches:\n\n'
-
-            # Iterate over outdated packages and add each package's information to the message box text
-            for package_name, required_version, installed_version in outdated_packages:
-                msgbox_message += f'{package_name} (required {required_version}, installed {installed_version})\n'
-
-            # Add additional message box text
-            msgbox_message += f'\nKeeping your packages synced with "{TITLE}" ensures smooth script execution and prevents compatibility issues.'
-            msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
+            msgbox_message = format_outdated_packages_message(
+                app_title=TITLE,
+                outdated_packages=outdated_packages,
+            )
 
             # Show message box
             msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
@@ -475,9 +471,7 @@ def main() -> None:
         QMessageBox.warning(
             window,
             'Capture Interrupted',
-            'TShark has stopped unexpectedly.\n\n'
-            'This is likely caused by your network adapter being removed or disabled.\n\n'
-            'Please select a network interface to resume capture.',
+            format_capture_interrupted_message(),
         )
         _switch_interface()
 

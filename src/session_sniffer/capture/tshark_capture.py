@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
 
-    from session_sniffer.networking.interface import SelectedInterface
+    from session_sniffer.networking.interface import SelectedInterfaceRow
 
 _EXPECTED_TSHARK_PACKET_FIELD_COUNT = 6
 logger = get_logger(__name__)
@@ -193,7 +193,7 @@ class CaptureConfig:
         display_filter: An optional display filter string for TShark.
         on_capture_lost: An optional callback invoked when TShark exits unexpectedly while capture was running.
     """
-    interface: SelectedInterface
+    interface: SelectedInterfaceRow
     tshark_path: Path
     callback: PacketCallback
     broadcast_support: bool

@@ -14,7 +14,7 @@ from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from session_sniffer.capture.tshark_capture import CaptureHolder
-    from session_sniffer.networking.interface import SelectedInterface
+    from session_sniffer.networking.interface import SelectedInterfaceRow
 
 logger = get_logger(__name__)
 
@@ -22,7 +22,7 @@ ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 
 def arp_spoofing_task(
-    selected_interface: SelectedInterface,
+    selected_interface: SelectedInterfaceRow,
     capture_holder: CaptureHolder,
     stop_event: Event,
 ) -> None:

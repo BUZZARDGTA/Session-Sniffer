@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from session_sniffer.capture.exceptions import TSharkOutputParsingError
 from session_sniffer.guis.interface_selection_dialog import show_interface_selection_dialog
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
-from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, InterfaceIdentity, InterfaceTraffic, SelectedInterface
+from session_sniffer.networking.interface import AllInterfaces, ARPEntry, Interface, InterfaceIdentity, InterfaceTraffic, SelectedInterfaceRow
 from session_sniffer.networking.utils import is_valid_private_ipv4
 from session_sniffer.settings import Settings
 
@@ -131,7 +131,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     before_dialog: Callable[[], None] | None = None,
     mac_lookup: MacLookup | None = None,
     tshark_path: str | None = None,
-) -> SelectedInterface | None:
+) -> SelectedInterfaceRow | None:
     """Select the best matching interface based on current settings.
 
     If auto-selection is not possible or results in ambiguity,
@@ -147,7 +147,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         tshark_path: Optional TShark path for live refresh in the dialog.
 
     Returns:
-        A SelectedInterface snapshot, or None if cancelled.
+        A SelectedInterfaceRow referencing the live Interface, or None if cancelled.
         Note: ip_address can be None or 'N/A' if interface has no IP addresses.
     """
 
@@ -165,30 +165,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
             )
         )
 
-    def _build_selected_interface(interface: Interface, ip_address: str | None, *, is_arp: bool) -> SelectedInterface:
-        mac_address = (
-            next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
-            if is_arp
-            else interface.identity.mac_address
-        )
-        vendor_name = (
-            next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
-            if is_arp
-            else interface.identity.vendor_name
-        )
-
-        return SelectedInterface(
-            name=interface.identity.name,
-            description=interface.identity.description,
-            device_name=interface.identity.device_name,
-            ip_address=ip_address,
-            mac_address=mac_address,
-            vendor_name=vendor_name,
-            gateway_ip=interface.gateway_addresses[0] if interface.gateway_addresses else None,
-            is_arp=is_arp,
-        )
-
-    def _auto_select_best_interface() -> SelectedInterface | None:
+    def _auto_select_best_interface() -> SelectedInterfaceRow | None:
         """Return the best matching interface, or `None` if ambiguous or no match."""
         if not _can_auto_select_interface():
             return None
@@ -258,7 +235,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
             return None
 
         interface, ip_address, is_arp = best_match
-        return _build_selected_interface(interface, ip_address, is_arp=is_arp)
+        return SelectedInterfaceRow(interface=interface, ip_address=ip_address, is_arp=is_arp)
 
     if not force_dialog:
         auto_selected = _auto_select_best_interface()
@@ -268,6 +245,7 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     # If no suitable interface was found, prompt the user to select an interface
     if before_dialog is not None:
         before_dialog()
+    selected_interface: SelectedInterfaceRow | None
     (
         selected_interface,
         arp_spoofing_enabled,

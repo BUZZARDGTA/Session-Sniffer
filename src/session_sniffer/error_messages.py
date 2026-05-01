@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from session_sniffer.networking.interface import SelectedInterface
+    from session_sniffer.networking.interface import SelectedInterfaceRow
     from session_sniffer.player.userip import UserIP
 
 
@@ -308,7 +308,7 @@ def format_userip_duplicate_entries_message(
 
 
 def format_arp_spoofing_failed_message(
-    selected_interface: SelectedInterface,
+    selected_interface: SelectedInterfaceRow,
     exit_code: int | None,
     error_details: str | None,
 ) -> str:
@@ -350,3 +350,69 @@ def format_arp_spoofing_failed_message(
         f'• If adapter "{selected_interface.name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
         f'• If available, try sniffing target device {interface_ip} on a different network adapter (e.g., Wi-Fi instead of Ethernet)'
     )
+
+
+def format_arp_spoofing_gateway_error_message(
+    *,
+    interface_name: str,
+    interface_ip: str,
+    gateway_ip: str | None,
+) -> str:
+    """Format the error shown when ARP spoofing is enabled but the interface has no gateway."""
+    return (
+        'ARP spoofing requires a valid gateway IP for the selected capture interface.\n\n'
+        f'Interface: {interface_name}\n'
+        f'Interface IP: {interface_ip}\n'
+        f'Gateway IP: {gateway_ip or "N/A"}\n\n'
+        'Select a different interface that has a gateway, or disable ARP spoofing.'
+    )
+
+
+def format_capture_interrupted_message() -> str:
+    """Format the warning shown when TShark exits unexpectedly during capture."""
+    return (
+        'TShark has stopped unexpectedly.\n\n'
+        'This is likely caused by your network adapter being removed or disabled.\n\n'
+        'Please select a network interface to resume capture.'
+    )
+
+
+def format_npcap_required_message() -> str:
+    """Format the initial NPCAP-required notification shown when Npcap is missing."""
+    return """
+        NPCAP REQUIRED:
+            Npcap is required for network packet capturing.
+
+        ACTION REQUIRED:
+            1. Npcap download page opened in your browser
+            2. Download and install Npcap from:
+                https://npcap.com/#download
+            3. Follow the installation instructions on the website
+            4. Click OK after installation is complete
+
+        IMPORTANT:
+            Waiting for installation to complete...
+            Please do not close this dialog until Npcap is installed.
+    """
+
+
+def format_npcap_installation_check_message() -> str:
+    """Format the retry/cancel prompt shown while waiting for Npcap to be installed."""
+    return """
+        NPCAP INSTALLATION CHECK:
+            Npcap is still not detected on your system.
+
+        OPTIONS:
+            • Click "Retry" if you have completed the installation
+            • Click "Cancel" to exit the application
+    """
+
+
+def format_npcap_success_message() -> str:
+    """Format the success notification shown when Npcap detection succeeds."""
+    return """
+        SUCCESS:
+            Npcap has been successfully detected!
+
+        The application will now continue normally.
+    """

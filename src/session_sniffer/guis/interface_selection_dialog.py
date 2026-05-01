@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.utils import resize_window_for_screen
-from session_sniffer.networking.interface import Interface, SelectedInterface
+from session_sniffer.networking.interface import Interface, SelectedInterfaceRow
 
 if TYPE_CHECKING:
     from session_sniffer.networking.manuf_lookup import MacLookup
@@ -182,7 +182,7 @@ class InterfaceSelectionDialog(QDialog):
         resize_window_for_screen(self, screen_width, screen_height)
 
         # Custom variables
-        self.selected_interface: SelectedInterface | None = None
+        self.selected_interface: SelectedInterfaceRow | None = None
 
         self._data: _InterfaceData = _InterfaceData(all_interfaces=interfaces)
         self.hide_inactive_enabled = hide_inactive_default
@@ -601,24 +601,9 @@ class InterfaceSelectionDialog(QDialog):
         if selected_row != -1:
             # Retrieve the selected interface data
             interface, ip_address, is_arp = self._data.interface_rows[selected_row]
-            mac_address = (
-                next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
-                if is_arp
-                else interface.identity.mac_address
-            )
-            vendor_name = (
-                next((arp.vendor_name for arp in interface.arp_entries if arp.ip_address == ip_address), None)
-                if is_arp
-                else interface.identity.vendor_name
-            )
-            self.selected_interface = SelectedInterface(
-                name=interface.identity.name,
-                description=interface.identity.description,
-                device_name=interface.identity.device_name,
-                vendor_name=vendor_name,
+            self.selected_interface = SelectedInterfaceRow(
+                interface=interface,
                 ip_address=ip_address,
-                mac_address=mac_address,
-                gateway_ip=interface.gateway_addresses[0] if interface.gateway_addresses else None,
                 is_arp=is_arp,
             )
             self.arp_spoofing_enabled = self._controls.arp_spoofing_checkbox.isChecked()
@@ -636,7 +621,7 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
     *,
     mac_lookup: MacLookup | None = None,
     tshark_path: str | None = None,
-) -> tuple[SelectedInterface | None, bool, bool, bool]:
+) -> tuple[SelectedInterfaceRow | None, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
     Args:

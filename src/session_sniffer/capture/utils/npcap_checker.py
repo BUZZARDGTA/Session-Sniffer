@@ -12,6 +12,11 @@ from threading import Thread
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import SC_EXE
+from session_sniffer.error_messages import (
+    format_npcap_installation_check_message,
+    format_npcap_required_message,
+    format_npcap_success_message,
+)
 from session_sniffer.text_utils import format_triple_quoted_text
 
 NPCAP_SERVICE_QUERY_CMD = (SC_EXE, 'query', 'npcap')
@@ -42,21 +47,7 @@ def ensure_npcap_installed() -> None:
     # Show initial notification
     msgbox.show(
         title=TITLE,
-        text=format_triple_quoted_text("""
-            NPCAP REQUIRED:
-                Npcap is required for network packet capturing.
-
-            ACTION REQUIRED:
-                1. Npcap download page opened in your browser
-                2. Download and install Npcap from:
-                    https://npcap.com/#download
-                3. Follow the installation instructions on the website
-                4. Click OK after installation is complete
-
-            IMPORTANT:
-                Waiting for installation to complete...
-                Please do not close this dialog until Npcap is installed.
-        """),
+        text=format_triple_quoted_text(format_npcap_required_message()),
         style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
     )
 
@@ -64,14 +55,7 @@ def ensure_npcap_installed() -> None:
     while not is_npcap_installed():
         result = msgbox.show(
             title=TITLE,
-            text=format_triple_quoted_text("""
-                NPCAP INSTALLATION CHECK:
-                    Npcap is still not detected on your system.
-
-                OPTIONS:
-                    • Click "Retry" if you have completed the installation
-                    • Click "Cancel" to exit the application
-            """),
+            text=format_triple_quoted_text(format_npcap_installation_check_message()),
             style=msgbox.Style.MB_RETRYCANCEL | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_DEFBUTTON1,
         )
 
@@ -84,12 +68,7 @@ def ensure_npcap_installed() -> None:
     def show_success_message() -> None:
         msgbox.show(
             title=TITLE,
-            text=format_triple_quoted_text("""
-                SUCCESS:
-                    Npcap has been successfully detected!
-
-                The application will now continue normally.
-            """),
+            text=format_triple_quoted_text(format_npcap_success_message()),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
         )
 

@@ -4,6 +4,7 @@ This module contains custom exception classes for packet capture operations.
 """
 
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
+from session_sniffer.error_messages import format_arp_spoofing_gateway_error_message
 
 
 class TSharkError(Exception):
@@ -186,11 +187,9 @@ class MissingGatewayIPForARPSpoofingError(Exception):
         self.interface_name = interface_name
         self.interface_ip = interface_ip
         self.gateway_ip = gateway_ip
-        self.msgbox_text = (
-            'ARP spoofing requires a valid gateway IP for the selected capture interface.\n\n'
-            f'Interface: {interface_name}\n'
-            f'Interface IP: {interface_ip}\n'
-            f'Gateway IP: {gateway_ip or "N/A"}\n\n'
-            'Select a different interface that has a gateway, or disable ARP spoofing.'
+        self.msgbox_text = format_arp_spoofing_gateway_error_message(
+            interface_name=interface_name,
+            interface_ip=interface_ip,
+            gateway_ip=gateway_ip,
         )
         super().__init__(self.msgbox_text)

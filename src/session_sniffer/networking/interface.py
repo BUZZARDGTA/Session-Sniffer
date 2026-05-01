@@ -1,7 +1,7 @@
 """Network interface models and registry.
 
 This module provides dataclasses and utilities for managing network interface information,
-including the Interface class, SelectedInterface, ARPEntry, and the AllInterfaces registry.
+including the Interface class, SelectedInterfaceRow, ARPEntry, and the AllInterfaces registry.
 """
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
@@ -19,19 +19,6 @@ class ARPEntry(NamedTuple):
     ip_address: str
     mac_address: str
     vendor_name: str | None = None
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class SelectedInterface:
-    """Immutable snapshot of a user's chosen interface row."""
-    name: str
-    description: str
-    device_name: str | None
-    vendor_name: str | None
-    ip_address: str | None
-    mac_address: str | None
-    gateway_ip: str | None
-    is_arp: bool
 
 
 @dataclass(kw_only=True, slots=True)
@@ -113,6 +100,61 @@ class Interface:
             and not self.ip_addresses
             and not self.arp_entries
         )
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class SelectedInterfaceRow:
+    """Immutable reference to a user's chosen interface row.
+
+    Holds only the live `Interface` object plus the row-specific selectors
+    (`ip_address`, `is_arp`). Other commonly-needed fields are exposed as
+    read-only properties that delegate to the live `Interface` so callers
+    always see fresh data and we never duplicate state.
+    """
+
+    interface: Interface
+    ip_address: str | None
+    is_arp: bool
+
+    @property
+    def name(self) -> str:
+        """Interface friendly name."""
+        return self.interface.identity.name
+
+    @property
+    def description(self) -> str:
+        """Interface description."""
+        return self.interface.identity.description
+
+    @property
+    def device_name(self) -> str | None:
+        r"""TShark device name (e.g. ``\Device\NPF_{GUID}``)."""
+        return self.interface.identity.device_name
+
+    @property
+    def gateway_ip(self) -> str | None:
+        """First gateway IP for this interface, if any."""
+        return self.interface.gateway_addresses[0] if self.interface.gateway_addresses else None
+
+    @property
+    def mac_address(self) -> str | None:
+        """MAC for this row: ARP-neighbor MAC when `is_arp`, else interface MAC."""
+        if self.is_arp:
+            return next(
+                (arp.mac_address for arp in self.interface.arp_entries if arp.ip_address == self.ip_address),
+                None,
+            )
+        return self.interface.identity.mac_address
+
+    @property
+    def vendor_name(self) -> str | None:
+        """Vendor for this row: ARP-neighbor vendor when `is_arp`, else interface vendor."""
+        if self.is_arp:
+            return next(
+                (arp.vendor_name for arp in self.interface.arp_entries if arp.ip_address == self.ip_address),
+                None,
+            )
+        return self.interface.identity.vendor_name
 
 
 class AllInterfaces:
