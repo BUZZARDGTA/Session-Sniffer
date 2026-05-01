@@ -13,7 +13,6 @@ from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, show_seen_stats, tcp_port_ping
-from session_sniffer.guis.tables_protections_mixin import build_protections_menu, build_protections_menu_multi
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
     userip_add,
@@ -623,8 +622,6 @@ class SessionTableView(QTableView):
                     if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                         detections_menu = add_menu(context_menu, 'Detections')
                         build_detections_menu(detections_menu, add_action, player_obj)
-                        protections_menu = add_menu(context_menu, 'Protections')
-                        build_protections_menu(protections_menu, add_action, player_obj)
 
                     scripts_menu = add_menu(context_menu, 'User Scripts ')
 
@@ -747,7 +744,7 @@ class SessionTableView(QTableView):
                     all_ips.append(displayed_ip)
 
             if all_ips:
-                # --- Protections submenu (multi-IP) ---
+                # --- Detections submenu (multi-IP) ---
                 matched_players = [
                     player
                     for ip in all_ips
@@ -756,8 +753,6 @@ class SessionTableView(QTableView):
                 if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                     detections_menu = add_menu(context_menu, 'Detections')
                     build_detections_menu_multi(detections_menu, add_action, matched_players)
-                    protections_menu = add_menu(context_menu, 'Protections')
-                    build_protections_menu_multi(protections_menu, add_action, matched_players)
 
                 if all(not UserIPDatabases.is_known_ip(ip) for ip in all_ips):
                     userip_menu = add_menu(context_menu, 'UserIP  ')
