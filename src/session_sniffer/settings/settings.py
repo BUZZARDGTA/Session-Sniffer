@@ -58,9 +58,6 @@ class Settings:
     show_discord_popup: bool = SETTING_DEFAULTS['show_discord_popup']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
 
-    is_arp_interface: ClassVar[bool] = False
-    is_protection_supported: ClassVar[bool] = False
-
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
 

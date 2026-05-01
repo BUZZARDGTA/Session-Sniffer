@@ -48,6 +48,7 @@ from session_sniffer.rendering_core.session_table_renderer import (
 )
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
 from session_sniffer.rendering_core.types import (
+    CaptureState,
     GeoIP2Readers,
     GUIColumnConfig,
     GUIRenderingSnapshot,
@@ -629,7 +630,7 @@ def rendering_core(
         def generate_gui_status_text() -> tuple[str, str, str, str]:
             return build_gui_status_text(
                 capture=capture,
-                vpn_mode_enabled=TsharkStats.vpn_mode_enabled,
+                vpn_mode_enabled=CaptureState.vpn_mode_enabled,
                 discord_rpc_manager=discord_rpc_manager,
             )
 

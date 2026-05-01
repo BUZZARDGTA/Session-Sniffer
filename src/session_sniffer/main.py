@@ -55,7 +55,7 @@ from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.renderer import rendering_core
-from session_sniffer.rendering_core.types import GeoIP2Readers, TsharkStats
+from session_sniffer.rendering_core.types import CaptureState, GeoIP2Readers, TsharkStats
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import clear_screen, is_pyinstaller_compiled, set_window_title
@@ -180,8 +180,7 @@ def main() -> None:
     if selected_interface is None:
         sys.exit(0)
 
-    Settings.is_arp_interface = selected_interface.is_arp
-    Settings.is_protection_supported = Settings.capture_program_preset == 'GTA5' and not selected_interface.is_arp
+    CaptureState.is_arp_interface = selected_interface.is_arp
 
     splash.update_status('Establishing connection')
     need_rewrite_settings = False
@@ -355,7 +354,7 @@ def main() -> None:
 
     # Wrap in a mutable holder so background threads pick up a new capture on interface switch
     capture_holder = CaptureHolder(capture)
-    TsharkStats.vpn_mode_enabled = vpn_mode_enabled
+    CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     arp_stop_event = Event()
     if Settings.capture_arp_spoofing:
@@ -410,8 +409,7 @@ def main() -> None:
         new_vpn_mode = not (new_broadcast and new_multicast)
 
         # Settings must be updated before build_capture_filters() — it reads Settings.capture_ip_address.
-        Settings.is_arp_interface = new_interface.is_arp
-        Settings.is_protection_supported = Settings.capture_program_preset == 'GTA5' and not new_interface.is_arp
+        CaptureState.is_arp_interface = new_interface.is_arp
         Settings.capture_interface_name = new_interface.name
         Settings.capture_mac_address = new_interface.mac_address
         Settings.capture_ip_address = new_interface.ip_address
@@ -422,7 +420,7 @@ def main() -> None:
             multicast_support=new_multicast,
         )
 
-        TsharkStats.vpn_mode_enabled = new_vpn_mode
+        CaptureState.vpn_mode_enabled = new_vpn_mode
         TsharkStats.restarted_times = 0
         TsharkStats.packets_latencies.clear()
         TsharkStats.global_bandwidth = 0

@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 _MixinBase = QDialog
@@ -374,7 +375,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
 
         self._update_protection_fields_enabled()
 
-        if not Settings.is_protection_supported:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
             self._protection_section.setVisible(False)
 
         self._settings_loading = False
@@ -391,7 +392,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         voice_idx = self._setting_voice.currentIndex()
         settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_idx]
 
-        if not Settings.is_protection_supported:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
             settings['PROTECTION'] = 'False'
         else:
             settings['PROTECTION'] = 'Suspend_Process' if self._setting_protection.isChecked() else 'False'

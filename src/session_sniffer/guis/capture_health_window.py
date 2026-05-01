@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.rendering_core.types import TsharkStats
+from session_sniffer.rendering_core.types import CaptureState, TsharkStats
 
 
 class CaptureHealthWindow(QWidget):
@@ -68,7 +68,7 @@ class CaptureHealthWindow(QWidget):
         n = len(latencies)
 
         self._lbl_restarts.setText(str(TsharkStats.restarted_times))
-        self._lbl_vpn_mode.setText('Yes' if TsharkStats.vpn_mode_enabled else 'No')
+        self._lbl_vpn_mode.setText('Yes' if CaptureState.vpn_mode_enabled else 'No')
         self._lbl_samples.setText(str(n))
 
         if latencies:

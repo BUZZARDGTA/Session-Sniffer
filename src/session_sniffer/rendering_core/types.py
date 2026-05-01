@@ -62,6 +62,12 @@ class PaginationState:
             )
 
 
+class CaptureState:  # pylint: disable=too-few-public-methods
+    """Runtime state derived from the active capture interface."""
+    vpn_mode_enabled: ClassVar[bool] = False
+    is_arp_interface: ClassVar[bool] = False
+
+
 class TsharkStats:  # pylint: disable=too-few-public-methods
     """Statistics and data tracking for TShark packet capture performance."""
     packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
@@ -71,7 +77,6 @@ class TsharkStats:  # pylint: disable=too-few-public-methods
     global_upload: ClassVar[int] = 0
     global_bps_rate: ClassVar[int] = 0
     global_pps_rate: ClassVar[int] = 0
-    vpn_mode_enabled: ClassVar[bool] = False
 
 
 class CellColor(NamedTuple):

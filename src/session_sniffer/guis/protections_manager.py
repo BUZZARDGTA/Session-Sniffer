@@ -36,6 +36,7 @@ from session_sniffer.guis.country_data import COUNTRY_NAMES, get_country_flag_co
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 _COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
@@ -290,14 +291,19 @@ class _ComboRuleEditorDialog(QDialog):
         action_layout = QVBoxLayout()
 
         # Protection Settings
+        # -- Protection section (hidden when ARP interface / protection not supported) --
+        protection_section = QWidget()
+        protection_section_layout = QVBoxLayout(protection_section)
+        protection_section_layout.setContentsMargins(0, 0, 0, 0)
+
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
         protection_separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        action_layout.addWidget(protection_separator)
+        protection_section_layout.addWidget(protection_separator)
 
         self._protection_enabled_checkbox = QCheckBox('Enable Protection')
         self._protection_enabled_checkbox.setChecked(rule.protection_enabled if rule else False)
-        action_layout.addWidget(self._protection_enabled_checkbox)
+        protection_section_layout.addWidget(self._protection_enabled_checkbox)
 
         # Process path
         process_row = QHBoxLayout()
@@ -311,7 +317,7 @@ class _ComboRuleEditorDialog(QDialog):
         browse_btn.setMaximumWidth(100)
         browse_btn.clicked.connect(self._browse_process)  # pyright: ignore[reportUnknownMemberType]
         process_row.addWidget(browse_btn)
-        action_layout.addLayout(process_row)
+        protection_section_layout.addLayout(process_row)
 
         # Duration
         duration_row = QHBoxLayout()
@@ -329,10 +335,15 @@ class _ComboRuleEditorDialog(QDialog):
         )
         duration_row.addWidget(self._duration_spin)
         duration_row.addStretch()
-        action_layout.addLayout(duration_row)
+        protection_section_layout.addLayout(duration_row)
 
         if rule:
             _set_duration_widgets_helper(self._duration_combo, self._duration_spin, rule.duration)
+
+        action_layout.addWidget(protection_section)
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
+            protection_section.setVisible(False)
+            self._protection_enabled_checkbox.setChecked(False)
 
         # Notification Settings
         notification_separator = QLabel('\u2500\u2500\u2500 Notification Settings \u2500\u2500\u2500')
@@ -755,7 +766,7 @@ class ProtectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-at
         layout.addLayout(button_row)
 
         self._load_current_settings()
-        if not Settings.is_protection_supported:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
             self._apply_protection_restrictions()
 
     # ------------------------------------------------------------------

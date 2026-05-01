@@ -82,7 +82,7 @@ from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
+from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -519,6 +519,10 @@ class MainWindow(QMainWindow):
     _actions: _ToolbarActions
     _connected: SessionTableSection
     _disconnected: SessionTableSection
+    _gta5_sep_between: QAction
+    _gta5_sep_after_resolver: QAction
+    _protections_action: QAction
+    _player_resolver_action: QAction
 
     def _update_separator_visibility(self) -> None:
         self._tables_separator.setVisible(
@@ -594,19 +598,27 @@ class MainWindow(QMainWindow):
         protections_button = QPushButton(' \U0001f6e1\ufe0f Protections Manager ', self)
         protections_button.setToolTip('Configure detection, notifications, and protection rules')
         protections_button.clicked.connect(self._open_protections_manager)  # pyright: ignore[reportUnknownMemberType]
-        protections_button.setVisible(Settings.is_protection_supported)
-        toolbar.addWidget(protections_button)
+        protections_action = cast('QAction', toolbar.addWidget(protections_button))
+        protections_action.setVisible(Settings.capture_program_preset == 'GTA5')
         self._protections_button = protections_button
+        self._protections_action = protections_action
 
-        toolbar.addSeparator()
+        gta5_sep_between = cast('QAction', toolbar.addSeparator())
+        gta5_sep_between.setVisible(Settings.capture_program_preset == 'GTA5')
+        self._gta5_sep_between = gta5_sep_between
 
         # ----- Player Resolver Button -----
         player_resolver_button = QPushButton(' \U0001f50d Player Resolver ', self)
         player_resolver_button.setToolTip('High Rate Monitor and Player Identifier tools')
         player_resolver_button.clicked.connect(self._open_player_resolver)
-        toolbar.addWidget(player_resolver_button)
+        player_resolver_action = cast('QAction', toolbar.addWidget(player_resolver_button))
+        player_resolver_action.setVisible(Settings.capture_program_preset == 'GTA5')
+        self._player_resolver_button = player_resolver_button
+        self._player_resolver_action = player_resolver_action
 
-        toolbar.addSeparator()
+        gta5_sep_after_resolver = cast('QAction', toolbar.addSeparator())
+        gta5_sep_after_resolver.setVisible(Settings.capture_program_preset == 'GTA5')
+        self._gta5_sep_after_resolver = gta5_sep_after_resolver
 
         # ----- Most Seen Players Leaderboard Button -----
         leaderboard_button = QPushButton(' \U0001f3c6 Most Seen Players ', self)
@@ -1181,6 +1193,7 @@ class MainWindow(QMainWindow):
             self._settings_dialog_window.activateWindow()
             return
         self._settings_dialog_window = SettingsDialog(self, self.capture.get())
+        self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)  # pyright: ignore[reportUnknownMemberType]
         self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))
         self._settings_dialog_window.show()
 
@@ -1452,9 +1465,20 @@ class MainWindow(QMainWindow):
         """Enable or disable the Stop/Start Capture toolbar button."""
         self._actions.toggle_capture.setEnabled(enabled)
 
+    def _update_gta5_toolbar_visibility(self) -> None:
+        """Show or hide GTA5-exclusive toolbar items based on current protection support."""
+        gta5_preset = Settings.capture_program_preset == 'GTA5'
+        visible = gta5_preset and not CaptureState.is_arp_interface
+        if not visible:
+            SessionHost.clear_session_host_data()
+        self._protections_action.setVisible(gta5_preset)
+        self._gta5_sep_between.setVisible(gta5_preset)
+        self._player_resolver_action.setVisible(gta5_preset)
+        self._gta5_sep_after_resolver.setVisible(gta5_preset)
+
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
-        self._protections_button.setVisible(Settings.is_protection_supported)
+        self._update_gta5_toolbar_visibility()
         # Sync the toggle button text to reflect the running state of the new capture
         if self.capture.is_running():
             self._actions.toggle_capture.setText('⏹️ Stop Capture')

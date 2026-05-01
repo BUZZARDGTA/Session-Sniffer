@@ -24,6 +24,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP
+from session_sniffer.rendering_core.types import CaptureState, TsharkStats
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
 
@@ -133,6 +134,34 @@ def clear_detection_voice_notifications() -> None:
     _voice_notification_queue.remove_matching(lambda p: 'detection' in Path(p).parts)
 
 
+def _check_userip_usernames(player: Player) -> bool:
+    """Check if player has usernames in userip data."""
+    return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
+
+
+def _check_reverse_dns_hostname(player: Player) -> bool:
+    """Check if player reverse DNS is initialized."""
+    return player.reverse_dns.is_initialized
+
+
+def _check_iplookup_geolite2(player: Player) -> bool:
+    """Check if player GeoLite2 data is initialized."""
+    return player.iplookup.geolite2.is_initialized
+
+
+def _check_iplookup_ipapi(player: Player) -> bool:
+    """Check if player IP API data is initialized."""
+    return player.iplookup.ipapi.is_initialized
+
+
+_FIELD_CHECKERS: dict[str, Callable[[Player], bool]] = {
+    'userip.usernames': _check_userip_usernames,
+    'reverse_dns.hostname': _check_reverse_dns_hostname,
+    'iplookup.geolite2': _check_iplookup_geolite2,
+    'iplookup.ipapi': _check_iplookup_ipapi,
+}
+
+
 def wait_for_player_data_ready(
     player: Player,
     *,
@@ -149,35 +178,12 @@ def wait_for_player_data_ready(
     Returns:
         Whether all specified data is ready before the timeout expires.
     """
-    def check_userip_usernames(player: Player) -> bool:
-        """Check if player has usernames in userip data."""
-        return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
-
-    def check_reverse_dns_hostname(player: Player) -> bool:
-        """Check if player reverse DNS is initialized."""
-        return player.reverse_dns.is_initialized
-
-    def check_iplookup_geolite2(player: Player) -> bool:
-        """Check if player GeoLite2 data is initialized."""
-        return player.iplookup.geolite2.is_initialized
-
-    def check_iplookup_ipapi(player: Player) -> bool:
-        """Check if player IP API data is initialized."""
-        return player.iplookup.ipapi.is_initialized
-
-    field_checkers = {
-        'userip.usernames': check_userip_usernames,
-        'reverse_dns.hostname': check_reverse_dns_hostname,
-        'iplookup.geolite2': check_iplookup_geolite2,
-        'iplookup.ipapi': check_iplookup_ipapi,
-    }
-
     deadline = time.monotonic() + timeout
 
     checker_items = [
-        field_checkers[field]
+        _FIELD_CHECKERS[field]
         for field in data_fields
-        if field in field_checkers
+        if field in _FIELD_CHECKERS
     ]
 
     while True:
@@ -217,6 +223,36 @@ _NOTIFICATION_TYPE_SETTING_PREFIX: dict[NotificationType, str] = {
     'player_left_session': 'player_leave',
 }
 
+_NOTIFICATION_CONFIGS: dict[NotificationType, NotificationConfig] = {
+    'player_joined_session': {
+        'emoji': '🟢',
+        'title': 'PLAYER JOINED SESSION!',
+        'description': 'A new player has joined your session!',
+        'icon': msgbox.Style.MB_ICONINFORMATION,
+        'thread_name': 'PlayerJoined',
+    },
+    'player_rejoined_session': {
+        'emoji': '🔄',
+        'title': 'PLAYER REJOINED SESSION!',
+        'description': 'A player has rejoined your session after disconnecting!',
+        'icon': msgbox.Style.MB_ICONINFORMATION,
+        'thread_name': 'PlayerRejoined',
+    },
+    'player_left_session': {
+        'emoji': '🔴',
+        'title': 'PLAYER LEFT SESSION!',
+        'description': 'A player has left your session!',
+        'icon': msgbox.Style.MB_ICONINFORMATION,
+        'thread_name': 'PlayerLeft',
+    },
+}
+
+_NOTIFICATION_TO_EVENT: dict[NotificationType, str] = {
+    'player_joined_session': 'join',
+    'player_rejoined_session': 'rejoin',
+    'player_left_session': 'leave',
+}
+
 
 def handle_detection_notification(
     player: Player,
@@ -233,33 +269,9 @@ def handle_detection_notification(
         notification_type: Type of notification - `player_joined_session`,
             `player_rejoined_session`, or `player_left_session`
     """
-    notification_configs: dict[NotificationType, NotificationConfig] = {
-        'player_joined_session': {
-            'emoji': '🟢',
-            'title': 'PLAYER JOINED SESSION!',
-            'description': 'A new player has joined your session!',
-            'icon': msgbox.Style.MB_ICONINFORMATION,
-            'thread_name': 'PlayerJoined',
-        },
-        'player_rejoined_session': {
-            'emoji': '🔄',
-            'title': 'PLAYER REJOINED SESSION!',
-            'description': 'A player has rejoined your session after disconnecting!',
-            'icon': msgbox.Style.MB_ICONINFORMATION,
-            'thread_name': 'PlayerRejoined',
-        },
-        'player_left_session': {
-            'emoji': '🔴',
-            'title': 'PLAYER LEFT SESSION!',
-            'description': 'A player has left your session!',
-            'icon': msgbox.Style.MB_ICONINFORMATION,
-            'thread_name': 'PlayerLeft',
-        },
-    }
-
     def notification_thread() -> None:
         """Thread function to handle voice, logging, message box, and protection actions."""
-        config = notification_configs[notification_type]
+        config = _NOTIFICATION_CONFIGS[notification_type]
         prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
 
         enabled: bool = getattr(GUIProtectionSettings, f'{prefix}_enabled')
@@ -281,7 +293,7 @@ def handle_detection_notification(
             duration: int | Literal['Auto', 'Manual', 'Adaptive'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
-            if enabled and Settings.is_protection_supported and process_path:
+            if enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and process_path:
                 ProcessSuspendManager.request_suspend(
                     process_path=process_path,
                     reason_key=f'event:{notification_type}:{player.ip}',
@@ -361,12 +373,7 @@ def handle_detection_notification(
                 )
 
         # Combo Rules evaluation (rules WITH event condition fire here)
-        notification_to_event: dict[NotificationType, str] = {
-            'player_joined_session': 'join',
-            'player_rejoined_session': 'rejoin',
-            'player_left_session': 'leave',
-        }
-        combo_event = notification_to_event.get(notification_type)
+        combo_event = _NOTIFICATION_TO_EVENT.get(notification_type)
         if combo_event is not None:
             # Ensure IP lookup data is ready (may already be loaded above)
             if not data_ready:
@@ -375,7 +382,7 @@ def handle_detection_notification(
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
                 # Protection action
-                if rule.protection_enabled and Settings.is_protection_supported and rule.process_path:
+                if rule.protection_enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and rule.process_path:
                     ProcessSuspendManager.request_suspend(
                         process_path=rule.process_path,
                         reason_key=f'combo:{rule.name}:{player.ip}',
@@ -429,7 +436,7 @@ def handle_detection_notification(
                         style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
                     )
 
-    config = notification_configs[notification_type]
+    config = _NOTIFICATION_CONFIGS[notification_type]
 
     Thread(
         target=notification_thread,
@@ -459,12 +466,13 @@ def process_userip_task(
 
             gui_closed__event.wait(0.01)  # Wait to prevent high CPU usage
 
-        # We wants to run this as fast as possible so it's on top of the function.
+        # We want to run this as fast as possible so it's on top of the function.
         # Protection actions are skipped when protection is not supported.
         if (
             connection_type == 'connected'
             and player.userip.settings.protection.enabled
-            and Settings.is_protection_supported
+            and Settings.capture_program_preset == 'GTA5'
+            and not CaptureState.is_arp_interface
             and isinstance(player.userip.settings.protection.process_path, Path)
         ):
             suspend_mode = player.userip.settings.protection.suspend_process_mode
@@ -591,7 +599,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         process_path = GUIProtectionSettings.gta5_relay_process_path
         duration = GUIProtectionSettings.gta5_relay_duration
 
-        if Settings.is_protection_supported and process_path:
+        if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and process_path:
             ProcessSuspendManager.request_suspend(
                 process_path=process_path,
                 reason_key=f'gta5_relay:{player.ip}',
@@ -658,7 +666,7 @@ def check_global_protections(player: Player) -> None:
             protection_name: str,
         ) -> None:
             """Execute a protection action (Suspend)."""
-            if not Settings.is_protection_supported or not process_path:
+            if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface or not process_path:
                 return
             ProcessSuspendManager.request_suspend(
                 process_path=process_path,

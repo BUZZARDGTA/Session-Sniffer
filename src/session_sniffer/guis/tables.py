@@ -25,6 +25,7 @@ from session_sniffer.guis.tables_userip_mixin import (
 )
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.utils import run_cmd_script
 
@@ -618,7 +619,7 @@ class SessionTableView(QTableView):
                     )
 
                     # --- Protections submenu (single IP) ---
-                    if Settings.is_protection_supported:
+                    if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                         protections_menu = add_menu(context_menu, 'Protections')
                         build_protections_menu(protections_menu, add_action, player_obj)
 
@@ -749,7 +750,7 @@ class SessionTableView(QTableView):
                     for ip in all_ips
                     if (player := PlayersRegistry.get_player_by_ip(ip)) is not None
                 ]
-                if matched_players and Settings.is_protection_supported:
+                if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                     protections_menu = add_menu(context_menu, 'Protections')
                     build_protections_menu_multi(protections_menu, add_action, matched_players)
 
