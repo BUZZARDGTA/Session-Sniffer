@@ -70,6 +70,8 @@ class SettingsIniModel(BaseModel):
     DISCORD_WEBHOOK_INCLUDE_CONNECTED: bool
     DISCORD_WEBHOOK_INCLUDE_DISCONNECTED: bool
     DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE: int
+    DISCORD_WEBHOOK_MAX_CONNECTED_PLAYERS: int
+    DISCORD_WEBHOOK_MAX_DISCONNECTED_PLAYERS: int
     DISCORD_WEBHOOK_FORMAT: str
     DISCORD_WEBHOOK_COLUMNS_CONNECTED: tuple[str, ...]
     DISCORD_WEBHOOK_COLUMNS_DISCONNECTED: tuple[str, ...]
@@ -516,6 +518,34 @@ class SettingsIniModel(BaseModel):
         max_val = 100
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 25
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except (ValueError, TypeError):
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('DISCORD_WEBHOOK_MAX_CONNECTED_PLAYERS', 'DISCORD_WEBHOOK_MAX_DISCONNECTED_PLAYERS', mode='before')
+    @classmethod
+    def _parse_webhook_max_players(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 0  # 0 = All (unlimited)
+        max_val = 100
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 0
 
         parsed: int | None = None
         if isinstance(value, (int, float)):

@@ -58,6 +58,9 @@ _MAX_TABLE_BODY_CHARS = _DISCORD_CONTENT_LIMIT - _CODE_BLOCK_OVERHEAD - _HEADER_
 # Embed descriptions don't include the message header (it's the embed title),
 # but still need room for the truncation footer line.
 _MAX_EMBED_BODY_CHARS = _DISCORD_EMBED_DESCRIPTION_LIMIT - _TRUNCATION_NOTICE_RESERVE
+# Discord hard limits for multi-embed messages.
+_DISCORD_MAX_EMBEDS_PER_MESSAGE = 10
+_DISCORD_EMBEDS_TOTAL_CHAR_LIMIT = 6000
 _EMBED_COLOR_CONNECTED = 0x2ECC71  # green
 _EMBED_COLOR_DISCONNECTED = 0xE74C3C  # red
 _EMBED_COLOR_STOPPED = 0x95A5A6  # gray
@@ -178,7 +181,7 @@ def _build_message_content(
     return '\n'.join(parts)
 
 
-def _build_embed_payload(  # noqa: PLR0913  # pylint: disable=too-many-arguments
+def _build_multi_embed_payload(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     *,
     title: str,
     table_text: str | None,
@@ -186,28 +189,88 @@ def _build_embed_payload(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     max_rows: int,
     empty_label: str,
     color: int,
-) -> dict[str, object]:
-    """Build a Discord embed dict for one table using markdown blocks.
+) -> list[dict[str, object]]:
+    """Build one or more Discord embed dicts for one table using markdown blocks.
 
-    Uses the same per-player markdown layout as the Mobile content format,
-    but inside an embed so we get a colored sidebar, a proper title, the
-    larger 4096-char description budget, and a native footer timestamp.
+    When the per-player markdown blocks for a table exceed a single embed's
+    4096-char description limit, they are split across consecutive embeds
+    (continuation titles are suffixed with " · 2", " · 3", …) up to
+    Discord's 10-embed-per-message and 6000-total-char-per-message limits.
+    Any players that still don't fit are reported as "… and N more not shown".
     """
-    if not table_text:
-        description = f'_{empty_label}_'
-    else:
-        truncated, removed = _truncate_table(table_text, max_rows, _MAX_EMBED_BODY_CHARS)
-        parts = [truncated]
-        if removed:
-            parts.append(f'_… and {removed} more {"player" if removed == 1 else "players"} not shown_')
-        description = '\n\n'.join(parts)
+    def _make_embed(embed_title: str, description: str) -> dict[str, object]:
+        return {
+            'title': embed_title,
+            'description': description,
+            'color': color,
+            'timestamp': timestamp.isoformat(),
+        }
 
-    return {
-        'title': title,
-        'description': description,
-        'color': color,
-        'timestamp': timestamp.isoformat(),
-    }
+    if not table_text:
+        return [_make_embed(title, f'_{empty_label}_')]
+
+    # Split the mobile-format text into per-player blocks.
+    blocks = table_text.split('\n\n')
+
+    # Apply the user-configured max_rows cap globally before packing.
+    total_removed = 0
+    if len(blocks) > max_rows:
+        total_removed = len(blocks) - max_rows
+        blocks = blocks[:max_rows]
+
+    embeds: list[dict[str, object]] = []
+    current_blocks: list[str] = []
+    current_chars = 0
+    embed_index = 1
+    # chars already consumed by embed titles and running description lengths
+    total_chars_used = 0
+
+    def _flush(*, is_last: bool, extra_removed: int) -> None:
+        nonlocal total_chars_used
+        embed_title = title if embed_index == 1 else f'{title} \u00b7 {embed_index}'
+        parts = ['\n\n'.join(current_blocks)]
+        remaining = total_removed + extra_removed
+        if is_last and remaining:
+            parts.append(f'_\u2026 and {remaining} more {"player" if remaining == 1 else "players"} not shown_')
+        description = '\n\n'.join(parts)
+        total_chars_used += len(embed_title) + len(description)
+        embeds.append(_make_embed(embed_title, description))
+
+    for block_idx, block in enumerate(blocks):
+        block_len = len(block)
+        next_embed_title = title if embed_index == 1 else f'{title} \u00b7 {embed_index}'
+        title_len = len(next_embed_title)
+        # Extra chars needed: separator ('\n\n' = 2 chars) if not first block in embed,
+        # plus the block itself.  We also need to reserve _TRUNCATION_NOTICE_RESERVE
+        # so a final "N more" line never pushes us over the per-embed limit.
+        sep = 2 if current_blocks else 0
+        projected_desc_len = current_chars + sep + block_len
+
+        # Would this block overflow the current embed's description budget?
+        desc_over = projected_desc_len > _MAX_EMBED_BODY_CHARS
+        # Would the total-per-message char budget be exceeded?
+        # Estimate: existing total_chars_used + this embed's title + projected description.
+        total_over = (total_chars_used + title_len + projected_desc_len) > _DISCORD_EMBEDS_TOTAL_CHAR_LIMIT
+
+        if (desc_over or total_over) and current_blocks:
+            # Flush the current embed and start a new one.
+            _flush(is_last=False, extra_removed=0)
+            embed_index += 1
+            current_blocks = []
+            current_chars = 0
+
+            if len(embeds) >= _DISCORD_MAX_EMBEDS_PER_MESSAGE:
+                # No more embed slots — count all remaining as removed.
+                total_removed += len(blocks) - block_idx
+                break
+
+        current_blocks.append(block)
+        current_chars += sep + block_len
+
+    if current_blocks:
+        _flush(is_last=True, extra_removed=0)
+
+    return embeds
 
 
 def _http_request(
@@ -421,7 +484,7 @@ class DiscordWebhookSender:
                     color = _EMBED_COLOR_CONNECTED
                 else:
                     color = _EMBED_COLOR_DISCONNECTED
-                embed = _build_embed_payload(
+                embeds = _build_multi_embed_payload(
                     title=title,
                     table_text=table_text,
                     timestamp=payload.generated_at,
@@ -433,7 +496,7 @@ class DiscordWebhookSender:
                 # message previously had a Desktop text body it is cleared.
                 request_payload: dict[str, object] = {
                     'content': '',
-                    'embeds': [embed],
+                    'embeds': embeds,
                     'allowed_mentions': {'parse': []},
                 }
             else:

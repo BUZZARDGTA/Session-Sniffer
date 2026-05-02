@@ -857,11 +857,15 @@ def rendering_core(
                 use_mobile_text = Settings.discord_webhook_format in ('Mobile', 'Embed')
                 webhook_cols_connected = Settings.discord_webhook_columns_connected
                 webhook_cols_disconnected = Settings.discord_webhook_columns_disconnected
+                max_conn = Settings.discord_webhook_max_connected_players
+                max_disconn = Settings.discord_webhook_max_disconnected_players
+                webhook_connected = session_connected[:max_conn] if max_conn > 0 else session_connected
+                webhook_disconnected = session_disconnected[:max_disconn] if max_disconn > 0 else session_disconnected
                 if Settings.discord_webhook_include_connected:
                     connected_text = (
-                        build_webhook_mobile_text(session_connected, webhook_cols_connected) if use_mobile_text
+                        build_webhook_mobile_text(webhook_connected, webhook_cols_connected) if use_mobile_text
                         else build_webhook_table_text(
-                            session_connected,
+                            webhook_connected,
                             columns=webhook_cols_connected,
                             title=f'Connected ({len(session_connected)})',
                         )
@@ -870,9 +874,9 @@ def rendering_core(
                     connected_text = None
                 if Settings.discord_webhook_include_disconnected:
                     disconnected_text = (
-                        build_webhook_mobile_text(session_disconnected, webhook_cols_disconnected) if use_mobile_text
+                        build_webhook_mobile_text(webhook_disconnected, webhook_cols_disconnected) if use_mobile_text
                         else build_webhook_table_text(
-                            session_disconnected,
+                            webhook_disconnected,
                             columns=webhook_cols_disconnected,
                             title=f'Disconnected ({len(session_disconnected)})',
                         )

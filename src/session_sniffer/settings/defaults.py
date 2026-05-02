@@ -12,6 +12,7 @@ class SettingType(Enum):
     BOOLEAN = auto()
     STRING = auto()
     INTEGER = auto()
+    INTEGER_OR_ALL = auto()
     FLOAT = auto()
     ENUM = auto()
     BOOL_OR_ENUM = auto()
@@ -312,6 +313,26 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         max_value=100,
         step=1,
     ),
+    'discord_webhook_max_connected_players': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Max Connected Players',
+        setting_type=SettingType.INTEGER_OR_ALL,
+        tooltip='Maximum number of connected players sent to the webhook. Set to 0 to include all players.',
+        min_value=0,
+        max_value=100,
+        step=1,
+    ),
+    'discord_webhook_max_disconnected_players': SettingMeta(
+        category='Discord',
+        group='Server Webhook',
+        display_label='Max Disconnected Players',
+        setting_type=SettingType.INTEGER_OR_ALL,
+        tooltip='Maximum number of disconnected players sent to the webhook. Set to 0 to include all players.',
+        min_value=0,
+        max_value=100,
+        step=1,
+    ),
     'discord_webhook_format': SettingMeta(
         category='Discord',
         group='Server Webhook',
@@ -410,6 +431,8 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'discord_webhook_include_connected': True,
     'discord_webhook_include_disconnected': True,
     'discord_webhook_max_rows_per_table': 25,
+    'discord_webhook_max_connected_players': 0,
+    'discord_webhook_max_disconnected_players': 0,
     'discord_webhook_format': 'Desktop',
     'discord_webhook_columns_connected': (
         'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Rejoin',

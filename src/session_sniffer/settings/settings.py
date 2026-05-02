@@ -62,6 +62,8 @@ class Settings:
     discord_webhook_include_connected: bool = SETTING_DEFAULTS['discord_webhook_include_connected']
     discord_webhook_include_disconnected: bool = SETTING_DEFAULTS['discord_webhook_include_disconnected']
     discord_webhook_max_rows_per_table: int = SETTING_DEFAULTS['discord_webhook_max_rows_per_table']
+    discord_webhook_max_connected_players: int = SETTING_DEFAULTS['discord_webhook_max_connected_players']
+    discord_webhook_max_disconnected_players: int = SETTING_DEFAULTS['discord_webhook_max_disconnected_players']
     discord_webhook_format: str = SETTING_DEFAULTS['discord_webhook_format']
     discord_webhook_columns_connected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_connected']
     discord_webhook_columns_disconnected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_disconnected']
@@ -107,6 +109,8 @@ class Settings:
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
         'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
         'DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE',
+        'DISCORD_WEBHOOK_MAX_CONNECTED_PLAYERS',
+        'DISCORD_WEBHOOK_MAX_DISCONNECTED_PLAYERS',
         'DISCORD_WEBHOOK_FORMAT',
         'DISCORD_WEBHOOK_COLUMNS_CONNECTED',
         'DISCORD_WEBHOOK_COLUMNS_DISCONNECTED',

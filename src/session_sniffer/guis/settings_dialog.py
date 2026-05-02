@@ -390,6 +390,8 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             return self._create_float_widget(meta)
         if meta.setting_type == SettingType.INTEGER:
             return self._create_integer_widget(meta)
+        if meta.setting_type == SettingType.INTEGER_OR_ALL:
+            return self._create_integer_or_all_widget(meta)
         if meta.setting_type == SettingType.ENUM:
             return self._create_enum_widget(meta)
         if meta.setting_type == SettingType.BOOL_OR_ENUM:
@@ -429,6 +431,16 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
         spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
         spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
+        if meta.tooltip:
+            spin.setToolTip(meta.tooltip)
+        return spin
+
+    def _create_integer_or_all_widget(self, meta: SettingMeta) -> QSpinBox:
+        spin = QSpinBox()
+        spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
+        spin.setMinimum(0)
+        spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
+        spin.setSpecialValueText('All')
         if meta.tooltip:
             spin.setToolTip(meta.tooltip)
         return spin
@@ -556,7 +568,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         elif meta.setting_type == SettingType.FLOAT:
             cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
 
-        elif meta.setting_type == SettingType.INTEGER:
+        elif meta.setting_type in (SettingType.INTEGER, SettingType.INTEGER_OR_ALL):
             cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
         elif meta.setting_type == SettingType.ENUM:
@@ -604,6 +616,9 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             return cast('QDoubleSpinBox', widget).value()
 
         if meta.setting_type == SettingType.INTEGER:
+            return cast('QSpinBox', widget).value()
+
+        if meta.setting_type == SettingType.INTEGER_OR_ALL:
             return cast('QSpinBox', widget).value()
 
         if meta.setting_type == SettingType.ENUM:
