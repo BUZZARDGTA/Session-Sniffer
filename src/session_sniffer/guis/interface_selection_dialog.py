@@ -6,9 +6,10 @@ The dialog refreshes automatically so that plugged/unplugged or
 enabled/disabled adapters appear and disappear in real time.
 """
 from dataclasses import dataclass, field
+from threading import Thread
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer
+from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -122,6 +123,7 @@ class _FilterControls:
     hide_inactive_checkbox: QCheckBox
     hide_arp_checkbox: QCheckBox
     arp_spoofing_checkbox: QCheckBox
+    refresh_arp_button: QPushButton
     select_button: QPushButton
 
 
@@ -150,6 +152,10 @@ class InterfaceSelectionDialog(QDialog):
     """
 
     _REFRESH_INTERVAL_MS = 3_000
+
+    # Bridges background ARP-refresh worker -> GUI thread (queued connection).
+    _arp_refresh_progress_signal = pyqtSignal(int, int)
+    _arp_refresh_done_signal = pyqtSignal()
 
     def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         self,
@@ -230,6 +236,15 @@ class InterfaceSelectionDialog(QDialog):
         filter_layout = QHBoxLayout()
         filter_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
+        refresh_arp_button = QPushButton('Refresh ARP Table')
+        refresh_arp_button.setToolTip('Flush the Windows ARP cache and ping the local subnet to rediscover devices')
+        refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
+        refresh_arp_button.setEnabled(mac_lookup is not None and tshark_path is not None)
+        refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
+        # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
+        refresh_arp_button.setFixedSize(refresh_arp_button.sizeHint())
+        filter_layout.addWidget(refresh_arp_button)
+
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
@@ -256,6 +271,15 @@ class InterfaceSelectionDialog(QDialog):
         # Will be set on accept
         self.arp_spoofing_enabled: bool = arp_spoofing_default
 
+        # Tracks whether an ARP refresh worker is currently running.
+        self._arp_refresh_in_progress: bool = False
+        # Updated from worker threads with (completed, total) ping counts. (0, 0) means flushing / no ping work yet.
+        self._arp_refresh_progress: tuple[int, int] = (0, 0)
+        # GUI-thread animation state for the in-button progress indicator.
+        self._arp_refresh_sweep_phase: int = 0
+        self._arp_refresh_progress_timer: QTimer | None = None
+        self._arp_refresh_original_text: str | None = None
+
         layout.addLayout(filter_layout)
 
         # Bottom layout for buttons
@@ -276,6 +300,7 @@ class InterfaceSelectionDialog(QDialog):
             hide_inactive_checkbox=hide_inactive_checkbox,
             hide_arp_checkbox=hide_arp_checkbox,
             arp_spoofing_checkbox=arp_spoofing_checkbox,
+            refresh_arp_button=refresh_arp_button,
             select_button=select_button,
         )
 
@@ -317,7 +342,119 @@ class InterfaceSelectionDialog(QDialog):
             self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
             self._refresh_timer.start()
 
+        # Wire ARP-refresh worker bridges (queued by default since worker lives in another thread).
+        self._arp_refresh_progress_signal.connect(self._on_arp_refresh_progress)
+        self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
+
     # Custom Methods:
+    _REFRESH_ARP_BUTTON_BASE_STYLE = 'font-size: 12pt;'
+    _REFRESH_ARP_PROGRESS_TIMER_MS = 80
+    # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
+    _REFRESH_ARP_PROGRESS_FILL_LIGHT = '#e6e6e6'
+    _REFRESH_ARP_PROGRESS_FILL_DARK = '#9a9a9a'
+    # Darker grey gradient for the unfilled track.
+    _REFRESH_ARP_PROGRESS_TRACK_LIGHT = '#4a4a4a'
+    _REFRESH_ARP_PROGRESS_TRACK_DARK = '#2e2e2e'
+
+    def _format_refresh_arp_progress_style(self, fraction: float) -> str:
+        """Build a stylesheet that renders a horizontal grey gradient progress fill inside the button."""
+        clamped = max(0.0, min(1.0, fraction))
+        # Two stops at the same point keep the color transition crisp instead of blended.
+        next_stop = min(1.0, clamped + 0.0001)
+        # Text color flips to dark once enough of the bar is filled to keep contrast readable.
+        text_color = '#1a1a1a' if clamped >= 0.45 else '#f0f0f0'  # noqa: PLR2004
+        return (
+            'QPushButton {'
+            ' font-size: 12pt;'
+            ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+            f' stop:0 {self._REFRESH_ARP_PROGRESS_FILL_LIGHT},'
+            f' stop:{clamped:.4f} {self._REFRESH_ARP_PROGRESS_FILL_DARK},'
+            f' stop:{next_stop:.4f} {self._REFRESH_ARP_PROGRESS_TRACK_LIGHT},'
+            f' stop:1 {self._REFRESH_ARP_PROGRESS_TRACK_DARK});'
+            f' color: {text_color};'
+            ' font-weight: bold;'
+            ' border: 1px solid #1a1a1a;'
+            ' border-radius: 4px;'
+            ' padding: 4px 12px;'
+            ' }'
+        )
+
+    def _refresh_arp_progress_tick(self) -> None:
+        """GUI-thread tick: render current ARP-refresh progress on the button."""
+        button = self._controls.refresh_arp_button
+        completed, total = self._arp_refresh_progress
+
+        if total <= 0:
+            # Flush phase or no subnets to ping: indeterminate sweep.
+            sweep_period = 20  # ticks per full sweep
+            self._arp_refresh_sweep_phase = (self._arp_refresh_sweep_phase + 1) % sweep_period
+            fraction = self._arp_refresh_sweep_phase / (sweep_period - 1)
+            button.setText('0%')
+        else:
+            fraction = completed / total
+            button.setText(f'{int(fraction * 100)}%')
+
+        button.setStyleSheet(self._format_refresh_arp_progress_style(fraction))
+
+    def _on_refresh_arp_clicked(self) -> None:
+        """Flush the Windows ARP cache and ping the local subnet to rediscover devices.
+
+        Runs the ARP refresh on a background daemon thread so the GUI remains
+        responsive, then triggers a live interface refresh on completion.
+        """
+        if self._arp_refresh_in_progress:
+            return
+        if self._mac_lookup is None or self._tshark_path is None:
+            return
+
+        self._arp_refresh_in_progress = True
+        button = self._controls.refresh_arp_button
+        self._arp_refresh_original_text = button.text()
+        button.setEnabled(False)
+
+        # Reset progress state and start the GUI-side animation timer.
+        self._arp_refresh_progress = (0, 0)
+        self._arp_refresh_sweep_phase = 0
+        self._refresh_arp_progress_tick()
+        if self._arp_refresh_progress_timer is None:
+            self._arp_refresh_progress_timer = QTimer(self)
+            self._arp_refresh_progress_timer.setInterval(self._REFRESH_ARP_PROGRESS_TIMER_MS)
+            self._arp_refresh_progress_timer.timeout.connect(self._refresh_arp_progress_tick)
+        self._arp_refresh_progress_timer.start()
+
+        interfaces_snapshot = list(self._data.all_interfaces)
+        progress_signal = self._arp_refresh_progress_signal
+        done_signal = self._arp_refresh_done_signal
+
+        def on_progress(completed: int, total: int) -> None:
+            # Called from worker threads; emit queued signal to marshal onto GUI thread.
+            progress_signal.emit(completed, total)
+
+        def worker() -> None:
+            from session_sniffer.capture.utils.arp_refresh import refresh_arp_table  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
+
+            try:
+                refresh_arp_table(interfaces_snapshot, on_progress)
+            finally:
+                done_signal.emit()
+
+        Thread(target=worker, name='ARPRefresh-worker', daemon=True).start()
+
+    def _on_arp_refresh_progress(self, completed: int, total: int) -> None:
+        """GUI-thread slot: store the latest worker-reported ping progress."""
+        self._arp_refresh_progress = (completed, total)
+
+    def _on_refresh_arp_finished(self) -> None:
+        """Restore the Refresh ARP button and trigger an immediate live refresh."""
+        self._arp_refresh_in_progress = False
+        if self._arp_refresh_progress_timer is not None:
+            self._arp_refresh_progress_timer.stop()
+        button = self._controls.refresh_arp_button
+        button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
+        button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
+        button.setEnabled(self._mac_lookup is not None and self._tshark_path is not None)
+        self._live_refresh_interfaces()
+
     def _live_refresh_interfaces(self) -> None:
         """Re-query the OS for adapter changes and rebuild the table.
 
