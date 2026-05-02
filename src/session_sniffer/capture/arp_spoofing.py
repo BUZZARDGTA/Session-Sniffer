@@ -2,7 +2,6 @@
 
 import subprocess
 import time
-from collections.abc import Callable
 from threading import Event, Thread
 from typing import TYPE_CHECKING
 
@@ -14,6 +13,8 @@ from session_sniffer.error_messages import format_arp_spoofing_failed_message
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from session_sniffer.capture.tshark_capture import CaptureHolder
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
