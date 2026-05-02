@@ -782,9 +782,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
                 continue
             if in_userip_section and to_remove:
                 m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-                if m and (u := m.group('username')) and (i := m.group('ip')) and (u.strip(), i.strip()) in to_remove:
-                    to_remove.discard((u.strip(), i.strip()))
-                    continue
+                if m:
+                    u = m.group('username').strip()
+                    i = m.group('ip').strip()
+                    if u and i and (u, i) in to_remove:
+                        to_remove.discard((u, i))
+                        continue
             new_lines.append(raw_line)
         db_path.write_text('\n'.join(new_lines), encoding='utf-8')
 

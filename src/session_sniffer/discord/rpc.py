@@ -8,7 +8,7 @@ from queue import SimpleQueue
 from threading import Event, Thread
 from typing import NamedTuple
 
-import sentinel
+import sentinel  # pyright: ignore[reportMissingTypeStubs]
 from pypresence import exceptions
 from pypresence.presence import Presence
 

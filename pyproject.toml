@@ -80,7 +80,8 @@ warn_unused_ignores = false
 
 [tool.pylint.master]
 enable = "all"
-extension-pkg-allow-list = ["PyQt6"]
+extension-pkg-allow-list = ["PyQt6", "pythoncom"]
+generated-members = ["pythoncom.*"]
 ignore = [
     ".dev",
     ".history",

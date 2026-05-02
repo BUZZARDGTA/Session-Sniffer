@@ -52,7 +52,7 @@ class _PlayerRateData:
     ip: str
     pps: int
     bps: int = 0
-    usernames: list[str] = field(default_factory=list)
+    usernames: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
     # Rate history (rolling window matching graph length)
     pps_history: deque[int] = field(default_factory=_make_rate_history)

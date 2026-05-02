@@ -107,19 +107,19 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
         return result
 
     try:
-        pythoncom.CoInitialize()
-    except pythoncom.com_error:
+        pythoncom.CoInitialize()  # ty: ignore[unresolved-attribute]
+    except pythoncom.com_error:  # ty: ignore[unresolved-attribute]
         return result
 
     try:
         try:
             manager = win32com.client.Dispatch('HNetCfg.HNetShare')
-        except pythoncom.com_error:
+        except pythoncom.com_error:  # ty: ignore[unresolved-attribute]
             return result
 
         try:
             connections = manager.EnumEveryConnection
-        except (pythoncom.com_error, AttributeError):
+        except (pythoncom.com_error, AttributeError):  # ty: ignore[unresolved-attribute]
             return result
 
         for connection in connections:
@@ -129,7 +129,7 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
                     continue
                 sharing_type = int(config.SharingConnectionType)
                 guid_raw = manager.NetConnectionProps(connection).Guid
-            except (pythoncom.com_error, AttributeError):
+            except (pythoncom.com_error, AttributeError):  # ty: ignore[unresolved-attribute]
                 continue
 
             if not isinstance(guid_raw, str) or not guid_raw:
@@ -141,7 +141,7 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
             elif sharing_type == _ICSSHARINGTYPE_PRIVATE:
                 result[guid] = 'shared'
     finally:
-        pythoncom.CoUninitialize()
+        pythoncom.CoUninitialize()  # ty: ignore[unresolved-attribute]
 
     return result
 

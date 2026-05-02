@@ -113,7 +113,7 @@ class LeaderboardEntry:
     """Aggregated stats for a single player IP across all session logs."""
 
     ip: str
-    usernames: list[str] = field(default_factory=list)
+    usernames: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sessions_today: int = 0
     sessions_week: int = 0
     sessions_month: int = 0
@@ -190,7 +190,7 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
             # Update usernames from latest session data
             raw_usernames = player_info.get('Usernames')
             if isinstance(raw_usernames, list) and raw_usernames:
-                entry.usernames = [str(u) for u in raw_usernames]
+                entry.usernames = [str(u) for u in cast('list[object]', raw_usernames)]
 
             # Update metadata from latest session data
             raw_country = player_info.get('Country')

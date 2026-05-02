@@ -56,7 +56,7 @@ def validate_check_result_response(data: object) -> PingCheckResults:
         error_msg = f'Expected dict, got {type(data).__name__}'
         raise TypeError(error_msg)
 
-    for node_name, node_result in data.items():
+    for node_name, node_result in cast('dict[str, object]', data).items():
         if node_result is None:
             continue
 
