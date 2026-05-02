@@ -137,11 +137,12 @@ def _calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> t
     one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
     recent_packets: list[tuple[datetime, timedelta]] = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in packets_latencies if pkt_time >= one_second_ago]
 
-    # Prune the live deque atomically: build a pruned replacement,
-    # then swap it in with a single attribute assignment to avoid
-    # the clear()+extend() race with concurrent append() calls.
+    # Snapshot the deque first to avoid RuntimeError from concurrent append()
+    # calls mutating it during iteration, then build a pruned replacement and
+    # swap it in with a single attribute assignment.
+    snapshot_latencies = list(TsharkStats.packets_latencies)
     pruned = deque(
-        (entry for entry in TsharkStats.packets_latencies if entry[0] >= one_second_ago),
+        (entry for entry in snapshot_latencies if entry[0] >= one_second_ago),
         maxlen=TsharkStats.packets_latencies.maxlen,
     )
     TsharkStats.packets_latencies = pruned
