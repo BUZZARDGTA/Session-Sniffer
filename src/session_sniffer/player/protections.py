@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
-from session_sniffer.text_utils import parse_voice_notifications
+from session_sniffer.text_utils import parse_duration_setting, parse_voice_notifications
 
 
 class GUIProtectionSettings:
@@ -102,18 +102,6 @@ class GUIProtectionSettings:
             cls.import_from_file(file_path)
 
     @classmethod
-    def _load_duration(cls, raw: str) -> int | Literal['Auto', 'Manual', 'Adaptive']:
-        """Parse a duration setting string."""
-        try:
-            return int(raw)
-        except ValueError:
-            if raw == 'Manual':
-                return 'Manual'
-            if raw == 'Adaptive':
-                return 'Adaptive'
-            return 'Auto'
-
-    @classmethod
     def _export_common_fields(cls, prefix: str) -> dict[str, object]:
         """Build the common export fields for a protection type."""
         enabled = getattr(cls, f'{prefix}_enabled', getattr(cls, f'{prefix}_suspend_enabled', False))
@@ -186,7 +174,7 @@ class GUIProtectionSettings:
         setattr(cls, path_attr, Path(path_str) if path_str else None)
 
         duration_attr = f'{prefix}_duration' if hasattr(cls, f'{prefix}_duration') else f'{prefix}_suspend_duration'
-        setattr(cls, duration_attr, cls._load_duration(str(section.get('duration', 'Auto'))))
+        setattr(cls, duration_attr, parse_duration_setting(str(section.get('duration', 'Auto'))))
 
         voice_str = str(section.get('voice_notifications', 'False'))
         setattr(cls, f'{prefix}_voice_notifications', parse_voice_notifications(voice_str))

@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import PlayerRateGraphWindow
+from session_sniffer.guis.utils import setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -278,15 +279,7 @@ class HighRateMonitorWidget(QWidget):
             'Tip: Players who are moving generate more traffic and are easier to detect.\n'
             'A stationary player may not exceed the thresholds.',
         )
-        vertical_header = self._table.verticalHeader()
-        if vertical_header is None:
-            msg = 'Failed to get vertical header'
-            raise RuntimeError(msg)
-        vertical_header.setVisible(False)
-        header = self._table.horizontalHeader()
-        if header is None:
-            msg = 'Failed to get horizontal header'
-            raise RuntimeError(msg)
+        header = setup_table_view_headers(self._table)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionsClickable(False)
         header.setSortIndicatorShown(False)

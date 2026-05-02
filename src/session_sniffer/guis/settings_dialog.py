@@ -33,12 +33,12 @@ from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_templates import SETTINGS_INI_HEADER_TEMPLATE
-from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
@@ -59,13 +59,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         """Build the tabbed settings dialog from setting metadata."""
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
-        self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint,
-        )
+        set_dialog_window_flags(self)
         self.setMinimumSize(700, 520)
         self.resize(780, 600)
 
@@ -782,13 +776,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         )
         if not file_path:
             return
-        text = format_triple_quoted_text(
-            SETTINGS_INI_HEADER_TEMPLATE.format(
-                title=TITLE,
-                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration',
-            ),
-            add_trailing_newline=True,
-        )
+        text = build_settings_ini_header_text()
         for setting_name, setting_value in Settings.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'
         Path(file_path).write_text(text, encoding='utf-8')

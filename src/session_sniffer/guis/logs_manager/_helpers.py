@@ -2,18 +2,21 @@
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QStandardItemModel
-    from PyQt6.QtWidgets import QWidget
 
 MAX_CSV_ROWS = 50_000
 AUTO_REFRESH_INTERVAL_MS = 2000
@@ -173,3 +176,149 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
             (item := model.item(source_row, col)) is not None and pattern.match(item.text()).hasMatch()
             for col in range(model.columnCount())
         )
+
+
+# ---------------------------------------------------------------------------
+# Reusable widget / action helpers shared across log-tab types
+# ---------------------------------------------------------------------------
+
+def create_log_viewer() -> QPlainTextEdit:
+    """Return a read-only, monospace QPlainTextEdit configured for log display."""
+    viewer = QPlainTextEdit()
+    viewer.setReadOnly(True)
+    mono_font = QFont('Consolas', 9)
+    mono_font.setStyleHint(QFont.StyleHint.Monospace)
+    viewer.setFont(mono_font)
+    viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+    return viewer
+
+
+def create_refresh_button(load_fn: Callable[[], None]) -> QPushButton:
+    """Return a standard Refresh button connected to *load_fn*."""
+    button = QPushButton('🔄 Refresh')
+    button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    button.setToolTip('Reload file contents')
+    button.clicked.connect(load_fn)
+    return button
+
+
+def create_search_input(
+    top_bar: QHBoxLayout,
+    placeholder: str,
+    on_changed: Callable[[str], None],
+) -> QLineEdit:
+    """Add a labelled search QLineEdit to *top_bar* and return it."""
+    top_bar.addWidget(QLabel('Search:'))
+    search_input = QLineEdit()
+    search_input.setPlaceholderText(placeholder)
+    search_input.textChanged.connect(on_changed)
+    top_bar.addWidget(search_input, stretch=1)
+    return search_input
+
+
+def add_purge_and_location_buttons(
+    layout: QHBoxLayout,
+    purge_fn: Callable[[], None],
+    file_path: Path,
+    *,
+    purge_tooltip: str = 'Clear all contents from this log file (creates a backup first)',
+) -> None:
+    """Append addStretch → Purge File → Open File Location buttons to *layout*."""
+    layout.addStretch()
+
+    purge_button = QPushButton('🗑️ Purge File')
+    purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+    purge_button.setToolTip(purge_tooltip)
+    purge_button.clicked.connect(purge_fn)
+    layout.addWidget(purge_button)
+
+    open_location_button = QPushButton('📂 Open File Location')
+    open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    open_location_button.setToolTip('Open the containing folder in Windows Explorer')
+    open_location_button.clicked.connect(lambda: open_file_location(file_path))
+    layout.addWidget(open_location_button)
+
+
+def purge_log_file(
+    parent: QWidget,
+    file_path: Path,
+    *,
+    item_label: str = 'contents',
+) -> str | None:
+    """Confirm and purge *file_path*; return a status message or None if cancelled/missing."""
+    if not file_path.exists():
+        QMessageBox.information(parent, TITLE, f'{file_path.name} does not exist.')
+        return None
+    reply = QMessageBox.warning(
+        parent, TITLE,
+        f'Purge ALL {item_label} from {file_path.name}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.',
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    if reply != QMessageBox.StandardButton.Yes:
+        return None
+    bak = backup_file(file_path)
+    file_path.write_text('', encoding='utf-8')
+    msg = f'Purged {file_path.name}.'
+    if bak:
+        msg += f'\nBackup saved to {bak.name}'
+    return msg
+
+
+def copy_viewer_text_to_clipboard(parent: QWidget, viewer: QPlainTextEdit, *, success_label: str = 'text') -> None:
+    """Copy the plain text from *viewer* to the clipboard and show a result dialog."""
+    text = viewer.toPlainText()
+    if not text:
+        QMessageBox.information(parent, TITLE, 'Nothing to copy.')
+        return
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        clipboard.setText(text)
+    QMessageBox.information(parent, TITLE, f'All {success_label} copied to clipboard.')
+
+
+def setup_metadata_label(layout: QVBoxLayout) -> QLabel:
+    """Add an empty metadata QLabel to *layout* and return it."""
+    label = QLabel('')
+    layout.addWidget(label)
+    return label
+
+
+def setup_copy_save_button_row(
+    layout: QVBoxLayout,
+    copy_fn: Callable[[], None],
+    save_fn: Callable[[], None],
+    *,
+    copy_tooltip: str = 'Copy all displayed text to clipboard',
+    save_tooltip: str = 'Save the displayed content to a new file',
+) -> QHBoxLayout:
+    """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it."""
+    button_row = QHBoxLayout()
+
+    copy_button = QPushButton('\U0001f4cb Copy All')
+    copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    copy_button.setToolTip(copy_tooltip)
+    copy_button.clicked.connect(copy_fn)
+    button_row.addWidget(copy_button)
+
+    save_button = QPushButton('\U0001f4be Save As...')
+    save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    save_button.setToolTip(save_tooltip)
+    save_button.clicked.connect(save_fn)
+    button_row.addWidget(save_button)
+
+    layout.addLayout(button_row)
+    return button_row
+
+
+def prepare_search(text: str, match_label: QLabel, viewer: QPlainTextEdit) -> QTextDocument | None:
+    """Clear highlights if *text* is empty and return the viewer document (or None to abort).
+
+    Returns the document when *text* is non-empty and the document is available;
+    returns None in all other cases (caller should return early).
+    """
+    if not text:
+        match_label.setText('')
+        viewer.setExtraSelections([])
+        return None
+    document = viewer.document()
+    return document if document is not None else None

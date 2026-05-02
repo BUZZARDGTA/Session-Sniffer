@@ -34,6 +34,13 @@ from session_sniffer.constants.local import COMBO_RULES_PATH, IMAGES_DIR_PATH, P
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.country_data import COUNTRY_NAMES, get_country_flag_code
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.utils import (
+    SUSPEND_TOOLTIP_ADAPTIVE,
+    SUSPEND_TOOLTIP_AUTO,
+    SUSPEND_TOOLTIP_CUSTOM,
+    SUSPEND_TOOLTIP_MANUAL,
+    set_dialog_window_flags,
+)
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.rendering_core.types import CaptureState
@@ -621,13 +628,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         self.setWindowTitle(f'{TITLE} - Detections Manager')
         self.setMinimumSize(720, 560)
         self.resize(800, 640)
-        self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint,
-        )
+        set_dialog_window_flags(self)
 
         # Widget references (populated by tab builders)
         # -- Network-based (mobile, vpn, hosting) --
@@ -1182,36 +1183,10 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         duration_combo = QComboBox()
         duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])  # pyright: ignore[reportUnknownMemberType]
-        duration_combo.setItemData(
-            0,
-            'Resume when the hostile player fully disconnects.\n'
-            '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
-            '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            1,
-            'Remain suspended indefinitely (must be resumed manually).\n'
-            '\u2022 Robustness: Maximum \u2013 nothing resumes automatically.\n'
-            '\u2022 Freeze time: Longest \u2013 game stays frozen until you intervene.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            2,
-            'PPS-based smart suspend/resume.\n'
-            'Temporarily resumes while the hostile player is idle (0 packets/sec)\n'
-            'and re-suspends as soon as activity is detected.\n'
-            '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
-            '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            3,
-            'Resume after a fixed number of seconds.\n'
-            '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
-            '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
+        duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{protection_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
@@ -1325,36 +1300,10 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         duration_combo = QComboBox()
         duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])  # pyright: ignore[reportUnknownMemberType]
-        duration_combo.setItemData(
-            0,
-            'Resume when the hostile player fully disconnects.\n'
-            '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
-            '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            1,
-            'Remain suspended indefinitely (must be resumed manually).\n'
-            '\u2022 Robustness: Maximum \u2013 nothing resumes automatically.\n'
-            '\u2022 Freeze time: Longest \u2013 game stays frozen until you intervene.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            2,
-            'PPS-based smart suspend/resume.\n'
-            'Temporarily resumes while the hostile player is idle (0 packets/sec)\n'
-            'and re-suspends as soon as activity is detected.\n'
-            '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
-            '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        duration_combo.setItemData(
-            3,
-            'Resume after a fixed number of seconds.\n'
-            '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
-            '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
+        duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
+        duration_combo.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{blocklist_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 

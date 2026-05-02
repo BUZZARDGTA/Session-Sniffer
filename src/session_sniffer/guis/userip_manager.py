@@ -43,6 +43,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     ElidedTooltipFilter,
     EntriesSortProxy,
     IPRangeBuilderDialog,
+    handle_ini_section_header,
     human_readable_size,
     iter_userip_entries,
     parse_settings_from_lines,
@@ -50,6 +51,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
+from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
@@ -61,13 +63,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         """Build the UserIP Databases Manager dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
-        self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint,
-        )
+        set_dialog_window_flags(self)
         self.setMinimumSize(920, 560)
         self.resize(1060, 680)
 
@@ -776,9 +772,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         in_userip_section = False
         for raw_line in db_path.read_text('utf-8').splitlines():
             stripped = raw_line.strip()
-            if stripped.startswith('[') and stripped.endswith(']'):
-                in_userip_section = stripped[1:-1] == SECTION_USERIP
-                new_lines.append(raw_line)
+            is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
+            if is_header:
                 continue
             if in_userip_section and to_remove:
                 m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)

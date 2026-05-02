@@ -27,7 +27,7 @@ from session_sniffer.background import (
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.interface_setup import get_filtered_tshark_interfaces, populate_network_interfaces_info, refresh_available_interfaces, select_interface
+from session_sniffer.capture.interface_setup import get_filtered_tshark_interfaces, populate_network_interfaces_info, refresh_available_interfaces
 from session_sniffer.capture.tshark_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
 from session_sniffer.capture.utils.check_tshark_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
@@ -41,6 +41,7 @@ from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis.app import app
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
+from session_sniffer.guis.interface_selection_dialog import select_interface
 from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.utils import get_screen_size

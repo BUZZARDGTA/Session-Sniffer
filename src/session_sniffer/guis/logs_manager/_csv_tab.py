@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -32,9 +31,11 @@ from session_sniffer.guis.logs_manager._helpers import (
     DATE_FILTER_TODAY,
     MAX_CSV_ROWS,
     MultiColumnFilterProxy,
-    backup_file,
+    create_refresh_button,
+    create_search_input,
     file_metadata_text,
     open_file_location,
+    purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import ElidedTooltipFilter
@@ -69,11 +70,7 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         # --- Top bar: search + column filter + date filter + refresh + count ---
         top_bar = QHBoxLayout()
 
-        top_bar.addWidget(QLabel('Search:'))
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Filter entries ...')
-        self._search_input.textChanged.connect(self._on_search_changed)
-        top_bar.addWidget(self._search_input, stretch=1)
+        self._search_input = create_search_input(top_bar, 'Filter entries ...', self._on_search_changed)
 
         top_bar.addWidget(QLabel('Column:'))
         self._column_combo = QComboBox()
@@ -90,10 +87,7 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._date_combo.currentTextChanged.connect(self._on_date_filter_changed)
         top_bar.addWidget(self._date_combo)
 
-        refresh_button = QPushButton('🔄 Refresh')
-        refresh_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        refresh_button.setToolTip('Reload file contents')
-        refresh_button.clicked.connect(self.load_data)
+        refresh_button = create_refresh_button(self.load_data)
         top_bar.addWidget(refresh_button)
 
         self._count_label = QLabel('')
@@ -398,25 +392,10 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _purge_file(self) -> None:
-        if not self._file_path.exists():
-            QMessageBox.information(self, TITLE, f'{self._file_path.name} does not exist.')
-            return
-        reply = QMessageBox.warning(
-            self, TITLE,
-            f'Purge ALL entries from {self._file_path.name}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        backup = backup_file(self._file_path)
-        self._file_path.write_text('', encoding='utf-8')
-
-        msg = f'Purged {self._file_path.name}.'
-        if backup:
-            msg += f'\nBackup saved to {backup.name}'
-        self._show_status(msg)
-        self.load_data()
+        msg = purge_log_file(self, self._file_path, item_label='entries')
+        if msg is not None:
+            self._show_status(msg)
+            self.load_data()
 
     def _rewrite_csv_from_model(self) -> None:
         """Rewrite the CSV file from the current model contents."""

@@ -3,9 +3,8 @@
 from datetime import datetime
 
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QWidget
 
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.player.registry import PlayersRegistry
 
 _CONNECTED_COLOR = (80, 200, 80, 200)
@@ -13,7 +12,7 @@ _DISCONNECTED_COLOR = (220, 80, 60, 200)
 _MIN_BAR_WIDTH = 0.5
 
 
-class SessionTimelineWindow(QWidget):
+class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
     """A standalone Gantt-style chart showing when each player was present in the session."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
@@ -22,13 +21,7 @@ class SessionTimelineWindow(QWidget):
 
         self.setWindowTitle('Session Timeline')
         self.resize(860, 480)
-        if always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 4)
-        layout.setSpacing(0)
+        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 4), spacing=0)
 
         self._widget = pg.PlotWidget()
         self._widget.setBackground('black')
@@ -45,11 +38,7 @@ class SessionTimelineWindow(QWidget):
 
         layout.addWidget(self._widget)
 
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
-        always_on_top_checkbox.setChecked(always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -132,12 +121,3 @@ class SessionTimelineWindow(QWidget):
         self._y_axis.setTicks([tick_labels])  # pyright: ignore[reportUnknownMemberType]
         self._widget.setYRange(-0.5, n - 0.5)
         self._widget.setXRange(0, max_end * 1.05)
-
-    # Internal ————————————————————————————————————————————————————————————————
-
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()

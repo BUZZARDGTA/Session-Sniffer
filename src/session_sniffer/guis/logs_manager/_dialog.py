@@ -1,5 +1,4 @@
 """Logs Manager dialog — main entry point combining all log tabs."""
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -25,6 +24,7 @@ from session_sniffer.guis.logs_manager._helpers import backup_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.utils import set_dialog_window_flags
 
 
 class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
@@ -34,13 +34,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         """Build the Logs Manager dialog with tabs for each log file type."""
         super().__init__(parent)
         self.setWindowTitle(f'Logs Manager - {TITLE}')
-        self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint,
-        )
+        set_dialog_window_flags(self)
         self.setMinimumSize(1000, 600)
         self.resize(1100, 700)
 

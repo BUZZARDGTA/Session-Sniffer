@@ -56,3 +56,15 @@ def parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
     if upper == 'FEMALE':
         return 'Female'
     return False
+
+
+def parse_duration_setting(raw: str) -> int | Literal['Auto', 'Manual', 'Adaptive']:
+    """Parse a protection suspend-duration setting string to its typed value."""
+    try:
+        return int(raw)
+    except ValueError:
+        if raw == 'Manual':
+            return 'Manual'
+        if raw == 'Adaptive':
+            return 'Adaptive'
+        return 'Auto'

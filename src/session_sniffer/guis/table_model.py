@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
+from session_sniffer.constants.standalone import BANDWIDTH_BASE_COLUMN_ATTRS
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
 from session_sniffer.player.registry import PlayersRegistry
@@ -353,12 +354,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         }:
             # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
             _bandwidth_attr_map = {
-                'T. Bandwidth': 'bandwidth.total_exchanged',
-                'Bandwidth': 'bandwidth.exchanged',
-                'T. Download': 'bandwidth.total_download',
-                'Download': 'bandwidth.download',
-                'T. Upload': 'bandwidth.total_upload',
-                'Upload': 'bandwidth.upload',
+                **BANDWIDTH_BASE_COLUMN_ATTRS,
                 'BPS': 'bandwidth.bps.calculated_rate',
                 'BPM': 'bandwidth.bpm.calculated_rate',
             }

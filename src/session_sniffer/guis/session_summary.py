@@ -2,22 +2,15 @@
 
 import time
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QCheckBox,
-    QFormLayout,
-    QGroupBox,
-    QLabel,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import TsharkStats
 
 
-class SessionSummaryWindow(QWidget):
+class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
     """A standalone window showing aggregated session-wide statistics."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
@@ -30,13 +23,7 @@ class SessionSummaryWindow(QWidget):
 
         self.setWindowTitle('Session Summary')
         self.resize(400, 360)
-        if always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout = self._setup_window_layout(always_on_top=always_on_top, spacing=6)
 
         # Players group
         players_group = QGroupBox('Players')
@@ -80,11 +67,7 @@ class SessionSummaryWindow(QWidget):
         misc_form.addRow('Tshark Restarts:', self._lbl_restarts)
         layout.addWidget(misc_group)
 
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
-        always_on_top_checkbox.setChecked(always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -123,12 +106,3 @@ class SessionSummaryWindow(QWidget):
         self._lbl_peak_bps.setText(f'{PlayerBandwidth.format_bytes(self._peak_bps)}/s')
         self._lbl_uptime.setText(uptime)
         self._lbl_restarts.setText(str(TsharkStats.restarted_times))
-
-    # Internal ————————————————————————————————————————————————————————————————
-
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()

@@ -3,15 +3,15 @@
 import numpy as np
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QWidget
 
-from session_sniffer.guis.player_rate_graph import DragCursorViewBox, PositiveTicksAxis
+from session_sniffer.guis.player_rate_graph import DragCursorViewBox, PositiveTicksAxis, SlidingWindowMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 
 VISIBLE_WINDOW = 60
 _FLOOR_MS = 1.0
 
 
-class PacketsLatencyGraphWindow(QWidget):
+class PacketsLatencyGraphWindow(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     """A standalone window displaying live per-packet latency over time."""
 
     def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
@@ -22,13 +22,7 @@ class PacketsLatencyGraphWindow(QWidget):
 
         self.setWindowTitle('Packets Latency Graph')
         self.resize(700, 350)
-        if always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
 
         # ── Latency graph — orange tones ─────────────────────────────────
         self._widget = pg.PlotWidget(
@@ -61,11 +55,7 @@ class PacketsLatencyGraphWindow(QWidget):
 
         layout.addWidget(self._widget)
 
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
-        always_on_top_checkbox.setChecked(always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
         # History buffers
         self._buf = np.zeros(self._max_history, dtype=np.float64)
@@ -83,11 +73,7 @@ class PacketsLatencyGraphWindow(QWidget):
         if n < self._max_history:
             self._buf[n] = latency_ms
             self._buf_sum += latency_ms
-            n += 1
-            self._buf_len = n
-            if n != self._x_cache_len:
-                self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
-                self._x_cache_len = n
+            n = self._grow_cache(n)
         else:
             self._buf_sum += latency_ms - self._buf[0]
             self._buf[:-1] = self._buf[1:]
@@ -121,10 +107,3 @@ class PacketsLatencyGraphWindow(QWidget):
     def _is_at_live_edge(self) -> bool:
         x_range: list[float] = self._widget.viewRange()[0]  # pyright: ignore[reportUnknownMemberType]
         return x_range[1] >= -2  # noqa: PLR2004
-
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()

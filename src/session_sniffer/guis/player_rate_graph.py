@@ -1,41 +1,55 @@
 """Live PPS + BPS split graph window for an individual player."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QWidget
+
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+
+if TYPE_CHECKING:
+    from PyQt6.QtWidgets import QVBoxLayout
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
 
 
-class PlayerRateGraphWindow(QWidget):
-    """A standalone window with separate PPS and BPS graphs stacked vertically."""
+class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
+    """Mixin providing a sliding-window x-cache growth helper."""
 
-    _BYTES_TO_KBS = 1024
+    _buf_len: int
+    _x_cache_len: int
+    _x_cache: np.ndarray[Any, np.dtype[np.float64]]
 
-    def __init__(  # pylint: disable=too-many-arguments
-        self, *, ip: str, initial_pps_threshold: int, initial_bps_threshold: int,
-        max_history: int = DEFAULT_MAX_HISTORY, always_on_top: bool = True,
-    ) -> None:
-        """Initialize the split rate graph window for the given player IP."""
-        super().__init__()
+    def _grow_cache(self, n: int) -> int:
+        """Increment *n*, advance ``_buf_len``, and rebuild ``_x_cache`` if length changed."""
+        n += 1
+        self._buf_len = n
+        if n != self._x_cache_len:
+            self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
+            self._x_cache_len = n
+        return n
 
-        self.ip = ip
-        self._max_history = max_history
 
-        self.setWindowTitle(f'Rate Graph \u2014 {ip}')
-        self.resize(700, 500)
-        if always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
+    """Base class for dual PPS+BPS graph windows.
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+    Subclasses must call ``_finish_graph_init(always_on_top=...)`` at the end of
+    their ``__init__`` after setting ``_max_history`` and the window title.
+    """
 
+    _BYTES_TO_KBS: int = 1024
+    _max_history: int
+
+    def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
+        """Create PPS and BPS PlotWidgets and add them to *layout*.
+
+        Calls ``_configure_pps_widget()`` and ``_configure_bps_widget()`` hooks
+        after constructing each widget, allowing subclasses to add threshold lines
+        or custom limits.
+        """
+        # pylint: disable=attribute-defined-outside-init
         # ── PPS graph (top) — lime green tones ──────────────────────────
         self._pps_widget = pg.PlotWidget(
             axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
@@ -44,8 +58,6 @@ class PlayerRateGraphWindow(QWidget):
         self._pps_widget.setMouseEnabled(x=True, y=True)
         self._pps_widget.setBackground('black')
         self._pps_widget.showGrid(x=True, y=True)
-        self._pps_widget.setYRange(0, 100)
-        self._pps_widget.setLimits(yMin=0, yMax=1_000, xMax=0, xMin=-self._max_history)
         self._pps_widget.setLabel('left', 'PPS')
         self._pps_widget.setLabel('bottom', 'Time (seconds ago)')
 
@@ -60,12 +72,7 @@ class PlayerRateGraphWindow(QWidget):
         self._pps_curve.setFillLevel(0)
         self._pps_curve.setBrush(pg.mkBrush(0, 255, 0, 60))
 
-        self._pps_threshold_line = pg.InfiniteLine(
-            angle=0,
-            pos=initial_pps_threshold,
-            pen=pg.mkPen('#66bb6a', width=1.5, style=Qt.PenStyle.DashLine),
-        )
-        self._pps_widget.addItem(self._pps_threshold_line)
+        self._configure_pps_widget()
 
         self._pps_avg_line = pg.InfiniteLine(
             angle=0,
@@ -83,7 +90,6 @@ class PlayerRateGraphWindow(QWidget):
         self._bps_widget.setMouseEnabled(x=True, y=True)
         self._bps_widget.setBackground('black')
         self._bps_widget.showGrid(x=True, y=True)
-        self._bps_widget.setYRange(0, 50)
         self._bps_widget.setLimits(yMin=0, xMax=0, xMin=-self._max_history)
         self._bps_widget.setLabel('left', 'KB/s')
         self._bps_widget.setLabel('bottom', 'Time (seconds ago)')
@@ -99,12 +105,7 @@ class PlayerRateGraphWindow(QWidget):
         self._bps_curve.setFillLevel(0)
         self._bps_curve.setBrush(pg.mkBrush(0, 188, 212, 60))
 
-        self._bps_threshold_line = pg.InfiniteLine(
-            angle=0,
-            pos=initial_bps_threshold / self._BYTES_TO_KBS,
-            pen=pg.mkPen('#4dd0e1', width=1.5, style=Qt.PenStyle.DashLine),
-        )
-        self._bps_widget.addItem(self._bps_threshold_line)
+        self._configure_bps_widget()
 
         self._bps_avg_line = pg.InfiniteLine(
             angle=0,
@@ -114,14 +115,24 @@ class PlayerRateGraphWindow(QWidget):
 
         layout.addWidget(self._bps_widget)
 
-        # Always-on-top toggle (local to this window)
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
-        always_on_top_checkbox.setChecked(always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox)
+    def _configure_pps_widget(self) -> None:
+        """Override to add PPS-specific configuration (limits, threshold lines, etc.)."""
+        self._pps_widget.setLimits(yMin=0, xMax=0, xMin=-self._max_history)
 
-        # History buffers — pre-allocated numpy arrays avoid per-tick list copies.
+    def _configure_bps_widget(self) -> None:
+        """Override to add BPS-specific configuration (threshold lines, etc.)."""
+
+    def _finish_graph_init(self, *, always_on_top: bool) -> None:
+        """Initialize the common window layout, widgets, and history buffers."""
+        self.resize(700, 500)
+        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+        self._setup_dual_graph_widgets(layout)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self._setup_history_buffers()
+
+    def _setup_history_buffers(self) -> None:
+        """Initialise pre-allocated numpy sliding-window buffers."""
+        # pylint: disable=attribute-defined-outside-init
         self._pps_buf = np.zeros(self._max_history, dtype=np.float64)
         self._bps_buf = np.zeros(self._max_history, dtype=np.float64)
         self._buf_len = VISIBLE_WINDOW
@@ -130,10 +141,8 @@ class PlayerRateGraphWindow(QWidget):
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
 
-    # Public API —————————————————————————————————————————————————————————————
-
-    def update_rates(self, *, pps: int, bps: int) -> None:
-        """Append new PPS and BPS samples and refresh both graphs."""
+    def _advance_buffers(self, pps: int, bps: int) -> tuple[np.ndarray, np.ndarray, int]:
+        """Advance the dual sliding window; return ``(pps_data, bps_data, n)``."""
         kbps = bps / self._BYTES_TO_KBS
         n = self._buf_len
 
@@ -143,11 +152,7 @@ class PlayerRateGraphWindow(QWidget):
             self._bps_buf[n] = kbps
             self._pps_sum += pps
             self._bps_sum += kbps
-            n += 1
-            self._buf_len = n
-            if n != self._x_cache_len:
-                self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
-                self._x_cache_len = n
+            n = self._grow_cache(n)
         else:
             # Steady state: shift left (C-level memcpy), append at end
             self._pps_sum += pps - self._pps_buf[0]
@@ -157,20 +162,82 @@ class PlayerRateGraphWindow(QWidget):
             self._bps_buf[:-1] = self._bps_buf[1:]
             self._bps_buf[-1] = kbps
 
-        pps_data = self._pps_buf[:n]
-        bps_data = self._bps_buf[:n]
+        return self._pps_buf[:n], self._bps_buf[:n], n
+
+    def update_rates(self, *, pps: int, bps: int) -> None:
+        """Append new PPS and BPS samples and refresh both graphs."""
+        pps_data, bps_data, n = self._advance_buffers(pps, bps)
 
         self._pps_curve.setData(self._x_cache, pps_data)
         if self._is_at_live_edge(self._pps_widget):
             self._pps_widget.setXRange(-VISIBLE_WINDOW, 0)
+        self._on_pps_rendered(pps_data)
         if n:
             self._pps_avg_line.setPos(self._pps_sum / n)
 
         self._bps_curve.setData(self._x_cache, bps_data)
         if self._is_at_live_edge(self._bps_widget):
             self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
+        self._on_bps_rendered(bps_data)
         if n:
             self._bps_avg_line.setPos(self._bps_sum / n)
+
+    def _on_pps_rendered(self, pps_data: np.ndarray) -> None:
+        """Hook called after PPS graph is updated. Override to add auto-scaling."""
+
+    def _on_bps_rendered(self, bps_data: np.ndarray) -> None:
+        """Hook called after BPS graph is updated. Override to add auto-scaling."""
+
+    @staticmethod
+    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
+        """Return True if the widget's x-axis view includes the live (rightmost) edge."""
+        x_range: list[float] = widget.viewRange()[0]  # pyright: ignore[reportUnknownMemberType]
+        return x_range[1] >= -2  # noqa: PLR2004
+
+
+class PlayerRateGraphWindow(DualRateGraphBase):
+    """A standalone window with separate PPS and BPS graphs stacked vertically."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self, *, ip: str, initial_pps_threshold: int, initial_bps_threshold: int,
+        max_history: int = DEFAULT_MAX_HISTORY, always_on_top: bool = True,
+    ) -> None:
+        """Initialize the split rate graph window for the given player IP."""
+        super().__init__()
+
+        self.ip = ip
+        self._max_history = max_history
+        self._initial_pps_threshold = initial_pps_threshold
+        self._initial_bps_threshold = initial_bps_threshold
+
+        self.setWindowTitle(f'Rate Graph \u2014 {ip}')
+        self._finish_graph_init(always_on_top=always_on_top)
+
+    # Configuration hooks — called from _DualRateGraphBase._setup_dual_graph_widgets
+    # ——————————————————————————————————————————————————————————————————————————————
+
+    def _configure_pps_widget(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self._pps_widget.setYRange(0, 100)
+        self._pps_widget.setLimits(yMin=0, yMax=1_000, xMax=0, xMin=-self._max_history)
+        self._pps_threshold_line = pg.InfiniteLine(
+            angle=0,
+            pos=self._initial_pps_threshold,
+            pen=pg.mkPen('#66bb6a', width=1.5, style=Qt.PenStyle.DashLine),
+        )
+        self._pps_widget.addItem(self._pps_threshold_line)
+
+    def _configure_bps_widget(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self._bps_widget.setYRange(0, 50)
+        self._bps_threshold_line = pg.InfiniteLine(
+            angle=0,
+            pos=self._initial_bps_threshold / self._BYTES_TO_KBS,
+            pen=pg.mkPen('#4dd0e1', width=1.5, style=Qt.PenStyle.DashLine),
+        )
+        self._bps_widget.addItem(self._bps_threshold_line)
+
+    # Public API —————————————————————————————————————————————————————————————
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""
@@ -182,6 +249,7 @@ class PlayerRateGraphWindow(QWidget):
 
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
+        # pylint: disable=attribute-defined-outside-init
         # Pad to at least VISIBLE_WINDOW, keep up to max_history
         pps_trimmed = pps_history[-self._max_history:]
         bps_trimmed = bps_history[-self._max_history:]
@@ -215,22 +283,6 @@ class PlayerRateGraphWindow(QWidget):
         self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
         if n:
             self._bps_avg_line.setPos(self._bps_sum / n)
-
-    # Internal ———————————————————————————————————————————————————————————————
-
-    @staticmethod
-    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
-        """Return True if the widget's x-axis view includes the live (rightmost) edge."""
-        x_range: list[float] = widget.viewRange()[0]  # pyright: ignore[reportUnknownMemberType]
-        return x_range[1] >= -2  # noqa: PLR2004
-
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        """Toggle the window-stays-on-top flag without changing the saved setting."""
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()
 
 
 class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]  # pylint: disable=abstract-method

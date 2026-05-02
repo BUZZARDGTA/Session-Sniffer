@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import BANDWIDTH_BASE_COLUMN_ATTRS, TITLE
 from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.settings_ini_model import SettingsIniModel
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
-from session_sniffer.text_templates import SETTINGS_INI_HEADER_TEMPLATE
+from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import validate_file
 
@@ -136,12 +136,7 @@ class Settings:
         'Packets Sent': 'packets_sent',
         'PPS': 'pps.calculated_rate',
         'PPM': 'ppm.calculated_rate',
-        'T. Bandwidth': 'bandwidth.total_exchanged',
-        'Bandwidth': 'bandwidth.exchanged',
-        'T. Download': 'bandwidth.total_download',
-        'Download': 'bandwidth.download',
-        'T. Upload': 'bandwidth.total_upload',
-        'Upload': 'bandwidth.upload',
+        **BANDWIDTH_BASE_COLUMN_ATTRS,
         'BPS': 'bps.calculated_rate',
         'BPM': 'bpm.calculated_rate',
         'IP Address': 'ip',
@@ -376,13 +371,7 @@ class Settings:
     @classmethod
     def rewrite_settings_file(cls) -> None:
         """Rewrite the settings file from current in-memory values."""
-        text = format_triple_quoted_text(
-            SETTINGS_INI_HEADER_TEMPLATE.format(
-                title=TITLE,
-                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration',
-            ),
-            add_trailing_newline=True,
-        )
+        text = build_settings_ini_header_text()
 
         for setting_name, setting_value in cls.iterate_over_settings():
             text += f'{setting_name}={setting_value}\n'

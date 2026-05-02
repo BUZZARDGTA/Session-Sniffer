@@ -5,13 +5,12 @@ from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
-from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import format_userip_ip_conflict_message
+from session_sniffer.guis.utils import create_nonmodal_warning, find_main_window
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
@@ -19,6 +18,8 @@ from session_sniffer.text_utils import format_triple_quoted_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PyQt6.QtWidgets import QMessageBox
 
 logger = get_logger(__name__)
 
@@ -105,19 +106,11 @@ class UserIPDatabases:
         ))
 
         def _show_on_gui() -> None:
-            parent = next(
-                (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
-                None,
-            )
+            parent = find_main_window()
             if parent is None:
                 QTimer.singleShot(500, _show_on_gui)
                 return
-            dlg = QMessageBox(parent)
-            dlg.setWindowModality(Qt.WindowModality.NonModal)
-            dlg.setWindowTitle(TITLE)
-            dlg.setText(text)
-            dlg.setIcon(QMessageBox.Icon.Warning)
-            dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            dlg = create_nonmodal_warning(parent, text)
             dlg.finished.connect(lambda _result: UserIPDatabases._open_conflict_dialogs.pop(ip, None))  # pyright: ignore[reportUnknownLambdaType]
             UserIPDatabases._open_conflict_dialogs[ip] = dlg
             dlg.show()

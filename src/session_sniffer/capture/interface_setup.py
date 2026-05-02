@@ -1,10 +1,9 @@
-"""Network interface population, TShark discovery, and interface selection logic."""
+"""Network interface population, TShark discovery, and interface refresh logic."""
 
 import subprocess
 from typing import TYPE_CHECKING
 
 from session_sniffer.capture.exceptions import TSharkOutputParsingError
-from session_sniffer.guis.interface_selection_dialog import show_interface_selection_dialog
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import (
@@ -17,14 +16,10 @@ from session_sniffer.networking.interface import (
     Interface,
     InterfaceIdentity,
     InterfaceTraffic,
-    SelectedInterfaceRow,
 )
 from session_sniffer.networking.utils import is_valid_private_ipv4
-from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from session_sniffer.networking.manuf_lookup import MacLookup
 
 EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
@@ -147,165 +142,3 @@ def refresh_available_interfaces(mac_lookup: MacLookup, tshark_path: str) -> lis
         available.append(interface)
 
     return available
-
-
-def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
-    interfaces: list[Interface],
-    screen_width: int,
-    screen_height: int,
-    *,
-    force_dialog: bool = False,
-    before_dialog: Callable[[], None] | None = None,
-    mac_lookup: MacLookup | None = None,
-    tshark_path: str | None = None,
-) -> SelectedInterfaceRow | None:
-    """Select the best matching interface based on current settings.
-
-    If auto-selection is not possible or results in ambiguity,
-    prompt the user with the interface selection dialog.
-
-    Args:
-        interfaces: Available Interface objects to choose from.
-        screen_width: Screen width in pixels.
-        screen_height: Screen height in pixels.
-        force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
-        before_dialog: Optional callback invoked once, right before the dialog is shown (skipped on auto-select).
-        mac_lookup: Optional MacLookup instance for live refresh in the dialog.
-        tshark_path: Optional TShark path for live refresh in the dialog.
-
-    Returns:
-        A SelectedInterfaceRow referencing the live Interface, or None if cancelled.
-        Note: ip_address can be None or 'N/A' if interface has no IP addresses.
-    """
-
-    def _can_auto_select_interface() -> bool:
-        """Whether the application has enough configuration to attempt auto-selecting an interface."""
-        if not Settings.gui_interface_selection_auto_connect:
-            return False
-
-        return any(
-            setting is not None
-            for setting in (
-                Settings.capture_interface_name,
-                Settings.capture_mac_address,
-                Settings.capture_ip_address,
-            )
-        )
-
-    def _auto_select_best_interface() -> SelectedInterfaceRow | None:
-        """Return the best matching interface, or `None` if ambiguous or no match."""
-        if not _can_auto_select_interface():
-            return None
-
-        def calculate_score(interface: Interface, ip_address: str, *, is_arp: bool) -> int:
-            """Calculate the score of an interface based on matching criteria.
-
-            Args:
-                interface: The interface to calculate the score for
-                ip_address: The IP address for this row
-                is_arp: Whether this is an ARP entry
-            """
-            score = 0
-            if Settings.capture_interface_name is not None and interface.identity.name == Settings.capture_interface_name:
-                score += 4
-
-            # Get the MAC address for this specific row
-            mac_address = (
-                next((arp.mac_address for arp in interface.arp_entries if arp.ip_address == ip_address), None)
-                if is_arp
-                else interface.identity.mac_address
-            )
-
-            if Settings.capture_mac_address is not None and mac_address == Settings.capture_mac_address:
-                score += 2
-            if Settings.capture_ip_address is not None and ip_address == Settings.capture_ip_address:
-                score += 1
-            return score
-
-        best_score = 0
-        best_match: tuple[Interface, str, bool] | None = None
-        ambiguous = False
-
-        # Check all possible rows (interface IPs + ARP entries)
-        for interface in interfaces:
-            # Check regular IP addresses
-            if interface.ip_addresses:
-                for ip_address in interface.ip_addresses:
-                    score = calculate_score(interface, ip_address, is_arp=False)
-                    if score > best_score:
-                        best_score = score
-                        best_match = (interface, ip_address, False)
-                        ambiguous = False
-                    elif score == best_score and score > 0:
-                        ambiguous = True
-            else:
-                # No IP addresses case
-                score = calculate_score(interface, 'N/A', is_arp=False)
-                if score > best_score:
-                    best_score = score
-                    best_match = (interface, 'N/A', False)
-                    ambiguous = False
-                elif score == best_score and score > 0:
-                    ambiguous = True
-
-            # Check ARP entries
-            for arp_entry in interface.arp_entries:
-                score = calculate_score(interface, arp_entry.ip_address, is_arp=True)
-                if score > best_score:
-                    best_score = score
-                    best_match = (interface, arp_entry.ip_address, True)
-                    ambiguous = False
-                elif score == best_score and score > 0:
-                    ambiguous = True
-
-        if best_match is None or ambiguous:
-            return None
-
-        interface, ip_address, is_arp = best_match
-        return SelectedInterfaceRow(interface=interface, ip_address=ip_address, is_arp=is_arp)
-
-    if not force_dialog:
-        auto_selected = _auto_select_best_interface()
-        if auto_selected is not None:
-            return auto_selected
-
-    # If no suitable interface was found, prompt the user to select an interface
-    if before_dialog is not None:
-        before_dialog()
-    selected_interface: SelectedInterfaceRow | None
-    (
-        selected_interface,
-        arp_spoofing_enabled,
-        hide_inactive_enabled,
-        hide_neighbours_enabled,
-    ) = show_interface_selection_dialog(
-        screen_width,
-        screen_height,
-        interfaces,
-        (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
-        (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
-        mac_lookup=mac_lookup,
-        tshark_path=tshark_path,
-    )
-
-    if selected_interface is None:
-        return None
-
-    need_rewrite_settings = False
-
-    if arp_spoofing_enabled != Settings.capture_arp_spoofing:
-        Settings.capture_arp_spoofing = arp_spoofing_enabled
-        need_rewrite_settings = True
-
-    if hide_inactive_enabled != Settings.gui_interface_selection_hide_inactive:
-        Settings.gui_interface_selection_hide_inactive = hide_inactive_enabled
-        need_rewrite_settings = True
-
-    if hide_neighbours_enabled != Settings.gui_interface_selection_hide_neighbours:
-        Settings.gui_interface_selection_hide_neighbours = hide_neighbours_enabled
-        need_rewrite_settings = True
-
-    if need_rewrite_settings:
-        Settings.rewrite_settings_file()
-
-    return selected_interface

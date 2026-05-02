@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
+from session_sniffer.guis.utils import setup_table_view_headers
 from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
 
 if TYPE_CHECKING:
@@ -261,16 +262,7 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
         self._table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self._table.setSortingEnabled(True)
 
-        vertical_header = self._table.verticalHeader()
-        if vertical_header is None:
-            msg = 'Failed to get vertical header'
-            raise RuntimeError(msg)
-        vertical_header.setVisible(False)
-
-        header = self._table.horizontalHeader()
-        if header is None:
-            msg = 'Failed to get horizontal header'
-            raise RuntimeError(msg)
+        header = setup_table_view_headers(self._table)
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # IP

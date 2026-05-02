@@ -5,6 +5,8 @@ Keep only large, mostly-static multi-line blobs here (e.g., INI headers/defaults
 Short, logic-dependent, or one-off UI messages should live close to their call sites.
 """
 
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.text_utils import format_triple_quoted_text
 
 SETTINGS_INI_HEADER_TEMPLATE = """
 ;;-----------------------------------------------------------------------------
@@ -16,6 +18,21 @@ SETTINGS_INI_HEADER_TEMPLATE = """
 ;; {configuration_guide_url}
 ;;-----------------------------------------------------------------------------
 """
+
+_SETTINGS_INI_CONFIG_GUIDE_URL = (
+    'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration'
+)
+
+
+def build_settings_ini_header_text() -> str:
+    """Return the formatted Settings.ini header text (with trailing newline)."""
+    return format_triple_quoted_text(
+        SETTINGS_INI_HEADER_TEMPLATE.format(
+            title=TITLE,
+            configuration_guide_url=_SETTINGS_INI_CONFIG_GUIDE_URL,
+        ),
+        add_trailing_newline=True,
+    )
 
 
 USERIP_DEFAULT_DB_HEADER_TEMPLATE = """

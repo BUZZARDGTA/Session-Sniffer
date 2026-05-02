@@ -49,6 +49,26 @@ DATABASE_COLUMN = 4
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
 
+
+def handle_ini_section_header(
+    raw_line: str,
+    stripped: str,
+    new_lines: list[str],
+    *,
+    in_section: bool,
+    section_name: str,
+) -> tuple[bool, bool]:
+    """Check whether *stripped* is an INI section header.
+
+    If it is, append *raw_line* to *new_lines* and return ``(True, is_target_section)``.
+    Otherwise return ``(False, in_section)`` unchanged.
+    """
+    if stripped.startswith('[') and stripped.endswith(']'):
+        new_lines.append(raw_line)
+        return True, stripped[1:-1] == section_name
+    return False, in_section
+
+
 SETTINGS_KEYS_ORDER: list[str] = [
     'ENABLED', 'COLOR', 'LOG', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS',
     'PROTECTION', 'PROTECTION_PROCESS_PATH',

@@ -2,16 +2,14 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
+from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -23,11 +21,16 @@ from session_sniffer.guis.logs_manager._helpers import (
     AUTO_REFRESH_INTERVAL_MS,
     LARGE_TEXT_FILE_LIMIT,
     LogLevelHighlighter,
-    backup_file,
+    add_purge_and_location_buttons,
+    copy_viewer_text_to_clipboard,
+    create_log_viewer,
+    create_refresh_button,
     file_metadata_text,
-    open_file_location,
+    prepare_search,
+    purge_log_file,
+    setup_copy_save_button_row,
+    setup_metadata_label,
 )
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
 
@@ -68,10 +71,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._match_label = QLabel('')
         top_bar.addWidget(self._match_label)
 
-        refresh_button = QPushButton('🔄 Refresh')
-        refresh_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        refresh_button.setToolTip('Reload file contents')
-        refresh_button.clicked.connect(self.load_data)
+        refresh_button = create_refresh_button(self.load_data)
         top_bar.addWidget(refresh_button)
 
         self._auto_refresh_check = QCheckBox('Auto-refresh')
@@ -85,12 +85,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         layout.addLayout(top_bar)
 
         # --- Text viewer ---
-        self._viewer = QPlainTextEdit()
-        self._viewer.setReadOnly(True)
-        mono_font = QFont('Consolas', 9)
-        mono_font.setStyleHint(QFont.StyleHint.Monospace)
-        self._viewer.setFont(mono_font)
-        self._viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self._viewer = create_log_viewer()
 
         document = self._viewer.document()
         self._highlighter = LogLevelHighlighter(document) if document is not None else None
@@ -98,39 +93,16 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         layout.addWidget(self._viewer, stretch=1)
 
         # --- Metadata ---
-        self._metadata_label = QLabel('')
-        layout.addWidget(self._metadata_label)
+        self._metadata_label = setup_metadata_label(layout)
 
         # --- Bottom buttons ---
-        button_row = QHBoxLayout()
+        button_row = setup_copy_save_button_row(
+            layout, self._copy_all, self._save_as,
+            copy_tooltip='Copy all log text to clipboard',
+            save_tooltip='Save the log to a new file',
+        )
 
-        copy_button = QPushButton('📋 Copy All')
-        copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        copy_button.setToolTip('Copy all log text to clipboard')
-        copy_button.clicked.connect(self._copy_all)
-        button_row.addWidget(copy_button)
-
-        save_button = QPushButton('💾 Save As...')
-        save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        save_button.setToolTip('Save the log to a new file')
-        save_button.clicked.connect(self._save_as)
-        button_row.addWidget(save_button)
-
-        button_row.addStretch()
-
-        purge_button = QPushButton('🗑️ Purge File')
-        purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        purge_button.setToolTip('Clear all contents from this log file (creates a backup first)')
-        purge_button.clicked.connect(self._purge_file)
-        button_row.addWidget(purge_button)
-
-        open_location_button = QPushButton('📂 Open File Location')
-        open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        open_location_button.setToolTip('Open the containing folder in Windows Explorer')
-        open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
-        button_row.addWidget(open_location_button)
-
-        layout.addLayout(button_row)
+        add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
 
         # --- Auto-refresh timer ---
         self._refresh_timer = QTimer(self)
@@ -196,12 +168,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         self._search_matches.clear()
         self._current_match_index = -1
 
-        if not text:
-            self._match_label.setText('')
-            self._viewer.setExtraSelections([])
-            return
-
-        document = self._viewer.document()
+        document = prepare_search(text, self._match_label, self._viewer)
         if document is None:
             return
         cursor = document.find(text)
@@ -270,14 +237,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
     # ------------------------------------------------------------------
 
     def _copy_all(self) -> None:
-        text = self._viewer.toPlainText()
-        if not text:
-            QMessageBox.information(self, TITLE, 'Nothing to copy.')
-            return
-        clipboard = QApplication.clipboard()
-        if clipboard is not None:
-            clipboard.setText(text)
-        QMessageBox.information(self, TITLE, 'Log contents copied to clipboard.')
+        copy_viewer_text_to_clipboard(self, self._viewer, success_label='log contents')
 
     def _save_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -289,22 +249,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         QMessageBox.information(self, TITLE, f'Saved to {path}')
 
     def _purge_file(self) -> None:
-        if not self._file_path.exists():
-            QMessageBox.information(self, TITLE, f'{self._file_path.name} does not exist.')
-            return
-        reply = QMessageBox.warning(
-            self, TITLE,
-            f'Purge ALL contents from {self._file_path.name}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        backup = backup_file(self._file_path)
-        self._file_path.write_text('', encoding='utf-8')
-
-        msg = f'Purged {self._file_path.name}.'
-        if backup:
-            msg += f'\nBackup saved to {backup.name}'
-        QMessageBox.information(self, TITLE, msg)
-        self.load_data()
+        msg = purge_log_file(self, self._file_path, item_label='contents')
+        if msg is not None:
+            QMessageBox.information(self, TITLE, msg)
+            self.load_data()

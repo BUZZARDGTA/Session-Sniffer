@@ -3,13 +3,54 @@
 This module provides helper functions to interact with GUI elements.
 """
 
-from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QHeaderView,
+    QMainWindow,
+    QMessageBox,
+    QTableView,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from session_sniffer.constants.standalone import TITLE
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
-if TYPE_CHECKING:
-    from PyQt6.QtWidgets import QDialog, QMainWindow
+# ---------------------------------------------------------------------------
+# Suspend-mode tooltip strings — shared between detections_manager and
+# userip_manager_settings_mixin so they stay in sync.
+# ---------------------------------------------------------------------------
+
+SUSPEND_TOOLTIP_AUTO = (
+    'Resume when the hostile player fully disconnects.\n'
+    '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
+    '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.'
+)
+SUSPEND_TOOLTIP_MANUAL = (
+    'Remain suspended indefinitely (must be resumed manually).\n'
+    '\u2022 Robustness: Maximum \u2013 nothing resumes automatically.\n'
+    '\u2022 Freeze time: Longest \u2013 game stays frozen until you intervene.'
+)
+SUSPEND_TOOLTIP_ADAPTIVE = (
+    'PPS-based smart suspend/resume.\n'
+    'Temporarily resumes while the hostile player is idle (0 packets/sec)\n'
+    'and re-suspends as soon as activity is detected.\n'
+    '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
+    '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.'
+)
+SUSPEND_TOOLTIP_CUSTOM = (
+    'Resume after a fixed number of seconds.\n'
+    '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
+    '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.'
+)
 
 
 def get_screen_size() -> tuple[int, int]:
@@ -39,7 +80,7 @@ def get_screen_size() -> tuple[int, int]:
     return screen_width, screen_height
 
 
-def resize_window_for_screen(window: QMainWindow | QDialog, screen_width: int, screen_height: int) -> None:
+def resize_window_for_screen(window: QDialog | QMainWindow, screen_width: int, screen_height: int) -> None:
     """Resize a window based on the screen resolution.
 
     Args:
@@ -53,3 +94,124 @@ def resize_window_for_screen(window: QMainWindow | QDialog, screen_width: int, s
         window.resize(1200, 720)
     elif (screen_width, screen_height) >= (1024, 768):
         window.resize(940, 680)
+
+
+# ---------------------------------------------------------------------------
+# Shared GUI helpers
+# ---------------------------------------------------------------------------
+
+class NumericTableWidgetItem(QTableWidgetItem):  # pylint: disable=too-few-public-methods
+    """QTableWidgetItem that sorts numerically."""
+
+    def __lt__(self, other: QTableWidgetItem) -> bool:
+        """Compare numerically, falling back to the default string comparison."""
+        try:
+            return float(self.text()) < float(other.text())
+        except ValueError:
+            return super().__lt__(other)
+
+
+class ToggleAlwaysOnTopMixin(QWidget):  # pylint: disable=too-few-public-methods
+    """Mixin providing an always-on-top toggle and window-layout helpers for QWidget subclasses."""
+
+    def _setup_window_layout(
+        self,
+        *,
+        always_on_top: bool,
+        margins: tuple[int, int, int, int] = (8, 8, 8, 8),
+        spacing: int = 4,
+    ) -> QVBoxLayout:
+        """Set always-on-top flag, WA_DeleteOnClose, and return a configured QVBoxLayout."""
+        if always_on_top:
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(*margins)
+        layout.setSpacing(spacing)
+        return layout
+
+    def _add_always_on_top_checkbox(self, layout: QVBoxLayout, *, always_on_top: bool) -> None:
+        """Create and add the standard 'Always on Top' checkbox to *layout*."""
+        checkbox = QCheckBox('Always on Top')
+        checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
+        checkbox.setChecked(always_on_top)
+        checkbox.toggled.connect(self._toggle_always_on_top)
+        layout.addWidget(checkbox)
+
+    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
+        if checked:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        else:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+        self.show()
+
+
+def set_dialog_window_flags(dialog: QDialog) -> None:
+    """Apply the standard non-modal resizable window flags to *dialog*."""
+    dialog.setWindowModality(Qt.WindowModality.NonModal)
+    dialog.setWindowFlags(
+        Qt.WindowType.Window
+        | Qt.WindowType.WindowCloseButtonHint
+        | Qt.WindowType.WindowMinimizeButtonHint
+        | Qt.WindowType.WindowMaximizeButtonHint,
+    )
+
+
+def setup_table_view_headers(table: QTableView) -> QHeaderView:
+    """Hide the vertical header of *table* and return the horizontal header.
+
+    Raises:
+        RuntimeError: If either header is None.
+    """
+    v_header = table.verticalHeader()
+    if v_header is None:
+        msg = 'Failed to get vertical header'
+        raise RuntimeError(msg)
+    v_header.setVisible(False)
+    h_header = table.horizontalHeader()
+    if h_header is None:
+        msg = 'Failed to get horizontal header'
+        raise RuntimeError(msg)
+    return h_header
+
+
+def find_main_window() -> QMainWindow | None:
+    """Return the first visible top-level QMainWindow, or None."""
+    return next(
+        (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
+        None,
+    )
+
+
+def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
+    """Create a pre-configured non-modal warning QMessageBox without showing it."""
+    dlg = QMessageBox(parent)
+    dlg.setWindowModality(Qt.WindowModality.NonModal)
+    dlg.setWindowTitle(TITLE)
+    dlg.setText(text)
+    dlg.setIcon(QMessageBox.Icon.Warning)
+    dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+    return dlg
+
+
+def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool = True) -> None:
+    """Configure *table* with standard stat-window settings and add it to *layout*.
+
+    Raises:
+        RuntimeError: If either header is None.
+    """
+    h_header = table.horizontalHeader()
+    if h_header is None:
+        msg = 'Failed to get horizontal header'
+        raise RuntimeError(msg)
+    h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    h_header.setStretchLastSection(True)
+    table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+    table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    table.setSortingEnabled(sorting)
+    v_header = table.verticalHeader()
+    if v_header is None:
+        msg = 'Failed to get vertical header'
+        raise RuntimeError(msg)
+    v_header.setVisible(False)
+    layout.addWidget(table)

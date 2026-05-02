@@ -14,7 +14,6 @@ from prettytable import PrettyTable, TableStyle
 from pydantic import ValidationError
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QImage
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
@@ -32,6 +31,7 @@ from session_sniffer.error_messages import (
     format_userip_missing_settings_message,
 )
 from session_sniffer.guis.html_templates import generate_gui_header_html
+from session_sniffer.guis.utils import create_nonmodal_warning, find_main_window
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
@@ -78,19 +78,11 @@ logger = get_logger(__name__)
 def _warn_on_gui(text: str) -> None:
     """Show a non-modal PyQt6 warning dialog on the GUI thread from any thread."""
     def _show() -> None:
-        parent = next(
-            (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
-            None,
-        )
+        parent = find_main_window()
         if parent is None:
             QTimer.singleShot(500, _show)
             return
-        dlg = QMessageBox(parent)
-        dlg.setWindowModality(Qt.WindowModality.NonModal)
-        dlg.setWindowTitle(TITLE)
-        dlg.setText(text)
-        dlg.setIcon(QMessageBox.Icon.Warning)
-        dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dlg = create_nonmodal_warning(parent, text)
         dlg.show()
     gui_dispatcher.invoke(_show)
 

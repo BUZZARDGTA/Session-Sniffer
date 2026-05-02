@@ -18,6 +18,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.utils import (
+    SUSPEND_TOOLTIP_ADAPTIVE,
+    SUSPEND_TOOLTIP_AUTO,
+    SUSPEND_TOOLTIP_CUSTOM,
+    SUSPEND_TOOLTIP_MANUAL,
+)
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
@@ -281,36 +287,10 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         suspend_row = QHBoxLayout()
         self._setting_suspend_mode = QComboBox()
         self._setting_suspend_mode.addItems(['Auto', 'Manual', 'Adaptive', 'Custom'])
-        self._setting_suspend_mode.setItemData(
-            0,
-            'Resume when the hostile player fully disconnects.\n'
-            '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
-            '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        self._setting_suspend_mode.setItemData(
-            1,
-            'Remain suspended indefinitely (must be resumed manually).\n'
-            '\u2022 Robustness: Maximum \u2013 nothing resumes automatically.\n'
-            '\u2022 Freeze time: Longest \u2013 game stays frozen until you intervene.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        self._setting_suspend_mode.setItemData(
-            2,
-            'PPS-based smart suspend/resume.\n'
-            'Temporarily resumes while the hostile player is idle (0 packets/sec)\n'
-            'and re-suspends as soon as activity is detected.\n'
-            '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
-            '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        self._setting_suspend_mode.setItemData(
-            3,
-            'Resume after a fixed number of seconds.\n'
-            '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
-            '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.',
-            Qt.ItemDataRole.ToolTipRole,
-        )
+        self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.currentIndexChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()

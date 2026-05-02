@@ -3,16 +3,13 @@ import shutil
 from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex, Qt, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QFont, QTextCharFormat, QTextCursor
+from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QSplitter,
     QTextEdit,
@@ -22,7 +19,15 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.logs_manager._helpers import open_file_location
+from session_sniffer.guis.logs_manager._helpers import (
+    copy_viewer_text_to_clipboard,
+    create_log_viewer,
+    create_search_input,
+    open_file_location,
+    prepare_search,
+    setup_copy_save_button_row,
+    setup_metadata_label,
+)
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
@@ -43,13 +48,9 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         # --- Top bar ---
         top_bar = QHBoxLayout()
 
-        top_bar.addWidget(QLabel('Search:'))
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Search in displayed file ...')
+        self._search_input = create_search_input(top_bar, 'Search in displayed file ...', self._on_search_changed)
         self._search_input.setClearButtonEnabled(True)
-        self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
-        top_bar.addWidget(self._search_input, stretch=1)
 
         self._global_search_checkbox = QCheckBox('Search All Files')
         self._global_search_checkbox.setToolTip('Search across all session log files (read-only)')
@@ -87,12 +88,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         splitter.addWidget(self._tree)
 
         # Right: text viewer
-        self._viewer = QPlainTextEdit()
-        self._viewer.setReadOnly(True)
-        mono_font = QFont('Consolas', 9)
-        mono_font.setStyleHint(QFont.StyleHint.Monospace)
-        self._viewer.setFont(mono_font)
-        self._viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self._viewer = create_log_viewer()
         self._viewer.setPlaceholderText('Select a session log file from the tree to view its contents.')
 
         splitter.addWidget(self._viewer)
@@ -102,23 +98,14 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         layout.addWidget(splitter, stretch=1)
 
         # --- Directory metadata ---
-        self._metadata_label = QLabel('')
-        layout.addWidget(self._metadata_label)
+        self._metadata_label = setup_metadata_label(layout)
 
         # --- Bottom buttons ---
-        button_row = QHBoxLayout()
-
-        copy_button = QPushButton('📋 Copy All')
-        copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        copy_button.setToolTip('Copy all displayed text to clipboard')
-        copy_button.clicked.connect(self._copy_all)
-        button_row.addWidget(copy_button)
-
-        save_button = QPushButton('💾 Save As...')
-        save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        save_button.setToolTip('Save the displayed file to a new location')
-        save_button.clicked.connect(self._save_as)
-        button_row.addWidget(save_button)
+        button_row = setup_copy_save_button_row(
+            layout, self._copy_all, self._save_as,
+            copy_tooltip='Copy all displayed text to clipboard',
+            save_tooltip='Save the displayed file to a new location',
+        )
 
         button_row.addStretch()
 
@@ -133,8 +120,6 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         open_location_button.setToolTip('Open the containing folder in Windows Explorer')
         open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(open_location_button)
-
-        layout.addLayout(button_row)
 
         # Initial metadata
         self._update_dir_metadata()
@@ -207,12 +192,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
             # Global search is expensive; only triggered on Enter, not per-keystroke.
             return
 
-        if not text:
-            self._match_label.setText('')
-            self._viewer.setExtraSelections([])
-            return
-
-        document = self._viewer.document()
+        document = prepare_search(text, self._match_label, self._viewer)
         if document is None:
             return
         matches: list[QTextCursor] = []
@@ -320,14 +300,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
     # ------------------------------------------------------------------
 
     def _copy_all(self) -> None:
-        text = self._viewer.toPlainText()
-        if not text:
-            QMessageBox.information(self, TITLE, 'Nothing to copy.')
-            return
-        clipboard = QApplication.clipboard()
-        if clipboard is not None:
-            clipboard.setText(text)
-        QMessageBox.information(self, TITLE, 'Contents copied to clipboard.')
+        copy_viewer_text_to_clipboard(self, self._viewer, success_label='contents')
 
     def _save_as(self) -> None:
         if self._current_file is None:

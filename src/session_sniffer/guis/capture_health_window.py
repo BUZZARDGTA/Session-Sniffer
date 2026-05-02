@@ -1,19 +1,12 @@
 """Capture health and performance statistics window."""
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QCheckBox,
-    QFormLayout,
-    QGroupBox,
-    QLabel,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.rendering_core.types import CaptureState, TsharkStats
 
 
-class CaptureHealthWindow(QWidget):
+class CaptureHealthWindow(ToggleAlwaysOnTopMixin):
     """A standalone window showing tshark capture health and latency statistics."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
@@ -22,13 +15,7 @@ class CaptureHealthWindow(QWidget):
 
         self.setWindowTitle('Capture Health')
         self.resize(380, 280)
-        if always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout = self._setup_window_layout(always_on_top=always_on_top, spacing=6)
 
         # Stability group
         stability_group = QGroupBox('Stability')
@@ -54,11 +41,7 @@ class CaptureHealthWindow(QWidget):
         latency_form.addRow('Max:', self._lbl_max)
         layout.addWidget(latency_group)
 
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
-        always_on_top_checkbox.setChecked(always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -82,12 +65,3 @@ class CaptureHealthWindow(QWidget):
             self._lbl_avg.setText('\u2014 ms')
             self._lbl_min.setText('\u2014 ms')
             self._lbl_max.setText('\u2014 ms')
-
-    # Internal ————————————————————————————————————————————————————————————————
-
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()

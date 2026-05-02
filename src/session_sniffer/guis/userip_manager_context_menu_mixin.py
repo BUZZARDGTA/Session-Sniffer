@@ -6,7 +6,15 @@ from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
 
-from session_sniffer.guis.userip_manager_helpers import DATABASE_COLUMN, RANGE_COLUMN, RE_USERIP_INI_PARSER_PATTERN, SECTION_USERIP, USERNAME_COLUMN, EntriesSortProxy
+from session_sniffer.guis.userip_manager_helpers import (
+    DATABASE_COLUMN,
+    RANGE_COLUMN,
+    RE_USERIP_INI_PARSER_PATTERN,
+    SECTION_USERIP,
+    USERNAME_COLUMN,
+    EntriesSortProxy,
+    handle_ini_section_header,
+)
 
 _MixinBase = QDialog
 
@@ -192,9 +200,8 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
 
         for raw_line in lines:
             stripped = raw_line.strip()
-            if stripped.startswith('[') and stripped.endswith(']'):
-                in_userip_section = stripped[1:-1] == SECTION_USERIP
-                new_lines.append(raw_line)
+            is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
+            if is_header:
                 continue
 
             if in_userip_section and not removed:

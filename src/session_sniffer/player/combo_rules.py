@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.text_utils import parse_voice_notifications
+from session_sniffer.text_utils import parse_duration_setting, parse_voice_notifications
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -22,17 +22,6 @@ _EVENT_CONDITION: str = 'event'
 _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 
 ALL_CONDITION_KEYS: frozenset[str] = _STRING_CONDITIONS | _BOOL_CONDITIONS | {_EVENT_CONDITION}
-
-
-def _parse_duration(raw: str) -> int | Literal['Auto', 'Manual', 'Adaptive']:
-    try:
-        return int(raw)
-    except ValueError:
-        if raw == 'Manual':
-            return 'Manual'
-        if raw == 'Adaptive':
-            return 'Adaptive'
-        return 'Auto'
 
 
 @dataclass(kw_only=True, slots=True)
@@ -106,7 +95,7 @@ class ComboRule:
             conditions=conditions,
             protection_enabled=bool(data.get('protection_enabled', False)),
             process_path=Path(path_str) if path_str else None,
-            duration=_parse_duration(str(data.get('duration', 'Auto'))),
+            duration=parse_duration_setting(str(data.get('duration', 'Auto'))),
             voice_notifications=parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
             logging=bool(data.get('logging', False)),
             message_box=bool(data.get('message_box', False)),
