@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.utils import resize_window_for_screen
-from session_sniffer.networking.interface import INTERFACE_TYPE_NEIGHBOUR, Interface, SelectedInterfaceRow
+from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 
 if TYPE_CHECKING:
     from session_sniffer.networking.manuf_lookup import MacLookup
@@ -121,7 +121,6 @@ class _InterfaceData:
 @dataclass(slots=True)
 class _FilterControls:
     hide_inactive_checkbox: QCheckBox
-    hide_arp_checkbox: QCheckBox
     arp_spoofing_checkbox: QCheckBox
     refresh_arp_button: QPushButton
     select_button: QPushButton
@@ -162,7 +161,7 @@ class InterfaceSelectionDialog(QDialog):
         screen_width: int,
         screen_height: int,
         interfaces: list[Interface],
-        filter_defaults: tuple[bool, bool, bool],
+        filter_defaults: tuple[bool, bool],
         *,
         mac_lookup: MacLookup | None = None,
         tshark_path: str | None = None,
@@ -173,13 +172,13 @@ class InterfaceSelectionDialog(QDialog):
             screen_width: Screen width in pixels.
             screen_height: Screen height in pixels.
             interfaces: Available Interface objects to display.
-            filter_defaults: Default states as (hide_inactive, hide_arp, arp_spoofing).
+            filter_defaults: Default states as (hide_inactive, arp_spoofing).
             mac_lookup: Optional MacLookup instance for live refresh.
             tshark_path: Optional TShark path for live refresh.
         """
         super().__init__()
 
-        hide_inactive_default, hide_arp_default, arp_spoofing_default = filter_defaults
+        hide_inactive_default, arp_spoofing_default = filter_defaults
 
         # Set up the window
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
@@ -192,7 +191,6 @@ class InterfaceSelectionDialog(QDialog):
 
         self._data: _InterfaceData = _InterfaceData(all_interfaces=interfaces)
         self.hide_inactive_enabled = hide_inactive_default
-        self.hide_arp_enabled = hide_arp_default
 
         # Layout for the dialog
         layout = QVBoxLayout()
@@ -253,14 +251,6 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         filter_layout.addWidget(hide_inactive_checkbox)
 
-        hide_arp_checkbox = QCheckBox('Hide ARP Entries')
-        hide_arp_checkbox.setChecked(hide_arp_default)
-        hide_arp_checkbox.setToolTip('Hide external devices discovered via ARP protocol')
-        hide_arp_checkbox.setStyleSheet('font-size: 12pt;')
-        hide_arp_checkbox.stateChanged.connect(self.apply_filters)
-        hide_arp_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
-        filter_layout.addWidget(hide_arp_checkbox)
-
         arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network, not just this computer')
@@ -299,7 +289,6 @@ class InterfaceSelectionDialog(QDialog):
 
         self._controls: _FilterControls = _FilterControls(
             hide_inactive_checkbox=hide_inactive_checkbox,
-            hide_arp_checkbox=hide_arp_checkbox,
             arp_spoofing_checkbox=arp_spoofing_checkbox,
             refresh_arp_button=refresh_arp_button,
             select_button=select_button,
@@ -486,7 +475,14 @@ class InterfaceSelectionDialog(QDialog):
                     break
 
     def apply_filters(self) -> None:
-        """Apply the selected filters and populate the table."""
+        """Apply the selected filters and populate the table.
+
+        Visibility rules for ARP neighbor rows:
+        - When ARP spoofing is enabled: show all neighbors (any can be spoofed).
+        - When ARP spoofing is disabled: only show neighbors of Bridged/Shared
+          interfaces, since their traffic actually flows through this machine
+          and is capturable without spoofing.
+        """
         # Preserve currently selected row (by object identity) before filtering/rebuilding table
         previously_selected_row: tuple[Interface, str, bool] | None = None
         current_row = self.table.currentRow()
@@ -494,7 +490,6 @@ class InterfaceSelectionDialog(QDialog):
             previously_selected_row = self._data.interface_rows[current_row]
 
         hide_inactive = self._controls.hide_inactive_checkbox.isChecked()
-        hide_arp = self._controls.hide_arp_checkbox.isChecked()
 
         # Build filtered list of (Interface, ip_address, is_arp) rows
         self._data.interface_rows = []
@@ -512,10 +507,10 @@ class InterfaceSelectionDialog(QDialog):
                 # No IP addresses, show one row with 'N/A'
                 self._data.interface_rows.append((interface, 'N/A', False))
 
-            # Add rows for ARP entries
-            if not hide_arp:
-                for arp_entry in interface.arp_entries:
-                    self._data.interface_rows.append((interface, arp_entry.ip_address, True))
+            # Add rows for ARP entries (always shown; selectability is governed
+            # separately by `enforce_spoofing_constraints`)
+            for arp_entry in interface.arp_entries:
+                self._data.interface_rows.append((interface, arp_entry.ip_address, True))
 
         self.populate_table()
 
@@ -605,7 +600,13 @@ class InterfaceSelectionDialog(QDialog):
             self.table.setItem(idx, 1, item)
 
             # Type
-            type_display = INTERFACE_TYPE_NEIGHBOUR if is_arp else interface.interface_type
+            # ARP rows under a Bridged/Shared interface inherit the parent's type because their
+            # traffic flows through this machine; otherwise they are plain neighbors.
+            type_display = (
+                interface.interface_type
+                if not is_arp or interface.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARED)
+                else INTERFACE_TYPE_NEIGHBOUR
+            )
             item = QTableWidgetItem(type_display)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
@@ -690,23 +691,12 @@ class InterfaceSelectionDialog(QDialog):
             self._controls.select_button.setEnabled(False)
 
     def enforce_spoofing_constraints(self) -> None:
-        """Enforce logical constraints between ARP spoofing, ARP visibility, and selected interface.
+        """Enforce logical constraints between ARP spoofing and the selected interface.
 
         Rules:
-        - If ARP entries are hidden, ARP spoofing must be disabled.
-        - If ARP entries are visible and an ARP interface is selected, force-enable spoofing.
+        - If a non-ARP interface is selected and spoofing is enabled, clear the selection.
         - If a non-ARP interface is selected, spoofing must be disabled.
-        - If ARP spoofing is enabled and a non-ARP interface is selected, clear the selection.
         """
-        # If ARP entries are hidden -> disable and uncheck spoofing
-        if self._controls.hide_arp_checkbox.isChecked():
-            self._controls.arp_spoofing_checkbox.setChecked(False)
-            self._controls.arp_spoofing_checkbox.setEnabled(False)
-            return
-
-        # ARP entries are visible -> allow spoofing checkbox, evaluate selection
-        self._controls.arp_spoofing_checkbox.setEnabled(True)
-
         selected_row = self.table.currentRow()
         if selected_row == -1:
             # No selection yet; do not force any state
@@ -754,7 +744,6 @@ class InterfaceSelectionDialog(QDialog):
             )
             self.arp_spoofing_enabled = self._controls.arp_spoofing_checkbox.isChecked()
             self.hide_inactive_enabled = self._controls.hide_inactive_checkbox.isChecked()
-            self.hide_arp_enabled = self._controls.hide_arp_checkbox.isChecked()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
@@ -762,28 +751,27 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
     screen_width: int,
     screen_height: int,
     interfaces: list[Interface],
-    filter_defaults: tuple[bool, bool, bool],
+    filter_defaults: tuple[bool, bool],
     saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
     *,
     mac_lookup: MacLookup | None = None,
     tshark_path: str | None = None,
-) -> tuple[SelectedInterfaceRow | None, bool, bool, bool]:
+) -> tuple[SelectedInterfaceRow | None, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
     Args:
         screen_width: Screen width in pixels.
         screen_height: Screen height in pixels.
         interfaces: Available Interface objects to display.
-        filter_defaults: Default states as (hide_inactive, hide_arp, arp_spoofing).
+        filter_defaults: Default states as (hide_inactive, arp_spoofing).
         saved_selection: Previously saved (interface_name, ip_address, mac_address).
         mac_lookup: Optional MacLookup instance for live refresh.
         tshark_path: Optional TShark path for live refresh.
 
     Returns:
-        Tuple of (selected_interface, arp_spoofing_enabled,
-                  hide_inactive_enabled, hide_arp_enabled)
+        Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled).
     """
-    hide_inactive_default, hide_arp_default, arp_spoofing_default = filter_defaults
+    hide_inactive_default, arp_spoofing_default = filter_defaults
     saved_interface_name, saved_ip_address, saved_mac_address = saved_selection
     # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
@@ -802,6 +790,5 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
             dialog.selected_interface,
             dialog.arp_spoofing_enabled,
             dialog.hide_inactive_enabled,
-            dialog.hide_arp_enabled,
         )
-    return None, arp_spoofing_default, hide_inactive_default, hide_arp_default
+    return None, arp_spoofing_default, hide_inactive_default

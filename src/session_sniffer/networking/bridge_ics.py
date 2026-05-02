@@ -1,12 +1,14 @@
 """Detect Windows Network Bridge members and Internet Connection Sharing (ICS) adapters.
 
-Uses the Windows registry (stdlib `winreg`) to classify network adapters by GUID
-as either part of a Network Bridge (`bridged`) or acting as the ICS host
-(`shared`). Detection is best-effort: any registry access failure results in the
-adapter being omitted from the classification rather than raising.
+Bridge detection uses the Windows registry (stdlib `winreg`).
+ICS detection uses the `INetSharingManager` COM interface via `pywin32`,
+which is the canonical Win32 API for querying ICS state and reliably distinguishes
+the public (sharing) side from the private (shared) side.
+
+Detection is best-effort: any failure results in the adapter being omitted from
+the classification rather than raising.
 """
 
-import contextlib
 import winreg
 from typing import Literal
 
@@ -14,19 +16,19 @@ from session_sniffer.logging_setup import get_logger
 
 logger = get_logger(__name__)
 
-AdapterClassification = Literal['bridged', 'shared']
+AdapterClassification = Literal['bridged', 'shared', 'sharing']
 
-# Registry locations used for detection.
+# Registry locations used for bridge detection.
 _BRIDGE_LINKAGE_KEY = r'SYSTEM\CurrentControlSet\Services\BridgeMP\Linkage'
 _NETWORK_CONNECTIONS_KEY = r'SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318}'
-_TCPIP_INTERFACES_KEY = r'SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces'
-_SHARED_ACCESS_PARAMS_KEY = r'SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters'
-
-# Default IP address assigned to the ICS host adapter on Windows.
-_ICS_HOST_IP = '192.168.137.1'
 
 # `\Device\` prefix used in `BridgeMP\Linkage\Bind` values.
 _DEVICE_PREFIX = '\\Device\\'
+
+# INetSharingConfiguration::SharingConnectionType values.
+# https://learn.microsoft.com/en-us/windows/win32/api/netcon/ne-netcon-sharingconnectiontype
+_ICSSHARINGTYPE_PUBLIC = 0   # Adapter is the public (upstream) connection being shared.
+_ICSSHARINGTYPE_PRIVATE = 1  # Adapter is the private (LAN) connection serving clients.
 
 
 def _normalize_guid(value: str) -> str:
@@ -59,7 +61,7 @@ def _get_bridge_host_guid() -> str | None:
     """Return the GUID of the MAC Bridge Miniport adapter itself, if present.
 
     Iterates network connection registry entries and returns the first GUID whose
-    backing service is `BridgeMP`.
+    backing device is a `BridgeMP` instance.
     """
     try:
         connections_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
@@ -90,62 +92,58 @@ def _get_bridge_host_guid() -> str | None:
     return None
 
 
-def _adapter_has_ics_host_ip(adapter_guid: str) -> bool:
-    """Return whether the adapter has the canonical ICS host IPv4 address (192.168.137.1)."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, rf'{_TCPIP_INTERFACES_KEY}\{adapter_guid}') as key:
-            for value_name in ('IPAddress', 'DhcpIPAddress'):
-                with contextlib.suppress(OSError):
-                    value, _ = winreg.QueryValueEx(key, value_name)
-                    if isinstance(value, str) and value == _ICS_HOST_IP:
-                        return True
-                    if isinstance(value, list) and _ICS_HOST_IP in value:
-                        return True
-    except OSError:
-        return False
-    return False
+def _get_ics_classification() -> dict[str, AdapterClassification]:
+    """Return ICS classifications via `INetSharingManager` COM interface.
 
-
-def _is_ics_enabled() -> bool:
-    """Return whether ICS appears to be configured on this machine.
-
-    Checks for the presence of the SharedAccess parameters key. Absence implies
-    ICS has never been configured.
+    Returns an empty dict if COM access fails (e.g. ICS service stopped, COM
+    initialization issues, missing dependencies).
     """
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _SHARED_ACCESS_PARAMS_KEY):
-            return True
-    except OSError:
-        return False
-
-
-def _get_ics_host_guids() -> set[str]:
-    """Return the set of adapter GUIDs that appear to be acting as the ICS host."""
-    hosts: set[str] = set()
-    if not _is_ics_enabled():
-        return hosts
+    result: dict[str, AdapterClassification] = {}
 
     try:
-        interfaces_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _TCPIP_INTERFACES_KEY)
-    except OSError:
-        return hosts
+        import pythoncom  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
+        import win32com.client  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
+    except ImportError:
+        return result
 
-    with interfaces_key:
-        idx = 0
-        while True:
+    try:
+        pythoncom.CoInitialize()
+    except pythoncom.com_error:
+        return result
+
+    try:
+        try:
+            manager = win32com.client.Dispatch('HNetCfg.HNetShare')
+        except pythoncom.com_error:
+            return result
+
+        try:
+            connections = manager.EnumEveryConnection
+        except (pythoncom.com_error, AttributeError):
+            return result
+
+        for connection in connections:
             try:
-                subkey_name = winreg.EnumKey(interfaces_key, idx)
-            except OSError:
-                break
-            idx += 1
-
-            if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
+                config = manager.INetSharingConfigurationForINetConnection(connection)
+                if not config.SharingEnabled:
+                    continue
+                sharing_type = int(config.SharingConnectionType)
+                guid_raw = manager.NetConnectionProps(connection).Guid
+            except (pythoncom.com_error, AttributeError):
                 continue
 
-            if _adapter_has_ics_host_ip(subkey_name):
-                hosts.add(_normalize_guid(subkey_name))
+            if not isinstance(guid_raw, str) or not guid_raw:
+                continue
+            guid = _normalize_guid(guid_raw)
 
-    return hosts
+            if sharing_type == _ICSSHARINGTYPE_PUBLIC:
+                result[guid] = 'sharing'
+            elif sharing_type == _ICSSHARINGTYPE_PRIVATE:
+                result[guid] = 'shared'
+    finally:
+        pythoncom.CoUninitialize()
+
+    return result
 
 
 def get_adapter_classification() -> dict[str, AdapterClassification]:
@@ -153,7 +151,9 @@ def get_adapter_classification() -> dict[str, AdapterClassification]:
 
     GUID keys are upper-cased and braced (e.g. `'{ABCDEF12-...}'`). Adapters not
     in the map are unclassified (treated as plain interfaces by callers). On any
-    registry access failure, the corresponding category is silently skipped.
+    underlying API failure, the corresponding category is silently skipped.
+
+    When an adapter qualifies for multiple classifications, bridge membership wins.
     """
     classification: dict[str, AdapterClassification] = {}
 
@@ -168,10 +168,10 @@ def get_adapter_classification() -> dict[str, AdapterClassification]:
         logger.exception('Failed to query Network Bridge registry information')
 
     try:
-        for guid in _get_ics_host_guids():
+        for guid, value in _get_ics_classification().items():
             # Bridged classification wins if both apply (rare).
-            classification.setdefault(guid, 'shared')
-    except OSError:
-        logger.exception('Failed to query ICS registry information')
+            classification.setdefault(guid, value)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception('Failed to query ICS configuration via COM')
 
     return classification

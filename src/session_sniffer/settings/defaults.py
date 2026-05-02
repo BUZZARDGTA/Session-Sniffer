@@ -132,13 +132,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Hide network interfaces with no active traffic.',
     ),
-    'gui_interface_selection_hide_arp': SettingMeta(
-        category='Launcher',
-        group='Interface Selection',
-        display_label='Hide ARP',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Hide ARP-based interface entries.',
-    ),
     'gui_sessions_logging': SettingMeta(
         category='Session',
         group='General',
@@ -391,7 +384,6 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_prepend_custom_display_filter': None,
     'gui_interface_selection_auto_connect': False,
     'gui_interface_selection_hide_inactive': True,
-    'gui_interface_selection_hide_arp': False,
     'gui_sessions_logging': True,
     'gui_reset_ports_on_rejoins': True,
     'gui_rate_graph_always_on_top': True,

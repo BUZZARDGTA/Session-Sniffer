@@ -11,6 +11,7 @@ from session_sniffer.networking.interface import (
     INTERFACE_TYPE_BRIDGED,
     INTERFACE_TYPE_INTERFACE,
     INTERFACE_TYPE_SHARED,
+    INTERFACE_TYPE_SHARING,
     AllInterfaces,
     ARPEntry,
     Interface,
@@ -49,6 +50,8 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             interface_type = INTERFACE_TYPE_BRIDGED
         elif classification_value == 'shared':
             interface_type = INTERFACE_TYPE_SHARED
+        elif classification_value == 'sharing':
+            interface_type = INTERFACE_TYPE_SHARING
         else:
             interface_type = INTERFACE_TYPE_INTERFACE
 
@@ -274,12 +277,11 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         selected_interface,
         arp_spoofing_enabled,
         hide_inactive_enabled,
-        hide_arp_enabled,
     ) = show_interface_selection_dialog(
         screen_width,
         screen_height,
         interfaces,
-        (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_arp, Settings.capture_arp_spoofing),
+        (Settings.gui_interface_selection_hide_inactive, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
         mac_lookup=mac_lookup,
         tshark_path=tshark_path,
@@ -296,10 +298,6 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
     if hide_inactive_enabled != Settings.gui_interface_selection_hide_inactive:
         Settings.gui_interface_selection_hide_inactive = hide_inactive_enabled
-        need_rewrite_settings = True
-
-    if hide_arp_enabled != Settings.gui_interface_selection_hide_arp:
-        Settings.gui_interface_selection_hide_arp = hide_arp_enabled
         need_rewrite_settings = True
 
     if need_rewrite_settings:
