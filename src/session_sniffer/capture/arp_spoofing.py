@@ -2,6 +2,7 @@
 
 import subprocess
 import time
+from collections.abc import Callable
 from threading import Event, Thread
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,7 @@ def arp_spoofing_task(
     selected_interface: SelectedInterfaceRow,
     capture_holder: CaptureHolder,
     stop_event: Event,
+    on_failed: Callable[[], None],
 ) -> None:
     """Manage ARP spoofing process lifecycle synchronized with packet capture state.
 
@@ -136,6 +138,7 @@ def arp_spoofing_task(
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
                         spawn_msgbox_thread=False,
                     )
+                    on_failed()
                     return
 
             # Wait for capture to stop or process to die
@@ -156,8 +159,10 @@ def arp_spoofing_task(
                         exit_code=exit_code,
                         error_output=error_output,
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
-                        spawn_msgbox_thread=True,
+                        spawn_msgbox_thread=False,
                     )
+                    on_failed()
+                    return
 
                 logger.info('Process died unexpectedly, respawning...')
                 break

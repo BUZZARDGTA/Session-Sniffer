@@ -352,6 +352,7 @@ def main() -> None:
     capture_holder = CaptureHolder(capture)
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
+    _arp_failed_event = Event()
     arp_stop_event = Event()
     if Settings.capture_arp_spoofing:
         Thread(
@@ -361,6 +362,7 @@ def main() -> None:
                 selected_interface,
                 capture_holder,
                 arp_stop_event,
+                _arp_failed_event.set,
             ),
             daemon=True,
         ).start()
@@ -450,7 +452,7 @@ def main() -> None:
             Thread(
                 target=arp_spoofing_task,
                 name=f'ARPSpoofingTask-{new_interface.ip_address}',
-                args=(new_interface, capture_holder, arp_stop_event),
+                args=(new_interface, capture_holder, arp_stop_event, _arp_failed_event.set),
                 daemon=True,
             ).start()
 
@@ -459,26 +461,39 @@ def main() -> None:
 
     window = MainWindow(screen_width, screen_height, capture_holder, on_change_interface=_switch_interface)
 
-    def _on_adapter_lost_poll() -> None:
-        """Poll for unexpected TShark crashes and re-show the interface selection dialog."""
-        if gui_closed__event.is_set():
-            return
-        if not _adapter_lost_event.is_set():
-            return
-        _adapter_lost_event.clear()
+    def _handle_capture_lost(*, stop_capture: bool, warning_message: str | None) -> None:
+        """Shared handler for any event that requires stopping capture and re-selecting an interface."""
+        if stop_capture:
+            capture_holder.stop()
         window.on_interface_switched()
         window.set_capture_toggle_enabled(enabled=False)
-        QMessageBox.warning(
-            window,
-            'Capture Interrupted',
-            format_capture_interrupted_message(),
-        )
+        if warning_message is not None:
+            QMessageBox.warning(window, 'Capture Interrupted', warning_message)
         _switch_interface()
+
+    def _on_adapter_lost_poll() -> None:
+        """Poll for unexpected TShark crashes and re-show the interface selection dialog."""
+        if gui_closed__event.is_set() or not _adapter_lost_event.is_set():
+            return
+        _adapter_lost_event.clear()
+        _handle_capture_lost(stop_capture=False, warning_message=format_capture_interrupted_message())
 
     _adapter_lost_timer = QTimer()
     _adapter_lost_timer.setInterval(500)
     _adapter_lost_timer.timeout.connect(_on_adapter_lost_poll)
     _adapter_lost_timer.start()
+
+    def _on_arp_failed_poll() -> None:
+        """Poll for ARP spoofing failures and re-show the interface selection dialog."""
+        if gui_closed__event.is_set() or not _arp_failed_event.is_set():
+            return
+        _arp_failed_event.clear()
+        _handle_capture_lost(stop_capture=True, warning_message=None)
+
+    _arp_failed_timer = QTimer()
+    _arp_failed_timer.setInterval(500)
+    _arp_failed_timer.timeout.connect(_on_arp_failed_poll)
+    _arp_failed_timer.start()
 
     splash.finish_loading()
     QTimer.singleShot(1500, splash.close_splash)
