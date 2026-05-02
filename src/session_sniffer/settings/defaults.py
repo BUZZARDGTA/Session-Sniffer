@@ -132,6 +132,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Hide network interfaces with no active traffic.',
     ),
+    'gui_interface_selection_hide_neighbours': SettingMeta(
+        category='Launcher',
+        group='Interface Selection',
+        display_label='Hide Neighbours',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Hide neighbour entries (devices discovered via ARP on the local network).',
+    ),
     'gui_sessions_logging': SettingMeta(
         category='Session',
         group='General',
@@ -384,6 +391,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_prepend_custom_display_filter': None,
     'gui_interface_selection_auto_connect': False,
     'gui_interface_selection_hide_inactive': True,
+    'gui_interface_selection_hide_neighbours': False,
     'gui_sessions_logging': True,
     'gui_reset_ports_on_rejoins': True,
     'gui_rate_graph_always_on_top': True,

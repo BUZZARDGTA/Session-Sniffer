@@ -277,11 +277,12 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         selected_interface,
         arp_spoofing_enabled,
         hide_inactive_enabled,
+        hide_neighbours_enabled,
     ) = show_interface_selection_dialog(
         screen_width,
         screen_height,
         interfaces,
-        (Settings.gui_interface_selection_hide_inactive, Settings.capture_arp_spoofing),
+        (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
         mac_lookup=mac_lookup,
         tshark_path=tshark_path,
@@ -298,6 +299,10 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
     if hide_inactive_enabled != Settings.gui_interface_selection_hide_inactive:
         Settings.gui_interface_selection_hide_inactive = hide_inactive_enabled
+        need_rewrite_settings = True
+
+    if hide_neighbours_enabled != Settings.gui_interface_selection_hide_neighbours:
+        Settings.gui_interface_selection_hide_neighbours = hide_neighbours_enabled
         need_rewrite_settings = True
 
     if need_rewrite_settings:

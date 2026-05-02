@@ -38,6 +38,7 @@ class Settings:
     capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
     gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
+    gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
     gui_sessions_logging: bool = SETTING_DEFAULTS['gui_sessions_logging']
     gui_reset_ports_on_rejoins: bool = SETTING_DEFAULTS['gui_reset_ports_on_rejoins']
     gui_rate_graph_always_on_top: bool = SETTING_DEFAULTS['gui_rate_graph_always_on_top']
@@ -84,6 +85,7 @@ class Settings:
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
         'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
+        'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
