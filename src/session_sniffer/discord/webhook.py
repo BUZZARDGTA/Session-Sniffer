@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Final, cast  # pylint: disable=unused-imp
 
 import sentinel  # pyright: ignore[reportMissingTypeStubs]
 
+from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.settings import Settings
@@ -347,6 +348,17 @@ def _save_message_ids(message_ids: dict[str, str]) -> None:
     Settings.rewrite_settings_file()
 
 
+def _describe_auto_disable_status(status: int) -> str:
+    """Return a short human-friendly description of the failure status."""
+    if status == _HTTP_NOT_FOUND:
+        return 'Webhook not found (deleted, or URL is wrong)'
+    if status == _HTTP_UNAUTHORIZED:
+        return 'Unauthorized (invalid webhook token)'
+    if status == _HTTP_FORBIDDEN:
+        return 'Forbidden (webhook revoked or lacks permission)'
+    return 'Webhook rejected the request'
+
+
 class DiscordWebhookSender:
     """Background sender that mirrors live tables to a Discord webhook channel."""
 
@@ -603,8 +615,12 @@ class DiscordWebhookSender:
 
     def _auto_disable(self, url: str, status: int, body: bytes) -> None:
         """Permanently stop targeting *url* until the user changes it."""
+        already_disabled_for_this_url = self._auto_disabled_url == url
         self._auto_disabled_url = url
         self.connection_status.clear()
+        if already_disabled_for_this_url:
+            # Already reported & user notified for this URL; suppress duplicate log + popup.
+            return
         logger.error(
             'Discord webhook URL appears invalid (HTTP %d). Disabling further attempts until URL changes. Body: %s',
             status,
@@ -612,3 +628,23 @@ class DiscordWebhookSender:
         )
         # Clear stored message IDs so a fresh URL starts cleanly
         _save_message_ids(cast('dict[str, str]', {}))
+
+        # Notify the user via a non-blocking popup (msgbox is modal; spawn a
+        # daemon thread so the webhook worker keeps draining its queue).
+        reason = _describe_auto_disable_status(status)
+        popup_text = (
+            f'The configured Discord webhook URL is no longer valid and has been disabled.\n\n'
+            f'Reason: {reason} (HTTP {status})\n\n'
+            f'URL: {url}\n\n'
+            f'Open Settings -> Discord and paste a new webhook URL to resume posting.'
+        )
+        Thread(
+            target=msgbox.show,
+            args=(
+                f'{TITLE} - Discord Webhook Disabled',
+                popup_text,
+                msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+            ),
+            name='DiscordWebhookAutoDisableNotice',
+            daemon=True,
+        ).start()
