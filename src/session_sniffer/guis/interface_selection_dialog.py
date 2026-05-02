@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.utils import resize_window_for_screen
-from session_sniffer.networking.interface import Interface, SelectedInterfaceRow
+from session_sniffer.networking.interface import INTERFACE_TYPE_NEIGHBOUR, Interface, SelectedInterfaceRow
 
 if TYPE_CHECKING:
     from session_sniffer.networking.manuf_lookup import MacLookup
@@ -204,9 +204,9 @@ class InterfaceSelectionDialog(QDialog):
         layout.addWidget(header_label)
 
         # Table widget for displaying interfaces
-        self.table: SafeQTableWidget = SafeQTableWidget(0, 8)
+        self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(
-            ['Name', 'Description', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'],
+            ['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'],
         )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -223,7 +223,8 @@ class InterfaceSelectionDialog(QDialog):
         horizontal_header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        horizontal_header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
         horizontal_header.setStretchLastSection(True)
 
         vertical_header = self.table.verticalHeader()
@@ -590,7 +591,7 @@ class InterfaceSelectionDialog(QDialog):
                 packets_recv_str = str(packets_recv)
 
             # Name column
-            name_display = f'{interface.identity.name} (ARP)' if is_arp else interface.identity.name
+            name_display = interface.identity.name
             item = QTableWidgetItem(name_display)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
@@ -603,45 +604,53 @@ class InterfaceSelectionDialog(QDialog):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(idx, 1, item)
 
+            # Type
+            type_display = INTERFACE_TYPE_NEIGHBOUR if is_arp else interface.interface_type
+            item = QTableWidgetItem(type_display)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if should_disable:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+            self.table.setItem(idx, 2, item)
+
             # Packets Sent
             item = QTableWidgetItem(packets_sent_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 2, item)
+            self.table.setItem(idx, 3, item)
 
             # Packets Received
             item = QTableWidgetItem(packets_recv_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 3, item)
+            self.table.setItem(idx, 4, item)
 
             # Gateway IP
             gateway_ip = interface.gateway_addresses[0] if interface.gateway_addresses else 'N/A'
             item = QTableWidgetItem(gateway_ip)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 4, item)
+            self.table.setItem(idx, 5, item)
 
             # IP Address
             item = QTableWidgetItem(ip_address)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 5, item)
+            self.table.setItem(idx, 6, item)
 
             # MAC Address
             item = QTableWidgetItem(mac_address)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 6, item)
+            self.table.setItem(idx, 7, item)
 
             # Vendor Name
             item = QTableWidgetItem(vendor_name)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if should_disable:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(idx, 7, item)
+            self.table.setItem(idx, 8, item)
 
         # Reset selection state
         self.update_select_button_state()

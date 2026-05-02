@@ -13,6 +13,13 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
+# Display values for the Type column in the interface selection dialog.
+INTERFACE_TYPE_INTERFACE = 'Interface'
+INTERFACE_TYPE_NEIGHBOUR = 'Neighbour'
+INTERFACE_TYPE_BRIDGED = 'Bridged'
+INTERFACE_TYPE_SHARED = 'Shared'
+
+
 class ARPEntry(NamedTuple):
     """Represent a single ARP neighbor entry for an interface."""
 
@@ -25,12 +32,13 @@ class ARPEntry(NamedTuple):
 class InterfaceIdentity:
     """Identity fields for a network interface."""
 
-    index:       int
-    name:        str
-    description: str
-    mac_address: str | None
-    device_name: str | None
-    vendor_name: str | None
+    index:        int
+    name:         str
+    description:  str
+    mac_address:  str | None
+    device_name:  str | None
+    vendor_name:  str | None
+    adapter_guid: str | None = None
 
 
 @dataclass(kw_only=True, slots=True)
@@ -52,6 +60,7 @@ class Interface:
     ip_enabled: bool
     state: int
     media_connect_state: int
+    interface_type: str = INTERFACE_TYPE_INTERFACE
     ip_addresses: list[str] = field(default_factory=list)
     gateway_addresses: list[str] = field(default_factory=list)
     arp_entries: list[ARPEntry] = field(default_factory=list)

@@ -28,6 +28,7 @@ class _AdapterIdentity:
     friendly_name:   str
     description:     str
     mac_address:     str | None
+    adapter_guid:    str | None
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -421,12 +422,16 @@ def get_adapters_info() -> Iterator[AdapterData]:
             transmit_link_speed = row.TransmitLinkSpeed
             receive_link_speed = row.ReceiveLinkSpeed
 
+        adapter_guid_raw = addr.AdapterName.decode('ascii', errors='ignore') if addr.AdapterName else None
+        adapter_guid = adapter_guid_raw.upper() if adapter_guid_raw else None
+
         yield AdapterData(
             identity=_AdapterIdentity(
                 interface_index=addr.IfIndex,
                 friendly_name=addr.FriendlyName,
                 description=addr.Description,
                 mac_address=mac_address,
+                adapter_guid=adapter_guid,
             ),
             status=_AdapterStatus(
                 operational_status=addr.OperStatus,
