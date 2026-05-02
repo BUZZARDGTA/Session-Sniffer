@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, RemoveUsernameDialog, RenameUsernameDialog
+from session_sniffer.networking.ip_range import check_ip_against_ranges, parse_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import write_lines_to_file
@@ -18,6 +19,17 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+
+
+def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
+    """Return True if *entry_ip* exactly matches or is a range containing any IP in *selected_ips*."""
+    if entry_ip in selected_ips:
+        return True
+    try:
+        ranges = parse_ip_range_entry(entry_ip)
+    except (ValueError, TypeError):
+        return False
+    return any(check_ip_against_ranges(sel_ip, ranges) is not None for sel_ip in selected_ips)
 
 
 def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
@@ -160,10 +172,10 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
                 ip_raw = match.group('ip')
                 if (
                     username_raw is not None and ip_raw is not None
-                    and username_raw.strip() == old_username and ip_raw.strip() == ip_address
+                    and username_raw.strip() == old_username and _entry_ip_matches_any(ip_raw.strip(), [ip_address])
                 ):
                     ending = raw_line[len(raw_line.rstrip()):]
-                    new_lines.append(f'{new_username}={ip_address}{ending}')
+                    new_lines.append(f'{new_username}={ip_raw.strip()}{ending}')
                     renamed_count += 1
                     continue
         new_lines.append(raw_line)
@@ -214,7 +226,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
                     username, ip = username.strip(), ip.strip()
 
                     # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
-                    if ip in selected_ips:
+                    if _entry_ip_matches_any(ip, selected_ips):
                         deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
                         continue  # skip appending this line
 
@@ -279,7 +291,7 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
                     username, ip = username.strip(), ip.strip()
 
                     # If IP is one of the selected ones, record it as deleted and exclude this line from lines_to_keep
-                    if ip in selected_ips:
+                    if _entry_ip_matches_any(ip, selected_ips):
                         deleted_entries_in_this_database.append(line.strip())  # Store the deleted entry
                         continue  # skip appending this line
 
@@ -372,7 +384,7 @@ def _rewrite_database_removing_usernames(
                 ip_raw = match.group('ip')
                 if (
                     username_raw is not None and ip_raw is not None
-                    and username_raw.strip() in usernames_to_remove and ip_raw.strip() == ip_address
+                    and username_raw.strip() in usernames_to_remove and _entry_ip_matches_any(ip_raw.strip(), [ip_address])
                 ):
                     removed_count += 1
                     continue
