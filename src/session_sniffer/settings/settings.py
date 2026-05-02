@@ -10,6 +10,7 @@ from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.settings_ini_model import SettingsIniModel
+from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -36,6 +37,7 @@ class Settings:
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
+    capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
     gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
     gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
@@ -72,6 +74,7 @@ class Settings:
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
+    blocked_ip_ranges: ClassVar[list[IPRange]] = []
 
     ALL_SETTINGS: ClassVar[tuple[str, ...]] = (
         'CAPTURE_INTERFACE_NAME',
@@ -83,6 +86,7 @@ class Settings:
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
+        'CAPTURE_BLOCKED_IPS',
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
         'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
@@ -367,6 +371,17 @@ class Settings:
     def has_setting(cls, setting_name: str) -> bool:
         """Check if a setting exists."""
         return setting_name in cls._ALL_SETTINGS_SET
+
+    @classmethod
+    def rebuild_blocked_ip_ranges(cls) -> None:
+        """Rebuild the in-memory list of parsed IPRange objects from `capture_blocked_ips`."""
+        ranges: list[IPRange] = []
+        for raw in cls.capture_blocked_ips:
+            try:
+                ranges.append(parse_ip_range(raw))
+            except (ValueError, TypeError):
+                pass
+        cls.blocked_ip_ranges = ranges
 
     @classmethod
     def rewrite_settings_file(cls) -> None:

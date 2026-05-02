@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Self, cast
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
+from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.utils import (
     check_case_insensitive_and_exact_match,
     custom_str_to_bool,
@@ -38,6 +39,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None
+    CAPTURE_BLOCKED_IPS: tuple[str, ...]
 
     # GUI settings
     GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool
@@ -246,6 +248,37 @@ class SettingsIniModel(BaseModel):
             return normalized if normalized is not None else cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
+
+    @field_validator('CAPTURE_BLOCKED_IPS', mode='before')
+    @classmethod
+    def _parse_blocked_ips(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
+        if isinstance(value, tuple):
+            return cast('tuple[str, ...]', value)
+        if isinstance(value, str):
+            try:
+                parsed: object = ast.literal_eval(value)
+            except (ValueError, SyntaxError, RecursionError, MemoryError):
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return ()
+            if not isinstance(parsed, tuple):
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return ()
+            if not all(isinstance(item, str) for item in cast('tuple[object, ...]', parsed)):
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return ()
+            valid_items: list[str] = []
+            need_rewrite = False
+            for item in cast('tuple[str, ...]', parsed):
+                try:
+                    parse_ip_range(item)
+                    valid_items.append(item)
+                except (ValueError, TypeError):
+                    need_rewrite = True
+            if need_rewrite:
+                cls._set_flag(info, 'should_rewrite', value=True)
+            return tuple(valid_items)
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return ()
 
     @field_validator('CAPTURE_PROGRAM_PRESET', mode='before')
     @classmethod

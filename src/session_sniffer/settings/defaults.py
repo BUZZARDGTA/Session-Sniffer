@@ -19,6 +19,7 @@ class SettingType(Enum):
     IPV4 = auto()
     MAC_ADDRESS = auto()
     COLUMN_TUPLE = auto()
+    IP_RANGE_TUPLE = auto()
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Custom Display Filter',
         setting_type=SettingType.STRING,
         tooltip='Additional Wireshark display filter prepended to the display filter.',
+        requires_capture_restart=True,
+    ),
+    'capture_blocked_ips': SettingMeta(
+        category='Capture',
+        display_label='Blocked IPs / Ranges',
+        setting_type=SettingType.IP_RANGE_TUPLE,
+        tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
         requires_capture_restart=True,
     ),
     'gui_interface_selection_auto_connect': SettingMeta(
@@ -389,6 +397,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_prepend_custom_display_filter': None,
+    'capture_blocked_ips': (),
     'gui_interface_selection_auto_connect': False,
     'gui_interface_selection_hide_inactive': True,
     'gui_interface_selection_hide_neighbours': False,

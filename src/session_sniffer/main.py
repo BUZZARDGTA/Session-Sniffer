@@ -50,6 +50,7 @@ from session_sniffer.logging_setup import get_logger, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
 from session_sniffer.networking.interface import AllInterfaces, Interface
+from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.utils import is_private_device_ipv4
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -124,6 +125,7 @@ def main() -> None:
 
     splash.update_status('Applying custom settings from Settings.ini')
     splash.run_with_spinner(Settings.load_from_settings_file, SETTINGS_PATH)
+    Settings.rebuild_blocked_ip_ranges()
 
     splash.run_with_spinner(GUIProtectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
@@ -263,6 +265,9 @@ def main() -> None:
                     sent_by_local_host = False
                 else:
                     return  # Neither source nor destination is a private IP address.
+
+            if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
+                return  # IP is blocked; discard packet silently
 
             matched_player = PlayersRegistry.get_player_by_ip(target_ip)
             if matched_player is None:

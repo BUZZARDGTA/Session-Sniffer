@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -33,6 +34,7 @@ from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
@@ -392,6 +394,8 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             return self._create_bool_or_enum_widget(meta)
         if meta.setting_type == SettingType.COLUMN_TUPLE:
             return self._create_column_tuple_widget(key, meta)
+        if meta.setting_type == SettingType.IP_RANGE_TUPLE:
+            return self._create_ip_range_tuple_widget(meta)
         return QLineEdit()
 
     def _create_boolean_widget(self, meta: SettingMeta) -> QCheckBox:
@@ -526,6 +530,75 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         outer.addWidget(scroll, 1)
         return group
 
+    def _create_ip_range_tuple_widget(self, meta: SettingMeta) -> QGroupBox:
+        """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
+        group = QGroupBox()
+        group.setFlat(True)
+        if meta.tooltip:
+            group.setToolTip(meta.tooltip)
+
+        list_widget = QListWidget()
+        list_widget.setMaximumHeight(180)
+        list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        list_widget.setSortingEnabled(True)
+
+        compact_btn_style = (
+            'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+            ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
+            ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
+            ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
+            ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+            ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
+            ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
+            ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+            ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
+            ' border: 1px solid rgba(41,128,185,1.0); }'
+        )
+
+        add_button = QPushButton('\u2795 Add')
+        add_button.setToolTip('Add a new blocked IP address, range, or subnet')
+        add_button.setStyleSheet(compact_btn_style)
+        add_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        remove_button = QPushButton('\U0001f5d1 Remove')
+        remove_button.setToolTip('Remove the selected entries')
+        remove_button.setStyleSheet(compact_btn_style)
+        remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        def _add_entry() -> None:
+            dialog = IPRangeBuilderDialog(self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            entry = dialog.result_entry()
+            if not entry:
+                return
+            existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None}
+            if entry not in existing:
+                list_widget.addItem(entry)
+
+        def _remove_entries() -> None:
+            for item in list_widget.selectedItems():
+                list_widget.takeItem(list_widget.row(item))
+
+        add_button.clicked.connect(_add_entry)  # pyright: ignore[reportUnknownMemberType]
+        remove_button.clicked.connect(_remove_entries)  # pyright: ignore[reportUnknownMemberType]
+
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(6)
+        btn_row.addWidget(add_button)
+        btn_row.addWidget(remove_button)
+        btn_row.addStretch()
+
+        outer_layout = QVBoxLayout(group)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(4)
+        outer_layout.addLayout(btn_row)
+        outer_layout.addWidget(list_widget, 1)
+        return group
+
     @staticmethod
     def _set_all_checkboxes(container: QWidget, *, checked: bool) -> None:
         """Set all QCheckBox children of *container* to *checked*."""
@@ -577,6 +650,13 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             for cb in widget.findChildren(QCheckBox):
                 cb.setChecked(cb.objectName() in shown_set)
 
+        elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
+            entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
+            list_widget = next(iter(widget.findChildren(QListWidget)), None)
+            if list_widget is not None:
+                list_widget.clear()
+                list_widget.addItems(list(entries))
+
     def _set_enum(self, widget: QWidget, value: SettingValue) -> None:
         """Set value for an enum combo box."""
         combo = cast('QComboBox', widget)
@@ -625,6 +705,12 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         if meta.setting_type == SettingType.COLUMN_TUPLE:
             return self._read_column_tuple(meta, widget)
+
+        if meta.setting_type == SettingType.IP_RANGE_TUPLE:
+            list_widget = next(iter(widget.findChildren(QListWidget)), None)
+            if list_widget is None:
+                return ()
+            return tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None)
 
         return None
 
@@ -734,6 +820,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
                 setattr(Settings, key, value)
 
         Settings.rewrite_settings_file()
+        Settings.rebuild_blocked_ip_ranges()
 
         capture_settings_changed = any(
             new_values[key] != self._old_values.get(key)

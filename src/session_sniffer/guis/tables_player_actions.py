@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QCloseEvent, QFont
+from PyQt6.QtGui import QClipboard, QCloseEvent, QFont
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -19,9 +19,12 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import BIN_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
-from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen
-from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, analyze_sessions_logging
-from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.error_messages import ensure_instance
+from session_sniffer.guis.app import app
+from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, SeenStats, analyze_sessions_logging
+from session_sniffer.settings.settings import Settings
 from session_sniffer.utils import run_cmd_command, run_cmd_script
 
 if TYPE_CHECKING:
@@ -129,6 +132,123 @@ def _userip_database_text(player: Player) -> str:
     return str(relative)
 
 
+class SeenStatsDialog(QDialog):
+    """A dialog showing historical encounter statistics for a player IP."""
+
+    def __init__(self, parent: QWidget, player: Player) -> None:
+        """Compute seen stats and build the dialog UI."""
+        super().__init__(parent)
+        set_dialog_window_flags(self)
+        stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, player.ip)
+
+        self.setWindowTitle(f'{TITLE} - Seen Stats ({player.ip})')
+        self.setMinimumSize(400, 300)
+
+        try:
+            screen_width, screen_height = get_screen_size()
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            screen_width, screen_height = 800, 600
+
+        if (screen_width, screen_height) >= (1920, 1080):
+            self.resize(500, 360)
+        elif (screen_width, screen_height) >= (1280, 720):
+            self.resize(460, 340)
+        else:
+            resize_window_for_screen(self, screen_width, screen_height)
+            self.resize(min(self.width(), max(400, screen_width - 80)), min(self.height(), max(300, screen_height - 80)))
+
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
+        outer_layout.setSpacing(8)
+
+        header = QLabel(f'\U0001f4c5  Seen Stats \u2014 {player.ip}')
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet(
+            'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
+            'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+            ' stop:0 #6b46c1, stop:1 #9f7aea); border-radius: 6px;',
+        )
+        header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+        outer_layout.addWidget(header)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        outer_layout.addWidget(scroll, stretch=1)
+
+        scroll_content = QWidget()
+        scroll.setWidget(scroll_content)
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(2, 2, 2, 2)
+        scroll_layout.setSpacing(10)
+
+        self._build_encounter_group(scroll_layout, stats)
+        scroll_layout.addStretch(1)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
+        button_box.rejected.connect(self.reject)
+        button_box.accepted.connect(self.accept)
+        outer_layout.addWidget(button_box)
+
+    def _build_encounter_group(self, parent_layout: QVBoxLayout, stats: SeenStats) -> None:
+        """Add the 'Session Encounters' section to the scroll layout."""
+        group, form = self._make_group('\U0001f4c5  Session Encounters', accent='#6b46c1')
+        for key, label in SEEN_STATS_LABELS.items():
+            self._add_row(form, label, str(getattr(stats, key)))
+        parent_layout.addWidget(group)
+
+    @staticmethod
+    def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
+        """Create a styled group box with an attached QFormLayout and return both."""
+        group = QGroupBox(title)
+        group.setStyleSheet(
+            'QGroupBox {'
+            f' border: 1px solid {accent};'
+            ' border-radius: 6px;'
+            ' margin-top: 14px;'
+            ' padding-top: 10px;'
+            ' background: rgba(255, 255, 255, 8);'
+            ' font-weight: bold;'
+            '}'
+            'QGroupBox::title {'
+            ' subcontrol-origin: margin;'
+            ' subcontrol-position: top left;'
+            ' left: 10px; padding: 2px 8px;'
+            f' background: {accent};'
+            ' color: #ffffff;'
+            ' border-radius: 4px;'
+            '}',
+        )
+        form = QFormLayout(group)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(5)
+        form.setContentsMargins(10, 8, 10, 10)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        return group, form
+
+    @staticmethod
+    def _add_row(form: QFormLayout, label_text: str, value: str) -> None:
+        """Append a copyable label/value row to *form*."""
+        label_widget = QLabel(f'{label_text}:')
+        label_widget.setStyleSheet('color: #cbd5e0; font-weight: 600; background: transparent;')
+
+        value_widget = QLabel(value)
+        value_widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+        value_widget.setCursor(Qt.CursorShape.IBeamCursor)
+        value_widget.setWordWrap(True)
+        value_widget.setFont(QFont('Consolas'))
+        value_widget.setStyleSheet('color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);')
+        value_widget.setToolTip('Click and drag to select; Ctrl+C to copy.')
+
+        form.addRow(label_widget, value_widget)
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802  # Qt override name
+        """Handle the close event."""
+        super().closeEvent(a0)
+
+
 class IPLookupDetailsDialog(QDialog):
     """A non-modal dialog showing live, copyable IP lookup details for a player.
 
@@ -141,6 +261,7 @@ class IPLookupDetailsDialog(QDialog):
     def __init__(self, parent: QWidget, player: Player) -> None:
         """Build the dialog, install the periodic refresh timer, and show initial values."""
         super().__init__(parent)
+        set_dialog_window_flags(self)
         self._player = player
         self._rows: list[tuple[QLabel, Callable[[Player], str]]] = []
 
@@ -330,15 +451,96 @@ def show_detailed_ip_lookup(parent: QWidget, player: Player) -> None:
 
 
 def show_seen_stats(parent: QWidget, player: Player) -> None:
-    """Show historical encounter statistics for the given player IP."""
-    stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, player.ip)
-    lines = '\n'.join(f'{label}: {getattr(stats, key)}' for key, label in SEEN_STATS_LABELS.items())
-    QMessageBox.information(parent, TITLE, format_triple_quoted_text(f"""
-        ########## Seen Stats ##########
-        IP Address: {player.ip}
+    """Open the Seen Stats dialog for *player*."""
+    dialog = SeenStatsDialog(parent, player)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    dialog.show()
 
-        {lines}
-    """))
+
+def build_discord_player_report(player: Player) -> str:
+    """Build a Discord-formatted player info report string."""
+    lines: list[str] = []
+    lines.append(f'## \U0001f4ca Player Report \u2014 `{player.ip}`')
+    lines.append('')
+
+    # Player Info
+    lines.append('**\U0001f464 Player Info**')
+    lines.append(f'> **IP Address:** `{player.ip}`')
+    hostname = _fmt_text(player.reverse_dns.hostname)
+    lines.append(f'> **Hostname:** `{hostname}`')
+    usernames = ', '.join(player.usernames) if player.usernames else 'N/A'
+    lines.append(f'> **Username(s):** {usernames}')
+    lines.append(f'> **First Port:** {player.ports.first}  |  **Last Port:** {player.ports.last}')
+    middle_ports = ', '.join(map(str, player.ports.middle))
+    if middle_ports:
+        lines.append(f'> **Middle Port(s):** {middle_ports}')
+    db_text = _userip_database_text(player)
+    if db_text != 'No':
+        lines.append(f'> **UserIP Database:** {db_text}')
+    first_seen = player.datetime.first_seen.strftime('%Y-%m-%d %H:%M:%S')
+    last_seen = player.datetime.last_seen.strftime('%Y-%m-%d %H:%M:%S')
+    lines.append(f'> **First Seen:** {first_seen}  |  **Last Seen:** {last_seen}')
+    lines.append('')
+
+    # Location
+    country = _fmt_text(player.iplookup.geolite2.country)
+    country_code = _fmt_text(player.iplookup.geolite2.country_code)
+    continent = _fmt_text(player.iplookup.ipapi.continent)
+    region = _fmt_text(player.iplookup.ipapi.region)
+    city = _fmt_text(player.iplookup.geolite2.city)
+    timezone = _fmt_text(player.iplookup.ipapi.time_zone)
+    lines.append('**\U0001f30d Location**')
+    country_display = f'{country} ({country_code})' if country != 'N/A' and country_code != 'N/A' else country
+    lines.append(f'> **Country:** {country_display}')
+    if continent != 'N/A':
+        lines.append(f'> **Continent:** {continent}')
+    if region != 'N/A':
+        lines.append(f'> **Region:** {region}')
+    if city != 'N/A':
+        lines.append(f'> **City:** {city}')
+    if timezone != 'N/A':
+        lines.append(f'> **Timezone:** {timezone}')
+    lines.append('')
+
+    # Network
+    isp = _fmt_text(player.iplookup.ipapi.isp)
+    org = _fmt_text(player.iplookup.ipapi.org)
+    asn = _fmt_text(player.iplookup.ipapi.asn)
+    as_name = _fmt_text(player.iplookup.ipapi.as_name)
+    mobile = _fmt_bool(player.iplookup.ipapi.mobile)
+    proxy = _fmt_bool(player.iplookup.ipapi.proxy)
+    hosting = _fmt_bool(player.iplookup.ipapi.hosting)
+    lines.append('**\U0001f310 Network**')
+    if isp != 'N/A':
+        lines.append(f'> **ISP:** {isp}')
+    if org not in {'N/A', isp}:
+        lines.append(f'> **Organization:** {org}')
+    if asn != 'N/A':
+        as_display = f'{asn} ({as_name})' if as_name != 'N/A' else asn
+        lines.append(f'> **AS:** {as_display}')
+    lines.append(f'> **Mobile:** {mobile}  |  **Proxy/VPN/Tor:** {proxy}  |  **Hosting:** {hosting}')
+    lines.append('')
+
+    # Ping
+    avg_rtt = _fmt_ms(player.ping.rtt_avg)
+    packet_loss = _fmt_loss_pct(player.ping.packet_loss)
+    lines.append('**\U0001f4e1 Ping**')
+    lines.append(f'> **Avg RTT:** {avg_rtt}  |  **Packet Loss:** {packet_loss}')
+
+    return '\n'.join(lines)
+
+
+def copy_player_info_for_discord(player: Player) -> None:
+    """Copy a Discord-formatted player info report to the system clipboard."""
+    clipboard = ensure_instance(app.clipboard(), QClipboard)
+    clipboard.setText(build_discord_player_report(player))
+
+
+def copy_players_info_for_discord(players: list[Player]) -> None:
+    """Copy Discord-formatted reports for multiple players, separated by a divider."""
+    clipboard = ensure_instance(app.clipboard(), QClipboard)
+    separator = '\n\n---\n\n'
+    clipboard.setText(separator.join(build_discord_player_report(p) for p in players))
 
 
 def ping_ip(ip: str) -> None:
@@ -366,3 +568,47 @@ def tcp_port_ping(parent: QWidget, ip: str) -> None:
         return
 
     run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
+
+
+def tcp_port_ping_multi(parent: QWidget, ips: list[str]) -> None:
+    """Ask for a port once, then run paping for each IP on that same port."""
+    port_str, ok = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+
+    if not ok:
+        return
+
+    port_str = port_str.strip()
+
+    if not port_str.isdigit():
+        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
+        return
+
+    port = int(port_str)
+
+    if not MIN_PORT <= port <= MAX_PORT:
+        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
+        return
+
+    for ip in ips:
+        run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
+
+
+def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:
+    """Open the IP Range Builder dialog pre-filled with *ip_address* and add the result to the blocked IPs setting.
+
+    Returns the raw range string that was added, or ``None`` if the user cancelled or the entry already exists.
+    """
+    dialog = IPRangeBuilderDialog(parent, initial_ip=ip_address)
+    if dialog.exec() != QDialog.DialogCode.Accepted:
+        return None
+
+    entry = dialog.result_entry()
+    if not entry:
+        return None
+
+    if entry not in Settings.capture_blocked_ips:
+        Settings.capture_blocked_ips = (*Settings.capture_blocked_ips, entry)
+        Settings.rewrite_settings_file()
+        Settings.rebuild_blocked_ip_ranges()
+
+    return entry

@@ -84,6 +84,17 @@ def build_capture_filters(
         # But there can be a lot more, those are just a couples I could find on my own usage.
         excluded_protocols.extend(['ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'])
 
+    if Settings.capture_blocked_ips:
+        blocked_bpf: list[str] = []
+        for raw in Settings.capture_blocked_ips:
+            if '/' in raw:
+                blocked_bpf.append(f'net {raw}')
+            elif '-' not in raw and '*' not in raw:
+                blocked_bpf.append(f'host {raw}')
+            # Start-end ranges and wildcards are handled at the software level only
+        if blocked_bpf:
+            capture_filter.append(f"not ({' or '.join(blocked_bpf)})")
+
     display_filter: list[str] = []
 
     if excluded_protocols:

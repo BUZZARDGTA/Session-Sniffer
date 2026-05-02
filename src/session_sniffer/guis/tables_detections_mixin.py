@@ -3,13 +3,14 @@
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
+from session_sniffer.guis.detections_manager import open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.player.protections import GUIProtectionSettings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from PyQt6.QtGui import QAction
-    from PyQt6.QtWidgets import QMenu
+    from PyQt6.QtWidgets import QMenu, QWidget
 
     from session_sniffer.models.player import Player
 
@@ -38,6 +39,7 @@ def build_detections_menu(
     menu: QMenu,
     add_action: Callable[..., QAction],
     player: Player,
+    parent: QWidget,
 ) -> None:
     """Build a Detections submenu for a single player."""
     country_name = _safe_str(player.iplookup.geolite2.country)
@@ -100,11 +102,20 @@ def build_detections_menu(
                 handler=lambda: _toggle_protection_list(GUIProtectionSettings.asn_block_list, asn_value, add=True),
             )
 
+    menu.addSeparator()
+    add_action(
+        menu,
+        '\U0001f517 Create Combo Rule...',
+        tooltip="Open the combo rule editor pre-filled with this player's Country, ISP and ASN.",
+        handler=lambda: open_combo_rule_editor_for_player(parent, player),
+    )
+
 
 def build_detections_menu_multi(
     menu: QMenu,
     add_action: Callable[..., QAction],
     players: list[Player],
+    parent: QWidget,
 ) -> None:
     """Build a Detections submenu for multiple selected players."""
     # Collect unique values from all players
@@ -223,3 +234,11 @@ def build_detections_menu_multi(
             tooltip=f'Remove {", ".join(existing_asns)} from the ASN block list.',
             handler=_remove_asns,
         )
+
+    menu.addSeparator()
+    add_action(
+        menu,
+        '\U0001f517 Create Combo Rule...',
+        tooltip='Open the combo rule editor to create a new combo rule.',
+        handler=lambda: open_combo_rule_editor(parent),
+    )

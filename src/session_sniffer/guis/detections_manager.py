@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from PyQt6.QtCore import QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QIcon, QPixmap, QStandardItem, QStandardItemModel
@@ -45,6 +45,9 @@ from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
+
+if TYPE_CHECKING:
+    from session_sniffer.models.player import Player
 
 _COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 # Pre-scan available flag codes once to avoid per-country filesystem checks
@@ -1795,3 +1798,44 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             GUIProtectionSettings.gta5_relay_voice_notifications = self._read_voice_combo(self.gta5_relay_voice_combo)
             GUIProtectionSettings.gta5_relay_logging = self.gta5_relay_logging_checkbox.isChecked()
             GUIProtectionSettings.gta5_relay_message_box = self.gta5_relay_msgbox_checkbox.isChecked()
+
+
+def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
+    """Open the combo rule editor pre-filled with the player's known IP lookup attributes."""
+    _placeholder = '...'
+
+    def _safe(value: object) -> str | None:
+        return value if isinstance(value, str) and value and value != _placeholder else None
+
+    conditions: dict[str, str | bool | list[str]] = {}
+    if country := _safe(player.iplookup.geolite2.country):
+        conditions['country'] = country
+    if isp := _safe(player.iplookup.ipapi.isp):
+        conditions['isp'] = isp
+    as_name = _safe(player.iplookup.ipapi.as_name)
+    asn_geo = _safe(player.iplookup.geolite2.asn)
+    if asn_val := (as_name or asn_geo):
+        conditions['as_name' if as_name else 'asn'] = asn_val
+    mobile = player.iplookup.ipapi.mobile
+    if isinstance(mobile, bool):
+        conditions['mobile'] = mobile
+    proxy = player.iplookup.ipapi.proxy
+    if isinstance(proxy, bool):
+        conditions['vpn'] = proxy
+    hosting = player.iplookup.ipapi.hosting
+    if isinstance(hosting, bool):
+        conditions['hosting'] = hosting
+
+    prefilled = ComboRule(name=f'Rule for {player.ip}', conditions=conditions) if conditions else None
+    dialog = _ComboRuleEditorDialog(parent, prefilled)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        ComboRulesManager.rules.append(dialog.get_rule())
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+
+
+def open_combo_rule_editor(parent: QWidget) -> None:
+    """Open a blank combo rule editor and save the new rule on accept."""
+    dialog = _ComboRuleEditorDialog(parent)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        ComboRulesManager.rules.append(dialog.get_rule())
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
