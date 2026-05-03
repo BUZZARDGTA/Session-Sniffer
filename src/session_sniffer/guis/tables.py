@@ -4,7 +4,14 @@ from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
 from PyQt6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import QHeaderView, QMenu, QSizePolicy, QTableView, QToolTip, QWidget
+from PyQt6.QtWidgets import (
+    QHeaderView,
+    QMenu,
+    QSizePolicy,
+    QTableView,
+    QToolTip,
+    QWidget,
+)
 
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
@@ -12,6 +19,7 @@ from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -19,6 +27,50 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
+
+
+# Category groupings for the Choose Columns submenu.
+# First match wins; columns not matched fall under 'Other'.
+_COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
+    ('⏱ Session', frozenset({'T. Session Time', 'Session Time'})),
+    ('📦 Packets', frozenset({
+        'T. Packets', 'Packets',
+        'T. Packets Received', 'Packets Received',
+        'T. Packets Sent', 'Packets Sent',
+        'PPS', 'PPM',
+    })),
+    ('📶 Bandwidth', frozenset({
+        'T. Bandwidth', 'Bandwidth',
+        'T. Download', 'Download',
+        'T. Upload', 'Upload',
+        'BPS', 'BPM',
+    })),
+    ('🌐 Network', frozenset({
+        'Hostname', 'Last Port', 'Middle Ports', 'First Port',
+        'Mobile', 'VPN', 'Hosting', 'Pinging',
+    })),
+    ('📍 Location', frozenset({
+        'Continent', 'Country', 'Region', 'R. Code', 'City', 'District',
+        'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency',
+    })),
+    ('🏢 Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
+)
+
+
+class _PersistentMenu(QMenu):
+    """QMenu that stays open when a checkable action is clicked."""
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        """Prevent auto-closing when a checkable action is triggered."""
+        if a0 is None:
+            super().mouseReleaseEvent(a0)
+            return
+        action = self.actionAt(a0.pos())
+        if action and action.isCheckable():
+            action.trigger()
+            a0.accept()
+            return
+        super().mouseReleaseEvent(a0)
 
 
 class SessionTableView(TableContextMenuMixin, QTableView):
@@ -327,29 +379,118 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         self._previous_sort_section_index = section_index
 
     def _show_header_context_menu(self, pos: QPoint) -> None:
-        """Show a context menu on the column header with checkboxes to toggle column visibility."""
-        if self._is_connected_table:
-            toggleable_columns = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-            shown_columns = set(Settings.gui_columns_connected_shown)
-        else:
-            toggleable_columns = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
-            shown_columns = set(Settings.gui_columns_disconnected_shown)
+        """Show a context menu on the column header with sizing and column-visibility actions."""
+        toggleable_columns = (
+            Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+            if self._is_connected_table
+            else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        )
+
+        horizontal_header = self.horizontalHeader()
+        clicked_column = horizontal_header.logicalIndexAt(pos)
+
+        clicked_column_name: str | None = None
+        if clicked_column >= 0:
+            header_label = self.model().headerData(clicked_column, Qt.Orientation.Horizontal)
+            if isinstance(header_label, str):
+                clicked_column_name = header_label
 
         menu = QMenu(self)
         menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
 
-        for col_name in toggleable_columns:
-            action = QAction(col_name, menu)
-            action.setCheckable(True)
-            action.setChecked(col_name in shown_columns)
+        size_column_action = QAction('↔️ Size Column to Fit', menu)
+        size_column_action.setEnabled(clicked_column >= 0)
+        size_column_action.triggered.connect(lambda: self._size_column_to_fit(clicked_column))
+        menu.addAction(size_column_action)
 
-            def _on_toggled(checked: bool, name: str = col_name) -> None:  # noqa: FBT001
-                self._toggle_column_visibility(name, checked=checked)
+        size_all_action = QAction('↕️ Size All Columns to Fit', menu)
+        size_all_action.triggered.connect(self._size_all_columns_to_fit)
+        menu.addAction(size_all_action)
 
-            action.toggled.connect(_on_toggled)
-            menu.addAction(action)
+        reset_sizes_action = QAction('🔄 Reset Column Sizes', menu)
+        reset_sizes_action.triggered.connect(self._reset_column_sizes)
+        menu.addAction(reset_sizes_action)
 
-        menu.popup(self.horizontalHeader().mapToGlobal(pos))
+        menu.addSeparator()
+
+        hide_label = f"👁️‍🗨️ Hide Column '{clicked_column_name}'" if clicked_column_name else '👁️‍🗨️ Hide Column'
+        hide_column_action = QAction(hide_label, menu)
+        hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
+        if clicked_column_name is not None:
+            hide_column_action.triggered.connect(
+                lambda: self._toggle_column_visibility(clicked_column_name, checked=False),
+            )
+        menu.addAction(hide_column_action)
+
+        choose_columns_menu = _PersistentMenu('🧩 Choose Columns', menu)
+        choose_columns_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+
+        reset_columns_action = QAction('↩️ Reset to Default Columns', choose_columns_menu)
+        reset_columns_action.triggered.connect(self._reset_to_default_columns)
+        choose_columns_menu.addAction(reset_columns_action)
+        choose_columns_menu.addSeparator()
+
+        # Bucket each toggleable column into its category.
+        bucketed: dict[str, list[str]] = {label: [] for label, _ in _COLUMN_CATEGORY_GROUPS}
+        bucketed['Other'] = []
+        shown_columns = set(
+            Settings.gui_columns_connected_shown
+            if self._is_connected_table
+            else Settings.gui_columns_disconnected_shown,
+        )
+        for col in toggleable_columns:
+            placed = False
+            for label, members in _COLUMN_CATEGORY_GROUPS:
+                if col in members:
+                    bucketed[label].append(col)
+                    placed = True
+                    break
+            if not placed:
+                bucketed['Other'].append(col)
+
+        for label, _ in (*_COLUMN_CATEGORY_GROUPS, ('Other', frozenset())):
+            cols = bucketed[label]
+            if not cols:
+                continue
+            category_menu = _PersistentMenu(label, choose_columns_menu)
+            category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+            for col_name in cols:
+                col_action = QAction(col_name, category_menu)
+                col_action.setCheckable(True)
+                col_action.setChecked(col_name in shown_columns)
+
+                def _on_col_toggled(checked: bool, name: str = col_name) -> None:  # noqa: FBT001
+                    self._toggle_column_visibility(name, checked=checked)
+
+                col_action.toggled.connect(_on_col_toggled)
+                category_menu.addAction(col_action)
+            choose_columns_menu.addMenu(category_menu)
+
+        menu.addMenu(choose_columns_menu)
+
+        menu.popup(horizontal_header.mapToGlobal(pos))
+
+    def _size_column_to_fit(self, column: int) -> None:
+        """Resize a single column to fit its contents (header + cell text)."""
+        if column < 0:
+            return
+        header = self.horizontalHeader()
+        header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        self.resizeColumnToContents(column)
+
+    def _size_all_columns_to_fit(self) -> None:
+        """Resize every visible column to fit its contents."""
+        header = self.horizontalHeader()
+        for column in range(self.model().columnCount()):
+            if header.isSectionHidden(column):
+                continue
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+            self.resizeColumnToContents(column)
+
+    def _reset_column_sizes(self) -> None:
+        """Restore the default column sizing rules (Stretch / ResizeToContents)."""
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
 
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""
@@ -374,6 +515,18 @@ class SessionTableView(TableContextMenuMixin, QTableView):
             Settings.gui_columns_disconnected_shown = new_shown
 
         Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
+
+    def _reset_to_default_columns(self) -> None:
+        """Restore the default column visibility and persist the change to settings."""
+        if self._is_connected_table:
+            Settings.gui_columns_connected_shown = SETTING_DEFAULTS['gui_columns_connected_shown']
+        else:
+            Settings.gui_columns_disconnected_shown = SETTING_DEFAULTS['gui_columns_disconnected_shown']
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
 
     def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
         """Show tooltip only if hovering exactly over the flag."""
