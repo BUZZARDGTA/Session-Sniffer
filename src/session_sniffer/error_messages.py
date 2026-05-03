@@ -4,6 +4,7 @@ This module contains functions that build user-facing text intended ONLY for GUI
 (e.g., messages shown via the app's message box / dialog helpers).
 """
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from session_sniffer.constants.standalone import GITHUB_VERSIONS_URL, TITLE
@@ -15,6 +16,15 @@ if TYPE_CHECKING:
 
     from session_sniffer.networking.interface import SelectedInterfaceRow
     from session_sniffer.player.userip import UserIP
+
+
+@dataclass(slots=True)
+class UserIPFileProblems:
+    """Collected problems found when parsing a single UserIP database file."""
+    invalid_ip_entries: list[tuple[str, str]]
+    duplicate_entries: list[tuple[str, str]]
+    missing_settings: list[str]
+    corrupted_setting: tuple[str, str] | None
 
 
 def format_type_error(
@@ -207,104 +217,63 @@ def format_userip_ip_conflict_message(
     """
 
 
-def format_userip_corrupted_settings_message(
+def format_userip_file_problems_message(
     *,
     ini_path: Path,
-    setting: str,
-    value: str,
+    problems: UserIPFileProblems,
     configuration_guide_url: str,
 ) -> str:
-    """Format the error shown when UserIP database settings are corrupted."""
-    return f"""
-        ERROR:
-            Corrupted UserIP Database File (Settings)
+    """Format a combined message for all problems found in a single UserIP database file."""
+    divider = '\u2500' * 37
+    sections: list[str] = []
 
-        INFOS:
-            UserIP database file:
-            "{ini_path}"
-            has an invalid settings value:
+    if problems.missing_settings:
+        count = len(problems.missing_settings)
+        settings_list = '\n    '.join(f'<{s.upper()}>' for s in problems.missing_settings)
+        sections.append(
+            f'ERROR: Missing setting{pluralize(count)} ({count})\n\n'
+            f'    {settings_list}',
+        )
 
-            {setting}={value}
+    if problems.corrupted_setting is not None:
+        setting, value = problems.corrupted_setting
+        sections.append(
+            f'ERROR: Corrupted setting value\n\n'
+            f'    {setting}={value}',
+        )
 
-        For more information on formatting, please refer to the
-        documentation:
-        {configuration_guide_url}
-    """
+    if problems.invalid_ip_entries:
+        count = len(problems.invalid_ip_entries)
+        max_shown = 10
+        entries = '\n    '.join(f'{u}={ip}' for u, ip in problems.invalid_ip_entries[:max_shown])
+        truncation = f'\n    ... and {count - max_shown} more' if count > max_shown else ''
+        sections.append(
+            f'ERROR: {count} invalid IP address{pluralize(count, "", "es")}\n\n'
+            f'    {entries}{truncation}',
+        )
 
+    if problems.duplicate_entries:
+        count = len(problems.duplicate_entries)
+        max_shown = 10
+        entries = '\n    '.join(f'{u}={ip}' for u, ip in problems.duplicate_entries[:max_shown])
+        truncation = f'\n    ... and {count - max_shown} more' if count > max_shown else ''
+        sections.append(
+            f'WARNING: {count} duplicate {pluralize(count, "entry", "entries")} auto-removed\n\n'
+            f'    {entries}{truncation}',
+        )
 
-def format_userip_invalid_ip_entry_message(
-    *,
-    ini_path: Path,
-    username: str,
-    ip: str,
-    configuration_guide_url: str,
-) -> str:
-    """Format the error shown for invalid IP entries in a UserIP database."""
-    return f"""
-        ERROR:
-            UserIP database invalid IP address
+    body = f'\n{divider}\n'.join(sections)
 
-        INFOS:
-            The IP address from this database entry is invalid.
-
-        DEBUG:
-            {ini_path}
-            {username}={ip}
-
-        For more information on formatting, please refer to the
-        documentation:
-        {configuration_guide_url}
-    """
-
-
-def format_userip_missing_settings_message(
-    *,
-    ini_path: Path,
-    missing_settings: list[str],
-    configuration_guide_url: str,
-) -> str:
-    """Format the error shown when one or more required settings are missing."""
-    number_of_settings_missing = len(missing_settings)
-    missing_settings_list = '\n                '.join(f'<{setting.upper()}>' for setting in missing_settings)
-    return f"""
-        ERROR:
-            Missing setting{pluralize(number_of_settings_missing)} in UserIP Database File
-
-        INFOS:
-            {number_of_settings_missing} missing setting{pluralize(number_of_settings_missing)} in UserIP database file:
-            "{ini_path}"
-
-            {missing_settings_list}
-
-        For more information on formatting, please refer to the
-        documentation:
-        {configuration_guide_url}
-    """
-
-
-def format_userip_duplicate_entries_message(
-    *,
-    ini_path: Path,
-    duplicates: Sequence[tuple[str, str]],
-) -> str:
-    """Format the warning shown when exact duplicate entries are found and auto-removed."""
-    duplicate_count = len(duplicates)
-    max_examples = 10
-    examples = '\n                '.join(f'{username}={ip}' for username, ip in duplicates[:max_examples])
-    truncation_note = f'\n                ... and {duplicate_count - max_examples} more' if duplicate_count > max_examples else ''
-    return f"""
-        WARNING:
-            Duplicate entries removed from UserIP Database
-
-        INFOS:
-            {duplicate_count} exact duplicate entr{"y" if duplicate_count == 1 else "ies"}
-            {"was" if duplicate_count == 1 else "were"} found and automatically removed from:
-            "{ini_path}"
-
-        DEBUG:
-            Removed duplicate{pluralize(duplicate_count)}:
-                {examples}{truncation_note}
-    """
+    return (
+        f'Issues in UserIP Database File:\n'
+        f'    "{ini_path}"\n\n'
+        f'{divider}\n'
+        f'{body}\n'
+        f'{divider}\n\n'
+        f'For more information on formatting, please refer to the\n'
+        f'documentation:\n'
+        f'{configuration_guide_url}'
+    )
 
 
 def format_arp_spoofing_failed_message(

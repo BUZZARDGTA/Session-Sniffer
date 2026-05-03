@@ -1,5 +1,6 @@
 """Settings loading, validation, and persistence."""
 
+import contextlib
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -377,10 +378,8 @@ class Settings:
         """Rebuild the in-memory list of parsed IPRange objects from `capture_blocked_ips`."""
         ranges: list[IPRange] = []
         for raw in cls.capture_blocked_ips:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 ranges.append(parse_ip_range(raw))
-            except (ValueError, TypeError):
-                pass
         cls.blocked_ip_ranges = ranges
 
     @classmethod

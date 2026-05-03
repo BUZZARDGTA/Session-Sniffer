@@ -6,14 +6,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QCloseEvent, QFont, QMouseEvent
+from PyQt6.QtGui import QAction, QCloseEvent, QFont
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
-    QMenu,
     QPushButton,
     QSpinBox,
     QStatusBar,
@@ -77,7 +76,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import resize_window_for_screen
+from session_sniffer.guis.utils import PersistentMenu, resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
@@ -96,25 +95,6 @@ logger = get_logger(__name__)
 
 GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
-
-
-class PersistentMenu(QMenu):
-    """Custom QMenu that doesn't close when checkable actions are triggered."""
-
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
-        """Override mouse release event to prevent auto-closing on checkable actions."""
-        if a0 is None:
-            super().mouseReleaseEvent(a0)
-            return
-
-        action = self.actionAt(a0.pos())
-        if action and action.isCheckable():
-            # Trigger the action but don't close the menu
-            action.trigger()
-            a0.accept()
-            return
-        # For non-checkable actions, use default behavior (close menu)
-        super().mouseReleaseEvent(a0)
 
 
 @dataclass(frozen=True, slots=True)

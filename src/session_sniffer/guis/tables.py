@@ -18,6 +18,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
+from session_sniffer.guis.utils import PersistentMenu
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
@@ -57,23 +58,8 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
 )
 
 
-class _PersistentMenu(QMenu):
-    """QMenu that stays open when a checkable action is clicked."""
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
-        """Prevent auto-closing when a checkable action is triggered."""
-        if a0 is None:
-            super().mouseReleaseEvent(a0)
-            return
-        action = self.actionAt(a0.pos())
-        if action and action.isCheckable():
-            action.trigger()
-            a0.accept()
-            return
-        super().mouseReleaseEvent(a0)
-
-
-class SessionTableView(TableContextMenuMixin, QTableView):
+class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
 
     def __init__(
@@ -94,7 +80,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         """
         super().__init__()
 
-        self._is_connected_table = is_connected_table  # Store which table type this is
+        self.is_connected_table = is_connected_table  # Store which table type this is
         self.open_rate_graph_callback: Callable[[str], None] | None = None  # Optional callback to open a rate graph for an IP
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
@@ -183,9 +169,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         if isinstance(e, QKeyEvent):
             if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 if e.key() == Qt.Key.Key_A:
-                    self._select_all_cells()
+                    self.select_all_cells()
                 elif e.key() == Qt.Key.Key_C:
-                    self._copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
+                    self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
                 return
 
         # Fall back to default behavior
@@ -358,7 +344,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         self.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self._saved_selection.clear()
 
-    def _handle_menu_hovered(self, action: QAction) -> None:
+    def handle_menu_hovered(self, action: QAction) -> None:
         """Propagate QAction tooltip text to its parent menu."""
         # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
         action_parent = action.parent()
@@ -382,7 +368,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         """Show a context menu on the column header with sizing and column-visibility actions."""
         toggleable_columns = (
             Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-            if self._is_connected_table
+            if self.is_connected_table
             else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
         )
 
@@ -422,7 +408,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
             )
         menu.addAction(hide_column_action)
 
-        choose_columns_menu = _PersistentMenu('🧩 Choose Columns', menu)
+        choose_columns_menu = PersistentMenu('🧩 Choose Columns', menu)
         choose_columns_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
 
         reset_columns_action = QAction('↩️ Reset to Default Columns', choose_columns_menu)
@@ -435,7 +421,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         bucketed['Other'] = []
         shown_columns = set(
             Settings.gui_columns_connected_shown
-            if self._is_connected_table
+            if self.is_connected_table
             else Settings.gui_columns_disconnected_shown,
         )
         for col in toggleable_columns:
@@ -448,11 +434,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):
             if not placed:
                 bucketed['Other'].append(col)
 
-        for label, _ in (*_COLUMN_CATEGORY_GROUPS, ('Other', frozenset())):
+        for label, _ in (*_COLUMN_CATEGORY_GROUPS, ('Other', frozenset[str]())):
             cols = bucketed[label]
             if not cols:
                 continue
-            category_menu = _PersistentMenu(label, choose_columns_menu)
+            category_menu = PersistentMenu(label, choose_columns_menu)
             category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
             for col_name in cols:
                 col_action = QAction(col_name, category_menu)
@@ -494,7 +480,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
 
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""
-        if self._is_connected_table:
+        if self.is_connected_table:
             shown = set(Settings.gui_columns_connected_shown)
             toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
         else:
@@ -509,7 +495,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         # Preserve ordering from the toggleable columns tuple
         new_shown = tuple(col for col in toggleable if col in shown)
 
-        if self._is_connected_table:
+        if self.is_connected_table:
             Settings.gui_columns_connected_shown = new_shown
         else:
             Settings.gui_columns_disconnected_shown = new_shown
@@ -520,7 +506,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
 
     def _reset_to_default_columns(self) -> None:
         """Restore the default column visibility and persist the change to settings."""
-        if self._is_connected_table:
+        if self.is_connected_table:
             Settings.gui_columns_connected_shown = SETTING_DEFAULTS['gui_columns_connected_shown']
         else:
             Settings.gui_columns_disconnected_shown = SETTING_DEFAULTS['gui_columns_disconnected_shown']
@@ -542,7 +528,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         else:
             QToolTip.hideText()
 
-    def _copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
+    def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
         # Access the system clipboard from the centralized app instance
         clipboard = ensure_instance(app.clipboard(), QClipboard)
@@ -568,7 +554,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         # Set the formatted text in the system clipboard
         clipboard.setText(clipboard_content)
 
-    def _remove_players_by_ip_from_table(self, ips: set[str]) -> None:
+    def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
         """Remove multiple players from the table by calling the appropriate `MainWindow` method.
 
         Args:
@@ -579,7 +565,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):
 
         # Remove each player
         for ip in ips:
-            if self._is_connected_table:
+            if self.is_connected_table:
                 main_window.remove_player_from_connected(ip)
             else:
                 main_window.remove_player_from_disconnected(ip)
@@ -658,26 +644,26 @@ class SessionTableView(TableContextMenuMixin, QTableView):
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
 
-    def _select_all_cells(self) -> None:
+    def select_all_cells(self) -> None:
         """Select all cells in the table."""
         self._select_all_cells_helper(select=True)
 
-    def _unselect_all_cells(self) -> None:
+    def unselect_all_cells(self) -> None:
         """Unselect all cells in the table."""
         self._select_all_cells_helper(select=False)
 
-    def _select_row_cells(self, row: int) -> None:
+    def select_row_cells(self, row: int) -> None:
         """Select all cells in the specified row."""
         self._select_row_cells_helper(row, select=True)
 
-    def _unselect_row_cells(self, row: int) -> None:
+    def unselect_row_cells(self, row: int) -> None:
         """Unselect all cells in the specified row."""
         self._select_row_cells_helper(row, select=False)
 
-    def _select_column_cells(self, column: int) -> None:
+    def select_column_cells(self, column: int) -> None:
         """Select all cells in the specified column."""
         self._select_column_cells_helper(column, select=True)
 
-    def _unselect_column_cells(self, column: int) -> None:
+    def unselect_column_cells(self, column: int) -> None:
         """Unselect all cells in the specified column."""
         self._select_column_cells_helper(column, select=False)

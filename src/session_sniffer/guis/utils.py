@@ -4,6 +4,8 @@ This module provides helper functions to interact with GUI elements.
 """
 
 
+from typing import TYPE_CHECKING
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
@@ -11,6 +13,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QHeaderView,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QTableView,
     QTableWidget,
@@ -23,6 +26,26 @@ from session_sniffer.constants.standalone import TITLE
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
+
+if TYPE_CHECKING:
+    from PyQt6.QtGui import QMouseEvent
+
+
+class PersistentMenu(QMenu):
+    """QMenu that stays open when a checkable action is clicked."""
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+        """Prevent auto-closing when a checkable action is triggered."""
+        if a0 is None:
+            super().mouseReleaseEvent(a0)
+            return
+        action = self.actionAt(a0.pos())
+        if action and action.isCheckable():
+            action.trigger()
+            a0.accept()
+            return
+        super().mouseReleaseEvent(a0)
+
 
 # ---------------------------------------------------------------------------
 # Suspend-mode tooltip strings — shared between detections_manager and

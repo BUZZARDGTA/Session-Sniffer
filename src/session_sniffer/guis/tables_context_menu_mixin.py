@@ -124,7 +124,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
         context_menu = QMenu(self)
         context_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
         context_menu.setToolTipsVisible(True)
-        context_menu.hovered.connect(self._handle_menu_hovered)
+        context_menu.hovered.connect(self.handle_menu_hovered)
 
         # Resolve a single selected player early so Copy for Discord can sit near Copy Selection
         _early_player: Player | None = None
@@ -140,7 +140,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
             '📋 Copy Selection',
             shortcut='Ctrl+C',
             tooltip='Copy selected cells to your clipboard.',
-            handler=lambda: self._copy_selected_cells(selected_model, selected_indexes),
+            handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
         )
         if _early_player is not None:
             _discord_player = _early_player
@@ -175,7 +175,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
 
                 def create_remove_handler(ip_list: set[str]) -> Callable[[], None]:
-                    return lambda: self._remove_players_by_ip_from_table(ip_list)
+                    return lambda: self.remove_players_by_ip_from_table(ip_list)
 
                 add_action(
                     context_menu,
@@ -187,15 +187,15 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
 
         # "Select" submenu
         select_menu = add_menu(context_menu, '☑️ Select')
-        add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self._select_all_cells)
-        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self._select_row_cells(index.row()))
-        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self._select_column_cells(index.column()))
+        add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
+        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
+        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
 
         # "Unselect" submenu
         unselect_menu = add_menu(context_menu, '⬜ Unselect')
-        add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self._unselect_all_cells)
-        add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self._unselect_row_cells(index.row()))
-        add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self._unselect_column_cells(index.column()))
+        add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
+        add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self.unselect_row_cells(index.row()))
+        add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self.unselect_column_cells(index.column()))
         context_menu.addSeparator()
 
         def get_script_candidates(directory: Path) -> list[Path]:
@@ -257,7 +257,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                         handler=lambda: show_seen_stats(self, player_obj),
                     )
 
-                    if self._is_connected_table and self.open_rate_graph_callback is not None:
+                    if self.is_connected_table and self.open_rate_graph_callback is not None:
                         _graph_cb = self.open_rate_graph_callback
                         add_action(
                             context_menu,
@@ -415,7 +415,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     )
 
                 # --- Rate Graph (multi-IP, connected table only) ---
-                if self._is_connected_table and self.open_rate_graph_callback is not None:
+                if self.is_connected_table and self.open_rate_graph_callback is not None:
                     _multi_graph_cb = self.open_rate_graph_callback
                     _multi_ips = list(all_ips)
 

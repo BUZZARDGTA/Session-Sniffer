@@ -115,9 +115,16 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             packets_latencies=list(TsharkStats.packets_latencies),
         ),
         userip=StatusBarUserIPInfo(
-            invalid_ip_count=len(UserIPDatabases.notified_ip_invalid),
+            invalid_ip_count=sum(
+                sum(1 for p in problems if p.startswith('invalid_ip:'))
+                for problems in UserIPDatabases.notified_file_problems.values()
+            ),
             conflict_ip_count=len(UserIPDatabases.notified_ip_conflicts),
-            corrupted_settings_count=len(UserIPDatabases.notified_settings_corrupted),
+            corrupted_settings_count=sum(
+                1
+                for problems in UserIPDatabases.notified_file_problems.values()
+                if any(p.startswith(('missing:', 'corrupted:')) for p in problems)
+            ),
         ),
         interface=StatusBarInterfaceInfo(
             name=capture.config.interface.name,
