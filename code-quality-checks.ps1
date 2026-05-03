@@ -74,13 +74,6 @@ $QualityTools = @(
         Category = "LINTING"
     },
     @{
-        ToolName = "vulture"
-        Command = "vulture ."
-        InstallCommand = "pip install vulture"
-        Description = "Dead code detection and analysis"
-        Category = "LINTING"
-    },
-    @{
         ToolName = "mypy"
         Command = "mypy . --config-file pyproject.toml"
         InstallCommand = "pip install mypy"
@@ -100,6 +93,13 @@ $QualityTools = @(
         InstallCommand = "pip install ty"
         Description = "Astral's fast Python type checker"
         Category = "TYPE CHECKING"
+    },
+    @{
+        ToolName = "vulture"
+        Command = "vulture ."
+        InstallCommand = "pip install vulture"
+        Description = "Dead code detection and analysis"
+        Category = "LINTING"
     },
     @{
         ToolName = "pip-audit"

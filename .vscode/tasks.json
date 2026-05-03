@@ -103,18 +103,6 @@
             }
         },
         {
-            "label": "🦅 Vulture - Dead Code Detector",
-            "type": "shell",
-            "command": "${workspaceFolder}/.venv/Scripts/vulture.exe",
-            "args": [".", "--config", "pyproject.toml"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "panel": "shared"
-            }
-        },
-        {
             "label": "🎯 Pyright - Microsoft Type Checker",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/pyright.exe",
@@ -143,6 +131,18 @@
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/ty.exe",
             "args": ["check", "."],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "🦅 Vulture - Dead Code Detector",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/vulture.exe",
+            "args": [".", "--config", "pyproject.toml"],
             "group": "test",
             "presentation": {
                 "echo": true,
