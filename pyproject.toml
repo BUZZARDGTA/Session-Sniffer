@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.4.4rc1+20260502.1508"
+version = "v1.5.0rc1+20260503.1919"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
@@ -211,6 +211,7 @@ runtime-evaluated-base-classes = [
 "src/session_sniffer/guis/logs_manager/*.py" = ["FBT001", "FBT003", "N802", "TC003"]
 "src/session_sniffer/guis/main_window.py" = ["N802"]
 "src/session_sniffer/guis/logs_manager/_csv_tab.py" = ["PLR0913"]
+"src/session_sniffer/guis/tables_player_actions.py" = ["PLR0913"]
 "src/session_sniffer/guis/settings_dialog.py" = ["PLR0911"]
 "src/session_sniffer/guis/table_model.py" = ["N802"]
 "src/session_sniffer/guis/tables.py" = ["A002", "N802", "SIM102"]

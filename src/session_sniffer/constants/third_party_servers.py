@@ -20,7 +20,7 @@ class ThirdPartyServers(enum.Enum):
     PC_OMETV_GOOGLE = ('74.125.0.0/16',)
     PC_SERVERS_COM = ('173.237.26.0/24',)
     PC_OTHERS = ('113.117.15.193/32',)
-    PC_MICROSOFT = ('20.202.1.0/24',)
+    PC_MICROSOFT = ('20.0.0.0/8',)
     PC_RUSTDESK = ('209.250.240.0/20',)
     PS_SONY_INTERACTIVE = ('104.142.128.0/17',)
     PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')

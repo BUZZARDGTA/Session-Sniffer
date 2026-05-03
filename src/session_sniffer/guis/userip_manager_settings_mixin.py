@@ -32,7 +32,6 @@ from session_sniffer.settings import Settings
 _MixinBase = QDialog
 
 
-
 _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     'Reds': [
         'red', 'darkred', 'firebrick', 'crimson', 'indianred',
@@ -150,7 +149,7 @@ class _SVGColorPickerDialog(QDialog):
                     f' border: {border_width}px solid {border_color}; border-radius: 2px;'
                     ' font-size: 8pt; font-weight: bold; text-align: center;',
                 )
-                btn.clicked.connect(lambda _, n=name: self._pick(QColor(n), n))
+                btn.clicked.connect(lambda _, n=name: self._pick(QColor(n), n))  # pyright: ignore[reportUnknownLambdaType]
                 grid.addWidget(btn, row, col)
 
             content_layout.addWidget(group_widget)

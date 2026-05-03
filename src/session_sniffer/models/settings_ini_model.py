@@ -47,6 +47,7 @@ class SettingsIniModel(BaseModel):
     GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS: bool
     GUI_SESSIONS_LOGGING: bool
     GUI_RESET_PORTS_ON_REJOINS: bool
+    GUI_SESSION_HOST_DETECTION: bool
     GUI_RATE_GRAPH_ALWAYS_ON_TOP: bool
     GUI_RATE_GRAPH_MAX_HISTORY: int
     GUI_COLUMNS_CONNECTED_SHOWN: tuple[str, ...]
@@ -98,6 +99,7 @@ class SettingsIniModel(BaseModel):
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
         'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
         'GUI_RESET_PORTS_ON_REJOINS',
+        'GUI_SESSION_HOST_DETECTION',
         'GUI_SESSIONS_LOGGING',
         'SHOW_DISCORD_POPUP',
     })
@@ -263,7 +265,7 @@ class SettingsIniModel(BaseModel):
             if not isinstance(parsed, tuple):
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
-            if not all(isinstance(item, str) for item in cast('tuple[object, ...]', parsed)):
+            if not all(isinstance(item, str) for item in parsed):  # pyright: ignore[reportUnknownVariableType]
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
             valid_items: list[str] = []
@@ -754,7 +756,7 @@ def _normalize_tuple_column(
     if not isinstance(parsed, tuple):
         return None, False, True
 
-    if not all(isinstance(item, str) for item in cast('tuple[object, ...]', parsed)):
+    if not all(isinstance(item, str) for item in parsed):  # pyright: ignore[reportUnknownVariableType]
         return None, False, True
 
     parsed = cast('tuple[str, ...]', parsed)

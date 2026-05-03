@@ -5,7 +5,8 @@ ARP Table" action that wakes up devices on the local subnet(s) so that
 recently plugged-in or idle devices show up as ARP neighbors.
 """
 
-import os
+import ctypes
+import ctypes.wintypes
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
@@ -26,7 +27,15 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_SYSTEM32_DIR = Path(os.environ.get('SYSTEMROOT', r'C:\Windows')) / 'System32'
+
+def _get_system32_dir() -> Path:
+    """Return the System32 path via the Win32 API, bypassing environment variables."""
+    buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+    ctypes.windll.kernel32.GetSystemDirectoryW(buf, ctypes.wintypes.MAX_PATH)
+    return Path(buf.value)
+
+
+_SYSTEM32_DIR = _get_system32_dir()
 _NETSH_PATH = str(_SYSTEM32_DIR / 'netsh.exe')
 _ARP_PATH = str(_SYSTEM32_DIR / 'arp.exe')
 _PING_PATH = str(_SYSTEM32_DIR / 'PING.EXE')
@@ -76,6 +85,10 @@ def flush_arp_cache() -> None:
 
 def _ping_host(ip_address: str) -> None:
     """Send a single ICMP echo request to *ip_address* (best-effort)."""
+    try:
+        IPv4Address(ip_address)
+    except AddressValueError:
+        return
     with suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(
             [_PING_PATH, '-n', '1', '-w', str(_PING_TIMEOUT_MS), ip_address],

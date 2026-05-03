@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from PyQt6.QtCore import QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QIcon, QPixmap, QStandardItem, QStandardItemModel
@@ -1680,7 +1680,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
                     combo_data: object = raw['combo_rules']  # pyright: ignore[reportUnknownVariableType]
                     if isinstance(combo_data, list):
                         ComboRulesManager.rules = [
-                            ComboRule.from_dict(entry)  # pyright: ignore[reportUnknownArgumentType]
+                            ComboRule.from_dict(cast('dict[str, object]', entry))
                             for entry in combo_data  # pyright: ignore[reportUnknownVariableType]
                             if isinstance(entry, dict)
                         ]

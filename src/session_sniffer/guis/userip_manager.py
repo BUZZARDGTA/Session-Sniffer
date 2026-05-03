@@ -272,19 +272,19 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._add_button = QPushButton('\u2795 Add Entry')
         self._add_button.setAutoDefault(False)
-        self._add_button.setToolTip('Add a new username=IP entry to the current database')
+        self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
         self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._add_button.setEnabled(False)
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._add_range_button = QPushButton('📡 Add Range')
-        self._add_range_button.setAutoDefault(False)
-        self._add_range_button.setToolTip('Add an IP range entry using a guided builder (supports subnets and IP ranges)')
-        self._add_range_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._add_range_button.setEnabled(False)
-        self._add_range_button.clicked.connect(self._add_range_entry)
-        entry_buttons.addWidget(self._add_range_button)
+        self._edit_ip_button = QPushButton('\U0001f527 Edit IP/Range\u2026')
+        self._edit_ip_button.setAutoDefault(False)
+        self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
+        self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._edit_ip_button.setEnabled(False)
+        self._edit_ip_button.clicked.connect(self._edit_selected_entry_ip)
+        entry_buttons.addWidget(self._edit_ip_button)
 
         self._delete_button = QPushButton('❌ Delete Selected')
         self._delete_button.setAutoDefault(False)
@@ -363,7 +363,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._load_database(path)
         self._open_db_button.setEnabled(True)
         self._add_button.setEnabled(True)
-        self._add_range_button.setEnabled(True)
         self._delete_button.setEnabled(True)
         self._save_button.setEnabled(True)
         if self._export_selected_action is not None:
@@ -488,6 +487,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         has_selection = bool(selected_rows)
 
         self._delete_button.setEnabled(has_selection)
+        if not self._global_search_active:
+            self._edit_ip_button.setEnabled(len(selected_rows) == 1)
 
         if self._global_search_active:
             # Enable Open DB only when a single row is selected (unambiguous DB target)
@@ -533,9 +534,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         db_available = not self._global_search_active and self._current_path is not None
         self._add_button.setVisible(not self._global_search_active)
-        self._add_range_button.setVisible(not self._global_search_active)
         self._add_button.setEnabled(db_available)
-        self._add_range_button.setEnabled(db_available)
+        self._edit_ip_button.setVisible(not self._global_search_active)
+        self._edit_ip_button.setEnabled(False)  # driven by selection
         self._delete_button.setEnabled(False)  # driven by selection
         self._save_button.setEnabled(db_available)
         self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
@@ -591,23 +592,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     # ------------------------------------------------------------------
 
     def _add_entry(self) -> None:
-        """Add a blank row for the user to fill in."""
-        if self._current_path is None:
-            return
-
-        self._append_row('', '', index=self._next_index)
-        self._next_index += 1
-        self._dirty = True
-
-        # Scroll to and select the new row
-        last_source_row = self._model.rowCount() - 1
-        proxy_index = self._proxy.mapFromSource(self._model.index(last_source_row, USERNAME_COLUMN))
-        if proxy_index.isValid():
-            self._entries_table.scrollTo(proxy_index)
-            self._entries_table.setCurrentIndex(proxy_index)
-            self._entries_table.edit(proxy_index)
-
-    def _add_range_entry(self) -> None:
         """Open the IP Range Builder dialog and insert the result as a new entry."""
         if self._current_path is None:
             return
@@ -616,11 +600,11 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        ip_range_text = dialog.result_entry()
-        if not ip_range_text:
+        ip_text = dialog.result_entry()
+        if not ip_text:
             return
 
-        self._append_row('', ip_range_text, index=self._next_index)
+        self._append_row('', ip_text, index=self._next_index)
         self._next_index += 1
         self._dirty = True
 
@@ -631,6 +615,47 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             self._entries_table.scrollTo(proxy_index)
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.edit(proxy_index)
+
+    def _edit_selected_entry_ip(self) -> None:
+        """Edit the IP/range of the currently selected entry via the builder button."""
+        selection = self._entries_table.selectionModel()
+        if selection is None:
+            return
+        selected_rows = selection.selectedRows()
+        if len(selected_rows) != 1:
+            return
+        source_row = self._proxy.mapToSource(selected_rows[0]).row()
+        self._edit_entry_ip(source_row)
+
+    def _edit_entry_ip(self, source_row: int) -> None:
+        """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
+        if self._current_path is None:
+            return
+
+        current_entry = self._get_row_entry_value(source_row)
+        dialog = IPRangeBuilderDialog(self, initial_entry=current_entry or None)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        new_ip_text = dialog.result_entry()
+        if not new_ip_text:
+            return
+
+        try:
+            IPv4Address(new_ip_text)
+            is_single = True
+        except (ValueError, TypeError):
+            is_single = False
+
+        ip_item = self._model.item(source_row, IP_COLUMN)
+        range_item = self._model.item(source_row, RANGE_COLUMN)
+        if ip_item is not None:
+            ip_item.setText(new_ip_text if is_single else '')
+        if range_item is not None:
+            range_item.setText('' if is_single else new_ip_text)
+
+        self._dirty = True
+        self._highlight_duplicates()
 
     def _insert_entry_at(self, source_row: int) -> None:
         """Insert a blank row at a specific position in the source model."""

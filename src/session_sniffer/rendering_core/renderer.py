@@ -294,9 +294,6 @@ def rendering_core(
                     logger.exception('Failed to validate settings in "%s" after auto-repair, skipping file.', ini_path.name)
                     return None, None
 
-            if validated is None:
-                return None, None
-
             # Apply line rewrites from validated model
             for field_name, rewrite_value in ini_rewrites.items():
                 if field_name in setting_line_indices:
@@ -369,7 +366,7 @@ def rendering_core(
                 UserIPDatabases.build()
                 return time.monotonic()
             if last_known_userip_db_mod_times:
-                logger.info('Detected changes in UserIP databases, re-parsing...')
+                logger.debug('Detected changes in UserIP databases, re-parsing...')
 
             new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
 

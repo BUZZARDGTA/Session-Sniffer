@@ -43,6 +43,8 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
 
     def _add_entry(self) -> None: ...
 
+    def _edit_entry_ip(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
+
     def _insert_entry_at(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
 
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None: ...  # pylint: disable=unused-argument
@@ -114,6 +116,12 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
             menu.addSeparator()
 
         source_row = self._proxy.mapToSource(index).row()
+
+        edit_ip_action = QAction('🔧 Edit IP/Range…', self)
+        edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
+        menu.addAction(edit_ip_action)
+
+        menu.addSeparator()
 
         insert_above_action = QAction('⬆ Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))

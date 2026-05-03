@@ -49,7 +49,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     _settings_container: QFrame
     _save_button: QPushButton
     _add_button: QPushButton
-    _add_range_button: QPushButton
+    _edit_ip_button: QPushButton
     _delete_button: QPushButton
 
     def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
@@ -433,7 +433,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             self._settings_container.setVisible(False)
             self._save_button.setEnabled(False)
             self._add_button.setEnabled(False)
-            self._add_range_button.setEnabled(False)
+            self._edit_ip_button.setEnabled(False)
             self._delete_button.setEnabled(False)
             self._open_db_button.setEnabled(False)
             if self._export_selected_action is not None:

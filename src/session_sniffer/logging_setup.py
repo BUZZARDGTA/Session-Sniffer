@@ -11,7 +11,7 @@ from logging.handlers import RotatingFileHandler
 
 from rich.console import Console
 
-from session_sniffer.constants.local import DEBUG_LOG_PATH, ERRORS_LOG_PATH, LIBS_DEBUG_LOG_PATH, WARNINGS_LOG_PATH
+from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERRORS_LOG_PATH, LIBS_DEBUG_LOG_PATH, WARNINGS_LOG_PATH
 
 __all__ = ['console', 'get_logger', 'setup_logging']
 
@@ -111,9 +111,10 @@ def setup_logging(
 
     root = logging.getLogger()
 
-    # --- Rotating file handler: debug.log (DEBUG and INFO) ---
+    # --- Rotating file handler: debug.log (DEBUG+INFO on pre-release, INFO only on stable) ---
     if not any(h.name == _DEBUG_FILE_HANDLER for h in root.handlers):
         DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _is_prerelease = CURRENT_VERSION.pre is not None
         debug_handler = RotatingFileHandler(
             DEBUG_LOG_PATH,
             maxBytes=5_242_880,  # 5 MiB
@@ -121,8 +122,8 @@ def setup_logging(
             encoding='utf-8',
         )
         debug_handler.name = _DEBUG_FILE_HANDLER
-        debug_handler.setLevel(logging.DEBUG)
-        debug_handler.addFilter(_LevelFilter(max_level=logging.INFO))
+        debug_handler.setLevel(logging.DEBUG if _is_prerelease else logging.INFO)
+        debug_handler.addFilter(_LevelFilter(min_level=logging.DEBUG if _is_prerelease else logging.INFO, max_level=logging.INFO))
         debug_handler.addFilter(_urllib3_noise_filter)
         debug_handler.addFilter(_app_only_filter)
         debug_handler.setFormatter(_FILE_FORMATTER)
@@ -138,8 +139,8 @@ def setup_logging(
             encoding='utf-8',
         )
         libs_debug_handler.name = _LIBS_DEBUG_FILE_HANDLER
-        libs_debug_handler.setLevel(logging.DEBUG)
-        libs_debug_handler.addFilter(_LevelFilter(max_level=logging.INFO))
+        libs_debug_handler.setLevel(logging.INFO)
+        libs_debug_handler.addFilter(_LevelFilter(min_level=logging.INFO))
         libs_debug_handler.addFilter(_urllib3_noise_filter)
         libs_debug_handler.addFilter(_libs_only_filter)
         libs_debug_handler.setFormatter(_FILE_FORMATTER)

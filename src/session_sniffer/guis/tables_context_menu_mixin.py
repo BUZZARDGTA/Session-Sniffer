@@ -243,6 +243,26 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     ip_address = displayed_ip
                     player_obj = matched_player
 
+                    # --- Block IP (single IP) ---
+                    def _do_block_single_ip() -> None:
+                        entry = block_ip_as_range(self, ip_address)
+                        if entry is None:
+                            return
+                        _main_window = self.window()
+                        for _player in PlayersRegistry.get_default_sorted_players():
+                            if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
+                                if _player.left_event.is_set():
+                                    _main_window.remove_player_from_disconnected(_player.ip)
+                                else:
+                                    _main_window.remove_player_from_connected(_player.ip)
+
+                    add_action(
+                        context_menu,
+                        '🚫 Exclude IP / Range',
+                        tooltip='Exclude this IP or a range/subnet from appearing in the session. Persisted to settings.',
+                        handler=_do_block_single_ip,
+                    )
+
                     add_action(
                         context_menu,
                         '🔎 IP Lookup Details',
@@ -284,26 +304,6 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                         detections_menu = add_menu(context_menu, '🚨 Detections')
                         build_detections_menu(detections_menu, add_action, player_obj, self)
-
-                    # --- Block IP (single IP) ---
-                    def _do_block_single_ip() -> None:
-                        entry = block_ip_as_range(self, ip_address)
-                        if entry is None:
-                            return
-                        _main_window = self.window()
-                        for _player in PlayersRegistry.get_default_sorted_players():
-                            if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
-                                if _player.left_event.is_set():
-                                    _main_window.remove_player_from_disconnected(_player.ip)
-                                else:
-                                    _main_window.remove_player_from_connected(_player.ip)
-
-                    add_action(
-                        context_menu,
-                        '🚫 Block IP / Range',
-                        tooltip='Block this IP or a range/subnet from appearing in the session. Persisted to settings.',
-                        handler=_do_block_single_ip,
-                    )
 
                     scripts_menu = add_menu(context_menu, '📜 User Scripts')
                     _single_ip = [ip_address]
@@ -396,6 +396,29 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
             if all_ips:
                 matched_players = [p for ip in all_ips if (p := PlayersRegistry.get_player_by_ip(ip)) is not None]
 
+                # --- Block IPs (multi-IP) ---
+                _block_ips = list(all_ips)
+
+                def _do_block_multi_ips() -> None:
+                    for _ip in _block_ips:
+                        block_ip_as_range(self, _ip)
+                    if not Settings.blocked_ip_ranges:
+                        return
+                    _main_window = self.window()
+                    for _player in PlayersRegistry.get_default_sorted_players():
+                        if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
+                            if _player.left_event.is_set():
+                                _main_window.remove_player_from_disconnected(_player.ip)
+                            else:
+                                _main_window.remove_player_from_connected(_player.ip)
+
+                add_action(
+                    context_menu,
+                    f'🚫 Exclude {len(_block_ips)} IPs / Ranges',
+                    tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
+                    handler=_do_block_multi_ips,
+                )
+
                 # --- IP Lookup Details / Seen Stats (multi-IP) ---
                 if matched_players:
                     def _show_all_lookups() -> None:
@@ -484,29 +507,6 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                 if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
                     detections_menu = add_menu(context_menu, '🚨 Detections')
                     build_detections_menu_multi(detections_menu, add_action, matched_players, self)
-
-                # --- Block IPs (multi-IP) ---
-                _block_ips = list(all_ips)
-
-                def _do_block_multi_ips() -> None:
-                    for _ip in _block_ips:
-                        block_ip_as_range(self, _ip)
-                    if not Settings.blocked_ip_ranges:
-                        return
-                    _main_window = self.window()
-                    for _player in PlayersRegistry.get_default_sorted_players():
-                        if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
-                            if _player.left_event.is_set():
-                                _main_window.remove_player_from_disconnected(_player.ip)
-                            else:
-                                _main_window.remove_player_from_connected(_player.ip)
-
-                add_action(
-                    context_menu,
-                    f'🚫 Block {len(_block_ips)} IPs / Ranges',
-                    tooltip='For each selected IP, prompt whether to block as single IP, range, or subnet. Persisted to settings.',
-                    handler=_do_block_multi_ips,
-                )
 
                 if all(not UserIPDatabases.is_known_ip(ip) for ip in all_ips):
                     userip_menu = add_menu(context_menu, '🗂️ UserIP')

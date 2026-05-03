@@ -490,7 +490,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
     _PREVIEW_ERROR_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #e06060;'
     _PREVIEW_EMPTY_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #a0a0a0;'
 
-    def __init__(self, parent: QWidget | None, initial_ip: str | None = None) -> None:
+    def __init__(self, parent: QWidget | None, initial_ip: str | None = None, initial_entry: str | None = None) -> None:
         """Build the IP Range Builder dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'IP Range Builder - {TITLE}')
@@ -600,6 +600,31 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
             self._range_from_input.setText(initial_ip)
             self._subnet_ip_input.setText(initial_ip)
             self._radio_subnet.setChecked(True)
+
+        # Pre-fill fields from an existing stored entry (single IP, range, or subnet)
+        if initial_entry is not None:
+            if '/' in initial_entry:
+                parts = initial_entry.split('/', 1)
+                base_ip = parts[0]
+                try:
+                    prefix = int(parts[1])
+                    slider_idx = next(
+                        (i for i, (p, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p == prefix),
+                        _SUBNET_DEFAULT_SLIDER_INDEX,
+                    )
+                except ValueError:
+                    slider_idx = _SUBNET_DEFAULT_SLIDER_INDEX
+                self._subnet_ip_input.setText(base_ip)
+                self._subnet_slider.setValue(slider_idx)
+                self._radio_subnet.setChecked(True)
+            elif '-' in initial_entry:
+                from_ip, _, to_ip = initial_entry.partition('-')
+                self._range_from_input.setText(from_ip)
+                self._range_to_input.setText(to_ip)
+                self._radio_range.setChecked(True)
+            else:
+                self._single_input.setText(initial_entry)
+                self._radio_single.setChecked(True)
 
     def _on_mode_changed(self, *_args: object) -> None:
         """Show/hide input fields based on the selected mode."""

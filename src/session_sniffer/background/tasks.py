@@ -20,14 +20,16 @@ from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.error_messages import format_type_error
+from session_sniffer.guis.tables_player_actions import PlayerDetectionInfo, show_player_detection_dialog, show_userip_detected_dialog
+from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.player.userip import UserIP
+from session_sniffer.player.userip import UserIP, gui_dispatcher
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_triple_quoted_text, pluralize
+from session_sniffer.text_utils import format_triple_quoted_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -333,46 +335,19 @@ def handle_detection_notification(
 
             # Message box popup
             if msgbox_setting:
-                data_status_line = '' if data_ready else '⚠️ Some data may still be loading and missing from this notification\n\n'
-
-                msgbox.show(
-                    title=f"{TITLE} - {config['title']}",
-                    text=format_triple_quoted_text(f"""
-                        {config['emoji']} {config['title']} {config['emoji']}
-
-                        {config['description']}
-
-                        {data_status_line}############ PLAYER DETAILS ############
-                        Username{pluralize(len(player.usernames))}: {', '.join(player.usernames) or ""}
-                        Event Time: {datetime.now(tz=LOCAL_TZ).strftime("%H:%M.%S")}
-
-                        ############ CONNECTION DETAILS ############
-                        IP Address: {player.ip}
-                        Hostname: {player.reverse_dns.hostname}
-                        Last Port: {player.ports.last}
-                        Middle Ports: {", ".join(map(str, reversed(player.ports.middle)))}
-                        First Port: {player.ports.first}
-                        Total Packets Exchanged: {player.packets.total_exchanged}
-                        Current Session Packets: {player.packets.exchanged}
-                        Rejoins: {player.rejoins}
-
-                        ############ LOCATION DETAILS ############
-                        Continent: {player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})
-                        Country: {player.iplookup.ipapi.country} ({player.iplookup.ipapi.country_code})
-                        Region: {player.iplookup.ipapi.region} ({player.iplookup.ipapi.region_code})
-
-                        ############ NETWORK DETAILS ############
-                        ISP: {player.iplookup.ipapi.isp}
-                        Organization: {player.iplookup.ipapi.org}
-                        ASN: {player.iplookup.ipapi.asn} ({player.iplookup.ipapi.as_name})
-
-                        ############ DETECTION FLAGS ############
-                        Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
-                        Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
-                        Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
-                    """),
-                    style=msgbox.Style.MB_OK | config['icon'] | msgbox.Style.MB_SYSTEMMODAL,
+                _p = player
+                _info = PlayerDetectionInfo(
+                    emoji=config['emoji'],
+                    title=config['title'],
+                    description=config['description'],
+                    event_time=datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S'),
+                    data_ready=data_ready,
                 )
+
+                def _show_detection_dialog() -> None:
+                    show_player_detection_dialog(find_main_window(), _p, _info)
+
+                gui_dispatcher.invoke(_show_detection_dialog)
 
         # Combo Rules evaluation (rules WITH event condition fire here)
         combo_event = _NOTIFICATION_TO_EVENT.get(notification_type)
@@ -435,7 +410,7 @@ def handle_detection_notification(
                             Conditions: {conditions_summary}
                             Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                         """),
-                        style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+                        style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
                     )
 
     config = _NOTIFICATION_CONFIGS[notification_type]
@@ -517,37 +492,12 @@ def process_userip_task(
             if player.userip.settings.notifications:
                 wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
-                Thread(
-                    target=msgbox.show,
-                    name=f'UserIPMsgBox-{player.ip}',
-                    kwargs={
-                        'title': TITLE,
-                        'text': format_triple_quoted_text(f"""
-                            #### UserIP detected at {player.userip_detection.time} ####
-                            User{pluralize(len(player.userip.usernames))}: {', '.join(player.userip.usernames)}
-                            IP Address: {player.ip}
-                            Hostname: {player.reverse_dns.hostname}
-                            Port{pluralize(len(player.ports.all))}: {', '.join(map(str, reversed(player.ports.all)))}
-                            Country Code: {player.iplookup.geolite2.country_code}
-                            Detection Type: {player.userip_detection.type}
-                            Database: {relative_database_path}
-                            ############# IP Lookup ##############
-                            Continent: {player.iplookup.ipapi.continent}
-                            Country: {player.iplookup.geolite2.country}
-                            Region: {player.iplookup.ipapi.region}
-                            City: {player.iplookup.geolite2.city}
-                            Organization: {player.iplookup.ipapi.org}
-                            ISP: {player.iplookup.ipapi.isp}
-                            ASN / ISP: {player.iplookup.geolite2.asn}
-                            ASN: {player.iplookup.ipapi.as_name}
-                            Mobile (cellular) connection: {player.iplookup.ipapi.mobile}
-                            Proxy, VPN or Tor exit address: {player.iplookup.ipapi.proxy}
-                            Hosting, colocated or data center: {player.iplookup.ipapi.hosting}
-                        """),
-                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SYSTEMMODAL,
-                    },
-                    daemon=True,
-                ).start()
+                _p = player
+
+                def _show_userip_dialog() -> None:
+                    show_userip_detected_dialog(find_main_window(), _p)
+
+                gui_dispatcher.invoke(_show_userip_dialog)
 
 
 _GTAV_TAKETWO_NETWORKS: tuple[IPv4Network, ...] = tuple(
@@ -646,7 +596,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
                         Packets: {player.packets.exchanged}
                         Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                     """),
-                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
                 },
                 daemon=True,
             ).start()
@@ -718,14 +668,14 @@ def check_global_protections(player: Player) -> None:
                     kwargs={
                         'title': TITLE,
                         'text': format_triple_quoted_text(msgbox_text),
-                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
                     },
                     daemon=True,
                 ).start()
 
         # Wait for IP lookup data to be ready
-        _start = time.monotonic()
         wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
+        _start = time.monotonic()
 
         # Mobile Connection Detection
         if player.iplookup.ipapi.mobile:
