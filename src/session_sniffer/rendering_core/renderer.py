@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import geoip2.errors
 from prettytable import PrettyTable, TableStyle
 from pydantic import ValidationError
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
@@ -24,19 +24,14 @@ from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
-from session_sniffer.error_messages import (
-    UserIPFileProblems,
-    format_type_error,
-    format_userip_file_problems_message,
-)
+from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.html_templates import generate_gui_header_html
-from session_sniffer.guis.utils import create_nonmodal_warning, find_main_window
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.registry import MINIMUM_PACKETS_FOR_SESSION_HOST, SESSION_HOST_CANDIDATE_PLAYERS_COUNT, PlayersRegistry, SessionHost
-from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings, gui_dispatcher
+from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.session_table_renderer import (
     SessionTableRenderContext,
@@ -76,24 +71,23 @@ logger = get_logger(__name__)
 _THREAD_COUNT_WARN_THRESHOLD = 150
 
 
-def _warn_on_gui(text: str) -> None:
-    """Show a non-modal PyQt6 warning dialog on the GUI thread from any thread."""
-    def _show() -> None:
-        parent = find_main_window()
-        if parent is None:
-            QTimer.singleShot(500, _show)
-            return
-        dlg = create_nonmodal_warning(parent, text)
-        dlg.show()
-    gui_dispatcher.invoke(_show)
-
-
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
     'PROTECTION_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
 ]
+
+_USERIP_SETTING_DEFAULTS: dict[str, str] = {
+    'ENABLED': 'True',
+    'COLOR': 'White',
+    'NOTIFICATIONS': 'False',
+    'VOICE_NOTIFICATIONS': 'False',
+    'LOG': 'False',
+    'PROTECTION': 'False',
+    'PROTECTION_PROCESS_PATH': 'None',
+    'PROTECTION_SUSPEND_PROCESS_MODE': 'Auto',
+}
 
 DISCORD_APPLICATION_ID = 1313304495958261781
 COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
@@ -118,9 +112,11 @@ def rendering_core(
             raw_settings: dict[str, str] = {}
             setting_line_indices: dict[str, int] = {}
             userip: dict[str, list[str]] = {}
-            all_seen_ips: set[str] = set()
+            all_seen_pairs: set[tuple[str, str]] = set()
             duplicate_entries: list[tuple[str, str]] = []
             invalid_ip_entries: list[tuple[str, str]] = []
+            unknown_settings: list[str] = []
+            duplicate_settings: list[str] = []
             current_section = None
             matched_settings: list[str] = []
             ini_data = ini_path.read_text('utf-8')
@@ -163,10 +159,12 @@ def rendering_core(
 
                     # Unknown keys are dropped from the corrected output.
                     if setting not in USERIP_INI_SETTINGS:
+                        unknown_settings.append(setting)
                         continue
 
                     # Duplicate keys: keep the first occurrence only.
                     if setting in raw_settings:
+                        duplicate_settings.append(setting)
                         continue
 
                     corrected_ini_data_lines.append(line)
@@ -200,13 +198,13 @@ def rendering_core(
                         invalid_ip_entries.append((username, ip))
                         continue
 
-                    if ip in all_seen_ips:
-                        # Duplicate IP entry (same or different username) — drop from corrected output.
+                    if (username, ip) in all_seen_pairs:
+                        # Exact duplicate entry (same username and same IP) — drop from corrected output.
                         duplicate_entries.append((username, ip))
                         continue
 
                     corrected_ini_data_lines.append(line)
-                    all_seen_ips.add(ip)
+                    all_seen_pairs.add((username, ip))
                     if username in userip:
                         userip[username].append(ip)
                     else:
@@ -214,44 +212,64 @@ def rendering_core(
 
             list_of_missing_settings = [setting for setting in USERIP_INI_SETTINGS if setting not in matched_settings]
 
-            corrupted_setting: tuple[str, str] | None = None
+            if invalid_ip_entries:
+                for _username, _ip in invalid_ip_entries:
+                    logger.info('Auto-removed invalid IP entry "%s=%s" from "%s".', _username, _ip, ini_path.name)
+            if duplicate_entries:
+                for _username, _ip in duplicate_entries:
+                    logger.info('Auto-removed duplicate IP entry "%s=%s" from "%s".', _username, _ip, ini_path.name)
+            if unknown_settings:
+                for _setting in unknown_settings:
+                    logger.info('Auto-removed unknown setting "%s" from "%s".', _setting, ini_path.name)
+            if duplicate_settings:
+                for _setting in duplicate_settings:
+                    logger.info('Auto-removed duplicate setting "%s" from "%s".', _setting, ini_path.name)
+
+            if list_of_missing_settings:
+                # Find insertion point: just before [UserIP] section (or at end if absent).
+                userip_section_idx = next(
+                    (i for i, ln in enumerate(corrected_ini_data_lines) if ln == '[UserIP]'),
+                    len(corrected_ini_data_lines),
+                )
+                # Ensure [Settings] header is present.
+                if '[Settings]' not in corrected_ini_data_lines:
+                    corrected_ini_data_lines.insert(userip_section_idx, '')
+                    corrected_ini_data_lines.insert(userip_section_idx, '[Settings]')
+                    userip_section_idx += 2
+                for offset, missing_setting in enumerate(list_of_missing_settings):
+                    default_value = _USERIP_SETTING_DEFAULTS[missing_setting]
+                    new_line = f'{missing_setting}={default_value}'
+                    insert_idx = userip_section_idx + offset
+                    corrected_ini_data_lines.insert(insert_idx, new_line)
+                    raw_settings[missing_setting] = default_value
+                    matched_settings.append(missing_setting)
+                    setting_line_indices[missing_setting] = insert_idx
+                logger.info(
+                    'Auto-injected %d missing setting(s) in "%s": %s',
+                    len(list_of_missing_settings), ini_path.name, ', '.join(list_of_missing_settings),
+                )
+
             validated: UserIPSettingsModel | None = None
             ini_rewrites: dict[str, str] = {}
-            if not list_of_missing_settings:
+            try:
+                validated, ini_rewrites = UserIPSettingsModel.validate_settings(raw_settings)
+            except ValidationError as exc:
+                first_error = exc.errors()[0]
+                corrupted_field = str(first_error['loc'][0]) if first_error['loc'] else 'UNKNOWN'
+                old_value = raw_settings.get(corrupted_field, '')
+                default_value = _USERIP_SETTING_DEFAULTS.get(corrupted_field, '')
+                logger.info(
+                    'Auto-repaired corrupted setting "%s=%s" in "%s", reset to default "%s".',
+                    corrupted_field, old_value, ini_path.name, default_value,
+                )
+                raw_settings[corrupted_field] = default_value
+                if corrupted_field in setting_line_indices:
+                    corrected_ini_data_lines[setting_line_indices[corrupted_field]] = f'{corrupted_field}={default_value}'
                 try:
                     validated, ini_rewrites = UserIPSettingsModel.validate_settings(raw_settings)
-                except ValidationError as exc:
-                    first_error = exc.errors()[0]
-                    corrupted_setting_name = str(first_error['loc'][0]) if first_error['loc'] else 'UNKNOWN'
-                    corrupted_setting = (corrupted_setting_name, raw_settings.get(corrupted_setting_name, ''))
-
-            # Build the combined problem descriptor set for this file and show one dialog if anything changed.
-            problem_descriptors: set[str] = set()
-            for _username, _ip in invalid_ip_entries:
-                problem_descriptors.add(f'invalid_ip:{_username}={_ip}')
-            for _username, _ip in duplicate_entries:
-                problem_descriptors.add(f'duplicate:{_username}={_ip}')
-            for _setting in list_of_missing_settings:
-                problem_descriptors.add(f'missing:{_setting}')
-            if corrupted_setting is not None:
-                problem_descriptors.add(f'corrupted:{corrupted_setting[0]}={corrupted_setting[1]}')
-
-            current_problems = frozenset(problem_descriptors)
-            if current_problems != UserIPDatabases.notified_file_problems.get(ini_path):
-                if current_problems:
-                    _warn_on_gui(format_triple_quoted_text(format_userip_file_problems_message(
-                        ini_path=ini_path,
-                        problems=UserIPFileProblems(
-                            invalid_ip_entries=invalid_ip_entries,
-                            duplicate_entries=duplicate_entries,
-                            missing_settings=list_of_missing_settings,
-                            corrupted_setting=corrupted_setting,
-                        ),
-                        configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                    )))
-                    UserIPDatabases.notified_file_problems[ini_path] = current_problems
-                else:
-                    UserIPDatabases.notified_file_problems.pop(ini_path, None)
+                except ValidationError:
+                    logger.exception('Failed to validate settings in "%s" after auto-repair, skipping file.', ini_path.name)
+                    return None, None
 
             if validated is None:
                 return None, None
@@ -260,6 +278,7 @@ def rendering_core(
             for field_name, rewrite_value in ini_rewrites.items():
                 if field_name in setting_line_indices:
                     corrected_ini_data_lines[setting_line_indices[field_name]] = f'{field_name}={rewrite_value}'
+                    logger.info('Auto-normalized setting "%s" to "%s" in "%s".', field_name, rewrite_value, ini_path.name)
 
             # Basically always have a newline ending
             if (
@@ -272,6 +291,7 @@ def rendering_core(
 
             if ini_data != fixed_ini_data:
                 ini_path.write_text(fixed_ini_data, encoding='utf-8')
+                logger.info('Rewrote "%s" after auto-repairs.', ini_path.name)
 
             return UserIPSettings(
                 enabled=validated.ENABLED,
@@ -318,11 +338,6 @@ def rendering_core(
                 if not userip_path.is_file():
                     file_content = f'{default_userip_file_header}\n\n{settings}\n\n{default_userip_file_footer}'
                     userip_path.write_text(file_content, encoding='utf-8')
-
-            # Remove deleted files from the per-file problem tracking dict.
-            for file_path in list(UserIPDatabases.notified_file_problems):
-                if not file_path.is_file():
-                    del UserIPDatabases.notified_file_problems[file_path]
 
             current_userip_db_mod_times = _snapshot_userip_database_mod_times()
             if current_userip_db_mod_times == last_known_userip_db_mod_times:

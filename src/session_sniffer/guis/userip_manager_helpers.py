@@ -122,6 +122,26 @@ def parse_settings_from_lines(settings_lines: list[str]) -> dict[str, str]:
     return parsed
 
 
+def parse_settings_from_content(content: str) -> dict[str, str]:
+    """Parse the `[Settings]` section of raw INI *content* into a `{KEY: value}` dictionary.
+
+    Convenience wrapper around :func:`parse_settings_from_lines` that accepts the full
+    file content as a string rather than a pre-split list of lines.
+    """
+    settings_lines: list[str] = []
+    current_section: str | None = None
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            current_section = line[1:-1]
+            continue
+        if current_section == SECTION_SETTINGS:
+            settings_lines.append(raw_line)
+
+    return parse_settings_from_lines(settings_lines)
+
+
 class EntriesSortProxy(QSortFilterProxyModel):
     """Proxy that uses IP address as a secondary sort key when the primary column values are equal."""
 

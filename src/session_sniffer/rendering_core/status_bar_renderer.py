@@ -45,9 +45,7 @@ class StatusBarTsharkStats:
 @dataclass(frozen=True, slots=True)
 class StatusBarUserIPInfo:
     """UserIP database issue counts for the status bar."""
-    invalid_ip_count: int
     conflict_ip_count: int
-    corrupted_settings_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,16 +113,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             packets_latencies=list(TsharkStats.packets_latencies),
         ),
         userip=StatusBarUserIPInfo(
-            invalid_ip_count=sum(
-                sum(1 for p in problems if p.startswith('invalid_ip:'))
-                for problems in UserIPDatabases.notified_file_problems.values()
-            ),
             conflict_ip_count=len(UserIPDatabases.notified_ip_conflicts),
-            corrupted_settings_count=sum(
-                1
-                for problems in UserIPDatabases.notified_file_problems.values()
-                if any(p.startswith(('missing:', 'corrupted:')) for p in problems)
-            ),
         ),
         interface=StatusBarInterfaceInfo(
             name=capture.config.interface.name,
@@ -213,16 +202,12 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
 
 
 def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
-    if not any((snapshot.userip.invalid_ip_count, snapshot.userip.conflict_ip_count, snapshot.userip.corrupted_settings_count)):
+    if not snapshot.userip.conflict_ip_count:
         return ''
 
     issues: list[str] = []
-    if snapshot.userip.invalid_ip_count:
-        issues.append(f'<span style="color: {StatusBarColors.DISABLED};">❌ Invalid IPs: {snapshot.userip.invalid_ip_count}</span>')
     if snapshot.userip.conflict_ip_count:
         issues.append(f'<span style="color: {StatusBarColors.DISABLED};">⚠️ Conflicts: {snapshot.userip.conflict_ip_count}</span>')
-    if snapshot.userip.corrupted_settings_count:
-        issues.append(f'<span style="color: {StatusBarColors.DISABLED};">🔧 Corrupted: {snapshot.userip.corrupted_settings_count}</span>')
 
     divider = f' <span style="color: {StatusBarColors.DIVIDER};"> • </span> '
     return (

@@ -84,7 +84,6 @@ class UserIPDatabases:
     ips_set: ClassVar[set[str]] = set()
     _ip_to_userip: ClassVar[dict[str, UserIP]] = {}
     _range_entries: ClassVar[list[_RangeEntry]] = []
-    notified_file_problems: ClassVar[dict[Path, frozenset[str]]] = {}
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _open_conflict_dialogs: ClassVar[dict[str, QMessageBox]] = {}
 

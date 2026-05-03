@@ -179,6 +179,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
 
+        reset_button = QPushButton('🗑️ Reset all…')
+        reset_button.setAutoDefault(False)
+        reset_button.setMaximumWidth(130)
+        reset_button.setToolTip('Permanently delete all database files')
+        reset_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        reset_button.clicked.connect(self._reset_all_databases)
+        transfer_buttons.addWidget(reset_button)
+
         left_layout.addLayout(transfer_buttons)
 
         # Stats summary

@@ -4,7 +4,6 @@ This module contains functions that build user-facing text intended ONLY for GUI
 (e.g., messages shown via the app's message box / dialog helpers).
 """
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from session_sniffer.constants.standalone import GITHUB_VERSIONS_URL, TITLE
@@ -16,15 +15,6 @@ if TYPE_CHECKING:
 
     from session_sniffer.networking.interface import SelectedInterfaceRow
     from session_sniffer.player.userip import UserIP
-
-
-@dataclass(slots=True)
-class UserIPFileProblems:
-    """Collected problems found when parsing a single UserIP database file."""
-    invalid_ip_entries: list[tuple[str, str]]
-    duplicate_entries: list[tuple[str, str]]
-    missing_settings: list[str]
-    corrupted_setting: tuple[str, str] | None
 
 
 def format_type_error(
@@ -215,65 +205,6 @@ def format_userip_ip_conflict_message(
             "{conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')}":
             {conflicting_username}={existing_userip.ip}
     """
-
-
-def format_userip_file_problems_message(
-    *,
-    ini_path: Path,
-    problems: UserIPFileProblems,
-    configuration_guide_url: str,
-) -> str:
-    """Format a combined message for all problems found in a single UserIP database file."""
-    divider = '\u2500' * 37
-    sections: list[str] = []
-
-    if problems.missing_settings:
-        count = len(problems.missing_settings)
-        settings_list = '\n    '.join(f'<{s.upper()}>' for s in problems.missing_settings)
-        sections.append(
-            f'ERROR: Missing setting{pluralize(count)} ({count})\n\n'
-            f'    {settings_list}',
-        )
-
-    if problems.corrupted_setting is not None:
-        setting, value = problems.corrupted_setting
-        sections.append(
-            f'ERROR: Corrupted setting value\n\n'
-            f'    {setting}={value}',
-        )
-
-    if problems.invalid_ip_entries:
-        count = len(problems.invalid_ip_entries)
-        max_shown = 10
-        entries = '\n    '.join(f'{u}={ip}' for u, ip in problems.invalid_ip_entries[:max_shown])
-        truncation = f'\n    ... and {count - max_shown} more' if count > max_shown else ''
-        sections.append(
-            f'ERROR: {count} invalid IP address{pluralize(count, "", "es")}\n\n'
-            f'    {entries}{truncation}',
-        )
-
-    if problems.duplicate_entries:
-        count = len(problems.duplicate_entries)
-        max_shown = 10
-        entries = '\n    '.join(f'{u}={ip}' for u, ip in problems.duplicate_entries[:max_shown])
-        truncation = f'\n    ... and {count - max_shown} more' if count > max_shown else ''
-        sections.append(
-            f'WARNING: {count} duplicate {pluralize(count, "entry", "entries")} auto-removed\n\n'
-            f'    {entries}{truncation}',
-        )
-
-    body = f'\n{divider}\n'.join(sections)
-
-    return (
-        f'Issues in UserIP Database File:\n'
-        f'    "{ini_path}"\n\n'
-        f'{divider}\n'
-        f'{body}\n'
-        f'{divider}\n\n'
-        f'For more information on formatting, please refer to the\n'
-        f'documentation:\n'
-        f'{configuration_guide_url}'
-    )
 
 
 def format_arp_spoofing_failed_message(

@@ -1,5 +1,6 @@
 """Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -8,11 +9,21 @@ from pathlib import Path
 
 from PyQt6.QtCore import QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
-from PyQt6.QtWidgets import QDialog, QFileDialog, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
+from PyQt6.QtWidgets import QDialog, QFileDialog, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.userip_manager_helpers import NEW_DATABASE_TEMPLATE, iter_userip_entries, parse_settings_from_lines, read_preserved_sections
+from session_sniffer.guis.userip_manager_helpers import (
+    NEW_DATABASE_TEMPLATE,
+    SETTINGS_DEFAULTS,
+    SETTINGS_KEYS_ORDER,
+    iter_userip_entries,
+    parse_settings_from_content,
+    parse_settings_from_lines,
+    read_preserved_sections,
+)
+from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
+from session_sniffer.text_utils import format_triple_quoted_text
 
 _MixinBase = QDialog
 
@@ -35,6 +46,11 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     _model: QStandardItemModel
     _open_db_button: QPushButton
     _export_selected_action: QAction | None
+    _settings_container: QFrame
+    _save_button: QPushButton
+    _add_button: QPushButton
+    _add_range_button: QPushButton
+    _delete_button: QPushButton
 
     def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
     def _refresh_stats(self) -> None: ...
@@ -344,9 +360,139 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
 
         self._set_status(f'Exported {len(ini_files)} database{"s" if len(ini_files) != 1 else ""} to {dest_path}')
 
+    def _reset_all_databases(self) -> None:
+        """Delete every .ini database file in the databases directory after user confirmation.
+
+        Default databases (Blacklist, Enemylist, etc.) are restored to their factory content
+        rather than deleted.  User-created .ini files and subdirectories are removed entirely.
+        """
+        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+        ini_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))
+        if not ini_files:
+            QMessageBox.information(self, TITLE, 'There are no database files to reset.')
+            return
+
+        count = len(ini_files)
+        result = QMessageBox.warning(
+            self,
+            TITLE,
+            f'This will permanently reset all {count} database file{"s" if count != 1 else ""}.\n\n'
+            'Default databases will be restored to factory content.\n'
+            'User-created databases will be deleted.\n\n'
+            'This cannot be undone. Are you sure?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        default_db_names: set[str] = set(DEFAULT_USERIP_FILES_SETTINGS_INI.keys())
+        default_file_header = format_triple_quoted_text(
+            USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
+                title=TITLE,
+                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+            ),
+        )
+        default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
+
+        deleted = 0
+        restored = 0
+        for ini_path in ini_files:
+            if ini_path.parent == USERIP_DATABASES_DIR_PATH and ini_path.name in default_db_names:
+                settings_block = DEFAULT_USERIP_FILES_SETTINGS_INI[ini_path.name].strip()
+                ini_path.write_text(
+                    f'{default_file_header}\n\n{settings_block}\n\n{default_file_footer}',
+                    encoding='utf-8',
+                )
+                restored += 1
+            else:
+                try:
+                    ini_path.unlink()
+                    deleted += 1
+                except OSError:
+                    pass
+
+        # Remove user-created subdirectories
+        for entry in USERIP_DATABASES_DIR_PATH.iterdir():
+            if entry.is_dir():
+                with contextlib.suppress(OSError):
+                    shutil.rmtree(entry)
+
+        self._set_status(
+            'Reset complete'
+            + (f'  |  Restored {restored} default file{"s" if restored != 1 else ""}' if restored else '')
+            + (f'  |  Deleted {deleted} user file{"s" if deleted != 1 else ""}' if deleted else ''),
+        )
+        self._refresh_stats()
+
+        if deleted > 0:
+            self._current_path = None
+            self._dirty = False
+            self._model.removeRows(0, self._model.rowCount())
+            self._update_file_info(None)
+            self._settings_container.setVisible(False)
+            self._save_button.setEnabled(False)
+            self._add_button.setEnabled(False)
+            self._add_range_button.setEnabled(False)
+            self._delete_button.setEnabled(False)
+            self._open_db_button.setEnabled(False)
+            if self._export_selected_action is not None:
+                self._export_selected_action.setEnabled(False)
+
     # ------------------------------------------------------------------
     # Import files
     # ------------------------------------------------------------------
+
+    def _merge_content_into_disk(self, src_content: str, dest_path: Path, src_name: str) -> int | None:
+        """Merge `[UserIP]` entries from *src_content* into an existing *dest_path* file on disk.
+
+        Shows a settings-conflict prompt when the two files have differing `[Settings]` values.
+        Returns the number of new entries added, or ``None`` if the user cancelled via the
+        settings-conflict dialog (treated as "skipped" by callers).
+        """
+        _, dest_settings_lines = read_preserved_sections(dest_path)
+        dest_settings = parse_settings_from_lines(dest_settings_lines)
+        src_settings = parse_settings_from_content(src_content)
+
+        chosen_settings = dest_settings
+        if src_settings != dest_settings:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(TITLE)
+            msg_box.setText(
+                f'The settings in "{src_name}" differ from "{dest_path.name}".\n\n'
+                'Which settings would you like to keep?',
+            )
+            keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
+            use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
+            msg_box.addButton(QMessageBox.StandardButton.Cancel)
+            msg_box.exec()
+            clicked = msg_box.clickedButton()
+            if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+                return None
+            if clicked is use_button:
+                chosen_settings = src_settings
+            _ = keep_button  # suppress unused-variable warning
+
+        dest_content = dest_path.read_text('utf-8')
+        existing_set: set[tuple[str, str]] = set(iter_userip_entries(dest_content))
+        existing_entries = list(iter_userip_entries(dest_content))
+        new_entries = [(u, ip) for u, ip in iter_userip_entries(src_content) if (u, ip) not in existing_set]
+
+        header_lines, _ = read_preserved_sections(dest_path)
+
+        output_lines: list[str] = [*header_lines]
+        output_lines.append('[Settings]')
+        output_lines.extend(f'{key}={chosen_settings.get(key, SETTINGS_DEFAULTS.get(key, ""))}' for key in SETTINGS_KEYS_ORDER)
+        output_lines.append('')
+        output_lines.append('[UserIP]')
+        for username, ip in existing_entries:
+            output_lines.append(f'{username}={ip}')
+        for username, ip in new_entries:
+            output_lines.append(f'{username}={ip}')
+        output_lines.append('')
+
+        dest_path.write_text('\n'.join(output_lines), encoding='utf-8')
+        return len(new_entries)
 
     def _import_database_files(self) -> None:
         """Copy external .ini database files into the databases directory, or merge into the current database."""
@@ -393,6 +539,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
 
         target_dir = self._get_selected_tree_directory()
         imported = 0
+        merged = 0
         skipped = 0
 
         for file_path_str in file_paths:
@@ -403,16 +550,30 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             dest = target_dir / src.name
 
             if dest.exists():
-                result = QMessageBox.warning(
-                    self,
-                    TITLE,
-                    f'"{src.name}" already exists in the destination folder.\n\nOverwrite it?',
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if result != QMessageBox.StandardButton.Yes:
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle(TITLE)
+                msg_box.setText(f'"{src.name}" already exists in the destination folder.\n\nWhat would you like to do?')
+                overwrite_btn = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
+                merge_btn = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
+                skip_btn = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
+                for _btn in msg_box.buttons():
+                    _btn.setMinimumWidth(100)
+                msg_box.exec()
+                clicked = msg_box.clickedButton()
+                if clicked is skip_btn:
                     skipped += 1
                     continue
+                if clicked is merge_btn:
+                    result = self._merge_content_into_disk(src.read_text('utf-8'), dest, src.name)
+                    if result is None:
+                        skipped += 1
+                    else:
+                        merged += result
+                    continue
+                if clicked is None:
+                    skipped += 1
+                    continue
+                _ = overwrite_btn  # suppress unused-variable warning
 
             target_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(str(src), str(dest))
@@ -421,6 +582,8 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
         parts: list[str] = []
         if imported:
             parts.append(f'Imported {imported} file{"s" if imported != 1 else ""}')
+        if merged:
+            parts.append(f'Merged {merged} entr{"y" if merged == 1 else "ies"}')
         if skipped:
             parts.append(f'{skipped} skipped')
         if parts:
@@ -496,34 +659,59 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
                     return
 
                 imported = 0
+                merged = 0
                 skipped = 0
                 overwrite_all = False
+                merge_all = False
 
                 for member in ini_members:
                     dest = USERIP_DATABASES_DIR_PATH / member.filename
+                    member_bytes = zf.read(member.filename)
+                    src_content = member_bytes.decode('utf-8', errors='replace')
 
                     if dest.exists() and not overwrite_all:
+                        if merge_all:
+                            result = self._merge_content_into_disk(src_content, dest, member.filename)
+                            if result is None:
+                                skipped += 1
+                            else:
+                                merged += result
+                            continue
+
                         msg_box = QMessageBox(self)
                         msg_box.setWindowTitle(TITLE)
-                        msg_box.setText(f'"{member.filename}" already exists.\n\nOverwrite it?')
+                        msg_box.setText(f'"{member.filename}" already exists.\n\nWhat would you like to do?')
                         overwrite_btn = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
                         overwrite_all_btn = msg_box.addButton('Overwrite All', QMessageBox.ButtonRole.YesRole)
+                        merge_btn = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
+                        merge_all_btn = msg_box.addButton('Merge All', QMessageBox.ButtonRole.AcceptRole)
                         skip_btn = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
-                        msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
+                        cancel_btn = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
+                        for _btn in msg_box.buttons():
+                            _btn.setMinimumWidth(120)
                         msg_box.exec()
 
                         clicked = msg_box.clickedButton()
-                        if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+                        if clicked is None or clicked is cancel_btn:
                             break
+                        if clicked is skip_btn:
+                            skipped += 1
+                            continue
                         if clicked is overwrite_all_btn:
                             overwrite_all = True
-                        elif clicked is skip_btn:
-                            skipped += 1
+                        elif clicked is merge_btn or clicked is merge_all_btn:
+                            if clicked is merge_all_btn:
+                                merge_all = True
+                            result = self._merge_content_into_disk(src_content, dest, member.filename)
+                            if result is None:
+                                skipped += 1
+                            else:
+                                merged += result
                             continue
                         _ = overwrite_btn  # suppress unused-variable warning
 
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(zf.read(member.filename))
+                    dest.write_bytes(member_bytes)
                     imported += 1
 
         except zipfile.BadZipFile:
@@ -533,6 +721,8 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
         parts: list[str] = []
         if imported:
             parts.append(f'Imported {imported} database{"s" if imported != 1 else ""} from ZIP')
+        if merged:
+            parts.append(f'Merged {merged} entr{"y" if merged == 1 else "ies"} from ZIP')
         if skipped:
             parts.append(f'{skipped} skipped')
         if parts:
