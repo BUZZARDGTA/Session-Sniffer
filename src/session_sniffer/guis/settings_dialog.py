@@ -67,6 +67,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         self._capture = capture
         self._widgets: dict[str, QWidget] = {}
+        self._labels: dict[str, QLabel] = {}
         self._old_values: dict[str, SettingValue] = {
             key: getattr(Settings, key) for key in SETTING_METADATA
         }
@@ -122,6 +123,12 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         webhook_enabled_widget = self._widgets.get('discord_webhook_enabled')
         if isinstance(webhook_enabled_widget, QCheckBox):
             webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())  # pyright: ignore[reportUnknownMemberType]
+
+        # Show/hide Session Host Detection based on Program Preset.
+        preset_widget = self._widgets.get('capture_program_preset')
+        if isinstance(preset_widget, QComboBox):
+            preset_widget.currentTextChanged.connect(self._on_preset_changed)  # pyright: ignore[reportUnknownMemberType]
+            self._on_preset_changed(preset_widget.currentText())
 
     # ------------------------------------------------------------------
     # Tab / widget construction
@@ -216,6 +223,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         if meta.requires_capture_restart:
             label_text += _RESTART_INDICATOR
         label = QLabel(label_text + ':')
+        self._labels[key] = label
 
         tooltip = meta.tooltip
         if meta.requires_capture_restart:
@@ -224,6 +232,18 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             label.setToolTip(tooltip)
 
         form.addRow(label, widget)
+
+    def _on_preset_changed(self, preset: str) -> None:
+        """Show or hide the Session Host Detection row depending on the active preset."""
+        gta5_only = preset == 'GTA5'
+        for key in ('gui_session_host_detection',):
+            widget = self._widgets.get(key)
+            label = self._labels.get(key)
+            if widget:
+                widget.setVisible(gta5_only)
+                widget.setEnabled(gta5_only)
+            if label:
+                label.setVisible(gta5_only)
 
     def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:  # pylint: disable=too-many-locals,too-many-statements
         """Build the custom Discord Webhook group with masked URL and enable cascade."""

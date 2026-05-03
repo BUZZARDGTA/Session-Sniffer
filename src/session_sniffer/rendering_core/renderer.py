@@ -226,24 +226,47 @@ def rendering_core(
                     logger.info('Auto-removed duplicate setting "%s" from "%s".', _setting, ini_path.name)
 
             if list_of_missing_settings:
-                # Find insertion point: just before [UserIP] section (or at end if absent).
-                userip_section_idx = next(
-                    (i for i, ln in enumerate(corrected_ini_data_lines) if ln == '[UserIP]'),
-                    len(corrected_ini_data_lines),
-                )
                 # Ensure [Settings] header is present.
                 if '[Settings]' not in corrected_ini_data_lines:
+                    userip_section_idx = next(
+                        (i for i, ln in enumerate(corrected_ini_data_lines) if ln == '[UserIP]'),
+                        len(corrected_ini_data_lines),
+                    )
                     corrected_ini_data_lines.insert(userip_section_idx, '')
                     corrected_ini_data_lines.insert(userip_section_idx, '[Settings]')
-                    userip_section_idx += 2
-                for offset, missing_setting in enumerate(list_of_missing_settings):
+
+                # Insert each missing setting at the correct position according to USERIP_INI_SETTINGS order.
+                for missing_setting in list_of_missing_settings:
                     default_value = _USERIP_SETTING_DEFAULTS[missing_setting]
                     new_line = f'{missing_setting}={default_value}'
-                    insert_idx = userip_section_idx + offset
+                    missing_pos = USERIP_INI_SETTINGS.index(missing_setting)
+
+                    # Insert after the last preceding setting that already has a known line index.
+                    insert_idx: int | None = None
+                    for preceding in reversed(USERIP_INI_SETTINGS[:missing_pos]):
+                        if preceding in setting_line_indices:
+                            insert_idx = setting_line_indices[preceding] + 1
+                            break
+
+                    if insert_idx is None:
+                        # No predecessor found — insert right after the [Settings] header.
+                        settings_header_idx = next(
+                            (i for i, ln in enumerate(corrected_ini_data_lines) if ln.strip() == '[Settings]'),
+                            0,
+                        )
+                        insert_idx = settings_header_idx + 1
+
                     corrected_ini_data_lines.insert(insert_idx, new_line)
+
+                    # Shift all tracked line indices at or beyond the insertion point.
+                    for k in list(setting_line_indices):
+                        if setting_line_indices[k] >= insert_idx:
+                            setting_line_indices[k] += 1
+
+                    setting_line_indices[missing_setting] = insert_idx
                     raw_settings[missing_setting] = default_value
                     matched_settings.append(missing_setting)
-                    setting_line_indices[missing_setting] = insert_idx
+
                 logger.info(
                     'Auto-injected %d missing setting(s) in "%s": %s',
                     len(list_of_missing_settings), ini_path.name, ', '.join(list_of_missing_settings),
@@ -770,60 +793,64 @@ def rendering_core(
                     player.iplookup.geolite2.is_initialized = True
 
             if Settings.capture_program_preset == 'GTA5':
-                if SessionHost.player and SessionHost.player.left_event.is_set():
-                    logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
-                    SessionHost.player = None
-                # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
-                if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                    logger.debug(
-                        '[SessionHost] All %d pending disconnection players have left, resetting host and triggering search',
-                        len(SessionHost.players_pending_for_disconnection),
-                    )
-                    SessionHost.player = None
-                    SessionHost.search_player = True
-                    SessionHost.players_pending_for_disconnection.clear()
+                if not Settings.gui_session_host_detection:
+                    if SessionHost.player or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_ambiguous_candidates:
+                        SessionHost.clear_session_host_data()
+                else:
+                    if SessionHost.player and SessionHost.player.left_event.is_set():
+                        logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
+                        SessionHost.player = None
+                    # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
+                    if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
+                        logger.debug(
+                            '[SessionHost] All %d pending disconnection players have left, resetting host and triggering search',
+                            len(SessionHost.players_pending_for_disconnection),
+                        )
+                        SessionHost.player = None
+                        SessionHost.search_player = True
+                        SessionHost.players_pending_for_disconnection.clear()
 
-                if not session_connected:
-                    if SessionHost.player or not SessionHost.search_player:
-                        logger.debug('[SessionHost] No connected players, resetting host and triggering search')
-                    SessionHost.player = None
-                    SessionHost.search_player = True
-                    SessionHost.players_pending_for_disconnection.clear()
-                elif len(session_connected) >= 1 and all(
-                    not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
-                ):
-                    logger.debug(
-                        '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
-                        len(session_connected),
-                    )
-                    SessionHost.players_pending_for_disconnection = session_connected
-                elif SessionHost.search_player:
-                    logger.debug(
-                        '[SessionHost] search_player=True, calling get_host_player with %d connected players',
-                        len(session_connected),
-                    )
-                    SessionHost.get_host_player(session_connected)
-                elif (
-                    not SessionHost.player
-                    and SessionHost.last_ambiguous_candidates is not None
-                    and len(session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
-                ):
-                    top2 = sorted(session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
-                    current_pair = (top2[0].ip, top2[1].ip)
-                    if current_pair != SessionHost.last_ambiguous_candidates:
-                        logger.debug(
-                            '[SessionHost] Top candidates changed from %s to %s, re-triggering search',
-                            SessionHost.last_ambiguous_candidates, current_pair,
-                        )
-                        SessionHost.last_ambiguous_candidates = None
+                    if not session_connected:
+                        if SessionHost.player or not SessionHost.search_player:
+                            logger.debug('[SessionHost] No connected players, resetting host and triggering search')
+                        SessionHost.player = None
                         SessionHost.search_player = True
-                    elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in top2):
+                        SessionHost.players_pending_for_disconnection.clear()
+                    elif len(session_connected) >= 1 and all(
+                        not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
+                    ):
                         logger.debug(
-                            '[SessionHost] Both ambiguous candidates now have >= %d packets, re-triggering search for packet count tiebreaker',
-                            MINIMUM_PACKETS_FOR_SESSION_HOST,
+                            '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
+                            len(session_connected),
                         )
-                        SessionHost.last_ambiguous_candidates = None
-                        SessionHost.search_player = True
+                        SessionHost.players_pending_for_disconnection = session_connected
+                    elif SessionHost.search_player:
+                        logger.debug(
+                            '[SessionHost] search_player=True, calling get_host_player with %d connected players',
+                            len(session_connected),
+                        )
+                        SessionHost.get_host_player(session_connected)
+                    elif (
+                        not SessionHost.player
+                        and SessionHost.last_ambiguous_candidates is not None
+                        and len(session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
+                    ):
+                        top2 = sorted(session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
+                        current_pair = (top2[0].ip, top2[1].ip)
+                        if current_pair != SessionHost.last_ambiguous_candidates:
+                            logger.debug(
+                                '[SessionHost] Top candidates changed from %s to %s, re-triggering search',
+                                SessionHost.last_ambiguous_candidates, current_pair,
+                            )
+                            SessionHost.last_ambiguous_candidates = None
+                            SessionHost.search_player = True
+                        elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in top2):
+                            logger.debug(
+                                '[SessionHost] Both ambiguous candidates now have >= %d packets, re-triggering search for packet count tiebreaker',
+                                MINIMUM_PACKETS_FOR_SESSION_HOST,
+                            )
+                            SessionHost.last_ambiguous_candidates = None
+                            SessionHost.search_player = True
 
             if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
                 last_session_logging_processing_time = time.monotonic()

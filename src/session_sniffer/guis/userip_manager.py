@@ -107,6 +107,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._delete_tree_button.clicked.connect(self._delete_tree_item)
         tree_buttons.addWidget(self._delete_tree_button)
 
+        reset_button = QPushButton('🗑️ Reset all…')
+        reset_button.setAutoDefault(False)
+        reset_button.setToolTip('Permanently delete all user databases and restore defaults')
+        reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        reset_button.clicked.connect(self._reset_all_databases)
+        tree_buttons.addWidget(reset_button)
+
         left_layout.addLayout(tree_buttons)
 
         # Filesystem-backed tree view
@@ -178,14 +185,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
-
-        reset_button = QPushButton('🗑️ Reset all…')
-        reset_button.setAutoDefault(False)
-        reset_button.setMaximumWidth(130)
-        reset_button.setToolTip('Permanently delete all database files')
-        reset_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        reset_button.clicked.connect(self._reset_all_databases)
-        transfer_buttons.addWidget(reset_button)
 
         left_layout.addLayout(transfer_buttons)
 
@@ -287,7 +286,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._add_range_button.clicked.connect(self._add_range_entry)
         entry_buttons.addWidget(self._add_range_button)
 
-        self._delete_button = QPushButton('🗑️ Delete Selected')
+        self._delete_button = QPushButton('❌ Delete Selected')
         self._delete_button.setAutoDefault(False)
         self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
         self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)

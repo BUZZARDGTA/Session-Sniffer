@@ -161,6 +161,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Clear recorded ports when a player rejoins.',
     ),
+    'gui_session_host_detection': SettingMeta(
+        category='Session',
+        group='General',
+        display_label='Session Host Detection',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Detect and highlight the session host in the connected-players table (GTA5 preset only).',
+    ),
     'gui_rate_graph_always_on_top': SettingMeta(
         category='Session',
         group='General',
@@ -403,6 +410,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_interface_selection_hide_neighbours': False,
     'gui_sessions_logging': True,
     'gui_reset_ports_on_rejoins': True,
+    'gui_session_host_detection': True,
     'gui_rate_graph_always_on_top': True,
     'gui_rate_graph_max_history': 3600,
     'gui_columns_connected_shown': (

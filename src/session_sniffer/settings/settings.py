@@ -44,6 +44,7 @@ class Settings:
     gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
     gui_sessions_logging: bool = SETTING_DEFAULTS['gui_sessions_logging']
     gui_reset_ports_on_rejoins: bool = SETTING_DEFAULTS['gui_reset_ports_on_rejoins']
+    gui_session_host_detection: bool = SETTING_DEFAULTS['gui_session_host_detection']
     gui_rate_graph_always_on_top: bool = SETTING_DEFAULTS['gui_rate_graph_always_on_top']
     gui_rate_graph_max_history: int = SETTING_DEFAULTS['gui_rate_graph_max_history']
     gui_columns_connected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_connected_shown']
@@ -93,6 +94,7 @@ class Settings:
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
         'GUI_SESSIONS_LOGGING',
         'GUI_RESET_PORTS_ON_REJOINS',
+        'GUI_SESSION_HOST_DETECTION',
         'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
         'GUI_RATE_GRAPH_MAX_HISTORY',
         'GUI_COLUMNS_CONNECTED_SHOWN',

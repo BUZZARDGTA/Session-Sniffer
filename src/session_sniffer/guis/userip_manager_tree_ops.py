@@ -465,6 +465,8 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
+            for _btn in msg_box.buttons():
+                _btn.setMinimumWidth(160)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -611,6 +613,8 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
+            for _btn in msg_box.buttons():
+                _btn.setMinimumWidth(160)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
