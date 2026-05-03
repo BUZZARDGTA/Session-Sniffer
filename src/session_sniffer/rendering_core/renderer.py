@@ -2,6 +2,7 @@
 
 import json
 import re
+import threading
 import time
 from datetime import datetime
 from itertools import chain
@@ -71,6 +72,8 @@ if TYPE_CHECKING:
     from session_sniffer.capture.tshark_capture import CaptureHolder
 
 logger = get_logger(__name__)
+
+_THREAD_COUNT_WARN_THRESHOLD = 150
 
 
 def _warn_on_gui(text: str) -> None:
@@ -622,6 +625,8 @@ def rendering_core(
         discord_webhook_sender: DiscordWebhookSender | None = None
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
+        _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
+        _userip_db_slowdown = SlowdownDetector.get('userip_db_update', baseline_floor=0.05)
 
         while not gui_closed__event.is_set():
             capture = capture_holder.get()  # Resolve the active capture each iteration
@@ -631,7 +636,9 @@ def rendering_core(
                 break
 
             if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
+                _t = time.monotonic()
                 last_userip_parse_time = update_userip_databases()
+                _userip_db_slowdown.check(time.monotonic() - _t, 'userip_db_update')
 
             ModMenuLogsParser.refresh()
 
@@ -695,6 +702,10 @@ def rendering_core(
             TsharkStats.global_upload = global_upload
             TsharkStats.global_bps_rate = global_bps_rate
             TsharkStats.global_pps_rate = global_pps_rate
+
+            _active_threads = threading.active_count()
+            if _active_threads > _THREAD_COUNT_WARN_THRESHOLD:
+                logger.warning('High thread count detected: %d active threads (threshold: %d)', _active_threads, _THREAD_COUNT_WARN_THRESHOLD)
 
             # Remove disconnected players from session_connected in reverse index order
             for idx in reversed(players_to_disconnect):
@@ -890,7 +901,9 @@ def rendering_core(
                 status_issues_text,
                 status_performance_text,
             ) = generate_gui_status_text()
+            _t = time.monotonic()
             session_table_snapshot = process_gui_session_tables_rendering()
+            _table_snapshot_slowdown.check(time.monotonic() - _t, 'table_snapshot')
 
             GUIRenderingState.publish_rendering_snapshot(
                 GUIRenderingSnapshot(

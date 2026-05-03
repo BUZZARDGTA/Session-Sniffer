@@ -131,7 +131,10 @@ def hostname_core() -> None:
         futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()   # Tracks IPs currently being processed
 
+        _slowdown = SlowdownDetector.get('hostname_core')
+
         while not gui_closed__event.is_set():
+            _iter_start = time.monotonic()
             if ScriptControl.has_crashed():
                 return
 
@@ -168,6 +171,7 @@ def hostname_core() -> None:
                 matched_player.reverse_dns.is_initialized = True
 
             # Only poll quickly if there's active work; otherwise wait longer
+            _slowdown.check(time.monotonic() - _iter_start, 'hostname_core')
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:
@@ -180,7 +184,10 @@ def pinger_core() -> None:
         futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()   # Tracks IPs currently being processed
 
+        _slowdown = SlowdownDetector.get('pinger_core')
+
         while not gui_closed__event.is_set():
+            _iter_start = time.monotonic()
             if ScriptControl.has_crashed():
                 return
 
@@ -225,6 +232,7 @@ def pinger_core() -> None:
                 matched_player.ping.is_initialized = True
 
             # Only poll quickly if there's active work; otherwise wait longer
+            _slowdown.check(time.monotonic() - _iter_start, 'pinger_core')
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:

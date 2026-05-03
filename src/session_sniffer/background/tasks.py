@@ -18,6 +18,7 @@ from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_L
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.core import ThreadsExceptionHandler
+from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -37,6 +38,7 @@ _protection_logging_file_write_lock = Lock()
 _userip_logging_file_write_lock = Lock()
 _VOICE_QUEUE_MAXSIZE = 10
 _INTER_SOUND_PAUSE_SECONDS = 0.5
+_global_protections_slowdown = SlowdownDetector.get('global_protections', baseline_floor=0.5)
 
 
 class _DeduplicatedQueue:
@@ -722,6 +724,7 @@ def check_global_protections(player: Player) -> None:
                 ).start()
 
         # Wait for IP lookup data to be ready
+        _start = time.monotonic()
         wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
 
         # Mobile Connection Detection
@@ -940,3 +943,5 @@ def check_global_protections(player: Player) -> None:
                 notification_name=f'ComboRuleNotif-{rule.name}',
                 tts_filename='combo_rule_detected',
             )
+
+        _global_protections_slowdown.check(time.monotonic() - _start, 'global_protections')
