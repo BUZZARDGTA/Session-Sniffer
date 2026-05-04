@@ -412,6 +412,14 @@ def rendering_core(
         last_webhook_submit_time: float | None = None
         discord_rpc_manager: DiscordRPC | None = None
         discord_webhook_sender: DiscordWebhookSender | None = None
+        _last_column_key: tuple[tuple[str, ...], tuple[str, ...]] | None = None
+        connected_shown_columns: set[str] = set()
+        disconnected_shown_columns: set[str] = set()
+        connected_column_names: list[str] = []
+        disconnected_column_names: list[str] = []
+        connected_num_cols = 0
+        disconnected_num_cols = 0
+        connected_column_mapping: dict[str, int] = {}
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
         _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
@@ -672,21 +680,24 @@ def rendering_core(
                     capture_running=capture.is_running(),
                 ))
 
-            connected_shown_columns = set(Settings.gui_columns_connected_shown)
-            disconnected_shown_columns = set(Settings.gui_columns_disconnected_shown)
-            connected_column_names = [
-                column_name
-                for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
-                if column_name in connected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
-            ]
-            disconnected_column_names = [
-                column_name
-                for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-                if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
-            ]
-            connected_num_cols = len(connected_column_names)
-            disconnected_num_cols = len(disconnected_column_names)
-            connected_column_mapping = {header: index for index, header in enumerate(connected_column_names)}
+            _column_key = (Settings.gui_columns_connected_shown, Settings.gui_columns_disconnected_shown)
+            if _column_key != _last_column_key:
+                _last_column_key = _column_key
+                connected_shown_columns = set(Settings.gui_columns_connected_shown)
+                disconnected_shown_columns = set(Settings.gui_columns_disconnected_shown)
+                connected_column_names = [
+                    column_name
+                    for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
+                    if column_name in connected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
+                ]
+                disconnected_column_names = [
+                    column_name
+                    for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
+                    if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
+                ]
+                connected_num_cols = len(connected_column_names)
+                disconnected_num_cols = len(disconnected_column_names)
+                connected_column_mapping = {header: index for index, header in enumerate(connected_column_names)}
             header_text = generate_gui_header_html(capture=capture)
             (
                 status_capture_text,
