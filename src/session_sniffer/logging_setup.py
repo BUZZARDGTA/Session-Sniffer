@@ -58,11 +58,12 @@ class _LevelFilter(logging.Filter):  # pylint: disable=too-few-public-methods
     def filter(self, record: logging.LogRecord) -> bool:
         if self._exact is not None:
             return record.levelno == self._exact
+        passes = True
         if self._min_level is not None:
-            return record.levelno >= self._min_level
+            passes = passes and record.levelno >= self._min_level
         if self._max_level is not None:
-            return record.levelno <= self._max_level
-        return True
+            passes = passes and record.levelno <= self._max_level
+        return passes
 
 
 class _StderrToLogger:
