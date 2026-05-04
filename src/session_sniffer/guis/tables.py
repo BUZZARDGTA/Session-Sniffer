@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_model import SessionTableModel
+from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import PersistentMenu
 from session_sniffer.player.registry import PlayersRegistry
@@ -383,6 +383,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         menu = QMenu(self)
         menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
 
         size_column_action = QAction('↔️ Size Column to Fit', menu)
         size_column_action.setEnabled(clicked_column >= 0)
@@ -410,6 +411,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         choose_columns_menu = PersistentMenu('🧩 Choose Columns', menu)
         choose_columns_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+        choose_columns_menu.setToolTipsVisible(True)
 
         reset_columns_action = QAction('↩️ Reset to Default Columns', choose_columns_menu)
         reset_columns_action.triggered.connect(self._reset_to_default_columns)
@@ -440,10 +442,14 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 continue
             category_menu = PersistentMenu(label, choose_columns_menu)
             category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+            category_menu.setToolTipsVisible(True)
             for col_name in cols:
                 col_action = QAction(col_name, category_menu)
                 col_action.setCheckable(True)
                 col_action.setChecked(col_name in shown_columns)
+                col_tooltip = GUI_COLUMN_HEADERS_TOOLTIPS.get(col_name)
+                if col_tooltip is not None:
+                    col_action.setToolTip(col_tooltip)
 
                 def _on_col_toggled(checked: bool, name: str = col_name) -> None:  # noqa: FBT001
                     self._toggle_column_visibility(name, checked=checked)

@@ -74,6 +74,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
         def add_menu(parent_menu: QMenu, label: str, tooltip: str | None = None) -> QMenu:
             """Helper to create and configure a QMenu."""
             menu = ensure_instance(parent_menu.addMenu(label), QMenu)
+            menu.setToolTipsVisible(True)
 
             if tooltip:
                 menu.setToolTip(tooltip)
@@ -270,13 +271,6 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                         handler=lambda: show_detailed_ip_lookup(self, player_obj),
                     )
 
-                    add_action(
-                        context_menu,
-                        '📅 Seen Stats',
-                        tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
-                        handler=lambda: show_seen_stats(self, player_obj),
-                    )
-
                     if self.is_connected_table and self.open_rate_graph_callback is not None:
                         _graph_cb = self.open_rate_graph_callback
                         add_action(
@@ -285,6 +279,13 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                             tooltip='Open a live PPS/BPS graph for this player.',
                             handler=lambda: _graph_cb(ip_address),
                         )
+
+                    add_action(
+                        context_menu,
+                        '📅 Seen Stats',
+                        tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
+                        handler=lambda: show_seen_stats(self, player_obj),
+                    )
 
                     ping_menu = add_menu(context_menu, '📡 Ping')
                     add_action(
@@ -334,8 +335,10 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                             msg = 'Expected player_obj.userip to be set in else branch'
                             raise TypeError(msg)
 
+                        _userip_db_path = userip.database_path
+
                         def _open_userip_database() -> None:
-                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(userip.database_path)))
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(_userip_db_path)))
 
                         add_action(
                             userip_menu,
@@ -420,17 +423,16 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                 )
 
                 # --- IP Lookup Details / Seen Stats (multi-IP) ---
+                def _show_all_lookups() -> None:
+                    for _p in matched_players:
+                        show_detailed_ip_lookup(self, _p)
+
+                def _show_all_seen_stats() -> None:
+                    for _p in matched_players:
+                        show_seen_stats(self, _p)
+
                 if matched_players:
-                    def _show_all_lookups() -> None:
-                        for _p in matched_players:
-                            show_detailed_ip_lookup(self, _p)
-
-                    def _show_all_seen_stats() -> None:
-                        for _p in matched_players:
-                            show_seen_stats(self, _p)
-
                     add_action(context_menu, '🔎 IP Lookup Details', tooltip='Displays a detailed IP lookup report for each selected player.', handler=_show_all_lookups)
-                    add_action(context_menu, '📅 Seen Stats', tooltip='Shows session appearance stats for each selected player.', handler=_show_all_seen_stats)
                     add_action(
                         context_menu, '📋 Copy for Discord',
                         tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
@@ -452,6 +454,9 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                         tooltip='Open a live PPS/BPS graph for each selected player.',
                         handler=_open_multi_graphs,
                     )
+
+                if matched_players:
+                    add_action(context_menu, '📅 Seen Stats', tooltip='Shows session appearance stats for each selected player.', handler=_show_all_seen_stats)
 
                 # --- Ping submenu (multi-IP) ---
                 ping_menu = add_menu(context_menu, '📡 Ping')
