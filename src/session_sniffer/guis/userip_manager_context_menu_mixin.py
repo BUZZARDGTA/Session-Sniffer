@@ -123,16 +123,6 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
 
         menu.addSeparator()
 
-        insert_above_action = QAction('⬆ Insert Entry Above', self)
-        insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
-        menu.addAction(insert_above_action)
-
-        insert_below_action = QAction('⬇ Insert Entry Below', self)
-        insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
-        menu.addAction(insert_below_action)
-
-        menu.addSeparator()
-
         if source_row > 0:
             move_up_action = QAction('🔼 Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
@@ -143,6 +133,14 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
             menu.addAction(move_down_action)
 
         menu.addSeparator()
+
+        insert_above_action = QAction('⬆ Insert Entry Above', self)
+        insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
+        menu.addAction(insert_above_action)
+
+        insert_below_action = QAction('⬇ Insert Entry Below', self)
+        insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
+        menu.addAction(insert_below_action)
 
         add_action = QAction('+ Add Entry to End', self)
         add_action.triggered.connect(self._add_entry)
