@@ -217,10 +217,6 @@ def pinger_core() -> None:
                 try:
                     ping_result = future.result()
                 except AllEndpointsExhaustedError:
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
-                    if matched_player is not None:
-                        matched_player.ping.is_pinging = False
-                        matched_player.ping.is_initialized = True
                     continue
 
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
