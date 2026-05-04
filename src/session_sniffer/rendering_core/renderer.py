@@ -90,7 +90,7 @@ def rendering_core(
 
         last_known_userip_db_mod_times: dict[Path, float] = {}
 
-        def update_userip_databases() -> float:
+        def update_userip_databases() -> tuple[float, bool]:
             nonlocal last_known_userip_db_mod_times
             default_userip_file_header = format_triple_quoted_text(
                 USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
@@ -115,10 +115,7 @@ def rendering_core(
 
             current_userip_db_mod_times = _snapshot_userip_database_mod_times()
             if current_userip_db_mod_times == last_known_userip_db_mod_times:
-                # Files unchanged, but new players may have joined since the last rebuild.
-                # This keeps per-player mapping up-to-date without re-validating/re-parsing INIs.
-                UserIPDatabases.build()
-                return time.monotonic()
+                return time.monotonic(), False
             if last_known_userip_db_mod_times:
                 logger.debug('Detected changes in UserIP databases, re-parsing...')
 
@@ -136,7 +133,7 @@ def rendering_core(
             # INI parsing may have rewritten files; re-snapshot so we don't immediately re-parse next tick.
             last_known_userip_db_mod_times = _snapshot_userip_database_mod_times()
 
-            return time.monotonic()
+            return time.monotonic(), True
 
         def get_country_info(ip_address: str) -> tuple[str, str]:
             country_name = 'N/A'
@@ -420,6 +417,7 @@ def rendering_core(
         connected_num_cols = 0
         disconnected_num_cols = 0
         connected_column_mapping: dict[str, int] = {}
+        _userip_not_found: set[str] = set()
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
         _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
@@ -432,10 +430,13 @@ def rendering_core(
             if ScriptControl.has_crashed():
                 break
 
+            _userip_db_rebuilt = False
             if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
                 _t = time.monotonic()
-                last_userip_parse_time = update_userip_databases()
+                last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
                 _userip_db_slowdown.check(time.monotonic() - _t, 'userip_db_update')
+                if _userip_db_rebuilt:
+                    _userip_not_found.clear()
 
             ModMenuLogsParser.refresh()
 
@@ -509,9 +510,16 @@ def rendering_core(
                 del session_connected[idx]
 
             for player in chain(session_connected, session_disconnected):
-                if player.userip and not UserIPDatabases.is_known_ip(player.ip):
+                if _userip_db_rebuilt and player.userip and not UserIPDatabases.is_known_ip(player.ip):
                     player.userip = None
                     player.userip_detection = None
+                    _userip_not_found.discard(player.ip)
+                if player.userip is None and player.ip not in _userip_not_found:
+                    resolved = UserIPDatabases.resolve_userip(player.ip)
+                    if resolved is None:
+                        _userip_not_found.add(player.ip)
+                    else:
+                        player.userip = resolved
 
                 modmenu_usernames_for_player = ModMenuLogsParser.get_usernames_by_ip(player.ip)
                 if modmenu_usernames_for_player:

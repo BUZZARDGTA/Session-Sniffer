@@ -286,6 +286,17 @@ class UserIPDatabases:
         return any(addr in re.ip_range for re in cls._range_entries)
 
     @classmethod
+    def resolve_userip(cls, ip: str) -> UserIP | None:
+        """Look up a single IP against the already-built structures without triggering a rebuild."""
+        if ip in cls._ip_to_userip:
+            return cls._ip_to_userip[ip]
+        addr = IPv4Address(ip)
+        for entry in cls._range_entries:
+            if addr in entry.ip_range:
+                return UserIP(ip=ip, database_path=entry.database_path, settings=entry.settings, usernames=entry.usernames)
+        return None
+
+    @classmethod
     def get_userip_database_filepaths(cls) -> list[Path]:
         """Return all enabled UserIP database file paths."""
         with cls._update_userip_database_lock:
