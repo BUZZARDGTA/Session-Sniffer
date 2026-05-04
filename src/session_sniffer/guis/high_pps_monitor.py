@@ -400,6 +400,8 @@ class HighRateMonitorWidget(QWidget):
                 pps=data.pps if data else 0,
                 bps=data.bps if data else 0,
             )
+            _player = PlayersRegistry.get_player_by_ip(ip)
+            graph.update_usernames(_player.usernames if _player is not None else [])
 
     # Threshold / duration ---------------------------------------------------
 
@@ -437,6 +439,9 @@ class HighRateMonitorWidget(QWidget):
         data = self._model.get_tracked(ip)
         if data is not None:
             graph.load_history(pps_history=list(data.pps_history), bps_history=list(data.bps_history))
+        _player = PlayersRegistry.get_player_by_ip(ip)
+        if _player is not None:
+            graph.update_usernames(_player.usernames)
         graph.show()
         graph.destroyed.connect(lambda: self._graph_windows.pop(ip, None))
         self._graph_windows[ip] = graph

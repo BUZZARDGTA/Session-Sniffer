@@ -1,4 +1,4 @@
-"""Live PPS + BPS split graph window for an individual player."""
+﻿"""Live PPS + BPS split graph window for an individual player."""
 
 from typing import TYPE_CHECKING, Any
 
@@ -6,7 +6,7 @@ import numpy as np
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
 
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QVBoxLayout
@@ -23,7 +23,7 @@ class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
     _x_cache: np.ndarray[Any, np.dtype[np.float64]]
 
     def _grow_cache(self, n: int) -> int:
-        """Increment *n*, advance ``_buf_len``, and rebuild ``_x_cache`` if length changed."""
+        """Increment *n*, advance `_buf_len`, and rebuild `_x_cache` if length changed."""
         n += 1
         self._buf_len = n
         if n != self._x_cache_len:
@@ -35,8 +35,8 @@ class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
 class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     """Base class for dual PPS+BPS graph windows.
 
-    Subclasses must call ``_finish_graph_init(always_on_top=...)`` at the end of
-    their ``__init__`` after setting ``_max_history`` and the window title.
+    Subclasses must call `_finish_graph_init(always_on_top=...)` at the end of
+    their `__init__` after setting `_max_history` and the window title.
     """
 
     _BYTES_TO_KBS: int = 1024
@@ -45,7 +45,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
         """Create PPS and BPS PlotWidgets and add them to *layout*.
 
-        Calls ``_configure_pps_widget()`` and ``_configure_bps_widget()`` hooks
+        Calls `_configure_pps_widget()` and `_configure_bps_widget()` hooks
         after constructing each widget, allowing subclasses to add threshold lines
         or custom limits.
         """
@@ -142,7 +142,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
 
     def _advance_buffers(self, pps: int, bps: int) -> tuple[np.ndarray, np.ndarray, int]:
-        """Advance the dual sliding window; return ``(pps_data, bps_data, n)``."""
+        """Advance the dual sliding window; return `(pps_data, bps_data, n)`."""
         kbps = bps / self._BYTES_TO_KBS
         n = self._buf_len
 
@@ -238,6 +238,10 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_widget.addItem(self._bps_threshold_line)
 
     # Public API —————————————————————————————————————————————————————————————
+
+    def update_usernames(self, usernames: list[str]) -> None:
+        """Update the window title to reflect current usernames."""
+        self.setWindowTitle(f'Rate Graph \u2014 {format_player_display(self.ip, usernames)}')
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""

@@ -1,4 +1,4 @@
-"""Utility functions for GUI-related operations.
+﻿"""Utility functions for GUI-related operations.
 
 This module provides helper functions to interact with GUI elements.
 """
@@ -74,6 +74,18 @@ SUSPEND_TOOLTIP_CUSTOM = (
     '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
     '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.'
 )
+
+
+def format_player_display(ip: str, usernames: list[str]) -> str:
+    """Return a human-readable player identifier combining usernames and IP.
+
+    Returns `'username1, username2 (ip)'` when usernames are known,
+    or just `'ip'` when no usernames are available.
+    """
+    if usernames:
+        names = ', '.join(usernames)
+        return f'{names} ({ip})'
+    return ip
 
 
 def get_screen_size() -> tuple[int, int]:

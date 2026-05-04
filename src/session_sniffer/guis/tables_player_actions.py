@@ -1,4 +1,4 @@
-"""Player action helpers for session table context menus (info dialogs, ping)."""
+﻿"""Player action helpers for session table context menus (info dialogs, ping)."""
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
@@ -23,7 +23,7 @@ from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
-from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, set_dialog_window_flags
 from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, SeenStats, analyze_sessions_logging
 from session_sniffer.settings.settings import Settings
 from session_sniffer.utils import run_cmd_command, run_cmd_script
@@ -142,7 +142,7 @@ class SeenStatsDialog(QDialog):
         set_dialog_window_flags(self)
         stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, player.ip)
 
-        self.setWindowTitle(f'{TITLE} - Seen Stats ({player.ip})')
+        self.setWindowTitle(f'{TITLE} - Seen Stats ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(400, 300)
 
         screen_width, screen_height = get_screen_size()
@@ -159,7 +159,7 @@ class SeenStatsDialog(QDialog):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        header = QLabel(f'\U0001f4c5  Seen Stats \u2014 {player.ip}')
+        header = QLabel(f'\U0001f4c5  Seen Stats \u2014 {format_player_display(player.ip, player.usernames)}')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(
             'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
@@ -263,7 +263,7 @@ class IPLookupDetailsDialog(QDialog):
         self._player = player
         self._rows: list[tuple[QLabel, Callable[[Player], str]]] = []
 
-        self.setWindowTitle(f'{TITLE} - IP Lookup Details ({player.ip})')
+        self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
         screen_width, screen_height = get_screen_size()
@@ -280,15 +280,15 @@ class IPLookupDetailsDialog(QDialog):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        header = QLabel(f'\U0001f50e  IP Lookup Details \u2014 {player.ip}')
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(
+        self._header_label = QLabel(f'\U0001f50e  IP Lookup Details \u2014 {format_player_display(player.ip, player.usernames)}')
+        self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header_label.setStyleSheet(
             'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
             'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
             ' stop:0 #2b6cb0, stop:1 #4c51bf); border-radius: 6px;',
         )
-        header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
-        outer_layout.addWidget(header)
+        self._header_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+        outer_layout.addWidget(self._header_label)
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
@@ -424,6 +424,11 @@ class IPLookupDetailsDialog(QDialog):
     def _refresh(self) -> None:
         """Re-evaluate every row provider and update the value widget text."""
         player = self._player
+        display = format_player_display(player.ip, player.usernames)
+        new_title = f'{TITLE} - IP Lookup Details ({display})'
+        if self.windowTitle() != new_title:
+            self.setWindowTitle(new_title)
+            self._header_label.setText(f'\U0001f50e  IP Lookup Details \u2014 {display}')
         for value_widget, provider in self._rows:
             text = provider(player)
             if value_widget.text() != text:
@@ -457,7 +462,7 @@ class UserIPDetectedDialog(QDialog):
         super().__init__(parent)
         set_dialog_window_flags(self)
 
-        self.setWindowTitle(f'{TITLE} - UserIP Detected ({player.ip})')
+        self.setWindowTitle(f'{TITLE} - UserIP Detected ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
         screen_width, screen_height = get_screen_size()
@@ -474,7 +479,7 @@ class UserIPDetectedDialog(QDialog):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        header = QLabel(f'\U0001f514  UserIP Detected \u2014 {player.ip}')
+        header = QLabel(f'\U0001f514  UserIP Detected \u2014 {format_player_display(player.ip, player.usernames)}')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(
             'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
@@ -637,7 +642,7 @@ class PlayerDetectionDialog(QDialog):
         super().__init__(parent)
         set_dialog_window_flags(self)
 
-        self.setWindowTitle(f'{TITLE} - {info.title} ({player.ip})')
+        self.setWindowTitle(f'{TITLE} - {info.title} ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
         screen_width, screen_height = get_screen_size()
@@ -656,7 +661,7 @@ class PlayerDetectionDialog(QDialog):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        header = QLabel(f'{info.emoji}  {info.title} \u2014 {player.ip}')
+        header = QLabel(f'{info.emoji}  {info.title} \u2014 {format_player_display(player.ip, player.usernames)}')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(
             'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
@@ -959,7 +964,7 @@ def tcp_port_ping_multi(parent: QWidget, ips: list[str]) -> None:
 def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:
     """Open the IP Range Builder dialog pre-filled with *ip_address* and add the result to the blocked IPs setting.
 
-    Returns the raw range string that was added, or ``None`` if the user cancelled or the entry already exists.
+    Returns the raw range string that was added, or `None` if the user cancelled or the entry already exists.
     """
     dialog = IPRangeBuilderDialog(parent, initial_ip=ip_address)
     if dialog.exec() != QDialog.DialogCode.Accepted:

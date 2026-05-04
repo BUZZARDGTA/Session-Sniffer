@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
 from session_sniffer.player.registry import PlayersRegistry
 
 _CONNECTED_COLOR = (80, 200, 80, 200)
@@ -90,7 +90,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                 conn_y.append(float(i) - 0.35)
                 conn_w.append(width)
 
-            label = f'{player.ip} ({player.usernames[0]})' if player.usernames else player.ip
+            label = format_player_display(player.ip, player.usernames)
             tick_labels.append((i, label))
             max_end = max(max_end, end_sec)
 
