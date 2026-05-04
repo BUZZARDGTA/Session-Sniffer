@@ -1,4 +1,4 @@
-"""Tree-panel operations mixin for the UserIP Databases Manager dialog."""
+﻿"""Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
 import contextlib
 import os
@@ -447,7 +447,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
         """Merge `[UserIP]` entries from *src_content* into an existing *dest_path* file on disk.
 
         Shows a settings-conflict prompt when the two files have differing `[Settings]` values.
-        Returns the number of new entries added, or ``None`` if the user cancelled via the
+        Returns the number of new entries added, or `None` if the user cancelled via the
         settings-conflict dialog (treated as "skipped" by callers).
         """
         _, dest_settings_lines = read_preserved_sections(dest_path)

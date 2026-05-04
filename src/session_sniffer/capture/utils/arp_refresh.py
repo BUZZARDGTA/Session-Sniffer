@@ -1,4 +1,4 @@
-"""Utilities to flush the Windows ARP cache and repopulate it via ICMP probes.
+﻿"""Utilities to flush the Windows ARP cache and repopulate it via ICMP probes.
 
 The Interface Selection dialog uses these helpers to give the user a "Refresh
 ARP Table" action that wakes up devices on the local subnet(s) so that
@@ -133,7 +133,7 @@ def wake_subnet_devices(
     """Send ICMP probes across the local subnet(s) of *interfaces* to repopulate ARP.
 
     If *progress_callback* is provided it is invoked from worker threads as
-    ``progress_callback(completed, total)`` after each ping completes.
+    `progress_callback(completed, total)` after each ping completes.
     """
     target_ips = _collect_target_ips(interfaces)
     total = len(target_ips)
@@ -165,7 +165,7 @@ def refresh_arp_table(
     """Flush the Windows ARP cache and probe local subnets to repopulate it.
 
     If *progress_callback* is provided it is invoked from worker threads with
-    ``(completed, total)`` updates while pings run.
+    `(completed, total)` updates while pings run.
     """
     interfaces_list = list(interfaces)
     flush_arp_cache()

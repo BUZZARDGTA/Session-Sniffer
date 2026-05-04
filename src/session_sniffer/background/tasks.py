@@ -1,4 +1,4 @@
-"""Background tasks for UserIP processing and detection notifications."""
+﻿"""Background tasks for UserIP processing and detection notifications."""
 
 import contextlib
 import csv
@@ -521,7 +521,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     - GTA5 relay protection is enabled and a process path is configured.
 
     The monitor polls the player's packet count until it reaches the
-    configurable ``GUIProtectionSettings.gta5_relay_packet_threshold`` while
+    configurable `GUIProtectionSettings.gta5_relay_packet_threshold` while
     the player is still connected.
     The suspension respects the configured duration mode and triggers
     voice/logging/message-box notifications identical to other protections.

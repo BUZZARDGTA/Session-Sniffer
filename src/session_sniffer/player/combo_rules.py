@@ -1,4 +1,4 @@
-"""Combo protection rules — multi-condition AND rules with per-rule actions."""
+﻿"""Combo protection rules — multi-condition AND rules with per-rule actions."""
 
 import json
 from dataclasses import dataclass, field
@@ -261,9 +261,9 @@ class ComboRulesManager:
 
         Args:
             player: The player to evaluate conditions against.
-            event_type: ``None`` when called from ``check_global_protections`` (join-time).
-                ``'join'``, ``'rejoin'``, or ``'leave'`` when called from
-                ``handle_detection_notification``.
+            event_type: `None` when called from `check_global_protections` (join-time).
+                `'join'`, `'rejoin'`, or `'leave'` when called from
+                `handle_detection_notification`.
 
         Returns:
             List of matching ComboRule instances.

@@ -1,9 +1,9 @@
-"""Pydantic model for UserIP INI [Settings] section validation.
+﻿"""Pydantic model for UserIP INI [Settings] section validation.
 
 Replaces the per-field if/elif chain in parse_userip_ini_file().
 Validates raw string values from the INI parser and normalizes them
 into their runtime Python types. Corruption in any field raises
-a ``ValidationError`` that the caller translates into a user notification.
+a `ValidationError` that the caller translates into a user notification.
 """
 
 from pathlib import Path

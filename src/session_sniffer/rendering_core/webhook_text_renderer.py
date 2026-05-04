@@ -1,4 +1,4 @@
-"""Webhook text rendering helpers (PrettyTable + mobile-friendly lists)."""
+﻿"""Webhook text rendering helpers (PrettyTable + mobile-friendly lists)."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -114,12 +114,12 @@ def build_webhook_mobile_text(players: list[Player], columns: tuple[str, ...]) -
         > **IP:** 152.89.133.230
         > **Country:** Russia (RU)
 
-    The ``Usernames`` column (when selected) is promoted to the header line
+    The `Usernames` column (when selected) is promoted to the header line
     next to the index. Remaining columns are listed one per blockquote line
     with a bold label followed by the value. Players are separated by a
     blank line.
 
-    Returns ``None`` when no players or no columns are selected.
+    Returns `None` when no players or no columns are selected.
     """
     if not players or not columns:
         return None

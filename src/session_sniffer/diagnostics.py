@@ -1,4 +1,4 @@
-"""Lightweight performance diagnostics utilities."""
+﻿"""Lightweight performance diagnostics utilities."""
 
 import time
 from typing import ClassVar
@@ -57,7 +57,7 @@ class SlowdownDetector:
 
 
 class TimerStateError(Exception):
-    """Raised when ``Timer.stop()`` is called before ``Timer.start()``."""
+    """Raised when `Timer.stop()` is called before `Timer.start()`."""
 
     def __init__(self, label: str) -> None:
         """Initialize with a message identifying the misbehaving timer *label*."""
@@ -120,7 +120,7 @@ class Timer:
 
     @property
     def elapsed(self) -> float | None:
-        """Return elapsed time in seconds if running, otherwise ``None``."""
+        """Return elapsed time in seconds if running, otherwise `None`."""
         if self._start is None:
             return None
         return time.perf_counter() - self._start

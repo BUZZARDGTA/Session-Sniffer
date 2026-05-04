@@ -1,4 +1,4 @@
-"""Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
+﻿"""Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
 
 import ipaddress
 import re
@@ -60,8 +60,8 @@ def handle_ini_section_header(
 ) -> tuple[bool, bool]:
     """Check whether *stripped* is an INI section header.
 
-    If it is, append *raw_line* to *new_lines* and return ``(True, is_target_section)``.
-    Otherwise return ``(False, in_section)`` unchanged.
+    If it is, append *raw_line* to *new_lines* and return `(True, is_target_section)`.
+    Otherwise return `(False, in_section)` unchanged.
     """
     if stripped.startswith('[') and stripped.endswith(']'):
         new_lines.append(raw_line)

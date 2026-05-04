@@ -1,4 +1,4 @@
-"""Player registry for connected and disconnected players."""
+﻿"""Player registry for connected and disconnected players."""
 
 from datetime import timedelta
 from operator import attrgetter
@@ -118,7 +118,7 @@ class PlayersRegistry:
     def get_connected_players(cls) -> list[Player]:
         """Return a snapshot of connected players (unsorted).
 
-        Use this instead of ``get_default_sorted_players`` when sort order
+        Use this instead of `get_default_sorted_players` when sort order
         is irrelevant, to avoid an unnecessary O(n log n) sort.
         """
         with cls._registry_lock:

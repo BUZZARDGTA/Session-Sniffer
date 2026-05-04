@@ -1,4 +1,4 @@
-"""Database settings panel mixin for the UserIP Databases Manager dialog."""
+﻿"""Database settings panel mixin for the UserIP Databases Manager dialog."""
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -188,8 +188,8 @@ class _SVGColorPickerDialog(QDialog):
     def get_color(cls, initial: QColor, parent: QWidget | None = None) -> tuple[bool, QColor, str]:
         """Show the SVG color palette.
 
-        Returns ``(accepted, color, svg_name)``.
-        ``accepted=False`` means the user cancelled — keep the existing color.
+        Returns `(accepted, color, svg_name)`.
+        `accepted=False` means the user cancelled — keep the existing color.
         An invalid *color* with an empty *svg_name* means the user cleared the color.
         """
         dlg = cls(initial, parent)

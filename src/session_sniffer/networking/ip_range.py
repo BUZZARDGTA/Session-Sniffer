@@ -1,4 +1,4 @@
-"""Shared utilities for parsing and matching IP ranges in multiple formats."""
+﻿"""Shared utilities for parsing and matching IP ranges in multiple formats."""
 
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
@@ -26,10 +26,10 @@ def parse_ip_range(raw: str) -> IPRange:
     """Parse a single IP range string into an `IPRange`.
 
     Supported formats:
-    - Single IP: ``192.168.1.1`` (becomes /32 network)
-    - CIDR: ``192.168.1.0/24``
-    - Start-end: ``192.168.1.100-192.168.1.200``
-    - Wildcard: ``192.168.1.*`` (becomes CIDR, e.g. ``192.168.1.0/24``)
+    - Single IP: `192.168.1.1` (becomes /32 network)
+    - CIDR: `192.168.1.0/24`
+    - Start-end: `192.168.1.100-192.168.1.200`
+    - Wildcard: `192.168.1.*` (becomes CIDR, e.g. `192.168.1.0/24`)
 
     Raises:
         ValueError: If the string cannot be parsed into any supported format.
@@ -59,7 +59,7 @@ def parse_ip_range(raw: str) -> IPRange:
 
 
 def _parse_wildcard(raw: str) -> IPRange:
-    """Parse wildcard notation (e.g. ``192.168.1.*``) into a CIDR-based ``IPRange``."""
+    """Parse wildcard notation (e.g. `192.168.1.*`) into a CIDR-based `IPRange`."""
     parts = raw.split('.')
     if len(parts) != 4:  # noqa: PLR2004
         msg = f'Invalid wildcard format: {raw}'
@@ -87,7 +87,7 @@ def _parse_wildcard(raw: str) -> IPRange:
 
 
 def _parse_start_end(raw: str) -> IPRange:
-    """Parse start-end notation (e.g. ``192.168.1.100-192.168.1.200``) into an ``IPRange``."""
+    """Parse start-end notation (e.g. `192.168.1.100-192.168.1.200`) into an `IPRange`."""
     start_str, sep, end_str = raw.partition('-')
     if not sep:
         msg = f'Invalid range format: {raw}'
@@ -124,7 +124,7 @@ def check_ip_against_ranges(ip: str, ranges: list[IPRange]) -> IPRange | None:
     """Check if an IP address matches any of the given ranges.
 
     Returns:
-        The first matching `IPRange`, or ``None`` if no match.
+        The first matching `IPRange`, or `None` if no match.
     """
     try:
         addr = IPv4Address(ip)

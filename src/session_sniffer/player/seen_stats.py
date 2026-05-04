@@ -1,4 +1,4 @@
-"""Historical IP encounter statistics from session log archives."""
+﻿"""Historical IP encounter statistics from session log archives."""
 
 import json
 from dataclasses import dataclass, field
@@ -80,7 +80,7 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
     """Scan all JSON session logs under *folder_path* and count appearances of *ip*.
 
     Each `.json` file represents one session snapshot. If the IP appears in either
-    the ``connected`` or ``disconnected`` section, the session counts once.
+    the `connected` or `disconnected` section, the session counts once.
     """
     stats = SeenStats()
     now = datetime.now(tz=LOCAL_TZ)

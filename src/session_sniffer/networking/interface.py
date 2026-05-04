@@ -1,4 +1,4 @@
-"""Network interface models and registry.
+﻿"""Network interface models and registry.
 
 This module provides dataclasses and utilities for managing network interface information,
 including the Interface class, SelectedInterfaceRow, ARPEntry, and the AllInterfaces registry.
@@ -138,7 +138,7 @@ class SelectedInterfaceRow:
 
     @property
     def device_name(self) -> str | None:
-        r"""TShark device name (e.g. ``\Device\NPF_{GUID}``)."""
+        r"""TShark device name (e.g. `\Device\NPF_{GUID}`)."""
         return self.interface.identity.device_name
 
     @property

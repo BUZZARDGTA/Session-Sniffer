@@ -1,4 +1,4 @@
-"""Core data models and statistical helpers for the Player Identifier."""
+﻿"""Core data models and statistical helpers for the Player Identifier."""
 
 from collections import deque
 from enum import Enum, auto
@@ -107,7 +107,7 @@ class IPBaseline:
             return 1.0
         overall_mean = overall_sum / n
         # reversed() on deque yields from the right in O(1) per step;
-        # islice takes only ``recent_window`` elements -> O(recent_window) total.
+        # islice takes only `recent_window` elements -> O(recent_window) total.
         recent_mean = sum(islice(reversed(samples), recent_window)) / recent_window
         return abs(recent_mean - overall_mean) / max(abs(overall_mean), 1.0)
 
