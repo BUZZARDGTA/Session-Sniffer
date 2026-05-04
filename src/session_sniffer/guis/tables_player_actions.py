@@ -92,11 +92,11 @@ def _fmt_loss_pct(value: object) -> str:
     return str(value)
 
 
-def _fmt_packet_summary(transmitted: object, received: object, loss: object) -> str:
-    """Format a 'sent / received (loss%)' summary line."""
-    if _is_unset(transmitted) and _is_unset(received) and _is_unset(loss):
+def _fmt_packet_summary(transmitted: object, received: object) -> str:
+    """Format a 'sent / received' summary line."""
+    if _is_unset(transmitted) and _is_unset(received):
         return 'N/A'
-    return f'{_fmt_int(transmitted)} sent · {_fmt_int(received)} received · {_fmt_loss_pct(loss)} loss'
+    return f'{_fmt_int(transmitted)} sent · {_fmt_int(received)} received'
 
 
 def _fmt_ping_times(value: object, *, max_samples: int = 10) -> str:
@@ -367,7 +367,7 @@ class IPLookupDetailsDialog(QDialog):
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
         group, form = self._make_group('\U0001f4e1  Ping Response', accent='#d69e2e')
         self._add_row(form, 'Status', lambda p: _fmt_ping_status(p.ping.is_pinging))
-        self._add_row(form, 'Packets', lambda p: _fmt_packet_summary(p.ping.packets_transmitted, p.ping.packets_received, p.ping.packet_loss))
+        self._add_row(form, 'Packets', lambda p: _fmt_packet_summary(p.ping.packets_transmitted, p.ping.packets_received))
         self._add_row(form, 'Packets Transmitted', lambda p: _fmt_int(p.ping.packets_transmitted))
         self._add_row(form, 'Packets Received', lambda p: _fmt_int(p.ping.packets_received))
         self._add_row(form, 'Packet Loss', lambda p: _fmt_loss_pct(p.ping.packet_loss))
