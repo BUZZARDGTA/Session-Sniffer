@@ -145,10 +145,7 @@ class SeenStatsDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - Seen Stats ({player.ip})')
         self.setMinimumSize(400, 300)
 
-        try:
-            screen_width, screen_height = get_screen_size()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            screen_width, screen_height = 800, 600
+        screen_width, screen_height = get_screen_size()
 
         if (screen_width, screen_height) >= (1920, 1080):
             self.resize(500, 360)
@@ -269,10 +266,7 @@ class IPLookupDetailsDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - IP Lookup Details ({player.ip})')
         self.setMinimumSize(560, 460)
 
-        try:
-            screen_width, screen_height = get_screen_size()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            screen_width, screen_height = 800, 600
+        screen_width, screen_height = get_screen_size()
 
         if (screen_width, screen_height) >= (1920, 1080):
             self.resize(820, 720)
@@ -431,10 +425,7 @@ class IPLookupDetailsDialog(QDialog):
         """Re-evaluate every row provider and update the value widget text."""
         player = self._player
         for value_widget, provider in self._rows:
-            try:
-                text = provider(player)
-            except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                text = 'N/A'
+            text = provider(player)
             if value_widget.text() != text:
                 value_widget.setText(text)
 
@@ -469,10 +460,7 @@ class UserIPDetectedDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - UserIP Detected ({player.ip})')
         self.setMinimumSize(560, 460)
 
-        try:
-            screen_width, screen_height = get_screen_size()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            screen_width, screen_height = 800, 600
+        screen_width, screen_height = get_screen_size()
 
         if (screen_width, screen_height) >= (1920, 1080):
             self.resize(700, 580)
@@ -652,10 +640,7 @@ class PlayerDetectionDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - {info.title} ({player.ip})')
         self.setMinimumSize(560, 460)
 
-        try:
-            screen_width, screen_height = get_screen_size()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            screen_width, screen_height = 800, 600
+        screen_width, screen_height = get_screen_size()
 
         if (screen_width, screen_height) >= (1920, 1080):
             self.resize(700, 580)

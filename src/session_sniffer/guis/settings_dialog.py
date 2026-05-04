@@ -899,11 +899,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         )
         if not file_path:
             return
-        try:
-            Settings.load_from_settings_file(Path(file_path))
-        except Exception as exc:  # pylint: disable=broad-except  # noqa: BLE001
-            QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{exc}')
-            return
+        Settings.load_from_settings_file(Path(file_path))
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._load_current_values()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
