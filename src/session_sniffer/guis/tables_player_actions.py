@@ -92,15 +92,30 @@ def _fmt_loss_pct(value: object) -> str:
     return str(value)
 
 
-def _fmt_packet_summary(transmitted: object, received: object) -> str:
-    """Format a 'sent / received' summary line."""
-    if _is_unset(transmitted) and _is_unset(received):
+def _fmt_packets_and_stats(transmitted: object, received: object, loss: object, errors: object, duplicates: object) -> str:
+    """Format sent/received counts, appending loss/errors/duplicates only when non-zero."""
+    if _is_unset(transmitted) and _is_unset(received) and _is_unset(loss) and _is_unset(errors) and _is_unset(duplicates):
         return 'N/A'
-    return f'{_fmt_int(transmitted)} sent · {_fmt_int(received)} received'
+    base = f'{_fmt_int(transmitted)} sent · {_fmt_int(received)} received'
+    extras: list[str] = []
+    if isinstance(loss, (int, float)) and loss:
+        extras.append(f'{_fmt_loss_pct(loss)} loss')
+    if isinstance(errors, (int, float)) and errors:
+        extras.append(f'{_fmt_int(errors)} errors')
+    if isinstance(duplicates, (int, float)) and duplicates:
+        extras.append(f'{_fmt_int(duplicates)} duplicates')
+    return f'{base} · {" · ".join(extras)}' if extras else base
 
 
-def _fmt_ping_times(value: object, *, max_samples: int = 10) -> str:
-    """Format the recent ping time samples as a compact ms list."""
+def _fmt_rtt_summary(rtt_min: object, rtt_avg: object, rtt_max: object, rtt_mdev: object) -> str:
+    """Format min / avg / max / mean deviation RTT on a single line."""
+    if _is_unset(rtt_min) and _is_unset(rtt_avg) and _is_unset(rtt_max) and _is_unset(rtt_mdev):
+        return 'N/A'
+    return f'{_fmt_ms(rtt_min)} / {_fmt_ms(rtt_avg)} / {_fmt_ms(rtt_max)} · {_fmt_ms(rtt_mdev)} mean deviation'
+
+
+def _fmt_ping_times(value: object) -> str:
+    """Format the per-packet RTT samples as a compact ms list."""
     if _is_unset(value):
         return 'N/A'
     if not isinstance(value, list):
@@ -108,12 +123,10 @@ def _fmt_ping_times(value: object, *, max_samples: int = 10) -> str:
     times = cast('list[object]', value)
     if not times:
         return 'No samples yet'
-    samples = times[-max_samples:]
-    formatted = ', '.join(f'{t:.1f}' for t in samples if isinstance(t, (int, float)))
+    formatted = ', '.join(f'{t:.1f}' for t in times if isinstance(t, (int, float)))
     if not formatted:
         return 'N/A'
-    suffix = '' if len(times) <= max_samples else f' (last {max_samples} of {len(times)})'
-    return f'[{formatted}] ms{suffix}'
+    return f'{formatted} ms'
 
 
 def _fmt_ping_status(value: object) -> str:
@@ -361,17 +374,12 @@ class IPLookupDetailsDialog(QDialog):
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
         group, form = self._make_group('\U0001f4e1  Ping Response', accent='#d69e2e')
         self._add_row(form, 'Status', lambda p: _fmt_ping_status(p.ping.is_pinging))
-        self._add_row(form, 'Packets', lambda p: _fmt_packet_summary(p.ping.packets_transmitted, p.ping.packets_received))
-        self._add_row(form, 'Packets Transmitted', lambda p: _fmt_int(p.ping.packets_transmitted))
-        self._add_row(form, 'Packets Received', lambda p: _fmt_int(p.ping.packets_received))
-        self._add_row(form, 'Packet Loss', lambda p: _fmt_loss_pct(p.ping.packet_loss))
-        self._add_row(form, 'Packet Errors', lambda p: _fmt_int(p.ping.packet_errors))
-        self._add_row(form, 'Packet Duplicates', lambda p: _fmt_int(p.ping.packet_duplicates))
-        self._add_row(form, 'RTT Minimum', lambda p: _fmt_ms(p.ping.rtt_min))
-        self._add_row(form, 'RTT Average', lambda p: _fmt_ms(p.ping.rtt_avg))
-        self._add_row(form, 'RTT Maximum', lambda p: _fmt_ms(p.ping.rtt_max))
-        self._add_row(form, 'RTT Mean Deviation', lambda p: _fmt_ms(p.ping.rtt_mdev))
-        self._add_row(form, 'Recent Ping Times', lambda p: _fmt_ping_times(p.ping.ping_times))
+        self._add_row(form, 'Packets', lambda p: _fmt_packets_and_stats(
+            p.ping.packets_transmitted, p.ping.packets_received,
+            p.ping.packet_loss, p.ping.packet_errors, p.ping.packet_duplicates,
+        ))
+        self._add_row(form, 'RTT Min/Avg/Max', lambda p: _fmt_rtt_summary(p.ping.rtt_min, p.ping.rtt_avg, p.ping.rtt_max, p.ping.rtt_mdev))
+        self._add_row(form, 'Per-Packet RTT', lambda p: _fmt_ping_times(p.ping.ping_times))
         parent_layout.addWidget(group)
 
     @staticmethod
