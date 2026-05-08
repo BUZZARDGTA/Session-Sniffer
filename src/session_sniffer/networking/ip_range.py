@@ -12,12 +12,13 @@ class IPRange:
     start: IPv4Address | None = None
     end: IPv4Address | None = None
 
-    def __contains__(self, ip: IPv4Address) -> bool:
+    def __contains__(self, ip: str | IPv4Address) -> bool:
         """Check whether the given IP address falls within this range."""
+        addr = IPv4Address(ip) if isinstance(ip, str) else ip
         if self.network is not None:
-            return ip in self.network
+            return addr in self.network
         if self.start is not None and self.end is not None:
-            return self.start <= ip <= self.end
+            return self.start <= addr <= self.end
         return False
 
 
