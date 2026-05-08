@@ -269,9 +269,9 @@ def format_arp_spoofing_gateway_error_message(
 
 
 def format_capture_interrupted_message() -> str:
-    """Format the warning shown when TShark exits unexpectedly during capture."""
+    """Format the warning shown when packet capture exits unexpectedly."""
     return (
-        'TShark has stopped unexpectedly.\n\n'
+        'Packet capture has stopped unexpectedly.\n\n'
         'This is likely caused by your network adapter being removed or disabled.\n\n'
         'Please select a network interface to resume capture.'
     )

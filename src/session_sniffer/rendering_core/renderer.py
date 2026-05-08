@@ -39,6 +39,7 @@ from session_sniffer.rendering_core.session_table_renderer import (
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
 from session_sniffer.rendering_core.types import (
     CaptureState,
+    CaptureStats,
     GeoIP2Readers,
     GUIColumnConfig,
     GUIRenderingSnapshot,
@@ -46,7 +47,6 @@ from session_sniffer.rendering_core.types import (
     GUIStatusTexts,
     GUITableData,
     SessionTableSnapshot,
-    TsharkStats,
 )
 from session_sniffer.rendering_core.userip_ini_parser import parse_userip_ini_file
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from session_sniffer.capture.tshark_capture import CaptureHolder
+    from session_sniffer.capture.packet_capture import CaptureHolder
 
 logger = get_logger(__name__)
 
@@ -495,11 +495,11 @@ def rendering_core(
                 global_pps_rate += player.packets.pps.calculated_rate
 
             # Update global stats once after all calculations
-            TsharkStats.global_bandwidth = global_bandwidth
-            TsharkStats.global_download = global_download
-            TsharkStats.global_upload = global_upload
-            TsharkStats.global_bps_rate = global_bps_rate
-            TsharkStats.global_pps_rate = global_pps_rate
+            CaptureStats.global_bandwidth = global_bandwidth
+            CaptureStats.global_download = global_download
+            CaptureStats.global_upload = global_upload
+            CaptureStats.global_bps_rate = global_bps_rate
+            CaptureStats.global_pps_rate = global_pps_rate
 
             _active_threads = threading.active_count()
             if _active_threads > _THREAD_COUNT_WARN_THRESHOLD:

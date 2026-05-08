@@ -15,7 +15,7 @@ from session_sniffer.logging_setup import get_logger
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.capture.tshark_capture import CaptureHolder
+    from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
 logger = get_logger(__name__)

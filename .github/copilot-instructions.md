@@ -6,7 +6,7 @@ Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game s
 Important import note: even with the `src/` layout, Python imports remain `from session_sniffer...`, not `from src.session_sniffer...`. The `src` directory is a source root on `PYTHONPATH`; it is not part of the package name.
 
 ## Architecture & Data Flow
-- Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `src/session_sniffer/capture/tshark_capture.py`) and invokes `config.callback` (created in `src/session_sniffer/main.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
+- Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `src/session_sniffer/capture/packet_capture.py`) and invokes `config.callback` (created in `src/session_sniffer/main.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
 - PacketCapture config/state: Read config via `capture.config` (e.g., `capture.config.interface`). Runtime state (threads/events/process handles) lives in an internal `_CaptureState` dataclass.
 - Player State: Connected/disconnected movement handled via registry methods and `Player.left_event`. Rejoins call `mark_as_rejoined`; periodic packets call `mark_as_seen`.
 - Rendering: Background thread `rendering_core` compiles `GUIUpdatePayload` objects using `GUIrenderingData` and emits them via `GUIWorkerThread.update_signal`. Avoid direct GUI mutations from non‑GUI threads.
@@ -16,7 +16,7 @@ Important import note: even with the `src/` layout, Python imports remain `from 
 - Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Use provided helpers (`ThreadsExceptionHandler`) for safe exception handling.
 
 ## Key Directories & Responsibilities
-- `src/session_sniffer/capture/`: Interface selection, tshark/npcap checks, filter helpers.
+- `src/session_sniffer/capture/`: Interface selection, scapy/npcap checks, filter helpers.
 - `src/session_sniffer/guis/`: Qt app bootstrap (`app.py`), size/util functions (`utils.py`), custom widgets, exceptions, stylesheets.
 - `src/session_sniffer/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
 - `src/session_sniffer/rendering_core/`: Transforms registry + lookup results into GUI payloads.

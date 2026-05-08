@@ -149,7 +149,7 @@ class SafeQTableWidget(QTableWidget):
 class InterfaceSelectionDialog(QDialog):
     """Display a dialog to select the capture network interface.
 
-    When *mac_lookup* and *tshark_path* are supplied the dialog polls
+    When *mac_lookup* is supplied the dialog polls
     the OS every few seconds so that plugged/unplugged or
     enabled/disabled adapters appear and disappear in real time.
     """
@@ -160,7 +160,7 @@ class InterfaceSelectionDialog(QDialog):
     _arp_refresh_progress_signal = pyqtSignal(int, int)
     _arp_refresh_done_signal = pyqtSignal()
 
-    def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         screen_width: int,
         screen_height: int,
@@ -168,7 +168,6 @@ class InterfaceSelectionDialog(QDialog):
         filter_defaults: tuple[bool, bool, bool],
         *,
         mac_lookup: MacLookup | None = None,
-        tshark_path: str | None = None,
     ) -> None:
         """Initialize the interface selection dialog.
 
@@ -178,7 +177,6 @@ class InterfaceSelectionDialog(QDialog):
             interfaces: Available Interface objects to display.
             filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
             mac_lookup: Optional MacLookup instance for live refresh.
-            tshark_path: Optional TShark path for live refresh.
         """
         super().__init__()
 
@@ -243,7 +241,7 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Flush the Windows ARP cache and ping the local subnet to rediscover devices')
         refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
-        refresh_arp_button.setEnabled(mac_lookup is not None and tshark_path is not None)
+        refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
         refresh_arp_button.setFixedSize(refresh_arp_button.sizeHint())
@@ -338,9 +336,8 @@ class InterfaceSelectionDialog(QDialog):
 
         # Live refresh: periodically re-query the OS for adapter changes
         self._mac_lookup = mac_lookup
-        self._tshark_path = tshark_path
         self._refresh_timer: QTimer | None = None
-        if mac_lookup is not None and tshark_path is not None:
+        if mac_lookup is not None:
             self._refresh_timer = QTimer(self)
             self._refresh_timer.setInterval(self._REFRESH_INTERVAL_MS)
             self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
@@ -408,7 +405,7 @@ class InterfaceSelectionDialog(QDialog):
         """
         if self._arp_refresh_in_progress:
             return
-        if self._mac_lookup is None or self._tshark_path is None:
+        if self._mac_lookup is None:
             return
 
         self._arp_refresh_in_progress = True
@@ -456,7 +453,7 @@ class InterfaceSelectionDialog(QDialog):
         button = self._controls.refresh_arp_button
         button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
-        button.setEnabled(self._mac_lookup is not None and self._tshark_path is not None)
+        button.setEnabled(self._mac_lookup is not None)
         self._live_refresh_interfaces()
 
     def _live_refresh_interfaces(self) -> None:
@@ -467,7 +464,7 @@ class InterfaceSelectionDialog(QDialog):
         """
         from session_sniffer.capture.interface_setup import refresh_available_interfaces  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
 
-        if self._mac_lookup is None or self._tshark_path is None:
+        if self._mac_lookup is None:
             return
 
         # Snapshot the current selection identity before refresh
@@ -477,7 +474,7 @@ class InterfaceSelectionDialog(QDialog):
             iface, ip, is_arp = self._data.interface_rows[current_row]
             selected_key = (iface.identity.name, ip, is_arp)
 
-        new_interfaces = refresh_available_interfaces(self._mac_lookup, self._tshark_path)
+        new_interfaces = refresh_available_interfaces(self._mac_lookup)
         self._data.all_interfaces = new_interfaces
         self.apply_filters()
 
@@ -774,7 +771,6 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
     saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
     *,
     mac_lookup: MacLookup | None = None,
-    tshark_path: str | None = None,
 ) -> tuple[SelectedInterfaceRow | None, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
@@ -785,7 +781,6 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
         filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
         saved_selection: Previously saved (interface_name, ip_address, mac_address).
         mac_lookup: Optional MacLookup instance for live refresh.
-        tshark_path: Optional TShark path for live refresh.
 
     Returns:
         Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_neighbours_enabled).
@@ -799,7 +794,6 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
         interfaces,
         filter_defaults,
         mac_lookup=mac_lookup,
-        tshark_path=tshark_path,
     )
     # Restore the previously saved interface selection
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
@@ -822,7 +816,6 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     force_dialog: bool = False,
     before_dialog: Callable[[], None] | None = None,
     mac_lookup: MacLookup | None = None,
-    tshark_path: str | None = None,
 ) -> SelectedInterfaceRow | None:
     """Select the best matching interface based on current settings.
 
@@ -836,7 +829,6 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
         before_dialog: Optional callback invoked once, right before the dialog is shown (skipped on auto-select).
         mac_lookup: Optional MacLookup instance for live refresh in the dialog.
-        tshark_path: Optional TShark path for live refresh in the dialog.
 
     Returns:
         A SelectedInterfaceRow referencing the live Interface, or None if cancelled.
@@ -950,7 +942,6 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
         mac_lookup=mac_lookup,
-        tshark_path=tshark_path,
     )
 
     if selected_interface is None:

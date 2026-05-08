@@ -7,25 +7,11 @@ from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.error_messages import format_arp_spoofing_gateway_error_message
 
 
-class TSharkError(Exception):
-    """Base exception for all TShark-related errors."""
+class CaptureError(Exception):
+    """Base exception for all capture-related errors."""
 
 
-class TSharkOutputParsingError(TSharkError):
-    """Raised when TShark output cannot be parsed correctly."""
-
-    def __init__(self, expected_parts: int, actual_parts: int, output_line: str) -> None:
-        """Initialize the exception with parsing details.
-
-        Args:
-            expected_parts: Expected number of output parts.
-            actual_parts: Actual number of output parts.
-            output_line: The raw output line that failed parsing.
-        """
-        super().__init__(f'Expected "{expected_parts}" parts, got "{actual_parts}" in "{output_line}"')
-
-
-class MalformedPacketError(TSharkError):
+class MalformedPacketError(CaptureError):
     """Base exception for malformed packet errors.
 
     These exceptions are meant to be self-describing: `str(exc)` should produce
@@ -111,37 +97,25 @@ class InvalidLengthNumericError(InvalidLengthFormatError):
     message_template = 'Invalid length format: {value}. Length must be a number.'
 
 
-class TSharkCrashExceptionError(TSharkError):
-    """Exception raised when TShark crashes.
+class CaptureExitError(CaptureError):
+    """Exception raised when the packet capture stops unexpectedly.
 
     Attributes:
-        returncode: The return code of the TShark process.
-        stderr_output: The standard error output from TShark.
+        cause: The underlying exception from the sniffer thread, if any.
     """
 
-    def __init__(self, returncode: int, stderr_output: str) -> None:
-        """Initialize the exception with the return code and standard error output.
+    def __init__(self, cause: BaseException | None = None) -> None:
+        """Initialize the exception with an optional underlying cause.
 
         Args:
-            returncode: The return code of the TShark process.
-            stderr_output: The standard error output from TShark.
+            cause: The underlying exception from the sniffer thread, if any.
         """
-        super().__init__(f'TShark crashed with return code {returncode}: {stderr_output}')
+        self.cause = cause
+        detail = f': {cause}' if cause is not None else ''
+        super().__init__(f'Packet capture stopped unexpectedly{detail}')
 
 
-class TSharkProcessInitializationError(TSharkError):
-    """Exception raised when TShark process initialization fails.
-
-    This exception is raised when the TShark subprocess is created but its
-    stdout or stderr streams are not available despite being configured with PIPE.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the exception."""
-        super().__init__('TShark process stdout/stderr not available')
-
-
-class TSharkAlreadyRunningError(TSharkError):
+class CaptureAlreadyRunningError(CaptureError):
     """Exception raised when attempting to start capture while it's already running."""
 
     def __init__(self) -> None:
@@ -149,7 +123,7 @@ class TSharkAlreadyRunningError(TSharkError):
         super().__init__('Capture is already running')
 
 
-class TSharkNotRunningError(TSharkError):
+class CaptureNotRunningError(CaptureError):
     """Exception raised when attempting to stop capture that is not running."""
 
     def __init__(self) -> None:
@@ -157,15 +131,15 @@ class TSharkNotRunningError(TSharkError):
         super().__init__('Capture is not running')
 
 
-class TSharkNoProcessError(TSharkError):
-    """Exception raised when attempting to terminate a non-existent TShark process."""
+class CaptureNoSnifferError(CaptureError):
+    """Exception raised when attempting to terminate a non-existent sniffer."""
 
     def __init__(self) -> None:
         """Initialize the exception."""
-        super().__init__('No TShark process to terminate')
+        super().__init__('No active sniffer to terminate')
 
 
-class TSharkThreadAlreadyRunningError(TSharkError):
+class CaptureThreadAlreadyRunningError(CaptureError):
     """Exception raised when attempting to start a capture thread that is already running."""
 
     def __init__(self) -> None:

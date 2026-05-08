@@ -134,7 +134,7 @@ class ProcessSuspendManager:
                 state.reasons[reason_key] = reason
                 # If the process was temporarily resumed (adaptive) and a new
                 # reason arrives, re-suspend immediately.
-                if not state.suspended and cls._try_suspend_pid(state.pid):
+                if not state.suspended and cls._try_suspend_pid(state.pid, f'new reason added: {reason_key}'):
                     state.suspended = True
                 return
 
@@ -144,7 +144,7 @@ class ProcessSuspendManager:
                 logger.warning('Cannot suspend %s: process not running', process_path.name)
                 return
 
-            if not cls._try_suspend_pid(pid):
+            if not cls._try_suspend_pid(pid, f'first reason: {reason_key}'):
                 return
 
             state = _ProcessState(path_key=path_key, pid=pid, suspended=True)
@@ -196,7 +196,7 @@ class ProcessSuspendManager:
     # ------------------------------------------------------------------
 
     @classmethod
-    def _try_suspend_pid(cls, pid: int) -> bool:
+    def _try_suspend_pid(cls, pid: int, reason: str) -> bool:
         """Suspend *pid*, returning `True` on success."""
         try:
             psutil.Process(pid).suspend()
@@ -209,7 +209,7 @@ class ProcessSuspendManager:
         except psutil.Error:
             logger.exception('Unexpected error while suspending PID %d', pid)
             return False
-        logger.info('Suspended process PID %d', pid)
+        logger.info('Suspended process PID %d — %s', pid, reason)
         return True
 
     @classmethod
@@ -304,7 +304,7 @@ class ProcessSuspendManager:
                     cls._try_resume_pid(state.pid)
                     state.suspended = False
                 elif not state.suspended and not cls._can_adaptive_resume(state):
-                    cls._try_suspend_pid(state.pid)
+                    cls._try_suspend_pid(state.pid, 'adaptive re-suspend: player became active')
                     state.suspended = True
 
         # Shutdown was requested — the shutdown() method already resumes everything,

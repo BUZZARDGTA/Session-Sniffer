@@ -138,7 +138,7 @@ class SelectedInterfaceRow:
 
     @property
     def device_name(self) -> str | None:
-        r"""TShark device name (e.g. `\Device\NPF_{GUID}`)."""
+        r"""Pcap device name (e.g. `\Device\NPF_{GUID}`)."""
         return self.interface.identity.device_name
 
     @property

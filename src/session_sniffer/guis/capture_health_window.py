@@ -3,11 +3,11 @@
 from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
-from session_sniffer.rendering_core.types import CaptureState, TsharkStats
+from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 
 
 class CaptureHealthWindow(ToggleAlwaysOnTopMixin):
-    """A standalone window showing tshark capture health and latency statistics."""
+    """A standalone window showing capture health and latency statistics."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the capture health window."""
@@ -22,7 +22,7 @@ class CaptureHealthWindow(ToggleAlwaysOnTopMixin):
         stability_form = QFormLayout(stability_group)
         self._lbl_restarts = QLabel('0')
         self._lbl_vpn_mode = QLabel('No')
-        stability_form.addRow('Tshark Restarts:', self._lbl_restarts)
+        stability_form.addRow('Capture Restarts:', self._lbl_restarts)
         stability_form.addRow('VPN Mode:', self._lbl_vpn_mode)
         layout.addWidget(stability_group)
 
@@ -47,10 +47,10 @@ class CaptureHealthWindow(ToggleAlwaysOnTopMixin):
 
     def refresh(self) -> None:
         """Refresh all displayed capture health statistics."""
-        latencies = list(TsharkStats.packets_latencies)
+        latencies = list(CaptureStats.packets_latencies)
         n = len(latencies)
 
-        self._lbl_restarts.setText(str(TsharkStats.restarted_times))
+        self._lbl_restarts.setText(str(CaptureStats.restarted_times))
         self._lbl_vpn_mode.setText('Yes' if CaptureState.vpn_mode_enabled else 'No')
         self._lbl_samples.setText(str(n))
 

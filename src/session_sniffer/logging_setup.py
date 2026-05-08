@@ -30,10 +30,20 @@ _SUPPRESSED_URLLIB3_SUBSTRINGS = (
     'RemoteDisconnected',
 )
 
+# --- Scapy stderr noise: benign datalink-type warning emitted for virtual/VPN adapters ---
+_SUPPRESSED_SCAPY_SUBSTRINGS = (
+    'Unable to guess datalink type',
+)
+
 
 def _urllib3_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress noisy third-party retry warnings from all handlers."""
     return not (record.name.startswith('urllib3.') and any(s in record.getMessage() for s in _SUPPRESSED_URLLIB3_SUBSTRINGS))
+
+
+def _scapy_noise_filter(record: logging.LogRecord) -> bool:
+    """Suppress benign Scapy datalink-type warnings captured via stderr redirection."""
+    return not (record.name == 'session_sniffer.stderr' and any(s in record.getMessage() for s in _SUPPRESSED_SCAPY_SUBSTRINGS))
 
 
 def _app_only_filter(record: logging.LogRecord) -> bool:
@@ -160,6 +170,7 @@ def setup_logging(
         warnings_handler.setLevel(logging.WARNING)
         warnings_handler.addFilter(_LevelFilter(exact=logging.WARNING))
         warnings_handler.addFilter(_urllib3_noise_filter)
+        warnings_handler.addFilter(_scapy_noise_filter)
         warnings_handler.setFormatter(_FILE_FORMATTER)
         root.addHandler(warnings_handler)
 
@@ -176,6 +187,7 @@ def setup_logging(
         errors_handler.setLevel(logging.ERROR)
         errors_handler.addFilter(_LevelFilter(min_level=logging.ERROR))
         errors_handler.addFilter(_urllib3_noise_filter)
+        errors_handler.addFilter(_scapy_noise_filter)
         errors_handler.setFormatter(_FILE_FORMATTER)
         root.addHandler(errors_handler)
 
@@ -185,9 +197,9 @@ def setup_logging(
     # --- Redirect Python warnings to logging ---
     logging.captureWarnings(capture=True)
 
-    # --- Redirect stderr to logging (captures TShark, ctypes, PyQt internal errors) ---
+    # --- Redirect stderr to logging (captures scapy, ctypes, PyQt internal errors) ---
     if sys.stderr is not None and not isinstance(sys.stderr, _StderrToLogger):
-        sys.stderr = _StderrToLogger(logging.getLogger('stderr'), logging.ERROR)
+        sys.stderr = _StderrToLogger(logging.getLogger('session_sniffer.stderr'), logging.ERROR)
 
     # --- Ensure logs flush on exit ---
     if not _atexit_registered:

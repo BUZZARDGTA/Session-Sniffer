@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.rendering_core.types import TsharkStats
+from session_sniffer.rendering_core.types import CaptureStats
 
 
 class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
@@ -64,7 +64,7 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         self._lbl_uptime = QLabel('0s')
         self._lbl_restarts = QLabel('0')
         misc_form.addRow('Window Uptime:', self._lbl_uptime)
-        misc_form.addRow('Tshark Restarts:', self._lbl_restarts)
+        misc_form.addRow('Capture Restarts:', self._lbl_restarts)
         layout.addWidget(misc_group)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
@@ -80,8 +80,8 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         total_download = sum(p.bandwidth.download for p in all_players)
         total_upload = sum(p.bandwidth.upload for p in all_players)
 
-        pps = TsharkStats.global_pps_rate
-        bps = TsharkStats.global_bps_rate
+        pps = CaptureStats.global_pps_rate
+        bps = CaptureStats.global_bps_rate
         self._peak_pps = max(self._peak_pps, pps)
         self._peak_bps = max(self._peak_bps, bps)
 
@@ -105,4 +105,4 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         self._lbl_peak_pps.setText(f'{self._peak_pps} PPS')
         self._lbl_peak_bps.setText(f'{PlayerBandwidth.format_bytes(self._peak_bps)}/s')
         self._lbl_uptime.setText(uptime)
-        self._lbl_restarts.setText(str(TsharkStats.restarted_times))
+        self._lbl_restarts.setText(str(CaptureStats.restarted_times))

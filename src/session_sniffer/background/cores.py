@@ -77,15 +77,21 @@ def iplookup_core() -> None:
                 gui_closed__event.wait(1)
                 continue
             except requests.exceptions.HTTPError as e:
-                # Handle rate limiting
-                if isinstance(e.response, requests.Response) and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                    requests_remaining = int(e.response.headers.get('X-Rl') or '0')
-                    ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
-                    gui_closed__event.wait(ttl_seconds)
-                    requests_remaining = _IPAPI_MAX_REQUESTS
-                    ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
-                    continue
-                raise  # Re-raise other HTTP errors
+                if isinstance(e.response, requests.Response):
+                    # Handle rate limiting
+                    if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                        requests_remaining = int(e.response.headers.get('X-Rl') or '0')
+                        ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
+                        gui_closed__event.wait(ttl_seconds)
+                        requests_remaining = _IPAPI_MAX_REQUESTS
+                        ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+                        continue
+                    # Transient server-side errors — wait and retry
+                    if e.response.status_code >= 500:
+                        logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
+                        gui_closed__event.wait(5)
+                        continue
+                raise  # Re-raise unexpected HTTP errors (4xx, etc.)
 
             requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
             ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))

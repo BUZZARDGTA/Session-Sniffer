@@ -1,7 +1,14 @@
-"""Build capture and display filter strings from current application settings."""
+"""Build BPF capture filters and Python display-filter callables from current application settings."""
+
+from typing import TYPE_CHECKING
 
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.settings.settings import Settings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from scapy.packet import Packet as ScapyPacket
 
 # https://en.wikipedia.org/wiki/Reserved_IP_addresses
 _RESERVED_NETWORK_RANGES = (
@@ -25,21 +32,105 @@ _RESERVED_NETWORK_RANGES = (
 )
 _RESERVED_NETWORKS_FILTER = ' or '.join(_RESERVED_NETWORK_RANGES)
 
+# BPF port-range exclusions for protocols formerly excluded via display filters.
+# Protocols already excluded by the `portrange 0-1023` BPF term:
+#   nbns (137), pcp (5351), dhcp (67/68)
+# Protocols already excluded by the `port 5353` BPF term:
+#   mdns (5353)
+_PROTOCOL_BPF_EXCLUSIONS: dict[str, str] = {
+    'ssdp':        'port 1900',
+    'bt-dht':      'port 6881',
+    'uaudp':       'port 4569',
+    'classicstun': 'port 3478',
+    'llmnr':       'port 5355',
+    'raknet':      'port 19132',
+}
+
+_RTCP_RTP_VERSION = 2
+_RTCP_PT_MIN = 200
+_RTCP_PT_MAX = 204
+_RTCP_MIN_PAYLOAD = 2
+_DTLS_CONTENT_TYPE_MIN = 20
+_DTLS_CONTENT_TYPE_MAX = 23
+
+
+def _is_rtcp(pkt: ScapyPacket) -> bool:
+    """Return `True` if the scapy packet looks like an RTCP packet.
+
+    RTCP is identified by: RTP version == 2 (top 2 bits of first payload byte),
+    and payload type (PT) in the range 200-204.
+    """
+    from scapy.layers.inet import UDP  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+    if not pkt.haslayer(UDP):
+        return False
+    payload = bytes(pkt[UDP].payload)
+    if len(payload) < _RTCP_MIN_PAYLOAD:
+        return False
+    version = (payload[0] >> 6) & 0x3
+    pt = payload[1] & 0x7F  # strip marker bit
+    return version == _RTCP_RTP_VERSION and _RTCP_PT_MIN <= pt <= _RTCP_PT_MAX
+
+
+def _is_dtls(pkt: ScapyPacket) -> bool:
+    """Return `True` if the scapy packet looks like a DTLS record.
+
+    DTLS content-type bytes (first byte of UDP payload): 20-23.
+    """
+    from scapy.layers.inet import UDP  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+    if not pkt.haslayer(UDP):
+        return False
+    payload = bytes(pkt[UDP].payload)
+    return bool(payload) and _DTLS_CONTENT_TYPE_MIN <= payload[0] <= _DTLS_CONTENT_TYPE_MAX
+
+
+def _build_display_filter_fn(
+    excluded_protocols: list[str],
+) -> Callable[[ScapyPacket], bool] | None:
+    """Build a Python callable that returns `True` when a packet should be forwarded.
+
+    Args:
+        excluded_protocols: Protocol names that require Python-level inspection.
+
+    Returns:
+        A callable, or `None` if no Python-level filtering is needed.
+    """
+    checks: list[Callable[[ScapyPacket], bool]] = []
+
+    if 'rtcp' in excluded_protocols:
+        checks.append(lambda pkt: not _is_rtcp(pkt))
+
+    if 'dtls' in excluded_protocols:
+        checks.append(lambda pkt: not _is_dtls(pkt))
+
+    if not checks:
+        return None
+
+    def display_filter_fn(pkt: ScapyPacket) -> bool:
+        return all(check(pkt) for check in checks)
+
+    return display_filter_fn
+
 
 def build_capture_filters(
     *,
     broadcast_support: bool,
     multicast_support: bool,
-) -> tuple[str | None, str | None]:
-    """Build capture and display filter strings from current Settings.
+) -> tuple[str | None, Callable[[ScapyPacket], bool] | None]:
+    """Build a BPF capture filter string and an optional Python display-filter callable.
+
+    Protocol exclusions that map cleanly to fixed port numbers are added directly
+    to the BPF capture filter (strategy A).  Protocols requiring payload inspection
+    (rtcp, dtls) are returned as a Python callable (strategy B).
 
     Args:
-        broadcast_support: Whether the interface supports the `broadcast` capture filter.
-        multicast_support: Whether the interface supports the `multicast` capture filter.
+        broadcast_support: Whether the interface supports the `broadcast` BPF term.
+        multicast_support: Whether the interface supports the `multicast` BPF term.
 
     Returns:
-        A `(capture_filter, display_filter)` tuple.  Either element may be `None`
-        when no filters of that kind are needed.
+        A `(capture_filter_str, display_filter_fn)` tuple.  Either element may be
+        `None` when no filters of that kind are needed.
     """
     capture_filter: list[str] = ['ip', 'udp']
 
@@ -58,7 +149,8 @@ def build_capture_filters(
 
     capture_filter.append('not (portrange 0-1023 or port 5353)')
 
-    excluded_protocols: list[str] = []
+    # Protocols that need Python-level payload inspection (strategy B)
+    python_excluded_protocols: list[str] = []
 
     if Settings.capture_program_preset:
         if Settings.capture_program_preset == 'GTA5':
@@ -73,16 +165,24 @@ def build_capture_filters(
         # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.
         # It filters RTCP but some connections are STILL made out of it, but those are not RTCP ¯\_(ツ)_/¯.
         # And that's exactly why the "Discord" (`class ThirdPartyServers`) IP ranges Capture Filters are useful for.
-        excluded_protocols.append('rtcp')
+        python_excluded_protocols.append('rtcp')
 
     if Settings.capture_block_third_party_servers:
         blocked_ip_ranges = ThirdPartyServers.get_ip_ranges_for(Settings.capture_block_third_party_servers)
         if blocked_ip_ranges:
             capture_filter.append(f"not (net {' or '.join(blocked_ip_ranges)})")
 
-        # Here I'm trying to exclude various UDP protocols that are usefless for the srcipt.
-        # But there can be a lot more, those are just a couples I could find on my own usage.
-        excluded_protocols.extend(['ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'])
+        # Here I'm trying to exclude various UDP protocols that are useless for the script.
+        # But there can be a lot more, those are just a couple I could find on my own usage.
+        # Port-based protocols are added directly to the BPF capture filter (strategy A).
+        # Payload-inspection protocols go to the Python-level display filter (strategy B).
+        for proto in ('ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'):
+            bpf_exclusion = _PROTOCOL_BPF_EXCLUSIONS.get(proto)
+            if bpf_exclusion is not None:
+                capture_filter.append(f'not {bpf_exclusion}')
+            elif proto == 'dtls':
+                python_excluded_protocols.append(proto)
+            # nbns/pcp/dhcp/mdns already excluded by portrange 0-1023 / port 5353
 
     if Settings.capture_blocked_ips:
         blocked_bpf: list[str] = []
@@ -95,20 +195,12 @@ def build_capture_filters(
         if blocked_bpf:
             capture_filter.append(f"not ({' or '.join(blocked_bpf)})")
 
-    display_filter: list[str] = []
-
-    if excluded_protocols:
-        display_filter.append(
-            f"not ({' or '.join(excluded_protocols)})",
-        )
-
     if Settings.capture_prepend_custom_capture_filter:
         capture_filter.insert(0, f'({Settings.capture_prepend_custom_capture_filter})')
 
-    if Settings.capture_prepend_custom_display_filter:
-        display_filter.insert(0, f'({Settings.capture_prepend_custom_display_filter})')
-
     capture_filter_str = ' and '.join(capture_filter) if capture_filter else None
-    display_filter_str = ' and '.join(display_filter) if display_filter else None
+    display_filter_fn = _build_display_filter_fn(
+        python_excluded_protocols,
+    )
 
-    return (capture_filter_str, display_filter_str)
+    return (capture_filter_str, display_filter_fn)

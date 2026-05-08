@@ -27,12 +27,12 @@ from session_sniffer.background import (
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.interface_setup import get_filtered_tshark_interfaces, populate_network_interfaces_info, refresh_available_interfaces
-from session_sniffer.capture.tshark_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
-from session_sniffer.capture.utils.check_tshark_filters import check_broadcast_multicast_support
+from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info, refresh_available_interfaces
+from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
+from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
-from session_sniffer.constants.local import BIN_DIR_PATH, COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
@@ -58,7 +58,7 @@ from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.renderer import rendering_core
-from session_sniffer.rendering_core.types import CaptureState, GeoIP2Readers, TsharkStats
+from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import clear_screen, is_pyinstaller_compiled, set_window_title
@@ -66,9 +66,6 @@ from session_sniffer.utils import clear_screen, is_pyinstaller_compiled, set_win
 # Production-friendly logging: file handlers only (no console output)
 setup_logging(console_level=logging.INFO)
 logger = get_logger(__name__)
-
-# TODO(BUZZARDGTA): NPCAP_RECOMMENDED_VERSION_NUMBER = "1.78"
-TSHARK_PATH = BIN_DIR_PATH / 'WiresharkPortable64' / 'App' / 'Wireshark' / 'tshark.exe'
 
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -149,17 +146,16 @@ def main() -> None:
     splash.update_status('Network interface selection')
     splash.run_with_spinner(populate_network_interfaces_info, mac_lookup)
 
-    # Get list of Interface objects that are available in tshark
+    # Get list of Interface objects that are available via scapy/pcap
     available_interfaces: list[Interface] = []
-    tshark_interfaces = splash.run_with_spinner(
-        lambda: [
-            (i, device_name) for _, device_name, name in get_filtered_tshark_interfaces(str(TSHARK_PATH))
-            if (i := AllInterfaces.get_interface_by_name(name))
-        ],
-    )
+    capture_interfaces = splash.run_with_spinner(get_filtered_scapy_interfaces)
 
-    for interface, device_name in tshark_interfaces:
-        # Populate the device_name from tshark
+    for device_name, friendly_name in capture_interfaces:
+        interface = AllInterfaces.get_interface_by_name(friendly_name)
+        if interface is None:
+            continue
+
+        # Populate device_name from scapy (the NPF path used by pcap)
         interface.identity.device_name = device_name
 
         if (
@@ -172,11 +168,11 @@ def main() -> None:
 
         available_interfaces.append(interface)
 
+    msgbox.set_owner_hwnd(0)  # Clear owner before handing off z-order to the interface dialog
     selected_interface = select_interface(
         available_interfaces, screen_width, screen_height,
         before_dialog=splash.lower_to_back,
         mac_lookup=mac_lookup,
-        tshark_path=str(TSHARK_PATH),
     )
     if selected_interface is None:
         sys.exit(0)
@@ -204,10 +200,10 @@ def main() -> None:
     if need_rewrite_settings:
         Settings.rewrite_settings_file()
 
-    broadcast_support, multicast_support = splash.run_with_spinner(check_broadcast_multicast_support, TSHARK_PATH, Settings.capture_interface_name)
+    broadcast_support, multicast_support = splash.run_with_spinner(check_broadcast_multicast_support, selected_interface.device_name or selected_interface.name)
     vpn_mode_enabled = not (broadcast_support and multicast_support)
 
-    capture_filter_str, display_filter_str = splash.run_with_spinner(
+    capture_filter_str, display_filter_fn = splash.run_with_spinner(
         build_capture_filters,
         broadcast_support=broadcast_support,
         multicast_support=multicast_support,
@@ -225,16 +221,16 @@ def main() -> None:
         with ThreadsExceptionHandler():
             _pkt_start = time.monotonic()
             packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
-            TsharkStats.packets_latencies.append((packet.datetime, packet_latency))
+            CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
             if packet_latency >= timedelta(seconds=Settings.capture_overflow_timer):
-                TsharkStats.restarted_times += 1
-                TsharkStats.packets_latencies.clear()
+                CaptureStats.restarted_times += 1
+                CaptureStats.packets_latencies.clear()
                 logger.warning(
                     'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
                     'Restarting capture now (restart #%d). Skipping this packet.',
                     packet_latency.total_seconds(),
                     Settings.capture_overflow_timer,
-                    TsharkStats.restarted_times,
+                    CaptureStats.restarted_times,
                 )
                 capture_holder.request_restart()
                 return  # Skip processing this packet
@@ -345,11 +341,10 @@ def main() -> None:
     capture = PacketCapture(
         CaptureConfig(
             interface=selected_interface,
-            tshark_path=TSHARK_PATH,
             broadcast_support=broadcast_support,
             multicast_support=multicast_support,
             capture_filter=capture_filter_str,
-            display_filter=display_filter_str,
+            display_filter_fn=display_filter_fn,
             callback=packet_callback,
             on_capture_lost=_adapter_lost_event.set,
         ),
@@ -384,14 +379,13 @@ def main() -> None:
 
         # Refresh interface list then show the selection dialog.
         # Capture keeps running at this point — no flash of "CAPTURE STOPPED".
-        new_available_interfaces = refresh_available_interfaces(mac_lookup, str(TSHARK_PATH))
+        new_available_interfaces = refresh_available_interfaces(mac_lookup)
         new_interface = select_interface(
             new_available_interfaces,
             screen_width,
             screen_height,
             force_dialog=True,
             mac_lookup=mac_lookup,
-            tshark_path=str(TSHARK_PATH),
         )
 
         if new_interface is None:
@@ -405,9 +399,9 @@ def main() -> None:
             capture_holder.stop()
         window.set_interface_switching_mode(switching=True)
 
-        # Run the ~200 ms tshark probe off the Qt thread so the UI stays responsive.
+        # Run the broadcast/multicast filter probe off the Qt thread so the UI stays responsive.
         with ThreadPoolExecutor(max_workers=1) as _pool:
-            _future = _pool.submit(check_broadcast_multicast_support, TSHARK_PATH, new_interface.name)
+            _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
             while not _future.done():
                 app.processEvents()
                 time.sleep(0.016)
@@ -421,19 +415,19 @@ def main() -> None:
         Settings.capture_ip_address = new_interface.ip_address
         Settings.rewrite_settings_file()
 
-        new_capture_filter, new_display_filter = build_capture_filters(
+        new_capture_filter, new_display_filter_fn = build_capture_filters(
             broadcast_support=new_broadcast,
             multicast_support=new_multicast,
         )
 
         CaptureState.vpn_mode_enabled = new_vpn_mode
-        TsharkStats.restarted_times = 0
-        TsharkStats.packets_latencies.clear()
-        TsharkStats.global_bandwidth = 0
-        TsharkStats.global_download = 0
-        TsharkStats.global_upload = 0
-        TsharkStats.global_bps_rate = 0
-        TsharkStats.global_pps_rate = 0
+        CaptureStats.restarted_times = 0
+        CaptureStats.packets_latencies.clear()
+        CaptureStats.global_bandwidth = 0
+        CaptureStats.global_download = 0
+        CaptureStats.global_upload = 0
+        CaptureStats.global_bps_rate = 0
+        CaptureStats.global_pps_rate = 0
 
         window.reset_players_for_interface_switch()
         window.reset_session_graph()
@@ -441,11 +435,10 @@ def main() -> None:
         new_capture = PacketCapture(
             CaptureConfig(
                 interface=new_interface,
-                tshark_path=TSHARK_PATH,
                 broadcast_support=new_broadcast,
                 multicast_support=new_multicast,
                 capture_filter=new_capture_filter,
-                display_filter=new_display_filter,
+                display_filter_fn=new_display_filter_fn,
                 callback=packet_callback,
                 on_capture_lost=_adapter_lost_event.set,
             ),
@@ -480,7 +473,7 @@ def main() -> None:
         _switch_interface()
 
     def _on_adapter_lost_poll() -> None:
-        """Poll for unexpected TShark crashes and re-show the interface selection dialog."""
+        """Poll for unexpected capture exits and re-show the interface selection dialog."""
         if gui_closed__event.is_set() or not _adapter_lost_event.is_set():
             return
         _adapter_lost_event.clear()

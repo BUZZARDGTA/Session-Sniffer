@@ -45,7 +45,7 @@ from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
 if TYPE_CHECKING:
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.packet_capture import PacketCapture
 
 _NONE_PLACEHOLDER = 'None'
 
@@ -848,14 +848,14 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             if meta.requires_capture_restart
         )
         if capture_settings_changed and self._capture.is_running():
-            capture_filter_str, display_filter_str = build_capture_filters(
+            capture_filter_str, display_filter_fn = build_capture_filters(
                 broadcast_support=self._capture.config.broadcast_support,
                 multicast_support=self._capture.config.multicast_support,
             )
             self._capture.config = replace(
                 self._capture.config,
                 capture_filter=capture_filter_str,
-                display_filter=display_filter_str,
+                display_filter_fn=display_filter_fn,
             )
             self._capture.request_restart()
 

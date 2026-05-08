@@ -116,7 +116,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='Capture',
         display_label='Custom Display Filter',
         setting_type=SettingType.STRING,
-        tooltip='Additional Wireshark display filter prepended to the display filter.',
+        tooltip='Additional display filter prepended to packet filtering.',
         requires_capture_restart=True,
     ),
     'capture_blocked_ips': SettingMeta(

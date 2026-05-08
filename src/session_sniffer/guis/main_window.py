@@ -81,14 +81,14 @@ from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import GUIRenderingState, GUIUpdatePayload, PaginationState, TsharkStats
+from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from session_sniffer.capture.tshark_capture import CaptureHolder
+    from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.models.player import Player
 
 logger = get_logger(__name__)
@@ -662,7 +662,7 @@ class MainWindow(QMainWindow):
         statistics_menu.addSeparator()
 
         capture_health_action = QAction('🚦 Capture Health', self)
-        capture_health_action.setToolTip('Tshark restart count and packet latency statistics')
+        capture_health_action.setToolTip('Capture restart count and packet latency statistics')
         capture_health_action.triggered.connect(self._open_capture_health)
         statistics_menu.addAction(capture_health_action)
 
@@ -672,7 +672,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         # ----- Data & Files Menu -----
-        data_menu_button = QPushButton(' 📁 Data & Files ', self)
+        data_menu_button = QPushButton(' 📁 Data && Files ', self)
         data_menu_button.setToolTip('Open Session Sniffer folders and files stored in AppData')
 
         data_menu = PersistentMenu(self)
@@ -1310,11 +1310,11 @@ class MainWindow(QMainWindow):
         """Tick all open statistics windows with the latest data."""
         if self._session_rate_graph_window is not None:
             self._session_rate_graph_window.update_rates(
-                pps=TsharkStats.global_pps_rate,
-                bps=TsharkStats.global_bps_rate,
+                pps=CaptureStats.global_pps_rate,
+                bps=CaptureStats.global_bps_rate,
             )
         if self._packets_latency_graph_window is not None:
-            latencies = TsharkStats.packets_latencies
+            latencies = CaptureStats.packets_latencies
             latency_ms = latencies[-1][1].total_seconds() * 1000 if latencies else 0.0
             self._packets_latency_graph_window.update_latency(latency_ms)
         if self._session_summary_window is not None:

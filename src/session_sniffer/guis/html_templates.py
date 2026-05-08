@@ -9,7 +9,7 @@ from session_sniffer.constants.local import VERSION
 from session_sniffer.constants.standalone import TITLE
 
 if TYPE_CHECKING:
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.packet_capture import PacketCapture
 
 
 CAPTURE_STOPPED_HTML = """

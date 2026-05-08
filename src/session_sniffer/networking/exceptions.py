@@ -67,12 +67,12 @@ class InvalidPrefixLengthBitsError(InvalidManufEntryFieldError):
         super().__init__('prefix_length_bits', value)
 
 
-class InvalidWiresharkResolutionAliasError(InvalidManufEntryFieldError):
-    """Exception raised when `wireshark_resolution_alias` is invalid."""
+class InvalidShortNameError(InvalidManufEntryFieldError):
+    """Exception raised when `short_name` is invalid."""
 
     def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid Wireshark resolution alias."""
-        super().__init__('wireshark_resolution_alias', value)
+        """Initialize the exception with the invalid short name."""
+        super().__init__('short_name', value)
 
 
 class InvalidFullVendorNameError(InvalidManufEntryFieldError):

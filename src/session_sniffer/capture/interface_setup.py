@@ -1,9 +1,7 @@
-"""Network interface population, TShark discovery, and interface refresh logic."""
+"""Network interface population, scapy interface discovery, and interface refresh logic."""
 
-import subprocess
 from typing import TYPE_CHECKING
 
-from session_sniffer.capture.exceptions import TSharkOutputParsingError
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import (
@@ -26,7 +24,6 @@ EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
     'Adapter for loopback traffic capture',
     'Event Tracing for Windows (ETW) reader',
 }
-INTERFACE_PARTS_LENGTH = 3
 
 
 def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
@@ -90,52 +87,51 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             ))
 
 
-def get_filtered_tshark_interfaces(tshark_path: str) -> list[tuple[int, str, str]]:
-    """Retrieve a list of available TShark interfaces, excluding a list of exclusions.
+def get_filtered_scapy_interfaces() -> list[tuple[str, str]]:
+    r"""Build the list of capture-capable interfaces from Windows API data.
+
+    Uses the GUID already stored in `AllInterfaces` (populated by
+    `populate_network_interfaces_info`) to construct the NPF device path
+    (`\Device\NPF_{GUID}`) directly, avoiding a dependency on scapy's own
+    interface enumeration which requires elevated privileges to succeed.
 
     Returns:
-        A list of interfaces as `(index, device_name, name)` tuples.
+        A list of `(device_name, friendly_name)` tuples where `device_name` is
+        the NPF device path (e.g. `\Device\NPF_{GUID}`) and `friendly_name`
+        is the Windows adapter name.
     """
-    def process_stdout(stdout_line: str) -> tuple[int, str, str]:
-        parts = stdout_line.strip().split(' ', maxsplit=INTERFACE_PARTS_LENGTH - 1)
-
-        if len(parts) != INTERFACE_PARTS_LENGTH:
-            raise TSharkOutputParsingError(INTERFACE_PARTS_LENGTH, len(parts), stdout_line)
-
-        index = int(parts[0].removesuffix('.'))
-        device_name = parts[1]
-        name = parts[2].removeprefix('(').removesuffix(')')
-
-        return index, device_name, name
-
-    tshark_output = subprocess.check_output([tshark_path, '-D'], encoding='utf-8', text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-
-    return [
-        (index, device_name, name)
-        for index, device_name, name in map(process_stdout, tshark_output.splitlines())
-        if name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES
-    ]
+    result: list[tuple[str, str]] = []
+    for interface in AllInterfaces.iterate():
+        guid = interface.identity.adapter_guid
+        if guid is None:
+            continue
+        # Strip enclosing braces if present, then rebuild to normalise form.
+        clean_guid = guid.strip('{}')
+        device_name = f'\\Device\\NPF_{{{clean_guid}}}'
+        friendly_name = interface.identity.name
+        if friendly_name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES:
+            result.append((device_name, friendly_name))
+    return result
 
 
-def refresh_available_interfaces(mac_lookup: MacLookup, tshark_path: str) -> list[Interface]:
-    """Re-query the OS for network adapters and return the current TShark-capable interfaces.
+def refresh_available_interfaces(mac_lookup: MacLookup) -> list[Interface]:
+    """Re-query the OS for network adapters and return capture-capable interfaces.
 
     Clears the AllInterfaces registry, re-populates it from the Windows API,
-    then matches against TShark-discoverable interfaces and populates device names.
+    then matches against scapy-discoverable interfaces and populates device names.
 
     Args:
         mac_lookup: MAC vendor lookup instance.
-        tshark_path: Path to the TShark executable.
 
     Returns:
-        The updated list of TShark-capable Interface objects.
+        The updated list of capture-capable Interface objects.
     """
     AllInterfaces.clear()
     populate_network_interfaces_info(mac_lookup)
 
     available: list[Interface] = []
-    for _index, device_name, name in get_filtered_tshark_interfaces(tshark_path):
-        interface = AllInterfaces.get_interface_by_name(name)
+    for device_name, friendly_name in get_filtered_scapy_interfaces():
+        interface = AllInterfaces.get_interface_by_name(friendly_name)
         if interface is None:
             continue
         interface.identity.device_name = device_name

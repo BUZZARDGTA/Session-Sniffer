@@ -68,8 +68,8 @@ class CaptureState:  # pylint: disable=too-few-public-methods
     is_arp_interface: ClassVar[bool] = False
 
 
-class TsharkStats:  # pylint: disable=too-few-public-methods
-    """Statistics and data tracking for TShark packet capture performance."""
+class CaptureStats:  # pylint: disable=too-few-public-methods
+    """Statistics and data tracking for packet capture performance."""
     packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
     restarted_times: ClassVar[int] = 0
     global_bandwidth: ClassVar[int] = 0

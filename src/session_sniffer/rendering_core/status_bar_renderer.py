@@ -12,13 +12,13 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.guis.colors import StatusBarColors, ThresholdColors
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.types import TsharkStats
+from session_sniffer.rendering_core.types import CaptureStats
 from session_sniffer.settings import Settings
 
 _BYTES_PER_MB = 1024 ** 2
 
 if TYPE_CHECKING:
-    from session_sniffer.capture.tshark_capture import PacketCapture
+    from session_sniffer.capture.packet_capture import PacketCapture
     from session_sniffer.discord.rpc import DiscordRPC
 
 
@@ -31,8 +31,8 @@ class StatusBarCaptureInfo:
 
 
 @dataclass(frozen=True, slots=True)
-class StatusBarTsharkStats:
-    """TShark statistics for the status bar."""
+class StatusBarCaptureStats:
+    """Capture statistics for the status bar."""
     global_bandwidth: int
     global_download: int
     global_upload: int
@@ -68,7 +68,7 @@ class StatusBarSystemInfo:
 class StatusBarSnapshot:
     """Snapshot of global values used to compose status sections."""
     capture: StatusBarCaptureInfo
-    tshark: StatusBarTsharkStats
+    capture_stats: StatusBarCaptureStats
     userip: StatusBarUserIPInfo
     interface: StatusBarInterfaceInfo
     system: StatusBarSystemInfo
@@ -103,14 +103,14 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             program_preset=Settings.capture_program_preset,
             overflow_timer=Settings.capture_overflow_timer,
         ),
-        tshark=StatusBarTsharkStats(
-            global_bandwidth=TsharkStats.global_bandwidth,
-            global_download=TsharkStats.global_download,
-            global_upload=TsharkStats.global_upload,
-            global_bps_rate=TsharkStats.global_bps_rate,
-            global_pps_rate=TsharkStats.global_pps_rate,
-            restarted_times=TsharkStats.restarted_times,
-            packets_latencies=list(TsharkStats.packets_latencies),
+        capture_stats=StatusBarCaptureStats(
+            global_bandwidth=CaptureStats.global_bandwidth,
+            global_download=CaptureStats.global_download,
+            global_upload=CaptureStats.global_upload,
+            global_bps_rate=CaptureStats.global_bps_rate,
+            global_pps_rate=CaptureStats.global_pps_rate,
+            restarted_times=CaptureStats.restarted_times,
+            packets_latencies=list(CaptureStats.packets_latencies),
         ),
         userip=StatusBarUserIPInfo(
             conflict_ip_count=len(UserIPDatabases.notified_ip_conflicts),
@@ -136,12 +136,12 @@ def _calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> t
     # Snapshot the deque first to avoid RuntimeError from concurrent append()
     # calls mutating it during iteration, then build a pruned replacement and
     # swap it in with a single attribute assignment.
-    snapshot_latencies = list(TsharkStats.packets_latencies)
+    snapshot_latencies = list(CaptureStats.packets_latencies)
     pruned = deque(
         (entry for entry in snapshot_latencies if entry[0] >= one_second_ago),
-        maxlen=TsharkStats.packets_latencies.maxlen,
+        maxlen=CaptureStats.packets_latencies.maxlen,
     )
-    TsharkStats.packets_latencies = pruned
+    CaptureStats.packets_latencies = pruned
 
     if recent_packets:
         total_latency_seconds = sum((pkt_latency.total_seconds() for _, pkt_latency in recent_packets), 0.0)
@@ -220,25 +220,25 @@ def _build_performance_section(snapshot: StatusBarSnapshot, *, avg_latency_secon
     latency_color = (ThresholdColors.CRITICAL if avg_latency_seconds >= 0.90 * snapshot.capture.overflow_timer
                      else ThresholdColors.WARNING if avg_latency_seconds >= 0.75 * snapshot.capture.overflow_timer
                      else ThresholdColors.HEALTHY)
-    bandwidth_color = (ThresholdColors.CRITICAL if snapshot.tshark.global_bandwidth >= StatusBarThresholds.BANDWIDTH_CRITICAL
-                       else ThresholdColors.WARNING if snapshot.tshark.global_bandwidth >= StatusBarThresholds.BANDWIDTH_WARNING
+    bandwidth_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_bandwidth >= StatusBarThresholds.BANDWIDTH_CRITICAL
+                       else ThresholdColors.WARNING if snapshot.capture_stats.global_bandwidth >= StatusBarThresholds.BANDWIDTH_WARNING
                        else ThresholdColors.HEALTHY)
-    download_color = (ThresholdColors.CRITICAL if snapshot.tshark.global_download >= StatusBarThresholds.DOWNLOAD_CRITICAL
-                      else ThresholdColors.WARNING if snapshot.tshark.global_download >= StatusBarThresholds.DOWNLOAD_WARNING
+    download_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_download >= StatusBarThresholds.DOWNLOAD_CRITICAL
+                      else ThresholdColors.WARNING if snapshot.capture_stats.global_download >= StatusBarThresholds.DOWNLOAD_WARNING
                       else ThresholdColors.HEALTHY)
-    upload_color = (ThresholdColors.CRITICAL if snapshot.tshark.global_upload >= StatusBarThresholds.UPLOAD_CRITICAL
-                    else ThresholdColors.WARNING if snapshot.tshark.global_upload >= StatusBarThresholds.UPLOAD_WARNING
+    upload_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_upload >= StatusBarThresholds.UPLOAD_CRITICAL
+                    else ThresholdColors.WARNING if snapshot.capture_stats.global_upload >= StatusBarThresholds.UPLOAD_WARNING
                     else ThresholdColors.HEALTHY)
-    bps_color = (ThresholdColors.CRITICAL if snapshot.tshark.global_bps_rate >= StatusBarThresholds.BPS_CRITICAL
-                 else ThresholdColors.WARNING if snapshot.tshark.global_bps_rate >= StatusBarThresholds.BPS_WARNING
+    bps_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_bps_rate >= StatusBarThresholds.BPS_CRITICAL
+                 else ThresholdColors.WARNING if snapshot.capture_stats.global_bps_rate >= StatusBarThresholds.BPS_WARNING
                  else ThresholdColors.HEALTHY)
-    pps_color = (ThresholdColors.CRITICAL if snapshot.tshark.global_pps_rate >= StatusBarThresholds.PPS_CRITICAL
-                 else ThresholdColors.WARNING if snapshot.tshark.global_pps_rate >= StatusBarThresholds.PPS_WARNING
+    pps_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_pps_rate >= StatusBarThresholds.PPS_CRITICAL
+                 else ThresholdColors.WARNING if snapshot.capture_stats.global_pps_rate >= StatusBarThresholds.PPS_WARNING
                  else ThresholdColors.HEALTHY)
     memory_color = (ThresholdColors.CRITICAL if snapshot.system.memory_mb >= StatusBarThresholds.MEMORY_HIGH
                     else ThresholdColors.WARNING if snapshot.system.memory_mb >= StatusBarThresholds.MEMORY_MEDIUM
                     else ThresholdColors.HEALTHY)
-    restart_color = ThresholdColors.HEALTHY if not snapshot.tshark.restarted_times else ThresholdColors.CRITICAL
+    restart_color = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
 
     return (
         f'<span style="font-size: 11px;">'
@@ -247,25 +247,25 @@ def _build_performance_section(snapshot: StatusBarSnapshot, *, avg_latency_secon
         f'<span style="color: {latency_color};">{avg_latency_rounded}s</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓↑:</span> '
-        f'<span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(snapshot.tshark.global_bandwidth)}</span> '
+        f'<span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_bandwidth)}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓:</span> '
-        f'<span style="color: {download_color};">{PlayerBandwidth.format_bytes(snapshot.tshark.global_download)}</span> '
+        f'<span style="color: {download_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_download)}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↑:</span> '
-        f'<span style="color: {upload_color};">{PlayerBandwidth.format_bytes(snapshot.tshark.global_upload)}</span> '
+        f'<span style="color: {upload_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_upload)}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">BPS:</span> '
-        f'<span style="color: {bps_color};">{PlayerBandwidth.format_bytes(snapshot.tshark.global_bps_rate)}</span> '
+        f'<span style="color: {bps_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_bps_rate)}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">PPS:</span> '
-        f'<span style="color: {pps_color};">{snapshot.tshark.global_pps_rate}</span> '
+        f'<span style="color: {pps_color};">{snapshot.capture_stats.global_pps_rate}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">RAM:</span> '
         f'<span style="color: {memory_color};">{int(snapshot.system.memory_mb)} MB</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Restarts:</span> '
-        f'<span style="color: {restart_color};">{snapshot.tshark.restarted_times}</span>'
+        f'<span style="color: {restart_color};">{snapshot.capture_stats.restarted_times}</span>'
         f'</span>'
     )
 
@@ -278,7 +278,7 @@ def build_gui_status_text(
 ) -> tuple[str, str, str, str]:
     """Generate status bar text content for all sections."""
     snapshot = _capture_global_state(capture, discord_rpc_manager)
-    avg_latency_seconds, avg_latency_rounded = _calculate_latency(snapshot.tshark.packets_latencies)
+    avg_latency_seconds, avg_latency_rounded = _calculate_latency(snapshot.capture_stats.packets_latencies)
 
     capture_section = _build_capture_section(snapshot)
     config_section = _build_config_section(snapshot, vpn_mode_enabled=vpn_mode_enabled, discord_rpc_manager=discord_rpc_manager)
