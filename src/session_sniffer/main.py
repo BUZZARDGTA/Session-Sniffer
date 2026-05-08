@@ -352,10 +352,10 @@ def main() -> None:
             on_capture_lost=_adapter_lost_event.set,
         ),
     )
-    splash.run_with_spinner(capture.start)
-
     # Wrap in a mutable holder so background threads pick up a new capture on interface switch
     capture_holder = CaptureHolder(capture)
+
+    splash.run_with_spinner(capture.start)
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     _arp_failed_event = Event()
