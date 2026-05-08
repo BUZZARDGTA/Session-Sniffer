@@ -87,7 +87,7 @@ def iplookup_core() -> None:
                         ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                         continue
                     # Transient server-side errors — wait and retry
-                    if e.response.status_code >= 500:
+                    if HTTPStatus(e.response.status_code).is_server_error:
                         logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
                         gui_closed__event.wait(5)
                         continue
