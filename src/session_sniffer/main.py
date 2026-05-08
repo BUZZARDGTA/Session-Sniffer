@@ -105,6 +105,8 @@ def main() -> None:
     # Show splash screen for startup progress
     splash = SplashScreen()
     splash.show()
+    # Own all msgboxes shown during splash so they appear above it without being globally topmost
+    msgbox.set_owner_hwnd(int(splash.winId()))
 
     if not is_pyinstaller_compiled():
         splash.update_status('Checking Python package versions')
