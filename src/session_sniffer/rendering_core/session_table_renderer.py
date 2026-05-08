@@ -20,10 +20,16 @@ BPS_MAX_THRESHOLD = 1024
 BPM_MAX_THRESHOLD = BPS_MAX_THRESHOLD * 60
 HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
 
+_ONE_MS = timedelta(milliseconds=1)
+_CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
+_CONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.CONNECTED_USERIP_TEXT)
+_DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
+_DISCONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
+
 
 def format_elapsed_time(duration: timedelta) -> str:
     """Format a timedelta duration into a compact human-readable string."""
-    total_ms = duration // timedelta(milliseconds=1)
+    total_ms = duration // _ONE_MS
     hours, remainder = divmod(total_ms, 3_600_000)
     minutes, remainder = divmod(remainder, 60_000)
     seconds, milliseconds = divmod(remainder, 1_000)
@@ -123,18 +129,17 @@ def build_session_table_snapshot(
     session_disconnected_table__processed_data: list[list[str]] = []
     session_disconnected_table__compiled_colors: list[list[CellColor]] = []
 
+    _base_connected_cell = CellColor(foreground=_CONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
+    _base_connected_row_colors = [_base_connected_cell] * connected_num_cols
+
     for player in session_connected:
         if player.userip and player.userip.usernames:
-            row_fg_color = QColor(TableColors.CONNECTED_USERIP_TEXT)
+            row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * connected_num_cols
         else:
-            row_fg_color = QColor(TableColors.CONNECTED_TEXT)
-            row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
-
-        row_colors = [
-            CellColor(foreground=row_fg_color, background=row_bg_color)
-            for _ in range(connected_num_cols)
-        ]
+            row_fg_color = _CONNECTED_TEXT_COLOR
+            row_colors = _base_connected_row_colors.copy()
 
         connected_row_texts: list[str] = []
         connected_row_texts.append(format_player_usernames(player))
@@ -270,15 +275,17 @@ def build_session_table_snapshot(
         session_connected_table__processed_data.append(connected_row_texts)
         session_connected_table__compiled_colors.append(row_colors)
 
+    _base_disconnected_cell = CellColor(foreground=_DISCONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
+    _base_disconnected_row_colors = [_base_disconnected_cell] * disconnected_num_cols
+
     for player in session_disconnected:
         if player.userip and player.userip.usernames:
-            row_fg_color = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
+            row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * disconnected_num_cols
         else:
-            row_fg_color = QColor(TableColors.DISCONNECTED_TEXT)
-            row_bg_color = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
-
-        row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color) for _ in range(disconnected_num_cols)]
+            row_fg_color = _DISCONNECTED_TEXT_COLOR
+            row_colors = _base_disconnected_row_colors.copy()
 
         disconnected_row_texts: list[str] = []
         disconnected_row_texts.append(format_player_usernames(player))
