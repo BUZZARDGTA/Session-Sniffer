@@ -11,6 +11,7 @@ class VersionInfo(BaseModel):
     """Model for individual version information."""
 
     version: str
+    release_url: str
 
 
 class GithubVersionsResponse(BaseModel):

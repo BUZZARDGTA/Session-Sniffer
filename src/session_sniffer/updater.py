@@ -14,7 +14,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
-from session_sniffer.models import GithubVersionsResponse
+from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import format_project_version
@@ -101,14 +101,15 @@ def _handle_update_decision(
     versions: GithubVersionsResponse,
 ) -> UpdateCheckOutcome:
     """Compare versions and optionally prompt user to update."""
-    latest_stable = Version(versions.latest_stable.version)
-    latest_rc = Version(versions.latest_prerelease.version)
-
     if CURRENT_VERSION.is_prerelease:
-        return _handle_prerelease_update_decision(latest_stable=latest_stable, latest_rc=latest_rc)
+        return _handle_prerelease_update_decision(
+            latest_stable_info=versions.latest_stable,
+            latest_prerelease_info=versions.latest_prerelease,
+        )
 
     is_rc_updater_channel = updater_channel == 'RC'
-    candidate = latest_rc if is_rc_updater_channel else latest_stable
+    candidate_info = versions.latest_prerelease if is_rc_updater_channel else versions.latest_stable
+    candidate = Version(candidate_info.version)
 
     if candidate <= CURRENT_VERSION:
         return UpdateCheckOutcome.PROCEED
@@ -128,15 +129,15 @@ def _handle_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
-        webbrowser.open(GITHUB_RELEASES_URL)
+        webbrowser.open(candidate_info.release_url)
 
     return UpdateCheckOutcome.PROCEED
 
 
 def _handle_prerelease_update_decision(
     *,
-    latest_stable: Version,
-    latest_rc: Version,
+    latest_stable_info: VersionInfo,
+    latest_prerelease_info: VersionInfo,
 ) -> UpdateCheckOutcome:
     """Prompt the user about available updates when running a pre-release build.
 
@@ -144,8 +145,11 @@ def _handle_prerelease_update_decision(
     Any candidate strictly above CURRENT_VERSION is reported, regardless of the
     user's updater channel setting.
     """
+    latest_stable = Version(latest_stable_info.version)
+    latest_prerelease = Version(latest_prerelease_info.version)
+
     stable_newer = latest_stable > CURRENT_VERSION
-    prerelease_newer = latest_rc > CURRENT_VERSION and latest_rc != latest_stable
+    prerelease_newer = latest_prerelease > CURRENT_VERSION and latest_prerelease != latest_stable
 
     if not stable_newer and not prerelease_newer:
         return UpdateCheckOutcome.PROCEED
@@ -158,8 +162,9 @@ def _handle_prerelease_update_decision(
 
             Current version: {current_str}
             Latest stable release: {format_project_version(latest_stable)}
-            Latest pre-release: {format_project_version(latest_rc)}
+            Latest pre-release: {format_project_version(latest_prerelease)}
         """)
+        open_url = (latest_prerelease_info if latest_prerelease > latest_stable else latest_stable_info).release_url
     elif stable_newer:
         message = format_triple_quoted_text(f"""
             You are running a pre-release version ({current_str}). A newer stable release is available. Do you want to update?
@@ -167,13 +172,15 @@ def _handle_prerelease_update_decision(
             Current version: {current_str}
             Latest stable release: {format_project_version(latest_stable)}
         """)
+        open_url = latest_stable_info.release_url
     else:
         message = format_triple_quoted_text(f"""
             You are running a pre-release version ({current_str}). A newer pre-release is available. Do you want to update?
 
             Current version: {current_str}
-            Latest pre-release: {format_project_version(latest_rc)}
+            Latest pre-release: {format_project_version(latest_prerelease)}
         """)
+        open_url = latest_prerelease_info.release_url
 
     if (
         msgbox.show(
@@ -183,6 +190,6 @@ def _handle_prerelease_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
-        webbrowser.open(GITHUB_RELEASES_URL)
+        webbrowser.open(open_url)
 
     return UpdateCheckOutcome.PROCEED

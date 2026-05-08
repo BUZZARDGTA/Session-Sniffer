@@ -16,6 +16,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Update "release_versions.json" with updated version info.')
     parser.add_argument('tag', action='store', help='The release tag (e.g., 1.3.7+20250405.1644)')
     parser.add_argument('--prerelease', action='store_true', help='Mark the release as a prerelease')
+    parser.add_argument('--release-url', required=True, help='The URL of the GitHub release page (e.g., https://github.com/owner/repo/releases/tag/1.0.0)')
 
     args = parser.parse_args()
 
@@ -33,6 +34,7 @@ def main() -> None:
     data[target_key] = {
         'base_version': version.base_version,
         'epoch': version.epoch,
+        'release_url': args.release_url,
         'is_devrelease': version.is_devrelease,
         'is_postrelease': version.is_postrelease,
         'is_prerelease': version.is_prerelease,
