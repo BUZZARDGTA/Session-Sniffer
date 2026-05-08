@@ -20,7 +20,7 @@
             4,
             4
         ],
-        "version": "1.4.4rc1+20260502.1508"
+        "version": "1.4.4rc1+20260502.1508",
         "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.4.4rc1%2B20260502.1508"
     },
     "latest_stable": {
@@ -41,7 +41,7 @@
             4,
             3
         ],
-        "version": "1.4.3.post4+20260110.1727"
+        "version": "1.4.3.post4+20260110.1727",
         "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.4.3.post4%2B20260110.1727"
     }
 }
