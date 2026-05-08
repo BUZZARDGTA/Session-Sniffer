@@ -511,10 +511,6 @@ class InterfaceSelectionDialog(QDialog):
                 logger.debug('Skipping interface %r: no IP addresses assigned.', interface.identity.name)
                 continue
 
-            if interface.identity.mac_address is None:
-                logger.debug('Skipping interface %r: no MAC address assigned.', interface.identity.name)
-                continue
-
             # Add rows for regular IP addresses
             for ip_address in interface.ip_addresses:
                 self._data.interface_rows.append((interface, ip_address, False))
