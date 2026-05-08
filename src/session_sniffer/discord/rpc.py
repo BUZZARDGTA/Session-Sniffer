@@ -25,6 +25,7 @@ type QueueType = SimpleQueue[_PresenceUpdate | object]
 
 SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')
 START_TIME_INT = int(time.time())
+_RECONNECT_COOLDOWN_SECONDS = 60.0
 DISCORD_RPC_BUTTONS = [
     {'label': 'GitHub Repo', 'url': 'https://github.com/BUZZARDGTA/Session-Sniffer'},
 ]
@@ -88,6 +89,7 @@ class DiscordRPC:
 
 def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
     """Run the Discord RPC update loop in a separate thread."""
+    last_connect_attempt: float = 0.0
     while True:
         queue_item = queue.get()
         if queue_item is SHUTDOWN_SIGNAL:
@@ -101,6 +103,10 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
         details = update_payload.details
 
         if not connection_status.is_set():
+            now = time.monotonic()
+            if now - last_connect_attempt < _RECONNECT_COOLDOWN_SECONDS:
+                continue
+            last_connect_attempt = now
             try:
                 rpc.connect()
             except (
@@ -121,4 +127,5 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 buttons=DISCORD_RPC_BUTTONS,
             )
         except (exceptions.PipeClosed, exceptions.ResponseTimeout):
+            rpc.close()
             connection_status.clear()
