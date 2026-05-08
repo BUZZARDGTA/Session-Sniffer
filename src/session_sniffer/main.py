@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import Event, Thread
 
 import colorama
@@ -222,7 +222,7 @@ def main() -> None:
             _pkt_start = time.monotonic()
             packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
             CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
-            if packet_latency >= timedelta(seconds=Settings.capture_overflow_timer):
+            if packet_latency.total_seconds() >= Settings.capture_overflow_timer:
                 CaptureStats.restarted_times += 1
                 CaptureStats.packets_latencies.clear()
                 logger.warning(
