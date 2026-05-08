@@ -69,6 +69,19 @@ class ReturnValues(enum.IntEnum):
     IDYES = 6   # The Yes       button was selected.
 
 
+_state: dict[str, int] = {'owner_hwnd': 0}
+
+
+def set_owner_hwnd(hwnd: int) -> None:
+    """Set the owner window handle used by `show()`.
+
+    When set to a non-zero value, the message box becomes an owned window of
+    that HWND and Windows always renders owned windows above their owner.
+    Pass 0 to restore the default (no owner, standard z-order).
+    """
+    _state['owner_hwnd'] = hwnd
+
+
 def show(title: str, text: str, style: Style) -> ReturnValues:
     """Display a message box with the specified title, text, and style.
 
@@ -83,5 +96,5 @@ def show(title: str, text: str, style: Style) -> ReturnValues:
     Raises:
         TypeError: If the return value from the MessageBox is not an integer.
     """
-    result = ctypes.windll.user32.MessageBoxW(0, text, title, style)
+    result = ctypes.windll.user32.MessageBoxW(_state['owner_hwnd'], text, title, style)
     return ReturnValues(ensure_instance(result, int))

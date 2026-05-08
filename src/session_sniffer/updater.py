@@ -125,7 +125,7 @@ def _handle_update_decision(
                 Current version: {format_project_version(CURRENT_VERSION)}
                 Latest version: {format_project_version(candidate)}
             """),
-            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION | msgbox.Style.MB_SETFOREGROUND,
         )
         == msgbox.ReturnValues.IDYES
     ):
@@ -186,7 +186,7 @@ def _handle_prerelease_update_decision(
         msgbox.show(
             title=TITLE,
             text=message,
-            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION,
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONQUESTION | msgbox.Style.MB_SETFOREGROUND,
         )
         == msgbox.ReturnValues.IDYES
     ):
