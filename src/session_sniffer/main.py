@@ -52,7 +52,6 @@ from session_sniffer.networking.geolite2.service import update_and_initialize_ge
 from session_sniffer.networking.interface import AllInterfaces, Interface
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
-from session_sniffer.networking.utils import is_private_device_ipv4
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -205,6 +204,7 @@ def main() -> None:
 
     capture_filter_str, display_filter_fn = splash.run_with_spinner(
         build_capture_filters,
+        capture_ip_address=selected_interface.ip_address,
         broadcast_support=broadcast_support,
         multicast_support=multicast_support,
     )
@@ -235,34 +235,16 @@ def main() -> None:
                 capture_holder.request_restart()
                 return  # Skip processing this packet
 
-            if Settings.capture_ip_address:
-                if packet.ip.src == Settings.capture_ip_address:
-                    target_ip = packet.ip.dst
-                    target_port = packet.port.dst
-                    sent_by_local_host = True
-                elif packet.ip.dst == Settings.capture_ip_address:
-                    target_ip = packet.ip.src
-                    target_port = packet.port.src
-                    sent_by_local_host = False
-                else:
-                    return  # Neither source nor destination matches the specified `Settings.capture_ip_address`.
+            if packet.ip.src == Settings.capture_ip_address:
+                target_ip = packet.ip.dst
+                target_port = packet.port.dst
+                sent_by_local_host = True
+            elif packet.ip.dst == Settings.capture_ip_address:
+                target_ip = packet.ip.src
+                target_port = packet.port.src
+                sent_by_local_host = False
             else:
-                is_src_private_ip = is_private_device_ipv4(packet.ip.src)
-                is_dst_private_ip = is_private_device_ipv4(packet.ip.dst)
-
-                if is_src_private_ip and is_dst_private_ip:
-                    return  # Both source and destination are private IPs, no action needed.
-
-                if is_src_private_ip:
-                    target_ip = packet.ip.dst
-                    target_port = packet.port.dst
-                    sent_by_local_host = True
-                elif is_dst_private_ip:
-                    target_ip = packet.ip.src
-                    target_port = packet.port.src
-                    sent_by_local_host = False
-                else:
-                    return  # Neither source nor destination is a private IP address.
+                return  # Neither source nor destination matches the capture IP address.
 
             if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
                 return  # IP is blocked; discard packet silently
@@ -408,7 +390,6 @@ def main() -> None:
             new_broadcast, new_multicast = _future.result()
         new_vpn_mode = not (new_broadcast and new_multicast)
 
-        # Settings must be updated before build_capture_filters() — it reads Settings.capture_ip_address.
         CaptureState.is_arp_interface = new_interface.is_arp
         Settings.capture_interface_name = new_interface.name
         Settings.capture_mac_address = new_interface.mac_address
@@ -416,6 +397,7 @@ def main() -> None:
         Settings.rewrite_settings_file()
 
         new_capture_filter, new_display_filter_fn = build_capture_filters(
+            capture_ip_address=new_interface.ip_address,
             broadcast_support=new_broadcast,
             multicast_support=new_multicast,
         )

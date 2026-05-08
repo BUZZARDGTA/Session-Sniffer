@@ -217,8 +217,6 @@ def format_arp_spoofing_failed_message(
     Returns:
         A formatted error message string ready for display.
     """
-    interface_ip = selected_interface.ip_address or 'N/A'
-    interface_mac = 'N/A' if selected_interface.mac_address is None else selected_interface.mac_address
     interface_vendor_name = 'N/A' if selected_interface.vendor_name is None else selected_interface.vendor_name
     exit_code_output = f'{exit_code}' if exit_code is not None else ''
     error_details_output = f'\n{error_details}' if error_details else ''
@@ -231,8 +229,8 @@ def format_arp_spoofing_failed_message(
         f'Name: {selected_interface.name}\n'
         f'Description: {selected_interface.description}\n'
         f'Gateway IP: {selected_interface.gateway_ip or "N/A"}\n'
-        f'IP Address: {interface_ip}\n'
-        f'MAC Address: {interface_mac}\n'
+        f'IP Address: {selected_interface.ip_address}\n'
+        f'MAC Address: {selected_interface.mac_address}\n'
         f'Vendor Name: {interface_vendor_name}\n\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'DIAGNOSTICS:\n'
@@ -243,12 +241,12 @@ def format_arp_spoofing_failed_message(
         f'COMMON CAUSES:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'• Shared/bridged network adapter (most common)\n'
-        f'• Stale ARP table entry (target device at {interface_ip} changed IP address)\n\n'
+        f'• Stale ARP table entry (target device at {selected_interface.ip_address} changed IP address)\n\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'RECOMMENDATIONS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'• If adapter "{selected_interface.name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
-        f'• If available, try sniffing target device {interface_ip} on a different network adapter (e.g., Wi-Fi instead of Ethernet)'
+        f'• If available, try sniffing target device {selected_interface.ip_address} on a different network adapter (e.g., Wi-Fi instead of Ethernet)'
     )
 
 

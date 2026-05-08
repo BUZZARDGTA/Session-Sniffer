@@ -115,6 +115,7 @@ def _build_display_filter_fn(
 
 def build_capture_filters(
     *,
+    capture_ip_address: str,
     broadcast_support: bool,
     multicast_support: bool,
 ) -> tuple[str | None, Callable[[ScapyPacket], bool] | None]:
@@ -125,6 +126,7 @@ def build_capture_filters(
     (rtcp, dtls) are returned as a Python callable (strategy B).
 
     Args:
+        capture_ip_address: The IP address of the capture interface to filter on.
         broadcast_support: Whether the interface supports the `broadcast` BPF term.
         multicast_support: Whether the interface supports the `multicast` BPF term.
 
@@ -134,11 +136,10 @@ def build_capture_filters(
     """
     capture_filter: list[str] = ['ip', 'udp']
 
-    if Settings.capture_ip_address:
-        capture_filter.append(
-            f'((src host {Settings.capture_ip_address} and (not (dst net {_RESERVED_NETWORKS_FILTER}))) or '
-            f'(dst host {Settings.capture_ip_address} and (not (src net {_RESERVED_NETWORKS_FILTER}))))',
-        )
+    capture_filter.append(
+        f'((src host {capture_ip_address} and (not (dst net {_RESERVED_NETWORKS_FILTER}))) or '
+        f'(dst host {capture_ip_address} and (not (src net {_RESERVED_NETWORKS_FILTER}))))',
+    )
 
     if broadcast_support and multicast_support:
         capture_filter.append('not (broadcast or multicast)')

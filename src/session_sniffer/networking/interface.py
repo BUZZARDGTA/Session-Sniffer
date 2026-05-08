@@ -123,7 +123,7 @@ class SelectedInterfaceRow:
     """
 
     interface: Interface
-    ip_address: str | None
+    ip_address: str
     is_arp: bool
 
     @property
@@ -147,14 +147,22 @@ class SelectedInterfaceRow:
         return self.interface.gateway_addresses[0] if self.interface.gateway_addresses else None
 
     @property
-    def mac_address(self) -> str | None:
+    def mac_address(self) -> str:
         """MAC for this row: ARP-neighbor MAC when `is_arp`, else interface MAC."""
         if self.is_arp:
-            return next(
+            mac = next(
                 (arp.mac_address for arp in self.interface.arp_entries if arp.ip_address == self.ip_address),
                 None,
             )
-        return self.interface.identity.mac_address
+            if mac is None:
+                msg = f'No ARP entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
+                raise RuntimeError(msg)
+            return mac
+        mac = self.interface.identity.mac_address
+        if mac is None:
+            msg = f'Interface {self.interface.identity.name!r} has no MAC address — it should have been filtered out during interface selection'
+            raise RuntimeError(msg)
+        return mac
 
     @property
     def vendor_name(self) -> str | None:

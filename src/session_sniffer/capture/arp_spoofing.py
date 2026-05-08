@@ -44,9 +44,6 @@ def arp_spoofing_task(
         if selected_interface.device_name is None:
             logger.error('ARP spoofing cannot start: device_name is None')
             return
-        if selected_interface.ip_address is None:
-            logger.error('ARP spoofing cannot start: ip_address is None')
-            return
 
         proc: subprocess.Popen[str] | None = None
         startup_probe_timeout = 3.0

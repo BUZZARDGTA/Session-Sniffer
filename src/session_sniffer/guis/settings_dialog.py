@@ -848,7 +848,11 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             if meta.requires_capture_restart
         )
         if capture_settings_changed and self._capture.is_running():
+            if Settings.capture_ip_address is None:
+                msg = 'capture_ip_address is None while capture is running'
+                raise RuntimeError(msg)
             capture_filter_str, display_filter_fn = build_capture_filters(
+                capture_ip_address=Settings.capture_ip_address,
                 broadcast_support=self._capture.config.broadcast_support,
                 multicast_support=self._capture.config.multicast_support,
             )

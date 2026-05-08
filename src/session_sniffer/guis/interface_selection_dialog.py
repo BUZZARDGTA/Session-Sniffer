@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.utils import resize_window_for_screen
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
 
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.networking.manuf_lookup import MacLookup
+
+logger = get_logger(__name__)
 
 
 def _calculate_interface_score(
@@ -504,13 +507,17 @@ class InterfaceSelectionDialog(QDialog):
             if hide_inactive and is_inactive:
                 continue
 
+            if not interface.ip_addresses:
+                logger.debug('Skipping interface %r: no IP addresses assigned.', interface.identity.name)
+                continue
+
+            if interface.identity.mac_address is None:
+                logger.debug('Skipping interface %r: no MAC address assigned.', interface.identity.name)
+                continue
+
             # Add rows for regular IP addresses
-            if interface.ip_addresses:
-                for ip_address in interface.ip_addresses:
-                    self._data.interface_rows.append((interface, ip_address, False))
-            else:
-                # No IP addresses, show one row with 'N/A'
-                self._data.interface_rows.append((interface, 'N/A', False))
+            for ip_address in interface.ip_addresses:
+                self._data.interface_rows.append((interface, ip_address, False))
 
             # Add rows for ARP entries
             if not hide_neighbours:
