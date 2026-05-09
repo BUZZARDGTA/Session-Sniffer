@@ -78,7 +78,7 @@ def iplookup_core() -> None:
                 continue
             except requests.exceptions.HTTPError as e:
                 if isinstance(e.response, requests.Response):
-                    # Handle rate limiting
+                    # Handle rate limiting.
                     if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                         requests_remaining = int(e.response.headers.get('X-Rl') or '0')
                         ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
