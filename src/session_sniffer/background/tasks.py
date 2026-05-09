@@ -9,7 +9,7 @@ from datetime import datetime
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Literal, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
@@ -776,8 +776,8 @@ def check_global_protections(player: Player) -> None:
 
         # ISP Blocklist Protection
         if GUIProtectionSettings.isp_block_list:
-            as_name = cast('str', player.iplookup.ipapi.as_name)
-            isp = cast('str', player.iplookup.ipapi.isp)
+            as_name = player.iplookup.ipapi.as_name
+            isp = player.iplookup.ipapi.isp
 
             matched_isp = None
             for block_entry in GUIProtectionSettings.isp_block_list:
@@ -818,7 +818,7 @@ def check_global_protections(player: Player) -> None:
 
         # ASN Blocklist Protection
         if GUIProtectionSettings.asn_block_list:
-            asn_ipapi = cast('str', player.iplookup.ipapi.asn)
+            asn_ipapi = player.iplookup.ipapi.asn
             asn_geolite2 = player.iplookup.geolite2.asn
 
             asns_to_check: list[str] = []
