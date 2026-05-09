@@ -247,18 +247,19 @@ class UserIPDatabases:
                         cls._process_range_entry(range_str, username, db_entry.database_path, db_entry.settings, range_entries)
 
             # Assign range-matched UserIP to players that don't already have a match
-            for player in PlayersRegistry.get_default_sorted_players():
-                if player.userip is not None:
-                    continue
-                for range_entry in range_entries:
-                    if player.ip in range_entry.ip_range:
-                        player.userip = UserIP(
-                            ip=player.ip,
-                            database_path=range_entry.database_path,
-                            settings=range_entry.settings,
-                            usernames=list(range_entry.usernames),
-                        )
-                        break
+            if range_entries:
+                for player in PlayersRegistry.get_default_sorted_players():
+                    if player.userip is not None:
+                        continue
+                    for range_entry in range_entries:
+                        if player.ip in range_entry.ip_range:
+                            player.userip = UserIP(
+                                ip=player.ip,
+                                database_path=range_entry.database_path,
+                                settings=range_entry.settings,
+                                usernames=list(range_entry.usernames),
+                            )
+                            break
 
             # Strip conflicting IPs from the lookup structures so they are fully ignored.
             # Also retroactively clear any player that already has a conflicting userip assigned.
