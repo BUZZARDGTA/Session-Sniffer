@@ -1659,9 +1659,13 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             # First export standard protections to a temp path, read back, then add combo rules
             target = Path(file_path)
             GUIProtectionSettings.export_to_file(target)
-            data = json.loads(target.read_text(encoding='utf-8'))
-            data['combo_rules'] = [r.to_dict() for r in ComboRulesManager.rules]
-            target.write_text(json.dumps(data, indent=4), encoding='utf-8')
+            data: object = json.loads(target.read_text(encoding='utf-8'))
+            if not isinstance(data, dict):
+                msg = 'Expected a JSON object in the exported file.'
+                raise RuntimeError(msg)
+            data_dict = cast('dict[str, object]', data)
+            data_dict['combo_rules'] = [r.to_dict() for r in ComboRulesManager.rules]
+            target.write_text(json.dumps(data_dict, indent=4), encoding='utf-8')
             QMessageBox.information(self, TITLE, 'Protection settings exported successfully.')
 
     def _import_protections(self) -> None:
@@ -1674,15 +1678,16 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         )
         if file_path:
             try:
-                raw = json.loads(Path(file_path).read_text(encoding='utf-8'))
+                raw: object = json.loads(Path(file_path).read_text(encoding='utf-8'))
                 GUIProtectionSettings.import_from_file(Path(file_path))
                 # Import combo rules if present
-                if isinstance(raw, dict) and 'combo_rules' in raw:
-                    combo_data: object = raw['combo_rules']  # pyright: ignore[reportUnknownVariableType]
+                if isinstance(raw, dict):
+                    raw_dict = cast('dict[str, object]', raw)
+                    combo_data: object = raw_dict.get('combo_rules')
                     if isinstance(combo_data, list):
                         ComboRulesManager.rules = [
                             ComboRule.from_dict(cast('dict[str, object]', entry))
-                            for entry in combo_data  # pyright: ignore[reportUnknownVariableType]
+                            for entry in cast('list[object]', combo_data)
                             if isinstance(entry, dict)
                         ]
             except (ValueError, KeyError, OSError, json.JSONDecodeError) as e:

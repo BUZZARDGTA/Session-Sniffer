@@ -333,7 +333,7 @@ def _load_message_ids() -> dict[str, str]:
     if not isinstance(raw, str) or not raw:
         return {}
     try:
-        parsed = json.loads(raw)
+        parsed: object = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         return {}
     if not isinstance(parsed, dict):
@@ -568,7 +568,7 @@ class DiscordWebhookSender:
         status, _headers, response_body = self._send(post_url, method='POST', body=body)
         if status == _HTTP_OK_CREATED:
             try:
-                parsed = json.loads(response_body.decode('utf-8'))
+                parsed: object = json.loads(response_body.decode('utf-8'))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return None
             if not isinstance(parsed, dict):
@@ -603,7 +603,7 @@ class DiscordWebhookSender:
                 delay = 2.0
         else:
             try:
-                payload = json.loads(body.decode('utf-8'))
+                payload: object = json.loads(body.decode('utf-8'))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 payload = None
             if isinstance(payload, dict):

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast
 
 from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
 from session_sniffer.text_utils import parse_duration_setting, parse_voice_notifications
@@ -184,28 +184,32 @@ class GUIProtectionSettings:
     @classmethod
     def import_from_file(cls, file_path: Path) -> None:
         """Import protection settings from a JSON file."""
-        data = json.loads(file_path.read_text(encoding='utf-8'))
+        data: object = json.loads(file_path.read_text(encoding='utf-8'))
+        if not isinstance(data, dict):
+            msg = f'Expected a JSON object in {file_path}'
+            raise TypeError(msg)
+        data_dict = cast('dict[str, dict[str, object]]', data)
 
         for key in ('mobile', 'vpn', 'hosting', 'player_join', 'player_rejoin', 'player_leave'):
-            if key in data:
-                cls._import_common_fields(key, data[key])
+            if key in data_dict:
+                cls._import_common_fields(key, data_dict[key])
 
-        if 'gta5_relay' in data:
-            cls._import_common_fields('gta5_relay', data['gta5_relay'])
-            raw_threshold = data['gta5_relay'].get('packet_threshold', 40)
+        if 'gta5_relay' in data_dict:
+            cls._import_common_fields('gta5_relay', data_dict['gta5_relay'])
+            raw_threshold = data_dict['gta5_relay'].get('packet_threshold', 40)
             cls.gta5_relay_packet_threshold = int(raw_threshold) if isinstance(raw_threshold, (int, float, str)) else 40
 
-        if 'country' in data:
-            cls._import_common_fields('country', data['country'])
-            cls.country_block_list = data['country'].get('list', [])
+        if 'country' in data_dict:
+            cls._import_common_fields('country', data_dict['country'])
+            cls.country_block_list = cast('list[str]', data_dict['country'].get('list', []))
 
-        if 'isp' in data:
-            cls._import_common_fields('isp', data['isp'])
-            cls.isp_block_list = data['isp'].get('list', [])
+        if 'isp' in data_dict:
+            cls._import_common_fields('isp', data_dict['isp'])
+            cls.isp_block_list = cast('list[str]', data_dict['isp'].get('list', []))
 
-        if 'asn' in data:
-            cls._import_common_fields('asn', data['asn'])
-            cls.asn_block_list = data['asn'].get('list', [])
+        if 'asn' in data_dict:
+            cls._import_common_fields('asn', data_dict['asn'])
+            cls.asn_block_list = cast('list[str]', data_dict['asn'].get('list', []))
 
     @classmethod
     def save_to_settings(cls) -> None:

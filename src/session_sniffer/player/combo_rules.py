@@ -1,27 +1,29 @@
 ﻿"""Combo protection rules — multi-condition AND rules with per-rule actions."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Literal, cast
+from typing import ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.models.player import Player
 from session_sniffer.text_utils import parse_duration_setting, parse_voice_notifications
-
-if TYPE_CHECKING:
-    from session_sniffer.models.player import Player
 
 logger = get_logger(__name__)
 
 # Condition keys that accept a free-text string value
 _STRING_CONDITIONS: frozenset[str] = frozenset({'country', 'city', 'region', 'org', 'isp', 'asn', 'as_name'})
-# Condition keys that are boolean flags (presence means "must be True")
+# Condition keys that are boolean flags
 _BOOL_CONDITIONS: frozenset[str] = frozenset({'mobile', 'vpn', 'hosting'})
-# The special event condition (list of event strings)
+# The special event condition
 _EVENT_CONDITION: str = 'event'
 _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 
 ALL_CONDITION_KEYS: frozenset[str] = _STRING_CONDITIONS | _BOOL_CONDITIONS | {_EVENT_CONDITION}
+
+type ConditionValue = str | bool | list[str]
+type ConditionMatcher = Callable[[ConditionValue, Player], bool]
 
 
 @dataclass(kw_only=True, slots=True)
@@ -30,9 +32,9 @@ class ComboRule:
 
     name: str
     enabled: bool = True
-    conditions: dict[str, str | bool | list[str]] = field(default_factory=dict[str, str | bool | list[str]])
+    conditions: dict[str, ConditionValue] = field(default_factory=dict[str, ConditionValue])
 
-    # Action settings (same types as existing protections)
+    # Action settings
     protection_enabled: bool = False
     process_path: Path | None = None
     duration: int | Literal['Auto', 'Manual', 'Adaptive'] = 'Auto'
@@ -71,23 +73,28 @@ class ComboRule:
         if not isinstance(conditions_raw, dict):
             conditions_raw = {}
 
-        # Validate and normalize conditions
-        conditions: dict[str, str | bool | list[str]] = {}
-        for key, value in cast('dict[object, object]', conditions_raw).items():
-            if not isinstance(key, str):
-                continue
+        conditions: dict[str, ConditionValue] = {}
+
+        for key, value in cast('dict[str, object]', conditions_raw).items():
             if key in _STRING_CONDITIONS:
                 if isinstance(value, str) and value.strip():
                     conditions[key] = value.strip()
+
             elif key in _BOOL_CONDITIONS:
                 if isinstance(value, bool):
                     conditions[key] = value
+
             elif key == _EVENT_CONDITION and isinstance(value, list):
-                valid_events: list[str] = [e for e in cast('list[object]', value) if isinstance(e, str) and e in _VALID_EVENTS]
+                valid_events = [
+                    event
+                    for event in cast('list[object]', value)
+                    if isinstance(event, str) and event in _VALID_EVENTS
+                ]
                 if valid_events:
                     conditions[key] = valid_events
 
-        path_str = str(data.get('process_path', ''))
+        path_raw = data.get('process_path', '')
+        path_str = path_raw.strip() if isinstance(path_raw, str) else ''
 
         return cls(
             name=str(data.get('name', 'Unnamed Rule')),
@@ -102,8 +109,21 @@ class ComboRule:
         )
 
 
+def _valid_lookup_value(value: object) -> bool:
+    """Return True if an IP lookup value is meaningful."""
+    return isinstance(value, str) and value not in ('', '...', 'N/A')
+
+
+def _match_exact_lookup(value: str, *candidates: object) -> bool:
+    """Return True if any meaningful lookup candidate exactly matches value."""
+    return any(
+        _valid_lookup_value(candidate) and candidate == value
+        for candidate in candidates
+    )
+
+
 def _match_isp_condition(value: str, player: Player) -> bool:
-    """Match ISP condition using the same logic as the existing ISP blocklist in check_global_protections."""
+    """Match ISP condition using the same logic as the existing ISP blocklist."""
     value_upper = value.upper().strip()
     as_name = str(player.iplookup.ipapi.as_name)
     isp = str(player.iplookup.ipapi.isp)
@@ -117,7 +137,7 @@ def _match_isp_condition(value: str, player: Player) -> bool:
 
 
 def _match_asn_condition(value: str, player: Player) -> bool:
-    """Match ASN condition using normalized exact match (same logic as existing ASN blocklist)."""
+    """Match ASN condition using normalized exact match."""
     value_upper = value.upper().strip()
     normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
 
@@ -126,98 +146,124 @@ def _match_asn_condition(value: str, player: Player) -> bool:
 
     if asn_ipapi and asn_ipapi not in ('...', 'N/A') and asn_ipapi.upper() == normalized:
         return True
+
     return bool(asn_geolite2 and asn_geolite2 not in ('...', 'N/A') and asn_geolite2.upper() == normalized)
 
 
 def _match_as_name_condition(value: str, player: Player) -> bool:
-    """Match AS Name condition (asname from ip-api) using substring match."""
+    """Match AS Name condition using substring match."""
     as_name = str(player.iplookup.ipapi.as_name)
     return bool(as_name and as_name not in ('...', 'N/A') and value.upper().strip() in as_name.upper())
 
 
-def _check_condition(key: str, value: str | bool | list[str], player: Player) -> bool:  # noqa: FBT001, PLR0911  # pylint: disable=too-many-return-statements
+def _match_country_condition(value: ConditionValue, player: Player) -> bool:
+    """Match country condition against GeoLite2 and ip-api country values."""
+    return isinstance(value, str) and _match_exact_lookup(
+        value,
+        str(player.iplookup.geolite2.country),
+        str(player.iplookup.ipapi.country),
+    )
+
+
+def _match_city_condition(value: ConditionValue, player: Player) -> bool:
+    """Match city condition against GeoLite2 and ip-api city values."""
+    return isinstance(value, str) and _match_exact_lookup(
+        value,
+        str(player.iplookup.geolite2.city),
+        str(player.iplookup.ipapi.city),
+    )
+
+
+def _match_region_condition(value: ConditionValue, player: Player) -> bool:
+    """Match region condition against ip-api region value."""
+    return isinstance(value, str) and _match_exact_lookup(
+        value,
+        str(player.iplookup.ipapi.region),
+    )
+
+
+def _match_org_condition(value: ConditionValue, player: Player) -> bool:
+    """Match organization condition using substring match."""
+    org = str(player.iplookup.ipapi.org)
+    return isinstance(value, str) and _valid_lookup_value(org) and value.upper() in org.upper()
+
+
+def _match_isp_condition_wrapper(value: ConditionValue, player: Player) -> bool:
+    """Match ISP condition after narrowing the condition value."""
+    return isinstance(value, str) and _match_isp_condition(value, player)
+
+
+def _match_asn_condition_wrapper(value: ConditionValue, player: Player) -> bool:
+    """Match ASN condition after narrowing the condition value."""
+    return isinstance(value, str) and _match_asn_condition(value, player)
+
+
+def _match_as_name_condition_wrapper(value: ConditionValue, player: Player) -> bool:
+    """Match AS name condition after narrowing the condition value."""
+    return isinstance(value, str) and _match_as_name_condition(value, player)
+
+
+def _match_mobile_condition(value: ConditionValue, player: Player) -> bool:
+    """Match mobile flag condition."""
+    mobile = player.iplookup.ipapi.mobile
+    return isinstance(value, bool) and isinstance(mobile, bool) and mobile == value
+
+
+def _match_vpn_condition(value: ConditionValue, player: Player) -> bool:
+    """Match VPN/proxy flag condition."""
+    proxy = player.iplookup.ipapi.proxy
+    return isinstance(value, bool) and isinstance(proxy, bool) and proxy == value
+
+
+def _match_hosting_condition(value: ConditionValue, player: Player) -> bool:
+    """Match hosting/datacenter flag condition."""
+    hosting = player.iplookup.ipapi.hosting
+    return isinstance(value, bool) and isinstance(hosting, bool) and hosting == value
+
+
+_CONDITION_MATCHERS: dict[str, ConditionMatcher] = {
+    'country': _match_country_condition,
+    'city': _match_city_condition,
+    'region': _match_region_condition,
+    'org': _match_org_condition,
+    'isp': _match_isp_condition_wrapper,
+    'asn': _match_asn_condition_wrapper,
+    'as_name': _match_as_name_condition_wrapper,
+    'mobile': _match_mobile_condition,
+    'vpn': _match_vpn_condition,
+    'hosting': _match_hosting_condition,
+}
+
+
+def _check_condition(
+    key: str,
+    value: ConditionValue,
+    player: Player,
+) -> bool:
     """Check whether a single non-event condition matches the player."""
-    if key == 'country':
-        country_geolite2 = str(player.iplookup.geolite2.country)
-        country_ipapi = str(player.iplookup.ipapi.country)
-        return (
-            bool(country_geolite2 and country_geolite2 not in ('...', 'N/A') and country_geolite2 == value)
-            or bool(country_ipapi and country_ipapi not in ('...', 'N/A') and country_ipapi == value)
-        )
-
-    if key == 'city':
-        city_geolite2 = str(player.iplookup.geolite2.city)
-        city_ipapi = str(player.iplookup.ipapi.city)
-        return (
-            bool(city_geolite2 and city_geolite2 not in ('...', 'N/A') and city_geolite2 == value)
-            or bool(city_ipapi and city_ipapi not in ('...', 'N/A') and city_ipapi == value)
-        )
-
-    if key == 'region':
-        region = str(player.iplookup.ipapi.region)
-        return bool(region and region not in ('...', 'N/A') and region == value)
-
-    if key == 'org':
-        org = str(player.iplookup.ipapi.org)
-        return bool(org and org not in ('...', 'N/A') and isinstance(value, str) and value.upper() in org.upper())
-
-    if key == 'isp':
-        return isinstance(value, str) and _match_isp_condition(value, player)
-
-    if key == 'asn':
-        return isinstance(value, str) and _match_asn_condition(value, player)
-
-    if key == 'as_name':
-        return isinstance(value, str) and _match_as_name_condition(value, player)
-
-    if key == 'mobile':
-        mobile = player.iplookup.ipapi.mobile
-        if not isinstance(mobile, bool):
-            return False
-        return mobile == value
-
-    if key == 'vpn':
-        proxy = player.iplookup.ipapi.proxy
-        if not isinstance(proxy, bool):
-            return False
-        return proxy == value
-
-    if key == 'hosting':
-        hosting = player.iplookup.ipapi.hosting
-        if not isinstance(hosting, bool):
-            return False
-        return hosting == value
-
-    return False
+    matcher = _CONDITION_MATCHERS.get(key)
+    return matcher(value, player) if matcher is not None else False
 
 
 def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> bool:
     """Check if all conditions in a rule match the given player and event.
 
-    Returns True only when every condition is satisfied (AND logic).
-
-    Dispatch rules:
-    - Rules WITHOUT an event condition fire only when event_type is None
-      (i.e. from check_global_protections at join-time).
-    - Rules WITH an event condition fire only when event_type matches
-      one of the listed events (i.e. from handle_detection_notification).
+    Rules without an event condition fire only when event_type is None.
+    Rules with an event condition fire only when event_type matches one of the listed events.
     """
     if not rule.enabled or not rule.conditions:
         return False
 
-    # Event dispatch gating
     event_cond = rule.conditions.get(_EVENT_CONDITION)
+
     if event_cond is not None:
-        # Rule has an event condition — only fire from event handler
         if event_type is None:
             return False
         if not isinstance(event_cond, list) or event_type not in event_cond:
             return False
     elif event_type is not None:
-        # Rule has no event condition — only fire from global check
         return False
 
-    # Check all non-event conditions
     return all(
         _check_condition(key, value, player)
         for key, value in rule.conditions.items()
@@ -233,23 +279,30 @@ class ComboRulesManager:
 
     @classmethod
     def load_from_file(cls, file_path: Path) -> None:
-        """Load combo rules from a JSON file. Silently starts with empty rules if file is missing or invalid."""
+        """Load combo rules from a JSON file. Starts with empty rules if file is missing or invalid."""
         cls.rules = []
+
         if not file_path.exists():
             return
+
         try:
-            data = json.loads(file_path.read_text(encoding='utf-8'))
-            if isinstance(data, list):
-                for entry in cast('list[object]', data):
-                    if isinstance(entry, dict):
-                        cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))
+            data: object = json.loads(file_path.read_text(encoding='utf-8'))
         except (json.JSONDecodeError, OSError):
             logger.warning('Failed to load combo rules from %s, starting with empty rules', file_path)
+            return
+
+        if not isinstance(data, list):
+            return
+
+        for entry in cast('list[object]', data):
+            if isinstance(entry, dict):
+                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))
 
     @classmethod
     def save_to_file(cls, file_path: Path) -> None:
         """Save all combo rules to a JSON file."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
+
         data = [rule.to_dict() for rule in cls.rules]
         tmp_path = file_path.with_suffix('.tmp')
         tmp_path.write_text(json.dumps(data, indent=4), encoding='utf-8')
@@ -257,28 +310,19 @@ class ComboRulesManager:
 
     @classmethod
     def evaluate(cls, player: Player, event_type: str | None = None) -> list[ComboRule]:
-        """Return all enabled combo rules whose conditions match the given player and event.
-
-        Args:
-            player: The player to evaluate conditions against.
-            event_type: `None` when called from `check_global_protections` (join-time).
-                `'join'`, `'rejoin'`, or `'leave'` when called from
-                `handle_detection_notification`.
-
-        Returns:
-            List of matching ComboRule instances.
-        """
+        """Return all enabled combo rules whose conditions match the given player and event."""
         return [rule for rule in cls.rules if _evaluate_rule(rule, player, event_type)]
 
     @classmethod
     def export_rules(cls) -> list[dict[str, object]]:
-        """Export rules as a list of dicts (for inclusion in protection settings export)."""
+        """Export rules as a list of dicts for inclusion in protection settings export."""
         return [rule.to_dict() for rule in cls.rules]
 
     @classmethod
     def import_rules(cls, rules_data: list[object]) -> None:
-        """Import rules from a list of dicts (from protection settings import)."""
+        """Import rules from a list of dicts from protection settings import."""
         cls.rules = []
+
         for entry in rules_data:
             if isinstance(entry, dict):
                 cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))

@@ -31,7 +31,7 @@ def _get_player_from_session(
 ) -> dict[str, Any] | None:
     """Look up an IP in both connected and disconnected sections."""
     for section in ('connected', 'disconnected'):
-        players_raw: Any = data.get(section)
+        players_raw: object = data.get(section)
         if not isinstance(players_raw, dict):
             continue
         players = cast('dict[str, Any]', players_raw)
@@ -89,7 +89,7 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
         if not json_file.is_file():
             continue
         try:
-            data: Any = json.loads(json_file.read_text(encoding='utf-8'))
+            data: object = json.loads(json_file.read_text(encoding='utf-8'))
         except (json.JSONDecodeError, OSError):
             continue
         if not isinstance(data, dict):
@@ -134,7 +134,7 @@ def _extract_all_players_from_session(
     """Extract all player entries (keyed by IP) from both connected and disconnected sections."""
     result: dict[str, dict[str, Any]] = {}
     for section in ('connected', 'disconnected'):
-        players_raw: Any = data.get(section)
+        players_raw: object = data.get(section)
         if not isinstance(players_raw, dict):
             continue
         players = cast('dict[str, Any]', players_raw)
@@ -185,7 +185,7 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
         if not json_file.is_file():
             continue
         try:
-            data: Any = json.loads(json_file.read_text(encoding='utf-8'))
+            data: object = json.loads(json_file.read_text(encoding='utf-8'))
         except (json.JSONDecodeError, OSError):
             continue
         if not isinstance(data, dict):
