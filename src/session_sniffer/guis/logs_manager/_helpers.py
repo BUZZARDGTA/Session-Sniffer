@@ -5,18 +5,14 @@ import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
+from PyQt6.QtGui import QColor, QDesktopServices, QFont, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
-
-if TYPE_CHECKING:
-    from PyQt6.QtGui import QStandardItemModel
 
 MAX_CSV_ROWS = 50_000
 AUTO_REFRESH_INTERVAL_MS = 2000
@@ -148,9 +144,9 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         """Determine whether a source row passes the current text and date filters."""
         _ = source_parent
         source_model = self.sourceModel()
-        if source_model is None:
+        if not isinstance(source_model, QStandardItemModel):
             return True
-        model = cast('QStandardItemModel', source_model)
+        model = source_model
 
         # Date filter
         if self._date_cutoff is not None and self._date_column >= 0:
