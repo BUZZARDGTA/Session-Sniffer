@@ -83,7 +83,7 @@ def rendering_core(
         def _snapshot_userip_database_mod_times() -> dict[Path, float]:
             """Return current modification times of all existing UserIP database INIs."""
             return {
-                path.resolve(): path.stat().st_mtime
+                path: path.stat().st_mtime
                 for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini')
                 if path.is_file()
             }
