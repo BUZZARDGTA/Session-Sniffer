@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import (
     DETECTION_LOGGING_PATH,
     ERRORS_LOG_PATH,
-    LIBS_DEBUG_LOG_PATH,
     PROTECTION_LOGGING_PATH,
     SESSIONS_LOGGING_DIR_PATH,
     USERIP_LOGGING_PATH,
@@ -72,9 +71,6 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         tabs.addTab(self._warnings_tab, '⚠️ Warnings Log')
         self._errors_tab = TextLogTab(file_path=ERRORS_LOG_PATH)
         tabs.addTab(self._errors_tab, '❌ Errors Log')
-        self._debug_tab = TextLogTab(file_path=LIBS_DEBUG_LOG_PATH)
-        tabs.addTab(self._debug_tab, '🔧 Libs Debug Log')
-
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
         tabs.addTab(self._sessions_tab, '📂 Sessions Logging')
 
