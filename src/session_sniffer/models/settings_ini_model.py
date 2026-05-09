@@ -9,6 +9,7 @@ This model validates each field and records canonical rewrite intent via context
 """
 
 import ast
+from dataclasses import dataclass
 from typing import Any, ClassVar, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
@@ -22,6 +23,20 @@ from session_sniffer.utils import (
     validate_and_strip_balanced_outer_parens,
 )
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+
+
+@dataclass(slots=True)
+class _ValidatorContext:
+    defaults: dict[str, Any]
+    ini_rewrites: dict[str, str]
+    flags: dict[str, Any]
+    toggleable_connected_columns: tuple[str, ...]
+    toggleable_disconnected_columns: tuple[str, ...]
+    webhook_all_connected_columns: tuple[str, ...]
+    webhook_all_disconnected_columns: tuple[str, ...]
+    all_third_party_servers: tuple[str, ...]
+    max_gui_table_rows_per_page: int
+    min_gui_disconnected_players_timer: int
 
 
 class SettingsIniModel(BaseModel):
@@ -105,45 +120,38 @@ class SettingsIniModel(BaseModel):
     })
 
     @staticmethod
-    def _get_context(info: ValidationInfo) -> dict[str, Any] | None:
+    def _get_context(info: ValidationInfo) -> _ValidatorContext | None:
         context_obj = info.context
-        if not isinstance(context_obj, dict):
+        if not isinstance(context_obj, _ValidatorContext):
             return None
-        return cast('dict[str, Any]', context_obj)
+        return context_obj
 
     @classmethod
     def _get_default_for_field(cls, info: ValidationInfo) -> object:
         context = cls._get_context(info)
         if context is None:
             return None
-        defaults_obj = context.get('defaults')
-        if not isinstance(defaults_obj, dict):
-            return None
         if not isinstance(info.field_name, str):
             return None
-        return cast('dict[str, Any]', defaults_obj).get(info.field_name)
+        return context.defaults.get(info.field_name)
 
     @staticmethod
     def _record_rewrite(info: ValidationInfo, rewrite_to: str | None) -> None:
         if rewrite_to is None:
             return
         context_obj = info.context
-        if not isinstance(context_obj, dict):
+        if not isinstance(context_obj, _ValidatorContext):
             return
-        context = cast('dict[str, Any]', context_obj)
-        ini_rewrites = context.setdefault('ini_rewrites', {})
-        if isinstance(info.field_name, str) and isinstance(ini_rewrites, dict):
-            cast('dict[str, str]', ini_rewrites)[info.field_name] = rewrite_to
+        if not isinstance(info.field_name, str):
+            return
+        context_obj.ini_rewrites[info.field_name] = rewrite_to
 
     @staticmethod
     def _set_flag(info: ValidationInfo, flag_name: str, *, value: object) -> None:
         context_obj = info.context
-        if not isinstance(context_obj, dict):
+        if not isinstance(context_obj, _ValidatorContext):
             return
-        context = cast('dict[str, Any]', context_obj)
-        flags = context.setdefault('flags', {})
-        if isinstance(flags, dict):
-            cast('dict[str, Any]', flags)[flag_name] = value
+        context_obj.flags[flag_name] = value
 
     # --- Validators ---
 
@@ -233,11 +241,7 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_block_servers(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        all_servers: tuple[str, ...] = ()
-        if context is not None:
-            servers_obj = context.get('all_third_party_servers')
-            if isinstance(servers_obj, tuple):
-                all_servers = cast('tuple[str, ...]', servers_obj)
+        all_servers: tuple[str, ...] = () if context is None else context.all_third_party_servers
 
         if isinstance(value, tuple):
             return cast('tuple[str, ...]', value)
@@ -345,44 +349,28 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_connected_shown(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = ()
-        if context is not None:
-            obj = context.get('toggleable_connected_columns')
-            if isinstance(obj, tuple):
-                allowed = cast('tuple[str, ...]', obj)
+        allowed: tuple[str, ...] = () if context is None else context.toggleable_connected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @field_validator('GUI_COLUMNS_DISCONNECTED_SHOWN', mode='before')
     @classmethod
     def _parse_disconnected_shown(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = ()
-        if context is not None:
-            obj = context.get('toggleable_disconnected_columns')
-            if isinstance(obj, tuple):
-                allowed = cast('tuple[str, ...]', obj)
+        allowed: tuple[str, ...] = () if context is None else context.toggleable_disconnected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @field_validator('DISCORD_WEBHOOK_COLUMNS_CONNECTED', mode='before')
     @classmethod
     def _parse_webhook_columns_connected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = ()
-        if context is not None:
-            obj = context.get('webhook_all_connected_columns')
-            if isinstance(obj, tuple):
-                allowed = cast('tuple[str, ...]', obj)
+        allowed: tuple[str, ...] = () if context is None else context.webhook_all_connected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @field_validator('DISCORD_WEBHOOK_COLUMNS_DISCONNECTED', mode='before')
     @classmethod
     def _parse_webhook_columns_disconnected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = ()
-        if context is not None:
-            obj = context.get('webhook_all_disconnected_columns')
-            if isinstance(obj, tuple):
-                allowed = cast('tuple[str, ...]', obj)
+        allowed: tuple[str, ...] = () if context is None else context.webhook_all_disconnected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @classmethod
@@ -405,9 +393,7 @@ class SettingsIniModel(BaseModel):
         max_rpp = 5000  # Settings.MAX_GUI_TABLE_ROWS_PER_PAGE
         context = cls._get_context(info)
         if context is not None:
-            ctx_max = context.get('max_gui_table_rows_per_page')
-            if isinstance(ctx_max, int):
-                max_rpp = ctx_max
+            max_rpp = context.max_gui_table_rows_per_page
 
         if isinstance(value, int):
             if 0 <= value <= max_rpp:
@@ -466,9 +452,7 @@ class SettingsIniModel(BaseModel):
         min_timer = 3  # Settings.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS
         context = cls._get_context(info)
         if context is not None:
-            ctx_min = context.get('min_gui_disconnected_players_timer')
-            if isinstance(ctx_min, int):
-                min_timer = ctx_min
+            min_timer = context.min_gui_disconnected_players_timer
 
         if isinstance(value, (int, float)):
             int_value = int(value)
@@ -652,15 +636,12 @@ class SettingsIniModel(BaseModel):
             self._set_flag(info, 'should_rewrite', value=True)
             context = self._get_context(info)
             if context is not None:
-                defaults_obj = context.get('defaults')
-                if isinstance(defaults_obj, dict):
-                    defaults = cast('dict[str, Any]', defaults_obj)
-                    show_date = defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False)
-                    show_time = defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False)
-                    show_elapsed = defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True)
-                    self.GUI_COLUMNS_DATETIME_SHOW_DATE = show_date  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
-                    self.GUI_COLUMNS_DATETIME_SHOW_TIME = show_time  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
-                    self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME = show_elapsed  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
+                show_date = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False)
+                show_time = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False)
+                show_elapsed = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True)
+                self.GUI_COLUMNS_DATETIME_SHOW_DATE = show_date  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
+                self.GUI_COLUMNS_DATETIME_SHOW_TIME = show_time  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
+                self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME = show_elapsed  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
         return self
 
     # --- Public API ---
@@ -707,20 +688,19 @@ class SettingsIniModel(BaseModel):
         full_input: dict[str, Any] = dict(defaults)
         full_input.update(raw_settings)
 
-        context: dict[str, Any] = {
-            'ini_rewrites': ini_rewrites,
-            'flags': flags,
-            'defaults': dict(defaults),
-            'toggleable_connected_columns': toggleable_connected_columns,
-            'toggleable_disconnected_columns': toggleable_disconnected_columns,
-            'webhook_all_connected_columns': webhook_all_connected_columns,
-            'webhook_all_disconnected_columns': webhook_all_disconnected_columns,
-            'all_third_party_servers': all_third_party_servers,
-            'max_gui_table_rows_per_page': max_gui_table_rows_per_page,
-            'min_gui_disconnected_players_timer': min_gui_disconnected_players_timer,
-        }
-
-        parsed = cls.model_validate(full_input, context=context)
+        ctx = _ValidatorContext(
+            defaults=dict(defaults),
+            ini_rewrites=ini_rewrites,
+            flags=flags,
+            toggleable_connected_columns=toggleable_connected_columns,
+            toggleable_disconnected_columns=toggleable_disconnected_columns,
+            webhook_all_connected_columns=webhook_all_connected_columns,
+            webhook_all_disconnected_columns=webhook_all_disconnected_columns,
+            all_third_party_servers=all_third_party_servers,
+            max_gui_table_rows_per_page=max_gui_table_rows_per_page,
+            min_gui_disconnected_players_timer=min_gui_disconnected_players_timer,
+        )
+        parsed = cls.model_validate(full_input, context=ctx)
 
         # Unknown keys trigger rewrite
         unknown_keys = raw_keys - all_names_set
