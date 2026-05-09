@@ -867,7 +867,8 @@ class MainWindow(QMainWindow):
         )
 
         # Status bar
-        self.setStatusBar(SessionStatusBar(self))
+        self._status_bar = SessionStatusBar(self)
+        self.setStatusBar(self._status_bar)
 
         # Toolbar action container
         self._actions = _ToolbarActions(
@@ -979,14 +980,12 @@ class MainWindow(QMainWindow):
 
     def _update_gui(self, payload: GUIUpdatePayload) -> None:
         self._header.setText(payload.header_text)
-        status_bar = self.statusBar()
-        if status_bar is not None:
-            cast('SessionStatusBar', status_bar).set_texts(
-                capture=payload.status_capture_text,
-                config=payload.status_config_text,
-                issues=payload.status_issues_text,
-                performance=payload.status_performance_text,
-            )
+        self._status_bar.set_texts(
+            capture=payload.status_capture_text,
+            config=payload.status_config_text,
+            issues=payload.status_issues_text,
+            performance=payload.status_performance_text,
+        )
 
         # Detect column config changes and rebuild tables when needed
         col_cfg = payload.column_config
