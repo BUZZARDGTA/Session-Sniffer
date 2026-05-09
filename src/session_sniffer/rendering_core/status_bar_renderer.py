@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class StatusBarCaptureInfo:
     """Capture-related settings for the status bar."""
-    ip_address: str | None
+    ip_address: str
     program_preset: str | None
     overflow_timer: int
 
@@ -99,7 +99,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
 
     return StatusBarSnapshot(
         capture=StatusBarCaptureInfo(
-            ip_address=Settings.capture_ip_address,
+            ip_address=capture.config.interface.ip_address,
             program_preset=Settings.capture_program_preset,
             overflow_timer=Settings.capture_overflow_timer,
         ),
@@ -155,7 +155,6 @@ def _calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> t
 
 
 def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
-    displayed_ip = snapshot.capture.ip_address or 'N/A'
     return (
         f'<span style="font-size: 11px;">'
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">📡 Capture:</span> '
@@ -164,7 +163,7 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
         f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.interface.name}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">IP:</span> '
-        f'<span style="color: {StatusBarColors.ENABLED};">{displayed_ip}</span>'
+        f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.ip_address}</span>'
         f'</span>'
     )
 
