@@ -6,14 +6,24 @@ into their runtime Python types. Corruption in any field raises
 a `ValidationError` that the caller translates into a user notification.
 """
 
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Self, cast
+from typing import Literal, Self, cast
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 from PyQt6.QtGui import QColor
 
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool, custom_str_to_nonetype
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+
+
+@dataclass(slots=True)
+class _UserIPValidatorContext:
+    ini_rewrites: dict[str, str] = field(default_factory=dict)
+
+    def record_rewrite(self, field_name: str, rewrite_value: str) -> None:
+        """Record a field rewrite by name and its corrected string value."""
+        self.ini_rewrites[field_name] = rewrite_value
 
 
 class UserIPSettingsModel(BaseModel):
@@ -33,12 +43,8 @@ class UserIPSettingsModel(BaseModel):
     @staticmethod
     def _record_rewrite(info: ValidationInfo, field_name: str, rewrite_value: str) -> None:
         context_obj = info.context
-        if not isinstance(context_obj, dict):
-            return
-        context = cast('dict[str, Any]', context_obj)
-        rewrites = context.setdefault('ini_rewrites', {})
-        if isinstance(rewrites, dict):
-            cast('dict[str, str]', rewrites)[field_name] = rewrite_value
+        if isinstance(context_obj, _UserIPValidatorContext):
+            context_obj.record_rewrite(field_name, rewrite_value)
 
     @field_validator('ENABLED', 'LOG', 'NOTIFICATIONS', mode='before')
     @classmethod
@@ -71,7 +77,10 @@ class UserIPSettingsModel(BaseModel):
     @classmethod
     def _parse_voice_notifications(cls, value: object, info: ValidationInfo) -> Literal['Male', 'Female', False]:
         if isinstance(value, bool):
-            return cast('Literal[False]', value)
+            if value is False:
+                return value
+            msg = f'expected voice notification value, got {type(value).__name__}'
+            raise ValueError(msg)
         if isinstance(value, str):
             try:
                 resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
@@ -86,7 +95,10 @@ class UserIPSettingsModel(BaseModel):
                 return cast("Literal['Male', 'Female']", normalized)
             if need_rewrite and isinstance(info.field_name, str):
                 cls._record_rewrite(info, info.field_name, str(resolved))
-            return cast('Literal[False]', resolved)
+            if resolved is False:
+                return resolved
+            msg = f'expected voice notification value, got {type(value).__name__}'
+            raise ValueError(msg)
         msg = f'expected voice notification value, got {type(value).__name__}'
         raise ValueError(msg)
 
@@ -94,7 +106,10 @@ class UserIPSettingsModel(BaseModel):
     @classmethod
     def _parse_protection(cls, value: object, info: ValidationInfo) -> Literal['Suspend_Process', False]:
         if isinstance(value, bool):
-            return cast('Literal[False]', value)
+            if value is False:
+                return value
+            msg = f'expected protection value, got {type(value).__name__}'
+            raise ValueError(msg)
         if isinstance(value, str):
             try:
                 resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
@@ -111,7 +126,10 @@ class UserIPSettingsModel(BaseModel):
                 return cast("Literal['Suspend_Process']", normalized)
             if need_rewrite and isinstance(info.field_name, str):
                 cls._record_rewrite(info, info.field_name, str(resolved))
-            return cast('Literal[False]', resolved)
+            if resolved is False:
+                return resolved
+            msg = f'expected protection value, got {type(value).__name__}'
+            raise ValueError(msg)
         msg = f'expected protection value, got {type(value).__name__}'
         raise ValueError(msg)
 
@@ -164,10 +182,6 @@ class UserIPSettingsModel(BaseModel):
         msg = f'expected suspend mode value, got {type(value).__name__}'
         raise ValueError(msg)
 
-    @model_validator(mode='after')
-    def _strip_rewrite_of_default_fields(self) -> Self:
-        return self
-
     @classmethod
     def validate_settings(cls, raw_settings: dict[str, str]) -> tuple[Self, dict[str, str]]:
         """Validate raw UserIP [Settings] key/value strings.
@@ -182,7 +196,6 @@ class UserIPSettingsModel(BaseModel):
         Raises:
             pydantic.ValidationError: If any setting value is corrupted.
         """
-        ini_rewrites: dict[str, str] = {}
-        context: dict[str, Any] = {'ini_rewrites': ini_rewrites}
-        validated = cls.model_validate(raw_settings, context=context)
-        return validated, dict(ini_rewrites)
+        ctx = _UserIPValidatorContext()
+        validated = cls.model_validate(raw_settings, context=ctx)
+        return validated, dict(ctx.ini_rewrites)
