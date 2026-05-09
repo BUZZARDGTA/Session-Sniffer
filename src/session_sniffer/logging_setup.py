@@ -11,7 +11,7 @@ from logging.handlers import RotatingFileHandler
 
 from rich.console import Console
 
-from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERRORS_LOG_PATH, LIBS_DEBUG_LOG_PATH, WARNINGS_LOG_PATH
+from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERRORS_LOG_PATH, WARNINGS_LOG_PATH
 
 __all__ = ['console', 'get_logger', 'setup_logging']
 
@@ -20,7 +20,6 @@ console: Console = Console()
 
 # --- Handler names for idempotency ---
 _DEBUG_FILE_HANDLER = 'debug_file_handler'
-_LIBS_DEBUG_FILE_HANDLER = 'libs_debug_file_handler'
 _WARNINGS_FILE_HANDLER = 'warnings_file_handler'
 _ERRORS_FILE_HANDLER = 'errors_file_handler'
 
@@ -35,7 +34,6 @@ _SUPPRESSED_SCAPY_SUBSTRINGS = (
     'Unable to guess datalink type',
 )
 
-
 def _urllib3_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress noisy third-party retry warnings from all handlers."""
     return not (record.name.startswith('urllib3.') and any(s in record.getMessage() for s in _SUPPRESSED_URLLIB3_SUBSTRINGS))
@@ -49,11 +47,6 @@ def _scapy_noise_filter(record: logging.LogRecord) -> bool:
 def _app_only_filter(record: logging.LogRecord) -> bool:
     """Pass only records from the app's own loggers (session_sniffer.*)."""
     return record.name == 'session_sniffer' or record.name.startswith('session_sniffer.')
-
-
-def _libs_only_filter(record: logging.LogRecord) -> bool:
-    """Pass only records from third-party library loggers (not session_sniffer.*)."""
-    return record.name != 'session_sniffer' and not record.name.startswith('session_sniffer.')
 
 
 class _LevelFilter(logging.Filter):  # pylint: disable=too-few-public-methods
@@ -139,23 +132,6 @@ def setup_logging(
         debug_handler.addFilter(_app_only_filter)
         debug_handler.setFormatter(_FILE_FORMATTER)
         root.addHandler(debug_handler)
-
-    # --- Rotating file handler: libs_debug.log (DEBUG and INFO, third-party only) ---
-    if not any(h.name == _LIBS_DEBUG_FILE_HANDLER for h in root.handlers):
-        LIBS_DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        libs_debug_handler = RotatingFileHandler(
-            LIBS_DEBUG_LOG_PATH,
-            maxBytes=5_242_880,  # 5 MiB
-            backupCount=3,
-            encoding='utf-8',
-        )
-        libs_debug_handler.name = _LIBS_DEBUG_FILE_HANDLER
-        libs_debug_handler.setLevel(logging.INFO)
-        libs_debug_handler.addFilter(_LevelFilter(min_level=logging.INFO))
-        libs_debug_handler.addFilter(_urllib3_noise_filter)
-        libs_debug_handler.addFilter(_libs_only_filter)
-        libs_debug_handler.setFormatter(_FILE_FORMATTER)
-        root.addHandler(libs_debug_handler)
 
     # --- Rotating file handler: warnings.log (WARNING only) ---
     if not any(h.name == _WARNINGS_FILE_HANDLER for h in root.handlers):
