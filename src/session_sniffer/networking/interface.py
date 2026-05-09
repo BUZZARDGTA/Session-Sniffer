@@ -62,9 +62,9 @@ class Interface:
     state: int
     media_connect_state: int
     interface_type: str = INTERFACE_TYPE_INTERFACE
-    ip_addresses: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    gateway_addresses: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    arp_entries: list[ARPEntry] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    ip_addresses: list[str] = field(default_factory=list[str])
+    gateway_addresses: list[str] = field(default_factory=list[str])
+    arp_entries: list[ARPEntry] = field(default_factory=list[ARPEntry])
 
     def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
         """Add an ARP entry for the given interface."""

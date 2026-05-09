@@ -1,6 +1,12 @@
 """Module for checking BPF filter support on a network interface using scapy."""
+
 from scapy.error import Scapy_Exception
 from scapy.sendrecv import sniff
+
+
+def _stop_immediately(_pkt: object) -> bool:
+    """Stop Scapy sniffing as soon as the callback is evaluated."""
+    return True
 
 
 def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
@@ -24,7 +30,7 @@ def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
                 iface=device_name,
                 filter=filter_str,
                 count=0,
-                stop_filter=lambda _: True,  # pyright: ignore[reportUnknownLambdaType]
+                stop_filter=_stop_immediately,
                 timeout=0.5,
                 store=False,
             )

@@ -47,7 +47,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
         all_players = PlayersRegistry.get_default_sorted_players()
         if not all_players:
             self._widget.clear()
-            self._y_axis.setTicks([[]])  # pyright: ignore[reportUnknownMemberType]
+            self._y_axis.setTicks([[]])
             return
 
         session_start = min(p.datetime.first_seen for p in all_players)
@@ -118,6 +118,6 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
             )
             self._widget.addItem(bars_d)
 
-        self._y_axis.setTicks([tick_labels])  # pyright: ignore[reportUnknownMemberType]
+        self._y_axis.setTicks([tick_labels])
         self._widget.setYRange(-0.5, n - 0.5)
         self._widget.setXRange(0, max_end * 1.05)

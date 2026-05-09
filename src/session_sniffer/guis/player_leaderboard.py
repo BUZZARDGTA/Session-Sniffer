@@ -66,7 +66,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
         self._scope_attr: str = 'sessions_total'
         self._username_cache: dict[str, str] = {}
         # Bound method dispatch — avoids per-cell getattr() overhead
-        self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {  # pyright: ignore[reportMissingTypeArgument]
+        self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {
             0: self._display_rank,
             1: self._display_ip,
             2: self._display_usernames,

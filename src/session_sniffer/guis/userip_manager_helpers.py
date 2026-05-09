@@ -578,17 +578,17 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
         self._ok_button = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
         if self._ok_button is not None:
             self._ok_button.setEnabled(False)
-        self._buttons.accepted.connect(self.accept)  # pyright: ignore[reportUnknownMemberType]
-        self._buttons.rejected.connect(self.reject)  # pyright: ignore[reportUnknownMemberType]
+        self._buttons.accepted.connect(self.accept)
+        self._buttons.rejected.connect(self.reject)
         layout.addWidget(self._buttons)
 
         # --- Connections ---
         self._mode_group.idToggled.connect(self._on_mode_changed)
-        self._single_input.textChanged.connect(self._update_preview)  # pyright: ignore[reportUnknownMemberType]
-        self._range_from_input.textChanged.connect(self._update_preview)  # pyright: ignore[reportUnknownMemberType]
-        self._range_to_input.textChanged.connect(self._update_preview)  # pyright: ignore[reportUnknownMemberType]
-        self._subnet_ip_input.textChanged.connect(self._update_preview)  # pyright: ignore[reportUnknownMemberType]
-        self._subnet_slider.valueChanged.connect(self._on_slider_changed)  # pyright: ignore[reportUnknownMemberType]
+        self._single_input.textChanged.connect(self._update_preview)
+        self._range_from_input.textChanged.connect(self._update_preview)
+        self._range_to_input.textChanged.connect(self._update_preview)
+        self._subnet_ip_input.textChanged.connect(self._update_preview)
+        self._subnet_slider.valueChanged.connect(self._on_slider_changed)
 
         # Start with single IP mode
         self._radio_single.setChecked(True)

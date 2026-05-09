@@ -204,8 +204,8 @@ class _CountrySelectionDialog(QDialog):
         layout.addWidget(self._combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)  # pyright: ignore[reportUnknownMemberType]
-        buttons.rejected.connect(self.reject)  # pyright: ignore[reportUnknownMemberType]
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
     def selected_country(self) -> str | None:
@@ -284,7 +284,7 @@ class _ComboRuleEditorDialog(QDialog):
         conditions_layout.addLayout(self._conditions_container)
 
         add_condition_btn = QPushButton('\u2795 Add Condition')
-        add_condition_btn.clicked.connect(self._add_condition_row)  # pyright: ignore[reportUnknownMemberType]
+        add_condition_btn.clicked.connect(self._add_condition_row)
         conditions_layout.addWidget(add_condition_btn)
 
         conditions_group.setLayout(conditions_layout)
@@ -325,7 +325,7 @@ class _ComboRuleEditorDialog(QDialog):
         process_row.addWidget(self._process_edit)
         browse_btn = QPushButton('\U0001f4c1 Browse')
         browse_btn.setMaximumWidth(100)
-        browse_btn.clicked.connect(self._browse_process)  # pyright: ignore[reportUnknownMemberType]
+        browse_btn.clicked.connect(self._browse_process)
         process_row.addWidget(browse_btn)
         protection_section_layout.addLayout(process_row)
 
@@ -333,14 +333,14 @@ class _ComboRuleEditorDialog(QDialog):
         duration_row = QHBoxLayout()
         duration_row.addWidget(QLabel('Suspend Mode:'))
         self._duration_combo = QComboBox()
-        self._duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])  # pyright: ignore[reportUnknownMemberType]
+        self._duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
         duration_row.addWidget(self._duration_combo)
         self._duration_spin = QSpinBox()
         self._duration_spin.setRange(1, 3600)
         self._duration_spin.setValue(60)
         self._duration_spin.setSuffix(' seconds')
         self._duration_spin.setEnabled(False)
-        self._duration_combo.currentTextChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+        self._duration_combo.currentTextChanged.connect(
             lambda text: self._duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         duration_row.addWidget(self._duration_spin)
@@ -364,7 +364,7 @@ class _ComboRuleEditorDialog(QDialog):
         voice_row = QHBoxLayout()
         voice_row.addWidget(QLabel('Voice Notifications:'))
         self._voice_combo = QComboBox()
-        self._voice_combo.addItems(['Disabled', 'Male', 'Female'])  # pyright: ignore[reportUnknownMemberType]
+        self._voice_combo.addItems(['Disabled', 'Male', 'Female'])
         self._voice_combo.setToolTip('Select voice for text-to-speech notifications')
         if rule:
             _set_voice_combo_helper(self._voice_combo, rule.voice_notifications)
@@ -387,8 +387,8 @@ class _ComboRuleEditorDialog(QDialog):
 
         # Dialog buttons
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self._validate_and_accept)  # pyright: ignore[reportUnknownMemberType]
-        buttons.rejected.connect(self.reject)  # pyright: ignore[reportUnknownMemberType]
+        buttons.accepted.connect(self._validate_and_accept)
+        buttons.rejected.connect(self.reject)
         main_layout.addWidget(buttons)
 
         # Pre-populate conditions from existing rule
@@ -403,7 +403,7 @@ class _ComboRuleEditorDialog(QDialog):
         row_layout = QHBoxLayout()
 
         type_combo = QComboBox()
-        type_combo.addItems(list(self._CONDITION_LABELS.keys()))  # pyright: ignore[reportUnknownMemberType]
+        type_combo.addItems(list(self._CONDITION_LABELS.keys()))
         type_combo.setCurrentIndex(-1)
 
         value_stack = QWidget()
@@ -471,7 +471,7 @@ class _ComboRuleEditorDialog(QDialog):
                 new_edit.setPlaceholderText(f'Enter {label.lower()} value...')
                 value_layout.addWidget(new_edit)
 
-        type_combo.currentTextChanged.connect(on_type_changed)  # pyright: ignore[reportUnknownMemberType]
+        type_combo.currentTextChanged.connect(on_type_changed)
 
         remove_btn = QPushButton('\u2796')
         remove_btn.setMaximumWidth(40)
@@ -489,7 +489,7 @@ class _ComboRuleEditorDialog(QDialog):
             self._condition_rows.remove((type_combo, value_stack))
             row_widget.deleteLater()
 
-        remove_btn.clicked.connect(remove_row)  # pyright: ignore[reportUnknownMemberType]
+        remove_btn.clicked.connect(remove_row)
 
         # Set preset values if provided
         if preset_key is not None:
@@ -500,20 +500,20 @@ class _ComboRuleEditorDialog(QDialog):
                     break
             # Now set the value
             if preset_key in ('mobile', 'vpn', 'hosting') and isinstance(preset_value, bool):
-                bool_combo_widget = value_stack.findChild(QComboBox)
-                if bool_combo_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                bool_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                if bool_combo_widget is not None:
                     idx = bool_combo_widget.findData(preset_value)
                     if idx >= 0:
                         bool_combo_widget.setCurrentIndex(idx)
             elif preset_key == 'event' and isinstance(preset_value, list):
-                events_widget = value_stack.findChild(QWidget)
-                if events_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
+                if events_widget is not None:
                     for cb in events_widget.findChildren(QCheckBox):
                         event_key = self._EVENT_LABELS.get(cb.text(), '')
                         cb.setChecked(event_key in preset_value)
             elif preset_key == 'country' and isinstance(preset_value, str):
-                country_combo_widget = value_stack.findChild(QComboBox)
-                if country_combo_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                if country_combo_widget is not None:
                     # Find the matching country entry
                     for i in range(country_combo_widget.count()):
                         data = country_combo_widget.itemData(i, Qt.ItemDataRole.UserRole)
@@ -521,8 +521,8 @@ class _ComboRuleEditorDialog(QDialog):
                             country_combo_widget.setCurrentIndex(i)
                             break
             elif isinstance(preset_value, str):
-                line_edit_widget = value_stack.findChild(QLineEdit)
-                if line_edit_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                line_edit_widget: QLineEdit | None = cast('QLineEdit | None', value_stack.findChild(QLineEdit))
+                if line_edit_widget is not None:
                     line_edit_widget.setText(preset_value)
 
     def _browse_process(self) -> None:
@@ -562,8 +562,8 @@ class _ComboRuleEditorDialog(QDialog):
                 continue
 
             if key in ('mobile', 'vpn', 'hosting'):
-                bool_combo_widget = value_stack.findChild(QComboBox)
-                if bool_combo_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                bool_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                if bool_combo_widget is not None:
                     conditions[key] = bool(bool_combo_widget.currentData())
             elif key == 'event':
                 selected = self._read_event_checkboxes(value_stack)
@@ -574,8 +574,8 @@ class _ComboRuleEditorDialog(QDialog):
                 if country:
                     conditions[key] = country
             else:
-                line_edit_widget = value_stack.findChild(QLineEdit)
-                if line_edit_widget is not None:  # pyright: ignore[reportUnnecessaryComparison]
+                line_edit_widget: QLineEdit | None = cast('QLineEdit | None', value_stack.findChild(QLineEdit))
+                if line_edit_widget is not None:
                     val = line_edit_widget.text().strip()
                     if val:
                         conditions[key] = val
@@ -583,8 +583,8 @@ class _ComboRuleEditorDialog(QDialog):
 
     def _read_event_checkboxes(self, value_stack: QWidget) -> list[str]:
         """Read selected event checkboxes from a value stack widget."""
-        events_widget = value_stack.findChild(QWidget)
-        if events_widget is None:  # pyright: ignore[reportUnnecessaryComparison]
+        events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
+        if events_widget is None:
             return []
         selected: list[str] = []
         for cb in events_widget.findChildren(QCheckBox):
@@ -597,8 +597,8 @@ class _ComboRuleEditorDialog(QDialog):
     @staticmethod
     def _read_country_value(value_stack: QWidget) -> str | None:
         """Read the selected country name from a value stack widget."""
-        country_combo_widget = value_stack.findChild(QComboBox)
-        if country_combo_widget is None:  # pyright: ignore[reportUnnecessaryComparison]
+        country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+        if country_combo_widget is None:
             return None
         idx = country_combo_widget.currentIndex()
         if idx < 0:
@@ -744,13 +744,13 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         import_button = QPushButton('\U0001f4e5 Import')
         import_button.setToolTip('Import protection settings from a JSON file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        import_button.clicked.connect(self._import_protections)  # pyright: ignore[reportUnknownMemberType]
+        import_button.clicked.connect(self._import_protections)
         button_row.addWidget(import_button)
 
         export_button = QPushButton('\U0001f4e4 Export')
         export_button.setToolTip('Export protection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        export_button.clicked.connect(self._export_protections)  # pyright: ignore[reportUnknownMemberType]
+        export_button.clicked.connect(self._export_protections)
         button_row.addWidget(export_button)
 
         button_row.addStretch()
@@ -759,12 +759,12 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         save_button.setToolTip('Save all protection settings and apply them immediately')
         save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         save_button.setDefault(True)
-        save_button.clicked.connect(self._save_and_apply)  # pyright: ignore[reportUnknownMemberType]
+        save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
         cancel_button = QPushButton('\u274c Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.clicked.connect(self.reject)  # pyright: ignore[reportUnknownMemberType]
+        cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
 
         layout.addLayout(button_row)
@@ -991,33 +991,33 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         btn_layout = QHBoxLayout()
 
         add_btn = QPushButton('\u2795 Add Rule')
-        add_btn.clicked.connect(self._add_combo_rule)  # pyright: ignore[reportUnknownMemberType]
+        add_btn.clicked.connect(self._add_combo_rule)
         btn_layout.addWidget(add_btn)
 
         self._combo_edit_btn = QPushButton('\u270f\ufe0f Edit')
         self._combo_edit_btn.setEnabled(False)
-        self._combo_edit_btn.clicked.connect(self._edit_combo_rule)  # pyright: ignore[reportUnknownMemberType]
+        self._combo_edit_btn.clicked.connect(self._edit_combo_rule)
         btn_layout.addWidget(self._combo_edit_btn)
 
         self._combo_duplicate_btn = QPushButton('\U0001f4cb Duplicate')
         self._combo_duplicate_btn.setEnabled(False)
-        self._combo_duplicate_btn.clicked.connect(self._duplicate_combo_rule)  # pyright: ignore[reportUnknownMemberType]
+        self._combo_duplicate_btn.clicked.connect(self._duplicate_combo_rule)
         btn_layout.addWidget(self._combo_duplicate_btn)
 
         self._combo_remove_btn = QPushButton('\u2796 Remove')
         self._combo_remove_btn.setEnabled(False)
-        self._combo_remove_btn.clicked.connect(self._remove_combo_rule)  # pyright: ignore[reportUnknownMemberType]
+        self._combo_remove_btn.clicked.connect(self._remove_combo_rule)
         btn_layout.addWidget(self._combo_remove_btn)
 
         self._combo_clear_btn = QPushButton('\U0001f5d1\ufe0f Clear All')
         self._combo_clear_btn.setEnabled(False)
-        self._combo_clear_btn.clicked.connect(self._clear_combo_rules)  # pyright: ignore[reportUnknownMemberType]
+        self._combo_clear_btn.clicked.connect(self._clear_combo_rules)
         btn_layout.addWidget(self._combo_clear_btn)
 
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
-        self._combo_rules_list.currentRowChanged.connect(self._update_combo_rule_buttons)  # pyright: ignore[reportUnknownMemberType]
+        self._combo_rules_list.currentRowChanged.connect(self._update_combo_rule_buttons)
 
         return widget
 
@@ -1040,7 +1040,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             status = '\u2705' if rule.enabled else '\u274c'
             item = QListWidgetItem(f'{status} {rule.name}  [{conditions_summary}]')
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
-            self._combo_rules_list.addItem(item)  # pyright: ignore[reportUnknownMemberType]
+            self._combo_rules_list.addItem(item)
         self._update_combo_rule_buttons()
 
     def _get_selected_combo_rule_index(self) -> int | None:
@@ -1080,6 +1080,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             name=f'{original.name} (Copy)',
             enabled=original.enabled,
             conditions=dict(original.conditions),
+            protection_enabled=original.protection_enabled,
             process_path=original.process_path,
             duration=original.duration,
             voice_notifications=original.voice_notifications,
@@ -1175,7 +1176,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         browse_button = QPushButton('\U0001f4c1 Browse')
         browse_button.setMaximumWidth(100)
-        browse_button.clicked.connect(lambda: self._browse_process(process_edit))  # pyright: ignore[reportUnknownMemberType]
+        browse_button.clicked.connect(lambda: self._browse_process(process_edit))
         process_layout.addWidget(browse_button)
         action_section_layout.addLayout(process_layout)
 
@@ -1185,7 +1186,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])  # pyright: ignore[reportUnknownMemberType]
+        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
@@ -1198,7 +1199,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_spin.setValue(60)
         duration_spin.setSuffix(' seconds')
         duration_spin.setEnabled(False)
-        duration_combo.currentTextChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+        duration_combo.currentTextChanged.connect(
             lambda text: duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         setattr(self, f'{protection_type}_duration_spin', duration_spin)
@@ -1252,16 +1253,16 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         buttons_layout = QVBoxLayout()
         add_button = QPushButton('\u2795 Add')
         add_callback = getattr(self, f'_add_{blocklist_type}')
-        add_button.clicked.connect(add_callback)  # pyright: ignore[reportUnknownMemberType]
+        add_button.clicked.connect(add_callback)
         buttons_layout.addWidget(add_button)
 
         remove_button = QPushButton('\u2796 Remove')
         remove_callback = getattr(self, f'_remove_{blocklist_type}')
-        remove_button.clicked.connect(remove_callback)  # pyright: ignore[reportUnknownMemberType]
+        remove_button.clicked.connect(remove_callback)
         buttons_layout.addWidget(remove_button)
 
         clear_button = QPushButton('\U0001f5d1\ufe0f Clear All')
-        clear_button.clicked.connect(list_widget.clear)  # pyright: ignore[reportUnknownMemberType]
+        clear_button.clicked.connect(list_widget.clear)
         buttons_layout.addWidget(clear_button)
 
         buttons_layout.addStretch()
@@ -1292,7 +1293,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         browse_button = QPushButton('\U0001f4c1 Browse')
         browse_button.setMaximumWidth(100)
-        browse_button.clicked.connect(lambda: self._browse_process(process_edit))  # pyright: ignore[reportUnknownMemberType]
+        browse_button.clicked.connect(lambda: self._browse_process(process_edit))
         process_layout.addWidget(browse_button)
         action_section_layout.addLayout(process_layout)
 
@@ -1302,7 +1303,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])  # pyright: ignore[reportUnknownMemberType]
+        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
@@ -1315,7 +1316,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_spin.setValue(60)
         duration_spin.setSuffix(' seconds')
         duration_spin.setEnabled(False)
-        duration_combo.currentTextChanged.connect(  # pyright: ignore[reportUnknownMemberType]
+        duration_combo.currentTextChanged.connect(
             lambda text: duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         setattr(self, f'{blocklist_type}_duration_spin', duration_spin)
@@ -1344,7 +1345,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         voice_layout.addWidget(voice_label)
 
         voice_combo = QComboBox()
-        voice_combo.addItems(['Disabled', 'Male', 'Female'])  # pyright: ignore[reportUnknownMemberType]
+        voice_combo.addItems(['Disabled', 'Male', 'Female'])
         voice_combo.setToolTip('Select voice for text-to-speech notifications')
         setattr(self, f'{prefix}_voice_combo', voice_combo)
         voice_layout.addWidget(voice_combo)
@@ -1409,13 +1410,13 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         flag_code = get_country_flag_code(country_name)
         if flag_code and flag_code in _AVAILABLE_FLAG_CODES:
             item.setIcon(QIcon(QPixmap(str(_COUNTRY_FLAGS_DIR / f'{flag_code}.png'))))
-        self.country_list.addItem(item)  # pyright: ignore[reportUnknownMemberType]
+        self.country_list.addItem(item)
 
     def _remove_country(self) -> None:
         """Remove selected country from the list."""
         current_item = self.country_list.currentItem()
         if current_item:
-            self.country_list.takeItem(self.country_list.row(current_item))  # pyright: ignore[reportUnknownMemberType]
+            self.country_list.takeItem(self.country_list.row(current_item))
 
     def _add_isp(self) -> None:
         """Add an ISP/company name to the list."""
@@ -1427,13 +1428,13 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         if ok and text:
             stripped = text.strip()
             if stripped and not self._list_contains(self.isp_list, stripped):
-                self.isp_list.addItem(stripped)  # pyright: ignore[reportUnknownMemberType]
+                self.isp_list.addItem(stripped)
 
     def _remove_isp(self) -> None:
         """Remove selected ISP from the list."""
         current_item = self.isp_list.currentItem()
         if current_item:
-            self.isp_list.takeItem(self.isp_list.row(current_item))  # pyright: ignore[reportUnknownMemberType]
+            self.isp_list.takeItem(self.isp_list.row(current_item))
 
     def _add_asn(self) -> None:
         """Add an ASN to the list."""
@@ -1447,13 +1448,13 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             if not asn.startswith('AS'):
                 asn = f'AS{asn}'
             if not self._list_contains(self.asn_list, asn):
-                self.asn_list.addItem(asn)  # pyright: ignore[reportUnknownMemberType]
+                self.asn_list.addItem(asn)
 
     def _remove_asn(self) -> None:
         """Remove selected ASN from the list."""
         current_item = self.asn_list.currentItem()
         if current_item:
-            self.asn_list.takeItem(self.asn_list.row(current_item))  # pyright: ignore[reportUnknownMemberType]
+            self.asn_list.takeItem(self.asn_list.row(current_item))
 
     # ------------------------------------------------------------------
     # Duration & voice helpers
@@ -1556,7 +1557,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         for i in GUIProtectionSettings.isp_block_list:
             if i not in seen_isps:
                 seen_isps.add(i)
-                self.isp_list.addItem(i)  # pyright: ignore[reportUnknownMemberType]
+                self.isp_list.addItem(i)
         self.isp_process_edit.setText(str(GUIProtectionSettings.isp_block_process_path) if GUIProtectionSettings.isp_block_process_path else '')
         self._set_duration_widgets(self.isp_duration_combo, self.isp_duration_spin, GUIProtectionSettings.isp_block_duration)
         self._set_voice_combo(self.isp_voice_combo, GUIProtectionSettings.isp_voice_notifications)
@@ -1570,7 +1571,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         for a in GUIProtectionSettings.asn_block_list:
             if a not in seen_asns:
                 seen_asns.add(a)
-                self.asn_list.addItem(a)  # pyright: ignore[reportUnknownMemberType]
+                self.asn_list.addItem(a)
         self.asn_process_edit.setText(str(GUIProtectionSettings.asn_block_process_path) if GUIProtectionSettings.asn_block_process_path else '')
         self._set_duration_widgets(self.asn_duration_combo, self.asn_duration_spin, GUIProtectionSettings.asn_block_duration)
         self._set_voice_combo(self.asn_voice_combo, GUIProtectionSettings.asn_voice_notifications)

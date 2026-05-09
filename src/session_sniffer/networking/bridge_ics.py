@@ -10,7 +10,7 @@ the classification rather than raising.
 """
 
 import winreg
-from typing import Literal
+from typing import Literal, cast
 
 from session_sniffer.logging_setup import get_logger
 
@@ -51,7 +51,7 @@ def _get_bridge_member_guids() -> set[str]:
     if not isinstance(bind_value, list):
         return members
 
-    for entry in bind_value:  # pyright: ignore[reportUnknownVariableType]
+    for entry in cast('list[object]', bind_value):
         if isinstance(entry, str) and entry:
             members.add(_normalize_guid(entry))
     return members

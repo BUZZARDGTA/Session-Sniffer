@@ -19,7 +19,7 @@ from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNo
 
 @dataclass(slots=True)
 class _UserIPValidatorContext:
-    ini_rewrites: dict[str, str] = field(default_factory=dict)
+    ini_rewrites: dict[str, str] = field(default_factory=dict[str, str])
 
     def record_rewrite(self, field_name: str, rewrite_value: str) -> None:
         """Record a field rewrite by name and its corrected string value."""

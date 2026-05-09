@@ -41,7 +41,7 @@ class PacketsLatencyGraphWindow(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
             msg = 'Failed to get plot item'
             raise RuntimeError(msg)
         left = plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
-        left.setTextPen(pg.mkPen('#ff9800'))  # pyright: ignore[reportUnknownMemberType]
+        left.setTextPen(pg.mkPen('#ff9800'))
 
         self._curve = self._widget.plot(pen=pg.mkPen('#ff9800', width=2))
         self._curve.setFillLevel(0)
@@ -105,5 +105,5 @@ class PacketsLatencyGraphWindow(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     # Internal ————————————————————————————————————————————————————————————————
 
     def _is_at_live_edge(self) -> bool:
-        x_range: list[float] = self._widget.viewRange()[0]  # pyright: ignore[reportUnknownMemberType]
+        x_range: list[float] = self._widget.viewRange()[0]
         return x_range[1] >= -2  # noqa: PLR2004

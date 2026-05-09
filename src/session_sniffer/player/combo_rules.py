@@ -30,7 +30,7 @@ class ComboRule:
 
     name: str
     enabled: bool = True
-    conditions: dict[str, str | bool | list[str]] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    conditions: dict[str, str | bool | list[str]] = field(default_factory=dict[str, str | bool | list[str]])
 
     # Action settings (same types as existing protections)
     protection_enabled: bool = False
@@ -73,7 +73,7 @@ class ComboRule:
 
         # Validate and normalize conditions
         conditions: dict[str, str | bool | list[str]] = {}
-        for key, value in conditions_raw.items():  # pyright: ignore[reportUnknownVariableType]
+        for key, value in cast('dict[object, object]', conditions_raw).items():
             if not isinstance(key, str):
                 continue
             if key in _STRING_CONDITIONS:
@@ -83,7 +83,7 @@ class ComboRule:
                 if isinstance(value, bool):
                     conditions[key] = value
             elif key == _EVENT_CONDITION and isinstance(value, list):
-                valid_events: list[str] = [e for e in value if isinstance(e, str) and e in _VALID_EVENTS]  # pyright: ignore[reportUnknownVariableType]
+                valid_events: list[str] = [e for e in cast('list[object]', value) if isinstance(e, str) and e in _VALID_EVENTS]
                 if valid_events:
                     conditions[key] = valid_events
 
@@ -240,9 +240,9 @@ class ComboRulesManager:
         try:
             data = json.loads(file_path.read_text(encoding='utf-8'))
             if isinstance(data, list):
-                for entry in data:  # pyright: ignore[reportUnknownVariableType]
+                for entry in cast('list[object]', data):
                     if isinstance(entry, dict):
-                        cls.rules.append(ComboRule.from_dict(entry))  # pyright: ignore[reportUnknownArgumentType]
+                        cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))
         except (json.JSONDecodeError, OSError):
             logger.warning('Failed to load combo rules from %s, starting with empty rules', file_path)
 
@@ -281,4 +281,4 @@ class ComboRulesManager:
         cls.rules = []
         for entry in rules_data:
             if isinstance(entry, dict):
-                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))  # pyright: ignore[reportUnknownArgumentType]
+                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))

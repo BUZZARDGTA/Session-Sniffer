@@ -66,7 +66,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
             msg = 'Failed to get PPS plot item'
             raise RuntimeError(msg)
         pps_left = pps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
-        pps_left.setTextPen(pg.mkPen('lime'))  # pyright: ignore[reportUnknownMemberType]
+        pps_left.setTextPen(pg.mkPen('lime'))
 
         self._pps_curve = self._pps_widget.plot(pen=pg.mkPen('lime', width=2))
         self._pps_curve.setFillLevel(0)
@@ -99,7 +99,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
             msg = 'Failed to get BPS plot item'
             raise RuntimeError(msg)
         bps_left = bps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
-        bps_left.setTextPen(pg.mkPen('#00bcd4'))  # pyright: ignore[reportUnknownMemberType]
+        bps_left.setTextPen(pg.mkPen('#00bcd4'))
 
         self._bps_curve = self._bps_widget.plot(pen=pg.mkPen('#00bcd4', width=2))
         self._bps_curve.setFillLevel(0)
@@ -191,7 +191,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     @staticmethod
     def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
         """Return True if the widget's x-axis view includes the live (rightmost) edge."""
-        x_range: list[float] = widget.viewRange()[0]  # pyright: ignore[reportUnknownMemberType]
+        x_range: list[float] = widget.viewRange()[0]
         return x_range[1] >= -2  # noqa: PLR2004
 
 

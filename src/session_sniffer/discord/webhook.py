@@ -19,7 +19,7 @@ import urllib.request
 from dataclasses import dataclass
 from queue import Empty, SimpleQueue
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Any, Final, cast  # pylint: disable=unused-import  # `Any` is used in quoted cast() forward refs (Ruff TC006)
+from typing import TYPE_CHECKING, Final, cast
 
 import sentinel  # pyright: ignore[reportMissingTypeStubs]
 
@@ -338,7 +338,7 @@ def _load_message_ids() -> dict[str, str]:
         return {}
     if not isinstance(parsed, dict):
         return {}
-    parsed_dict = cast('dict[str, Any]', parsed)
+    parsed_dict = cast('dict[object, object]', parsed)
     return {str(k): str(v) for k, v in parsed_dict.items() if isinstance(v, (str, int))}
 
 
@@ -573,7 +573,8 @@ class DiscordWebhookSender:
                 return None
             if not isinstance(parsed, dict):
                 return None
-            new_id = cast('dict[str, Any]', parsed).get('id')
+            parsed_dict = cast('dict[str, object]', parsed)
+            new_id = parsed_dict.get('id')
             if isinstance(new_id, (str, int)):
                 self.connection_status.set()
                 return str(new_id)
@@ -606,7 +607,8 @@ class DiscordWebhookSender:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 payload = None
             if isinstance(payload, dict):
-                retry_value = cast('dict[str, Any]', payload).get('retry_after')
+                payload_dict = cast('dict[str, object]', payload)
+                retry_value: object = payload_dict.get('retry_after')
                 if isinstance(retry_value, (int, float)):
                     delay = float(retry_value)
         delay = max(0.1, min(delay, 30.0))
@@ -627,7 +629,7 @@ class DiscordWebhookSender:
             body[:200],
         )
         # Clear stored message IDs so a fresh URL starts cleanly
-        _save_message_ids(cast('dict[str, str]', {}))
+        _save_message_ids({})
 
         # Notify the user via a non-blocking popup (msgbox is modal; spawn a
         # daemon thread so the webhook worker keeps draining its queue).

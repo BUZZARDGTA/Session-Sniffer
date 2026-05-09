@@ -576,7 +576,7 @@ class MainWindow(QMainWindow):
         # ----- Detections Manager -----
         protections_button = QPushButton(' \U0001f6e1\ufe0f Detections Manager ', self)
         protections_button.setToolTip('Configure detection, notifications, and protection rules')
-        protections_button.clicked.connect(self._open_detections_manager)  # pyright: ignore[reportUnknownMemberType]
+        protections_button.clicked.connect(self._open_detections_manager)
         protections_action = cast('QAction', toolbar.addWidget(protections_button))
         self._protections_button = protections_button
         self._protections_action = protections_action
@@ -1160,7 +1160,7 @@ class MainWindow(QMainWindow):
             self._settings_dialog_window.activateWindow()
             return
         self._settings_dialog_window = SettingsDialog(self, self.capture.get())
-        self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)  # pyright: ignore[reportUnknownMemberType]
+        self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)
         self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))
         self._settings_dialog_window.show()
 

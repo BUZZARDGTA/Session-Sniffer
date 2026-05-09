@@ -53,7 +53,7 @@ class _ProcessState:
     path_key: str
     pid: int
     suspended: bool = False
-    reasons: dict[str, _SuspendReason] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
 
 class ProcessSuspendManager:

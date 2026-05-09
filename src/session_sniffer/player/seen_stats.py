@@ -113,7 +113,7 @@ class LeaderboardEntry:
     """Aggregated stats for a single player IP across all session logs."""
 
     ip: str
-    usernames: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    usernames: list[str] = field(default_factory=list[str])
     sessions_today: int = 0
     sessions_week: int = 0
     sessions_month: int = 0
@@ -137,11 +137,43 @@ def _extract_all_players_from_session(
         players_raw: Any = data.get(section)
         if not isinstance(players_raw, dict):
             continue
-        players = cast('dict[str, dict[str, Any]]', players_raw)
+        players = cast('dict[str, Any]', players_raw)
         for ip, info in players.items():
-            if ip not in result:
-                result[ip] = info
+            if isinstance(info, dict) and ip not in result:
+                result[ip] = cast('dict[str, Any]', info)
     return result
+
+
+def _to_str_list(raw: list[object]) -> list[str]:
+    """Convert a raw JSON list to a list of strings."""
+    return [str(item) for item in raw]
+
+
+def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any]) -> None:
+    """Update display metadata from a player entry."""
+    raw_usernames = player_info.get('Usernames')
+    if isinstance(raw_usernames, list) and raw_usernames:
+        entry.usernames = _to_str_list(cast('list[object]', raw_usernames))
+
+    raw_country = player_info.get('Country')
+    if isinstance(raw_country, str) and raw_country != 'N/A':
+        entry.country = raw_country
+
+    raw_isp = player_info.get('ISP')
+    if isinstance(raw_isp, str) and raw_isp != 'N/A':
+        entry.isp = raw_isp
+
+    raw_mobile = player_info.get('Mobile')
+    if isinstance(raw_mobile, bool):
+        entry.mobile = raw_mobile
+
+    raw_vpn = player_info.get('VPN')
+    if isinstance(raw_vpn, bool):
+        entry.vpn = raw_vpn
+
+    raw_hosting = player_info.get('Hosting')
+    if isinstance(raw_hosting, bool):
+        entry.hosting = raw_hosting
 
 
 def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
@@ -181,32 +213,14 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
             if first_seen.year == now.year:
                 entry.sessions_year += 1
 
-            # Track first/last seen
+            # Track first/last seen and update metadata from the latest session
             if entry.first_seen is None or first_seen < entry.first_seen:
                 entry.first_seen = first_seen
-            if entry.last_seen is None or first_seen > entry.last_seen:
-                entry.last_seen = first_seen
 
-            # Update usernames from latest session data
-            raw_usernames = player_info.get('Usernames')
-            if isinstance(raw_usernames, list) and raw_usernames:
-                entry.usernames = [str(u) for u in cast('list[object]', raw_usernames)]
+            if entry.last_seen is not None and first_seen <= entry.last_seen:
+                continue
 
-            # Update metadata from latest session data
-            raw_country = player_info.get('Country')
-            if isinstance(raw_country, str) and raw_country != 'N/A':
-                entry.country = raw_country
-            raw_isp = player_info.get('ISP')
-            if isinstance(raw_isp, str) and raw_isp != 'N/A':
-                entry.isp = raw_isp
-            raw_mobile = player_info.get('Mobile')
-            if isinstance(raw_mobile, bool):
-                entry.mobile = raw_mobile
-            raw_vpn = player_info.get('VPN')
-            if isinstance(raw_vpn, bool):
-                entry.vpn = raw_vpn
-            raw_hosting = player_info.get('Hosting')
-            if isinstance(raw_hosting, bool):
-                entry.hosting = raw_hosting
+            entry.last_seen = first_seen
+            _update_entry_metadata(entry, player_info)
 
     return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)[:1000]

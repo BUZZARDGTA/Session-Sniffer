@@ -85,13 +85,13 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         import_button = QPushButton('\U0001f4e5 Import')
         import_button.setToolTip('Import settings from a Settings.ini file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        import_button.clicked.connect(self._import_settings)  # pyright: ignore[reportUnknownMemberType]
+        import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
         export_button = QPushButton('\U0001f4e4 Export')
         export_button.setToolTip('Export current settings to a Settings.ini file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        export_button.clicked.connect(self._export_settings)  # pyright: ignore[reportUnknownMemberType]
+        export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
         button_row.addStretch()
@@ -122,12 +122,12 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         # default (in which case `setChecked` would not fire `toggled`).
         webhook_enabled_widget = self._widgets.get('discord_webhook_enabled')
         if isinstance(webhook_enabled_widget, QCheckBox):
-            webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())  # pyright: ignore[reportUnknownMemberType]
+            webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())
 
         # Show/hide Session Host Detection based on Program Preset.
         preset_widget = self._widgets.get('capture_program_preset')
         if isinstance(preset_widget, QComboBox):
-            preset_widget.currentTextChanged.connect(self._on_preset_changed)  # pyright: ignore[reportUnknownMemberType]
+            preset_widget.currentTextChanged.connect(self._on_preset_changed)
             self._on_preset_changed(preset_widget.currentText())
 
     # ------------------------------------------------------------------
@@ -193,7 +193,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             join_button = QPushButton('\U0001f3ae Join Session Sniffer Discord Server')
             join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
             join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))  # pyright: ignore[reportUnknownMemberType]
+            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))
             join_row.addStretch()
             join_row.addWidget(join_button)
             join_row.addStretch()
@@ -261,7 +261,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         # Enabled checkbox
         enabled_meta = meta_by_key.get('discord_webhook_enabled')
         if enabled_meta is not None:
-            enabled_widget = self._create_widget('discord_webhook_enabled', enabled_meta)
+            enabled_widget = self._create_boolean_widget(enabled_meta)
             self._widgets['discord_webhook_enabled'] = enabled_widget
             enabled_label = QLabel(enabled_meta.display_label + ':')
             if enabled_meta.tooltip:
@@ -291,13 +291,13 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             show_button.setCheckable(True)
             show_button.setToolTip('Reveal or hide the webhook URL')
             show_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))  # pyright: ignore[reportUnknownMemberType]
+            show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))
             url_row_layout.addWidget(show_button)
 
             test_button = QPushButton('\U0001f527 Test')
             test_button.setToolTip('Send a one-time test message to this webhook URL')
             test_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            test_button.clicked.connect(partial(self._test_webhook, url_line))  # pyright: ignore[reportUnknownMemberType]
+            test_button.clicked.connect(partial(self._test_webhook, url_line))
             url_row_layout.addWidget(test_button)
 
             url_label = QLabel(url_meta.display_label + ':')
@@ -330,7 +330,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             'Use this after changing channels or after Wick/automod deletes the old messages.',
         )
         reset_msgs_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        reset_msgs_button.clicked.connect(self._reset_stored_messages)  # pyright: ignore[reportUnknownMemberType]
+        reset_msgs_button.clicked.connect(self._reset_stored_messages)
         reset_msgs_row.addWidget(reset_msgs_button)
         outer.addLayout(reset_msgs_row)
 
@@ -346,7 +346,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         # Wire enable cascade.
         if enabled_meta is not None:
             enabled_cb = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
-            enabled_cb.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))  # pyright: ignore[reportUnknownMemberType]
+            enabled_cb.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))
 
         return group_box
 
@@ -602,8 +602,8 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
             for item in list_widget.selectedItems():
                 list_widget.takeItem(list_widget.row(item))
 
-        add_button.clicked.connect(_add_entry)  # pyright: ignore[reportUnknownMemberType]
-        remove_button.clicked.connect(_remove_entries)  # pyright: ignore[reportUnknownMemberType]
+        add_button.clicked.connect(_add_entry)
+        remove_button.clicked.connect(_remove_entries)
 
         btn_row = QHBoxLayout()
         btn_row.setContentsMargins(0, 0, 0, 0)

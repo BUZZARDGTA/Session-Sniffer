@@ -58,9 +58,9 @@ class AdapterData:
     status:            _AdapterStatus
     traffic:           _AdapterTraffic
     ipv4_addresses:    list[str]
-    gateway_addresses: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    neighbors:         list[tuple[str | None, str | None]] = field(  # pyright: ignore[reportUnknownVariableType]
-        default_factory=list,
+    gateway_addresses: list[str] = field(default_factory=list[str])
+    neighbors:         list[tuple[str | None, str | None]] = field(
+        default_factory=list[tuple[str | None, str | None]],
     )
 
 

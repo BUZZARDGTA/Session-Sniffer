@@ -31,7 +31,10 @@ class _GUIThreadDispatcher(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._call.connect(lambda fn: fn())  # pyright: ignore[reportUnknownLambdaType]
+
+        def _dispatch_fn(fn: Callable[[], None]) -> None:
+            fn()
+        self._call.connect(_dispatch_fn)
 
     def invoke(self, fn: Callable[[], None]) -> None:
         """Emit `fn` as a signal — Qt will queue it to the GUI thread automatically."""
