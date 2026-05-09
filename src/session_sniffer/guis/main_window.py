@@ -30,7 +30,6 @@ from session_sniffer.constants.local import (
     DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
     ERRORS_LOG_PATH,
-    LIBS_DEBUG_LOG_PATH,
     LOGGING_DIR_PATH,
     PROTECTION_LOGGING_PATH,
     SESSIONS_LOGGING_DIR_PATH,
@@ -731,11 +730,6 @@ class MainWindow(QMainWindow):
         open_debug_log_action.triggered.connect(self._open_debug_log_file)
         debug_logs_submenu.addAction(open_debug_log_action)
 
-        open_libs_debug_log_action = QAction('📄 libs_debug.log', self)
-        open_libs_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\libs_debug.log')
-        open_libs_debug_log_action.triggered.connect(self._open_libs_debug_log_file)
-        debug_logs_submenu.addAction(open_libs_debug_log_action)
-
         open_warnings_log_action = QAction('📄 warnings.log', self)
         open_warnings_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\warnings.log')
         open_warnings_log_action.triggered.connect(self._open_warnings_log_file)
@@ -1151,10 +1145,6 @@ class MainWindow(QMainWindow):
     def _open_debug_log_file(self) -> None:
         """Open the debug.log file."""
         self._open_file(DEBUG_LOG_PATH)
-
-    def _open_libs_debug_log_file(self) -> None:
-        """Open the libs_debug.log file."""
-        self._open_file(LIBS_DEBUG_LOG_PATH)
 
     def _open_debug_logs_folder(self) -> None:
         """Open the Debug logs directory."""
