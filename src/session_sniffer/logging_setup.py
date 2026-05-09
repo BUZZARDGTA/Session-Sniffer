@@ -34,6 +34,7 @@ _SUPPRESSED_SCAPY_SUBSTRINGS = (
     'Unable to guess datalink type',
 )
 
+
 def _urllib3_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress noisy third-party retry warnings from all handlers."""
     return not (record.name.startswith('urllib3.') and any(s in record.getMessage() for s in _SUPPRESSED_URLLIB3_SUBSTRINGS))
