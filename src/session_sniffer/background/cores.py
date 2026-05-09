@@ -86,11 +86,13 @@ def iplookup_core() -> None:
                         requests_remaining = _IPAPI_MAX_REQUESTS
                         ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                         continue
-                    # Transient server-side errors — wait and retry
+
+                    # Transient server-side errors — wait and retry.
                     if HTTPStatus(e.response.status_code).is_server_error:
                         logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
                         gui_closed__event.wait(5)
                         continue
+
                 raise  # Re-raise unexpected HTTP errors (4xx, etc.)
 
             requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
@@ -98,6 +100,7 @@ def iplookup_core() -> None:
 
             iplookup_results_data = response.json()
             iplookup_results: list[IpApiResponse] = []
+
             for item in iplookup_results_data:
                 try:
                     iplookup_results.append(IpApiResponse.model_validate(item))
@@ -107,9 +110,14 @@ def iplookup_core() -> None:
                         failed_player = PlayersRegistry.get_player_by_ip(item.get('query', ''))
                         if failed_player is not None:
                             failed_player.iplookup.ipapi.is_initialized = True
-                            logger.debug('ip-api returned fail for %s (%s) — marking as initialized', item.get('query'), item.get('message', ''))
+                            logger.debug(
+                                'ip-api returned fail for %s (%s) — marking as initialized',
+                                item.get('query'),
+                                item.get('message', ''),
+                            )
                     else:
                         logger.warning('Failed to validate ip-api response item: %s', item)
+
                     continue
 
             for iplookup in iplookup_results:
@@ -141,10 +149,12 @@ def hostname_core() -> None:
 
         while not gui_closed__event.is_set():
             _iter_start = time.monotonic()
+
             if ScriptControl.has_crashed():
                 return
 
             submitted_new = False
+
             for player in PlayersRegistry.get_default_sorted_players():
                 if player.reverse_dns.is_initialized or player.ip in pending_ips:
                     continue
@@ -158,14 +168,11 @@ def hostname_core() -> None:
                 gui_closed__event.wait(1)
                 continue
 
-            resolved_any = False
-            for future, ip in list(futures.items()):
-                if not future.done():
-                    continue
+            done_futures = [(future, ip) for future, ip in futures.items() if future.done()]
 
+            for future, ip in done_futures:
                 futures.pop(future)
                 pending_ips.remove(ip)
-                resolved_any = True
 
                 hostname = future.result()
 
@@ -176,8 +183,11 @@ def hostname_core() -> None:
                 matched_player.reverse_dns.hostname = hostname
                 matched_player.reverse_dns.is_initialized = True
 
+            resolved_any = bool(done_futures)
+
             # Only poll quickly if there's active work; otherwise wait longer
             _slowdown.check(time.monotonic() - _iter_start, 'hostname_core')
+
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:
@@ -189,17 +199,24 @@ def pinger_core() -> None:
     with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
         futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()   # Tracks IPs currently being processed
-
+        exhausted_ips: dict[str, float] = {}  # Maps IPs to their retry-after timestamp
         _slowdown = SlowdownDetector.get('pinger_core')
 
         while not gui_closed__event.is_set():
             _iter_start = time.monotonic()
+
             if ScriptControl.has_crashed():
                 return
 
+            now = time.monotonic()
             submitted_new = False
+
             for player in PlayersRegistry.get_default_sorted_players():
                 if player.ping.is_initialized or player.ip in pending_ips:
+                    continue
+
+                retry_after = exhausted_ips.get(player.ip)
+                if retry_after is not None and now < retry_after:
                     continue
 
                 future = executor.submit(fetch_and_parse_ping, player.ip)
@@ -211,30 +228,36 @@ def pinger_core() -> None:
                 gui_closed__event.wait(1)
                 continue
 
-            resolved_any = False
-            for future, ip in list(futures.items()):
-                if not future.done():
-                    continue
+            done_futures = [(future, ip) for future, ip in futures.items() if future.done()]
 
+            for future, ip in done_futures:
                 futures.pop(future)
                 pending_ips.remove(ip)
-                resolved_any = True
 
                 try:
                     ping_result = future.result()
                 except AllEndpointsExhaustedError:
+                    exhausted_ips[ip] = time.monotonic() + 30.0
                     continue
+
+                exhausted_ips.pop(ip, None)
 
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is None:
                     continue
 
                 matched_player.ping.update_fields(ping_result._asdict())
-                matched_player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
+                matched_player.ping.is_pinging = (
+                    ping_result.packets_received is not None
+                    and ping_result.packets_received > 0
+                )
                 matched_player.ping.is_initialized = True
+
+            resolved_any = bool(done_futures)
 
             # Only poll quickly if there's active work; otherwise wait longer
             _slowdown.check(time.monotonic() - _iter_start, 'pinger_core')
+
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:
