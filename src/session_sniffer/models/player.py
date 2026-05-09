@@ -568,6 +568,21 @@ class PlayerIPAPI:
         """Batch-update IP-API lookup fields from a pre-validated mapping."""
         self._values.update(data)
 
+    @property
+    def as_name(self) -> str:
+        """Return the AS name string from the IP-API lookup result."""
+        return str(self._values['as_name'])
+
+    @property
+    def isp(self) -> str:
+        """Return the ISP string from the IP-API lookup result."""
+        return str(self._values['isp'])
+
+    @property
+    def asn(self) -> str:
+        """Return the ASN string from the IP-API lookup result."""
+        return str(self._values['asn'])
+
 
 class PlayerCountryFlag:
     """Hold the rendered country flag assets for a player.
