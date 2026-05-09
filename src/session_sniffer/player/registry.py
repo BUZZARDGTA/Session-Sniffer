@@ -1,13 +1,13 @@
 ﻿"""Player registry for connected and disconnected players."""
 
 from datetime import timedelta
+from heapq import nsmallest
 from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.utils import take
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -215,7 +215,7 @@ class SessionHost:
             '[SessionHost] get_host_player called with %d total connected players',
             len(session_connected),
         )
-        connected_players: list[Player] = take(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, sorted(session_connected, key=attrgetter('datetime.last_rejoin')))
+        connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, session_connected, key=attrgetter('datetime.last_rejoin'))
 
         for i, p in enumerate(connected_players):
             logger.debug(

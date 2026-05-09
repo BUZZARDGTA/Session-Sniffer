@@ -168,11 +168,6 @@ def format_project_version(version: Version) -> str:
     return f'v{version.public}'
 
 
-def take[T](n: int, iterable: Iterable[T]) -> list[T]:
-    """Return the first n items from the given iterable."""
-    return list(iterable)[:n]
-
-
 def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
     """Concatenate one or more iterables while removing duplicates and preserving order."""
     seen: set[T] = set()
