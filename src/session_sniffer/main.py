@@ -227,7 +227,7 @@ def main() -> None:
                 CaptureStats.packets_latencies.clear()
                 logger.warning(
                     'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
-                    'Restarting capture now (restart #%d). Skipping this packet.',
+                    'Restarting capture now (restart no.%d). Skipping this packet.',
                     packet_latency.total_seconds(),
                     Settings.capture_overflow_timer,
                     CaptureStats.restarted_times,
