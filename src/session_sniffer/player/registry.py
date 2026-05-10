@@ -32,16 +32,16 @@ class PlayersRegistry:
     _disconnected_players_registry: ClassVar[dict[str, Player]] = {}
 
     @classmethod
-    def _get_sorted_connected_players(cls) -> list[Player]:
+    def _sort_connected_players(cls, players: list[Player]) -> list[Player]:
         return sorted(
-            cls._connected_players_registry.values(),
+            players,
             key=attrgetter(cls._DEFAULT_CONNECTED_SORT_ORDER),
         )
 
     @classmethod
-    def _get_sorted_disconnected_players(cls) -> list[Player]:
+    def _sort_disconnected_players(cls, players: list[Player]) -> list[Player]:
         return sorted(
-            cls._disconnected_players_registry.values(),
+            players,
             key=attrgetter(cls._DEFAULT_DISCONNECTED_SORT_ORDER),
             reverse=True,
         )
@@ -125,6 +125,16 @@ class PlayersRegistry:
             return list(cls._connected_players_registry.values())
 
     @classmethod
+    def get_all_players(cls) -> list[Player]:
+        """Return an unsorted snapshot of all connected and disconnected players.
+
+        Prefer this over `get_default_sorted_players` when sort order is irrelevant,
+        to avoid the O(n log n) sort overhead.
+        """
+        with cls._registry_lock:
+            return list(cls._connected_players_registry.values()) + list(cls._disconnected_players_registry.values())
+
+    @classmethod
     def get_default_sorted_players(
         cls,
         *,
@@ -137,21 +147,25 @@ class PlayersRegistry:
         disconnected players by last seen (descending).
         """
         with cls._registry_lock:
-            players: list[Player] = []
-            if include_connected:
-                players.extend(cls._get_sorted_connected_players())
-            if include_disconnected:
-                players.extend(cls._get_sorted_disconnected_players())
-            return players
+            connected_snapshot = list(cls._connected_players_registry.values()) if include_connected else []
+            disconnected_snapshot = list(cls._disconnected_players_registry.values()) if include_disconnected else []
+        players: list[Player] = []
+        if include_connected:
+            players.extend(cls._sort_connected_players(connected_snapshot))
+        if include_disconnected:
+            players.extend(cls._sort_disconnected_players(disconnected_snapshot))
+        return players
 
     @classmethod
     def get_default_sorted_connected_and_disconnected_players(cls) -> tuple[list[Player], list[Player]]:
         """Return connected and disconnected players, each sorted by their default criteria."""
         with cls._registry_lock:
-            return (
-                cls._get_sorted_connected_players(),
-                cls._get_sorted_disconnected_players(),
-            )
+            connected_snapshot = list(cls._connected_players_registry.values())
+            disconnected_snapshot = list(cls._disconnected_players_registry.values())
+        return (
+            cls._sort_connected_players(connected_snapshot),
+            cls._sort_disconnected_players(disconnected_snapshot),
+        )
 
     @classmethod
     def clear_connected_players(cls) -> None:

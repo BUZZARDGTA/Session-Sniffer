@@ -28,7 +28,7 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
 
     def refresh(self) -> None:
         """Rebuild the table with current rejoin data."""
-        all_players = PlayersRegistry.get_default_sorted_players()
+        all_players = PlayersRegistry.get_all_players()
         entries = [
             (p.ip, p.rejoins, ', '.join(p.usernames) if p.usernames else '\u2014')
             for p in all_players

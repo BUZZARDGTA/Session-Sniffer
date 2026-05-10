@@ -28,7 +28,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
 
     def refresh(self) -> None:
         """Rebuild the table with current country data."""
-        all_players = PlayersRegistry.get_default_sorted_players()
+        all_players = PlayersRegistry.get_all_players()
         counts: dict[str, int] = {}
         for player in all_players:
             if (

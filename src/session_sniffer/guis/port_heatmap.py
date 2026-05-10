@@ -28,7 +28,7 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
 
     def refresh(self) -> None:
         """Rebuild the table with current port frequency data."""
-        all_players = PlayersRegistry.get_default_sorted_players()
+        all_players = PlayersRegistry.get_all_players()
         counts: dict[int, int] = {}
         for player in all_players:
             for port in player.ports.all:

@@ -74,7 +74,7 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
     def refresh(self) -> None:
         """Refresh all displayed statistics."""
         connected = PlayersRegistry.get_connected_players()
-        all_players = PlayersRegistry.get_default_sorted_players()
+        all_players = PlayersRegistry.get_all_players()
 
         total_bandwidth = sum(p.bandwidth.exchanged for p in all_players)
         total_download = sum(p.bandwidth.download for p in all_players)

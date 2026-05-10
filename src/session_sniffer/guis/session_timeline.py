@@ -44,7 +44,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
 
     def refresh(self) -> None:
         """Rebuild the Gantt chart with current player data."""
-        all_players = PlayersRegistry.get_default_sorted_players()
+        all_players = PlayersRegistry.get_all_players()
         if not all_players:
             self._widget.clear()
             self._y_axis.setTicks([[]])
