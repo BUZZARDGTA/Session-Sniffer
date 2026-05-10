@@ -28,9 +28,9 @@ def _toggle_protection_list(target_list: list[str], value: str, *, add: bool) ->
     GUIProtectionSettings.save_to_settings()
 
 
-def _safe_str(value: object) -> str | None:
-    """Return *value* as `str` if it is a non-placeholder string, else `None`."""
-    if isinstance(value, str) and value and value != _PLACEHOLDER:
+def _safe_str(value: str) -> str | None:
+    """Return `value` if it is a non-empty, non-placeholder string, else `None`."""
+    if value and value != _PLACEHOLDER:
         return value
     return None
 

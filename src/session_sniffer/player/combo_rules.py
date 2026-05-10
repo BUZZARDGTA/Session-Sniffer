@@ -125,15 +125,13 @@ def _match_exact_lookup(value: str, *candidates: object) -> bool:
 def _match_isp_condition(value: str, player: Player) -> bool:
     """Match ISP condition using the same logic as the existing ISP blocklist."""
     value_upper = value.upper().strip()
-    as_name = str(player.iplookup.ipapi.as_name)
-    isp = str(player.iplookup.ipapi.isp)
 
-    if as_name and as_name not in ('...', 'N/A'):
-        as_name_clean = as_name.upper().replace('AS', '', 1).strip()
+    if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A'):
+        as_name_clean = player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip()
         if as_name_clean and value_upper in as_name_clean:
             return True
 
-    return bool(isp and isp not in ('...', 'N/A') and value_upper in isp.upper())
+    return bool(player.iplookup.ipapi.isp and player.iplookup.ipapi.isp not in ('...', 'N/A') and value_upper in player.iplookup.ipapi.isp.upper())
 
 
 def _match_asn_condition(value: str, player: Player) -> bool:
@@ -141,27 +139,23 @@ def _match_asn_condition(value: str, player: Player) -> bool:
     value_upper = value.upper().strip()
     normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
 
-    asn_ipapi = str(player.iplookup.ipapi.asn)
-    asn_geolite2 = str(player.iplookup.geolite2.asn)
-
-    if asn_ipapi and asn_ipapi not in ('...', 'N/A') and asn_ipapi.upper() == normalized:
+    if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A') and player.iplookup.ipapi.asn.upper() == normalized:
         return True
 
-    return bool(asn_geolite2 and asn_geolite2 not in ('...', 'N/A') and asn_geolite2.upper() == normalized)
+    return bool(player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A') and player.iplookup.geolite2.asn.upper() == normalized)
 
 
 def _match_as_name_condition(value: str, player: Player) -> bool:
     """Match AS Name condition using substring match."""
-    as_name = str(player.iplookup.ipapi.as_name)
-    return bool(as_name and as_name not in ('...', 'N/A') and value.upper().strip() in as_name.upper())
+    return bool(player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') and value.upper().strip() in player.iplookup.ipapi.as_name.upper())
 
 
 def _match_country_condition(value: ConditionValue, player: Player) -> bool:
     """Match country condition against GeoLite2 and ip-api country values."""
     return isinstance(value, str) and _match_exact_lookup(
         value,
-        str(player.iplookup.geolite2.country),
-        str(player.iplookup.ipapi.country),
+        player.iplookup.geolite2.country,
+        player.iplookup.ipapi.country,
     )
 
 
@@ -169,8 +163,8 @@ def _match_city_condition(value: ConditionValue, player: Player) -> bool:
     """Match city condition against GeoLite2 and ip-api city values."""
     return isinstance(value, str) and _match_exact_lookup(
         value,
-        str(player.iplookup.geolite2.city),
-        str(player.iplookup.ipapi.city),
+        player.iplookup.geolite2.city,
+        player.iplookup.ipapi.city,
     )
 
 
@@ -178,14 +172,13 @@ def _match_region_condition(value: ConditionValue, player: Player) -> bool:
     """Match region condition against ip-api region value."""
     return isinstance(value, str) and _match_exact_lookup(
         value,
-        str(player.iplookup.ipapi.region),
+        player.iplookup.ipapi.region,
     )
 
 
 def _match_org_condition(value: ConditionValue, player: Player) -> bool:
     """Match organization condition using substring match."""
-    org = str(player.iplookup.ipapi.org)
-    return isinstance(value, str) and _valid_lookup_value(org) and value.upper() in org.upper()
+    return isinstance(value, str) and _valid_lookup_value(player.iplookup.ipapi.org) and value.upper() in player.iplookup.ipapi.org.upper()
 
 
 def _match_isp_condition_wrapper(value: ConditionValue, player: Player) -> bool:
@@ -205,20 +198,17 @@ def _match_as_name_condition_wrapper(value: ConditionValue, player: Player) -> b
 
 def _match_mobile_condition(value: ConditionValue, player: Player) -> bool:
     """Match mobile flag condition."""
-    mobile = player.iplookup.ipapi.mobile
-    return isinstance(value, bool) and isinstance(mobile, bool) and mobile == value
+    return isinstance(value, bool) and isinstance(player.iplookup.ipapi.mobile, bool) and player.iplookup.ipapi.mobile == value
 
 
 def _match_vpn_condition(value: ConditionValue, player: Player) -> bool:
     """Match VPN/proxy flag condition."""
-    proxy = player.iplookup.ipapi.proxy
-    return isinstance(value, bool) and isinstance(proxy, bool) and proxy == value
+    return isinstance(value, bool) and isinstance(player.iplookup.ipapi.proxy, bool) and player.iplookup.ipapi.proxy == value
 
 
 def _match_hosting_condition(value: ConditionValue, player: Player) -> bool:
     """Match hosting/datacenter flag condition."""
-    hosting = player.iplookup.ipapi.hosting
-    return isinstance(value, bool) and isinstance(hosting, bool) and hosting == value
+    return isinstance(value, bool) and isinstance(player.iplookup.ipapi.hosting, bool) and player.iplookup.ipapi.hosting == value
 
 
 _CONDITION_MATCHERS: dict[str, ConditionMatcher] = {

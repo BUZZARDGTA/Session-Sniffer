@@ -569,6 +569,84 @@ class PlayerIPAPI:
         self._values.update(data)
 
     @property
+    def continent(self) -> str:
+        """Return the continent string from the IP-API lookup result."""
+        return str(self._values['continent'])
+
+    @property
+    def continent_code(self) -> str:
+        """Return the continent code string from the IP-API lookup result."""
+        return str(self._values['continent_code'])
+
+    @property
+    def country(self) -> str:
+        """Return the country string from the IP-API lookup result."""
+        return str(self._values['country'])
+
+    @property
+    def country_code(self) -> str:
+        """Return the country code string from the IP-API lookup result."""
+        return str(self._values['country_code'])
+
+    @property
+    def region(self) -> str:
+        """Return the region string from the IP-API lookup result."""
+        return str(self._values['region'])
+
+    @property
+    def region_code(self) -> str:
+        """Return the region code string from the IP-API lookup result."""
+        return str(self._values['region_code'])
+
+    @property
+    def city(self) -> str:
+        """Return the city string from the IP-API lookup result."""
+        return str(self._values['city'])
+
+    @property
+    def district(self) -> str:
+        """Return the district string from the IP-API lookup result."""
+        return str(self._values['district'])
+
+    @property
+    def zip_code(self) -> str:
+        """Return the ZIP code string from the IP-API lookup result."""
+        return str(self._values['zip_code'])
+
+    @property
+    def lat(self) -> float | str:
+        """Return the latitude from the IP-API lookup result."""
+        v = self._values['lat']
+        return float(v) if isinstance(v, (int, float)) else str(v)
+
+    @property
+    def lon(self) -> float | str:
+        """Return the longitude from the IP-API lookup result."""
+        v = self._values['lon']
+        return float(v) if isinstance(v, (int, float)) else str(v)
+
+    @property
+    def time_zone(self) -> str:
+        """Return the time zone string from the IP-API lookup result."""
+        return str(self._values['time_zone'])
+
+    @property
+    def offset(self) -> int | str:
+        """Return the UTC offset from the IP-API lookup result."""
+        v = self._values['offset']
+        return int(v) if isinstance(v, (int, float)) else str(v)
+
+    @property
+    def currency(self) -> str:
+        """Return the currency string from the IP-API lookup result."""
+        return str(self._values['currency'])
+
+    @property
+    def org(self) -> str:
+        """Return the organization string from the IP-API lookup result."""
+        return str(self._values['org'])
+
+    @property
     def as_name(self) -> str:
         """Return the AS name string from the IP-API lookup result."""
         return str(self._values['as_name'])
@@ -582,6 +660,24 @@ class PlayerIPAPI:
     def asn(self) -> str:
         """Return the ASN string from the IP-API lookup result."""
         return str(self._values['asn'])
+
+    @property
+    def mobile(self) -> bool | str:
+        """Return the mobile flag from the IP-API lookup result."""
+        v = self._values['mobile']
+        return bool(v) if isinstance(v, bool) else str(v)
+
+    @property
+    def proxy(self) -> bool | str:
+        """Return the proxy flag from the IP-API lookup result."""
+        v = self._values['proxy']
+        return bool(v) if isinstance(v, bool) else str(v)
+
+    @property
+    def hosting(self) -> bool | str:
+        """Return the hosting flag from the IP-API lookup result."""
+        v = self._values['hosting']
+        return bool(v) if isinstance(v, bool) else str(v)
 
 
 class PlayerCountryFlag:

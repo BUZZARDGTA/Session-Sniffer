@@ -33,7 +33,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         for player in all_players:
             country = player.iplookup.geolite2.country
             if country == '...':
-                ipapi_country = str(player.iplookup.ipapi.country)
+                ipapi_country = player.iplookup.ipapi.country
                 if ipapi_country != '...':
                     country = ipapi_country
             if country and country != '...':

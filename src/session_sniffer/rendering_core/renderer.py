@@ -215,8 +215,8 @@ def rendering_core(
 
                 # Calculate optimal padding for connected players
                 for player in connected_players:
-                    country_len = len(str(player.iplookup.geolite2.country))
-                    continent_len = len(str(player.iplookup.ipapi.continent))
+                    country_len = len(player.iplookup.geolite2.country)
+                    continent_len = len(player.iplookup.ipapi.continent)
 
                     # Only include in padding calculation if within threshold
                     if country_len <= table_country_column_length_threshold:
@@ -226,8 +226,8 @@ def rendering_core(
 
                 # Calculate optimal padding for disconnected players
                 for player in disconnected_players:
-                    country_len = len(str(player.iplookup.geolite2.country))
-                    continent_len = len(str(player.iplookup.ipapi.continent))
+                    country_len = len(player.iplookup.geolite2.country)
+                    continent_len = len(player.iplookup.ipapi.continent)
 
                     # Only include in padding calculation if within threshold
                     if country_len <= table_country_column_length_threshold:
@@ -380,11 +380,11 @@ def rendering_core(
                     'Last Seen': player.datetime.last_seen.isoformat(),
                     'Rejoins': player.rejoins,
                     'Packets': player.packets.total_exchanged,
-                    'Country': str(player.iplookup.geolite2.country),
-                    'Country Code': str(player.iplookup.geolite2.country_code),
-                    'City': str(player.iplookup.geolite2.city),
-                    'ISP': str(player.iplookup.ipapi.isp),
-                    'ASN': str(player.iplookup.geolite2.asn),
+                    'Country': player.iplookup.geolite2.country,
+                    'Country Code': player.iplookup.geolite2.country_code,
+                    'City': player.iplookup.geolite2.city,
+                    'ISP': player.iplookup.ipapi.isp,
+                    'ASN': player.iplookup.geolite2.asn,
                     'Hostname': player.reverse_dns.hostname,
                     'Mobile': player.iplookup.ipapi.mobile,
                     'VPN': player.iplookup.ipapi.proxy,
@@ -436,6 +436,31 @@ def rendering_core(
         _userip_not_found: set[str] = set()
         _country_flag_cache: dict[str, PlayerCountryFlag] = {}
         _missing_country_flag_codes: set[str] = set()
+
+        def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
+            country_code = country_code.strip().upper()
+
+            if not country_code:
+                return None
+
+            if country_code in _country_flag_cache:
+                return _country_flag_cache[country_code]
+
+            if country_code in _missing_country_flag_codes:
+                return None
+
+            flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code}.png'
+            if not flag_path.exists():
+                logger.warning('Missing country flag image for country code: %s', country_code)
+                _missing_country_flag_codes.add(country_code)
+                return None
+
+            image = QImage()
+            image.loadFromData(flag_path.read_bytes())
+
+            country_flag = PlayerCountryFlag(image)
+            _country_flag_cache[country_code] = country_flag
+            return country_flag
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
         _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
@@ -561,22 +586,8 @@ def rendering_core(
                         if player.iplookup.ipapi.country_code not in {'...', 'N/A'}
                         else None
                     )
-                    country_code = country_code_value.upper() if isinstance(country_code_value, str) else None
-                    country_flag = _country_flag_cache.get(country_code) if country_code else None
-
-                    if country_code and country_flag is None and country_code not in _missing_country_flag_codes:
-                        flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code}.png'
-                        if flag_path.exists():
-                            image = QImage()
-                            image.loadFromData(flag_path.read_bytes())
-                            country_flag = PlayerCountryFlag(image)
-                            _country_flag_cache[country_code] = country_flag
-                        else:
-                            logger.warning('Missing country flag image for country code: %s', country_code)
-                            _missing_country_flag_codes.add(country_code)
-
-                    if country_flag is not None:
-                        player.country_flag = country_flag
+                    if country_code_value is not None:
+                        player.country_flag = get_country_flag(country_code_value)
 
                 if not player.iplookup.geolite2.is_initialized:
                     player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
