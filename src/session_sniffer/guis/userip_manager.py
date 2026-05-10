@@ -464,7 +464,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         try:
             IPv4Address(ip)
             is_single_ip = True
-        except (ValueError, TypeError):
+        except ValueError:
             pass
 
         if is_single_ip:
@@ -644,7 +644,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         try:
             IPv4Address(new_ip_text)
             is_single = True
-        except (ValueError, TypeError):
+        except ValueError:
             is_single = False
 
         ip_item = self._model.item(source_row, IP_COLUMN)

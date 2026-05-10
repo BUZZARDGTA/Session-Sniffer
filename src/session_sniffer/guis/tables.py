@@ -89,8 +89,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
-        viewport = self.viewport()
-        viewport.installEventFilter(self)  # Install event filter
+        self.viewport().installEventFilter(self)  # Install event filter
         # Configure table view settings
         vertical_header = self.verticalHeader()
         vertical_header.setVisible(False)  # Hide row index

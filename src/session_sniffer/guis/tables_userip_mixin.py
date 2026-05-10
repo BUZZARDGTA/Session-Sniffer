@@ -27,7 +27,7 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
         return True
     try:
         ranges = parse_ip_range_entry(entry_ip)
-    except (ValueError, TypeError):
+    except ValueError:
         return False
     return any(check_ip_against_ranges(sel_ip, ranges) is not None for sel_ip in selected_ips)
 

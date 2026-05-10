@@ -128,7 +128,7 @@ def check_ip_against_ranges(ip: str, ranges: list[IPRange]) -> IPRange | None:
     """
     try:
         addr = IPv4Address(ip)
-    except (ValueError, TypeError):
+    except ValueError:
         return None
     for ip_range in ranges:
         if addr in ip_range:
@@ -161,6 +161,6 @@ def is_valid_ip_range_entry(entry: str) -> bool:
     """Return whether the entry string is a valid IP range (any supported format)."""
     try:
         parse_ip_range_entry(entry)
-    except (ValueError, TypeError):
+    except ValueError:
         return False
     return True

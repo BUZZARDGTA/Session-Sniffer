@@ -169,7 +169,7 @@ class UserIPSettingsModel(BaseModel):
             except NoMatchFoundError:
                 try:
                     numeric = int(value)
-                except (ValueError, TypeError):
+                except ValueError:
                     msg = f'invalid suspend process mode: {value!r}'
                     raise ValueError(msg) from None
                 if numeric >= 0:

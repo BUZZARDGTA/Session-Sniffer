@@ -278,7 +278,7 @@ class SettingsIniModel(BaseModel):
                 try:
                     parse_ip_range(item)
                     valid_items.append(item)
-                except (ValueError, TypeError):
+                except ValueError:
                     need_rewrite = True
             if need_rewrite:
                 cls._set_flag(info, 'should_rewrite', value=True)
@@ -317,7 +317,7 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return cast('int', cls._get_default_for_field(info) or 3)
             if parsed >= 1:
@@ -404,7 +404,7 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 default = cls._get_default_for_field(info)
                 return default if isinstance(default, int) else 0
@@ -433,7 +433,7 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 default = cls._get_default_for_field(info)
                 return default if isinstance(default, int) else 3600
@@ -463,7 +463,7 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return cast('int', cls._get_default_for_field(info) or 10)
             if parsed >= min_timer:
@@ -516,7 +516,7 @@ class SettingsIniModel(BaseModel):
         elif isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 parsed = None
 
         if parsed is None:
@@ -544,7 +544,7 @@ class SettingsIniModel(BaseModel):
         elif isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 parsed = None
 
         if parsed is None:
@@ -572,7 +572,7 @@ class SettingsIniModel(BaseModel):
         elif isinstance(value, str):
             try:
                 parsed = int(float(value))
-            except (ValueError, TypeError):
+            except ValueError:
                 parsed = None
 
         if parsed is None:

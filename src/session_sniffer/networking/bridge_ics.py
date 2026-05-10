@@ -167,11 +167,8 @@ def get_adapter_classification() -> dict[str, AdapterClassification]:
     except OSError:
         logger.exception('Failed to query Network Bridge registry information')
 
-    try:
-        for guid, value in _get_ics_classification().items():
-            # Bridged classification wins if both apply (rare).
-            classification.setdefault(guid, value)
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.exception('Failed to query ICS configuration via COM')
+    for guid, value in _get_ics_classification().items():
+        # Bridged classification wins if both apply (rare).
+        classification.setdefault(guid, value)
 
     return classification

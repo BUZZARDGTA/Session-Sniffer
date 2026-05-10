@@ -334,7 +334,7 @@ def _load_message_ids() -> dict[str, str]:
         return {}
     try:
         parsed: object = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError:
         return {}
     if not isinstance(parsed, dict):
         return {}

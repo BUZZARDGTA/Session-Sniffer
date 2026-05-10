@@ -682,7 +682,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
         try:
             addr = IPv4Address(text)
             self._set_preview(f'Single host: {addr}', valid=True)
-        except (ValueError, TypeError):
+        except ValueError:
             self._set_preview('Enter a valid IPv4 address', valid=False)
 
     def _update_range_preview(self) -> None:
@@ -694,7 +694,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
         try:
             start = IPv4Address(from_text)
             end = IPv4Address(to_text)
-        except (ValueError, TypeError):
+        except ValueError:
             self._set_preview('Enter valid IPv4 addresses in both fields', valid=False)
             return
         if start > end:
@@ -719,7 +719,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
         prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_idx]
         try:
             network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
-        except (ValueError, TypeError):
+        except ValueError:
             self._set_preview('Enter a valid base IPv4 address', valid=False)
             return
         host_count = network.num_addresses
@@ -761,7 +761,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
             prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_idx]
             try:
                 network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
-            except (ValueError, TypeError):
+            except ValueError:
                 return text
             return str(network)
 
