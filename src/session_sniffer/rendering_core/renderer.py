@@ -572,8 +572,8 @@ def rendering_core(
                             country_flag = PlayerCountryFlag(image)
                             _country_flag_cache[country_code] = country_flag
                         else:
-                            _missing_country_flag_codes.add(country_code)
                             logger.warning('Missing country flag image for country code: %s', country_code)
+                            _missing_country_flag_codes.add(country_code)
 
                     if country_flag is not None:
                         player.country_flag = country_flag
