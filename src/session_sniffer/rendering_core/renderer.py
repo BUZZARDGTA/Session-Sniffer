@@ -463,7 +463,6 @@ def rendering_core(
             global_pps_rate = 0
 
             session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
-            connected_ips: set[str] = {p.ip for p in session_connected}
             players_to_disconnect: list[int] = []
             for idx, player in enumerate(session_connected):
                 if (
@@ -472,7 +471,6 @@ def rendering_core(
                 ):
                     player.mark_as_left()
                     players_to_disconnect.append(idx)
-                    connected_ips.discard(player.ip)
                     session_disconnected.append(player)
 
                     if player.userip_detection and player.userip_detection.as_processed_task:
