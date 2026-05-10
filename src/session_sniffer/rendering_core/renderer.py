@@ -88,6 +88,18 @@ def rendering_core(
                 if path.is_file()
             }
 
+        def _collect_userip_ini_files() -> tuple[list[Path], dict[Path, float]]:
+            """Return discovered INI paths and their mod-times in a single `rglob` pass."""
+            files: list[Path] = []
+            mod_times: dict[Path, float] = {}
+
+            for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
+                if path.is_file():
+                    files.append(path)
+                    mod_times[path] = path.stat().st_mtime
+
+            return files, mod_times
+
         last_known_userip_db_mod_times: dict[Path, float] = {}
 
         def update_userip_databases() -> tuple[float, bool]:
@@ -113,7 +125,7 @@ def rendering_core(
                     file_content = f'{default_userip_file_header}\n\n{settings}\n\n{default_userip_file_footer}'
                     userip_path.write_text(file_content, encoding='utf-8')
 
-            current_userip_db_mod_times = _snapshot_userip_database_mod_times()
+            current_ini_files, current_userip_db_mod_times = _collect_userip_ini_files()
             if current_userip_db_mod_times == last_known_userip_db_mod_times:
                 return time.monotonic(), False
             if last_known_userip_db_mod_times:
@@ -121,7 +133,7 @@ def rendering_core(
 
             new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
 
-            for userip_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
+            for userip_path in current_ini_files:
                 parsed_settings, parsed_data = parse_userip_ini_file(userip_path)
                 if parsed_settings is None or parsed_data is None:
                     continue
