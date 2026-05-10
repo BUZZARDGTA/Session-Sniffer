@@ -102,21 +102,25 @@ def rendering_core(
 
         last_known_userip_db_mod_times: dict[Path, float] = {}
 
+        default_userip_file_header = format_triple_quoted_text(
+            USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
+                title=TITLE,
+                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+            ),
+        )
+
+        default_userip_files_settings = {
+            USERIP_DATABASES_DIR_PATH / ini_name: settings
+            for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()
+        }
+
+        default_userip_file_footer = format_triple_quoted_text(
+            USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
+            add_trailing_newline=True,
+        )
+
         def update_userip_databases() -> tuple[float, bool]:
             nonlocal last_known_userip_db_mod_times
-            default_userip_file_header = format_triple_quoted_text(
-                USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
-                    title=TITLE,
-                    configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
-                ),
-            )
-
-            default_userip_files_settings = {
-                USERIP_DATABASES_DIR_PATH / ini_name: settings
-                for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()
-            }
-
-            default_userip_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
 
             USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
