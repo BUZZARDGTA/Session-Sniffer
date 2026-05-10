@@ -539,7 +539,7 @@ def _default_ping_values() -> dict[str, object]:
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerIPAPI:
+class PlayerIPAPI:  # pylint: disable=too-many-public-methods
     """Store IP-API lookup state and cached values for a player."""
 
     _FIELD_NAMES: ClassVar[frozenset[str]] = frozenset(_default_ipapi_values())
