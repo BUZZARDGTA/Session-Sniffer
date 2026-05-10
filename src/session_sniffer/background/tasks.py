@@ -782,7 +782,11 @@ def check_global_protections(player: Player) -> None:
             for block_entry in GUIProtectionSettings.isp_block_list:
                 block_entry_upper = block_entry.upper().strip()
 
-                as_name_clean = player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip() if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') else ''
+                as_name_clean = (
+                    player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip()
+                    if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A')
+                    else ''
+                )
 
                 if as_name_clean and block_entry_upper in as_name_clean:
                     matched_isp = block_entry
@@ -842,7 +846,11 @@ def check_global_protections(player: Player) -> None:
                             'Auto',
                             'ASNBlockProtection',
                         )
-                    asn_display = f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}' if player.iplookup.ipapi.asn != player.iplookup.geolite2.asn else matched_asn
+                    asn_display = (
+                        f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}'
+                        if player.iplookup.ipapi.asn != player.iplookup.geolite2.asn
+                        else matched_asn
+                    )
                     handle_detection_notifications(
                         detection_title='BLOCKED ASN DETECTED!',
                         msgbox_text=f"""
