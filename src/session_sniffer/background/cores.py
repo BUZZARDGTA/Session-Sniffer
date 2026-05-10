@@ -3,6 +3,7 @@
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from http import HTTPStatus
+from typing import TYPE_CHECKING, TypeVar, cast
 
 import requests
 from pydantic import ValidationError
@@ -18,7 +19,15 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from session_sniffer.models.player import Player
+
 logger = get_logger(__name__)
+
+T = TypeVar('T')
+
 
 # API limits taken from https://ip-api.com/docs/api:batch the 03/04/2024.
 _IPAPI_MAX_REQUESTS = 15
@@ -98,16 +107,24 @@ def iplookup_core() -> None:
             requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
             ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
 
-            iplookup_results_data = response.json()
+            iplookup_results_data: object = response.json()
+            if not isinstance(iplookup_results_data, list):
+                logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
+                continue
             iplookup_results: list[IpApiResponse] = []
 
-            for item in iplookup_results_data:
+            for raw_item in cast('list[object]', iplookup_results_data):
+                if not isinstance(raw_item, dict):
+                    logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
+                    continue
+                item = cast('dict[str, object]', raw_item)
                 try:
                     iplookup_results.append(IpApiResponse.model_validate(item))
                 except ValidationError:
                     # Mark IPs with a failed status as initialized so they are never retried.
                     if item.get('status') == 'fail':
-                        failed_player = PlayersRegistry.get_player_by_ip(item.get('query', ''))
+                        query_raw = item.get('query', '')
+                        failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
                         if failed_player is not None:
                             failed_player.iplookup.ipapi.is_initialized = True
                             logger.debug(
@@ -139,13 +156,20 @@ def iplookup_core() -> None:
             throttle_until(requests_remaining, ttl_seconds)
 
 
-def hostname_core() -> None:
-    """Resolve reverse DNS hostnames for players in the background."""
+def _run_player_future_core[T](
+    *,
+    core_name: str,
+    worker: Callable[[str], T],
+    should_submit: Callable[[Player], bool],
+    apply_result: Callable[[Player, T], None],
+    handle_exception: Callable[[str, Exception], bool] | None = None,
+) -> None:
+    """Run a background player task using one future per pending IP."""
     with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
-        futures: dict[Future[str], str] = {}  # Maps futures to their corresponding IPs
-        pending_ips: set[str] = set()   # Tracks IPs currently being processed
+        futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
+        pending_ips: set[str] = set()  # Tracks IPs currently being processed
 
-        _slowdown = SlowdownDetector.get('hostname_core')
+        _slowdown = SlowdownDetector.get(core_name)
 
         while not gui_closed__event.is_set():
             _iter_start = time.monotonic()
@@ -156,70 +180,10 @@ def hostname_core() -> None:
             submitted_new = False
 
             for player in PlayersRegistry.get_default_sorted_players():
-                if player.reverse_dns.is_initialized or player.ip in pending_ips:
+                if player.ip in pending_ips or not should_submit(player):
                     continue
 
-                future = executor.submit(reverse_dns_lookup, player.ip)
-                futures[future] = player.ip
-                pending_ips.add(player.ip)
-                submitted_new = True
-
-            if not futures:
-                gui_closed__event.wait(1)
-                continue
-
-            done_futures = [(future, ip) for future, ip in futures.items() if future.done()]
-
-            for future, ip in done_futures:
-                futures.pop(future)
-                pending_ips.remove(ip)
-
-                hostname = future.result()
-
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is None:
-                    continue
-
-                matched_player.reverse_dns.hostname = hostname
-                matched_player.reverse_dns.is_initialized = True
-
-            resolved_any = bool(done_futures)
-
-            # Only poll quickly if there's active work; otherwise wait longer
-            _slowdown.check(time.monotonic() - _iter_start, 'hostname_core')
-
-            if not submitted_new and not resolved_any:
-                gui_closed__event.wait(1)
-            else:
-                gui_closed__event.wait(0.1)
-
-
-def pinger_core() -> None:
-    """Fetch and parse ping data for players in the background."""
-    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
-        futures: dict[Future[PingResult], str] = {}  # Maps futures to their corresponding IPs
-        pending_ips: set[str] = set()   # Tracks IPs currently being processed
-        exhausted_ips: dict[str, float] = {}  # Maps IPs to their retry-after timestamp
-        _slowdown = SlowdownDetector.get('pinger_core')
-
-        while not gui_closed__event.is_set():
-            _iter_start = time.monotonic()
-
-            if ScriptControl.has_crashed():
-                return
-
-            now = time.monotonic()
-            submitted_new = False
-
-            for player in PlayersRegistry.get_default_sorted_players():
-                if player.ping.is_initialized or player.ip in pending_ips:
-                    continue
-
-                retry_after = exhausted_ips.get(player.ip)
-                if retry_after is not None and now < retry_after:
-                    continue
-
-                future = executor.submit(fetch_and_parse_ping, player.ip)
+                future = executor.submit(worker, player.ip)
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
                 submitted_new = True
@@ -235,30 +199,80 @@ def pinger_core() -> None:
                 pending_ips.remove(ip)
 
                 try:
-                    ping_result = future.result()
-                except AllEndpointsExhaustedError:
-                    exhausted_ips[ip] = time.monotonic() + 30.0
-                    continue
+                    result = future.result()
+                except Exception as e:
+                    if handle_exception is not None and handle_exception(ip, e):
+                        continue
 
-                exhausted_ips.pop(ip, None)
+                    raise
 
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is None:
                     continue
 
-                matched_player.ping.update_fields(ping_result._asdict())
-                matched_player.ping.is_pinging = (
-                    ping_result.packets_received is not None
-                    and ping_result.packets_received > 0
-                )
-                matched_player.ping.is_initialized = True
+                apply_result(matched_player, result)
 
             resolved_any = bool(done_futures)
 
-            # Only poll quickly if there's active work; otherwise wait longer
-            _slowdown.check(time.monotonic() - _iter_start, 'pinger_core')
+            # Only poll quickly if there's active work; otherwise wait longer.
+            _slowdown.check(time.monotonic() - _iter_start, core_name)
 
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:
                 gui_closed__event.wait(0.1)
+
+
+def hostname_core() -> None:
+    """Resolve reverse DNS hostnames for players in the background."""
+
+    def should_submit(player: Player) -> bool:
+        return not player.reverse_dns.is_initialized
+
+    def apply_result(player: Player, hostname: str) -> None:
+        player.reverse_dns.hostname = hostname
+        player.reverse_dns.is_initialized = True
+
+    _run_player_future_core(
+        core_name='hostname_core',
+        worker=reverse_dns_lookup,
+        should_submit=should_submit,
+        apply_result=apply_result,
+    )
+
+
+def pinger_core() -> None:
+    """Fetch and parse ping data for players in the background."""
+    exhausted_ips: dict[str, float] = {}  # Maps IPs to their retry-after timestamp
+
+    def should_submit(player: Player) -> bool:
+        if player.ping.is_initialized:
+            return False
+
+        retry_after = exhausted_ips.get(player.ip)
+        return retry_after is None or time.monotonic() >= retry_after
+
+    def apply_result(player: Player, ping_result: PingResult) -> None:
+        exhausted_ips.pop(player.ip, None)
+
+        player.ping.update_fields(ping_result._asdict())
+        player.ping.is_pinging = (
+            ping_result.packets_received is not None
+            and ping_result.packets_received > 0
+        )
+        player.ping.is_initialized = True
+
+    def handle_exception(ip: str, exception: Exception) -> bool:
+        if isinstance(exception, AllEndpointsExhaustedError):
+            exhausted_ips[ip] = time.monotonic() + 30.0
+            return True
+
+        return False
+
+    _run_player_future_core(
+        core_name='pinger_core',
+        worker=fetch_and_parse_ping,
+        should_submit=should_submit,
+        apply_result=apply_result,
+        handle_exception=handle_exception,
+    )
