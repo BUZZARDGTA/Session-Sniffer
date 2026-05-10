@@ -536,22 +536,26 @@ def monitor_gta5_relay_task(player: Player) -> None:
         if not _is_gta5_relay_ip(player.ip):
             return
 
-        # Poll until threshold reached, player disconnects, or GUI closes.
-        while not player.left_event.is_set() and not gui_closed__event.is_set():
-            if player.packets.exchanged >= GUIProtectionSettings.gta5_relay_packet_threshold:
-                break
+        # Poll until threshold reached, player disconnects, GUI closes, or protection is disabled.
+        while (
+            not player.left_event.is_set()
+            and not gui_closed__event.is_set()
+            and GUIProtectionSettings.gta5_relay_enabled
+            and player.packets.exchanged < GUIProtectionSettings.gta5_relay_packet_threshold
+        ):
             gui_closed__event.wait(0.25)
 
-        if player.left_event.is_set() or gui_closed__event.is_set():
-            return
-
-        if not GUIProtectionSettings.gta5_relay_enabled:
+        if (
+            player.left_event.is_set()
+            or gui_closed__event.is_set()
+            or not GUIProtectionSettings.gta5_relay_enabled
+        ):
             return
 
         process_path = GUIProtectionSettings.gta5_relay_process_path
         duration = GUIProtectionSettings.gta5_relay_duration
 
-        if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and process_path:
+        if not CaptureState.is_arp_interface and process_path:
             ProcessSuspendManager.request_suspend(
                 process_path=process_path,
                 reason_key=f'gta5_relay:{player.ip}',
