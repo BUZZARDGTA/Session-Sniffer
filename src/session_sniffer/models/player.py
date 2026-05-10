@@ -914,35 +914,32 @@ class Player:
 
     def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
-        player_datetime = self.datetime
-        player_datetime.last_seen = packet_datetime
-        self.packets.increment(sent_by_local_host=sent_by_local_host)
-        self.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
+        self._traffic.datetime.last_seen = packet_datetime
+        self._traffic.packets.increment(sent_by_local_host=sent_by_local_host)
+        self._traffic.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
-        if port != self.ports.last:
-            if port not in self.ports.all:
-                self.ports.all.append(port)
+        if port != self._traffic.ports.last:
+            if port not in self._traffic.ports.all:
+                self._traffic.ports.all.append(port)
 
-            if port in self.ports.middle:
-                self.ports.middle.remove(port)
+            if port in self._traffic.ports.middle:
+                self._traffic.ports.middle.remove(port)
 
-            if self.ports.last not in self.ports.middle and self.ports.last != self.ports.first:
-                self.ports.middle.append(self.ports.last)
+            if self._traffic.ports.last not in self._traffic.ports.middle and self._traffic.ports.last != self._traffic.ports.first:
+                self._traffic.ports.middle.append(self._traffic.ports.last)
 
-            self.ports.last = port
+            self._traffic.ports.last = port
 
     def mark_as_rejoined(self, *, packet_datetime: datetime_type, packet_length: int, port: int, sent_by_local_host: bool) -> None:
         """Handle a player rejoin by resetting current-session counters."""
-        player_datetime = self.datetime
-
         self.left_event.clear()
         self.rejoins += 1
         self.protection_checked = False  # pylint: disable=attribute-defined-outside-init
         self.relay_monitor_started = False  # pylint: disable=attribute-defined-outside-init
 
-        player_datetime.accumulate_session_to_total()
-        player_datetime.last_rejoin = packet_datetime
-        player_datetime.last_seen = packet_datetime
+        self.datetime.accumulate_session_to_total()
+        self.datetime.last_rejoin = packet_datetime
+        self.datetime.last_seen = packet_datetime
         self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
         self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
@@ -951,11 +948,9 @@ class Player:
 
     def mark_as_left(self) -> None:
         """Mark the player as disconnected and move it to the disconnected registry."""
-        player_datetime = self.datetime
-
         self.left_event.set()
 
-        player_datetime.set_session_time()
+        self.datetime.set_session_time()
         self.packets.pps.reset()
         self.packets.ppm.reset()
         self.bandwidth.bps.reset()

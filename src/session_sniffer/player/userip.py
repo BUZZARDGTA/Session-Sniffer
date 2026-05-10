@@ -149,7 +149,7 @@ class UserIPDatabases:
                     try:
                         IPv4Address(entry)
                         single_ips.setdefault(username, []).append(entry)
-                    except (ValueError, TypeError):
+                    except ValueError:
                         range_ips.setdefault(username, []).append(entry)
             classified.append(_UserIPDatabaseEntry(
                 database_path=database_path,
@@ -209,7 +209,7 @@ class UserIPDatabases:
         """Process a range entry (CIDR, start-end, wildcard) during build."""
         try:
             ip_range = parse_ip_range(entry)
-        except (ValueError, TypeError):
+        except ValueError:
             logger.warning('Skipping unparseable UserIP range entry: %r', entry)
             return
 
@@ -298,7 +298,7 @@ class UserIPDatabases:
             return True
         try:
             addr = IPv4Address(ip)
-        except (ValueError, TypeError):
+        except ValueError:
             return False
         return any(addr in re.ip_range for re in cls._range_entries)
 
