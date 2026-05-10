@@ -754,45 +754,40 @@ def check_global_protections(player: Player) -> None:
             )
 
         # Country Blocklist Detection
-        if GUIProtectionSettings.country_block_list:
-            country_name = player.iplookup.geolite2.country
-            if country_name and country_name in GUIProtectionSettings.country_block_list:
-                if GUIProtectionSettings.country_block_enabled:
-                    execute_protection_action(
-                        GUIProtectionSettings.country_block_process_path,
-                        'Auto',
-                        'CountryBlockProtection',
-                    )
-                handle_detection_notifications(
-                    detection_title='BLOCKED COUNTRY DETECTED!',
-                    msgbox_text=f"""
-                        \U0001f30d Blocked Country Detected
-                        IP Address: {player.ip}
-                        Country: {country_name}
-                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                    """,
-                    voice_setting=GUIProtectionSettings.country_voice_notifications,
-                    logging_setting=GUIProtectionSettings.country_logging,
-                    msgbox_setting=GUIProtectionSettings.country_message_box,
-                    notification_name='CountryDetectionNotif',
-                    tts_filename='country_detected',
+        if GUIProtectionSettings.country_block_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIProtectionSettings.country_block_list:
+            if GUIProtectionSettings.country_block_enabled:
+                execute_protection_action(
+                    GUIProtectionSettings.country_block_process_path,
+                    'Auto',
+                    'CountryBlockProtection',
                 )
+            handle_detection_notifications(
+                detection_title='BLOCKED COUNTRY DETECTED!',
+                msgbox_text=f"""
+                    \U0001f30d Blocked Country Detected
+                    IP Address: {player.ip}
+                    Country: {player.iplookup.geolite2.country}
+                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
+                """,
+                voice_setting=GUIProtectionSettings.country_voice_notifications,
+                logging_setting=GUIProtectionSettings.country_logging,
+                msgbox_setting=GUIProtectionSettings.country_message_box,
+                notification_name='CountryDetectionNotif',
+                tts_filename='country_detected',
+            )
 
         # ISP Blocklist Protection
         if GUIProtectionSettings.isp_block_list:
-            as_name = player.iplookup.ipapi.as_name
-            isp = player.iplookup.ipapi.isp
-
             matched_isp = None
             for block_entry in GUIProtectionSettings.isp_block_list:
                 block_entry_upper = block_entry.upper().strip()
 
-                as_name_clean = as_name.upper().replace('AS', '', 1).strip() if as_name and as_name not in ('...', 'N/A') else ''
+                as_name_clean = player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip() if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') else ''
 
                 if as_name_clean and block_entry_upper in as_name_clean:
                     matched_isp = block_entry
                     break
-                if isp and isp not in ('...', 'N/A') and block_entry_upper in isp.upper():
+                if player.iplookup.ipapi.isp and player.iplookup.ipapi.isp not in ('...', 'N/A') and block_entry_upper in player.iplookup.ipapi.isp.upper():
                     matched_isp = block_entry
                     break
 
@@ -809,8 +804,8 @@ def check_global_protections(player: Player) -> None:
                         \U0001f310 Blocked ISP Detected
                         IP Address: {player.ip}
                         Matched Entry: {matched_isp}
-                        AS Name: {as_name}
-                        ISP: {isp}
+                        AS Name: {player.iplookup.ipapi.as_name}
+                        ISP: {player.iplookup.ipapi.isp}
                         Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
                     """,
                     voice_setting=GUIProtectionSettings.isp_voice_notifications,
@@ -822,14 +817,11 @@ def check_global_protections(player: Player) -> None:
 
         # ASN Blocklist Protection
         if GUIProtectionSettings.asn_block_list:
-            asn_ipapi = player.iplookup.ipapi.asn
-            asn_geolite2 = player.iplookup.geolite2.asn
-
             asns_to_check: list[str] = []
-            if asn_ipapi and asn_ipapi not in ('...', 'N/A'):
-                asns_to_check.append(asn_ipapi)
-            if asn_geolite2 and asn_geolite2 not in ('...', 'N/A'):
-                asns_to_check.append(asn_geolite2)
+            if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A'):
+                asns_to_check.append(player.iplookup.ipapi.asn)
+            if player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A'):
+                asns_to_check.append(player.iplookup.geolite2.asn)
 
             if asns_to_check:
                 matched_asn = None
@@ -850,7 +842,7 @@ def check_global_protections(player: Player) -> None:
                             'Auto',
                             'ASNBlockProtection',
                         )
-                    asn_display = f'IP-API: {asn_ipapi}, GeoLite2: {asn_geolite2}' if asn_ipapi != asn_geolite2 else matched_asn
+                    asn_display = f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}' if player.iplookup.ipapi.asn != player.iplookup.geolite2.asn else matched_asn
                     handle_detection_notifications(
                         detection_title='BLOCKED ASN DETECTED!',
                         msgbox_text=f"""

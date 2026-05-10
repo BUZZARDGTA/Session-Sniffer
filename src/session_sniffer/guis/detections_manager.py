@@ -1822,15 +1822,12 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
     asn_geo = _safe(player.iplookup.geolite2.asn)
     if asn_val := (as_name or asn_geo):
         conditions['as_name' if as_name else 'asn'] = asn_val
-    mobile = player.iplookup.ipapi.mobile
-    if isinstance(mobile, bool):
-        conditions['mobile'] = mobile
-    proxy = player.iplookup.ipapi.proxy
-    if isinstance(proxy, bool):
-        conditions['vpn'] = proxy
-    hosting = player.iplookup.ipapi.hosting
-    if isinstance(hosting, bool):
-        conditions['hosting'] = hosting
+    if isinstance(player.iplookup.ipapi.mobile, bool):
+        conditions['mobile'] = player.iplookup.ipapi.mobile
+    if isinstance(player.iplookup.ipapi.proxy, bool):
+        conditions['vpn'] = player.iplookup.ipapi.proxy
+    if isinstance(player.iplookup.ipapi.hosting, bool):
+        conditions['hosting'] = player.iplookup.ipapi.hosting
 
     prefilled = ComboRule(name=f'Rule for {player.ip}', conditions=conditions) if conditions else None
     dialog = _ComboRuleEditorDialog(parent, prefilled)

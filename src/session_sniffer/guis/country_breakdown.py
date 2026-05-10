@@ -31,12 +31,17 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         all_players = PlayersRegistry.get_default_sorted_players()
         counts: dict[str, int] = {}
         for player in all_players:
-            country = player.iplookup.geolite2.country
-            if country == '...':
-                ipapi_country = player.iplookup.ipapi.country
-                if ipapi_country != '...':
-                    country = ipapi_country
-            if country and country != '...':
+            if (
+                (
+                    country := player.iplookup.ipapi.country
+                    if (
+                        player.iplookup.geolite2.country == '...'
+                        and player.iplookup.ipapi.country != '...'
+                    )
+                    else player.iplookup.geolite2.country
+                )
+                and country != '...'
+            ):
                 counts[country] = counts.get(country, 0) + 1
 
         sorted_counts = sorted(counts.items(), key=lambda x: x[1], reverse=True)
