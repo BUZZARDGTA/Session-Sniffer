@@ -435,6 +435,7 @@ def rendering_core(
         connected_column_mapping: dict[str, int] = {}
         _userip_not_found: set[str] = set()
         _country_flag_cache: dict[str, PlayerCountryFlag] = {}
+        _missing_country_flag_codes: set[str] = set()
 
         _rendering_slowdown = SlowdownDetector.get('rendering_loop')
         _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
@@ -563,13 +564,16 @@ def rendering_core(
                     country_code = country_code_value.upper() if isinstance(country_code_value, str) else None
                     country_flag = _country_flag_cache.get(country_code) if country_code else None
 
-                    if country_code and country_flag is None:
+                    if country_code and country_flag is None and country_code not in _missing_country_flag_codes:
                         flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code}.png'
                         if flag_path.exists():
                             image = QImage()
                             image.loadFromData(flag_path.read_bytes())
                             country_flag = PlayerCountryFlag(image)
                             _country_flag_cache[country_code] = country_flag
+                        else:
+                            _missing_country_flag_codes.add(country_code)
+                            logger.warning('Missing country flag image for country code: %s', country_code)
 
                     if country_flag is not None:
                         player.country_flag = country_flag
