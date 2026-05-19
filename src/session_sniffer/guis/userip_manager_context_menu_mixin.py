@@ -1,6 +1,7 @@
 """Entries context-menu mixin for the UserIP Databases Manager dialog."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
@@ -15,6 +16,9 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _MixinBase = QDialog
 
@@ -40,6 +44,7 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
     _open_db_button: QPushButton
     _tree: QTreeView
     _fs_model: QFileSystemModel
+    _open_in_explorer: Callable[[Path], None]
 
     def _add_entry(self) -> None: ...
 
@@ -55,9 +60,6 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
     def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
 
     def _update_entry_counts(self) -> None: ...
-
-    @staticmethod
-    def _open_in_explorer(path: Path) -> None: ...  # pylint: disable=unused-argument
 
     # ------------------------------------------------------------------
     # Entries: context menu
@@ -284,9 +286,13 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
         if not self._global_search_active or not index.isValid():
             return
         source_index = self._proxy.mapToSource(index)
+        row = source_index.row()
+        username_item = self._model.item(row, USERNAME_COLUMN)
         db_item = self._model.item(source_index.row(), DATABASE_COLUMN)
         if db_item is None:
             return
         db_path_str = db_item.data(Qt.ItemDataRole.UserRole)
         if db_path_str:
-            self._navigate_to_database(Path(db_path_str))
+            username = username_item.text() if username_item else ''
+            ip_or_range = self._get_row_entry_value(row)
+            self._navigate_to_database(Path(db_path_str), username=username, ip_or_range=ip_or_range)

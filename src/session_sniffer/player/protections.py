@@ -106,7 +106,10 @@ class GUIProtectionSettings:
         """Build the common export fields for a protection type."""
         enabled = getattr(cls, f'{prefix}_enabled', getattr(cls, f'{prefix}_suspend_enabled', False))
         process_path = getattr(cls, f'{prefix}_process_path', getattr(cls, f'{prefix}_suspend_process_path', None))
-        duration = getattr(cls, f'{prefix}_duration', getattr(cls, f'{prefix}_suspend_duration', 'Auto'))
+        duration = cast(
+            'int | Literal["Auto", "Adaptive"]',
+            getattr(cls, f'{prefix}_duration', getattr(cls, f'{prefix}_suspend_duration', 'Auto')),
+        )
         voice = getattr(cls, f'{prefix}_voice_notifications', False)
         return {
             'enabled': enabled,

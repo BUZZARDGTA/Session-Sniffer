@@ -310,9 +310,11 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     @staticmethod
     def _open_in_explorer(path: Path) -> None:
         """Open the containing folder and highlight the item in Windows Explorer."""
-        if path.exists():
+        if path.is_file():
             explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
-            subprocess.run([str(explorer_exe), '/select,', str(path)], check=False)
+            subprocess.Popen(f'"{explorer_exe}" /select,"{path}"')
+        elif path.is_dir():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
         elif path.parent.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 

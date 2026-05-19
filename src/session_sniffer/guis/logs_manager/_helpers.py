@@ -63,9 +63,11 @@ def file_metadata_text(file_path: Path) -> str:
 
 def open_file_location(file_path: Path) -> None:
     """Open the containing folder and select the file in Windows Explorer."""
-    if file_path.exists():
+    if file_path.is_file():
         explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
-        subprocess.run([str(explorer_exe), '/select,', str(file_path)], check=False)
+        subprocess.Popen(f'"{explorer_exe}" /select,"{file_path}"')
+    elif file_path.is_dir():
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path)))
     elif file_path.parent.exists():
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
 
