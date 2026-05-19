@@ -141,6 +141,11 @@ def _check_userip_usernames(player: Player) -> bool:
     return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
 
 
+def _is_player_packet_flow_active(player: Player) -> bool:
+    """Return `True` when a player is actively exchanging packets."""
+    return player.packets.pps.accumulated_packets > 0 or player.packets.pps.calculated_rate > 0
+
+
 def _check_reverse_dns_hostname(player: Player) -> bool:
     """Check if player reverse DNS is initialized."""
     return player.reverse_dns.is_initialized
@@ -292,7 +297,7 @@ def handle_detection_notification(
 
         if standalone_active:
             process_path: Path | None = getattr(GUIProtectionSettings, f'{prefix}_process_path')
-            duration: int | Literal['Auto', 'Adaptive'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
+            duration: int | Literal['Auto'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
             if enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface and process_path:
@@ -301,7 +306,6 @@ def handle_detection_notification(
                     reason_key=f'event:{notification_type}:{player.ip}',
                     left_event=player.left_event,
                     duration=duration,
-                    is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if duration == 'Adaptive' else None,
                 )
 
             # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
@@ -363,7 +367,6 @@ def handle_detection_notification(
                         reason_key=f'combo:{rule.name}:{player.ip}',
                         left_event=player.left_event,
                         duration=rule.duration,
-                        is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if rule.duration == 'Adaptive' else None,
                     )
 
                 # Voice notification
@@ -454,7 +457,6 @@ def process_userip_task(
                 reason_key=f'userip:{player.ip}',
                 left_event=player.left_event,
                 duration=suspend_mode,
-                is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if suspend_mode == 'Adaptive' else None,
             )
 
         if player.userip.settings.voice_notifications:
@@ -538,7 +540,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         # A 0-PPS relay is not actively sending packets and must be a false positive.
         _pps_nonzero_since: float | None = None
         while not player.left_event.is_set() and not gui_closed__event.is_set():
-            pps_active = player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0
+            pps_active = _is_player_packet_flow_active(player)
             if pps_active:
                 if _pps_nonzero_since is None:
                     _pps_nonzero_since = time.monotonic()
@@ -566,10 +568,6 @@ def monitor_gta5_relay_task(player: Player) -> None:
                 reason_key=f'gta5_relay:{player.ip}',
                 left_event=player.left_event,
                 duration=GUIProtectionSettings.gta5_relay_duration,
-                is_active=(
-                    (lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0)
-                    if GUIProtectionSettings.gta5_relay_duration == 'Adaptive' else None
-                ),
             )
 
         wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
@@ -622,7 +620,7 @@ def check_global_protections(player: Player) -> None:
     with ThreadsExceptionHandler():
         def execute_protection_action(
             process_path: Path | None,
-            duration: int | Literal['Auto', 'Adaptive'],
+            duration: int | Literal['Auto'],
             protection_name: str,
         ) -> None:
             """Execute a protection action (Suspend)."""
@@ -633,7 +631,6 @@ def check_global_protections(player: Player) -> None:
                 reason_key=f'global:{protection_name}:{player.ip}',
                 left_event=player.left_event,
                 duration=duration,
-                is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if duration == 'Adaptive' else None,
             )
 
         def handle_detection_notifications(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
