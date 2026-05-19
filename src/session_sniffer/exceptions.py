@@ -36,42 +36,6 @@ class UnexpectedPlayerCountError(Exception):
         super().__init__(f'Unexpected number of connected players: {player_count}')
 
 
-class FunctionExecutionError(Exception):
-    """Raised when a function encounters an unexpected execution state."""
-
-    def __init__(self, message: str) -> None:
-        """Initialize the exception with the error message.
-
-        Args:
-            message: The error message.
-        """
-        super().__init__(message)
-
-
-class ConfigurationError(Exception):
-    """Raised when there's an issue with configuration or settings."""
-
-    def __init__(self, message: str) -> None:
-        """Initialize the exception with the configuration message.
-
-        Args:
-            message: The configuration error details.
-        """
-        super().__init__(message)
-
-
-class DataConsistencyError(Exception):
-    """Raised when data structures are in an inconsistent state."""
-
-    def __init__(self, message: str) -> None:
-        """Initialize the exception with the consistency error message.
-
-        Args:
-            message: Details about the inconsistency.
-        """
-        super().__init__(message)
-
-
 class PlayerDateTimeCorruptionError(Exception):
     """Raised when player datetime fields are in an invalid state (e.g., last_rejoin > last_seen)."""
 

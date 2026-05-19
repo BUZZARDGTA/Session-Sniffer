@@ -37,7 +37,6 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PR
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_ADAPTIVE,
     SUSPEND_TOOLTIP_AUTO,
-    SUSPEND_TOOLTIP_CUSTOM,
     SUSPEND_TOOLTIP_MANUAL,
     set_dialog_window_flags,
 )
@@ -96,24 +95,20 @@ _LIST_WIDGET_STYLE = """
 def _set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
     """Set duration combo and spin box from a stored duration value."""
     if isinstance(duration, int):
-        combo.setCurrentText('Custom (seconds)')
+        combo.setCurrentText('Manual')
         spin.setValue(int(duration))
         spin.setEnabled(True)
-    elif duration == 'Manual':
-        combo.setCurrentText('Manual')
     elif duration == 'Adaptive':
         combo.setCurrentText('Adaptive')
     else:
         combo.setCurrentText('Auto')
 
 
-def _read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Manual', 'Adaptive']:
+def _read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Adaptive']:
     """Read duration value from combo and spin box widgets."""
     text = combo.currentText()
-    if text == 'Custom (seconds)':
-        return spin.value()
     if text == 'Manual':
-        return 'Manual'
+        return spin.value()
     if text == 'Adaptive':
         return 'Adaptive'
     return 'Auto'
@@ -333,7 +328,7 @@ class _ComboRuleEditorDialog(QDialog):
         duration_row = QHBoxLayout()
         duration_row.addWidget(QLabel('Suspend Mode:'))
         self._duration_combo = QComboBox()
-        self._duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
+        self._duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
         duration_row.addWidget(self._duration_combo)
         self._duration_spin = QSpinBox()
         self._duration_spin.setRange(1, 3600)
@@ -341,7 +336,7 @@ class _ComboRuleEditorDialog(QDialog):
         self._duration_spin.setSuffix(' seconds')
         self._duration_spin.setEnabled(False)
         self._duration_combo.currentTextChanged.connect(
-            lambda text: self._duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+            lambda text: self._duration_spin.setEnabled(text == 'Manual'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         duration_row.addWidget(self._duration_spin)
         duration_row.addStretch()
@@ -622,7 +617,7 @@ class _ComboRuleEditorDialog(QDialog):
         )
 
 
-class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-attributes
     """Comprehensive detections manager with VPN, IP range, and advanced threat detection capabilities."""
 
     def __init__(self, parent: QWidget) -> None:  # pylint: disable=too-many-statements
@@ -770,12 +765,18 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout.addLayout(button_row)
 
         self._load_current_settings()
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
-            self._apply_protection_restrictions()
+        self.refresh_protection_availability()
 
     # ------------------------------------------------------------------
     # Protection support restrictions
     # ------------------------------------------------------------------
+
+    def refresh_protection_availability(self) -> None:
+        """Refresh protection action visibility based on current runtime support."""
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+            self._apply_protection_restrictions()
+        else:
+            self._remove_protection_restrictions()
 
     def _apply_protection_restrictions(self) -> None:
         """Hide all protection action widgets when protection is not supported (non-GTA5 preset or neighbour interface)."""
@@ -790,6 +791,17 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
             action_section: QWidget = getattr(self, f'{prefix}_action_section')
             action_section.setVisible(False)
+
+    def _remove_protection_restrictions(self) -> None:
+        """Show all protection action widgets when protection is supported."""
+        for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
+            if not hasattr(self, f'{prefix}_enable_checkbox'):
+                continue
+            enable_section: QWidget = getattr(self, f'{prefix}_enable_section')
+            enable_section.setVisible(True)
+
+            action_section: QWidget = getattr(self, f'{prefix}_action_section')
+            action_section.setVisible(True)
     # ------------------------------------------------------------------
 
     def _create_player_events_tab(self) -> QWidget:
@@ -1186,11 +1198,10 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
+        duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{protection_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
@@ -1200,7 +1211,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_spin.setSuffix(' seconds')
         duration_spin.setEnabled(False)
         duration_combo.currentTextChanged.connect(
-            lambda text: duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+            lambda text: duration_spin.setEnabled(text == 'Manual'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         setattr(self, f'{protection_type}_duration_spin', duration_spin)
         duration_layout.addWidget(duration_spin)
@@ -1303,11 +1314,10 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive', 'Custom (seconds)'])
+        duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{blocklist_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
@@ -1317,7 +1327,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_spin.setSuffix(' seconds')
         duration_spin.setEnabled(False)
         duration_combo.currentTextChanged.connect(
-            lambda text: duration_spin.setEnabled(text == 'Custom (seconds)'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+            lambda text: duration_spin.setEnabled(text == 'Manual'),  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         )
         setattr(self, f'{blocklist_type}_duration_spin', duration_spin)
         duration_layout.addWidget(duration_spin)
@@ -1464,24 +1474,20 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
     def _set_duration_widgets(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
         """Set duration combo and spin box from a stored duration value."""
         if isinstance(duration, int):
-            combo.setCurrentText('Custom (seconds)')
+            combo.setCurrentText('Manual')
             spin.setValue(int(duration))
             spin.setEnabled(True)
-        elif duration == 'Manual':
-            combo.setCurrentText('Manual')
         elif duration == 'Adaptive':
             combo.setCurrentText('Adaptive')
         else:
             combo.setCurrentText('Auto')
 
     @staticmethod
-    def _read_duration_widgets(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Manual', 'Adaptive']:
+    def _read_duration_widgets(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Adaptive']:
         """Read duration value from combo and spin box widgets."""
         text = combo.currentText()
-        if text == 'Custom (seconds)':
-            return spin.value()
         if text == 'Manual':
-            return 'Manual'
+            return spin.value()
         if text == 'Adaptive':
             return 'Adaptive'
         return 'Auto'

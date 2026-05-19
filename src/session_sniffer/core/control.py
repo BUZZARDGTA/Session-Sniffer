@@ -33,33 +33,18 @@ class ScriptControl:
 
     _lock: ClassVar[Lock] = Lock()
     _crashed: ClassVar[bool] = False
-    _crash_message: ClassVar[str | None] = None
 
     @classmethod
-    def set_crashed(cls, message: str | None = None) -> None:
-        """Mark the process as crashed and store an optional crash message."""
+    def set_crashed(cls) -> None:
+        """Mark the process as crashed."""
         with cls._lock:
             cls._crashed = True
-            cls._crash_message = message
-
-    @classmethod
-    def reset_crashed(cls) -> None:
-        """Clear the crash flag and any stored crash message."""
-        with cls._lock:
-            cls._crashed = False
-            cls._crash_message = None
 
     @classmethod
     def has_crashed(cls) -> bool:
         """Return whether the process has been marked as crashed."""
         with cls._lock:
             return cls._crashed
-
-    @classmethod
-    def get_crash_message(cls) -> str | None:
-        """Return the stored crash message, if any."""
-        with cls._lock:
-            return cls._crash_message
 
 
 def terminate_script(
@@ -75,7 +60,7 @@ def terminate_script(
 
     ProcessSuspendManager.shutdown()
 
-    ScriptControl.set_crashed(None if stdout_crash_text is None else f'\n\n{stdout_crash_text}\n')
+    ScriptControl.set_crashed()
 
     if exception_info:
         logger.error(
@@ -133,16 +118,7 @@ class ThreadsExceptionHandler:
 
     This class is designed to overcome the limitation where threads run independently from the main process, which continues execution without waiting for thread completion.
 
-    Attributes:
-        raising_function: The name of the function where the exception was raised.
-        raising_exc_type: The type of the raised exception.
-        raising_exc_value: The value of the raised exception.
-        raising_exc_traceback: The traceback information for the raised exception.
     """
-    raising_function: ClassVar[str | None] = None
-    raising_exc_type: ClassVar[type[BaseException] | None] = None
-    raising_exc_value: ClassVar[BaseException | None] = None
-    raising_exc_traceback: ClassVar[TracebackType | None] = None
 
     def __enter__(self) -> None:
         """Enter the runtime context related to this object."""
@@ -161,20 +137,6 @@ class ThreadsExceptionHandler:
         # Return False to allow normal execution if no exception occurred
         if exc_type is None or exc_value is None:
             return False
-
-        # Handle exception details
-        ThreadsExceptionHandler.raising_exc_type = exc_type
-        ThreadsExceptionHandler.raising_exc_value = exc_value
-        ThreadsExceptionHandler.raising_exc_traceback = exc_traceback
-
-        # Extract the failed function name from the traceback safely
-        if exc_traceback is not None:
-            tb = exc_traceback
-            while tb.tb_next:
-                tb = tb.tb_next
-            ThreadsExceptionHandler.raising_function = tb.tb_frame.f_code.co_name
-        else:
-            ThreadsExceptionHandler.raising_function = '<unknown>'
 
         # Create the exception info and terminate the script
         exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)

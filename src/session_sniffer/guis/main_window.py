@@ -513,6 +513,7 @@ class MainWindow(QMainWindow):
     _gta5_solo_menu_action: QAction
     _manual_gta5_suspend_active: bool
     _gta5_solo_active: bool
+    _gta5_process_suspended: bool
     _player_resolver_action: QAction
 
     def _update_separator_visibility(self) -> None:
@@ -632,6 +633,7 @@ class MainWindow(QMainWindow):
         self._gta5_suspend_resume_action = gta5_suspend_resume_action
         self._manual_gta5_suspend_active = False
         self._gta5_solo_active = False
+        self._gta5_process_suspended = False
         self._gta5_process_detected = False
         if Settings.capture_program_preset == 'GTA5':
             self._sync_gta5_process_button()
@@ -1271,13 +1273,17 @@ class MainWindow(QMainWindow):
         When already suspended: releases the `'manual:toolbar'` reason.
         Auto-protection reasons are unaffected and may also independently keep the process suspended.
         """
+        self._sync_gta5_process_button()
         if self._manual_gta5_suspend_active:
             ProcessSuspendManager.release_reason_global('manual:toolbar')
-            self._manual_gta5_suspend_active = False
         else:
             process_path = self._get_gta5_process_path()
             if process_path is None:
                 logger.warning('Manual GTA5 suspend: no process path is configured in any protection')
+                return
+            if ProcessSuspendManager.is_process_suspended(process_path):
+                logger.info('Manual GTA5 suspend: process is already suspended by another protection reason')
+                self._sync_gta5_process_button()
                 return
             ProcessSuspendManager.request_suspend(
                 process_path=process_path,
@@ -1285,11 +1291,11 @@ class MainWindow(QMainWindow):
                 left_event=Event(),
                 duration='Manual',
             )
-            self._manual_gta5_suspend_active = True
         self._sync_gta5_process_button()
 
     def _gta5_solo_session(self) -> None:
         """Suspend GTA5 for ~8 seconds then auto-resume, forcing a solo public session."""
+        self._sync_gta5_process_button()
         process_path = self._get_gta5_process_path()
         if process_path is None:
             logger.warning('GTA5 solo session: no process path is configured in any protection')
@@ -1306,6 +1312,10 @@ class MainWindow(QMainWindow):
                 text=format_gta5_solo_session_process_not_running_message(),
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
             )
+            return
+        if ProcessSuspendManager.is_process_suspended(process_path):
+            logger.info('GTA5 solo session: process is already suspended')
+            self._sync_gta5_process_button()
             return
         already_left = Event()
         already_left.set()
@@ -1326,12 +1336,27 @@ class MainWindow(QMainWindow):
         self._gta5_solo_active = True
         self._sync_gta5_process_button()
 
+    def _refresh_gta5_process_state(self) -> None:
+        """Refresh GTA5 process-control flags from live process and suspend-manager state."""
+        self._manual_gta5_suspend_active = ProcessSuspendManager.has_reason('manual:toolbar')
+        self._gta5_solo_active = ProcessSuspendManager.has_reason('solo:toolbar')
+
+        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
+        self._gta5_process_detected = can_act and self._gta5_process_is_running()
+
+        process_path = self._get_gta5_process_path()
+        self._gta5_process_suspended = (
+            can_act
+            and process_path is not None
+            and ProcessSuspendManager.is_process_suspended(process_path)
+        )
+
     def _sync_gta5_process_button(self) -> None:
         """Update the GTA5 Process submenu title and menu-item enabled states."""
+        self._refresh_gta5_process_state()
         is_manual = self._manual_gta5_suspend_active
         is_solo = self._gta5_solo_active
         can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
-        self._gta5_process_detected = can_act and self._gta5_process_is_running()
         self._gta5_process_submenu.setEnabled(can_act)
         if not can_act:
             if is_manual:
@@ -1340,6 +1365,7 @@ class MainWindow(QMainWindow):
             if is_solo:
                 ProcessSuspendManager.release_reason_global('solo:toolbar')
                 self._gta5_solo_active = False
+            self._gta5_process_suspended = False
             self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
             self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
             self._gta5_suspend_resume_action.setEnabled(False)
@@ -1360,6 +1386,15 @@ class MainWindow(QMainWindow):
             self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
             self._gta5_suspend_resume_action.setEnabled(False)
             self._gta5_solo_menu_action.setEnabled(False)
+        elif self._gta5_process_suspended:
+            self._gta5_process_submenu.setTitle('⏸️ GTA5 Process (Suspended)')
+            self._gta5_suspend_resume_action.setText('▶️ Resume Process')
+            self._gta5_suspend_resume_action.setEnabled(False)
+            self._gta5_solo_menu_action.setEnabled(False)
+            self._gta5_suspend_resume_action.setToolTip(
+                'Process is currently suspended by active protection rules. It will resume automatically when those rules clear.',
+            )
+            self._gta5_solo_menu_action.setToolTip('Process is already suspended')
         else:
             self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
             self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
@@ -1513,20 +1548,7 @@ class MainWindow(QMainWindow):
 
         # Sync GTA5 process control state every tick
         if Settings.capture_program_preset == 'GTA5':
-            new_manual = ProcessSuspendManager.has_reason('manual:toolbar')
-            new_solo = ProcessSuspendManager.has_reason('solo:toolbar')
-            new_enabled = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
-            new_process_running = new_enabled and self._gta5_process_is_running()
-            if (
-                new_manual != self._manual_gta5_suspend_active
-                or new_solo != self._gta5_solo_active
-                or new_enabled != self._gta5_process_submenu.isEnabled()
-                or new_process_running != self._gta5_process_detected
-            ):
-                self._manual_gta5_suspend_active = new_manual
-                self._gta5_solo_active = new_solo
-                self._gta5_process_detected = new_process_running
-                self._sync_gta5_process_button()
+            self._sync_gta5_process_button()
 
     def _open_session_pps_graph(self) -> None:
         """Open or focus the session-wide PPS graph window."""
@@ -1664,6 +1686,14 @@ class MainWindow(QMainWindow):
         """Enable or disable the Stop/Start Capture toolbar button."""
         self._actions.toggle_capture.setEnabled(enabled)
 
+    def _refresh_runtime_capability_windows(self) -> None:
+        """Refresh open dialogs that gate controls by preset/interface support."""
+        if self._userip_manager_window is not None and self._userip_manager_window.isVisible():
+            self._userip_manager_window.refresh_runtime_capabilities()
+
+        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
+            self._detections_manager_window.refresh_protection_availability()
+
     def _update_gta5_toolbar_visibility(self) -> None:
         """Show or hide the GTA5 menu based on current preset."""
         gta5_preset = Settings.capture_program_preset == 'GTA5'
@@ -1671,6 +1701,8 @@ class MainWindow(QMainWindow):
         gta5_menu_action = self._gta5_menu.menuAction()
         if gta5_menu_action is not None:
             gta5_menu_action.setVisible(gta5_preset)
+
+        self._refresh_runtime_capability_windows()
 
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""

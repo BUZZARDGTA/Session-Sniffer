@@ -58,9 +58,9 @@ SUSPEND_TOOLTIP_AUTO = (
     '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.'
 )
 SUSPEND_TOOLTIP_MANUAL = (
-    'Remain suspended indefinitely (must be resumed manually).\n'
-    '\u2022 Robustness: Maximum \u2013 nothing resumes automatically.\n'
-    '\u2022 Freeze time: Longest \u2013 game stays frozen until you intervene.'
+    'Suspend for a fixed number of seconds without smart resume behavior.\n'
+    '\u2022 Robustness: High \u2013 no adaptive idle detection.\n'
+    '\u2022 Freeze time: Fixed \u2013 exactly the duration you set.'
 )
 SUSPEND_TOOLTIP_ADAPTIVE = (
     'PPS-based smart suspend/resume.\n'
@@ -68,11 +68,6 @@ SUSPEND_TOOLTIP_ADAPTIVE = (
     'and re-suspends as soon as activity is detected.\n'
     '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
     '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.'
-)
-SUSPEND_TOOLTIP_CUSTOM = (
-    'Resume after a fixed number of seconds.\n'
-    '\u2022 Robustness: Low \u2013 timer may expire while the threat is still active.\n'
-    '\u2022 Freeze time: Fixed \u2013 exactly the duration you specify.'
 )
 
 

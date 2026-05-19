@@ -15,7 +15,6 @@ PYPROJECT_PATH: Path = resource_path(Path('pyproject.toml'))
 RESOURCES_DIR_PATH: Path = resource_path(Path('resources'))
 BUILTIN_SCRIPTS_DIR_PATH: Path = resource_path(Path('scripts'))
 TTS_DIR_PATH: Path = resource_path(Path('TTS'))
-BUILTIN_SPOOFED_PING_SCRIPT_PATH: Path = BUILTIN_SCRIPTS_DIR_PATH / 'spoofed_ping.py'
 
 
 PYPROJECT_DATA: dict[str, Any] = toml.load(PYPROJECT_PATH)

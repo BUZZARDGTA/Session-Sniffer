@@ -13,6 +13,7 @@ from typing import Literal, Self, cast
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 from PyQt6.QtGui import QColor
 
+from session_sniffer.text_utils import parse_duration_setting
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool, custom_str_to_nonetype
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
 
@@ -38,7 +39,7 @@ class UserIPSettingsModel(BaseModel):
     VOICE_NOTIFICATIONS: Literal['Male', 'Female', False]
     PROTECTION: Literal['Suspend_Process', False]
     PROTECTION_PROCESS_PATH: Path | None
-    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto', 'Manual', 'Adaptive']
+    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto', 'Adaptive']
 
     @staticmethod
     def _record_rewrite(info: ValidationInfo, field_name: str, rewrite_value: str) -> None:
@@ -157,28 +158,19 @@ class UserIPSettingsModel(BaseModel):
 
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')
     @classmethod
-    def _parse_suspend_mode(cls, value: object, info: ValidationInfo) -> int | Literal['Auto', 'Manual', 'Adaptive']:
+    def _parse_suspend_mode(cls, value: object) -> int | Literal['Auto', 'Adaptive']:
+        """Parse suspend mode values, preserving readable fixed-duration manual values."""
         if isinstance(value, int):
             if value >= 0:
                 return value
             msg = f'suspend process mode must be >= 0, got {value}'
             raise ValueError(msg)
         if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Auto', 'Manual', 'Adaptive'))
-            except NoMatchFoundError:
-                try:
-                    numeric = int(value)
-                except ValueError:
-                    msg = f'invalid suspend process mode: {value!r}'
-                    raise ValueError(msg) from None
-                if numeric >= 0:
-                    return numeric
-                msg = f'suspend process mode must be >= 0, got {numeric}'
-                raise ValueError(msg) from None
-            if not case_match and isinstance(info.field_name, str):
-                cls._record_rewrite(info, info.field_name, normalized)
-            return cast("Literal['Auto', 'Manual', 'Adaptive']", normalized)
+            parsed = parse_duration_setting(value)
+            if isinstance(parsed, int) or parsed in ('Auto', 'Adaptive'):
+                return parsed
+            msg = f'invalid suspend process mode: {value!r}'
+            raise ValueError(msg)
         msg = f'expected suspend mode value, got {type(value).__name__}'
         raise ValueError(msg)
 

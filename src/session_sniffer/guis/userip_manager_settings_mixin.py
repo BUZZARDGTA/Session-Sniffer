@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_ADAPTIVE,
     SUSPEND_TOOLTIP_AUTO,
-    SUSPEND_TOOLTIP_CUSTOM,
     SUSPEND_TOOLTIP_MANUAL,
 )
 from session_sniffer.rendering_core.types import CaptureState
@@ -199,7 +198,6 @@ class _SVGColorPickerDialog(QDialog):
 
 
 _SUSPEND_MODE_ADAPTIVE_INDEX = 2
-_SUSPEND_MODE_CUSTOM_INDEX = 3
 
 _SETTINGS_CONTAINER_STYLESHEET = """
 #SettingsContainer {
@@ -314,6 +312,18 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
     _setting_proc_path: QLineEdit
     _setting_suspend_mode: QComboBox
     _setting_suspend_custom: QSpinBox
+    _settings_snapshot: dict[str, str]
+
+    def _mark_settings_dirty(self) -> None: ...
+
+    @staticmethod
+    def _is_protection_supported() -> bool:
+        """Return whether UserIP protection actions are currently supported."""
+        return Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface
+
+    def _refresh_protection_visibility(self) -> None:
+        """Refresh protection section visibility for current runtime capture mode."""
+        self._protection_section.setVisible(self._is_protection_supported())
 
     def _build_settings_panel(self, parent_layout: QVBoxLayout) -> None:  # pylint: disable=too-many-statements
         """Construct the collapsible database settings panel and add it to the layout."""
@@ -447,18 +457,17 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
 
         suspend_row = QHBoxLayout()
         self._setting_suspend_mode = QComboBox()
-        self._setting_suspend_mode.addItems(['Auto', 'Manual', 'Adaptive', 'Custom'])
+        self._setting_suspend_mode.addItems(['Auto', 'Manual', 'Adaptive'])
         self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.setItemData(3, SUSPEND_TOOLTIP_CUSTOM, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.currentIndexChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()
         self._setting_suspend_custom.setSingleStep(1)
         self._setting_suspend_custom.setMinimum(0)
         self._setting_suspend_custom.setMaximum(99999)
-        self._setting_suspend_custom.setToolTip('Custom suspend duration in seconds')
+        self._setting_suspend_custom.setToolTip('Fixed suspend duration in seconds')
         self._setting_suspend_custom.setVisible(False)
         self._setting_suspend_custom.valueChanged.connect(self._on_setting_changed)
         suspend_row.addWidget(self._setting_suspend_custom)
@@ -506,23 +515,25 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
             self._setting_suspend_custom.setVisible(False)
         elif suspend_val.lower() == 'manual':
             self._setting_suspend_mode.setCurrentIndex(1)
-            self._setting_suspend_custom.setVisible(False)
+            self._setting_suspend_custom.setVisible(True)
         elif suspend_val.lower() == 'adaptive':
             self._setting_suspend_mode.setCurrentIndex(_SUSPEND_MODE_ADAPTIVE_INDEX)
             self._setting_suspend_custom.setVisible(False)
         else:
-            self._setting_suspend_mode.setCurrentIndex(_SUSPEND_MODE_CUSTOM_INDEX)
+            self._setting_suspend_mode.setCurrentIndex(1)
             self._setting_suspend_custom.setVisible(True)
             try:
-                self._setting_suspend_custom.setValue(int(suspend_val))
+                if suspend_val.startswith('Manual(') and suspend_val.endswith(')'):
+                    self._setting_suspend_custom.setValue(int(suspend_val.removeprefix('Manual(').removesuffix(')')))
+                else:
+                    self._setting_suspend_custom.setValue(int(suspend_val))
             except ValueError:
                 self._setting_suspend_custom.setValue(0)
 
         self._update_protection_fields_enabled()
         self._update_enabled_body_visible()
 
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
-            self._protection_section.setVisible(False)
+        self._refresh_protection_visibility()
 
         self._settings_loading = False
 
@@ -538,7 +549,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         voice_idx = self._setting_voice.currentIndex()
         settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_idx]
 
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+        if not self._is_protection_supported():
             settings['PROTECTION'] = 'False'
         else:
             settings['PROTECTION'] = 'Suspend_Process' if self._setting_protection.isChecked() else 'False'
@@ -550,12 +561,9 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         if not suspend_idx:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Auto'
         elif suspend_idx == 1:
-            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Manual'
+            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = f'Manual({self._setting_suspend_custom.value()})'
         elif suspend_idx == _SUSPEND_MODE_ADAPTIVE_INDEX:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Adaptive'
-        else:
-            val = self._setting_suspend_custom.value()
-            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = str(val)
 
         return settings
 
@@ -566,7 +574,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
     def _on_setting_changed(self) -> None:
         """Mark database as dirty when any setting widget changes."""
         if not self._settings_loading:
-            self._dirty = True
+            self._mark_settings_dirty()
 
     def _on_enabled_changed(self) -> None:
         """Show/hide all settings below Enabled based on the checkbox state."""
@@ -598,7 +606,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
 
     def _on_suspend_mode_changed(self, index: int) -> None:
         """Show/hide the custom duration spin box based on suspend mode selection."""
-        self._setting_suspend_custom.setVisible(index == _SUSPEND_MODE_CUSTOM_INDEX)
+        self._setting_suspend_custom.setVisible(index == 1)
         self._on_setting_changed()
 
     def _update_protection_fields_enabled(self) -> None:

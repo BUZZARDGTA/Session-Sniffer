@@ -250,22 +250,6 @@ def format_arp_spoofing_failed_message(
     )
 
 
-def format_arp_spoofing_gateway_error_message(
-    *,
-    interface_name: str,
-    interface_ip: str,
-    gateway_ip: str | None,
-) -> str:
-    """Format the error shown when ARP spoofing is enabled but the interface has no gateway."""
-    return (
-        'ARP spoofing requires a valid gateway IP for the selected capture interface.\n\n'
-        f'Interface: {interface_name}\n'
-        f'Interface IP: {interface_ip}\n'
-        f'Gateway IP: {gateway_ip or "N/A"}\n\n'
-        'Select a different interface that has a gateway, or disable ARP spoofing.'
-    )
-
-
 def format_capture_interrupted_message() -> str:
     """Format the warning shown when packet capture exits unexpectedly."""
     return (

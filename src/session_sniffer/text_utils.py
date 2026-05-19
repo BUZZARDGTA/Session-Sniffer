@@ -6,6 +6,8 @@ Keep this module dependency-free and safe to import from anywhere.
 import textwrap
 from typing import Literal
 
+DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS = 60
+
 
 def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
     """Return the singular/plural suffix based on a count.
@@ -58,13 +60,25 @@ def parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
     return False
 
 
-def parse_duration_setting(raw: str) -> int | Literal['Auto', 'Manual', 'Adaptive']:
+def parse_duration_setting(raw: str) -> int | Literal['Auto', 'Adaptive']:
     """Parse a protection suspend-duration setting string to its typed value."""
     try:
         return int(raw)
     except ValueError:
         if raw == 'Manual':
-            return 'Manual'
+            return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
+        if raw.startswith('Manual(') and raw.endswith(')'):
+            try:
+                return int(raw.removeprefix('Manual(').removesuffix(')'))
+            except ValueError:
+                return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
         if raw == 'Adaptive':
             return 'Adaptive'
         return 'Auto'
+
+
+def format_duration_setting(value: int | Literal['Auto', 'Adaptive']) -> str:
+    """Format a protection suspend-duration value for persistence."""
+    if isinstance(value, int):
+        return f'Manual({value})'
+    return value

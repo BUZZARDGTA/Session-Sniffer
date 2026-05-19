@@ -4,7 +4,6 @@ This module contains custom exception classes for packet capture operations.
 """
 
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
-from session_sniffer.error_messages import format_arp_spoofing_gateway_error_message
 
 
 class CaptureError(Exception):
@@ -63,22 +62,6 @@ class InvalidIPv4AddressFormatError(InvalidIPv4AddressError):
     """Raised when an IP field is not a valid IPv4 format."""
 
     message_template = 'Invalid IPv4 address: {value}. IP must be a valid IPv4 address.'
-
-
-class InvalidPortFormatError(MalformedPacketError):
-    """Raised when source or destination ports are not digits."""
-
-
-class InvalidPortMultipleError(InvalidPortFormatError):
-    """Raised when a port field contains multiple comma-separated values."""
-
-    message_template = 'Invalid port format: {value}. Port must be a number.'
-
-
-class InvalidPortNumericError(InvalidPortFormatError):
-    """Raised when a port field is not a valid numeric format."""
-
-    message_template = 'Invalid port format: {value}. Port must be a number.'
 
 
 class InvalidPortNumberError(MalformedPacketError):
@@ -145,25 +128,3 @@ class CaptureThreadAlreadyRunningError(CaptureError):
     def __init__(self) -> None:
         """Initialize the exception."""
         super().__init__('Capture thread is already running')
-
-
-class MissingGatewayIPForARPSpoofingError(Exception):
-    """Raised when ARP spoofing is enabled but the selected interface has no usable gateway IP."""
-
-    def __init__(
-        self,
-        *,
-        interface_name: str,
-        interface_ip: str,
-        gateway_ip: str | None,
-    ) -> None:
-        """Initialize with the interface details that caused the error."""
-        self.interface_name = interface_name
-        self.interface_ip = interface_ip
-        self.gateway_ip = gateway_ip
-        self.msgbox_text = format_arp_spoofing_gateway_error_message(
-            interface_name=interface_name,
-            interface_ip=interface_ip,
-            gateway_ip=gateway_ip,
-        )
-        super().__init__(self.msgbox_text)

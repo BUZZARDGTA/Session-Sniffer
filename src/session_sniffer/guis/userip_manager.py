@@ -69,6 +69,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._current_path: Path | None = None
         self._dirty = False
+        self._entries_dirty = False
+        self._settings_dirty = False
+        self._settings_snapshot: dict[str, str] = {}
         self._global_search_active = False
         self._next_index = 1
 
@@ -329,6 +332,32 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._refresh_stats()
 
+    def _clear_dirty_state(self) -> None:
+        """Reset the aggregate dirty state and its underlying sources."""
+        self._entries_dirty = False
+        self._settings_dirty = False
+        self._dirty = False
+
+    def _sync_dirty_state(self) -> None:
+        """Recompute the aggregate dirty flag from the tracked sources."""
+        self._dirty = self._entries_dirty or self._settings_dirty
+
+    def _mark_entries_dirty(self) -> None:
+        """Mark entry edits as dirty and refresh the aggregate state."""
+        self._entries_dirty = True
+        self._sync_dirty_state()
+
+    def _mark_settings_dirty(self) -> None:
+        """Re-evaluate settings dirtiness against the loaded snapshot."""
+        self._settings_dirty = self._read_settings_from_widgets() != self._settings_snapshot
+        self._sync_dirty_state()
+
+    def _capture_settings_snapshot(self) -> None:
+        """Record the current serialized settings as the clean baseline."""
+        self._settings_snapshot = self._read_settings_from_widgets()
+        self._settings_dirty = False
+        self._sync_dirty_state()
+
     # ------------------------------------------------------------------
     # Tree: selection
     # ------------------------------------------------------------------
@@ -367,6 +396,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._save_button.setEnabled(True)
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(True)
+
+    def refresh_runtime_capabilities(self) -> None:
+        """Refresh capability-gated controls after runtime preset/interface changes."""
+        if self._global_search_active or self._current_path is None:
+            return
+        self._refresh_protection_visibility()
 
     def _reselect_current_path(self) -> None:
         """Revert the tree selection back to the currently loaded database file."""
@@ -421,7 +456,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     def _load_database(self, path: Path) -> None:
         """Parse the INI file and populate the entries table model and settings panel."""
         self._model.removeRows(0, self._model.rowCount())
-        self._dirty = False
+        self._clear_dirty_state()
         self._search_input.clear()
 
         if not path.is_file():
@@ -435,6 +470,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         _, settings_lines = read_preserved_sections(path)
         settings_dict = parse_settings_from_lines(settings_lines)
         self._populate_settings_widgets(settings_dict)
+        self._capture_settings_snapshot()
         self._settings_container.setVisible(True)
 
         entry_count = 0
@@ -584,7 +620,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
     def _on_data_changed(self, _top_left: QModelIndex, _bottom_right: QModelIndex, _roles: list[int]) -> None:
         """Mark the current database as having unsaved changes."""
-        self._dirty = True
+        self._mark_entries_dirty()
         self._highlight_duplicates()
 
     # ------------------------------------------------------------------
@@ -606,7 +642,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._append_row('', ip_text, index=self._next_index)
         self._next_index += 1
-        self._dirty = True
+        self._mark_entries_dirty()
 
         # Scroll to the new row and start editing the Username column
         last_source_row = self._model.rowCount() - 1
@@ -654,7 +690,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if range_item is not None:
             range_item.setText('' if is_single else new_ip_text)
 
-        self._dirty = True
+        self._mark_entries_dirty()
         self._highlight_duplicates()
 
     def _insert_entry_at(self, source_row: int) -> None:
@@ -670,7 +706,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._model.insertRow(source_row, [index_item, username_item, QStandardItem(''), QStandardItem(''), db_item])
 
         self._renumber_indexes()
-        self._dirty = True
+        self._mark_entries_dirty()
 
         proxy_index = self._proxy.mapFromSource(self._model.index(source_row, USERNAME_COLUMN))
         if proxy_index.isValid():
@@ -704,7 +740,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
                 self._model.insertRow(src_row + 1, items)
 
         self._renumber_indexes()
-        self._dirty = True
+        self._mark_entries_dirty()
 
         # Reselect the moved rows
         new_source_rows = [r + direction for r in source_rows]
@@ -768,7 +804,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             for row in source_rows:
                 self._model.removeRow(row)
             self._renumber_indexes()
-            self._dirty = True
+            self._mark_entries_dirty()
             self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"}. Remember to save.')
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
@@ -902,7 +938,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._current_path.write_text('\n'.join(output_lines), encoding='utf-8')
 
-        self._dirty = False
+        self._settings_snapshot = settings_values.copy()
+        self._clear_dirty_state()
         self._update_file_info(self._current_path)
         self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
         self._refresh_stats()

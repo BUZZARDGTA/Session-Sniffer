@@ -178,7 +178,7 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
             menu.addSeparator()
 
             go_to_db_action = QAction(f'➡️ Go to Database  ({db_path.stem})', self)
-            go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path))
+            go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
             menu.addAction(go_to_db_action)
 
             open_editor_action = QAction(f'📝 Open in Text Editor  ({db_path.stem})', self)
@@ -235,8 +235,8 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
         if clipboard is not None:
             clipboard.setText(text)
 
-    def _navigate_to_database(self, db_path: Path) -> None:
-        """Exit global search mode and open the given database in the tree."""
+    def _navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
+        """Exit global search mode, open the given database, and select the matching entry when available."""
         self._global_search_checkbox.setChecked(False)
         self._current_path = db_path
         self._load_database(db_path)
@@ -249,6 +249,35 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
             if selection is not None:
                 selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
                 self._tree.scrollTo(tree_index)
+
+        self._select_loaded_entry(username=username, ip_or_range=ip_or_range)
+
+    def _select_loaded_entry(self, *, username: str, ip_or_range: str) -> None:
+        """Select the first row in the loaded database matching the given username and entry value."""
+        if not username or not ip_or_range:
+            return
+
+        for row in range(self._model.rowCount()):
+            username_item = self._model.item(row, USERNAME_COLUMN)
+            if username_item is None:
+                continue
+
+            row_username = username_item.text().strip()
+            row_ip_or_range = self._get_row_entry_value(row).strip()
+            if row_username != username or row_ip_or_range != ip_or_range:
+                continue
+
+            source_index = self._model.index(row, USERNAME_COLUMN)
+            proxy_index = self._proxy.mapFromSource(source_index)
+            if not proxy_index.isValid():
+                return
+
+            selection = self._entries_table.selectionModel()
+            if selection is not None:
+                selection.select(proxy_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+            self._entries_table.setCurrentIndex(proxy_index)
+            self._entries_table.scrollTo(proxy_index)
+            return
 
     def _on_entry_double_clicked(self, index: QModelIndex) -> None:
         """Handle double-click on an entry row in global search mode."""

@@ -165,6 +165,27 @@ class ProcessSuspendManager:
         with cls._lock:
             return any(reason_key in state.reasons for state in cls._states.values())
 
+    @staticmethod
+    def is_process_suspended(process_path: Path) -> bool:
+        """Return `True` when the running process at *process_path* is currently suspended.
+
+        This queries the live process status from psutil so UI code can use the
+        actual runtime state as the source of truth.
+        """
+        pid = get_pid_by_path(process_path)
+        if pid is None:
+            return False
+        try:
+            return psutil.Process(pid).status() == psutil.STATUS_STOPPED
+        except psutil.NoSuchProcess:
+            return False
+        except psutil.AccessDenied:
+            logger.warning('Cannot read suspend status for PID %d: access denied', pid)
+            return False
+        except psutil.Error:
+            logger.exception('Unexpected error while reading suspend status for PID %d', pid)
+            return False
+
     @classmethod
     def release_reason_global(cls, reason_key: str) -> None:
         """Remove *reason_key* from every tracked process.

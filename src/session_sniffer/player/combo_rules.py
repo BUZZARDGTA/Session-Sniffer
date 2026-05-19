@@ -8,7 +8,7 @@ from typing import ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player
-from session_sniffer.text_utils import parse_duration_setting, parse_voice_notifications
+from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,7 @@ class ComboRule:
     # Action settings
     protection_enabled: bool = False
     process_path: Path | None = None
-    duration: int | Literal['Auto', 'Manual', 'Adaptive'] = 'Auto'
+    duration: int | Literal['Auto', 'Adaptive'] = 'Auto'
     voice_notifications: Literal['Male', 'Female'] | bool = False
     logging: bool = False
     message_box: bool = False
@@ -60,7 +60,7 @@ class ComboRule:
             'conditions': self.conditions,
             'protection_enabled': self.protection_enabled,
             'process_path': str(self.process_path) if self.process_path else '',
-            'duration': str(self.duration),
+            'duration': format_duration_setting(self.duration),
             'voice_notifications': str(self.voice_notifications) if self.voice_notifications else 'False',
             'logging': self.logging,
             'message_box': self.message_box,

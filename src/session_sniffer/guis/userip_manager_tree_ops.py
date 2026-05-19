@@ -51,6 +51,11 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     _add_button: QPushButton
     _edit_ip_button: QPushButton
     _delete_button: QPushButton
+    _entries_dirty: bool
+    _settings_snapshot: dict[str, str]
+
+    def _mark_entries_dirty(self) -> None: ...
+    def _mark_settings_dirty(self) -> None: ...
 
     def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
     def _refresh_stats(self) -> None: ...
@@ -621,7 +626,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
                 return
             if clicked is use_button:
                 self._populate_settings_widgets(imported_settings)
-                self._dirty = True
+                self._mark_settings_dirty()
             _ = keep_button  # suppress unused-variable warning
 
         added = 0
@@ -631,7 +636,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             added += 1
 
         if added:
-            self._dirty = True
+            self._mark_entries_dirty()
             self._highlight_duplicates()
 
         self._set_status(

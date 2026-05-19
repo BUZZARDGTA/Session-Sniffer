@@ -292,7 +292,7 @@ def handle_detection_notification(
 
         if standalone_active:
             process_path: Path | None = getattr(GUIProtectionSettings, f'{prefix}_process_path')
-            duration: int | Literal['Auto', 'Manual', 'Adaptive'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
+            duration: int | Literal['Auto', 'Adaptive'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
             if enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface and process_path:
@@ -622,7 +622,7 @@ def check_global_protections(player: Player) -> None:
     with ThreadsExceptionHandler():
         def execute_protection_action(
             process_path: Path | None,
-            duration: int | Literal['Auto', 'Manual', 'Adaptive'],
+            duration: int | Literal['Auto', 'Adaptive'],
             protection_name: str,
         ) -> None:
             """Execute a protection action (Suspend)."""

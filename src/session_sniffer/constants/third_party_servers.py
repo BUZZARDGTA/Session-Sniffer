@@ -33,11 +33,6 @@ class ThirdPartyServers(enum.Enum):
     MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT = ('168.61.142.128/25', '168.61.143.0/24', '168.61.144.0/20', '168.61.160.0/19')
 
     @classmethod
-    def get_all_ip_ranges(cls) -> list[str]:
-        """Return a flat list of all IP ranges from the Enum."""
-        return [ip_range for server in cls for ip_range in server.value]
-
-    @classmethod
     def get_ip_ranges_for(cls, server_names: tuple[str, ...]) -> list[str]:
         """Return a flat list of IP ranges for the specified server names only."""
         names_set = set(server_names)

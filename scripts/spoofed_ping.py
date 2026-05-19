@@ -139,11 +139,9 @@ class Colors(enum.StrEnum):
     CYAN = '3a96dd'
     CYAN_LIGHT = '61d6d6'
     GREEN = '13a10e'
-    GREEN_LIGHT = '00ff00'
     YELLOW = 'c19c00'
     YELLOW_LIGHT = 'f9f1a5'
     ORANGE = 'ff5f00'
-    ORANGE_LIGHT = 'ff8700'
     RED = 'c50f1f'
     RED_LIGHT = 'e74856'
 
