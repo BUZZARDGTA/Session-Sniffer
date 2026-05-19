@@ -21,7 +21,7 @@ dependencies = [
     "PyQt6==6.8.1",
     "pywin32==311; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
-    "requests==2.33.1",
+    "requests==2.34.2",
     "rich==15.0.0",
     "scapy==2.7.0",
     "sentinel==1.0.0",
@@ -57,9 +57,9 @@ dev = [
     "ruff",
     "safety",
     "ty",
-    "types-psutil==7.2.2.20260508",
-    "types-requests==2.33.0.20260508",
-    "types-toml==0.10.8.20260508",
+    "types-psutil==7.2.2.20260518",
+    "types-requests==2.33.0.20260518",
+    "types-toml==0.10.8.20260518",
     "vulture",
 ]
 
@@ -208,9 +208,9 @@ runtime-evaluated-base-classes = [
 ".github/workflows/scripts/update_release_versions.py" = ["INP001"]
 "scripts/spoofed_ping.py" = ["INP001"]
 "src/session_sniffer/guis/discord_intro.py" = ["N802"]
-"src/session_sniffer/guis/interface_selection_dialog.py" = ["N802"]
+"src/session_sniffer/guis/interface_selection_dialog.py" = ["FBT003", "N802"]
 "src/session_sniffer/guis/logs_manager/*.py" = ["FBT001", "FBT003", "N802", "TC003"]
-"src/session_sniffer/guis/main_window.py" = ["N802"]
+"src/session_sniffer/guis/main_window.py" = ["FBT003", "N802"]
 "src/session_sniffer/guis/logs_manager/_csv_tab.py" = ["PLR0913"]
 "src/session_sniffer/guis/tables_player_actions.py" = ["PLR0913"]
 "src/session_sniffer/guis/settings_dialog.py" = ["PLR0911"]

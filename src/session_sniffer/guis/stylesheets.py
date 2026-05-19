@@ -383,6 +383,79 @@ border: none;
 # STATUS BAR STYLES
 # =============================================================================
 
+MENU_BAR_STYLESHEET = """
+QMenuBar {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #2e3440, stop:1 #3b4252);
+    color: #d8dee9;
+    border-bottom: 2px solid #88c0d0;
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    font-size: 10pt;
+    font-weight: 600;
+    padding: 2px 4px;
+    spacing: 2px;
+}
+
+QMenuBar::item {
+    background: transparent;
+    color: #d8dee9;
+    padding: 5px 14px;
+    border-radius: 4px;
+}
+
+QMenuBar::item:selected {
+    background: rgba(136, 192, 208, 0.22);
+    color: #88c0d0;
+}
+
+QMenuBar::item:pressed {
+    background: rgba(136, 192, 208, 0.35);
+    color: #eceff4;
+}
+
+QMenu {
+    background: #2e3440;
+    color: #d8dee9;
+    border: 1px solid #4c566a;
+    border-radius: 4px;
+    padding: 4px 0px;
+}
+
+QMenu::item {
+    background: transparent;
+    color: #d8dee9;
+    padding: 6px 28px 6px 16px;
+    font-size: 10pt;
+}
+
+QMenu::item:selected {
+    background: rgba(136, 192, 208, 0.25);
+    color: #eceff4;
+    border-radius: 3px;
+}
+
+QMenu::item:disabled {
+    color: #4c566a;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #4c566a;
+    margin: 4px 10px;
+}
+
+QMenu::right-arrow {
+    width: 12px;
+    height: 12px;
+    margin-right: 4px;
+}
+""".strip()
+
+
+# =============================================================================
+# STATUS BAR STYLES
+# =============================================================================
+
 STATUS_BAR_STYLESHEET = """
 QStatusBar {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
@@ -437,5 +510,81 @@ QLabel {
     color: #d8dee9;
     border: none;
     padding: 4px 8px 4px 4px;
+}
+""".strip()
+
+
+# =============================================================================
+# GTA5 MANUAL SUSPEND BUTTON STYLES
+# =============================================================================
+
+GTA5_MANUAL_SUSPEND_IDLE_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(230, 126, 34, 0.18), stop:1 rgba(211, 84, 0, 0.28));
+    color: #f0a030;
+    border: 1px solid rgba(230, 126, 34, 0.65);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(230, 126, 34, 0.45), stop:1 rgba(211, 84, 0, 0.55));
+    border: 1px solid rgba(230, 126, 34, 1.0);
+    color: #ffd080;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(211, 84, 0, 0.65), stop:1 rgba(230, 126, 34, 0.75));
+    padding-top: 4px;
+    padding-left: 9px;
+}
+QPushButton:disabled {
+    color: rgba(150, 100, 50, 0.45);
+    border: 1px solid rgba(150, 100, 50, 0.28);
+    background: transparent;
+}
+""".strip()
+
+GTA5_SOLO_SESSION_ACTIVE_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #1565c0, stop:1 #0d47a1);
+    color: #e3f2fd;
+    border: 1px solid #42a5f5;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-weight: bold;
+}
+QPushButton:disabled {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #0d47a1, stop:1 #1565c0);
+    color: #90caf9;
+    border: 1px solid #1976d2;
+}
+""".strip()
+
+GTA5_MANUAL_SUSPEND_ACTIVE_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #c0392b, stop:1 #96281b);
+    color: #ffffff;
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #e74c3c, stop:1 #c0392b);
+    border: 1px solid #ff6b5b;
+    color: #fff8f8;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #96281b, stop:1 #c0392b);
+    padding-top: 4px;
+    padding-left: 9px;
 }
 """.strip()

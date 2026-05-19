@@ -364,11 +364,12 @@ class PacketCapture:
                 if self._state.sniffer is sniffer:
                     self._state.sniffer = None
 
-        logger.debug(
-            'Scapy sniffer stopped. died_unexpectedly=%r, exception=%r',
-            died_unexpectedly,
-            sniffer.exception,
-        )
+        if died_unexpectedly:
+            logger.debug(
+                'Scapy sniffer stopped. died_unexpectedly=%r, exception=%r',
+                died_unexpectedly,
+                sniffer.exception,
+            )
 
         with self._state.control_lock:
             if (

@@ -5,7 +5,7 @@ import csv
 import time
 import winsound
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
@@ -15,21 +15,19 @@ from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
-from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
-from session_sniffer.core import ThreadsExceptionHandler
+from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.guis.tables_player_actions import PlayerDetectionInfo, show_player_detection_dialog, show_userip_detected_dialog
+from session_sniffer.guis.tables_player_actions import PlayerDetectionInfo, show_detection_notification_dialog, show_player_detection_dialog, show_userip_detected_dialog
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, gui_dispatcher
-from session_sniffer.rendering_core.types import CaptureState
+from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_triple_quoted_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -297,7 +295,7 @@ def handle_detection_notification(
             duration: int | Literal['Auto', 'Manual', 'Adaptive'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
-            if enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and process_path:
+            if enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface and process_path:
                 ProcessSuspendManager.request_suspend(
                     process_path=process_path,
                     reason_key=f'event:{notification_type}:{player.ip}',
@@ -359,7 +357,7 @@ def handle_detection_notification(
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
                 # Protection action
-                if rule.protection_enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface and rule.process_path:
+                if rule.protection_enabled and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface and rule.process_path:
                     ProcessSuspendManager.request_suspend(
                         process_path=rule.process_path,
                         reason_key=f'combo:{rule.name}:{player.ip}',
@@ -398,20 +396,18 @@ def handle_detection_notification(
                     conditions_summary = ', '.join(
                         f'{k}={v}' for k, v in rule.conditions.items() if k != 'event'
                     )
-                    msgbox.show(
-                        title=f'{TITLE} - COMBO RULE: {rule.name}',
-                        text=format_triple_quoted_text(f"""
-                            \U0001f517 Combo Rule Matched: {rule.name}
-                            Event: {combo_event}
-                            IP Address: {player.ip}
-                            Country: {player.iplookup.geolite2.country}
-                            ISP: {player.iplookup.ipapi.isp}
-                            ASN: {player.iplookup.ipapi.as_name}
-                            Conditions: {conditions_summary}
-                            Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                        """),
-                        style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
-                    )
+                    _display_title = f'Combo Rule Matched: {rule.name}'
+                    _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
+                    _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
+
+                    def _show_event_combo_notif(  # pylint: disable=dangerous-default-value
+                        _t: str = _display_title,
+                        _e: list[tuple[str, str]] = _extra,
+                        _et_: str = _et,
+                    ) -> None:
+                        show_detection_notification_dialog(find_main_window(), player, '\U0001f517', _t, _e, _et_)
+
+                    gui_dispatcher.invoke(_show_event_combo_notif)
 
     config = _NOTIFICATION_CONFIGS[notification_type]
 
@@ -449,7 +445,7 @@ def process_userip_task(
             connection_type == 'connected'
             and player.userip.settings.protection.enabled
             and Settings.capture_program_preset == 'GTA5'
-            and not CaptureState.is_arp_interface
+            and not CaptureState.is_neighbour_interface
             and isinstance(player.userip.settings.protection.process_path, Path)
         ):
             suspend_mode = player.userip.settings.protection.suspend_process_mode
@@ -500,6 +496,7 @@ def process_userip_task(
                 gui_dispatcher.invoke(_show_userip_dialog)
 
 
+_GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
 _GTAV_TAKETWO_NETWORKS: tuple[IPv4Network, ...] = tuple(
     IPv4Network(cidr, strict=False)
     for cidr in ThirdPartyServers.GTAV_TAKETWO.value
@@ -536,33 +533,46 @@ def monitor_gta5_relay_task(player: Player) -> None:
         if not _is_gta5_relay_ip(player.ip):
             return
 
-        # Poll until threshold reached, player disconnects, GUI closes, or protection is disabled.
-        while (
-            not player.left_event.is_set()
-            and not gui_closed__event.is_set()
-            and GUIProtectionSettings.gta5_relay_enabled
-            and player.packets.exchanged < GUIProtectionSettings.gta5_relay_packet_threshold
-        ):
+        # Poll until the packet threshold is exceeded AND PPS has been continuously
+        # above 0 for at least 8 seconds (any 0-PPS sample resets the streak).
+        # A 0-PPS relay is not actively sending packets and must be a false positive.
+        _pps_nonzero_since: float | None = None
+        while not player.left_event.is_set() and not gui_closed__event.is_set():
+            pps_active = player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0
+            if pps_active:
+                if _pps_nonzero_since is None:
+                    _pps_nonzero_since = time.monotonic()
+            else:
+                _pps_nonzero_since = None  # reset streak on any 0-PPS sample
+
+            if (
+                player.packets.exchanged >= GUIProtectionSettings.gta5_relay_packet_threshold
+                and _pps_nonzero_since is not None
+                and (time.monotonic() - _pps_nonzero_since) >= _GTA5_RELAY_PPS_NONZERO_STREAK_SECS
+            ):
+                break
+
             gui_closed__event.wait(0.25)
 
         if (
             player.left_event.is_set()
             or gui_closed__event.is_set()
-            or not GUIProtectionSettings.gta5_relay_enabled
         ):
             return
 
-        process_path = GUIProtectionSettings.gta5_relay_process_path
-        duration = GUIProtectionSettings.gta5_relay_duration
-
-        if not CaptureState.is_arp_interface and process_path:
+        if GUIProtectionSettings.gta5_relay_enabled and not CaptureState.is_neighbour_interface and GUIProtectionSettings.gta5_relay_process_path:
             ProcessSuspendManager.request_suspend(
-                process_path=process_path,
+                process_path=GUIProtectionSettings.gta5_relay_process_path,
                 reason_key=f'gta5_relay:{player.ip}',
                 left_event=player.left_event,
-                duration=duration,
-                is_active=(lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0) if duration == 'Adaptive' else None,
+                duration=GUIProtectionSettings.gta5_relay_duration,
+                is_active=(
+                    (lambda: player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate > 0)
+                    if GUIProtectionSettings.gta5_relay_duration == 'Adaptive' else None
+                ),
             )
+
+        wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
         voice_setting = GUIProtectionSettings.gta5_relay_voice_notifications
         if voice_setting:
@@ -588,22 +598,16 @@ def monitor_gta5_relay_task(player: Player) -> None:
                         player.iplookup.geolite2.country,
                     ])
 
-        if GUIProtectionSettings.gta5_relay_message_box and player.userip is None:
-            Thread(
-                target=msgbox.show,
-                name=f'GTA5RelayDetectionNotif-{player.ip}',
-                kwargs={
-                    'title': TITLE,
-                    'text': format_triple_quoted_text(f"""
-                        \U0001f6e1 GTA5 Relay Detected
-                        IP Address: {player.ip}
-                        Packets: {player.packets.exchanged}
-                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                    """),
-                    'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
-                },
-                daemon=True,
-            ).start()
+        if GUIProtectionSettings.gta5_relay_message_box:
+            _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
+
+            def _show_relay_notif() -> None:
+                show_detection_notification_dialog(
+                    find_main_window(), player, '\U0001f6e1', 'GTA5 Relay Detected',
+                    [('Packets', str(player.packets.exchanged))], _et,
+                )
+
+            gui_dispatcher.invoke(_show_relay_notif)
 
 
 def check_global_protections(player: Player) -> None:
@@ -622,7 +626,7 @@ def check_global_protections(player: Player) -> None:
             protection_name: str,
         ) -> None:
             """Execute a protection action (Suspend)."""
-            if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface or not process_path:
+            if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface or not process_path:
                 return
             ProcessSuspendManager.request_suspend(
                 process_path=process_path,
@@ -634,11 +638,12 @@ def check_global_protections(player: Player) -> None:
 
         def handle_detection_notifications(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
             detection_title: str,
-            msgbox_text: str,
+            emoji: str,
+            display_title: str,
+            extra_detection_fields: list[tuple[str, str]],
             voice_setting: Literal['Male', 'Female'] | bool,  # noqa: FBT001
             logging_setting: bool,  # noqa: FBT001
             msgbox_setting: bool,  # noqa: FBT001
-            notification_name: str,
             tts_filename: str,
         ) -> None:
             """Handle voice, logging, and message box for a detection."""
@@ -666,19 +671,15 @@ def check_global_protections(player: Player) -> None:
                         ])
 
             if msgbox_setting and player.userip is None:
-                Thread(
-                    target=msgbox.show,
-                    name=f'{notification_name}-{player.ip}',
-                    kwargs={
-                        'title': TITLE,
-                        'text': format_triple_quoted_text(msgbox_text),
-                        'style': msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_TOPMOST,
-                    },
-                    daemon=True,
-                ).start()
+                _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
+
+                def _show_detection_notif() -> None:
+                    show_detection_notification_dialog(find_main_window(), player, emoji, display_title, extra_detection_fields, _event_time)
+
+                gui_dispatcher.invoke(_show_detection_notif)
 
         # Wait for IP lookup data to be ready
-        wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
+        wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
         _start = time.monotonic()
 
         # Mobile Connection Detection
@@ -691,17 +692,12 @@ def check_global_protections(player: Player) -> None:
                 )
             handle_detection_notifications(
                 detection_title='MOBILE CONNECTION DETECTED!',
-                msgbox_text=f"""
-                    \U0001f4f1 Mobile Connection Detected
-                    IP Address: {player.ip}
-                    Country: {player.iplookup.geolite2.country}
-                    ISP: {player.iplookup.ipapi.isp}
-                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                """,
+                emoji='\U0001f4f1',
+                display_title='Mobile Connection Detected',
+                extra_detection_fields=[],
                 voice_setting=GUIProtectionSettings.mobile_voice_notifications,
                 logging_setting=GUIProtectionSettings.mobile_logging,
                 msgbox_setting=GUIProtectionSettings.mobile_message_box,
-                notification_name='MobileDetectionNotif',
                 tts_filename='mobile_connection_detected',
             )
 
@@ -715,17 +711,12 @@ def check_global_protections(player: Player) -> None:
                 )
             handle_detection_notifications(
                 detection_title='VPN/PROXY/TOR CONNECTION DETECTED!',
-                msgbox_text=f"""
-                    \U0001f512 VPN/Proxy/Tor Connection Detected
-                    IP Address: {player.ip}
-                    Country: {player.iplookup.geolite2.country}
-                    ISP: {player.iplookup.ipapi.isp}
-                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                """,
+                emoji='\U0001f512',
+                display_title='VPN/Proxy/Tor Connection Detected',
+                extra_detection_fields=[],
                 voice_setting=GUIProtectionSettings.vpn_voice_notifications,
                 logging_setting=GUIProtectionSettings.vpn_logging,
                 msgbox_setting=GUIProtectionSettings.vpn_message_box,
-                notification_name='VPNDetectionNotif',
                 tts_filename='vpn_connection_detected',
             )
 
@@ -739,17 +730,12 @@ def check_global_protections(player: Player) -> None:
                 )
             handle_detection_notifications(
                 detection_title='HOSTING/DATA CENTER CONNECTION DETECTED!',
-                msgbox_text=f"""
-                    \U0001f3e2 Hosting/Data Center Connection Detected
-                    IP Address: {player.ip}
-                    Country: {player.iplookup.geolite2.country}
-                    Organization: {player.iplookup.ipapi.org}
-                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                """,
+                emoji='\U0001f3e2',
+                display_title='Hosting/Data Center Connection Detected',
+                extra_detection_fields=[],
                 voice_setting=GUIProtectionSettings.hosting_voice_notifications,
                 logging_setting=GUIProtectionSettings.hosting_logging,
                 msgbox_setting=GUIProtectionSettings.hosting_message_box,
-                notification_name='HostingDetectionNotif',
                 tts_filename='hosting_connection_detected',
             )
 
@@ -763,16 +749,12 @@ def check_global_protections(player: Player) -> None:
                 )
             handle_detection_notifications(
                 detection_title='BLOCKED COUNTRY DETECTED!',
-                msgbox_text=f"""
-                    \U0001f30d Blocked Country Detected
-                    IP Address: {player.ip}
-                    Country: {player.iplookup.geolite2.country}
-                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                """,
+                emoji='\U0001f30d',
+                display_title='Blocked Country Detected',
+                extra_detection_fields=[],
                 voice_setting=GUIProtectionSettings.country_voice_notifications,
                 logging_setting=GUIProtectionSettings.country_logging,
                 msgbox_setting=GUIProtectionSettings.country_message_box,
-                notification_name='CountryDetectionNotif',
                 tts_filename='country_detected',
             )
 
@@ -804,18 +786,12 @@ def check_global_protections(player: Player) -> None:
                     )
                 handle_detection_notifications(
                     detection_title='BLOCKED ISP DETECTED!',
-                    msgbox_text=f"""
-                        \U0001f310 Blocked ISP Detected
-                        IP Address: {player.ip}
-                        Matched Entry: {matched_isp}
-                        AS Name: {player.iplookup.ipapi.as_name}
-                        ISP: {player.iplookup.ipapi.isp}
-                        Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                    """,
+                    emoji='\U0001f310',
+                    display_title='Blocked ISP Detected',
+                    extra_detection_fields=[('Matched Entry', matched_isp)],
                     voice_setting=GUIProtectionSettings.isp_voice_notifications,
                     logging_setting=GUIProtectionSettings.isp_logging,
                     msgbox_setting=GUIProtectionSettings.isp_message_box,
-                    notification_name='ISPDetectionNotif',
                     tts_filename='isp_detected',
                 )
 
@@ -853,18 +829,12 @@ def check_global_protections(player: Player) -> None:
                     )
                     handle_detection_notifications(
                         detection_title='BLOCKED ASN DETECTED!',
-                        msgbox_text=f"""
-                            \U0001f522 Blocked ASN Detected
-                            IP Address: {player.ip}
-                            ASN: {asn_display}
-                            AS Name: {player.iplookup.ipapi.as_name}
-                            ISP: {player.iplookup.ipapi.isp}
-                            Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                        """,
+                        emoji='\U0001f522',
+                        display_title='Blocked ASN Detected',
+                        extra_detection_fields=[('ASN', asn_display)],
                         voice_setting=GUIProtectionSettings.asn_voice_notifications,
                         logging_setting=GUIProtectionSettings.asn_logging,
                         msgbox_setting=GUIProtectionSettings.asn_message_box,
-                        notification_name='ASNDetectionNotif',
                         tts_filename='asn_detected',
                     )
 
@@ -882,20 +852,70 @@ def check_global_protections(player: Player) -> None:
             )
             handle_detection_notifications(
                 detection_title=f'COMBO RULE MATCHED: {rule.name}',
-                msgbox_text=f"""
-                    \U0001f517 Combo Rule Matched: {rule.name}
-                    IP Address: {player.ip}
-                    Country: {player.iplookup.geolite2.country}
-                    ISP: {player.iplookup.ipapi.isp}
-                    ASN: {player.iplookup.ipapi.as_name}
-                    Conditions: {conditions_summary}
-                    Time: {datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')}
-                """,
+                emoji='\U0001f517',
+                display_title=f'Combo Rule Matched: {rule.name}',
+                extra_detection_fields=[('Conditions', conditions_summary)],
                 voice_setting=rule.voice_notifications,
                 logging_setting=rule.logging,
                 msgbox_setting=rule.message_box,
-                notification_name=f'ComboRuleNotif-{rule.name}',
                 tts_filename='combo_rule_detected',
             )
 
         _global_protections_slowdown.check(time.monotonic() - _start, 'global_protections')
+
+
+def player_rates_core() -> None:
+    """Compute per-player rate metrics and aggregate global capture stats at 1-second intervals.
+
+    Runs in a dedicated background thread so that PPS/PPM/BPS/BPM calculations stay on a
+    precise 1-second timer, independent of the rendering loop cadence.
+    """
+    with ThreadsExceptionHandler():
+        while not gui_closed__event.is_set():
+            _start = time.monotonic()
+
+            if ScriptControl.has_crashed():
+                return
+
+            global_bandwidth = 0
+            global_download = 0
+            global_upload = 0
+            global_bps_rate = 0
+            global_pps_rate = 0
+
+            for player in PlayersRegistry.get_connected_players():
+                if player.left_event.is_set():
+                    continue
+
+                if (time.monotonic() - player.packets.pps.last_update_time) >= 1.0:
+                    player.packets.pps.calculate_and_update_rate()
+
+                if (time.monotonic() - player.packets.ppm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.packets.ppm.calculate_and_update_rate()
+
+                if (time.monotonic() - player.bandwidth.bps.last_update_time) >= 1.0:
+                    player.bandwidth.bps.calculate_and_update_rate()
+
+                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= 60.0:  # noqa: PLR2004
+                    player.bandwidth.bpm.calculate_and_update_rate()
+
+                global_bandwidth += player.bandwidth.exchanged
+                global_download += player.bandwidth.download
+                global_upload += player.bandwidth.upload
+                global_bps_rate += player.bandwidth.bps.calculated_rate
+                global_pps_rate += player.packets.pps.calculated_rate
+
+            CaptureStats.global_bandwidth = global_bandwidth
+            CaptureStats.global_download = global_download
+            CaptureStats.global_upload = global_upload
+            CaptureStats.global_bps_rate = global_bps_rate
+            CaptureStats.global_pps_rate = global_pps_rate
+
+            one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
+            recent_latencies = [(t, lat) for t, lat in CaptureStats.packets_latencies if t >= one_second_ago]
+            CaptureStats.global_avg_latency_ms = (
+                sum(lat.total_seconds() * 1000 for _, lat in recent_latencies) / len(recent_latencies)
+                if recent_latencies else 0.0
+            )
+
+            gui_closed__event.wait(max(0.0, 1.0 - (time.monotonic() - _start)))

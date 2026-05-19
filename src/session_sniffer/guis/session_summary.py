@@ -31,7 +31,7 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         self._lbl_connected = QLabel('0')
         self._lbl_total = QLabel('0')
         players_form.addRow('Connected:', self._lbl_connected)
-        players_form.addRow('Total Unique:', self._lbl_total)
+        players_form.addRow('Total:', self._lbl_total)
         layout.addWidget(players_group)
 
         # Bandwidth group

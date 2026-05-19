@@ -29,6 +29,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_move,
     userip_remove_username,
     userip_rename,
+    userip_rename_multi,
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.player.registry import PlayersRegistry
@@ -151,6 +152,27 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                 tooltip='Copy a detailed player info report formatted for Discord to the clipboard.',
                 handler=lambda: copy_player_info_for_discord(_discord_player),
             )
+        elif len(selected_indexes) > 1:
+            _early_seen_rows: set[int] = set()
+            _early_all_ips: list[str] = []
+            for _early_idx in selected_indexes:
+                _early_row = _early_idx.row()
+                if _early_row in _early_seen_rows:
+                    continue
+                _early_seen_rows.add(_early_row)
+                _early_ip_idx = selected_model.index(_early_row, selected_model.ip_column_index)
+                _early_disp_ip = selected_model.get_display_text(_early_ip_idx)
+                if _early_disp_ip and _early_disp_ip not in _early_all_ips:
+                    _early_all_ips.append(_early_disp_ip)
+            _early_matched = [_ep for _eip in _early_all_ips if (_ep := PlayersRegistry.get_player_by_ip(_eip)) is not None]
+            if _early_matched:
+                _discord_players = _early_matched
+                add_action(
+                    context_menu,
+                    '📋 Copy for Discord',
+                    tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
+                    handler=lambda: copy_players_info_for_discord(_discord_players),
+                )
         context_menu.addSeparator()
 
         # Add "Remove Player" action for any selection (resolve IPs from selected rows)
@@ -302,7 +324,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     )
 
                     # --- Detections submenu (single IP) ---
-                    if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
+                    if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
                         detections_menu = add_menu(context_menu, '🚨 Detections')
                         build_detections_menu(detections_menu, add_action, player_obj, self)
 
@@ -433,11 +455,6 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
 
                 if matched_players:
                     add_action(context_menu, '🔎 IP Lookup Details', tooltip='Displays a detailed IP lookup report for each selected player.', handler=_show_all_lookups)
-                    add_action(
-                        context_menu, '📋 Copy for Discord',
-                        tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
-                        handler=lambda: copy_players_info_for_discord(matched_players),
-                    )
 
                 # --- Rate Graph (multi-IP, connected table only) ---
                 if self.is_connected_table and self.open_rate_graph_callback is not None:
@@ -493,6 +510,11 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     handler=_tcp_ping_all_diff_ports,
                 )
 
+                # --- Detections submenu (multi-IP) ---
+                if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
+                    detections_menu = add_menu(context_menu, '🚨 Detections')
+                    build_detections_menu_multi(detections_menu, add_action, matched_players, self)
+
                 # --- User Scripts submenu (multi-IP) ---
                 multi_scripts_menu = add_menu(context_menu, '📜 User Scripts')
 
@@ -508,11 +530,6 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     per_ip_menu = add_menu(multi_scripts_menu, '📜 One Process per IP', 'Spawn a separate script process for each selected IP.')
                     _populate_scripts_menu(per_ip_menu, multi_builtin_scripts, multi_user_scripts, _script_ips, per_ip=True)
 
-                # --- Detections submenu (multi-IP) ---
-                if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_arp_interface:
-                    detections_menu = add_menu(context_menu, '🚨 Detections')
-                    build_detections_menu_multi(detections_menu, add_action, matched_players, self)
-
                 if all(not UserIPDatabases.is_known_ip(ip) for ip in all_ips):
                     userip_menu = add_menu(context_menu, '🗂️ UserIP')
 
@@ -525,6 +542,15 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     )
                 elif all(UserIPDatabases.is_known_ip(ip) for ip in all_ips):
                     userip_menu = add_menu(context_menu, '🗂️ UserIP')
+
+                    _rename_players = [p for p in matched_players if p.userip is not None]
+                    if _rename_players:
+                        add_action(
+                            userip_menu,
+                            '✏️ Rename Selected',
+                            tooltip='Rename the username for each selected IP address in its UserIP database.',
+                            handler=lambda: userip_rename_multi(self, _rename_players),
+                        )
 
                     move_userip_menu = add_menu(userip_menu, '📦 Move Selected')
                     populate_db_menu(

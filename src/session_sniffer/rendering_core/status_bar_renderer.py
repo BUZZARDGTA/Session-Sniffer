@@ -1,7 +1,6 @@
 """Status bar section rendering helpers for the GUI."""
 
 import enum
-from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -52,7 +51,7 @@ class StatusBarUserIPInfo:
 class StatusBarInterfaceInfo:
     """Network interface info for the status bar."""
     name: str
-    is_arp_interface: bool
+    is_neighbour_interface: bool
     arp_spoofing: bool
 
 
@@ -77,12 +76,6 @@ class StatusBarSnapshot:
 class StatusBarThresholds(enum.IntEnum):
     """Performance thresholds for color coding."""
 
-    BANDWIDTH_CRITICAL = 1_000_000_000
-    BANDWIDTH_WARNING = 500_000_000
-    DOWNLOAD_CRITICAL = 500_000_000
-    DOWNLOAD_WARNING = 250_000_000
-    UPLOAD_CRITICAL = 500_000_000
-    UPLOAD_WARNING = 250_000_000
     BPS_CRITICAL = 3_000_000
     BPS_WARNING = 1_000_000
     PPS_CRITICAL = 1500
@@ -117,7 +110,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
         ),
         interface=StatusBarInterfaceInfo(
             name=capture.config.interface.name,
-            is_arp_interface=capture.config.interface.is_arp,
+            is_neighbour_interface=capture.config.interface.is_neighbour,
             arp_spoofing=Settings.capture_arp_spoofing,
         ),
         system=StatusBarSystemInfo(
@@ -132,16 +125,6 @@ def _calculate_latency(packets_latencies: list[tuple[datetime, timedelta]]) -> t
     """Calculate average packet latency for the most recent 1-second window."""
     one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
     recent_packets: list[tuple[datetime, timedelta]] = [(pkt_time, pkt_latency) for pkt_time, pkt_latency in packets_latencies if pkt_time >= one_second_ago]
-
-    # Snapshot the deque first to avoid RuntimeError from concurrent append()
-    # calls mutating it during iteration, then build a pruned replacement and
-    # swap it in with a single attribute assignment.
-    snapshot_latencies = list(CaptureStats.packets_latencies)
-    pruned = deque(
-        (entry for entry in snapshot_latencies if entry[0] >= one_second_ago),
-        maxlen=CaptureStats.packets_latencies.maxlen,
-    )
-    CaptureStats.packets_latencies = pruned
 
     if recent_packets:
         total_latency_seconds = sum((pkt_latency.total_seconds() for _, pkt_latency in recent_packets), 0.0)
@@ -169,9 +152,9 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
 
 
 def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool, discord_rpc_manager: DiscordRPC | None) -> str:
-    arp_label = ('Enabled (Spoofing)' if snapshot.interface.arp_spoofing else 'Enabled') if snapshot.interface.is_arp_interface else 'Disabled'
+    arp_label = ('Enabled (Spoofing)' if snapshot.interface.arp_spoofing else 'Enabled') if snapshot.interface.is_neighbour_interface else 'Disabled'
     is_vpn_enabled = 'Enabled' if vpn_mode_enabled else 'Disabled'
-    arp_color = StatusBarColors.ENABLED if snapshot.interface.is_arp_interface else StatusBarColors.DISABLED
+    arp_color = StatusBarColors.ENABLED if snapshot.interface.is_neighbour_interface else StatusBarColors.DISABLED
     vpn_color = StatusBarColors.ENABLED if is_vpn_enabled == 'Enabled' else StatusBarColors.DISABLED
 
     discord_display = ''
@@ -219,15 +202,6 @@ def _build_performance_section(snapshot: StatusBarSnapshot, *, avg_latency_secon
     latency_color = (ThresholdColors.CRITICAL if avg_latency_seconds >= 0.90 * snapshot.capture.overflow_timer
                      else ThresholdColors.WARNING if avg_latency_seconds >= 0.75 * snapshot.capture.overflow_timer
                      else ThresholdColors.HEALTHY)
-    bandwidth_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_bandwidth >= StatusBarThresholds.BANDWIDTH_CRITICAL
-                       else ThresholdColors.WARNING if snapshot.capture_stats.global_bandwidth >= StatusBarThresholds.BANDWIDTH_WARNING
-                       else ThresholdColors.HEALTHY)
-    download_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_download >= StatusBarThresholds.DOWNLOAD_CRITICAL
-                      else ThresholdColors.WARNING if snapshot.capture_stats.global_download >= StatusBarThresholds.DOWNLOAD_WARNING
-                      else ThresholdColors.HEALTHY)
-    upload_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_upload >= StatusBarThresholds.UPLOAD_CRITICAL
-                    else ThresholdColors.WARNING if snapshot.capture_stats.global_upload >= StatusBarThresholds.UPLOAD_WARNING
-                    else ThresholdColors.HEALTHY)
     bps_color = (ThresholdColors.CRITICAL if snapshot.capture_stats.global_bps_rate >= StatusBarThresholds.BPS_CRITICAL
                  else ThresholdColors.WARNING if snapshot.capture_stats.global_bps_rate >= StatusBarThresholds.BPS_WARNING
                  else ThresholdColors.HEALTHY)
@@ -244,15 +218,6 @@ def _build_performance_section(snapshot: StatusBarSnapshot, *, avg_latency_secon
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚡ Performance:</span> '
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Latency:</span> '
         f'<span style="color: {latency_color};">{avg_latency_rounded}s</span> '
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓↑:</span> '
-        f'<span style="color: {bandwidth_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_bandwidth)}</span> '
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↓:</span> '
-        f'<span style="color: {download_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_download)}</span> '
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">↑:</span> '
-        f'<span style="color: {upload_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_upload)}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">BPS:</span> '
         f'<span style="color: {bps_color};">{PlayerBandwidth.format_bytes(snapshot.capture_stats.global_bps_rate)}</span> '

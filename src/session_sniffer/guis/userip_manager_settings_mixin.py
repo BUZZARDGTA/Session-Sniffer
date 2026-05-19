@@ -402,7 +402,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         row2.addStretch()
         body_layout.addLayout(row2)
 
-        # ── Protection section (hidden for ARP / console scanning) ──
+        # ── Protection section (hidden for neighbour interface / console scanning) ──
         self._protection_section = QWidget()
         protection_section_layout = QVBoxLayout(self._protection_section)
         protection_section_layout.setContentsMargins(0, 0, 0, 0)
@@ -521,7 +521,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         self._update_protection_fields_enabled()
         self._update_enabled_body_visible()
 
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
             self._protection_section.setVisible(False)
 
         self._settings_loading = False
@@ -538,7 +538,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         voice_idx = self._setting_voice.currentIndex()
         settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_idx]
 
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
             settings['PROTECTION'] = 'False'
         else:
             settings['PROTECTION'] = 'Suspend_Process' if self._setting_protection.isChecked() else 'False'

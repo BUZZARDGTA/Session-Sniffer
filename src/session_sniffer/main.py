@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import Event, Thread
@@ -23,6 +24,7 @@ from session_sniffer.background import (
     iplookup_core,
     monitor_gta5_relay_task,
     pinger_core,
+    player_rates_core,
     process_userip_task,
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
@@ -124,6 +126,8 @@ def main() -> None:
     splash.update_status('Applying custom settings from Settings.ini')
     splash.run_with_spinner(Settings.load_from_settings_file, SETTINGS_PATH)
     Settings.rebuild_blocked_ip_ranges()
+    CaptureStats.packets_latencies = deque(maxlen=Settings.gui_rate_graph_max_history)
+    CaptureStats.capture_health_samples = deque(maxlen=Settings.gui_rate_graph_max_history)
 
     splash.run_with_spinner(GUIProtectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
@@ -176,7 +180,7 @@ def main() -> None:
     if selected_interface is None:
         sys.exit(0)
 
-    CaptureState.is_arp_interface = selected_interface.is_arp
+    CaptureState.is_neighbour_interface = selected_interface.is_neighbour
 
     splash.update_status('Establishing connection')
     need_rewrite_settings = False
@@ -222,6 +226,7 @@ def main() -> None:
             _pkt_start = time.monotonic()
             packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
             CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
+            CaptureStats.total_packets_captured += 1
             if packet_latency.total_seconds() >= Settings.capture_overflow_timer:
                 CaptureStats.restarted_times += 1
                 CaptureStats.packets_latencies.clear()
@@ -335,6 +340,7 @@ def main() -> None:
     capture_holder = CaptureHolder(capture)
 
     splash.run_with_spinner(capture.start)
+    CaptureStats.capture_started_at = time.monotonic()
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     _arp_failed_event = Event()
@@ -390,7 +396,7 @@ def main() -> None:
             new_broadcast, new_multicast = _future.result()
         new_vpn_mode = not (new_broadcast and new_multicast)
 
-        CaptureState.is_arp_interface = new_interface.is_arp
+        CaptureState.is_neighbour_interface = new_interface.is_neighbour
         Settings.capture_interface_name = new_interface.name
         Settings.capture_mac_address = new_interface.mac_address
         Settings.capture_ip_address = new_interface.ip_address
@@ -405,6 +411,7 @@ def main() -> None:
         CaptureState.vpn_mode_enabled = new_vpn_mode
         CaptureStats.restarted_times = 0
         CaptureStats.packets_latencies.clear()
+        CaptureStats.capture_health_samples.clear()
         CaptureStats.global_bandwidth = 0
         CaptureStats.global_download = 0
         CaptureStats.global_upload = 0
@@ -426,6 +433,7 @@ def main() -> None:
             ),
         )
         new_capture.start()
+        CaptureStats.capture_started_at = time.monotonic()
         capture_holder.set(new_capture)
 
         # Stop old ARP spoofing thread and start a new one if needed
@@ -483,6 +491,9 @@ def main() -> None:
     QTimer.singleShot(1500, window.show)
 
     # Start background processing threads FIRST
+    player_rates_core__thread = Thread(target=player_rates_core, name='player_rates_core', daemon=True)
+    player_rates_core__thread.start()
+
     rendering_core__thread = Thread(
         target=rendering_core,
         name='rendering_core',

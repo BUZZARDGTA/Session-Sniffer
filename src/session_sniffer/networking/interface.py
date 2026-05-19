@@ -1,7 +1,7 @@
 ﻿"""Network interface models and registry.
 
 This module provides dataclasses and utilities for managing network interface information,
-including the Interface class, SelectedInterfaceRow, ARPEntry, and the AllInterfaces registry.
+including the Interface class, SelectedInterfaceRow, NeighbourEntry, and the AllInterfaces registry.
 """
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
@@ -21,8 +21,8 @@ INTERFACE_TYPE_SHARED = 'Shared'
 INTERFACE_TYPE_SHARING = 'Sharing'
 
 
-class ARPEntry(NamedTuple):
-    """Represent a single ARP neighbor entry for an interface."""
+class NeighbourEntry(NamedTuple):
+    """Represent a single neighbour entry for an interface."""
 
     ip_address: str
     mac_address: str
@@ -64,19 +64,19 @@ class Interface:
     interface_type: str = INTERFACE_TYPE_INTERFACE
     ip_addresses: list[str] = field(default_factory=list[str])
     gateway_addresses: list[str] = field(default_factory=list[str])
-    arp_entries: list[ARPEntry] = field(default_factory=list[ARPEntry])
+    neighbour_entries: list[NeighbourEntry] = field(default_factory=list[NeighbourEntry])
 
-    def add_arp_entry(self, arp_entry: ARPEntry) -> bool:
-        """Add an ARP entry for the given interface."""
-        if arp_entry in self.arp_entries:
+    def add_neighbour_entry(self, neighbour_entry: NeighbourEntry) -> bool:
+        """Add a neighbour entry for the given interface."""
+        if neighbour_entry in self.neighbour_entries:
             return False
 
-        self.arp_entries.append(arp_entry)
+        self.neighbour_entries.append(neighbour_entry)
         return True
 
-    def get_arp_entries(self) -> list[ARPEntry]:
-        """Get ARP entries for the given interface."""
-        return self.arp_entries
+    def get_neighbour_entries(self) -> list[NeighbourEntry]:
+        """Get neighbour entries for the given interface."""
+        return self.neighbour_entries
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
@@ -108,7 +108,7 @@ class Interface:
             and not self.traffic.packets_recv
             and not self.identity.description
             and not self.ip_addresses
-            and not self.arp_entries
+            and not self.neighbour_entries
         )
 
 
@@ -117,14 +117,14 @@ class SelectedInterfaceRow:
     """Immutable reference to a user's chosen interface row.
 
     Holds only the live `Interface` object plus the row-specific selectors
-    (`ip_address`, `is_arp`). Other commonly-needed fields are exposed as
+    (`ip_address`, `is_neighbour`). Other commonly-needed fields are exposed as
     read-only properties that delegate to the live `Interface` so callers
     always see fresh data and we never duplicate state.
     """
 
     interface: Interface
     ip_address: str
-    is_arp: bool
+    is_neighbour: bool
 
     @property
     def name(self) -> str:
@@ -148,24 +148,24 @@ class SelectedInterfaceRow:
 
     @property
     def mac_address(self) -> str | None:
-        """MAC for this row: ARP-neighbor MAC when `is_arp`, else interface MAC (or `None` if unavailable)."""
-        if self.is_arp:
+        """MAC for this row: neighbour MAC when `is_neighbour`, else interface MAC (or `None` if unavailable)."""
+        if self.is_neighbour:
             mac = next(
-                (arp.mac_address for arp in self.interface.arp_entries if arp.ip_address == self.ip_address),
+                (neighbour.mac_address for neighbour in self.interface.neighbour_entries if neighbour.ip_address == self.ip_address),
                 None,
             )
             if mac is None:
-                msg = f'No ARP entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
+                msg = f'No neighbour entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
                 raise RuntimeError(msg)
             return mac
         return self.interface.identity.mac_address
 
     @property
     def vendor_name(self) -> str | None:
-        """Vendor for this row: ARP-neighbor vendor when `is_arp`, else interface vendor."""
-        if self.is_arp:
+        """Vendor for this row: neighbour vendor when `is_neighbour`, else interface vendor."""
+        if self.is_neighbour:
             return next(
-                (arp.vendor_name for arp in self.interface.arp_entries if arp.ip_address == self.ip_address),
+                (neighbour.vendor_name for neighbour in self.interface.neighbour_entries if neighbour.ip_address == self.ip_address),
                 None,
             )
         return self.interface.identity.vendor_name

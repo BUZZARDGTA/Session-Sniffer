@@ -10,6 +10,7 @@ from session_sniffer.background.tasks import (
     gui_closed__event,
     handle_detection_notification,
     monitor_gta5_relay_task,
+    player_rates_core,
     process_userip_task,
     wait_for_player_data_ready,
 )
@@ -26,6 +27,7 @@ __all__ = [
     'iplookup_core',
     'monitor_gta5_relay_task',
     'pinger_core',
+    'player_rates_core',
     'process_userip_task',
     'wait_for_player_data_ready',
 ]

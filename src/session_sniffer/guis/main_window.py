@@ -3,9 +3,10 @@
 import os
 import webbrowser
 from dataclasses import dataclass
+from threading import Event
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QFont
 from PyQt6.QtWidgets import (
     QFrame,
@@ -13,14 +14,15 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSpinBox,
     QStatusBar,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
+from session_sniffer import msgbox
 from session_sniffer.background import gui_closed__event
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.local import (
@@ -41,8 +43,12 @@ from session_sniffer.constants.local import (
 )
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.core import terminate_script
-from session_sniffer.guis.avg_session_duration import AvgSessionDurationWindow
-from session_sniffer.guis.capture_health_window import CaptureHealthWindow
+from session_sniffer.error_messages import (
+    format_gta5_solo_session_no_process_path_message,
+    format_gta5_solo_session_process_not_running_message,
+    format_gta5_solo_session_suspend_failed_message,
+)
+from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
@@ -52,8 +58,10 @@ from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_heatmap import PortHeatmapWindow
 from session_sniffer.guis.reconnect_frequency import ReconnectFrequencyWindow
+from session_sniffer.guis.session_bps_graph import SessionBpsGraphWindow
+from session_sniffer.guis.session_duration import SessionDurationWindow
+from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
-from session_sniffer.guis.session_summary import SessionSummaryWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import (
@@ -66,6 +74,7 @@ from session_sniffer.guis.stylesheets import (
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
     DISCONNECTED_HEADER_TEXT_STYLESHEET,
+    MENU_BAR_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
@@ -75,13 +84,15 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import PersistentMenu, resize_window_for_screen
+from session_sniffer.guis.utils import resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState
+from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState
 from session_sniffer.settings import Settings
+from session_sniffer.utils import get_pid_by_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -97,8 +108,8 @@ DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 
 
 @dataclass(frozen=True, slots=True)
-class _ToolbarActions:
-    """Toolbar QAction references."""
+class _MenuActions:
+    """Menu bar QAction references."""
     toggle_capture: QAction
     change_interface: QAction
 
@@ -418,14 +429,12 @@ class SessionTableSection(QWidget):
             total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
             page = min(max(1, requested_page), total_pages)
 
-        block = True
-        self._page_spinbox.blockSignals(block)
+        self._page_spinbox.blockSignals(True)
         self._page_spinbox.setMinimum(1)
         self._page_spinbox.setMaximum(total_pages)
         self._page_spinbox.setEnabled(0 < rows_per_page < total_rows)
         self._page_spinbox.setValue(page)
-        unblock = False
-        self._page_spinbox.blockSignals(unblock)
+        self._page_spinbox.blockSignals(False)
 
         return page, total_pages
 
@@ -495,12 +504,15 @@ class SessionTableSection(QWidget):
 class MainWindow(QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
-    _actions: _ToolbarActions
+    _actions: _MenuActions
     _connected: SessionTableSection
     _disconnected: SessionTableSection
-    _gta5_sep_between: QAction
-    _gta5_sep_after_resolver: QAction
-    _protections_action: QAction
+    _gta5_menu: QMenu
+    _gta5_process_submenu: QMenu
+    _gta5_suspend_resume_action: QAction
+    _gta5_solo_menu_action: QAction
+    _manual_gta5_suspend_active: bool
+    _gta5_solo_active: bool
     _player_resolver_action: QAction
 
     def _update_separator_visibility(self) -> None:
@@ -527,14 +539,15 @@ class MainWindow(QMainWindow):
         self._userip_manager_window: UserIPDatabasesManager | None = None
         self._leaderboard_window: PlayerLeaderboardWindow | None = None
         self._session_rate_graph_window: SessionRateGraphWindow | None = None
+        self._session_pps_graph_window: SessionPpsGraphWindow | None = None
+        self._session_bps_graph_window: SessionBpsGraphWindow | None = None
         self._packets_latency_graph_window: PacketsLatencyGraphWindow | None = None
-        self._session_summary_window: SessionSummaryWindow | None = None
         self._country_breakdown_window: CountryBreakdownWindow | None = None
         self._reconnect_frequency_window: ReconnectFrequencyWindow | None = None
         self._session_timeline_window: SessionTimelineWindow | None = None
         self._port_heatmap_window: PortHeatmapWindow | None = None
-        self._avg_session_duration_window: AvgSessionDurationWindow | None = None
-        self._capture_health_window: CaptureHealthWindow | None = None
+        self._session_duration_window: SessionDurationWindow | None = None
+        self._capture_statistics_window: CaptureStatisticsWindow | None = None
 
         # Set up the window
         self.setWindowTitle(TITLE)
@@ -548,86 +561,128 @@ class MainWindow(QMainWindow):
         # Layout for the central widget
         main_layout = QVBoxLayout(central_widget)
 
-        # Create the toolbar
-        toolbar = QToolBar('Main Toolbar', self)
-        toolbar.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
-        toolbar.setFloatable(False)
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(16, 16))
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
-        self._toolbar = toolbar
+        # ----- Menu bar -----
+        menu_bar = self.menuBar()
+        if menu_bar is None:
+            msg = 'Failed to get menu bar'
+            raise RuntimeError(msg)
+        menu_bar.setStyleSheet(MENU_BAR_STYLESHEET)
 
-        # ----- Stop/Start Capture Button -----
+        # ----- Capture menu -----
+        capture_menu = menu_bar.addMenu('Capture')
+        if capture_menu is None:
+            msg = 'Failed to create Capture menu'
+            raise RuntimeError(msg)
+        capture_menu.setToolTipsVisible(True)
+
         toggle_capture_action = QAction('⏹️ Stop Capture', self)
         toggle_capture_action.setToolTip('Stop packet capture')
         toggle_capture_action.triggered.connect(self._toggle_capture)
-        toolbar.addAction(toggle_capture_action)
+        capture_menu.addAction(toggle_capture_action)
 
-        toolbar.addSeparator()
-
-        # ----- Change Interface Button -----
         change_interface_action = QAction('🔄 Change Interface', self)
         change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
         change_interface_action.triggered.connect(on_change_interface)
-        toolbar.addAction(change_interface_action)
+        capture_menu.addAction(change_interface_action)
 
-        toolbar.addSeparator()
+        # ----- GTA5 menu (hidden unless GTA5 preset) -----
+        gta5_menu = menu_bar.addMenu('GTA5')
+        if gta5_menu is None:
+            msg = 'Failed to create GTA5 menu'
+            raise RuntimeError(msg)
+        gta5_menu.setToolTipsVisible(True)
+        gta5_menu_action = gta5_menu.menuAction()
+        if gta5_menu_action is None:
+            msg = 'Failed to get GTA5 menu action'
+            raise RuntimeError(msg)
+        gta5_menu_action.setVisible(Settings.capture_program_preset == 'GTA5')
+        self._gta5_menu = gta5_menu
 
-        # ----- Detections Manager -----
-        protections_button = QPushButton(' \U0001f6e1\ufe0f Detections Manager ', self)
-        protections_button.setToolTip('Configure detection, notifications, and protection rules')
-        protections_button.clicked.connect(self._open_detections_manager)
-        protections_action = cast('QAction', toolbar.addWidget(protections_button))
-        self._protections_button = protections_button
-        self._protections_action = protections_action
-
-        gta5_sep_between = cast('QAction', toolbar.addSeparator())
-        gta5_sep_between.setVisible(Settings.capture_program_preset == 'GTA5')
-        self._gta5_sep_between = gta5_sep_between
-
-        # ----- Player Resolver Button -----
-        player_resolver_button = QPushButton(' \U0001f50d Player Resolver ', self)
-        player_resolver_button.setToolTip('High Rate Monitor and Player Identifier tools')
-        player_resolver_button.clicked.connect(self._open_player_resolver)
-        player_resolver_action = cast('QAction', toolbar.addWidget(player_resolver_button))
-        player_resolver_action.setVisible(Settings.capture_program_preset == 'GTA5')
-        self._player_resolver_button = player_resolver_button
+        player_resolver_action = QAction('🔍 Player Resolver', self)
+        player_resolver_action.setToolTip('High Rate Monitor and Player Identifier tools')
+        player_resolver_action.triggered.connect(self._open_player_resolver)
+        gta5_menu.addAction(player_resolver_action)
         self._player_resolver_action = player_resolver_action
 
-        gta5_sep_after_resolver = cast('QAction', toolbar.addSeparator())
-        self._gta5_sep_after_resolver = gta5_sep_after_resolver
+        gta5_menu.addSeparator()
 
-        # ----- Most Seen Players Leaderboard Button -----
-        leaderboard_button = QPushButton(' \U0001f3c6 Most Seen Players ', self)
-        leaderboard_button.setToolTip('View a leaderboard of the most frequently seen players across sessions')
-        leaderboard_button.clicked.connect(self._open_player_leaderboard)
-        toolbar.addWidget(leaderboard_button)
+        gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
+        if gta5_process_submenu is None:
+            msg = 'Failed to create GTA5 Process submenu'
+            raise RuntimeError(msg)
+        gta5_process_submenu.setToolTipsVisible(True)
+        self._gta5_process_submenu = gta5_process_submenu
 
-        toolbar.addSeparator()
+        gta5_menu_solo_action = QAction('🎯 Solo Public Session (~8s)', self)
+        gta5_menu_solo_action.setToolTip(
+            'Suspend GTA5 for ~8 seconds then auto-resume.\n'
+            'This forces the game to spawn you alone in a public session.',
+        )
+        gta5_menu_solo_action.triggered.connect(self._gta5_solo_session)
+        gta5_process_submenu.addAction(gta5_menu_solo_action)
 
-        # ----- Statistics Menu -----
-        statistics_menu_button = QPushButton(' 📊 Statistics ', self)
-        statistics_menu_button.setToolTip('Session statistics and live graphs')
+        gta5_process_submenu.addSeparator()
 
-        statistics_menu = PersistentMenu(self)
+        gta5_suspend_resume_action = QAction('⏸️ Suspend Process', self)
+        gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — stays suspended until you click it again to resume')
+        gta5_suspend_resume_action.triggered.connect(self._toggle_manual_gta5_suspend)
+        gta5_process_submenu.addAction(gta5_suspend_resume_action)
+
+        self._gta5_solo_menu_action = gta5_menu_solo_action
+        self._gta5_suspend_resume_action = gta5_suspend_resume_action
+        self._manual_gta5_suspend_active = False
+        self._gta5_solo_active = False
+        self._gta5_process_detected = False
+        if Settings.capture_program_preset == 'GTA5':
+            self._sync_gta5_process_button()
+
+        # ----- Tools menu -----
+        tools_menu = menu_bar.addMenu('Tools')
+        if tools_menu is None:
+            msg = 'Failed to create Tools menu'
+            raise RuntimeError(msg)
+        tools_menu.setToolTipsVisible(True)
+
+        detections_manager_action = QAction('🛡️ Detections Manager', self)
+        detections_manager_action.setToolTip('Configure detection, notifications, and protection rules')
+        detections_manager_action.triggered.connect(self._open_detections_manager)
+        tools_menu.addAction(detections_manager_action)
+
+        leaderboard_action = QAction('🏆 Most Seen Players', self)
+        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
+        leaderboard_action.triggered.connect(self._open_player_leaderboard)
+        tools_menu.addAction(leaderboard_action)
+
+        tools_menu.addSeparator()
+
+        logs_manager_action = QAction('📋 Logs Manager', self)
+        logs_manager_action.setToolTip('View, search, filter, and manage application log files')
+        logs_manager_action.triggered.connect(self._open_logs_manager)
+        tools_menu.addAction(logs_manager_action)
+
+        userip_manager_action = QAction('🗃️ UserIP Manager', self)
+        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
+        userip_manager_action.triggered.connect(self._open_userip_manager)
+        tools_menu.addAction(userip_manager_action)
+
+        # ----- Statistics menu -----
+        statistics_menu = menu_bar.addMenu('Statistics')
+        if statistics_menu is None:
+            msg = 'Failed to create Statistics menu'
+            raise RuntimeError(msg)
         statistics_menu.setToolTipsVisible(True)
 
-        session_rate_graph_action = QAction('📈 Session Rate Graph', self)
-        session_rate_graph_action.setToolTip('View live PPS and KB/s graphs for the entire session')
+        capture_health_action = QAction('📊 Capture Statistics', self)
+        capture_health_action.setToolTip('Capture restart count and packet latency statistics')
+        capture_health_action.triggered.connect(self._open_capture_health)
+        statistics_menu.addAction(capture_health_action)
+
+        session_rate_graph_action = QAction('⚡ Session Rate Graph', self)
+        session_rate_graph_action.setToolTip('Live PPS and BPS graphs for the whole session')
         session_rate_graph_action.triggered.connect(self._open_session_rate_graph)
         statistics_menu.addAction(session_rate_graph_action)
 
-        packets_latency_graph_action = QAction('📉 Packets Latency Graph', self)
-        packets_latency_graph_action.setToolTip('View live per-packet latency in milliseconds')
-        packets_latency_graph_action.triggered.connect(self._open_packets_latency_graph)
-        statistics_menu.addAction(packets_latency_graph_action)
-
         statistics_menu.addSeparator()
-
-        session_summary_action = QAction('📋 Session Summary', self)
-        session_summary_action.setToolTip('Overview of player counts, bandwidth, rates and uptime')
-        session_summary_action.triggered.connect(self._open_session_summary)
-        statistics_menu.addAction(session_summary_action)
 
         session_timeline_action = QAction('🕐 Session Timeline', self)
         session_timeline_action.setToolTip('Gantt chart showing when each player was present')
@@ -646,35 +701,21 @@ class MainWindow(QMainWindow):
         reconnect_frequency_action.triggered.connect(self._open_reconnect_frequency)
         statistics_menu.addAction(reconnect_frequency_action)
 
-        avg_session_duration_action = QAction('⏱️ Average Session Duration', self)
+        avg_session_duration_action = QAction('⏱️ Session Duration', self)
         avg_session_duration_action.setToolTip('Disconnected players ranked by their session duration')
-        avg_session_duration_action.triggered.connect(self._open_avg_session_duration)
+        avg_session_duration_action.triggered.connect(self._open_session_duration)
         statistics_menu.addAction(avg_session_duration_action)
-
-        statistics_menu.addSeparator()
 
         port_heatmap_action = QAction('📡 Port Heatmap', self)
         port_heatmap_action.setToolTip('Rank observed ports by frequency across all players')
         port_heatmap_action.triggered.connect(self._open_port_heatmap)
         statistics_menu.addAction(port_heatmap_action)
 
-        statistics_menu.addSeparator()
-
-        capture_health_action = QAction('🚦 Capture Health', self)
-        capture_health_action.setToolTip('Capture restart count and packet latency statistics')
-        capture_health_action.triggered.connect(self._open_capture_health)
-        statistics_menu.addAction(capture_health_action)
-
-        statistics_menu_button.setMenu(statistics_menu)
-        toolbar.addWidget(statistics_menu_button)
-
-        toolbar.addSeparator()
-
-        # ----- Data & Files Menu -----
-        data_menu_button = QPushButton(' 📁 Data && Files ', self)
-        data_menu_button.setToolTip('Open Session Sniffer folders and files stored in AppData')
-
-        data_menu = PersistentMenu(self)
+        # ----- Data & Files menu -----
+        data_menu = menu_bar.addMenu('Data && Files')
+        if data_menu is None:
+            msg = 'Failed to create Data & Files menu'
+            raise RuntimeError(msg)
         data_menu.setToolTipsVisible(True)
 
         # --- AppData Roots ---
@@ -691,10 +732,10 @@ class MainWindow(QMainWindow):
         data_menu.addSeparator()
 
         # --- Configuration ---
-        open_settings_action = QAction('📄 Open Settings.ini', self)
-        open_settings_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
-        open_settings_action.triggered.connect(self._open_settings_file)
-        data_menu.addAction(open_settings_action)
+        open_settings_ini_action = QAction('📄 Open Settings.ini', self)
+        open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
+        open_settings_ini_action.triggered.connect(self._open_settings_file)
+        data_menu.addAction(open_settings_ini_action)
 
         data_menu.addSeparator()
 
@@ -774,62 +815,38 @@ class MainWindow(QMainWindow):
         open_userip_log_action.triggered.connect(self._open_userip_log_file)
         app_logs_submenu.addAction(open_userip_log_action)
 
-        data_menu_button.setMenu(data_menu)
-        toolbar.addWidget(data_menu_button)
+        # ----- Settings menu -----
+        settings_menu = menu_bar.addMenu('Settings')
+        if settings_menu is None:
+            msg = 'Failed to create Settings menu'
+            raise RuntimeError(msg)
 
-        toolbar.addSeparator()
+        open_settings_action = QAction('⚙️ Open Settings', self)
+        open_settings_action.setToolTip('View and edit all application settings')
+        open_settings_action.triggered.connect(self._open_settings_dialog)
+        settings_menu.addAction(open_settings_action)
 
-        # ----- Logs Manager Button -----
-        logs_manager_button = QPushButton(' 📋 Logs Manager ', self)
-        logs_manager_button.setToolTip('View, search, filter, and manage application log files')
-        logs_manager_button.clicked.connect(self._open_logs_manager)
-        toolbar.addWidget(logs_manager_button)
-
-        toolbar.addSeparator()
-
-        # ----- UserIP Databases Manager Button -----
-        userip_manager_button = QPushButton(' 🗃️ UserIP Manager ', self)
-        userip_manager_button.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
-        userip_manager_button.clicked.connect(self._open_userip_manager)
-        toolbar.addWidget(userip_manager_button)
-
-        toolbar.addSeparator()
-
-        # ----- Settings Button -----
-        settings_button = QPushButton(' ⚙️ Settings ', self)
-        settings_button.setToolTip('View and edit all application settings')
-        settings_button.clicked.connect(self._open_settings_dialog)
-        toolbar.addWidget(settings_button)
-
-        toolbar.addSeparator()
-
-        # ----- Help Menu -----
-        help_menu_button = QPushButton(' ❓ Help ', self)
-        help_menu_button.setToolTip('Access help resources, documentation, and community')
-
-        help_menu = PersistentMenu(self)
+        # ----- Help menu -----
+        help_menu = menu_bar.addMenu('Help')
+        if help_menu is None:
+            msg = 'Failed to create Help menu'
+            raise RuntimeError(msg)
         help_menu.setToolTipsVisible(True)
 
-        # Project Repository action
         repo_action = QAction('📦 Project Repository', self)
         repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
         repo_action.triggered.connect(self._open_project_repo)
         help_menu.addAction(repo_action)
 
-        # Documentation action
         docs_action = QAction('📚 Documentation', self)
         docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
         docs_action.triggered.connect(self._open_documentation)
         help_menu.addAction(docs_action)
 
-        # Discord action
         discord_action = QAction('💬 Discord Server', self)
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
         discord_action.triggered.connect(self._join_discord)
         help_menu.addAction(discord_action)
-
-        help_menu_button.setMenu(help_menu)
-        toolbar.addWidget(help_menu_button)
 
         # Main title header
         self._header = QLabel()
@@ -870,8 +887,8 @@ class MainWindow(QMainWindow):
         self._status_bar = SessionStatusBar(self)
         self.setStatusBar(self._status_bar)
 
-        # Toolbar action container
-        self._actions = _ToolbarActions(
+        # Menu action container
+        self._actions = _MenuActions(
             toggle_capture=toggle_capture_action,
             change_interface=change_interface_action,
         )
@@ -1200,6 +1217,166 @@ class MainWindow(QMainWindow):
         self._player_resolver_window.raise_()
         self._player_resolver_window.activateWindow()
 
+    def _gta5_has_any_process_path(self) -> bool:
+        """Return `True` if any protection has a GTA5 process path configured."""
+        return any(
+            getattr(GUIProtectionSettings, attr) is not None
+            for attr in (
+                'gta5_relay_process_path',
+                'mobile_suspend_process_path',
+                'vpn_suspend_process_path',
+                'hosting_suspend_process_path',
+                'country_block_process_path',
+                'isp_block_process_path',
+                'asn_block_process_path',
+                'player_join_process_path',
+                'player_rejoin_process_path',
+                'player_leave_process_path',
+            )
+        )
+
+    def _get_gta5_process_path(self) -> Path | None:
+        """Return the first configured process path across all GTA5 protections, or `None`."""
+        return next(
+            (
+                p for attr in (
+                    'gta5_relay_process_path',
+                    'mobile_suspend_process_path',
+                    'vpn_suspend_process_path',
+                    'hosting_suspend_process_path',
+                    'country_block_process_path',
+                    'isp_block_process_path',
+                    'asn_block_process_path',
+                    'player_join_process_path',
+                    'player_rejoin_process_path',
+                    'player_leave_process_path',
+                )
+                if (p := getattr(GUIProtectionSettings, attr)) is not None
+            ),
+            None,
+        )
+
+    def _gta5_process_is_running(self) -> bool:
+        """Return `True` if the configured GTA5 process is currently running."""
+        process_path = self._get_gta5_process_path()
+        if process_path is None:
+            return False
+        return get_pid_by_path(process_path) is not None
+
+    def _toggle_manual_gta5_suspend(self) -> None:
+        """Toggle the manual GTA5 process suspend on or off.
+
+        When not suspended: registers a `'manual:toolbar'` reason in `ProcessSuspendManager`
+        with `'Manual'` duration so it never auto-clears.
+        When already suspended: releases the `'manual:toolbar'` reason.
+        Auto-protection reasons are unaffected and may also independently keep the process suspended.
+        """
+        if self._manual_gta5_suspend_active:
+            ProcessSuspendManager.release_reason_global('manual:toolbar')
+            self._manual_gta5_suspend_active = False
+        else:
+            process_path = self._get_gta5_process_path()
+            if process_path is None:
+                logger.warning('Manual GTA5 suspend: no process path is configured in any protection')
+                return
+            ProcessSuspendManager.request_suspend(
+                process_path=process_path,
+                reason_key='manual:toolbar',
+                left_event=Event(),
+                duration='Manual',
+            )
+            self._manual_gta5_suspend_active = True
+        self._sync_gta5_process_button()
+
+    def _gta5_solo_session(self) -> None:
+        """Suspend GTA5 for ~8 seconds then auto-resume, forcing a solo public session."""
+        process_path = self._get_gta5_process_path()
+        if process_path is None:
+            logger.warning('GTA5 solo session: no process path is configured in any protection')
+            msgbox.show(
+                title=TITLE,
+                text=format_gta5_solo_session_no_process_path_message(),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+            )
+            return
+        if get_pid_by_path(process_path) is None:
+            logger.warning('GTA5 solo session: process not running (%s)', process_path)
+            msgbox.show(
+                title=TITLE,
+                text=format_gta5_solo_session_process_not_running_message(),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+            )
+            return
+        already_left = Event()
+        already_left.set()
+        ProcessSuspendManager.request_suspend(
+            process_path=process_path,
+            reason_key='solo:toolbar',
+            left_event=already_left,
+            duration=8,
+        )
+        if not ProcessSuspendManager.has_reason('solo:toolbar'):
+            logger.warning('GTA5 solo session: suspend failed for process %s', process_path)
+            msgbox.show(
+                title=TITLE,
+                text=format_gta5_solo_session_suspend_failed_message(),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
+            )
+            return
+        self._gta5_solo_active = True
+        self._sync_gta5_process_button()
+
+    def _sync_gta5_process_button(self) -> None:
+        """Update the GTA5 Process submenu title and menu-item enabled states."""
+        is_manual = self._manual_gta5_suspend_active
+        is_solo = self._gta5_solo_active
+        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
+        self._gta5_process_detected = can_act and self._gta5_process_is_running()
+        self._gta5_process_submenu.setEnabled(can_act)
+        if not can_act:
+            if is_manual:
+                ProcessSuspendManager.release_reason_global('manual:toolbar')
+                self._manual_gta5_suspend_active = False
+            if is_solo:
+                ProcessSuspendManager.release_reason_global('solo:toolbar')
+                self._gta5_solo_active = False
+            self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
+            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
+            self._gta5_suspend_resume_action.setEnabled(False)
+            self._gta5_solo_menu_action.setEnabled(False)
+            self._gta5_suspend_resume_action.setToolTip(
+                'ARP spoofing mode — process control not available.'
+                if CaptureState.is_neighbour_interface
+                else 'No process path configured — set one in Detections Manager to enable.',
+            )
+        elif is_manual:
+            self._gta5_process_submenu.setTitle('⏸️ GTA5 Process (Suspended)')
+            self._gta5_suspend_resume_action.setText('▶️ Resume Process')
+            self._gta5_suspend_resume_action.setToolTip('Remove the manual suspend hold from the GTA5 process')
+            self._gta5_suspend_resume_action.setEnabled(True)
+            self._gta5_solo_menu_action.setEnabled(False)
+        elif is_solo:
+            self._gta5_process_submenu.setTitle('🎯 GTA5 Process (Going Solo...)')
+            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
+            self._gta5_suspend_resume_action.setEnabled(False)
+            self._gta5_solo_menu_action.setEnabled(False)
+        else:
+            self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
+            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
+            if self._gta5_process_detected:
+                self._gta5_suspend_resume_action.setEnabled(True)
+                self._gta5_solo_menu_action.setEnabled(True)
+                self._gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — click again to resume')
+                self._gta5_solo_menu_action.setToolTip(
+                    'Suspend GTA5 for ~8 seconds then auto-resume.\n'
+                    'This forces the game to spawn you alone in a public session.',
+                )
+            else:
+                self._gta5_suspend_resume_action.setEnabled(False)
+                self._gta5_solo_menu_action.setEnabled(False)
+                self._gta5_suspend_resume_action.setToolTip('GTA5 is not currently running')
+                self._gta5_solo_menu_action.setToolTip('GTA5 is not currently running')
+
     def _highlight_connected_ips(self, ips: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
         model = self._connected.table_model
@@ -1254,7 +1431,9 @@ class MainWindow(QMainWindow):
 
     def set_interface_switching_mode(self, *, switching: bool) -> None:
         """Disable or re-enable the UI while an interface switch is in progress."""
-        self._toolbar.setEnabled(not switching)
+        menu_bar = self.menuBar()
+        if menu_bar is not None:
+            menu_bar.setEnabled(not switching)
         self._actions.change_interface.setEnabled(not switching)
         self._connected.set_all_enabled(enabled=not switching)
         self._disconnected.set_all_enabled(enabled=not switching)
@@ -1276,8 +1455,14 @@ class MainWindow(QMainWindow):
         """Reset graph history for all open statistics windows (called on capture restart)."""
         if self._session_rate_graph_window is not None:
             self._session_rate_graph_window.reset()
+        if self._session_pps_graph_window is not None:
+            self._session_pps_graph_window.reset()
+        if self._session_bps_graph_window is not None:
+            self._session_bps_graph_window.reset()
         if self._packets_latency_graph_window is not None:
             self._packets_latency_graph_window.reset()
+        if self._capture_statistics_window is not None:
+            self._capture_statistics_window.reset()
 
     def _open_session_rate_graph(self) -> None:
         """Open or focus the session-wide rate graph window."""
@@ -1297,17 +1482,22 @@ class MainWindow(QMainWindow):
 
     def _tick_stats(self) -> None:
         """Tick all open statistics windows with the latest data."""
+        CaptureStats.capture_health_samples.append((
+            CaptureStats.global_avg_latency_ms,
+            CaptureStats.global_pps_rate,
+            CaptureStats.global_bps_rate,
+        ))
         if self._session_rate_graph_window is not None:
             self._session_rate_graph_window.update_rates(
                 pps=CaptureStats.global_pps_rate,
                 bps=CaptureStats.global_bps_rate,
             )
+        if self._session_pps_graph_window is not None:
+            self._session_pps_graph_window.update_pps(CaptureStats.global_pps_rate)
+        if self._session_bps_graph_window is not None:
+            self._session_bps_graph_window.update_bps(CaptureStats.global_bps_rate)
         if self._packets_latency_graph_window is not None:
-            latencies = CaptureStats.packets_latencies
-            latency_ms = latencies[-1][1].total_seconds() * 1000 if latencies else 0.0
-            self._packets_latency_graph_window.update_latency(latency_ms)
-        if self._session_summary_window is not None:
-            self._session_summary_window.refresh()
+            self._packets_latency_graph_window.update_latency(CaptureStats.global_avg_latency_ms)
         if self._country_breakdown_window is not None:
             self._country_breakdown_window.refresh()
         if self._reconnect_frequency_window is not None:
@@ -1316,10 +1506,59 @@ class MainWindow(QMainWindow):
             self._session_timeline_window.refresh()
         if self._port_heatmap_window is not None:
             self._port_heatmap_window.refresh()
-        if self._avg_session_duration_window is not None:
-            self._avg_session_duration_window.refresh()
-        if self._capture_health_window is not None:
-            self._capture_health_window.refresh()
+        if self._session_duration_window is not None:
+            self._session_duration_window.refresh()
+        if self._capture_statistics_window is not None:
+            self._capture_statistics_window.refresh()
+
+        # Sync GTA5 process control state every tick
+        if Settings.capture_program_preset == 'GTA5':
+            new_manual = ProcessSuspendManager.has_reason('manual:toolbar')
+            new_solo = ProcessSuspendManager.has_reason('solo:toolbar')
+            new_enabled = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
+            new_process_running = new_enabled and self._gta5_process_is_running()
+            if (
+                new_manual != self._manual_gta5_suspend_active
+                or new_solo != self._gta5_solo_active
+                or new_enabled != self._gta5_process_submenu.isEnabled()
+                or new_process_running != self._gta5_process_detected
+            ):
+                self._manual_gta5_suspend_active = new_manual
+                self._gta5_solo_active = new_solo
+                self._gta5_process_detected = new_process_running
+                self._sync_gta5_process_button()
+
+    def _open_session_pps_graph(self) -> None:
+        """Open or focus the session-wide PPS graph window."""
+        if self._session_pps_graph_window is not None:
+            self._session_pps_graph_window.show()
+            self._session_pps_graph_window.raise_()
+            self._session_pps_graph_window.activateWindow()
+            return
+
+        window = SessionPpsGraphWindow(
+            max_history=Settings.gui_rate_graph_max_history,
+            always_on_top=Settings.gui_rate_graph_always_on_top,
+        )
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None))
+        self._session_pps_graph_window = window
+
+    def _open_session_bps_graph(self) -> None:
+        """Open or focus the session-wide BPS graph window."""
+        if self._session_bps_graph_window is not None:
+            self._session_bps_graph_window.show()
+            self._session_bps_graph_window.raise_()
+            self._session_bps_graph_window.activateWindow()
+            return
+
+        window = SessionBpsGraphWindow(
+            max_history=Settings.gui_rate_graph_max_history,
+            always_on_top=Settings.gui_rate_graph_always_on_top,
+        )
+        window.show()
+        window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None))
+        self._session_bps_graph_window = window
 
     def _open_packets_latency_graph(self) -> None:
         """Open or focus the packets latency graph window."""
@@ -1336,19 +1575,6 @@ class MainWindow(QMainWindow):
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None))
         self._packets_latency_graph_window = window
-
-    def _open_session_summary(self) -> None:
-        """Open or focus the session summary window."""
-        if self._session_summary_window is not None:
-            self._session_summary_window.show()
-            self._session_summary_window.raise_()
-            self._session_summary_window.activateWindow()
-            return
-
-        window = SessionSummaryWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_summary_window', None))
-        self._session_summary_window = window
 
     def _open_country_breakdown(self) -> None:
         """Open or focus the country breakdown window."""
@@ -1402,43 +1628,49 @@ class MainWindow(QMainWindow):
         window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None))
         self._port_heatmap_window = window
 
-    def _open_avg_session_duration(self) -> None:
+    def _open_session_duration(self) -> None:
         """Open or focus the session duration window."""
-        if self._avg_session_duration_window is not None:
-            self._avg_session_duration_window.show()
-            self._avg_session_duration_window.raise_()
-            self._avg_session_duration_window.activateWindow()
+        if self._session_duration_window is not None:
+            self._session_duration_window.show()
+            self._session_duration_window.raise_()
+            self._session_duration_window.activateWindow()
             return
 
-        window = AvgSessionDurationWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = SessionDurationWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
         window.show()
-        window.destroyed.connect(lambda: setattr(self, '_avg_session_duration_window', None))
-        self._avg_session_duration_window = window
+        window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None))
+        self._session_duration_window = window
 
     def _open_capture_health(self) -> None:
-        """Open or focus the capture health window."""
-        if self._capture_health_window is not None:
-            self._capture_health_window.show()
-            self._capture_health_window.raise_()
-            self._capture_health_window.activateWindow()
+        """Open or focus the capture statistics window."""
+        if self._capture_statistics_window is not None:
+            self._capture_statistics_window.show()
+            self._capture_statistics_window.raise_()
+            self._capture_statistics_window.activateWindow()
             return
 
-        window = CaptureHealthWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = CaptureStatisticsWindow(
+            max_history=Settings.gui_rate_graph_max_history,
+            always_on_top=Settings.gui_rate_graph_always_on_top,
+        )
+        window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
+        window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
+        window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)
         window.show()
-        window.destroyed.connect(lambda: setattr(self, '_capture_health_window', None))
-        self._capture_health_window = window
+        window.destroyed.connect(lambda: setattr(self, '_capture_statistics_window', None))
+        self._capture_statistics_window = window
 
     def set_capture_toggle_enabled(self, *, enabled: bool) -> None:
         """Enable or disable the Stop/Start Capture toolbar button."""
         self._actions.toggle_capture.setEnabled(enabled)
 
     def _update_gta5_toolbar_visibility(self) -> None:
-        """Show or hide GTA5-exclusive toolbar items based on current protection support."""
+        """Show or hide the GTA5 menu based on current preset."""
         gta5_preset = Settings.capture_program_preset == 'GTA5'
         SessionHost.clear_session_host_data()
-        self._protections_action.setVisible(True)
-        self._gta5_sep_between.setVisible(gta5_preset)
-        self._player_resolver_action.setVisible(gta5_preset)
+        gta5_menu_action = self._gta5_menu.menuAction()
+        if gta5_menu_action is not None:
+            gta5_menu_action.setVisible(gta5_preset)
 
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""

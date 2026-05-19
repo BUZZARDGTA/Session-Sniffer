@@ -10,10 +10,10 @@ from session_sniffer.networking.interface import (
     INTERFACE_TYPE_SHARED,
     INTERFACE_TYPE_SHARING,
     AllInterfaces,
-    ARPEntry,
     Interface,
     InterfaceIdentity,
     InterfaceTraffic,
+    NeighbourEntry,
 )
 from session_sniffer.networking.utils import is_valid_private_ipv4
 
@@ -80,7 +80,7 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
                 continue
 
             vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
-            interface.add_arp_entry(ARPEntry(
+            interface.add_neighbour_entry(NeighbourEntry(
                 ip_address=neighbor_ip,
                 mac_address=neighbor_mac,
                 vendor_name=vendor_name,

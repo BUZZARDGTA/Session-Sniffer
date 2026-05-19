@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
     import geoip2.database
 
-_MAX_LATENCY_ENTRIES = 5000
+_MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
 
 
 class PaginationState:
@@ -65,18 +65,22 @@ class PaginationState:
 class CaptureState:  # pylint: disable=too-few-public-methods
     """Runtime state derived from the active capture interface."""
     vpn_mode_enabled: ClassVar[bool] = False
-    is_arp_interface: ClassVar[bool] = False
+    is_neighbour_interface: ClassVar[bool] = False
 
 
 class CaptureStats:  # pylint: disable=too-few-public-methods
     """Statistics and data tracking for packet capture performance."""
     packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
+    capture_health_samples: ClassVar[deque[tuple[float, int, int]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
+    total_packets_captured: ClassVar[int] = 0
+    capture_started_at: ClassVar[float] = 0.0
     restarted_times: ClassVar[int] = 0
     global_bandwidth: ClassVar[int] = 0
     global_download: ClassVar[int] = 0
     global_upload: ClassVar[int] = 0
     global_bps_rate: ClassVar[int] = 0
     global_pps_rate: ClassVar[int] = 0
+    global_avg_latency_ms: ClassVar[float] = 0.0
 
 
 class CellColor(NamedTuple):

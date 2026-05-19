@@ -39,7 +39,6 @@ from session_sniffer.rendering_core.session_table_renderer import (
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
 from session_sniffer.rendering_core.types import (
     CaptureState,
-    CaptureStats,
     GeoIP2Readers,
     GUIColumnConfig,
     GUIRenderingSnapshot,
@@ -69,7 +68,6 @@ _THREAD_COUNT_WARN_THRESHOLD = 150
 DISCORD_APPLICATION_ID = 1313304495958261781
 COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
-SECONDS_PER_MINUTE = 60.0
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
 
@@ -483,12 +481,6 @@ def rendering_core(
 
             ModMenuLogsParser.refresh()
 
-            global_bandwidth = 0
-            global_download = 0
-            global_upload = 0
-            global_bps_rate = 0
-            global_pps_rate = 0
-
             session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
             players_to_disconnect: list[int] = []
             for idx, player in enumerate(session_connected):
@@ -509,38 +501,6 @@ def rendering_core(
                         ).start()
 
                     handle_detection_notification(player, 'player_left_session')
-
-                    continue
-
-                # Calculate PPS every second
-                if (time.monotonic() - player.packets.pps.last_update_time) >= 1.0:
-                    player.packets.pps.calculate_and_update_rate()
-
-                # Calculate PPM every minute
-                if (time.monotonic() - player.packets.ppm.last_update_time) >= SECONDS_PER_MINUTE:
-                    player.packets.ppm.calculate_and_update_rate()
-
-                # Calculate BPS every second
-                if (time.monotonic() - player.bandwidth.bps.last_update_time) >= 1.0:
-                    player.bandwidth.bps.calculate_and_update_rate()
-
-                # Calculate BPM every minute
-                if (time.monotonic() - player.bandwidth.bpm.last_update_time) >= SECONDS_PER_MINUTE:
-                    player.bandwidth.bpm.calculate_and_update_rate()
-
-                # Track current session bandwidth across all connected players
-                global_bandwidth += player.bandwidth.exchanged
-                global_download += player.bandwidth.download
-                global_upload += player.bandwidth.upload
-                global_bps_rate += player.bandwidth.bps.calculated_rate
-                global_pps_rate += player.packets.pps.calculated_rate
-
-            # Update global stats once after all calculations
-            CaptureStats.global_bandwidth = global_bandwidth
-            CaptureStats.global_download = global_download
-            CaptureStats.global_upload = global_upload
-            CaptureStats.global_bps_rate = global_bps_rate
-            CaptureStats.global_pps_rate = global_pps_rate
 
             _active_threads = threading.active_count()
             if _active_threads > _THREAD_COUNT_WARN_THRESHOLD:

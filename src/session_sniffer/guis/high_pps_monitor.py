@@ -118,17 +118,17 @@ class _PlayerRateData:
 
 class _HighRateTableModel(QAbstractTableModel):
     _COL_USERNAME = 0
-    _COL_PPS = 1
-    _COL_BPS = 2
-    _COL_IP = 3
-    _COL_DURATION = 4
+    _COL_IP = 1
+    _COL_PPS = 2
+    _COL_BPS = 3
+    COL_DURATION = 4
     _COL_TOTAL_DURATION = 5
-    _HEADERS = ('Username', 'PPS', 'BPS', 'IP', 'Duration (s)', 'Total Duration (s)')
+    _HEADERS = ('Username', 'IP', 'PPS', 'BPS', 'Duration (s)', 'Total Duration (s)')
     _HEADER_TOOLTIPS = (
         'Username(s) associated with this IP.',
+        'The IP address of the player being tracked.',
         'Packets Per Second — the number of network packets this IP is sending/receiving right now.',
         'Bytes Per Second — the amount of data (bandwidth) this IP is sending/receiving right now.',
-        'The IP address of the player being tracked.',
         'How many consecutive seconds this IP has been above both PPS and BPS thresholds in the current streak.',
         'Total cumulative seconds this IP has been above both thresholds since it was first detected (includes all streaks).',
     )
@@ -169,7 +169,7 @@ class _HighRateTableModel(QAbstractTableModel):
             return player.ip
         if col == self._COL_USERNAME:
             return ', '.join(player.usernames) if player.usernames else '—'
-        return player.current_pps_duration if col == self._COL_DURATION else player.total_pps_duration
+        return player.current_pps_duration if col == self.COL_DURATION else player.total_pps_duration
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:  # noqa: N802
         """Return column header labels and tooltips."""
@@ -282,7 +282,8 @@ class HighRateMonitorWidget(QWidget):
         header = setup_table_view_headers(self._table)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionsClickable(False)
-        header.setSortIndicatorShown(False)
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(self._model.COL_DURATION, Qt.SortOrder.DescendingOrder)
         self._table.setSortingEnabled(False)
         layout.addWidget(self._table)
 

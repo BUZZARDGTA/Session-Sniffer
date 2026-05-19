@@ -1,123 +1,217 @@
-"""Session timeline (Gantt-style) window using pyqtgraph."""
+"""Session timeline window — sortable table view of per-player presence."""
 
 from datetime import datetime
 
-import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
+from session_sniffer.exceptions import PlayerDateTimeCorruptionError
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, format_player_display, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
 
-_CONNECTED_COLOR = (80, 200, 80, 200)
-_DISCONNECTED_COLOR = (220, 80, 60, 200)
-_MIN_BAR_WIDTH = 0.5
+_COL_PLAYER = 0
+_COL_STATUS = 1
+_COL_FIRST_SEEN = 2
+_COL_LAST_REJOIN = 3
+_COL_LAST_SEEN = 4
+_COL_SESSION_TIME = 5
+_COL_TOTAL_TIME = 6
+_COL_REJOINS = 7
+
+_HEADERS = ['Player', 'Status', 'First Seen', 'Last Rejoin', 'Last Seen', 'Session Time', 'Total Time', 'Rejoins']
+
+_COLOR_CONNECTED = QColor(80, 200, 80)
+_COLOR_DISCONNECTED = QColor(220, 80, 60)
+
+
+def _fmt_duration(total_seconds: float) -> str:
+    """Format a duration in seconds as a human-readable string."""
+    s = int(total_seconds)
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f'{h}h {m}m {sec:02d}s'
+    if m:
+        return f'{m}m {sec:02d}s'
+    return f'{sec}s'
 
 
 class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
-    """A standalone Gantt-style chart showing when each player was present in the session."""
+    """Sortable table showing every player's join/leave timestamps and session durations."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the session timeline window."""
         super().__init__()
 
         self.setWindowTitle('Session Timeline')
-        self.resize(860, 480)
-        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 4), spacing=0)
+        self.resize(1000, 500)
+        layout = self._setup_window_layout(always_on_top=always_on_top, spacing=4)
 
-        self._widget = pg.PlotWidget()
-        self._widget.setBackground('black')
-        self._widget.showGrid(x=True, y=False)
-        self._widget.setLabel('bottom', 'Time (seconds into session)')
-        self._widget.setLabel('left', 'Player')
-        self._widget.setMouseEnabled(x=True, y=False)
+        self._table = QTableWidget(0, len(_HEADERS))
+        self._table.setHorizontalHeaderLabels(_HEADERS)
+        setup_stat_table(self._table, layout, sorting=True)
 
-        plot = self._widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        if plot is None:
-            msg = 'Failed to get plot item'
+        h_header = self._table.horizontalHeader()
+        if h_header is None:
+            msg = 'Failed to get horizontal header'
             raise RuntimeError(msg)
-        self._y_axis = plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
+        # Use Interactive so column widths are not recalculated on every cell update;
+        # resizeSections() is called once after a full repopulate instead.
+        h_header.setSectionResizeMode(_COL_PLAYER, QHeaderView.ResizeMode.Stretch)
+        for col in (_COL_STATUS, _COL_FIRST_SEEN, _COL_LAST_REJOIN, _COL_LAST_SEEN,
+                    _COL_SESSION_TIME, _COL_TOTAL_TIME, _COL_REJOINS):
+            h_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        h_header.setStretchLastSection(False)
 
-        layout.addWidget(self._widget)
+        self._table.sortByColumn(_COL_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+        # Tracks the ordered IP list from the last full repopulate to detect row set changes.
+        self._last_player_ips: list[str] = []
 
     # Public API —————————————————————————————————————————————————————————————
 
     def refresh(self) -> None:
-        """Rebuild the Gantt chart with current player data."""
+        """Update the table with current player presence data."""
         all_players = PlayersRegistry.get_all_players()
-        if not all_players:
-            self._widget.clear()
-            self._y_axis.setTicks([[]])
+        n = len(all_players)
+
+        if not n:
+            if self._table.rowCount() > 0:
+                self._table.setRowCount(0)
+            self._last_player_ips = []
             return
 
-        session_start = min(p.datetime.first_seen for p in all_players)
-        now = datetime.now(tz=session_start.tzinfo)
+        now = datetime.now(tz=all_players[0].datetime.first_seen.tzinfo)
+        current_ips = [p.ip for p in all_players]
+        players_changed = current_ips != self._last_player_ips
 
-        connected = sorted(
-            (p for p in all_players if not p.left_event.is_set()),
-            key=lambda p: p.datetime.first_seen,
-        )
-        disconnected = sorted(
-            (p for p in all_players if p.left_event.is_set()),
-            key=lambda p: p.datetime.first_seen,
-        )
-        ordered = connected + disconnected
-        n = len(ordered)
+        if players_changed:
+            # Full repopulate: disable sorting so setItem doesn't trigger a sort after
+            # every single cell write, then re-enable once at the end.
+            self._table.setSortingEnabled(False)
+            self._table.setRowCount(n)
 
-        conn_x: list[float] = []
-        conn_y: list[float] = []
-        conn_w: list[float] = []
-        disc_x: list[float] = []
-        disc_y: list[float] = []
-        disc_w: list[float] = []
-        tick_labels: list[tuple[int, str]] = []
-        max_end: float = 60.0
+            for row, player in enumerate(all_players):
+                is_connected = not player.left_event.is_set()
+                color = _COLOR_CONNECTED if is_connected else _COLOR_DISCONNECTED
 
-        for i, player in enumerate(ordered):
-            start_sec = max((player.datetime.first_seen - session_start).total_seconds(), 0.0)
-            end_sec = (player.datetime.last_seen - session_start).total_seconds() if player.left_event.is_set() else (now - session_start).total_seconds()
+                try:
+                    session_secs = player.datetime.get_session_time().total_seconds()
+                except PlayerDateTimeCorruptionError:
+                    session_secs = (now - player.datetime.last_rejoin).total_seconds()
+                try:
+                    total_secs = player.datetime.get_total_session_time().total_seconds()
+                except PlayerDateTimeCorruptionError:
+                    total_secs = session_secs
 
-            end_sec = max(end_sec, start_sec + _MIN_BAR_WIDTH)
-            width = end_sec - start_sec
-            cx = start_sec + width / 2.0
+                player_item = QTableWidgetItem(format_player_display(player.ip, player.usernames))
+                status_item = QTableWidgetItem('🟢 Connected' if is_connected else '🔴 Disconnected')
 
-            if player.left_event.is_set():
-                disc_x.append(cx)
-                disc_y.append(float(i) - 0.35)
-                disc_w.append(width)
-            else:
-                conn_x.append(cx)
-                conn_y.append(float(i) - 0.35)
-                conn_w.append(width)
+                first_item = NumericTableWidgetItem(player.datetime.first_seen.strftime('%H:%M:%S'))
+                first_item.setData(Qt.ItemDataRole.UserRole, player.datetime.first_seen.timestamp())
 
-            label = format_player_display(player.ip, player.usernames)
-            tick_labels.append((i, label))
-            max_end = max(max_end, end_sec)
+                rejoin_item = NumericTableWidgetItem(player.datetime.last_rejoin.strftime('%H:%M:%S'))
+                rejoin_item.setData(Qt.ItemDataRole.UserRole, player.datetime.last_rejoin.timestamp())
 
-        self._widget.clear()
+                seen_item = NumericTableWidgetItem(player.datetime.last_seen.strftime('%H:%M:%S'))
+                seen_item.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
 
-        if conn_x:
-            bars_c = pg.BarGraphItem(  # pyright: ignore[reportUnknownVariableType]
-                x=conn_x,
-                y=conn_y,
-                height=[0.7] * len(conn_x),
-                width=conn_w,
-                brush=pg.mkBrush(*_CONNECTED_COLOR),
-                pen=pg.mkPen(None),
-            )
-            self._widget.addItem(bars_c)
+                session_item = NumericTableWidgetItem(_fmt_duration(session_secs))
+                session_item.setData(Qt.ItemDataRole.UserRole, session_secs)
 
-        if disc_x:
-            bars_d = pg.BarGraphItem(  # pyright: ignore[reportUnknownVariableType]
-                x=disc_x,
-                y=disc_y,
-                height=[0.7] * len(disc_x),
-                width=disc_w,
-                brush=pg.mkBrush(*_DISCONNECTED_COLOR),
-                pen=pg.mkPen(None),
-            )
-            self._widget.addItem(bars_d)
+                total_item = NumericTableWidgetItem(_fmt_duration(total_secs))
+                total_item.setData(Qt.ItemDataRole.UserRole, total_secs)
 
-        self._y_axis.setTicks([tick_labels])
-        self._widget.setYRange(-0.5, n - 0.5)
-        self._widget.setXRange(0, max_end * 1.05)
+                rejoins_item = NumericTableWidgetItem(str(player.rejoins))
+                rejoins_item.setData(Qt.ItemDataRole.UserRole, player.rejoins)
+
+                for col, item in enumerate((player_item, status_item, first_item, rejoin_item,
+                                            seen_item, session_item, total_item, rejoins_item)):
+                    item.setForeground(color)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self._table.setItem(row, col, item)
+
+            h_header = self._table.horizontalHeader()
+            if h_header is not None:
+                h_header.resizeSections(QHeaderView.ResizeMode.ResizeToContents)
+            self._last_player_ips = current_ips
+            # Re-enable sorting once — triggers a single sort, acceptable after a structural change.
+            self._table.setSortingEnabled(True)
+
+        else:
+            # Incremental update: block signals so setText/setData don't trigger Qt's
+            # auto-sort (which fires on every itemChanged when sorting is enabled).
+            # setSortingEnabled is NOT toggled here, so header-click sorting still works.
+            self._table.blockSignals(True)  # noqa: FBT003
+
+            for row, player in enumerate(all_players):
+                is_connected = not player.left_event.is_set()
+                color = _COLOR_CONNECTED if is_connected else _COLOR_DISCONNECTED
+
+                try:
+                    session_secs = player.datetime.get_session_time().total_seconds()
+                except PlayerDateTimeCorruptionError:
+                    session_secs = (now - player.datetime.last_rejoin).total_seconds()
+                try:
+                    total_secs = player.datetime.get_total_session_time().total_seconds()
+                except PlayerDateTimeCorruptionError:
+                    total_secs = session_secs
+
+                cell = self._table.item(row, _COL_PLAYER)
+                if cell is not None:
+                    new_val = format_player_display(player.ip, player.usernames)
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_STATUS)
+                if cell is not None:
+                    new_val = '🟢 Connected' if is_connected else '🔴 Disconnected'
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_LAST_REJOIN)
+                if cell is not None:
+                    new_val = player.datetime.last_rejoin.strftime('%H:%M:%S')
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_rejoin.timestamp())
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_LAST_SEEN)
+                if cell is not None:
+                    new_val = player.datetime.last_seen.strftime('%H:%M:%S')
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_SESSION_TIME)
+                if cell is not None:
+                    new_val = _fmt_duration(session_secs)
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setData(Qt.ItemDataRole.UserRole, session_secs)
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_TOTAL_TIME)
+                if cell is not None:
+                    new_val = _fmt_duration(total_secs)
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setData(Qt.ItemDataRole.UserRole, total_secs)
+                        cell.setForeground(color)
+
+                cell = self._table.item(row, _COL_REJOINS)
+                if cell is not None:
+                    new_val = str(player.rejoins)
+                    if cell.text() != new_val:
+                        cell.setText(new_val)
+                        cell.setData(Qt.ItemDataRole.UserRole, player.rejoins)
+                        cell.setForeground(color)
+
+            self._table.blockSignals(False)  # noqa: FBT003

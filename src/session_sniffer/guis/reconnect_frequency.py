@@ -1,9 +1,9 @@
 """Reconnect frequency statistics window."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -19,8 +19,12 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
         layout = self._setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(['IP', 'Rejoins', 'Usernames'])
-        setup_stat_table(self._table, layout)
+        self._table.setHorizontalHeaderLabels(['Rejoins', 'IP', 'Usernames'])
+        h_header = setup_stat_table_with_header(self._table, layout)
+        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self._table.setColumnWidth(0, 100)
+        self._table.setColumnWidth(1, 130)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
@@ -30,22 +34,24 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
         """Rebuild the table with current rejoin data."""
         all_players = PlayersRegistry.get_all_players()
         entries = [
-            (p.ip, p.rejoins, ', '.join(p.usernames) if p.usernames else '\u2014')
+            (p.rejoins, p.ip, ', '.join(p.usernames) if p.usernames else '—')
             for p in all_players
             if p.rejoins > 0
         ]
-        entries.sort(key=lambda e: e[1], reverse=True)
+        entries.sort(key=lambda e: e[0], reverse=True)
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
-        for ip, rejoins, usernames in entries:
+        for rejoins, ip, usernames in entries:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            ip_item = QTableWidgetItem(ip)
             rejoins_item = NumericTableWidgetItem(str(rejoins))
             rejoins_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            ip_item = QTableWidgetItem(ip)
+            ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             usernames_item = QTableWidgetItem(usernames)
-            self._table.setItem(row, 0, ip_item)
-            self._table.setItem(row, 1, rejoins_item)
+            self._table.setItem(row, 0, rejoins_item)
+            self._table.setItem(row, 1, ip_item)
             self._table.setItem(row, 2, usernames_item)
         self._table.setSortingEnabled(True)
+        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)

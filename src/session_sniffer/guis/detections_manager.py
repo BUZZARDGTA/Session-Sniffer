@@ -301,7 +301,7 @@ class _ComboRuleEditorDialog(QDialog):
         action_layout = QVBoxLayout()
 
         # Protection Settings
-        # -- Protection section (hidden when ARP interface / protection not supported) --
+        # -- Protection section (hidden when neighbour interface / protection not supported) --
         protection_section = QWidget()
         protection_section_layout = QVBoxLayout(protection_section)
         protection_section_layout.setContentsMargins(0, 0, 0, 0)
@@ -351,7 +351,7 @@ class _ComboRuleEditorDialog(QDialog):
             _set_duration_widgets_helper(self._duration_combo, self._duration_spin, rule.duration)
 
         action_layout.addWidget(protection_section)
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
             protection_section.setVisible(False)
             self._protection_enabled_checkbox.setChecked(False)
 
@@ -770,7 +770,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout.addLayout(button_row)
 
         self._load_current_settings()
-        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_arp_interface:
+        if Settings.capture_program_preset != 'GTA5' or CaptureState.is_neighbour_interface:
             self._apply_protection_restrictions()
 
     # ------------------------------------------------------------------
@@ -778,7 +778,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
     # ------------------------------------------------------------------
 
     def _apply_protection_restrictions(self) -> None:
-        """Hide all protection action widgets when protection is not supported (non-GTA5 preset or ARP interface)."""
+        """Hide all protection action widgets when protection is not supported (non-GTA5 preset or neighbour interface)."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
             if not hasattr(self, f'{prefix}_enable_checkbox'):
                 continue
@@ -1132,7 +1132,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         desc_label.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
         group_layout.addWidget(desc_label)
 
-        # Enable checkbox (hideable for ARP interface)
+        # Enable checkbox (hideable for neighbour interface)
         enable_section = QWidget()
         enable_section_layout = QHBoxLayout(enable_section)
         enable_section_layout.setContentsMargins(0, 0, 0, 0)
@@ -1227,7 +1227,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         desc_label.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
         group_layout.addWidget(desc_label)
 
-        # Enable checkbox (hideable for ARP interface)
+        # Enable checkbox (hideable for neighbour interface)
         enable_section = QWidget()
         enable_section_layout = QHBoxLayout(enable_section)
         enable_section_layout.setContentsMargins(0, 0, 0, 0)

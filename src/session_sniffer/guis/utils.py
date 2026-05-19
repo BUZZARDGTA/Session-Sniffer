@@ -139,7 +139,11 @@ class NumericTableWidgetItem(QTableWidgetItem):  # pylint: disable=too-few-publi
     """QTableWidgetItem that sorts numerically."""
 
     def __lt__(self, other: QTableWidgetItem) -> bool:
-        """Compare numerically, falling back to the default string comparison."""
+        """Compare numerically using UserRole data if available, falling back to text then string comparison."""
+        self_val = self.data(Qt.ItemDataRole.UserRole)
+        other_val = other.data(Qt.ItemDataRole.UserRole)
+        if isinstance(self_val, (int, float)) and isinstance(other_val, (int, float)):
+            return float(self_val) < float(other_val)
         try:
             return float(self.text()) < float(other.text())
         except ValueError:
@@ -186,6 +190,7 @@ def set_dialog_window_flags(dialog: QDialog) -> None:
     dialog.setWindowModality(Qt.WindowModality.NonModal)
     dialog.setWindowFlags(
         Qt.WindowType.Window
+        | Qt.WindowType.WindowStaysOnTopHint
         | Qt.WindowType.WindowCloseButtonHint
         | Qt.WindowType.WindowMinimizeButtonHint
         | Qt.WindowType.WindowMaximizeButtonHint,
@@ -250,3 +255,16 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
         raise RuntimeError(msg)
     v_header.setVisible(False)
     layout.addWidget(table)
+
+
+def setup_stat_table_with_header(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool = True) -> QHeaderView:
+    """Configure *table* and return its horizontal header for further customisation.
+
+    Calls `setup_stat_table` then retrieves the header; raises `RuntimeError` if unavailable.
+    """
+    setup_stat_table(table, layout, sorting=sorting)
+    h_header = table.horizontalHeader()
+    if h_header is None:
+        msg = 'Failed to get horizontal header'
+        raise RuntimeError(msg)
+    return h_header

@@ -15,6 +15,29 @@ VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
 
 
+def build_rate_plot_widget(left_label: str, max_history: int, error_name: str) -> tuple[pg.PlotWidget, Any]:  # pyright: ignore[reportUnknownVariableType]
+    """Create and configure a standard dark, grid-enabled rate-monitoring `PlotWidget`.
+
+    Returns `(widget, plot_item)`. Raises `RuntimeError` if the plot item is unavailable.
+    """
+    widget = pg.PlotWidget(
+        axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
+        viewBox=DragCursorViewBox(),
+    )
+    widget.setMouseEnabled(x=True, y=True)
+    widget.setMenuEnabled(False)
+    widget.setBackground('black')
+    widget.showGrid(x=True, y=True)
+    widget.setLimits(yMin=0, xMax=0, xMin=-max_history)
+    widget.setLabel('left', left_label)
+    widget.setLabel('bottom', 'Time (seconds ago)')
+    plot = widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
+    if plot is None:
+        msg = f'Failed to get {error_name} plot item'
+        raise RuntimeError(msg)
+    return widget, plot  # pyright: ignore[reportUnknownVariableType]
+
+
 class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
     """Mixin providing a sliding-window x-cache growth helper."""
 
@@ -30,6 +53,104 @@ class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
             self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
             self._x_cache_len = n
         return n
+
+
+class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
+    """Base class for single-series sliding-window rate graph windows."""
+
+    WINDOW_TITLE: str
+    LEFT_LABEL: str
+    ERROR_NAME: str
+    AXIS_PEN: str
+    CURVE_PEN: str
+    CURVE_BRUSH: tuple[int, int, int, int]
+    AVG_PEN: str
+    Y_FLOOR: float
+
+    _max_history: int
+    _buf: np.ndarray[Any, np.dtype[np.float64]]
+    _buf_sum: float
+
+    def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
+        """Initialize the shared single-series graph window."""
+        super().__init__()
+
+        self._max_history = max_history
+        self._buf_sum = 0.0
+
+        self.setWindowTitle(self.WINDOW_TITLE)
+        self.resize(700, 350)
+        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+
+        self._widget, plot = build_rate_plot_widget(self.LEFT_LABEL, max_history, self.ERROR_NAME)
+        plot.getAxis('left').setTextPen(pg.mkPen(self.AXIS_PEN))  # pyright: ignore[reportUnknownVariableType]
+        self._curve = self._widget.plot(pen=pg.mkPen(self.CURVE_PEN, width=2))
+        self._curve.setFillLevel(0)
+        self._curve.setBrush(pg.mkBrush(*self.CURVE_BRUSH))
+        self._avg_line = pg.InfiniteLine(
+            angle=0,
+            pen=pg.mkPen(self.AVG_PEN, width=1, style=Qt.PenStyle.DotLine),
+        )
+        self._widget.addItem(self._avg_line)
+
+        layout.addWidget(self._widget)
+        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self._setup_single_history_buffers()
+
+    def _setup_single_history_buffers(self) -> None:
+        """Initialise pre-allocated numpy sliding-window buffers."""
+        self._buf = np.zeros(self._max_history, dtype=np.float64)
+        self._buf_len = VISIBLE_WINDOW
+        self._buf_sum = 0.0
+        self._x_cache_len = VISIBLE_WINDOW
+        self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
+
+    def _transform_sample(self, sample: float) -> float:
+        """Convert an incoming sample into the value stored in the buffer."""
+        return float(sample)
+
+    def _update_graph(self, sample: float) -> None:
+        """Append a new sample and refresh the graph."""
+        value = self._transform_sample(sample)
+        n = self._buf_len
+
+        if n < self._max_history:
+            self._buf[n] = value
+            self._buf_sum += value
+            n = self._grow_cache(n)
+        else:
+            self._buf_sum += value - self._buf[0]
+            self._buf[:-1] = self._buf[1:]
+            self._buf[-1] = value
+
+        data = self._buf[:n]
+        self._curve.setData(self._x_cache, data)
+        if self._is_at_live_edge(self._widget):
+            self._widget.setXRange(-VISIBLE_WINDOW, 0)
+        visible_max = float(np.max(data[-VISIBLE_WINDOW:]))
+        self._widget.setYRange(0, max(visible_max * 1.2, self.Y_FLOOR))
+        if n:
+            self._avg_line.setPos(self._buf_sum / n)
+
+    def reset(self) -> None:
+        """Clear all history and reset the graph to zero."""
+        self._buf[:] = 0.0
+        self._buf_len = VISIBLE_WINDOW
+        self._buf_sum = 0.0
+        self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
+        self._x_cache_len = VISIBLE_WINDOW
+
+        zeros = np.zeros(VISIBLE_WINDOW, dtype=np.float64)
+        self._curve.setData(self._x_cache, zeros)
+        self._widget.setXRange(-VISIBLE_WINDOW, 0)
+        self._widget.setYRange(0, self.Y_FLOOR)
+        self._avg_line.setPos(0)
+
+    @staticmethod
+    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
+        """Return True if the widget's x-axis view includes the live (rightmost) edge."""
+        x_range: list[float] = widget.viewRange()[0]
+        return x_range[1] >= -2  # noqa: PLR2004
 
 
 class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
@@ -51,20 +172,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         """
         # pylint: disable=attribute-defined-outside-init
         # ── PPS graph (top) — lime green tones ──────────────────────────
-        self._pps_widget = pg.PlotWidget(
-            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
-            viewBox=DragCursorViewBox(),
-        )
-        self._pps_widget.setMouseEnabled(x=True, y=True)
-        self._pps_widget.setBackground('black')
-        self._pps_widget.showGrid(x=True, y=True)
-        self._pps_widget.setLabel('left', 'PPS')
-        self._pps_widget.setLabel('bottom', 'Time (seconds ago)')
-
-        pps_plot = self._pps_widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        if pps_plot is None:
-            msg = 'Failed to get PPS plot item'
-            raise RuntimeError(msg)
+        self._pps_widget, pps_plot = build_rate_plot_widget('PPS', self._max_history, 'PPS')
         pps_left = pps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
         pps_left.setTextPen(pg.mkPen('lime'))
 
@@ -83,21 +191,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         layout.addWidget(self._pps_widget)
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
-        self._bps_widget = pg.PlotWidget(
-            axisItems={'bottom': PositiveTicksAxis(orientation='bottom')},
-            viewBox=DragCursorViewBox(),
-        )
-        self._bps_widget.setMouseEnabled(x=True, y=True)
-        self._bps_widget.setBackground('black')
-        self._bps_widget.showGrid(x=True, y=True)
-        self._bps_widget.setLimits(yMin=0, xMax=0, xMin=-self._max_history)
-        self._bps_widget.setLabel('left', 'KB/s')
-        self._bps_widget.setLabel('bottom', 'Time (seconds ago)')
-
-        bps_plot = self._bps_widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-        if bps_plot is None:
-            msg = 'Failed to get BPS plot item'
-            raise RuntimeError(msg)
+        self._bps_widget, bps_plot = build_rate_plot_widget('KB/s', self._max_history, 'BPS')
         bps_left = bps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
         bps_left.setTextPen(pg.mkPen('#00bcd4'))
 
@@ -116,8 +210,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         layout.addWidget(self._bps_widget)
 
     def _configure_pps_widget(self) -> None:
-        """Override to add PPS-specific configuration (limits, threshold lines, etc.)."""
-        self._pps_widget.setLimits(yMin=0, xMax=0, xMin=-self._max_history)
+        """Override to add PPS-specific configuration (threshold lines, custom limits, etc.)."""
 
     def _configure_bps_widget(self) -> None:
         """Override to add BPS-specific configuration (threshold lines, etc.)."""
@@ -138,6 +231,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._buf_len = VISIBLE_WINDOW
         self._pps_sum: float = 0.0
         self._bps_sum: float = 0.0
+        self._buf_sum = 0.0
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
 

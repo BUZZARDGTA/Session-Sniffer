@@ -119,6 +119,112 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
 
 
+def _renamed_line(
+    raw_line: str,
+    pairs: list[tuple[str, str]],
+    new_username: str,
+    seen: set[str],
+) -> str | None:
+    """Return a replacement line, `None` (keep original), or `''` (drop duplicate).
+
+    Checks if `raw_line` matches any (old_username, ip) pair and returns the renamed version.
+    """
+    match = RE_USERIP_INI_PARSER_PATTERN.search(raw_line.strip())
+    if match is None:
+        return None
+    username_raw = match.group('username')
+    ip_raw = match.group('ip')
+    if username_raw is None or ip_raw is None:
+        return None
+    u, ip = username_raw.strip(), ip_raw.strip()
+    matched = next((t for t in pairs if t[0] == u and _entry_ip_matches_any(ip, [t[1]])), None)
+    if matched is None:
+        return None
+    entry_key = f'{new_username}={ip}'
+    if entry_key in seen:
+        return ''  # duplicate — drop
+    seen.add(entry_key)
+    ending = raw_line[len(raw_line.rstrip()):]
+    return f'{new_username}={ip}{ending}'
+
+
+def _rewrite_db_for_rename(db_path: Path, pairs: list[tuple[str, str]], new_username: str) -> int:
+    """Rewrite one database file, replacing matched (old_username, ip) pairs with `new_username`.
+
+    Returns the number of lines renamed.
+    """
+    content = db_path.read_text('utf-8')
+    new_lines: list[str] = []
+    renamed_count = 0
+    seen_new_entries: set[str] = set()
+    in_userip_section = False
+
+    for raw_line in content.splitlines(keepends=True):
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            in_userip_section = line == '[UserIP]'
+            new_lines.append(raw_line)
+            continue
+        if in_userip_section:
+            replacement = _renamed_line(raw_line, pairs, new_username, seen_new_entries)
+            if replacement is None:
+                new_lines.append(raw_line)
+            elif replacement:
+                new_lines.append(replacement)
+                renamed_count += 1
+            continue  # empty string → duplicate, skip
+        new_lines.append(raw_line)
+
+    if renamed_count:
+        write_lines_to_file(db_path, 'w', new_lines)
+    return renamed_count
+
+
+def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
+    """Prompt once for a new username and apply it to all selected players' IP entries."""
+    eligible = [(p.ip, p.userip) for p in players if p.userip is not None and p.userip.usernames]
+    if not eligible:
+        return
+
+    ips_display = ', '.join(ip for ip, _ in eligible)
+
+    # Pre-fill with the shared username if every selected player has exactly the same one
+    all_username_sets = [frozenset(userip.usernames) for _, userip in eligible]
+    shared_username = next(iter(all_username_sets[0])) if len(all_username_sets[0]) == 1 and all(s == all_username_sets[0] for s in all_username_sets) else ''
+
+    new_username, ok = QInputDialog.getText(
+        parent, 'Rename Selected',
+        f'Enter a new username for {len(eligible)} selected IP(s):\n{ips_display}',
+        QLineEdit.EchoMode.Normal,
+        shared_username,
+    )
+    new_username = new_username.strip() if ok else ''
+    if not new_username:
+        if ok:
+            QMessageBox.warning(parent, TITLE, 'No username was provided.')
+        return
+
+    # Build mapping: db_path → list of (old_username, ip) pairs to rename
+    by_db: dict[Path, list[tuple[str, str]]] = {}
+    for ip, userip in eligible:
+        db_path = userip.database_path
+        if db_path not in by_db:
+            by_db[db_path] = []
+        for old_u in userip.usernames:
+            by_db[db_path].append((old_u, ip))
+
+    total_renamed = 0
+    for db_path, pairs in by_db.items():
+        total_renamed += _rewrite_db_for_rename(db_path, pairs, new_username)
+
+    if not total_renamed:
+        QMessageBox.information(parent, TITLE, 'No entries were found for the selected IP(s).')
+        return
+
+    entry_word = 'entry' if total_renamed == 1 else 'entries'
+    QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
+
+
 def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     """Rename all entries for an IP address in its UserIP database using a picker dialog."""
     if player.userip is None or not player.userip.usernames:

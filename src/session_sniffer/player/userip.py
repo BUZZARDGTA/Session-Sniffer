@@ -97,6 +97,7 @@ class UserIPDatabases:
     _range_entries: ClassVar[list[_RangeEntry]] = []
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _open_conflict_dialogs: ClassVar[dict[str, QMessageBox]] = {}
+    build_version: ClassVar[int] = 0
 
     @staticmethod
     def _notify_ip_conflict(
@@ -287,6 +288,7 @@ class UserIPDatabases:
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
+            cls.build_version += 1
 
     @classmethod
     def is_known_ip(cls, ip: str) -> bool:

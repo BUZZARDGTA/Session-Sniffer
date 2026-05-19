@@ -781,6 +781,8 @@ class _PlayerLifecycleState:
     protection_checked: bool = False
     relay_monitor_started: bool = False
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
+    userip_check_version: int = -1
+    userip_check_positive: bool = False
 
 
 @dataclass(slots=True)
@@ -838,7 +840,10 @@ class Player:
     userip_detection: PlayerUserIPDetection | None
     mod_menus: PlayerModMenus | None
 
-    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({'left_event', 'rejoins', 'protection_checked', 'relay_monitor_started', 'usernames'})
+    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({
+        'left_event', 'rejoins', 'protection_checked', 'relay_monitor_started',
+        'usernames', 'userip_check_version', 'userip_check_positive',
+    })
     _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
     _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
     _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus'})

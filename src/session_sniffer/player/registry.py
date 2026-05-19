@@ -135,6 +135,12 @@ class PlayersRegistry:
             return list(cls._connected_players_registry.values()) + list(cls._disconnected_players_registry.values())
 
     @classmethod
+    def get_total_count(cls) -> int:
+        """Return the total number of tracked players (connected + disconnected) in O(1)."""
+        with cls._registry_lock:
+            return len(cls._connected_players_registry) + len(cls._disconnected_players_registry)
+
+    @classmethod
     def get_default_sorted_players(
         cls,
         *,

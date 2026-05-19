@@ -1,9 +1,9 @@
-"""Average session duration statistics window."""
+"""Session duration statistics window."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -19,11 +19,11 @@ def _format_duration(total_seconds: float) -> str:
     return f'{s}s'
 
 
-class AvgSessionDurationWindow(ToggleAlwaysOnTopMixin):
+class SessionDurationWindow(ToggleAlwaysOnTopMixin):
     """A standalone window listing disconnected players sorted by session duration."""
 
     def __init__(self, *, always_on_top: bool = True) -> None:
-        """Initialize the average session duration window."""
+        """Initialize the session duration window."""
         super().__init__()
 
         self.setWindowTitle('Session Duration')
@@ -31,8 +31,12 @@ class AvgSessionDurationWindow(ToggleAlwaysOnTopMixin):
         layout = self._setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(['IP', 'Duration', 'Usernames'])
-        setup_stat_table(self._table, layout)
+        self._table.setHorizontalHeaderLabels(['Duration', 'IP', 'Usernames'])
+        h_header = setup_stat_table_with_header(self._table, layout)
+        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self._table.setColumnWidth(0, 90)
+        self._table.setColumnWidth(1, 130)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
@@ -42,23 +46,25 @@ class AvgSessionDurationWindow(ToggleAlwaysOnTopMixin):
         """Rebuild the table with current session duration data."""
         disconnected = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
         entries = [
-            (p.ip, p.datetime.session_time.total_seconds(), ', '.join(p.usernames) if p.usernames else '\u2014')
+            (p.datetime.session_time.total_seconds(), p.ip, ', '.join(p.usernames) if p.usernames else '—')
             for p in disconnected
             if p.datetime.session_time is not None
         ]
-        entries.sort(key=lambda e: e[1], reverse=True)
+        entries.sort(key=lambda e: e[0], reverse=True)
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
-        for ip, duration_secs, usernames in entries:
+        for duration_secs, ip, usernames in entries:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            ip_item = QTableWidgetItem(ip)
             duration_item = NumericTableWidgetItem(_format_duration(duration_secs))
             duration_item.setData(Qt.ItemDataRole.UserRole, duration_secs)
             duration_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            ip_item = QTableWidgetItem(ip)
+            ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             usernames_item = QTableWidgetItem(usernames)
-            self._table.setItem(row, 0, ip_item)
-            self._table.setItem(row, 1, duration_item)
+            self._table.setItem(row, 0, duration_item)
+            self._table.setItem(row, 1, ip_item)
             self._table.setItem(row, 2, usernames_item)
         self._table.setSortingEnabled(True)
+        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)

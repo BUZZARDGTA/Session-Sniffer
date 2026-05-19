@@ -1,7 +1,7 @@
 """Country breakdown statistics window."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
 from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
@@ -18,9 +18,17 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         self.resize(420, 420)
         layout = self._setup_window_layout(always_on_top=always_on_top)
 
-        self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(['Rank', 'Country', 'Players'])
+        self._table = QTableWidget(0, 2)
+        self._table.setHorizontalHeaderLabels(['Country', 'Players'])
         setup_stat_table(self._table, layout, sorting=False)
+        h_header = self._table.horizontalHeader()
+        if h_header is None:
+            msg = 'Failed to get horizontal header'
+            raise RuntimeError(msg)
+        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        h_header.setStretchLastSection(False)
+        self._table.setColumnWidth(1, 80)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
@@ -48,16 +56,13 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
-        for rank, (country, count) in enumerate(sorted_counts, start=1):
+        for country, count in sorted_counts:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            rank_item = NumericTableWidgetItem(str(rank))
-            rank_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             country_item = QTableWidgetItem(country)
             count_item = NumericTableWidgetItem(str(count))
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(row, 0, rank_item)
-            self._table.setItem(row, 1, country_item)
-            self._table.setItem(row, 2, count_item)
+            self._table.setItem(row, 0, country_item)
+            self._table.setItem(row, 1, count_item)
         self._table.setSortingEnabled(True)
-        self._table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)

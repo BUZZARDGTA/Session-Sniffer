@@ -1,9 +1,9 @@
 """Port heatmap statistics window."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -20,7 +20,9 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Port', 'Count', '% of Total'])
-        setup_stat_table(self._table, layout)
+        h_header = setup_stat_table_with_header(self._table, layout)
+        h_header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        h_header.setStretchLastSection(False)
 
         self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
@@ -53,3 +55,4 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
             self._table.setItem(row, 1, count_item)
             self._table.setItem(row, 2, pct_item)
         self._table.setSortingEnabled(True)
+        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)

@@ -245,10 +245,10 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         header = self._entries_table.header()
         if header is not None:
             header.setStretchLastSection(False)
-            header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
             for col, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
                 header.resizeSection(col, width)
+            header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
 
         self._entries_table.setColumnHidden(DATABASE_COLUMN, True)
 

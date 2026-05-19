@@ -1,4 +1,4 @@
-﻿"""Player action helpers for session table context menus (info dialogs, ping)."""
+﻿"""Player action helpers for session table context menus (info dialogs, ping)."""  # pylint: disable=too-many-lines
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
@@ -339,7 +339,7 @@ class IPLookupDetailsDialog(QDialog):
         self._add_row(form, 'Username(s)', lambda p: ', '.join(p.usernames) or 'N/A')
         self._add_row(form, 'In UserIP database', _userip_database_text)
         self._add_row(form, 'First Port', lambda p: str(p.ports.first))
-        self._add_row(form, 'Middle Port(s)', lambda p: ', '.join(map(str, p.ports.middle)) or 'N/A')
+        self._add_row(form, 'Middle Port(s)', lambda p: ', '.join(map(str, p.ports.middle)) or '')
         self._add_row(form, 'Last Port', lambda p: str(p.ports.last))
         parent_layout.addWidget(group)
 
@@ -616,6 +616,184 @@ def show_userip_detected_dialog(parent: QWidget | None, player: Player) -> None:
     dialog = UserIPDetectedDialog(parent, player)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     dialog.show()
+    dialog.raise_()
+    dialog.activateWindow()
+
+
+class DetectionNotificationDialog(QDialog):
+    """A non-modal dialog showing a detection manager notification for a player."""
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        parent: QWidget | None,
+        player: Player,
+        emoji: str,
+        display_title: str,
+        extra_detection_fields: list[tuple[str, str]],
+        event_time: str,
+    ) -> None:
+        """Snapshot player data at detection time and build the dialog UI."""
+        super().__init__(parent)
+        set_dialog_window_flags(self)
+
+        self.setWindowTitle(f'{TITLE} - {display_title} ({format_player_display(player.ip, player.usernames)})')
+        self.setMinimumSize(560, 460)
+
+        screen_width, screen_height = get_screen_size()
+
+        if (screen_width, screen_height) >= (1920, 1080):
+            self.resize(700, 580)
+        elif (screen_width, screen_height) >= (1280, 720):
+            self.resize(620, 520)
+        else:
+            resize_window_for_screen(self, screen_width, screen_height)
+            self.resize(min(self.width(), max(560, screen_width - 80)), min(self.height(), max(460, screen_height - 80)))
+
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
+        outer_layout.setSpacing(8)
+
+        header = QLabel(f'{emoji}  {display_title} \u2014 {format_player_display(player.ip, player.usernames)}')
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet(
+            'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
+            'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+            ' stop:0 #744210, stop:1 #975a16); border-radius: 6px;',
+        )
+        header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+        outer_layout.addWidget(header)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        outer_layout.addWidget(scroll, stretch=1)
+
+        scroll_content = QWidget()
+        scroll.setWidget(scroll_content)
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(2, 2, 2, 2)
+        scroll_layout.setSpacing(10)
+
+        self._build_detection_group(scroll_layout, player, extra_detection_fields, event_time)
+        self._build_connection_group(scroll_layout, player)
+        self._build_location_group(scroll_layout, player)
+        self._build_network_group(scroll_layout, player)
+        self._build_flags_group(scroll_layout, player)
+        scroll_layout.addStretch(1)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
+        button_box.rejected.connect(self.reject)
+        button_box.accepted.connect(self.accept)
+        outer_layout.addWidget(button_box)
+
+    def _build_detection_group(self, parent_layout: QVBoxLayout, player: Player, extra_detection_fields: list[tuple[str, str]], event_time: str) -> None:
+        """Add the 'Detection Details' section."""
+        group, form = self._make_group('\U0001f6a8  Detection Details', accent='#c53030')
+        self._add_row(form, 'Time', event_time)
+        for label, value in extra_detection_fields:
+            self._add_row(form, label, value)
+        self._add_row(form, 'Username(s)', ', '.join(player.usernames) or 'N/A')
+        parent_layout.addWidget(group)
+
+    def _build_connection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Connection Details' section."""
+        group, form = self._make_group('\U0001f517  Connection Details', accent='#2b6cb0')
+        self._add_row(form, 'IP Address', player.ip)
+        self._add_row(form, 'Hostname', _fmt_text(player.reverse_dns.hostname))
+        parent_layout.addWidget(group)
+
+    def _build_location_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Location Details' section."""
+        group, form = self._make_group('\U0001f30d  Location Details', accent='#38a169')
+        self._add_row(form, 'Country', _fmt_text(player.iplookup.geolite2.country))
+        self._add_row(form, 'City', _fmt_text(player.iplookup.geolite2.city))
+        parent_layout.addWidget(group)
+
+    def _build_network_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Network Details' section."""
+        group, form = self._make_group('\U0001f310  Network Details', accent='#d69e2e')
+        self._add_row(form, 'ISP', _fmt_text(player.iplookup.ipapi.isp))
+        self._add_row(form, 'Organization', _fmt_text(player.iplookup.ipapi.org))
+        asn = _fmt_text(player.iplookup.ipapi.asn)
+        as_name = _fmt_text(player.iplookup.ipapi.as_name)
+        asn_display = f'{asn} ({as_name})' if asn != 'N/A' and as_name != 'N/A' else asn
+        self._add_row(form, 'ASN', asn_display)
+        parent_layout.addWidget(group)
+
+    def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Detection Flags' section."""
+        group, form = self._make_group('\U0001f6a9  Detection Flags', accent='#805ad5')
+        self._add_row(form, 'Mobile (cellular)', _fmt_bool(player.iplookup.ipapi.mobile))
+        self._add_row(form, 'Proxy / VPN / Tor', _fmt_bool(player.iplookup.ipapi.proxy))
+        self._add_row(form, 'Hosting / Datacenter', _fmt_bool(player.iplookup.ipapi.hosting))
+        parent_layout.addWidget(group)
+
+    @staticmethod
+    def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
+        """Create a styled group box with an attached QFormLayout and return both."""
+        group = QGroupBox(title)
+        group.setStyleSheet(
+            'QGroupBox {'
+            f' border: 1px solid {accent};'
+            ' border-radius: 6px;'
+            ' margin-top: 14px;'
+            ' padding-top: 10px;'
+            ' background: rgba(255, 255, 255, 8);'
+            ' font-weight: bold;'
+            '}'
+            'QGroupBox::title {'
+            ' subcontrol-origin: margin;'
+            ' subcontrol-position: top left;'
+            ' left: 10px; padding: 2px 8px;'
+            f' background: {accent};'
+            ' color: #ffffff;'
+            ' border-radius: 4px;'
+            '}',
+        )
+        form = QFormLayout(group)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(5)
+        form.setContentsMargins(10, 8, 10, 10)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        return group, form
+
+    @staticmethod
+    def _add_row(form: QFormLayout, label_text: str, value: str) -> None:
+        """Append a copyable label/value row to *form*."""
+        label_widget = QLabel(f'{label_text}:')
+        label_widget.setStyleSheet('color: #cbd5e0; font-weight: 600; background: transparent;')
+
+        value_widget = QLabel(value)
+        value_widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+        value_widget.setCursor(Qt.CursorShape.IBeamCursor)
+        value_widget.setWordWrap(True)
+        value_widget.setFont(QFont('Consolas'))
+        value_widget.setStyleSheet('color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);')
+        value_widget.setToolTip('Click and drag to select; Ctrl+C to copy.')
+
+        form.addRow(label_widget, value_widget)
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802  # Qt override name
+        """Handle the close event."""
+        super().closeEvent(a0)
+
+
+def show_detection_notification_dialog(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    parent: QWidget | None,
+    player: Player,
+    emoji: str,
+    display_title: str,
+    extra_detection_fields: list[tuple[str, str]],
+    event_time: str,
+) -> None:
+    """Open the Detection Notification dialog for *player*."""
+    dialog = DetectionNotificationDialog(parent, player, emoji, display_title, extra_detection_fields, event_time)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    dialog.show()
+    dialog.raise_()
+    dialog.activateWindow()
 
 
 @dataclass(slots=True, kw_only=True)
@@ -727,7 +905,7 @@ class PlayerDetectionDialog(QDialog):
         self._add_row(form, 'IP Address', player.ip)
         self._add_row(form, 'Hostname', _fmt_text(player.reverse_dns.hostname))
         self._add_row(form, 'First Port', str(player.ports.first))
-        self._add_row(form, 'Middle Port(s)', ', '.join(map(str, reversed(player.ports.middle))) or 'N/A')
+        self._add_row(form, 'Middle Port(s)', ', '.join(map(str, reversed(player.ports.middle))) or '')
         self._add_row(form, 'Last Port', str(player.ports.last))
         self._add_row(form, 'Total Packets Exchanged', str(player.packets.total_exchanged))
         self._add_row(form, 'Session Packets', str(player.packets.exchanged))
@@ -831,6 +1009,8 @@ def show_player_detection_dialog(
     dialog = PlayerDetectionDialog(parent, player, info)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     dialog.show()
+    dialog.raise_()
+    dialog.activateWindow()
 
 
 def build_discord_player_report(player: Player) -> str:
