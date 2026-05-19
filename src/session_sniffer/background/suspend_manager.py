@@ -10,8 +10,6 @@ Guarantees:
 - Process resumes only when ALL reasons are satisfied:
   every hostile player has left AND every per-reason minimum duration has elapsed.
 - Player rejoins are handled automatically (`left_event.clear()` keeps suspension alive).
-- Adaptive mode: temporarily resumes while all hostile players are idle (PPS = 0),
-  and re-suspends when any player becomes active again.
 - Proper error handling for NoSuchProcess / AccessDenied / unexpected failures.
 - Clean shutdown: all suspended processes are resumed when the application exits.
 """
@@ -27,7 +25,6 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import get_pid_by_path
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -43,7 +40,7 @@ class _SuspendReason:
     min_duration: float
     added_at: float
     manual: bool
-    is_active: Callable[[], bool] | None
+    require_left_event: bool
 
 
 @dataclass(slots=True)
@@ -68,11 +65,8 @@ class ProcessSuspendManager:
        - `left_event` is set (the hostile player left), **and**
        - `min_duration` seconds have elapsed since the reason was added.
        - Reasons with `manual=True` are never auto-satisfied.
-    4. In Adaptive mode, temporarily resumes while all hostile players are idle
-       (`is_active` callback returns `False`), and re-suspends when any
-       player becomes active again.
-    5. Handles errors (process died, access denied) gracefully.
-    6. Resumes everything on :meth:`shutdown`.
+     4. Handles errors (process died, access denied) gracefully.
+     5. Resumes everything on :meth:`shutdown`.
     """
 
     _states: ClassVar[dict[str, _ProcessState]] = {}
@@ -84,13 +78,12 @@ class ProcessSuspendManager:
     # ------------------------------------------------------------------
 
     @classmethod
-    def request_suspend(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def request_suspend(
         cls,
         process_path: Path,
         reason_key: str,
         left_event: Event,
-        duration: int | Literal['Auto', 'Manual', 'Adaptive'],
-        is_active: Callable[[], bool] | None = None,
+        duration: int | Literal['Auto', 'Manual'],
     ) -> None:
         """Register a suspend reason for *process_path*.
 
@@ -104,10 +97,7 @@ class ProcessSuspendManager:
             left_event:   The player's `left_event`; set when the player disconnects.
             duration:     `'Auto'` (resume when player leaves),
                           `'Manual'` (never auto-resume),
-                          `'Adaptive'` (PPS-based smart suspend/resume),
                           or a positive `int` (minimum seconds before resume).
-            is_active:    Callable returning `True` while the player is active (PPS > 0).
-                          Required when *duration* is `'Adaptive'`; ignored otherwise.
         """
         if cls._shutdown_event.is_set():
             return
@@ -115,7 +105,7 @@ class ProcessSuspendManager:
         path_key = str(process_path.resolve()).lower()
 
         manual = duration == 'Manual'
-        adaptive = duration == 'Adaptive'
+        require_left_event = isinstance(duration, str)
         min_dur = 0.0 if isinstance(duration, str) else max(0.0, float(duration))
 
         reason = _SuspendReason(
@@ -123,7 +113,7 @@ class ProcessSuspendManager:
             min_duration=min_dur,
             added_at=time.monotonic(),
             manual=manual,
-            is_active=is_active if adaptive else None,
+            require_left_event=require_left_event,
         )
 
         with cls._lock:
@@ -132,8 +122,6 @@ class ProcessSuspendManager:
             if state is not None:
                 # Already tracking — add / update the reason.
                 state.reasons[reason_key] = reason
-                # If the process was temporarily resumed (adaptive) and a new
-                # reason arrives, re-suspend immediately.
                 if not state.suspended and cls._try_suspend_pid(state.pid, f'new reason added: {reason_key}'):
                     state.suspended = True
                 return
@@ -255,7 +243,7 @@ class ProcessSuspendManager:
         """Return `True` when a single reason allows permanent resume."""
         if reason.manual:
             return False
-        if not reason.left_event.is_set():
+        if reason.require_left_event and not reason.left_event.is_set():
             return False
         return now - reason.added_at >= reason.min_duration
 
@@ -269,39 +257,9 @@ class ProcessSuspendManager:
         return all(cls._reason_is_satisfied(r, now) for r in state.reasons.values())
 
     @classmethod
-    def _can_adaptive_resume(cls, state: _ProcessState) -> bool:
-        """Return `True` when all unsatisfied adaptive reasons indicate the player is idle.
-
-        For a temporary (adaptive) resume to be allowed:
-        - Every unsatisfied reason must have an `is_active` callback (be adaptive).
-        - Every such callback must return `False` (player idle / PPS = 0).
-
-        If any unsatisfied reason is non-adaptive (Auto, Manual, timed), it acts
-        as a hard block on temporary resume — the process stays suspended.
-
-        Must be called while holding `_lock`.
-        """
-        now = time.monotonic()
-        has_unsatisfied = False
-        for reason in state.reasons.values():
-            if cls._reason_is_satisfied(reason, now):
-                continue
-            has_unsatisfied = True
-            if reason.is_active is None:
-                # Non-adaptive unsatisfied reason — blocks temporary resume.
-                return False
-            if reason.is_active():
-                # Adaptive reason but player is still active.
-                return False
-        return has_unsatisfied
-
     @classmethod
     def _monitor(cls, path_key: str) -> None:
-        """Poll reasons until all are satisfied, then resume the process.
-
-        For adaptive reasons, temporarily resumes while all hostile players
-        are idle, and re-suspends when any becomes active.
-        """
+        """Poll reasons until all are satisfied, then resume the process."""
         while not cls._shutdown_event.is_set():
             cls._shutdown_event.wait(_MONITOR_POLL_INTERVAL)
             if cls._shutdown_event.is_set():
@@ -319,14 +277,6 @@ class ProcessSuspendManager:
                     state.suspended = False
                     cls._states.pop(path_key, None)
                     return
-
-                # --- Adaptive toggle ---
-                if state.suspended and cls._can_adaptive_resume(state):
-                    cls._try_resume_pid(state.pid)
-                    state.suspended = False
-                elif not state.suspended and not cls._can_adaptive_resume(state):
-                    cls._try_suspend_pid(state.pid, 'adaptive re-suspend: player became active')
-                    state.suspended = True
 
         # Shutdown was requested — the shutdown() method already resumes everything,
         # so the monitor simply exits.

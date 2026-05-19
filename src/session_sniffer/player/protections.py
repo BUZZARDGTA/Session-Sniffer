@@ -14,7 +14,7 @@ class GUIProtectionSettings:
     # Mobile-based protection
     mobile_suspend_enabled: ClassVar[bool] = False
     mobile_suspend_process_path: ClassVar[Path | None] = None
-    mobile_suspend_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    mobile_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     mobile_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     mobile_logging: ClassVar[bool] = False
     mobile_message_box: ClassVar[bool] = False
@@ -22,7 +22,7 @@ class GUIProtectionSettings:
     # VPN-based protection
     vpn_suspend_enabled: ClassVar[bool] = False
     vpn_suspend_process_path: ClassVar[Path | None] = None
-    vpn_suspend_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    vpn_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     vpn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     vpn_logging: ClassVar[bool] = False
     vpn_message_box: ClassVar[bool] = False
@@ -30,7 +30,7 @@ class GUIProtectionSettings:
     # Hosting-based protection
     hosting_suspend_enabled: ClassVar[bool] = False
     hosting_suspend_process_path: ClassVar[Path | None] = None
-    hosting_suspend_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    hosting_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     hosting_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     hosting_logging: ClassVar[bool] = False
     hosting_message_box: ClassVar[bool] = False
@@ -39,7 +39,7 @@ class GUIProtectionSettings:
     country_block_enabled: ClassVar[bool] = False
     country_block_list: ClassVar[list[str]] = []
     country_block_process_path: ClassVar[Path | None] = None
-    country_block_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    country_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     country_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     country_logging: ClassVar[bool] = False
     country_message_box: ClassVar[bool] = False
@@ -48,7 +48,7 @@ class GUIProtectionSettings:
     isp_block_enabled: ClassVar[bool] = False
     isp_block_list: ClassVar[list[str]] = []
     isp_block_process_path: ClassVar[Path | None] = None
-    isp_block_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    isp_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     isp_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     isp_logging: ClassVar[bool] = False
     isp_message_box: ClassVar[bool] = False
@@ -57,7 +57,7 @@ class GUIProtectionSettings:
     asn_block_enabled: ClassVar[bool] = False
     asn_block_list: ClassVar[list[str]] = []
     asn_block_process_path: ClassVar[Path | None] = None
-    asn_block_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    asn_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     asn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     asn_logging: ClassVar[bool] = False
     asn_message_box: ClassVar[bool] = False
@@ -65,7 +65,7 @@ class GUIProtectionSettings:
     # Player join protection
     player_join_enabled: ClassVar[bool] = False
     player_join_process_path: ClassVar[Path | None] = None
-    player_join_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    player_join_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_join_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_join_logging: ClassVar[bool] = False
     player_join_message_box: ClassVar[bool] = False
@@ -73,7 +73,7 @@ class GUIProtectionSettings:
     # Player rejoin protection
     player_rejoin_enabled: ClassVar[bool] = False
     player_rejoin_process_path: ClassVar[Path | None] = None
-    player_rejoin_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    player_rejoin_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_rejoin_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_rejoin_logging: ClassVar[bool] = False
     player_rejoin_message_box: ClassVar[bool] = False
@@ -81,7 +81,7 @@ class GUIProtectionSettings:
     # Player leave protection
     player_leave_enabled: ClassVar[bool] = False
     player_leave_process_path: ClassVar[Path | None] = None
-    player_leave_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    player_leave_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_leave_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_leave_logging: ClassVar[bool] = False
     player_leave_message_box: ClassVar[bool] = False
@@ -90,7 +90,7 @@ class GUIProtectionSettings:
     gta5_relay_enabled: ClassVar[bool] = False
     gta5_relay_packet_threshold: ClassVar[int] = 40
     gta5_relay_process_path: ClassVar[Path | None] = None
-    gta5_relay_duration: ClassVar[int | Literal['Auto', 'Adaptive']] = 'Auto'
+    gta5_relay_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     gta5_relay_logging: ClassVar[bool] = False
     gta5_relay_message_box: ClassVar[bool] = False
@@ -107,7 +107,7 @@ class GUIProtectionSettings:
         enabled = getattr(cls, f'{prefix}_enabled', getattr(cls, f'{prefix}_suspend_enabled', False))
         process_path = getattr(cls, f'{prefix}_process_path', getattr(cls, f'{prefix}_suspend_process_path', None))
         duration = cast(
-            'int | Literal["Auto", "Adaptive"]',
+            'int | Literal["Auto"]',
             getattr(cls, f'{prefix}_duration', getattr(cls, f'{prefix}_suspend_duration', 'Auto')),
         )
         voice = getattr(cls, f'{prefix}_voice_notifications', False)

@@ -39,7 +39,7 @@ class UserIPSettingsModel(BaseModel):
     VOICE_NOTIFICATIONS: Literal['Male', 'Female', False]
     PROTECTION: Literal['Suspend_Process', False]
     PROTECTION_PROCESS_PATH: Path | None
-    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto', 'Adaptive']
+    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto']
 
     @staticmethod
     def _record_rewrite(info: ValidationInfo, field_name: str, rewrite_value: str) -> None:
@@ -158,7 +158,7 @@ class UserIPSettingsModel(BaseModel):
 
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')
     @classmethod
-    def _parse_suspend_mode(cls, value: object) -> int | Literal['Auto', 'Adaptive']:
+    def _parse_suspend_mode(cls, value: object) -> int | Literal['Auto']:
         """Parse suspend mode values, preserving readable fixed-duration manual values."""
         if isinstance(value, int):
             if value >= 0:
@@ -167,7 +167,7 @@ class UserIPSettingsModel(BaseModel):
             raise ValueError(msg)
         if isinstance(value, str):
             parsed = parse_duration_setting(value)
-            if isinstance(parsed, int) or parsed in ('Auto', 'Adaptive'):
+            if isinstance(parsed, int) or parsed == 'Auto':
                 return parsed
             msg = f'invalid suspend process mode: {value!r}'
             raise ValueError(msg)

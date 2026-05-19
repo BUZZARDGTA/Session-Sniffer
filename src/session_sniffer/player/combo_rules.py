@@ -37,7 +37,7 @@ class ComboRule:
     # Action settings
     protection_enabled: bool = False
     process_path: Path | None = None
-    duration: int | Literal['Auto', 'Adaptive'] = 'Auto'
+    duration: int | Literal['Auto'] = 'Auto'
     voice_notifications: Literal['Male', 'Female'] | bool = False
     logging: bool = False
     message_box: bool = False

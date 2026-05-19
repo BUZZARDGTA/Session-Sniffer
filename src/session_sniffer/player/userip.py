@@ -49,7 +49,7 @@ class ProtectionSettings(NamedTuple):
     """Protection-related settings for a UserIP entry."""
     enabled: bool
     process_path: Path | None
-    suspend_process_mode: int | Literal['Auto', 'Adaptive']
+    suspend_process_mode: int | Literal['Auto']
 
 
 class UserIPSettings(NamedTuple):

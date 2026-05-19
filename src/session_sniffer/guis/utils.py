@@ -59,15 +59,8 @@ SUSPEND_TOOLTIP_AUTO = (
 )
 SUSPEND_TOOLTIP_MANUAL = (
     'Suspend for a fixed number of seconds without smart resume behavior.\n'
-    '\u2022 Robustness: High \u2013 no adaptive idle detection.\n'
+    '\u2022 Robustness: High \u2013 no idle detection.\n'
     '\u2022 Freeze time: Fixed \u2013 exactly the duration you set.'
-)
-SUSPEND_TOOLTIP_ADAPTIVE = (
-    'PPS-based smart suspend/resume.\n'
-    'Temporarily resumes while the hostile player is idle (0 packets/sec)\n'
-    'and re-suspends as soon as activity is detected.\n'
-    '\u2022 Robustness: Moderate \u2013 idle players may still be connected.\n'
-    '\u2022 Freeze time: Shortest \u2013 game is only frozen during active traffic.'
 )
 
 

@@ -60,7 +60,7 @@ def parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
     return False
 
 
-def parse_duration_setting(raw: str) -> int | Literal['Auto', 'Adaptive']:
+def parse_duration_setting(raw: str) -> int | Literal['Auto']:
     """Parse a protection suspend-duration setting string to its typed value."""
     try:
         return int(raw)
@@ -72,12 +72,10 @@ def parse_duration_setting(raw: str) -> int | Literal['Auto', 'Adaptive']:
                 return int(raw.removeprefix('Manual(').removesuffix(')'))
             except ValueError:
                 return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
-        if raw == 'Adaptive':
-            return 'Adaptive'
         return 'Auto'
 
 
-def format_duration_setting(value: int | Literal['Auto', 'Adaptive']) -> str:
+def format_duration_setting(value: int | Literal['Auto']) -> str:
     """Format a protection suspend-duration value for persistence."""
     if isinstance(value, int):
         return f'Manual({value})'

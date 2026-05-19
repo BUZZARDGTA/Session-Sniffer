@@ -35,7 +35,6 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.country_data import COUNTRY_NAMES, get_country_flag_code
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
-    SUSPEND_TOOLTIP_ADAPTIVE,
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_MANUAL,
     set_dialog_window_flags,
@@ -98,19 +97,15 @@ def _set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int
         combo.setCurrentText('Manual')
         spin.setValue(int(duration))
         spin.setEnabled(True)
-    elif duration == 'Adaptive':
-        combo.setCurrentText('Adaptive')
     else:
         combo.setCurrentText('Auto')
 
 
-def _read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Adaptive']:
+def _read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto']:
     """Read duration value from combo and spin box widgets."""
     text = combo.currentText()
     if text == 'Manual':
         return spin.value()
-    if text == 'Adaptive':
-        return 'Adaptive'
     return 'Auto'
 
 
@@ -328,7 +323,7 @@ class _ComboRuleEditorDialog(QDialog):
         duration_row = QHBoxLayout()
         duration_row.addWidget(QLabel('Suspend Mode:'))
         self._duration_combo = QComboBox()
-        self._duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
+        self._duration_combo.addItems(['Auto', 'Manual'])
         duration_row.addWidget(self._duration_combo)
         self._duration_spin = QSpinBox()
         self._duration_spin.setRange(1, 3600)
@@ -1198,10 +1193,9 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
+        duration_combo.addItems(['Auto', 'Manual'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{protection_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
@@ -1314,10 +1308,9 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
-        duration_combo.addItems(['Auto', 'Manual', 'Adaptive'])
+        duration_combo.addItems(['Auto', 'Manual'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
         setattr(self, f'{blocklist_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
@@ -1477,19 +1470,15 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             combo.setCurrentText('Manual')
             spin.setValue(int(duration))
             spin.setEnabled(True)
-        elif duration == 'Adaptive':
-            combo.setCurrentText('Adaptive')
         else:
             combo.setCurrentText('Auto')
 
     @staticmethod
-    def _read_duration_widgets(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto', 'Adaptive']:
+    def _read_duration_widgets(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto']:
         """Read duration value from combo and spin box widgets."""
         text = combo.currentText()
         if text == 'Manual':
             return spin.value()
-        if text == 'Adaptive':
-            return 'Adaptive'
         return 'Auto'
 
     @staticmethod

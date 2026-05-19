@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.guis.utils import (
-    SUSPEND_TOOLTIP_ADAPTIVE,
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_MANUAL,
 )
@@ -196,8 +195,6 @@ class _SVGColorPickerDialog(QDialog):
             return True, dlg._chosen, dlg._chosen_name
         return False, QColor(), ''
 
-
-_SUSPEND_MODE_ADAPTIVE_INDEX = 2
 
 _SETTINGS_CONTAINER_STYLESHEET = """
 #SettingsContainer {
@@ -457,10 +454,9 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
 
         suspend_row = QHBoxLayout()
         self._setting_suspend_mode = QComboBox()
-        self._setting_suspend_mode.addItems(['Auto', 'Manual', 'Adaptive'])
+        self._setting_suspend_mode.addItems(['Auto', 'Manual'])
         self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.setItemData(2, SUSPEND_TOOLTIP_ADAPTIVE, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.currentIndexChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()
@@ -513,12 +509,6 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         if suspend_val.lower() == 'auto':
             self._setting_suspend_mode.setCurrentIndex(0)
             self._setting_suspend_custom.setVisible(False)
-        elif suspend_val.lower() == 'manual':
-            self._setting_suspend_mode.setCurrentIndex(1)
-            self._setting_suspend_custom.setVisible(True)
-        elif suspend_val.lower() == 'adaptive':
-            self._setting_suspend_mode.setCurrentIndex(_SUSPEND_MODE_ADAPTIVE_INDEX)
-            self._setting_suspend_custom.setVisible(False)
         else:
             self._setting_suspend_mode.setCurrentIndex(1)
             self._setting_suspend_custom.setVisible(True)
@@ -560,10 +550,8 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         suspend_idx = self._setting_suspend_mode.currentIndex()
         if not suspend_idx:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Auto'
-        elif suspend_idx == 1:
+        else:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = f'Manual({self._setting_suspend_custom.value()})'
-        elif suspend_idx == _SUSPEND_MODE_ADAPTIVE_INDEX:
-            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Adaptive'
 
         return settings
 
