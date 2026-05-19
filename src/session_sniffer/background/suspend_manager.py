@@ -257,7 +257,6 @@ class ProcessSuspendManager:
         return all(cls._reason_is_satisfied(r, now) for r in state.reasons.values())
 
     @classmethod
-    @classmethod
     def _monitor(cls, path_key: str) -> None:
         """Poll reasons until all are satisfied, then resume the process."""
         while not cls._shutdown_event.is_set():
