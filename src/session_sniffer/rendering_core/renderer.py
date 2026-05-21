@@ -598,10 +598,16 @@ def rendering_core(
                             SessionHost.search_player = False
                     # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
                     if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                        logger.debug(
-                            '[SessionHost] All %d pending disconnection players have left, clearing host and triggering search',
-                            len(SessionHost.players_pending_for_disconnection),
-                        )
+                        if SessionHost.player:
+                            logger.debug(
+                                '[SessionHost] All %d pending disconnection players have left, clearing host and triggering search',
+                                len(SessionHost.players_pending_for_disconnection),
+                            )
+                        else:
+                            logger.debug(
+                                '[SessionHost] All %d pending disconnection players have left, triggering search',
+                                len(SessionHost.players_pending_for_disconnection),
+                            )
                         _relay_host_logged_ip = None
                         SessionHost.player = None
                         SessionHost.search_player = True
