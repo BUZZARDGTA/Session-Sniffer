@@ -389,25 +389,18 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         self._setting_notifications.toggled.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_notifications)
 
-        row_cln.addStretch()
-        body_layout.addLayout(row_cln)
-
-        # ── Row 2: Voice ──
-        row2 = QHBoxLayout()
-        row2.setSpacing(8)
-
         voice_lbl = QLabel('Voice:')
-        row2.addWidget(voice_lbl)
+        row_cln.addWidget(voice_lbl)
 
         self._setting_voice = QComboBox()
         self._setting_voice.addItems(['Disabled', 'Male', 'Female'])
         self._setting_voice.setToolTip('Text-to-speech voice for notifications')
         self._setting_voice.setMinimumWidth(120)
         self._setting_voice.currentIndexChanged.connect(self._on_setting_changed)
-        row2.addWidget(self._setting_voice)
+        row_cln.addWidget(self._setting_voice)
 
-        row2.addStretch()
-        body_layout.addLayout(row2)
+        row_cln.addStretch()
+        body_layout.addLayout(row_cln)
 
         # ── Protection section (hidden for neighbour interface / console scanning) ──
         self._protection_section = QWidget()
