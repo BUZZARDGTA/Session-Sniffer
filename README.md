@@ -19,15 +19,11 @@
 
 ## ⬇️ Download
 
-Grab the latest stable release and get started instantly!  
+Grab the latest stable release and get started instantly, or build it yourself from source.
 
 [![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-%23007ACC?style=for-the-badge&logo=github&logoColor=white)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe)
 
----
-
-## 🔨 Building from Source
-
-Prefer to run or build the application directly from source? See the step-by-step guide on the [**Building from Source**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source) wiki page.
+🔨 Prefer to run or build from source? See the step-by-step guide on the [**Building from Source**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source) wiki page.
 
 ---
 
