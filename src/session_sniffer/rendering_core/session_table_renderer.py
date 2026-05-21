@@ -321,7 +321,7 @@ def build_session_table_snapshot(
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
         if 'Upload' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-        disconnected_row_texts.append(player.ip)
+        disconnected_row_texts.append(format_player_ip(player.ip))
         if 'Hostname' in disconnected_shown_columns:
             disconnected_row_texts.append(player.reverse_dns.hostname)
         if 'Last Port' in disconnected_shown_columns:

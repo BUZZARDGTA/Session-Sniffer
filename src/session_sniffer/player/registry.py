@@ -2,10 +2,12 @@
 
 from datetime import timedelta
 from heapq import nsmallest
+from ipaddress import IPv4Address, IPv4Network
 from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
+from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
 
@@ -14,9 +16,25 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-MINIMUM_PACKETS_FOR_SESSION_HOST = 50
+MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 10
+MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 20
+SESSION_HOST_MAX_PACKETS_FOR_DETECTION = 1000
 SESSION_HOST_CANDIDATE_PLAYERS_COUNT = 2
-SESSION_HOST_AMBIGUITY_THRESHOLD_MS = 50
+SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS = 200
+SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS = 500
+SESSION_HOST_SEARCH_TIMEOUT_SECONDS = 30
+SESSION_HOST_STARTUP_WINDOW_SECONDS = 3.0
+
+_ALL_THIRD_PARTY_NETWORKS: tuple[IPv4Network, ...] = tuple(
+    IPv4Network(cidr, strict=False)
+    for server in ThirdPartyServers
+    for cidr in server.value
+)
+
+
+def is_third_party_server_ip(ip: str) -> bool:
+    """Return True if `ip` matches any known third-party server CIDR range."""
+    return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_NETWORKS)
 
 
 class PlayersRegistry:
@@ -217,25 +235,33 @@ class SessionHost:
 
     player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
+    search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_ambiguous_candidates: ClassVar[tuple[str, str] | None] = None
+    startup_players: ClassVar[set[str]] = set()
 
     @classmethod
     def clear_session_host_data(cls) -> None:
         """Clear all session host data including pending disconnections."""
         cls.players_pending_for_disconnection.clear()
         cls.search_player = False
+        cls.search_start_time = None
         cls.player = None
         cls.last_ambiguous_candidates = None
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players."""
-        logger.debug(
-            '[SessionHost] get_host_player called with %d total connected players',
-            len(session_connected),
-        )
-        connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, session_connected, key=attrgetter('datetime.last_rejoin'))
+        p2p_players = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
+        if len(p2p_players) < len(session_connected):
+            logger.debug(
+                '[SessionHost] Filtered %d server IP(s) from candidates (%d P2P players remain)',
+                len(session_connected) - len(p2p_players), len(p2p_players),
+            )
+        if not p2p_players:
+            logger.debug('[SessionHost] No P2P players remain after server filtering, skipping host search')
+            return None
+        connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, p2p_players, key=attrgetter('datetime.last_rejoin'))
 
         for i, p in enumerate(connected_players):
             logger.debug(
@@ -250,31 +276,45 @@ class SessionHost:
             potential_session_host_player = connected_players[0]
         elif len(connected_players) == SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
             time_difference = connected_players[1].datetime.last_rejoin - connected_players[0].datetime.last_rejoin
-            logger.debug(
-                '[SessionHost] Two candidates, time_difference=%s (threshold=%sms)',
-                time_difference, SESSION_HOST_AMBIGUITY_THRESHOLD_MS,
-            )
-            if time_difference >= timedelta(milliseconds=SESSION_HOST_AMBIGUITY_THRESHOLD_MS):
-                logger.debug('[SessionHost] Gap >= %sms, selecting candidate[0] as potential host', SESSION_HOST_AMBIGUITY_THRESHOLD_MS)
+            logger.debug('[SessionHost] Two candidates, time_difference=%s', time_difference)
+            if time_difference > timedelta(milliseconds=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS):
+                logger.debug(
+                    '[SessionHost] Rejected: gap %.0fms exceeds max threshold %sms, candidate[0] is temporally isolated',
+                    time_difference.total_seconds() * 1000, SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
+                )
+                return None
+            if time_difference >= timedelta(milliseconds=SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS):
+                logger.debug(
+                    '[SessionHost] Gap %.0fms in range [%sms, %sms], selecting candidate[0] as potential host',
+                    time_difference.total_seconds() * 1000, SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS, SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
+                )
                 potential_session_host_player = connected_players[0]
-            elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in connected_players):
+            elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST for p in connected_players):
                 # Time gap is ambiguous, but both candidates have enough packets.
                 # Use packet count as tiebreaker — the host relays all traffic, so it typically exchanges more packets.
                 potential_session_host_player = max(connected_players, key=attrgetter('packets.exchanged'))
                 logger.debug(
                     '[SessionHost] Gap < %sms but both have >= %d packets, using packet count tiebreaker: %s (%d packets)',
-                    SESSION_HOST_AMBIGUITY_THRESHOLD_MS, MINIMUM_PACKETS_FOR_SESSION_HOST,
+                    SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                     potential_session_host_player.ip, potential_session_host_player.packets.exchanged,
                 )
             else:
-                logger.debug('[SessionHost] Gap < %sms, not enough packets for tiebreaker yet', SESSION_HOST_AMBIGUITY_THRESHOLD_MS)
+                logger.debug('[SessionHost] Gap < %sms, not enough packets for tiebreaker yet', SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS)
                 # Timestamps are immutable — retrying the same pair will always produce the same result.
                 # Once both candidates accumulate enough packets, the renderer will re-trigger the search
                 # so the packet count tiebreaker can be applied.
                 SessionHost.last_ambiguous_candidates = (connected_players[0].ip, connected_players[1].ip)
                 SessionHost.search_player = False
+                SessionHost.search_start_time = None
         else:
             raise UnexpectedPlayerCountError(len(connected_players))
+
+        # Both sole-candidate and two-candidate paths use MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST.
+        # GTA5 matchmaking briefly probes other sessions' hosts (10-20 packet transient handshakes)
+        # — a lone candidate in that range could be a probe, but it could equally be a relay host
+        # that disconnected while alone in the session. Using the minimum threshold for both paths
+        # ensures relay hosts with few packets are detected rather than silently missed.
+        is_sole_p2p_candidate = len(connected_players) == 1
 
         if (
             not potential_session_host_player
@@ -283,7 +323,10 @@ class SessionHost:
             # The lower this value, the riskier it becomes, as it could potentially flag a player who ultimately isn't part of the newly discovered session.
             # In such scenarios, a better approach might involve checking around 25-100 packets.
             # However, increasing this value also increases the risk, as the host may have already disconnected.
-            or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_SESSION_HOST
+            or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
+            # A candidate with too many packets has been connected far too long to be the host of a
+            # newly joined session — host detection only applies at session join time.
+            or potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION
         ):
             if not potential_session_host_player:
                 logger.debug('[SessionHost] Rejected: no potential host candidate was selected')
@@ -292,14 +335,25 @@ class SessionHost:
                     '[SessionHost] Rejected: candidate %s is in players_pending_for_disconnection (%d pending)',
                     potential_session_host_player.ip, len(SessionHost.players_pending_for_disconnection),
                 )
+            elif potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
+                logger.debug(
+                    '[SessionHost] Rejected: candidate %s has %d packets (exceeds max %d, too many for a newly joined session)',
+                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged, SESSION_HOST_MAX_PACKETS_FOR_DETECTION,
+                )
+            elif is_sole_p2p_candidate:
+                logger.debug(
+                    '[SessionHost] Rejected: sole candidate %s has %d packets (need >= %d)',
+                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                )
             else:
                 logger.debug(
                     '[SessionHost] Rejected: candidate %s has %d packets (need >= %d)',
-                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged, MINIMUM_PACKETS_FOR_SESSION_HOST,
+                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                 )
             return None
 
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
         SessionHost.player = potential_session_host_player
         SessionHost.search_player = False
+        SessionHost.search_start_time = None
         return potential_session_host_player

@@ -25,7 +25,16 @@ from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhoo
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
-from session_sniffer.player.registry import MINIMUM_PACKETS_FOR_SESSION_HOST, SESSION_HOST_CANDIDATE_PLAYERS_COUNT, PlayersRegistry, SessionHost
+from session_sniffer.player.registry import (
+    MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+    MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+    SESSION_HOST_CANDIDATE_PLAYERS_COUNT,
+    SESSION_HOST_SEARCH_TIMEOUT_SECONDS,
+    SESSION_HOST_STARTUP_WINDOW_SECONDS,
+    PlayersRegistry,
+    SessionHost,
+    is_third_party_server_ip,
+)
 from session_sniffer.player.userip import UserIPDatabases, UserIPSettings
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.session_table_renderer import (
@@ -333,7 +342,7 @@ def rendering_core(
                 disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
                 disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
                 disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-                disconnected_row_texts.append(player.ip)
+                disconnected_row_texts.append(format_player_ip(player.ip))
                 disconnected_row_texts.append(player.reverse_dns.hostname)
                 disconnected_row_texts.append(f'{player.ports.last}')
                 disconnected_row_texts.append(format_player_middle_ports(player))
@@ -420,6 +429,9 @@ def rendering_core(
         logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
         last_userip_parse_time = None
         last_session_logging_processing_time = None
+        _relay_host_logged_ip: str | None = None
+        _sniffer_just_started: bool = True
+        _sniffer_start_time: float = time.monotonic()
         last_webhook_submit_time: float | None = None
         discord_rpc_manager: DiscordRPC | None = None
         discord_webhook_sender: DiscordWebhookSender | None = None
@@ -464,7 +476,7 @@ def rendering_core(
         _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
         _userip_db_slowdown = SlowdownDetector.get('userip_db_update', baseline_floor=0.05)
 
-        while not gui_closed__event.is_set():
+        while not gui_closed__event.is_set():  # pylint: disable=too-many-nested-blocks
             capture = capture_holder.get()  # Resolve the active capture each iteration
             _rendering_loop_start = time.monotonic()
 
@@ -489,6 +501,8 @@ def rendering_core(
                     and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer
                 ):
                     player.mark_as_left()
+                    player.protection_checked = False
+                    player.relay_monitor_started = False
                     players_to_disconnect.append(idx)
                     session_disconnected.append(player)
 
@@ -557,48 +571,117 @@ def rendering_core(
 
             if Settings.capture_program_preset == 'GTA5':
                 if not Settings.gui_session_host_detection:
-                    if SessionHost.player or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_ambiguous_candidates:
+                    if (
+                        SessionHost.player
+                        or SessionHost.players_pending_for_disconnection
+                        or SessionHost.search_player
+                        or SessionHost.last_ambiguous_candidates
+                        or SessionHost.last_timing_gap_candidate
+                    ):
                         SessionHost.clear_session_host_data()
                 else:
+                    p2p_session_connected = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
                     if SessionHost.player and SessionHost.player.left_event.is_set():
-                        logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
-                        SessionHost.player = None
+                        if (
+                            SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST
+                            and _relay_host_logged_ip != SessionHost.player.ip
+                        ):
+                            logger.debug(
+                                '[SessionHost] Current host %s disconnected but is relayed (%d packets <= %d), keeping as host until session clears',
+                                SessionHost.player.ip, SessionHost.player.packets.exchanged, MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            )
+                            _relay_host_logged_ip = SessionHost.player.ip
+                        elif SessionHost.player.packets.exchanged > MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+                            logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
+                            _relay_host_logged_ip = None
+                            SessionHost.player = None
+                            SessionHost.search_player = True
                     # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
                     if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
                         logger.debug(
                             '[SessionHost] All %d pending disconnection players have left, resetting host and triggering search',
                             len(SessionHost.players_pending_for_disconnection),
                         )
+                        _relay_host_logged_ip = None
                         SessionHost.player = None
                         SessionHost.search_player = True
                         SessionHost.players_pending_for_disconnection.clear()
 
+                    # Sniffer startup: if players appear within 3 seconds of the first search start
+                    # they were almost certainly already in the session when the sniffer launched.
+                    # Capture them once and defer detection until they all leave.
+                    if _sniffer_just_started and SessionHost.search_player and p2p_session_connected:
+                        _sniffer_just_started = False
+                        elapsed = time.monotonic() - _sniffer_start_time
+                        SessionHost.startup_players = {p.ip for p in p2p_session_connected} if elapsed <= SESSION_HOST_STARTUP_WINDOW_SECONDS else set()
+                        if SessionHost.startup_players:
+                            logger.debug(
+                                '[SessionHost] Sniffer startup: %d pre-existing player(s) detected, deferring host search until they leave',
+                                len(SessionHost.startup_players),
+                            )
+
                     if not session_connected:
                         if SessionHost.player or not SessionHost.search_player:
                             logger.debug('[SessionHost] No connected players, resetting host and triggering search')
+                        _relay_host_logged_ip = None
                         SessionHost.player = None
                         SessionHost.search_player = True
                         SessionHost.players_pending_for_disconnection.clear()
-                    elif len(session_connected) >= 1 and all(
-                        not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in session_connected
+                    elif not p2p_session_connected:
+                        pass
+                    elif all(
+                        not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected
                     ):
-                        logger.debug(
-                            '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
-                            len(session_connected),
-                        )
-                        SessionHost.players_pending_for_disconnection = session_connected
+                        if not SessionHost.players_pending_for_disconnection:
+                            logger.debug(
+                                '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
+                                len(p2p_session_connected),
+                            )
+                            SessionHost.players_pending_for_disconnection = p2p_session_connected
                     elif SessionHost.search_player:
-                        logger.debug(
-                            '[SessionHost] search_player=True, calling get_host_player with %d connected players',
-                            len(session_connected),
-                        )
-                        SessionHost.get_host_player(session_connected)
+                        if SessionHost.search_start_time is None:
+                            SessionHost.search_start_time = time.monotonic()
+                        if (time.monotonic() - SessionHost.search_start_time) >= SESSION_HOST_SEARCH_TIMEOUT_SECONDS:
+                            SessionHost.startup_players.clear()
+                            logger.debug(
+                                '[SessionHost] Host search timed out after %ds with no result, giving up'
+                                ' (pending: %d players). Clearing search state.',
+                                SESSION_HOST_SEARCH_TIMEOUT_SECONDS,
+                                len(SessionHost.players_pending_for_disconnection),
+                            )
+                            SessionHost.clear_session_host_data()
+                        elif SessionHost.startup_players:
+                            connected_ips = {p.ip for p in p2p_session_connected}
+                            SessionHost.startup_players &= connected_ips
+                            # New players outside the original startup batch mean a new session is underway — abort deferral.
+                            if connected_ips - SessionHost.startup_players:
+                                logger.debug('[SessionHost] New player(s) detected outside startup batch, clearing startup deferral')
+                                SessionHost.startup_players.clear()
+                            elif SessionHost.startup_players:
+                                logger.debug(
+                                    '[SessionHost] Waiting for %d pre-existing startup player(s) to leave before searching',
+                                    len(SessionHost.startup_players),
+                                )
+                        elif (
+                            len(p2p_session_connected) == 1
+                            and p2p_session_connected[0].packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
+                        ):
+                            logger.debug(
+                                '[SessionHost] Sole candidate %s has %d packets, waiting for >= %d before searching',
+                                p2p_session_connected[0].ip, p2p_session_connected[0].packets.exchanged, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            )
+                        else:
+                            logger.debug(
+                                '[SessionHost] search_player=True, calling get_host_player with %d connected players',
+                                len(p2p_session_connected),
+                            )
+                            SessionHost.get_host_player(p2p_session_connected)
                     elif (
                         not SessionHost.player
                         and SessionHost.last_ambiguous_candidates is not None
-                        and len(session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
+                        and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
                     ):
-                        top2 = sorted(session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
+                        top2 = sorted(p2p_session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
                         current_pair = (top2[0].ip, top2[1].ip)
                         if current_pair != SessionHost.last_ambiguous_candidates:
                             logger.debug(
@@ -607,12 +690,33 @@ def rendering_core(
                             )
                             SessionHost.last_ambiguous_candidates = None
                             SessionHost.search_player = True
-                        elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_SESSION_HOST for p in top2):
+                        elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST for p in top2):
                             logger.debug(
                                 '[SessionHost] Both ambiguous candidates now have >= %d packets, re-triggering search for packet count tiebreaker',
-                                MINIMUM_PACKETS_FOR_SESSION_HOST,
+                                MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                             )
                             SessionHost.last_ambiguous_candidates = None
+                            SessionHost.search_player = True
+                    elif (
+                        not SessionHost.player
+                        and SessionHost.last_timing_gap_candidate is not None
+                        and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
+                    ):
+                        top2 = sorted(p2p_session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
+                        current_pair = (top2[0].ip, top2[1].ip)
+                        if current_pair != SessionHost.last_timing_gap_candidate:
+                            logger.debug(
+                                '[SessionHost] Top candidates changed from %s to %s, re-triggering search',
+                                SessionHost.last_timing_gap_candidate, current_pair,
+                            )
+                            SessionHost.last_timing_gap_candidate = None
+                            SessionHost.search_player = True
+                        elif top2[0].packets.exchanged >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+                            logger.debug(
+                                '[SessionHost] Timing gap candidate[0] %s now has >= %d packets, re-triggering search',
+                                top2[0].ip, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            )
+                            SessionHost.last_timing_gap_candidate = None
                             SessionHost.search_player = True
 
             if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):

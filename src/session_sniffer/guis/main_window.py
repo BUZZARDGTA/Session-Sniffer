@@ -1724,7 +1724,7 @@ class MainWindow(QMainWindow):
         connected_ips = {player.ip for player in connected_players}
 
         PlayersRegistry.clear_connected_players()
-        SessionHost.clear_session_host_data()
+        SessionHost.players_pending_for_disconnection.clear()
         self._connected.clear_table()
 
         if connected_ips:
@@ -1739,6 +1739,9 @@ class MainWindow(QMainWindow):
         disconnected_ips = {player.ip for player in disconnected_players}
 
         PlayersRegistry.clear_disconnected_players()
+        SessionHost.players_pending_for_disconnection = [
+            p for p in SessionHost.players_pending_for_disconnection if p.ip not in disconnected_ips
+        ]
         self._disconnected.clear_table()
 
         if disconnected_ips:
