@@ -1752,11 +1752,6 @@ class MainWindow(QMainWindow):
         if removed_player is None:
             return
 
-        if SessionHost.player and SessionHost.player.ip == ip:
-            logger.debug('[SessionHost] Removed player %s was the current host, triggering re-search', ip)
-            SessionHost.player = None
-            SessionHost.search_player = True
-
         SessionHost.players_pending_for_disconnection = [
             p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
         ]
