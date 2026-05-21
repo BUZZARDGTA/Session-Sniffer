@@ -95,7 +95,7 @@ _atexit_registered = False
 
 
 _FILE_FORMATTER = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d - %(name)s - %(message)s',
+    '%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
 )
 
