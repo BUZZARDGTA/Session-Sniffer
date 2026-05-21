@@ -237,7 +237,6 @@ class SessionHost:
     search_player: ClassVar[bool] = False
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
-    last_ambiguous_candidates: ClassVar[tuple[str, str] | None] = None
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
     startup_players: ClassVar[set[str]] = set()
 
@@ -248,7 +247,6 @@ class SessionHost:
         cls.search_player = False
         cls.search_start_time = None
         cls.player = None
-        cls.last_ambiguous_candidates = None
         cls.last_timing_gap_candidate = None
 
     @staticmethod
@@ -291,21 +289,8 @@ class SessionHost:
                     time_difference.total_seconds() * 1000, SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS, SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
                 )
                 potential_session_host_player = connected_players[0]
-            elif all(p.packets.exchanged >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST for p in connected_players):
-                # Time gap is ambiguous, but both candidates have enough packets.
-                # Use packet count as tiebreaker — the host relays all traffic, so it typically exchanges more packets.
-                potential_session_host_player = max(connected_players, key=attrgetter('packets.exchanged'))
-                logger.debug(
-                    '[SessionHost] Gap < %sms but both have >= %d packets, using packet count tiebreaker: %s (%d packets)',
-                    SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
-                    potential_session_host_player.ip, potential_session_host_player.packets.exchanged,
-                )
             else:
-                logger.debug('[SessionHost] Gap < %sms, not enough packets for tiebreaker yet', SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS)
-                # Timestamps are immutable — retrying the same pair will always produce the same result.
-                # Once both candidates accumulate enough packets, the renderer will re-trigger the search
-                # so the packet count tiebreaker can be applied.
-                SessionHost.last_ambiguous_candidates = (connected_players[0].ip, connected_players[1].ip)
+                logger.debug('[SessionHost] Gap < %sms, ambiguous timing, cannot determine host', SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS)
                 SessionHost.search_player = False
                 SessionHost.search_start_time = None
         else:
