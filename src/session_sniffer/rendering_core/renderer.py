@@ -606,6 +606,15 @@ def rendering_core(
                         SessionHost.player = None
                         SessionHost.search_player = True
                         SessionHost.players_pending_for_disconnection.clear()
+                    elif SessionHost.players_pending_for_disconnection and any(
+                        not player.left_event.is_set() and player.packets.pps.calculated_rate
+                        for player in SessionHost.players_pending_for_disconnection
+                    ):
+                        logger.debug(
+                            '[SessionHost] %d pending disconnection player(s) recovered non-zero PPS, clearing pending list (likely a transient network issue)',
+                            len(SessionHost.players_pending_for_disconnection),
+                        )
+                        SessionHost.players_pending_for_disconnection.clear()
 
                     # Sniffer startup: if players appear within 3 seconds of the first search start
                     # they were almost certainly already in the session when the sniffer launched.
