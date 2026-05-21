@@ -238,6 +238,7 @@ class SessionHost:
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_ambiguous_candidates: ClassVar[tuple[str, str] | None] = None
+    last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
     startup_players: ClassVar[set[str]] = set()
 
     @classmethod
@@ -248,6 +249,7 @@ class SessionHost:
         cls.search_start_time = None
         cls.player = None
         cls.last_ambiguous_candidates = None
+        cls.last_timing_gap_candidate = None
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
@@ -350,6 +352,9 @@ class SessionHost:
                     '[SessionHost] Rejected: candidate %s has %d packets (need >= %d)',
                     potential_session_host_player.ip, potential_session_host_player.packets.exchanged, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                 )
+                SessionHost.last_timing_gap_candidate = (connected_players[0].ip, connected_players[1].ip)
+                SessionHost.search_player = False
+                SessionHost.search_start_time = None
             return None
 
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
