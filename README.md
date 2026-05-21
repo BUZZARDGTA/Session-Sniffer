@@ -25,6 +25,12 @@ Grab the latest stable release and get started instantly!
 
 ---
 
+## 🔨 Building from Source
+
+Prefer to run or build the application directly from source? See the step-by-step guide on the [**Building from Source**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source) wiki page.
+
+---
+
 ### 🔑 Key Features
 
 - **Free & Open Source**: Completely free to use, unlike other similar software.
