@@ -584,8 +584,8 @@ class InterfaceSelectionDialog(QDialog):
                 packets_sent_str = 'N/A'
                 packets_recv_str = 'N/A'
             else:
-                packets_sent_str = str(packets_sent)
-                packets_recv_str = str(packets_recv)
+                packets_sent_str = f'{packets_sent:,}'
+                packets_recv_str = f'{packets_recv:,}'
 
             # Name column
             item = QTableWidgetItem(interface.identity.name)
