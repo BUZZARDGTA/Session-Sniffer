@@ -36,51 +36,11 @@ def _get_system32_dir() -> Path:
 
 
 _SYSTEM32_DIR = _get_system32_dir()
-_NETSH_PATH = str(_SYSTEM32_DIR / 'netsh.exe')
-_ARP_PATH = str(_SYSTEM32_DIR / 'arp.exe')
 _PING_PATH = str(_SYSTEM32_DIR / 'PING.EXE')
 
 _PING_TIMEOUT_MS = 50
 _PING_FANOUT_WORKERS = 64
 _SUBPROCESS_TIMEOUT_S = 5.0
-
-
-def flush_arp_cache() -> None:
-    """Flush the Windows ARP cache (best-effort)."""
-    primary_cmd = [_NETSH_PATH, 'interface', 'ip', 'delete', 'arpcache']
-    fallback_cmd = [_ARP_PATH, '-d', '*']
-
-    try:
-        result = subprocess.run(
-            primary_cmd,
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT_S,
-            check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.warning('netsh ARP cache flush failed: %s', exc)
-    else:
-        if not result.returncode:
-            return
-        logger.warning('netsh ARP cache flush returned %s: %s', result.returncode, (result.stderr or result.stdout).strip())
-
-    try:
-        result = subprocess.run(
-            fallback_cmd,
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT_S,
-            check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.warning('arp -d * failed: %s', exc)
-        return
-
-    if result.returncode:
-        logger.warning('arp -d * returned %s: %s', result.returncode, (result.stderr or result.stdout).strip())
 
 
 def _ping_host(ip_address: str) -> None:
@@ -162,11 +122,10 @@ def refresh_arp_table(
     interfaces: Iterable[Interface],
     progress_callback: ProgressCallback | None = None,
 ) -> None:
-    """Flush the Windows ARP cache and probe local subnets to repopulate it.
+    """Probe local subnets to repopulate the ARP cache via ICMP.
 
     If *progress_callback* is provided it is invoked from worker threads with
     `(completed, total)` updates while pings run.
     """
     interfaces_list = list(interfaces)
-    flush_arp_cache()
     wake_subnet_devices(interfaces_list, progress_callback)
