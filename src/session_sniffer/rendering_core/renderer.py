@@ -612,6 +612,7 @@ def rendering_core(
                         _relay_host_logged_ip = None
                         SessionHost.player = None
                         SessionHost.search_player = True
+                        SessionHost.search_start_time = None
                         SessionHost.players_pending_for_disconnection.clear()
                     elif SessionHost.players_pending_for_disconnection and any(
                         not player.left_event.is_set() and player.packets.pps.calculated_rate

@@ -32,7 +32,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename_multi,
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
@@ -327,6 +327,19 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
                         detections_menu = add_menu(context_menu, '🚨 Detections')
                         build_detections_menu(detections_menu, add_action, player_obj, self)
+
+                    # --- Clear Session Host (single IP, GTA5 only) ---
+                    if (
+                        Settings.capture_program_preset == 'GTA5'
+                        and SessionHost.player is not None
+                        and SessionHost.player.ip == ip_address
+                    ):
+                        add_action(
+                            context_menu,
+                            '❌ Clear Session Host',
+                            tooltip='Manually clear this player as the detected session host.',
+                            handler=SessionHost.clear_session_host_data,
+                        )
 
                     scripts_menu = add_menu(context_menu, '📜 User Scripts')
                     _single_ip = [ip_address]
