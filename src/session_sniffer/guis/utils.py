@@ -166,11 +166,16 @@ class ToggleAlwaysOnTopMixin(QWidget):  # pylint: disable=too-few-public-methods
         layout.addWidget(checkbox)
 
     def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()
+        apply_always_on_top(self, checked)
+
+
+def apply_always_on_top(window: QWidget, checked: bool) -> None:  # noqa: FBT001
+    """Apply or remove the always-on-top window flag and re-show the window."""
+    if checked:
+        window.setWindowFlags(window.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+    else:
+        window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+    window.show()
 
 
 def set_dialog_window_flags(dialog: QDialog) -> None:

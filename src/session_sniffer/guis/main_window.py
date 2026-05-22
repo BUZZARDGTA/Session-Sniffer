@@ -84,7 +84,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import resize_window_for_screen
+from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.protections import GUIProtectionSettings
@@ -1228,11 +1228,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_main_window_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
         """Toggle the always-on-top window flag for this session."""
-        if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()
+        apply_always_on_top(self, checked)
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
