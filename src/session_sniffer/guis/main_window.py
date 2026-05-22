@@ -607,6 +607,42 @@ class MainWindow(QMainWindow):
 
         gta5_menu.addSeparator()
 
+        session_host_submenu = gta5_menu.addMenu('👑 Session Host')
+        if session_host_submenu is None:
+            msg = 'Failed to create Session Host submenu'
+            raise RuntimeError(msg)
+        session_host_submenu.setToolTipsVisible(True)
+
+        host_status_action = QAction('ℹ️ No host', self)
+        host_status_action.setEnabled(False)
+        host_status_action.setToolTip('Current session host detection state')
+        session_host_submenu.addAction(host_status_action)
+        self._host_status_action = host_status_action
+
+        def _update_host_status_label() -> None:
+            if SessionHost.player is not None:
+                self._host_status_action.setText(f'ℹ️ Detected: {SessionHost.player.ip}')
+            elif SessionHost.search_player:
+                self._host_status_action.setText('ℹ️ Searching…')
+            else:
+                self._host_status_action.setText('ℹ️ No host')
+
+        session_host_submenu.aboutToShow.connect(_update_host_status_label)
+
+        session_host_submenu.addSeparator()
+
+        clear_host_action = QAction('❌ Clear Session Host', self)
+        clear_host_action.setToolTip('Manually clear the currently detected session host')
+        clear_host_action.triggered.connect(self._clear_session_host)
+        session_host_submenu.addAction(clear_host_action)
+
+        redetect_host_action = QAction('🔄 Re-detect Host', self)
+        redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
+        redetect_host_action.triggered.connect(self._redetect_session_host)
+        session_host_submenu.addAction(redetect_host_action)
+
+        gta5_menu.addSeparator()
+
         gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
         if gta5_process_submenu is None:
             msg = 'Failed to create GTA5 Process submenu'
@@ -1171,6 +1207,15 @@ class MainWindow(QMainWindow):
     def _open_logging_folder(self) -> None:
         """Open the Logging directory."""
         self._open_directory(LOGGING_DIR_PATH)
+
+    def _clear_session_host(self) -> None:
+        """Manually clear the current session host and reset host detection state."""
+        SessionHost.clear_session_host_data()
+
+    def _redetect_session_host(self) -> None:
+        """Clear the current session host and immediately re-trigger host detection."""
+        SessionHost.clear_session_host_data()
+        SessionHost.search_player = True
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
