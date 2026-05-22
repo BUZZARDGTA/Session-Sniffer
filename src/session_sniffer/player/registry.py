@@ -289,7 +289,10 @@ class SessionHost:
                 )
                 potential_session_host_player = connected_players[0]
             else:
-                logger.debug('[SessionHost] Gap < %sms, ambiguous timing, cannot determine host', SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS)
+                logger.debug(
+                    '[SessionHost] Gap %.0fms < %sms, ambiguous timing, cannot determine host',
+                    time_difference.total_seconds() * 1000, SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS,
+                )
                 SessionHost.search_player = False
                 SessionHost.search_start_time = None
         else:
