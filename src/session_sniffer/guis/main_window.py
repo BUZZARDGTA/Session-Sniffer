@@ -554,7 +554,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(TITLE)
         self.setMinimumSize(800, 600)
         resize_window_for_screen(self, screen_width, screen_height)
-
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -863,6 +862,15 @@ class MainWindow(QMainWindow):
         open_settings_action.setToolTip('View and edit all application settings')
         open_settings_action.triggered.connect(self._open_settings_dialog)
         settings_menu.addAction(open_settings_action)
+
+        settings_menu.addSeparator()
+
+        always_on_top_action = QAction('📌 Always on Top', self)
+        always_on_top_action.setToolTip('Keep the main window above all other windows')
+        always_on_top_action.setCheckable(True)
+        always_on_top_action.setChecked(False)
+        always_on_top_action.toggled.connect(self._toggle_main_window_always_on_top)
+        settings_menu.addAction(always_on_top_action)
 
         # ----- Help menu -----
         help_menu = menu_bar.addMenu('Help')
@@ -1216,6 +1224,14 @@ class MainWindow(QMainWindow):
         """Clear the current session host and immediately re-trigger host detection."""
         SessionHost.clear_session_host_data()
         SessionHost.search_player = True
+
+    def _toggle_main_window_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
+        """Toggle the always-on-top window flag for this session."""
+        if checked:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        else:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+        self.show()
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
