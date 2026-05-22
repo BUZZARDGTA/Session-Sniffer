@@ -128,18 +128,6 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
     return date_dir / f"{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 
 
-def set_window_title(title: str) -> None:
-    """Set the terminal window title (best-effort)."""
-    if sys.stdout is not None:
-        sys.stdout.write(f'\033]0;{title}\007')
-
-
-def clear_screen() -> None:
-    """Clear the terminal screen (best-effort)."""
-    if sys.stdout is not None:
-        sys.stdout.write('\033c')
-
-
 def validate_file(file_path: Path) -> Path:
     """Validate if the given file path exists and is a file.
 

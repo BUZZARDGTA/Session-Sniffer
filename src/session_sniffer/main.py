@@ -62,7 +62,7 @@ from session_sniffer.rendering_core.renderer import rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import clear_screen, is_pyinstaller_compiled, set_window_title
+from session_sniffer.utils import is_pyinstaller_compiled
 
 # Production-friendly logging: file handlers only (no console output)
 setup_logging(console_level=logging.INFO)
@@ -212,9 +212,6 @@ def main() -> None:
         broadcast_support=broadcast_support,
         multicast_support=multicast_support,
     )
-
-    clear_screen()
-    set_window_title(f'DEBUG CONSOLE - {TITLE}')
 
     splash.update_status('Starting packet capture')
 
