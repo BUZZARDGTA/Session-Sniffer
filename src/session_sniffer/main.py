@@ -43,7 +43,7 @@ from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis.app import app
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
-from session_sniffer.guis.interface_selection_dialog import select_interface
+from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.utils import get_screen_size
@@ -91,7 +91,7 @@ def main() -> None:
 
     # Check minimum screen resolution requirement early to avoid wasting user's time
     try:
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
     except UnsupportedScreenResolutionError as e:
         msgbox.show(
             title='Unsupported Screen Resolution',
@@ -173,7 +173,7 @@ def main() -> None:
 
     msgbox.set_owner_hwnd(0)  # Clear owner before handing off z-order to the interface dialog
     selected_interface = select_interface(
-        available_interfaces, screen_width, screen_height,
+        available_interfaces, screen_size,
         before_dialog=splash.lower_to_back,
         mac_lookup=mac_lookup,
     )
@@ -367,8 +367,7 @@ def main() -> None:
         new_available_interfaces = refresh_available_interfaces(mac_lookup)
         new_interface = select_interface(
             new_available_interfaces,
-            screen_width,
-            screen_height,
+            screen_size,
             force_dialog=True,
             mac_lookup=mac_lookup,
         )
@@ -447,7 +446,7 @@ def main() -> None:
         window.on_interface_switched()
         window.set_interface_switching_mode(switching=False)
 
-    window = MainWindow(screen_width, screen_height, capture_holder, on_change_interface=_switch_interface)
+    window = MainWindow(screen_size, capture_holder, on_change_interface=_switch_interface)
 
     def _handle_capture_lost(*, stop_capture: bool, warning_message: str | None) -> None:
         """Shared handler for any event that requires stopping capture and re-selecting an interface."""

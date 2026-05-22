@@ -103,19 +103,18 @@ def get_screen_size() -> tuple[int, int]:
     return screen_width, screen_height
 
 
-def resize_window_for_screen(window: QDialog | QMainWindow, screen_width: int, screen_height: int) -> None:
+def resize_window_for_screen(window: QDialog | QMainWindow, screen_size: tuple[int, int]) -> None:
     """Resize a window based on the screen resolution.
 
     Args:
         window: The window to resize.
-        screen_width: The width of the screen.
-        screen_height: The height of the screen.
+        screen_size: Screen dimensions as (width, height) in pixels.
     """
-    if (screen_width, screen_height) >= (2560, 1440):
+    if screen_size >= (2560, 1440):
         window.resize(1400, 900)
-    elif (screen_width, screen_height) >= (1920, 1080):
+    elif screen_size >= (1920, 1080):
         window.resize(1200, 720)
-    elif (screen_width, screen_height) >= (1024, 768):
+    elif screen_size >= (1024, 768):
         window.resize(940, 680)
 
 

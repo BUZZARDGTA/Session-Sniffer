@@ -521,12 +521,11 @@ class MainWindow(QMainWindow):
             self._connected.is_expanded or self._disconnected.is_expanded,
         )
 
-    def __init__(self, screen_width: int, screen_height: int, capture_holder: CaptureHolder, on_change_interface: Callable[[], None]) -> None:
+    def __init__(self, screen_size: tuple[int, int], capture_holder: CaptureHolder, on_change_interface: Callable[[], None]) -> None:
         """Initialize the main application window.
 
         Args:
-            screen_width: Primary screen width in pixels.
-            screen_height: Primary screen height in pixels.
+            screen_size: Primary screen dimensions as (width, height) in pixels.
             capture_holder: Mutable reference to the active packet capture instance.
             on_change_interface: Callback invoked when the user requests an interface switch.
         """
@@ -553,7 +552,7 @@ class MainWindow(QMainWindow):
         # Set up the window
         self.setWindowTitle(TITLE)
         self.setMinimumSize(800, 600)
-        resize_window_for_screen(self, screen_width, screen_height)
+        resize_window_for_screen(self, screen_size)
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)

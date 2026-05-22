@@ -158,15 +158,15 @@ class SeenStatsDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - Seen Stats ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(400, 300)
 
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
 
-        if (screen_width, screen_height) >= (1920, 1080):
+        if screen_size >= (1920, 1080):
             self.resize(500, 360)
-        elif (screen_width, screen_height) >= (1280, 720):
+        elif screen_size >= (1280, 720):
             self.resize(460, 340)
         else:
-            resize_window_for_screen(self, screen_width, screen_height)
-            self.resize(min(self.width(), max(400, screen_width - 80)), min(self.height(), max(300, screen_height - 80)))
+            resize_window_for_screen(self, screen_size)
+            self.resize(min(self.width(), max(400, screen_size[0] - 80)), min(self.height(), max(300, screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
@@ -279,15 +279,15 @@ class IPLookupDetailsDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
 
-        if (screen_width, screen_height) >= (1920, 1080):
+        if screen_size >= (1920, 1080):
             self.resize(820, 720)
-        elif (screen_width, screen_height) >= (1280, 720):
+        elif screen_size >= (1280, 720):
             self.resize(720, 640)
         else:
-            resize_window_for_screen(self, screen_width, screen_height)
-            self.resize(min(self.width(), max(560, screen_width - 80)), min(self.height(), max(460, screen_height - 80)))
+            resize_window_for_screen(self, screen_size)
+            self.resize(min(self.width(), max(560, screen_size[0] - 80)), min(self.height(), max(460, screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
@@ -473,15 +473,15 @@ class UserIPDetectedDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - UserIP Detected ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
 
-        if (screen_width, screen_height) >= (1920, 1080):
+        if screen_size >= (1920, 1080):
             self.resize(700, 580)
-        elif (screen_width, screen_height) >= (1280, 720):
+        elif screen_size >= (1280, 720):
             self.resize(620, 520)
         else:
-            resize_window_for_screen(self, screen_width, screen_height)
-            self.resize(min(self.width(), max(560, screen_width - 80)), min(self.height(), max(460, screen_height - 80)))
+            resize_window_for_screen(self, screen_size)
+            self.resize(min(self.width(), max(560, screen_size[0] - 80)), min(self.height(), max(460, screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
@@ -639,15 +639,15 @@ class DetectionNotificationDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - {display_title} ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
 
-        if (screen_width, screen_height) >= (1920, 1080):
+        if screen_size >= (1920, 1080):
             self.resize(700, 580)
-        elif (screen_width, screen_height) >= (1280, 720):
+        elif screen_size >= (1280, 720):
             self.resize(620, 520)
         else:
-            resize_window_for_screen(self, screen_width, screen_height)
-            self.resize(min(self.width(), max(560, screen_width - 80)), min(self.height(), max(460, screen_height - 80)))
+            resize_window_for_screen(self, screen_size)
+            self.resize(min(self.width(), max(560, screen_size[0] - 80)), min(self.height(), max(460, screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
@@ -831,15 +831,15 @@ class PlayerDetectionDialog(QDialog):
         self.setWindowTitle(f'{TITLE} - {info.title} ({format_player_display(player.ip, player.usernames)})')
         self.setMinimumSize(560, 460)
 
-        screen_width, screen_height = get_screen_size()
+        screen_size = get_screen_size()
 
-        if (screen_width, screen_height) >= (1920, 1080):
+        if screen_size >= (1920, 1080):
             self.resize(700, 580)
-        elif (screen_width, screen_height) >= (1280, 720):
+        elif screen_size >= (1280, 720):
             self.resize(620, 520)
         else:
-            resize_window_for_screen(self, screen_width, screen_height)
-            self.resize(min(self.width(), max(560, screen_width - 80)), min(self.height(), max(460, screen_height - 80)))
+            resize_window_for_screen(self, screen_size)
+            self.resize(min(self.width(), max(560, screen_size[0] - 80)), min(self.height(), max(460, screen_size[1] - 80)))
 
         color_start, color_stop = _DETECTION_EMOJI_HEADER_COLORS.get(info.emoji, _DETECTION_DEFAULT_HEADER_COLORS)
 
