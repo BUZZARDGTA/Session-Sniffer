@@ -430,7 +430,6 @@ def rendering_core(
         last_userip_parse_time = None
         last_session_logging_processing_time = None
         _relay_host_logged_ip: str | None = None
-        _startup_deferral_logged_count: int | None = None
         _sniffer_just_started: bool = True
         _sniffer_start_time: float = time.monotonic()
         _session_host_was_active: bool = False
@@ -624,24 +623,21 @@ def rendering_core(
                         )
                         SessionHost.players_pending_for_disconnection.clear()
 
-                    # Sniffer startup: if players appear within 3 seconds of the first search start
-                    # they were almost certainly already in the session when the sniffer launched.
-                    # Capture them once and defer detection until they all leave.
-                    if _sniffer_just_started and p2p_session_connected:
-                        _sniffer_just_started = False
+                    # Sniffer startup: wait the full window before deciding.
+                    # Players seen before the window expires suppress the search; once the window
+                    # elapses we snapshot whoever is still connected and either skip or allow search.
+                    if _sniffer_just_started:
                         elapsed = time.monotonic() - _sniffer_start_time
-                        SessionHost.startup_players = {p.ip for p in p2p_session_connected} if elapsed <= SESSION_HOST_STARTUP_WINDOW_SECONDS else set()
-                        SessionHost.search_player = True
-                        if SessionHost.startup_players:
-                            logger.debug(
-                                '[SessionHost] Sniffer startup: %d pre-existing player(s) detected within %.1fs / %.0fs window, deferring host search until they leave',
-                                len(SessionHost.startup_players), elapsed, SESSION_HOST_STARTUP_WINDOW_SECONDS,
-                            )
-                        else:
-                            logger.debug(
-                                '[SessionHost] Sniffer startup: window expired (%.1fs elapsed > %.0fs limit), %d player(s) treated as new session participants',
-                                elapsed, SESSION_HOST_STARTUP_WINDOW_SECONDS, len(p2p_session_connected),
-                            )
+                        if elapsed >= SESSION_HOST_STARTUP_WINDOW_SECONDS:
+                            _sniffer_just_started = False
+                            if p2p_session_connected:
+                                SessionHost.search_player = False
+                                logger.debug(
+                                    '[SessionHost] Sniffer startup: %d pre-existing player%s detected within %.0fs window, skipping host search',
+                                    len(p2p_session_connected), pluralize(len(p2p_session_connected)), SESSION_HOST_STARTUP_WINDOW_SECONDS,
+                                )
+                        elif p2p_session_connected:
+                            SessionHost.search_player = False
 
                     if p2p_session_connected:
                         _session_host_was_active = True
@@ -669,7 +665,6 @@ def rendering_core(
                         if SessionHost.search_start_time is None:
                             SessionHost.search_start_time = time.monotonic()
                         if (time.monotonic() - SessionHost.search_start_time) >= SESSION_HOST_SEARCH_TIMEOUT_SECONDS:
-                            SessionHost.startup_players.clear()
                             logger.debug(
                                 '[SessionHost] Host search timed out after %ds with no result, giving up'
                                 ' (pending: %d players). Clearing search state.',
@@ -677,27 +672,6 @@ def rendering_core(
                                 len(SessionHost.players_pending_for_disconnection),
                             )
                             SessionHost.clear_session_host_data()
-                        elif SessionHost.startup_players:
-                            connected_ips = {p.ip for p in p2p_session_connected}
-                            SessionHost.startup_players &= connected_ips
-                            new_players = connected_ips - SessionHost.startup_players
-                            if new_players:
-                                # New players joined while startup players are still present.
-                                # Add them to the deferral set — wait for everyone to leave before searching.
-                                SessionHost.startup_players |= new_players
-                                logger.debug(
-                                    '[SessionHost] New player(s) detected outside startup batch, adding to startup deferral (%d total)',
-                                    len(SessionHost.startup_players),
-                                )
-                            if SessionHost.startup_players:
-                                if _startup_deferral_logged_count != len(SessionHost.startup_players):
-                                    _startup_deferral_logged_count = len(SessionHost.startup_players)
-                                    logger.debug(
-                                        '[SessionHost] Waiting for %d pre-existing startup player(s) to leave before searching',
-                                        _startup_deferral_logged_count,
-                                    )
-                            else:
-                                _startup_deferral_logged_count = None
                         elif (
                             len(p2p_session_connected) == 1
                             and p2p_session_connected[0].packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST

@@ -238,7 +238,6 @@ class SessionHost:
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
-    startup_players: ClassVar[set[str]] = set()
 
     @classmethod
     def clear_session_host_data(cls) -> None:
