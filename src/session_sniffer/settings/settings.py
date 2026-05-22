@@ -34,11 +34,11 @@ class Settings:
     capture_mac_address: str | None = SETTING_DEFAULTS['capture_mac_address']
     capture_arp_spoofing: bool = SETTING_DEFAULTS['capture_arp_spoofing']
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
+    capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     capture_program_preset: str | None = SETTING_DEFAULTS['capture_program_preset']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
-    capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
     gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
     gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
@@ -84,11 +84,11 @@ class Settings:
         'CAPTURE_MAC_ADDRESS',
         'CAPTURE_ARP_SPOOFING',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
+        'CAPTURE_BLOCKED_IPS',
         'CAPTURE_PROGRAM_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
-        'CAPTURE_BLOCKED_IPS',
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
         'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',

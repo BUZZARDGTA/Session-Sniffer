@@ -88,6 +88,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         allowed_columns_attr='ALL_THIRD_PARTY_SERVERS',
         display_labels=THIRD_PARTY_SERVER_DISPLAY_NAMES,
     ),
+    'capture_blocked_ips': SettingMeta(
+        category='Capture',
+        display_label='Blocked IPs / Ranges',
+        setting_type=SettingType.IP_RANGE_TUPLE,
+        tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
+        requires_capture_restart=True,
+    ),
     'capture_program_preset': SettingMeta(
         category='Capture',
         display_label='Program Preset',
@@ -121,13 +128,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Custom Display Filter',
         setting_type=SettingType.STRING,
         tooltip='Additional display filter prepended to packet filtering.',
-        requires_capture_restart=True,
-    ),
-    'capture_blocked_ips': SettingMeta(
-        category='Capture',
-        display_label='Blocked IPs / Ranges',
-        setting_type=SettingType.IP_RANGE_TUPLE,
-        tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
         requires_capture_restart=True,
     ),
     'gui_interface_selection_auto_connect': SettingMeta(
