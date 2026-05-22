@@ -257,14 +257,18 @@ class InterfaceSelectionDialog(QDialog):
         remember_interface_checkbox.setObjectName('remember_interface_checkbox')
         remember_interface_checkbox.setChecked(remember_interface_default)
         remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
-        remember_interface_checkbox.setStyleSheet('QCheckBox#remember_interface_checkbox { font-size: 14pt; } QCheckBox#remember_interface_checkbox::indicator { width: 20px; height: 20px; }')
+        remember_interface_checkbox.setStyleSheet(
+            'QCheckBox#remember_interface_checkbox { font-size: 14pt; } QCheckBox#remember_interface_checkbox::indicator { width: 20px; height: 20px; }'
+        )
         options_layout.addWidget(remember_interface_checkbox)
 
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
         hide_inactive_checkbox.setObjectName('hide_inactive_checkbox')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
-        hide_inactive_checkbox.setStyleSheet('QCheckBox#hide_inactive_checkbox { font-size: 14pt; } QCheckBox#hide_inactive_checkbox::indicator { width: 20px; height: 20px; }')
+        hide_inactive_checkbox.setStyleSheet(
+            'QCheckBox#hide_inactive_checkbox { font-size: 14pt; } QCheckBox#hide_inactive_checkbox::indicator { width: 20px; height: 20px; }'
+        )
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
 
