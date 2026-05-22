@@ -514,8 +514,10 @@ class InterfaceSelectionDialog(QDialog):
 
             # When ARP spoofing is enabled only show neighbour entries.
             if not arp_spoofing:
-                # Add rows for regular IP addresses
+                # Add rows for regular IP addresses, skipping loopback
                 for ip_address in interface.ip_addresses:
+                    if ip_address == '127.0.0.1':
+                        continue
                     self._data.interface_rows.append((interface, ip_address, False))
 
             # Add rows for neighbour entries
