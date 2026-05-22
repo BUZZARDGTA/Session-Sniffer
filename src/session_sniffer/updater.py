@@ -158,7 +158,7 @@ def _handle_prerelease_update_decision(
 
     if stable_newer and prerelease_newer:
         message = format_triple_quoted_text(f"""
-            You are running a pre-release version ({current_str}). Newer versions are available. Do you want to update?
+            You are running a pre-release version. Newer versions are available. Do you want to update?
 
             Current version: {current_str}
             Latest stable release: {format_project_version(latest_stable)}
@@ -167,7 +167,7 @@ def _handle_prerelease_update_decision(
         open_url = (latest_prerelease_info if latest_prerelease > latest_stable else latest_stable_info).release_url
     elif stable_newer:
         message = format_triple_quoted_text(f"""
-            You are running a pre-release version ({current_str}). A newer stable release is available. Do you want to update?
+            You are running a pre-release version. A newer stable release is available. Do you want to update?
 
             Current version: {current_str}
             Latest stable release: {format_project_version(latest_stable)}
@@ -175,7 +175,7 @@ def _handle_prerelease_update_decision(
         open_url = latest_stable_info.release_url
     else:
         message = format_triple_quoted_text(f"""
-            You are running a pre-release version ({current_str}). A newer pre-release is available. Do you want to update?
+            You are running a pre-release version. A newer pre-release is available. Do you want to update?
 
             Current version: {current_str}
             Latest pre-release: {format_project_version(latest_prerelease)}
