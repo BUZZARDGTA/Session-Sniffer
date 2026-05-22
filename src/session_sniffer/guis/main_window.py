@@ -857,6 +857,7 @@ class MainWindow(QMainWindow):
         if settings_menu is None:
             msg = 'Failed to create Settings menu'
             raise RuntimeError(msg)
+        settings_menu.setToolTipsVisible(True)
 
         open_settings_action = QAction('⚙️ Open Settings', self)
         open_settings_action.setToolTip('View and edit all application settings')
