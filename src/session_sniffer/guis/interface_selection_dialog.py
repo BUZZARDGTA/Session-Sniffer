@@ -126,6 +126,7 @@ class _InterfaceData:
 
 @dataclass(slots=True)
 class _FilterControls:
+    remember_interface_checkbox: QCheckBox
     hide_inactive_checkbox: QCheckBox
     hide_neighbours_checkbox: QCheckBox
     arp_spoofing_checkbox: QCheckBox
@@ -170,6 +171,7 @@ class InterfaceSelectionDialog(QDialog):
         interfaces: list[Interface],
         filter_defaults: tuple[bool, bool, bool],
         *,
+        remember_interface_default: bool = False,
         mac_lookup: MacLookup | None = None,
     ) -> None:
         """Initialize the interface selection dialog.
@@ -251,31 +253,42 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_button.setFixedSize(refresh_arp_button.sizeHint())
         options_layout.addWidget(refresh_arp_button)
 
+        remember_interface_checkbox = QCheckBox('Remember Interface')
+        remember_interface_checkbox.setObjectName('remember_interface_checkbox')
+        remember_interface_checkbox.setChecked(remember_interface_default)
+        remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
+        remember_interface_checkbox.setStyleSheet('QCheckBox#remember_interface_checkbox { font-size: 14pt; } QCheckBox#remember_interface_checkbox::indicator { width: 20px; height: 20px; }')
+        options_layout.addWidget(remember_interface_checkbox)
+
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
+        hide_inactive_checkbox.setObjectName('hide_inactive_checkbox')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
-        hide_inactive_checkbox.setStyleSheet('font-size: 14pt;')
+        hide_inactive_checkbox.setStyleSheet('QCheckBox#hide_inactive_checkbox { font-size: 14pt; } QCheckBox#hide_inactive_checkbox::indicator { width: 20px; height: 20px; }')
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
 
         hide_neighbours_checkbox = QCheckBox('Hide Neighbours')
+        hide_neighbours_checkbox.setObjectName('hide_neighbours_checkbox')
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
-        hide_neighbours_checkbox.setStyleSheet('font-size: 14pt;')
+        hide_neighbours_checkbox.setStyleSheet('QCheckBox#hide_neighbours_checkbox { font-size: 14pt; } QCheckBox#hide_neighbours_checkbox::indicator { width: 20px; height: 20px; }')
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         options_layout.addWidget(hide_neighbours_checkbox)
 
         arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
+        arp_spoofing_checkbox.setObjectName('arp_spoofing_checkbox')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
-        arp_spoofing_checkbox.setStyleSheet('font-size: 14pt;')
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
+        arp_spoofing_checkbox.setStyleSheet('QCheckBox#arp_spoofing_checkbox { font-size: 14pt; } QCheckBox#arp_spoofing_checkbox::indicator { width: 20px; height: 20px; }')
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(arp_spoofing_checkbox)
 
         # Will be set on accept
         self.arp_spoofing_enabled: bool = arp_spoofing_default
+        self.remember_interface_enabled: bool = remember_interface_default
 
         # Tracks whether an ARP refresh worker is currently running.
         self._arp_refresh_in_progress: bool = False
@@ -303,6 +316,7 @@ class InterfaceSelectionDialog(QDialog):
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
+            remember_interface_checkbox=remember_interface_checkbox,
             hide_inactive_checkbox=hide_inactive_checkbox,
             hide_neighbours_checkbox=hide_neighbours_checkbox,
             arp_spoofing_checkbox=arp_spoofing_checkbox,
@@ -712,6 +726,7 @@ class InterfaceSelectionDialog(QDialog):
             self.arp_spoofing_enabled = self._controls.arp_spoofing_checkbox.isChecked()
             self.hide_inactive_enabled = self._controls.hide_inactive_checkbox.isChecked()
             self.hide_neighbours_enabled = self._controls.hide_neighbours_checkbox.isChecked()
+            self.remember_interface_enabled = self._controls.remember_interface_checkbox.isChecked()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
 
@@ -722,8 +737,9 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
     filter_defaults: tuple[bool, bool, bool],
     saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
     *,
+    remember_interface_default: bool = False,
     mac_lookup: MacLookup | None = None,
-) -> tuple[SelectedInterfaceRow | None, bool, bool, bool]:
+) -> tuple[SelectedInterfaceRow | None, bool, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
     Args:
@@ -732,10 +748,11 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
         interfaces: Available Interface objects to display.
         filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
         saved_selection: Previously saved (interface_name, ip_address, mac_address).
+        remember_interface_default: Default state for the Remember Interface checkbox.
         mac_lookup: Optional MacLookup instance for live refresh.
 
     Returns:
-        Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_neighbours_enabled).
+        Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_neighbours_enabled, remember_interface_enabled).
     """
     hide_inactive_default, hide_neighbours_default, arp_spoofing_default = filter_defaults
     saved_interface_name, saved_ip_address, saved_mac_address = saved_selection
@@ -745,6 +762,7 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
         screen_height,
         interfaces,
         filter_defaults,
+        remember_interface_default=remember_interface_default,
         mac_lookup=mac_lookup,
     )
     # Restore the previously saved interface selection
@@ -756,8 +774,9 @@ def show_interface_selection_dialog(  # noqa: PLR0913  # pylint: disable=too-man
             dialog.arp_spoofing_enabled,
             dialog.hide_inactive_enabled,
             dialog.hide_neighbours_enabled,
+            dialog.remember_interface_enabled,
         )
-    return None, arp_spoofing_default, hide_inactive_default, hide_neighbours_default
+    return None, arp_spoofing_default, hide_inactive_default, hide_neighbours_default, remember_interface_default
 
 
 def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
@@ -887,12 +906,14 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         arp_spoofing_enabled,
         hide_inactive_enabled,
         hide_neighbours_enabled,
+        remember_interface_enabled,
     ) = show_interface_selection_dialog(
         screen_width,
         screen_height,
         interfaces,
         (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
+        remember_interface_default=Settings.gui_interface_selection_auto_connect,
         mac_lookup=mac_lookup,
     )
 
@@ -911,6 +932,10 @@ def select_interface(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
     if hide_neighbours_enabled != Settings.gui_interface_selection_hide_neighbours:
         Settings.gui_interface_selection_hide_neighbours = hide_neighbours_enabled
+        need_rewrite_settings = True
+
+    if remember_interface_enabled != Settings.gui_interface_selection_auto_connect:
+        Settings.gui_interface_selection_auto_connect = remember_interface_enabled
         need_rewrite_settings = True
 
     if need_rewrite_settings:
