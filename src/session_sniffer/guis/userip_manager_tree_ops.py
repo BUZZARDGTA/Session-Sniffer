@@ -34,7 +34,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     Expects these attributes on the concrete class:
         _tree, _fs_model, _current_path, _dirty, _model, _open_db_button
     And these methods:
-        _set_status, _refresh_stats, _update_file_info
+        _set_status, _refresh_stats, _load_database, _update_file_info
     """
 
     # -- Attribute stubs for type checkers --
@@ -59,6 +59,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
 
     def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
     def _refresh_stats(self) -> None: ...
+    def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
     def _update_file_info(self, path: Path | None) -> None: ...  # pylint: disable=unused-argument
     def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None: ...  # pylint: disable=unused-argument
     def _populate_settings_widgets(self, settings_dict: dict[str, str]) -> None: ...  # pylint: disable=unused-argument
@@ -100,9 +101,14 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             rename_action.triggered.connect(lambda: self._rename_tree_item(file_path))
             menu.addAction(rename_action)
 
-            delete_action = QAction('🗑️ Delete', self)
-            delete_action.triggered.connect(lambda: self._delete_path(file_path))
-            menu.addAction(delete_action)
+            if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+                reset_default_action = QAction('🔄 Reset', self)
+                reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
+                menu.addAction(reset_default_action)
+            else:
+                delete_action = QAction('🗑️ Delete', self)
+                delete_action.triggered.connect(lambda: self._delete_path(file_path))
+                menu.addAction(delete_action)
 
             menu.addSeparator()
 
@@ -203,8 +209,15 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             QMessageBox.information(self, TITLE, 'No item selected in the tree.')
             return
 
-        file_path = Path(self._fs_model.filePath(indexes[0]))
-        self._delete_path(file_path)
+        self._delete_path(Path(self._fs_model.filePath(indexes[0])))
+
+    def _reset_tree_item(self) -> None:
+        """Reset the currently selected default database to factory content."""
+        indexes = self._tree.selectedIndexes()
+        if not indexes:
+            return
+
+        self._reset_default_database(Path(self._fs_model.filePath(indexes[0])))
 
     def _delete_path(self, path: Path) -> None:
         """Delete a file or folder with user confirmation."""
@@ -241,6 +254,36 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             self._update_file_info(None)
 
         self._set_status(f'Deleted: {path.name}')
+        self._refresh_stats()
+
+    def _reset_default_database(self, path: Path) -> None:
+        """Reset a single default database file to its factory content after user confirmation."""
+        result = QMessageBox.warning(
+            self, TITLE,
+            f'Reset "{path.name}" to factory content?\n\nAll entries and settings in this file will be lost.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        default_file_header = format_triple_quoted_text(
+            USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
+                title=TITLE,
+                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+            ),
+        )
+        default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
+        settings_block = DEFAULT_USERIP_FILES_SETTINGS_INI[path.name].strip()
+        path.write_text(
+            f'{default_file_header}\n\n{settings_block}\n\n{default_file_footer}',
+            encoding='utf-8',
+        )
+
+        if self._current_path == path:
+            self._load_database(path)
+
+        self._set_status(f'Reset "{path.name}" to factory defaults.')
         self._refresh_stats()
 
     def _rename_tree_item(self, path: Path) -> None:

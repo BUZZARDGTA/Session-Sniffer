@@ -53,6 +53,7 @@ from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixi
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
+from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI
 from session_sniffer.text_utils import pluralize
 
 
@@ -107,7 +108,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._delete_tree_button.setToolTip('Delete the selected database or folder')
         self._delete_tree_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._delete_tree_button.setEnabled(False)
-        self._delete_tree_button.clicked.connect(self._delete_tree_item)
+        self._delete_tree_button.clicked.connect(self._delete_tree_item)  # reconnected dynamically in _on_tree_selection_changed
         tree_buttons.addWidget(self._delete_tree_button)
 
         reset_button = QPushButton('🗑️ Reset all…')
@@ -365,16 +366,38 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     def _on_tree_selection_changed(self) -> None:
         """Load the selected database when a .ini file is clicked in the tree."""
         indexes = self._tree.selectedIndexes()
-        self._delete_tree_button.setEnabled(bool(indexes))
 
         if not indexes:
+            self._delete_tree_button.setEnabled(False)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
             return
 
         file_path_str = self._fs_model.filePath(indexes[0])
         if not file_path_str:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
             return
 
         path = Path(file_path_str)
+        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🔄 Reset')
+            self._delete_tree_button.setToolTip('Reset this default database to factory content')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._reset_tree_item)
+        else:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
+
         if not path.is_file() or path.suffix.lower() != '.ini':
             return
 
