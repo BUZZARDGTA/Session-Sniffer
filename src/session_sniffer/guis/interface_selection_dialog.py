@@ -237,7 +237,7 @@ class InterfaceSelectionDialog(QDialog):
         # Filter controls layout
         options_layout = QHBoxLayout()
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        options_layout.setSpacing(60)
+        options_layout.setSpacing(20)
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
