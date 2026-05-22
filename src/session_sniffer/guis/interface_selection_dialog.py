@@ -238,8 +238,9 @@ class InterfaceSelectionDialog(QDialog):
         layout.addWidget(self.table)
 
         # Filter controls layout
-        filter_layout = QHBoxLayout()
-        filter_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        options_layout = QHBoxLayout()
+        options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        options_layout.setSpacing(60)
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Flush the Windows ARP cache and ping the local subnet to rediscover devices')
@@ -248,30 +249,30 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
         refresh_arp_button.setFixedSize(refresh_arp_button.sizeHint())
-        filter_layout.addWidget(refresh_arp_button)
+        options_layout.addWidget(refresh_arp_button)
 
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
-        hide_inactive_checkbox.setStyleSheet('font-size: 12pt;')
+        hide_inactive_checkbox.setStyleSheet('font-size: 14pt;')
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
-        filter_layout.addWidget(hide_inactive_checkbox)
+        options_layout.addWidget(hide_inactive_checkbox)
 
         hide_neighbours_checkbox = QCheckBox('Hide Neighbours')
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
-        hide_neighbours_checkbox.setStyleSheet('font-size: 12pt;')
+        hide_neighbours_checkbox.setStyleSheet('font-size: 14pt;')
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
-        filter_layout.addWidget(hide_neighbours_checkbox)
+        options_layout.addWidget(hide_neighbours_checkbox)
 
         arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network, not just this computer')
-        arp_spoofing_checkbox.setStyleSheet('font-size: 12pt;')
+        arp_spoofing_checkbox.setStyleSheet('font-size: 14pt;')
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
-        filter_layout.addWidget(arp_spoofing_checkbox)
+        options_layout.addWidget(arp_spoofing_checkbox)
 
         # Will be set on accept
         self.arp_spoofing_enabled: bool = arp_spoofing_default
@@ -285,7 +286,7 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_progress_timer: QTimer | None = None
         self._arp_refresh_original_text: str | None = None
 
-        layout.addLayout(filter_layout)
+        layout.addLayout(options_layout)
 
         # Bottom layout for buttons
         bottom_layout = QHBoxLayout()
@@ -311,10 +312,6 @@ class InterfaceSelectionDialog(QDialog):
 
         bottom_layout.addWidget(instruction_label)
         bottom_layout.addWidget(select_button)
-
-        # Center the button in the layout
-        bottom_layout.setAlignment(instruction_label, Qt.AlignmentFlag.AlignCenter)
-        bottom_layout.setAlignment(select_button, Qt.AlignmentFlag.AlignCenter)
 
         layout.addLayout(bottom_layout)
 
@@ -351,7 +348,7 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
     # Custom Methods:
-    _REFRESH_ARP_BUTTON_BASE_STYLE = 'font-size: 12pt;'
+    _REFRESH_ARP_BUTTON_BASE_STYLE = 'font-size: 14pt;'
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
     # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
     _REFRESH_ARP_PROGRESS_FILL_LIGHT = '#e6e6e6'
