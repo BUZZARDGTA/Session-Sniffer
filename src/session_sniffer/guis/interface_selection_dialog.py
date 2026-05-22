@@ -268,8 +268,8 @@ class InterfaceSelectionDialog(QDialog):
 
         arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
-        arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network, not just this computer')
         arp_spoofing_checkbox.setStyleSheet('font-size: 14pt;')
+        arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(arp_spoofing_checkbox)
