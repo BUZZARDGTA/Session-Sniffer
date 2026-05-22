@@ -384,14 +384,14 @@ class InterfaceSelectionDialog(QDialog):
     _SELECT_BUTTON_ENABLED_STYLE = (
         'QPushButton {'
         ' font-size: 18pt;'
-        ' background-color: #1a6bbf;'
+        ' background-color: #175BB0;'
         ' color: #ffffff;'
-        ' border: 1px solid #145299;'
+        ' border: 1px solid #104590;'
         ' border-radius: 4px;'
         '}'
         'QPushButton:hover {'
-        ' background-color: #2278d4;'
-        ' border: 1px solid #1a6bbf;'
+        ' background-color: #1e6ec7;'
+        ' border: 1px solid #175BB0;'
         '}'
     )
     _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
