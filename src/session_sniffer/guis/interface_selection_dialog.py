@@ -311,7 +311,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Bottom layout for buttons
         bottom_layout = QHBoxLayout()
-        instruction_label = QLabel('Select the network interface you want to sniff.')
+        instruction_label = QLabel('Select a network interface to start packet capture.')
         instruction_label.setStyleSheet('font-size: 15pt;')
 
         select_button = QPushButton('Start Sniffing')
@@ -373,34 +373,50 @@ class InterfaceSelectionDialog(QDialog):
 
     # Custom Methods:
     _SELECT_BUTTON_DISABLED_STYLE = (
-        'font-size: 18pt;'
+        'QPushButton {'
+        ' font-size: 18pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
         ' border: 1px solid #444444;'
         ' border-radius: 4px;'
+        '}'
     )
     _SELECT_BUTTON_ENABLED_STYLE = (
-        'font-size: 18pt;'
+        'QPushButton {'
+        ' font-size: 18pt;'
         ' background-color: #1a6bbf;'
         ' color: #ffffff;'
         ' border: 1px solid #145299;'
         ' border-radius: 4px;'
+        '}'
+        'QPushButton:hover {'
+        ' background-color: #2278d4;'
+        ' border: 1px solid #1a6bbf;'
+        '}'
     )
     _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
-        'font-size: 14pt;'
-        ' background-color: #1a7a4a;'
-        ' color: #ffffff;'
-        ' border: 1px solid #145c37;'
+        'QPushButton {'
+        ' font-size: 14pt;'
+        ' background-color: #21334C;'
+        ' color: #e8f0f8;'
+        ' border: 1px solid #182639;'
         ' border-radius: 4px;'
         ' padding: 4px 12px;'
+        '}'
+        'QPushButton:hover {'
+        ' background-color: #2c4463;'
+        ' border: 1px solid #21334C;'
+        '}'
     )
     _REFRESH_ARP_BUTTON_DISABLED_STYLE = (
-        'font-size: 14pt;'
+        'QPushButton {'
+        ' font-size: 14pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
         ' border: 1px solid #444444;'
         ' border-radius: 4px;'
         ' padding: 4px 12px;'
+        '}'
     )
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
     # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
