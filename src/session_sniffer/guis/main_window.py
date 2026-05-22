@@ -612,7 +612,7 @@ class MainWindow(QMainWindow):
             raise RuntimeError(msg)
         session_host_submenu.setToolTipsVisible(True)
 
-        host_status_action = QAction('ℹ️ No host', self)
+        host_status_action = QAction('ℹ️ No host', self)  # noqa: RUF001
         host_status_action.setEnabled(False)
         host_status_action.setToolTip('Current session host detection state')
         session_host_submenu.addAction(host_status_action)
@@ -620,11 +620,11 @@ class MainWindow(QMainWindow):
 
         def _update_host_status_label() -> None:
             if SessionHost.player is not None:
-                self._host_status_action.setText(f'ℹ️ Detected: {SessionHost.player.ip}')
+                self._host_status_action.setText(f'ℹ️ Detected: {SessionHost.player.ip}')  # noqa: RUF001
             elif SessionHost.search_player:
-                self._host_status_action.setText('ℹ️ Searching…')
+                self._host_status_action.setText('ℹ️ Searching…')  # noqa: RUF001
             else:
-                self._host_status_action.setText('ℹ️ No host')
+                self._host_status_action.setText('ℹ️ No host')  # noqa: RUF001
 
         session_host_submenu.aboutToShow.connect(_update_host_status_label)
 
