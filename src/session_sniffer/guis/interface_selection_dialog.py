@@ -276,7 +276,9 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.setObjectName('hide_neighbours_checkbox')
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
-        hide_neighbours_checkbox.setStyleSheet('QCheckBox#hide_neighbours_checkbox { font-size: 14pt; } QCheckBox#hide_neighbours_checkbox::indicator { width: 20px; height: 20px; }')
+        hide_neighbours_checkbox.setStyleSheet(
+            'QCheckBox#hide_neighbours_checkbox { font-size: 14pt; } QCheckBox#hide_neighbours_checkbox::indicator { width: 20px; height: 20px; }'
+        )
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         options_layout.addWidget(hide_neighbours_checkbox)
@@ -285,7 +287,9 @@ class InterfaceSelectionDialog(QDialog):
         arp_spoofing_checkbox.setObjectName('arp_spoofing_checkbox')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
-        arp_spoofing_checkbox.setStyleSheet('QCheckBox#arp_spoofing_checkbox { font-size: 14pt; } QCheckBox#arp_spoofing_checkbox::indicator { width: 20px; height: 20px; }')
+        arp_spoofing_checkbox.setStyleSheet(
+            'QCheckBox#arp_spoofing_checkbox { font-size: 14pt; } QCheckBox#arp_spoofing_checkbox::indicator { width: 20px; height: 20px; }'
+        )
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(arp_spoofing_checkbox)
