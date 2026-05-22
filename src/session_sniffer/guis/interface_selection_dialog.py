@@ -245,8 +245,8 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setSpacing(60)
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
-        refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
-        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
+        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
+        refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE if mac_lookup is not None else self._REFRESH_ARP_BUTTON_DISABLED_STYLE)
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
@@ -315,7 +315,7 @@ class InterfaceSelectionDialog(QDialog):
         instruction_label.setStyleSheet('font-size: 15pt;')
 
         select_button = QPushButton('Start Sniffing')
-        select_button.setStyleSheet('font-size: 18pt;')
+        select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
         select_button.setEnabled(False)  # Initially disabled
 
         # Set fixed size for the button
@@ -349,6 +349,9 @@ class InterfaceSelectionDialog(QDialog):
         # Connect double-click signal to select interface (simulates Start button)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
 
+        # Live refresh: periodically re-query the OS for adapter changes
+        self._mac_lookup = mac_lookup
+
         # Apply initial constraints
         self.enforce_spoofing_constraints()
 
@@ -357,7 +360,6 @@ class InterfaceSelectionDialog(QDialog):
         self.activateWindow()
 
         # Live refresh: periodically re-query the OS for adapter changes
-        self._mac_lookup = mac_lookup
         self._refresh_timer: QTimer | None = None
         if mac_lookup is not None:
             self._refresh_timer = QTimer(self)
@@ -370,7 +372,36 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
     # Custom Methods:
-    _REFRESH_ARP_BUTTON_BASE_STYLE = 'font-size: 14pt;'
+    _SELECT_BUTTON_DISABLED_STYLE = (
+        'font-size: 18pt;'
+        ' background-color: #555555;'
+        ' color: #aaaaaa;'
+        ' border: 1px solid #444444;'
+        ' border-radius: 4px;'
+    )
+    _SELECT_BUTTON_ENABLED_STYLE = (
+        'font-size: 18pt;'
+        ' background-color: #1a6bbf;'
+        ' color: #ffffff;'
+        ' border: 1px solid #145299;'
+        ' border-radius: 4px;'
+    )
+    _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
+        'font-size: 14pt;'
+        ' background-color: #1a7a4a;'
+        ' color: #ffffff;'
+        ' border: 1px solid #145c37;'
+        ' border-radius: 4px;'
+        ' padding: 4px 12px;'
+    )
+    _REFRESH_ARP_BUTTON_DISABLED_STYLE = (
+        'font-size: 14pt;'
+        ' background-color: #555555;'
+        ' color: #aaaaaa;'
+        ' border: 1px solid #444444;'
+        ' border-radius: 4px;'
+        ' padding: 4px 12px;'
+    )
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
     # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
     _REFRESH_ARP_PROGRESS_FILL_LIGHT = '#e6e6e6'
@@ -473,7 +504,7 @@ class InterfaceSelectionDialog(QDialog):
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
-        button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
+        button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE)
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
         button.setEnabled(self._mac_lookup is not None)
         self._live_refresh_interfaces()
@@ -687,12 +718,13 @@ class InterfaceSelectionDialog(QDialog):
 
     def update_select_button_state(self) -> None:
         """Enable the Select button only when a row is selected."""
-        # Check if any row is selected
         selected_row = self.table.currentRow()
         if selected_row != -1:
             self._controls.select_button.setEnabled(True)
+            self._controls.select_button.setStyleSheet(self._SELECT_BUTTON_ENABLED_STYLE)
         else:
             self._controls.select_button.setEnabled(False)
+            self._controls.select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
 
     def _on_arp_spoofing_changed(self) -> None:
         """Mutual-exclusion handler: checking ARP Spoofing automatically unchecks Hide Neighbours."""
@@ -706,9 +738,17 @@ class InterfaceSelectionDialog(QDialog):
 
     def enforce_spoofing_constraints(self) -> None:
         """Enforce mutual exclusion: if Hide Neighbours is checked, ARP Spoofing must be unchecked."""
+        hide_neighbours = self._controls.hide_neighbours_checkbox.isChecked()
         # If neighbours are hidden -> uncheck spoofing (mutual exclusion; neither checkbox is disabled)
-        if self._controls.hide_neighbours_checkbox.isChecked():
+        if hide_neighbours:
             self._controls.arp_spoofing_checkbox.setChecked(False)
+        # Refresh ARP is only useful when neighbours are visible and mac_lookup is available
+        arp_enabled = not hide_neighbours and self._mac_lookup is not None
+        self._controls.refresh_arp_button.setEnabled(arp_enabled)
+        self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
+        self._controls.refresh_arp_button.setStyleSheet(
+            self._REFRESH_ARP_BUTTON_ENABLED_STYLE if arp_enabled else self._REFRESH_ARP_BUTTON_DISABLED_STYLE
+        )
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
         """Handle double-click on table cell - simulates clicking the Start button."""
