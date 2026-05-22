@@ -87,6 +87,7 @@ class Interface:
             not self.ip_addresses,
             not self.ip_enabled and not self.ip_addresses,
             not self.traffic.transmit_link_speed and not self.traffic.receive_link_speed,
+            not self.traffic.packets_sent and not self.traffic.packets_recv,
         ]
 
         if any(inactive_conditions):

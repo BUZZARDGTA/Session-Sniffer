@@ -265,7 +265,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
         hide_inactive_checkbox.setObjectName('hide_inactive_checkbox')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
-        hide_inactive_checkbox.setToolTip('Hide interfaces with no traffic, disconnected media, or missing IP addresses')
+        hide_inactive_checkbox.setToolTip('Hide disabled, disconnected, unconfigured, or interfaces with no traffic')
         hide_inactive_checkbox.setStyleSheet(
             'QCheckBox#hide_inactive_checkbox { font-size: 14pt; } QCheckBox#hide_inactive_checkbox::indicator { width: 20px; height: 20px; }'
         )
