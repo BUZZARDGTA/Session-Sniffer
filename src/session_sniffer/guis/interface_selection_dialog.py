@@ -245,8 +245,8 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setSpacing(60)
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
-        refresh_arp_button.setToolTip('Flush the Windows ARP cache and ping the local subnet to rediscover devices')
         refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_BASE_STYLE)
+        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
