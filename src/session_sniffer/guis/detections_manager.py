@@ -933,24 +933,6 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         desc.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
         layout.addWidget(desc)
 
-        # Packet threshold row (tab-level setting, not part of the standard protection group)
-        threshold_row = QWidget()
-        threshold_layout = QHBoxLayout(threshold_row)
-        threshold_layout.setContentsMargins(5, 0, 5, 0)
-        threshold_label = QLabel('Packet Threshold:')
-        threshold_label.setStyleSheet('font-weight: bold;')
-        threshold_label.setToolTip('Suspend GTA5 once the relay IP has exchanged this many packets and is still connected.')
-        threshold_layout.addWidget(threshold_label)
-        threshold_spin = QSpinBox()
-        threshold_spin.setRange(10, 10000)
-        threshold_spin.setValue(40)
-        threshold_spin.setSuffix(' packets')
-        threshold_spin.setToolTip('Suspend GTA5 once the relay IP has exchanged this many packets and is still connected.')
-        self.gta5_relay_packet_threshold_spin = threshold_spin
-        threshold_layout.addWidget(threshold_spin)
-        threshold_layout.addStretch()
-        layout.addWidget(threshold_row)
-
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -963,6 +945,31 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             'Suspend GTA5 when a relay IP exceeds the packet threshold and is still connected',
             'gta5_relay',
         )
+        threshold_row = QWidget()
+        threshold_layout = QHBoxLayout(threshold_row)
+        threshold_layout.setContentsMargins(0, 0, 0, 0)
+        _threshold_tooltip = (
+            'How many packets must be exchanged with a relay IP before the protection triggers.\n\n'
+            'Take-Two relay servers act as middlemen between you and other players — '
+            'they route traffic through their own infrastructure.\n\n'
+            'A lower value triggers faster but may react to brief or coincidental relay contact.\n'
+            'A higher value waits for sustained communication, reducing false positives '
+            'but delaying the response.'
+        )
+        threshold_label = QLabel('Packet Threshold:')
+        threshold_label.setStyleSheet('font-weight: bold;')
+        threshold_label.setToolTip(_threshold_tooltip)
+        threshold_layout.addWidget(threshold_label)
+        threshold_spin = QSpinBox()
+        threshold_spin.setRange(10, 10000)
+        threshold_spin.setValue(40)
+        threshold_spin.setSuffix(' packets')
+        threshold_spin.setToolTip(_threshold_tooltip)
+        self.gta5_relay_packet_threshold_spin = threshold_spin
+        threshold_layout.addWidget(threshold_spin)
+        threshold_layout.addStretch()
+        gta5_relay_action_section: QWidget = getattr(self, 'gta5_relay_action_section')
+        cast(QVBoxLayout, gta5_relay_action_section.layout()).insertWidget(1, threshold_row)
         scroll_layout.addWidget(relay_group)
 
         scroll_layout.addStretch()
