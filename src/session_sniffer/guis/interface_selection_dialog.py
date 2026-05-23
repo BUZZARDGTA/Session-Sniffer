@@ -14,6 +14,7 @@ from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -239,7 +240,7 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         options_layout.setSpacing(20)
 
-        refresh_arp_button = QPushButton('Refresh ARP Table')
+        refresh_arp_button = QPushButton('⟳  Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
         refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE if mac_lookup is not None else self._REFRESH_ARP_BUTTON_DISABLED_STYLE)
         refresh_arp_button.setEnabled(mac_lookup is not None)
@@ -302,14 +303,60 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_progress_timer: QTimer | None = None
         self._arp_refresh_original_text: str | None = None
 
-        layout.addLayout(options_layout)
+        # Bottom container wrapping options row, separator and action row
+        bottom_container = QFrame()
+        bottom_container.setObjectName('bottomContainer')
+        bottom_container.setFrameShape(QFrame.Shape.NoFrame)
+        bottom_container.setStyleSheet(
+            'QFrame#bottomContainer {'
+            ' background-color: #1a2535;'
+            ' border: 1px solid #3a6aaa;'
+            ' border-radius: 6px;'
+            '}'
+            'QFrame#bottomContainer QCheckBox {'
+            ' background-color: transparent;'
+            '}'
+            'QFrame#bottomContainer QLabel {'
+            ' background-color: transparent;'
+            '}'
+        )
+        container_layout = QVBoxLayout(bottom_container)
+        container_layout.setContentsMargins(12, 10, 12, 10)
+        container_layout.setSpacing(8)
 
-        # Bottom layout for buttons
-        bottom_layout = QHBoxLayout()
+        # Options row - centered using stretches on both sides
+        centered_options_layout = QHBoxLayout()
+        centered_options_layout.addStretch()
+        centered_options_layout.addLayout(options_layout)
+        centered_options_layout.addStretch()
+        container_layout.addLayout(centered_options_layout)
+
+        # Horizontal separator between options row and action row
+        separator = QFrame()
+        separator.setObjectName('bottomSeparator')
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setStyleSheet(
+            'QFrame#bottomSeparator {'
+            ' background-color: #3a6aaa;'
+            ' max-height: 1px;'
+            ' border: none;'
+            '}'
+        )
+        container_layout.addWidget(separator)
+
+        # Action row: info text left, Start button right
+        action_layout = QHBoxLayout()
+        action_layout.addSpacing(50)
+        info_icon_label = QLabel('\u2139')
+        info_icon_label.setStyleSheet('font-size: 16pt; color: #6a9fd8;')
         instruction_label = QLabel('Select a network interface to start packet capture.')
         instruction_label.setStyleSheet('font-size: 15pt;')
+        action_layout.addWidget(info_icon_label)
+        action_layout.addWidget(instruction_label)
+        action_layout.addStretch()
 
-        select_button = QPushButton('Start Sniffing')
+        select_button = QPushButton('\u25b6  Start Sniffing')
         select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
         select_button.setEnabled(False)  # Initially disabled
 
@@ -327,10 +374,11 @@ class InterfaceSelectionDialog(QDialog):
             select_button=select_button,
         )
 
-        bottom_layout.addWidget(instruction_label)
-        bottom_layout.addWidget(select_button)
+        action_layout.addWidget(select_button)
+        action_layout.addSpacing(50)
+        container_layout.addLayout(action_layout)
 
-        layout.addLayout(bottom_layout)
+        layout.addWidget(bottom_container)
 
         # Populate the table with initial filtered data (after button is created)
         self.apply_filters()
@@ -516,7 +564,7 @@ class InterfaceSelectionDialog(QDialog):
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
         button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE)
-        button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
+        button.setText(self._arp_refresh_original_text or '⟳  Refresh ARP Table')
         button.setEnabled(self._mac_lookup is not None)
         self._live_refresh_interfaces()
 
