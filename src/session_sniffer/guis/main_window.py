@@ -367,7 +367,7 @@ class SessionTableSection(QWidget):
         self.expand_button.setEnabled(enabled)
 
     def _header_label_text(self) -> str:
-        intro = 'Players connected in your session' if self._section_name == 'Connected' else "Players who've left your session"
+        intro = 'Connected players' if self._section_name == 'Connected' else 'Disconnected Players'
         base = f'{intro} ({max(0, self.last_count)}):'
         if self._selected_count > 0:
             noun = 'player' if self._selected_count == 1 else 'players'
