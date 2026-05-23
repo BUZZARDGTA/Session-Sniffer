@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor
+from PyQt6.QtCore import QItemSelectionModel, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QCursor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -264,15 +264,15 @@ class InterfaceSelectionDialog(QDialog):
         # Filter controls layout
         options_layout = QHBoxLayout()
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        options_layout.setSpacing(20)
+        options_layout.setSpacing(28)
 
         refresh_arp_button = QPushButton('⟳  Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
         refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE if mac_lookup is not None else self._REFRESH_ARP_BUTTON_DISABLED_STYLE)
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
-        # Lock to its natural idle size so the in-button progress fill / percentage text never resizes it.
-        refresh_arp_button.setFixedSize(refresh_arp_button.sizeHint())
+        refresh_arp_button.setMinimumHeight(44)
+        refresh_arp_button.setMinimumWidth(190)
         options_layout.addWidget(refresh_arp_button)
 
         remember_interface_checkbox = QCheckBox('Remember Interface')
@@ -347,8 +347,8 @@ class InterfaceSelectionDialog(QDialog):
             '}'
         )
         container_layout = QVBoxLayout(bottom_container)
-        container_layout.setContentsMargins(12, 10, 12, 10)
-        container_layout.setSpacing(8)
+        container_layout.setContentsMargins(28, 18, 28, 20)
+        container_layout.setSpacing(0)
 
         # Options row - centered using stretches on both sides
         centered_options_layout = QHBoxLayout()
@@ -356,6 +356,7 @@ class InterfaceSelectionDialog(QDialog):
         centered_options_layout.addLayout(options_layout)
         centered_options_layout.addStretch()
         container_layout.addLayout(centered_options_layout)
+        container_layout.addSpacing(16)
 
         # Horizontal separator between options row and action row
         separator = QFrame()
@@ -364,31 +365,44 @@ class InterfaceSelectionDialog(QDialog):
         separator.setFrameShadow(QFrame.Shadow.Plain)
         separator.setStyleSheet(
             'QFrame#bottomSeparator {'
-            ' background-color: #3a6aaa;'
+            ' background-color: #2f4356;'
             ' max-height: 1px;'
             ' border: none;'
             '}'
         )
         container_layout.addWidget(separator)
+        container_layout.addSpacing(20)
 
         # Action row: info text left, Start button right
         action_layout = QHBoxLayout()
         action_layout.addSpacing(50)
-        info_icon_label = QLabel('\u2139')
-        info_icon_label.setStyleSheet('font-size: 16pt; color: #6a9fd8;')
+        info_icon_pixmap = QPixmap(32, 32)
+        info_icon_pixmap.fill(Qt.GlobalColor.transparent)
+        info_icon_painter = QPainter(info_icon_pixmap)
+        info_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        info_icon_painter.setBrush(QBrush(QColor('#1a2535')))
+        info_icon_painter.setPen(QPen(QColor('#2570CB'), 2.0))
+        info_icon_painter.drawEllipse(QRectF(1.5, 1.5, 29.0, 29.0))
+        info_icon_painter.setPen(Qt.PenStyle.NoPen)
+        info_icon_painter.setBrush(QBrush(QColor('#2570CB')))
+        info_icon_painter.drawEllipse(QRectF(14.5, 7.5, 3.0, 3.0))
+        info_icon_painter.drawRoundedRect(QRectF(14.5, 13.5, 3.0, 13.0), 1.5, 1.5)
+        info_icon_painter.end()
+        info_icon_label = QLabel()
+        info_icon_label.setPixmap(info_icon_pixmap)
+        info_icon_label.setFixedSize(36, 36)
+        info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')
-        instruction_label.setStyleSheet('font-size: 15pt;')
+        instruction_label.setStyleSheet('font-size: 17px;')
         action_layout.addWidget(info_icon_label)
+        action_layout.addSpacing(8)
         action_layout.addWidget(instruction_label)
         action_layout.addStretch()
 
         select_button = QPushButton('\u25b6  Start Sniffing')
         select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
         select_button.setEnabled(False)  # Initially disabled
-
-        # Set fixed size for the button
-        select_button.setFixedSize(300, 50)  # Adjusted width and height for slightly larger button
-
+        select_button.setMinimumSize(330, 56)
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
