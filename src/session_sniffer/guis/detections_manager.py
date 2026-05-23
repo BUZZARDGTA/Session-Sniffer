@@ -694,7 +694,9 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         self.player_leave_logging_checkbox: QCheckBox
         self.player_leave_msgbox_checkbox: QCheckBox
         # -- GTA5 Relays (GTA5 preset only) --
+        self._relay_filter_warning: QWidget
         self.gta5_relay_enable_checkbox: QCheckBox
+        self.gta5_relay_action_section: QWidget
         self.gta5_relay_packet_threshold_spin: QSpinBox
         self.gta5_relay_process_edit: QLineEdit
         self.gta5_relay_duration_combo: QComboBox
@@ -761,6 +763,8 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         self._load_current_settings()
         self.refresh_protection_availability()
+        if hasattr(self, 'gta5_relay_enable_checkbox'):
+            self.gta5_relay_enable_checkbox.toggled.connect(self._on_gta5_relay_enable_toggled)
 
     # ------------------------------------------------------------------
     # Protection support restrictions
@@ -925,6 +929,41 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
 
+        # Warning banner: shown when GTAV_TAKETWO ranges are in the capture block list,
+        # which prevents relay IPs from ever reaching the capture engine.
+        filter_warning = QWidget()
+        filter_warning.setStyleSheet(
+            'QWidget { background-color: #3a2400; border: 1px solid #c87800; border-radius: 6px; padding: 2px; }'
+            'QLabel { border: none; }'
+            'QPushButton { border: 1px solid #c87800; border-radius: 4px; background-color: #5a3a00;'
+            ' color: #ffcc66; padding: 4px 10px; font-weight: bold; }'
+            'QPushButton:hover { background-color: #7a5200; }',
+        )
+        filter_warning_layout = QHBoxLayout(filter_warning)
+        filter_warning_layout.setContentsMargins(8, 6, 8, 6)
+        filter_warning_layout.setSpacing(10)
+        warning_icon_label = QLabel('\u26a0\ufe0f')
+        warning_icon_label.setStyleSheet('font-size: 18pt; border: none;')
+        filter_warning_layout.addWidget(warning_icon_label)
+        warning_text_label = QLabel(
+            '<b>Relay IPs are currently filtered out of the capture.</b><br>'
+            "The 'Take-Two (GTA V)' IP ranges (<code>104.255.104.0/22</code>, <code>185.56.64.0/22</code>, "
+            '<code>192.81.240.0/21</code>) are listed under <i>Block Third-Party Servers</i> in Settings. '
+            'These IPs are dropped before the capture engine sees them, so relay detection will never trigger. '
+            'Remove that entry from the blocked servers list to enable relay detection.',
+        )
+        warning_text_label.setWordWrap(True)
+        warning_text_label.setStyleSheet('color: #ffcc66; border: none;')
+        filter_warning_layout.addWidget(warning_text_label, 1)
+        fix_button = QPushButton('Fix It')
+        fix_button.setToolTip("Remove 'Take-Two (GTA V)' from the blocked servers list and save the setting")
+        fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        fix_button.clicked.connect(self._remove_gtav_taketwo_from_blocked_servers)
+        filter_warning_layout.addWidget(fix_button)
+        self._relay_filter_warning = filter_warning
+        filter_warning.setVisible('GTAV_TAKETWO' in Settings.capture_block_third_party_servers)
+        layout.addWidget(filter_warning)
+
         desc = QLabel(
             'Configure actions and notifications when a Take-Two relay IP exceeds the '
             'packet threshold while still connected.',
@@ -977,6 +1016,40 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout.addWidget(scroll)
 
         return widget
+
+    def _on_gta5_relay_enable_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Warn the user when enabling relay detection while relay IPs are still being filtered."""
+        if not checked:
+            return
+        if 'GTAV_TAKETWO' not in Settings.capture_block_third_party_servers:
+            return
+        result = QMessageBox.question(
+            self,
+            TITLE,
+            '\u26a0\ufe0f The Take-Two / GTA V relay IP ranges are currently being blocked by the capture filter '
+            '(<i>Block Third-Party Servers</i> setting).\n\n'
+            'Relay IPs will be dropped before the capture engine sees them, '
+            'so this protection will never trigger while that filter is active.\n\n'
+            "Would you like to automatically remove 'Take-Two (GTA V)' from the blocked servers list?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if result == QMessageBox.StandardButton.Yes:
+            self._remove_gtav_taketwo_from_blocked_servers()
+
+    def _remove_gtav_taketwo_from_blocked_servers(self) -> None:
+        """Remove GTAV_TAKETWO from the blocked third-party servers list and persist the setting."""
+        Settings.capture_block_third_party_servers = tuple(
+            s for s in Settings.capture_block_third_party_servers if s != 'GTAV_TAKETWO'
+        )
+        Settings.rewrite_settings_file()
+        self._relay_filter_warning.setVisible(False)
+        QMessageBox.information(
+            self,
+            TITLE,
+            "'Take-Two (GTA V)' has been removed from the blocked servers list and the setting has been saved.\n\n"
+            'Please restart the capture for the change to take effect.',
+        )
 
     def _create_combo_rules_tab(self) -> QWidget:
         """Create the combo rules tab with rule list and management buttons."""

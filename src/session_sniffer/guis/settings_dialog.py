@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
+from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import set_dialog_window_flags
@@ -862,6 +863,8 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
                 display_filter_fn=display_filter_fn,
             )
             self._capture.request_restart()
+
+        prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
 
         self.accept()
 

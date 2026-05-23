@@ -45,6 +45,7 @@ from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.main_window import MainWindow
+from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.utils import get_screen_size
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
@@ -485,6 +486,12 @@ def main() -> None:
     splash.finish_loading()
     QTimer.singleShot(1500, splash.close_splash)
     QTimer.singleShot(1500, window.show)
+
+    def _check_startup_relay_conflict() -> None:
+        """Warn at startup when relay protection is enabled but relay IPs are being filtered out."""
+        prompt_to_disable_gta5_relay_if_filtered(window, context='startup')
+
+    QTimer.singleShot(2000, _check_startup_relay_conflict)
 
     # Start background processing threads FIRST
     player_rates_core__thread = Thread(target=player_rates_core, name='player_rates_core', daemon=True)
