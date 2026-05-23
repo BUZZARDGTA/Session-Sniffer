@@ -417,7 +417,7 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(330, 56)
-        select_icon_pixmap = QPixmap(36, 28)
+        select_icon_pixmap = QPixmap(46, 28)
         select_icon_pixmap.fill(Qt.GlobalColor.transparent)
         select_icon_painter = QPainter(select_icon_pixmap)
         select_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -426,7 +426,7 @@ class InterfaceSelectionDialog(QDialog):
         select_icon_painter.drawPolygon(QPolygonF([QPointF(4.0, 2.0), QPointF(4.0, 26.0), QPointF(24.0, 14.0)]))
         select_icon_painter.end()
         select_button.setIcon(QIcon(select_icon_pixmap))
-        select_button.setIconSize(QSize(36, 28))
+        select_button.setIconSize(QSize(46, 28))
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
