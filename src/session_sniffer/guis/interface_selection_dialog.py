@@ -465,12 +465,12 @@ class InterfaceSelectionDialog(QDialog):
     )
     _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
         'QPushButton {'
-        ' font-size: 14pt;'
+        ' font-size: 16pt;'
         ' background-color: #21334C;'
         ' color: #e8f0f8;'
         ' border: 1px solid #182639;'
         ' border-radius: 4px;'
-        ' padding: 4px 12px;'
+        ' padding: 6px 14px;'
         '}'
         'QPushButton:hover {'
         ' background-color: #2c4463;'
@@ -479,12 +479,12 @@ class InterfaceSelectionDialog(QDialog):
     )
     _REFRESH_ARP_BUTTON_DISABLED_STYLE = (
         'QPushButton {'
-        ' font-size: 14pt;'
+        ' font-size: 16pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
         ' border: 1px solid #444444;'
         ' border-radius: 4px;'
-        ' padding: 4px 12px;'
+        ' padding: 6px 14px;'
         '}'
     )
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
