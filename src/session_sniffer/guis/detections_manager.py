@@ -813,21 +813,21 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         scroll_layout.setSpacing(20)
 
         join_group = self._create_protection_group(
-            '\u2795 Player Join Protection',
+            '\u2795 Player Join',
             'Configure actions and notifications when a player joins your session',
             'player_join',
         )
         scroll_layout.addWidget(join_group)
 
         rejoin_group = self._create_protection_group(
-            '\U0001f504 Player Rejoin Protection',
+            '\U0001f504 Player Rejoin',
             'Configure actions and notifications when a player rejoins your session after disconnecting',
             'player_rejoin',
         )
         scroll_layout.addWidget(rejoin_group)
 
         leave_group = self._create_protection_group(
-            '\u274c Player Leave Protection',
+            '\u274c Player Leave',
             'Configure actions and notifications when a player leaves your session',
             'player_leave',
         )
@@ -853,21 +853,21 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         scroll_layout.setSpacing(20)
 
         mobile_group = self._create_protection_group(
-            '\U0001f4f1 Mobile Connection Protection',
+            '\U0001f4f1 Mobile Connection',
             'Protect against mobile/cellular connections',
             'mobile',
         )
         scroll_layout.addWidget(mobile_group)
 
         vpn_group = self._create_protection_group(
-            '\U0001f512 VPN/Proxy/Tor Protection',
+            '\U0001f512 VPN/Proxy/Tor',
             'Protect against connections from VPN, proxy, or Tor exit nodes',
             'vpn',
         )
         scroll_layout.addWidget(vpn_group)
 
         hosting_group = self._create_protection_group(
-            '\U0001f3e2 Hosting/Data Center Protection',
+            '\U0001f3e2 Hosting/Data Center',
             'Protect against connections from hosting providers and data centers',
             'hosting',
         )
@@ -926,10 +926,8 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout.setSpacing(15)
 
         desc = QLabel(
-            'Automatically suspend GTA5 when a Take-Two relay IP exceeds the configured '
-            'packet threshold while still connected. '
-            'Relay IPs are identified by the GTAV Take-Two CIDR ranges '
-            '(104.255.104.0/22, 185.56.64.0/22, 192.81.240.0/21).',
+            'Configure actions and notifications when a Take-Two relay IP exceeds the '
+            'packet threshold while still connected.',
         )
         desc.setWordWrap(True)
         desc.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
@@ -961,7 +959,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         scroll_layout.setSpacing(20)
 
         relay_group = self._create_protection_group(
-            '\U0001f6e1 GTA5 Relay Protection',
+            '\U0001f6e1 GTA5 Relay',
             'Suspend GTA5 when a relay IP exceeds the packet threshold and is still connected',
             'gta5_relay',
         )
