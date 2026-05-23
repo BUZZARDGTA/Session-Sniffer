@@ -103,7 +103,7 @@ def wake_subnet_devices(
             progress_callback(0, 0)
         return
 
-    logger.info('ARP refresh: pinging %d hosts to repopulate ARP cache.', total)
+    logger.debug('ARP refresh: pinging %d hosts to repopulate ARP cache.', total)
     completed = 0
     completed_lock = Lock()
     with ThreadPoolExecutor(max_workers=_PING_FANOUT_WORKERS, thread_name_prefix='ARPRefreshPing') as executor:
