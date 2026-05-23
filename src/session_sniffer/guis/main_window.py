@@ -268,6 +268,14 @@ class SessionTableSection(QWidget):
         self._page_spinbox.valueChanged.connect(self._handle_page_changed)
         header_layout.addWidget(self._page_spinbox)
 
+        nav_separator = QFrame()
+        nav_separator.setFrameShape(QFrame.Shape.VLine)
+        nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        nav_separator.setStyleSheet(
+            'background-color: rgba(128,128,128,0.55); max-width: 0.5px; min-width: 0.5px; margin: 30% 14px; height: 18px;',
+        )
+        header_layout.addWidget(nav_separator)
+
         # Internal paging state
         self._rows_per_page: int = initial_rpp
         self._current_page: int = 1
