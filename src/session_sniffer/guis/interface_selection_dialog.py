@@ -198,11 +198,22 @@ class InterfaceSelectionDialog(QDialog):
 
         # Layout for the dialog
         layout = QVBoxLayout()
+        layout.setContentsMargins(12, 16, 12, 12)
+        layout.setSpacing(16)
 
         # Header above the table
         header_label = QLabel('Available Network Interfaces for Packet Capture')
+        header_label.setObjectName('dialogTitleLabel')
         header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_label.setStyleSheet('font-size: 16pt; font-weight: bold; margin-bottom: 10px;')
+        header_label.setStyleSheet(
+            'QLabel#dialogTitleLabel {'
+            ' color: #f4f7fb;'
+            ' font-size: 23px;'
+            ' font-weight: 700;'
+            ' padding-top: 6px;'
+            ' padding-bottom: 6px;'
+            '}'
+        )
         layout.addWidget(header_label)
 
         # Table widget for displaying interfaces
@@ -232,8 +243,23 @@ class InterfaceSelectionDialog(QDialog):
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
 
+        # Table container with a subtle dark-blue border matching the bottom container
+        table_container = QFrame()
+        table_container.setObjectName('tableContainer')
+        table_container.setFrameShape(QFrame.Shape.NoFrame)
+        table_container.setStyleSheet(
+            'QFrame#tableContainer {'
+            ' border: 1px solid #3a6aaa;'
+            ' border-radius: 6px;'
+            '}'
+        )
+        table_container_layout = QVBoxLayout(table_container)
+        table_container_layout.setContentsMargins(0, 0, 0, 0)
+        table_container_layout.setSpacing(0)
+        table_container_layout.addWidget(self.table)
+
         # Add widgets to layout
-        layout.addWidget(self.table)
+        layout.addWidget(table_container)
 
         # Filter controls layout
         options_layout = QHBoxLayout()
@@ -417,7 +443,7 @@ class InterfaceSelectionDialog(QDialog):
     # Custom Methods:
     _SELECT_BUTTON_DISABLED_STYLE = (
         'QPushButton {'
-        ' font-size: 18pt;'
+        ' font-size: 20pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
         ' border: 1px solid #444444;'
@@ -426,7 +452,7 @@ class InterfaceSelectionDialog(QDialog):
     )
     _SELECT_BUTTON_ENABLED_STYLE = (
         'QPushButton {'
-        ' font-size: 18pt;'
+        ' font-size: 22pt;'
         ' background-color: #175BB0;'
         ' color: #ffffff;'
         ' border: 1px solid #104590;'
