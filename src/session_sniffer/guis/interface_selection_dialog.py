@@ -10,7 +10,7 @@ from threading import Thread
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QItemSelectionModel, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QCursor, QIcon, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtGui import QBrush, QColor, QCursor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -224,11 +224,54 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setStyleSheet(
+            'QTableWidget {'
+            ' background-color: #131e2c;'
+            ' alternate-background-color: #182536;'
+            ' border: none;'
+            ' outline: none;'
+            '}'
+            'QTableWidget::item {'
+            ' font-size: 12px;'
+            ' color: #c8ddf0;'
+            ' padding: 0px 16px;'
+            ' border-bottom: 1px solid #1e3048;'
+            ' border-right: 1px solid #1e3048;'
+            '}'
+            'QTableWidget::item:selected {'
+            ' background-color: #1a4a8a;'
+            ' color: #ffffff;'
+            ' padding: 0px 16px;'
+            ' border-bottom: 1px solid #1e3048;'
+            ' border-right: 1px solid #1e3048;'
+            '}'
+            'QTableWidget::item:hover:!selected {'
+            ' background-color: #1c3050;'
+            ' border-bottom: 1px solid #1e3048;'
+            ' border-right: 1px solid #1e3048;'
+            '}'
+            'QHeaderView::section {'
+            ' background-color: #0e1824;'
+            ' color: #7bafd4;'
+            ' min-height: 36px;'
+            ' padding: 0px 16px;'
+            ' border-bottom: 2px solid #2a5080;'
+            ' border-right: 1px solid #1e3048;'
+            ' border-top: none;'
+            ' border-left: none;'
+            '}'
+        )
 
         # Connect cell hover to tooltip logic
         self.table.cellEntered.connect(self.show_tooltip_if_elided)
 
         horizontal_header = self.table.horizontalHeader()
+        header_font = QFont()
+        header_font.setPixelSize(14)
+        header_font.setBold(True)
+        horizontal_header.setFont(header_font)
         horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -242,6 +285,7 @@ class InterfaceSelectionDialog(QDialog):
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
+        vertical_header.setDefaultSectionSize(48)
 
         # Table container with a subtle dark-blue border matching the bottom container
         table_container = QFrame()
@@ -484,8 +528,8 @@ class InterfaceSelectionDialog(QDialog):
         ' font-size: 20pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
-        ' border: 1px solid #444444;'
-        ' border-radius: 4px;'
+        ' border: 2px solid #3a3a3a;'
+        ' border-radius: 10px;'
         '}'
     )
     _SELECT_BUTTON_ENABLED_STYLE = (
@@ -493,12 +537,12 @@ class InterfaceSelectionDialog(QDialog):
         ' font-size: 22pt;'
         ' background-color: #175BB0;'
         ' color: #ffffff;'
-        ' border: 1px solid #104590;'
-        ' border-radius: 4px;'
+        ' border: 2px solid #2a6aaa;'
+        ' border-radius: 10px;'
         '}'
         'QPushButton:hover {'
         ' background-color: #1e6ec7;'
-        ' border: 1px solid #175BB0;'
+        ' border: 2px solid #4a8fd4;'
         '}'
     )
     _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
@@ -506,13 +550,13 @@ class InterfaceSelectionDialog(QDialog):
         ' font-size: 16pt;'
         ' background-color: #21334C;'
         ' color: #e8f0f8;'
-        ' border: 1px solid #182639;'
-        ' border-radius: 4px;'
+        ' border: 2px solid #1e3f60;'
+        ' border-radius: 10px;'
         ' padding: 6px 14px;'
         '}'
         'QPushButton:hover {'
         ' background-color: #2c4463;'
-        ' border: 1px solid #21334C;'
+        ' border: 2px solid #2a5888;'
         '}'
     )
     _REFRESH_ARP_BUTTON_DISABLED_STYLE = (
@@ -520,8 +564,8 @@ class InterfaceSelectionDialog(QDialog):
         ' font-size: 16pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
-        ' border: 1px solid #444444;'
-        ' border-radius: 4px;'
+        ' border: 2px solid #3a3a3a;'
+        ' border-radius: 10px;'
         ' padding: 6px 14px;'
         '}'
     )
@@ -551,7 +595,7 @@ class InterfaceSelectionDialog(QDialog):
             f' color: {text_color};'
             ' font-weight: bold;'
             ' border: 1px solid #1a1a1a;'
-            ' border-radius: 4px;'
+            ' border-radius: 10px;'
             ' padding: 4px 12px;'
             ' }'
         )
