@@ -212,7 +212,7 @@ class InterfaceSelectionDialog(QDialog):
             ' font-weight: 700;'
             ' padding-top: 6px;'
             ' padding-bottom: 6px;'
-            '}'
+            '}',
         )
         layout.addWidget(header_label)
 
@@ -261,7 +261,7 @@ class InterfaceSelectionDialog(QDialog):
             ' border-right: 1px solid #1e3048;'
             ' border-top: none;'
             ' border-left: none;'
-            '}'
+            '}',
         )
 
         # Connect cell hover to tooltip logic
@@ -295,7 +295,7 @@ class InterfaceSelectionDialog(QDialog):
             'QFrame#tableContainer {'
             ' border: 1px solid #3a6aaa;'
             ' border-radius: 6px;'
-            '}'
+            '}',
         )
         table_container_layout = QVBoxLayout(table_container)
         table_container_layout.setContentsMargins(0, 0, 0, 0)
@@ -402,7 +402,7 @@ class InterfaceSelectionDialog(QDialog):
             '}'
             'QFrame#bottomContainer QLabel {'
             ' background-color: transparent;'
-            '}'
+            '}',
         )
         container_layout = QVBoxLayout(bottom_container)
         container_layout.setContentsMargins(28, 18, 28, 20)
@@ -426,7 +426,7 @@ class InterfaceSelectionDialog(QDialog):
             ' background-color: #2f4356;'
             ' max-height: 1px;'
             ' border: none;'
-            '}'
+            '}',
         )
         container_layout.addWidget(separator)
         container_layout.addSpacing(20)
