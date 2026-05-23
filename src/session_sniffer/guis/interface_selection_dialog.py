@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QItemSelectionModel, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QCursor, QPainter, QPen, QPixmap
+from PyQt6.QtCore import QItemSelectionModel, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QCursor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -266,13 +266,27 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         options_layout.setSpacing(28)
 
-        refresh_arp_button = QPushButton('⟳  Refresh ARP Table')
+        refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
         refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE if mac_lookup is not None else self._REFRESH_ARP_BUTTON_DISABLED_STYLE)
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(44)
         refresh_arp_button.setMinimumWidth(190)
+        refresh_arp_icon_pixmap = QPixmap(36, 28)
+        refresh_arp_icon_pixmap.fill(Qt.GlobalColor.transparent)
+        refresh_arp_icon_painter = QPainter(refresh_arp_icon_pixmap)
+        refresh_arp_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        refresh_arp_icon_painter.setPen(QPen(QColor('#e8f0f8'), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        refresh_arp_icon_painter.setBrush(Qt.BrushStyle.NoBrush)
+        refresh_arp_icon_painter.drawArc(QRectF(5.0, 5.0, 18.0, 18.0), 40 * 16, -150 * 16)
+        refresh_arp_icon_painter.drawArc(QRectF(5.0, 5.0, 18.0, 18.0), 220 * 16, -150 * 16)
+        refresh_arp_icon_painter.drawPolyline(QPolygonF([QPointF(12.4, 25.7), QPointF(10.9, 22.5), QPointF(14.1, 21.0)]))
+        refresh_arp_icon_painter.drawPolyline(QPolygonF([QPointF(15.6, 2.3), QPointF(17.1, 5.5), QPointF(13.9, 7.0)]))
+        refresh_arp_icon_painter.end()
+        self._refresh_arp_icon = QIcon(refresh_arp_icon_pixmap)
+        refresh_arp_button.setIcon(self._refresh_arp_icon)
+        refresh_arp_button.setIconSize(QSize(36, 28))
         options_layout.addWidget(refresh_arp_button)
 
         remember_interface_checkbox = QCheckBox('Remember Interface')
@@ -399,10 +413,20 @@ class InterfaceSelectionDialog(QDialog):
         action_layout.addWidget(instruction_label)
         action_layout.addStretch()
 
-        select_button = QPushButton('\u25b6  Start Sniffing')
+        select_button = QPushButton('Start Sniffing')
         select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(330, 56)
+        select_icon_pixmap = QPixmap(36, 28)
+        select_icon_pixmap.fill(Qt.GlobalColor.transparent)
+        select_icon_painter = QPainter(select_icon_pixmap)
+        select_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        select_icon_painter.setPen(Qt.PenStyle.NoPen)
+        select_icon_painter.setBrush(QBrush(QColor('#ffffff')))
+        select_icon_painter.drawPolygon(QPolygonF([QPointF(4.0, 2.0), QPointF(4.0, 26.0), QPointF(24.0, 14.0)]))
+        select_icon_painter.end()
+        select_button.setIcon(QIcon(select_icon_pixmap))
+        select_button.setIconSize(QSize(36, 28))
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
@@ -564,6 +588,7 @@ class InterfaceSelectionDialog(QDialog):
         button = self._controls.refresh_arp_button
         self._arp_refresh_original_text = button.text()
         button.setEnabled(False)
+        button.setIcon(QIcon())
 
         # Reset progress state and start the GUI-side animation timer.
         self._arp_refresh_progress = (0, 0)
@@ -604,8 +629,9 @@ class InterfaceSelectionDialog(QDialog):
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
         button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE)
-        button.setText(self._arp_refresh_original_text or '⟳  Refresh ARP Table')
+        button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
         button.setEnabled(self._mac_lookup is not None)
+        button.setIcon(self._refresh_arp_icon)
         self._live_refresh_interfaces()
 
     def _live_refresh_interfaces(self) -> None:
