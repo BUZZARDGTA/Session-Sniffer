@@ -1636,7 +1636,6 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         GUIProtectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        QMessageBox.information(self, TITLE, 'Protection settings saved and applied successfully.')
         self.close()
 
     def _export_protections(self) -> None:
