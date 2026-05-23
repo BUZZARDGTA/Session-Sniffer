@@ -968,8 +968,8 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         self.gta5_relay_packet_threshold_spin = threshold_spin
         threshold_layout.addWidget(threshold_spin)
         threshold_layout.addStretch()
-        gta5_relay_action_section: QWidget = getattr(self, 'gta5_relay_action_section')
-        cast(QVBoxLayout, gta5_relay_action_section.layout()).insertWidget(1, threshold_row)
+        gta5_relay_action_section: QWidget = self.gta5_relay_action_section
+        cast('QVBoxLayout', gta5_relay_action_section.layout()).insertWidget(1, threshold_row)
         scroll_layout.addWidget(relay_group)
 
         scroll_layout.addStretch()
