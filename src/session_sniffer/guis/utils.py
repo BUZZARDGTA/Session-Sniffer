@@ -86,8 +86,8 @@ def get_screen_size() -> tuple[int, int]:
         PrimaryScreenNotFoundError: If no primary screen is detected.
         UnsupportedScreenResolutionError: If screen resolution is below minimum requirements.
     """
-    min_screen_width = 800
-    min_screen_height = 600
+    min_screen_width = 1024
+    min_screen_height = 768
 
     screen = app.primaryScreen()
     if screen is None:
