@@ -611,7 +611,7 @@ class SettingsIniModel(BaseModel):
                 none_value, need_rewrite = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
                 try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('Stable', 'RC'))
+                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('Stable', 'Pre-release'))
                 except NoMatchFoundError:
                     cls._set_flag(info, 'should_rewrite', value=True)
                     return cast('str | None', cls._get_default_for_field(info))
