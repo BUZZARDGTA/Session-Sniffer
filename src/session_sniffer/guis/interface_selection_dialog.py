@@ -189,7 +189,7 @@ class InterfaceSelectionDialog(QDialog):
         self.setMinimumSize(940, 620)
         resize_window_for_screen(self, screen_size)
 
-        # UI scale factor – 2K (2560×1440) is the design baseline (1.0).
+        # UI scale factor - 2K (2560x1440) is the design baseline (1.0).
         # Smaller screens receive proportionally reduced font sizes, row heights and spacings.
         _scale = compute_ui_scale(screen_size)
         self._ui_scale = _scale
