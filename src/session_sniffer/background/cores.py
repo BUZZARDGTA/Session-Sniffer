@@ -9,7 +9,7 @@ import requests
 from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
-from session_sniffer.core import ScriptControl, ThreadsExceptionHandler
+from session_sniffer.core import ScriptControl
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
@@ -41,119 +41,118 @@ _IPAPI_FIELDS = (
 
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
-    with ThreadsExceptionHandler():
-        _slowdown = SlowdownDetector.get('iplookup_core', baseline_floor=0.15)
+    _slowdown = SlowdownDetector.get('iplookup_core', baseline_floor=0.15)
 
-        def throttle_until(requests_remaining: int, throttle_time: int) -> None:
-            # Spread remaining requests evenly across the reset window to stay within the rate limit.
-            sleep_time = throttle_time / requests_remaining
-            gui_closed__event.wait(sleep_time)
+    def throttle_until(requests_remaining: int, throttle_time: int) -> None:
+        # Spread remaining requests evenly across the reset window to stay within the rate limit.
+        sleep_time = throttle_time / requests_remaining
+        gui_closed__event.wait(sleep_time)
 
-        requests_remaining = _IPAPI_MAX_REQUESTS
-        ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+    requests_remaining = _IPAPI_MAX_REQUESTS
+    ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
 
-        while not gui_closed__event.is_set():
-            _iter_start = time.monotonic()
+    while not gui_closed__event.is_set():
+        _iter_start = time.monotonic()
 
-            if ScriptControl.has_crashed():
-                return
+        if ScriptControl.has_crashed():
+            return
 
-            ips_to_lookup: list[str] = []
+        ips_to_lookup: list[str] = []
 
-            for player in PlayersRegistry.get_default_sorted_players():
-                if player.iplookup.ipapi.is_initialized:
-                    continue
-
-                ips_to_lookup.append(player.ip)
-
-                if len(ips_to_lookup) == _IPAPI_MAX_BATCH_IPS:
-                    break
-
-            if not ips_to_lookup:
-                gui_closed__event.wait(1)
+        for player in PlayersRegistry.get_default_sorted_players():
+            if player.iplookup.ipapi.is_initialized:
                 continue
 
+            ips_to_lookup.append(player.ip)
+
+            if len(ips_to_lookup) == _IPAPI_MAX_BATCH_IPS:
+                break
+
+        if not ips_to_lookup:
+            gui_closed__event.wait(1)
+            continue
+
+        try:
+            response = session.post(
+                'http://ip-api.com/batch',
+                params={'fields': _IPAPI_FIELDS},
+                headers={'Content-Type': 'application/json'},
+                json=ips_to_lookup,
+                timeout=3,
+            )
+            response.raise_for_status()
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+            gui_closed__event.wait(1)
+            continue
+        except requests.exceptions.HTTPError as e:
+            if isinstance(e.response, requests.Response):
+                # Handle rate limiting.
+                if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    requests_remaining = int(e.response.headers.get('X-Rl') or '0')
+                    ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
+                    gui_closed__event.wait(ttl_seconds)
+                    requests_remaining = _IPAPI_MAX_REQUESTS
+                    ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+                    continue
+
+                # Transient server-side errors — wait and retry.
+                if HTTPStatus(e.response.status_code).is_server_error:
+                    logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
+                    gui_closed__event.wait(5)
+                    continue
+
+            raise  # Re-raise unexpected HTTP errors (4xx, etc.)
+
+        requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
+        ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
+
+        iplookup_results_data: object = response.json()
+        if not isinstance(iplookup_results_data, list):
+            logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
+            continue
+        iplookup_results: list[IpApiResponse] = []
+
+        for raw_item in cast('list[object]', iplookup_results_data):
+            if not isinstance(raw_item, dict):
+                logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
+                continue
+            item = cast('dict[str, object]', raw_item)
             try:
-                response = session.post(
-                    'http://ip-api.com/batch',
-                    params={'fields': _IPAPI_FIELDS},
-                    headers={'Content-Type': 'application/json'},
-                    json=ips_to_lookup,
-                    timeout=3,
-                )
-                response.raise_for_status()
-            except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-                gui_closed__event.wait(1)
-                continue
-            except requests.exceptions.HTTPError as e:
-                if isinstance(e.response, requests.Response):
-                    # Handle rate limiting.
-                    if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                        requests_remaining = int(e.response.headers.get('X-Rl') or '0')
-                        ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
-                        gui_closed__event.wait(ttl_seconds)
-                        requests_remaining = _IPAPI_MAX_REQUESTS
-                        ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
-                        continue
+                iplookup_results.append(IpApiResponse.model_validate(item))
+            except ValidationError:
+                # Mark IPs with a failed status as initialized so they are never retried.
+                if item.get('status') == 'fail':
+                    query_raw = item.get('query', '')
+                    failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
+                    if failed_player is not None:
+                        failed_player.iplookup.ipapi.is_initialized = True
+                        logger.debug(
+                            'ip-api returned fail for %s (%s) — marking as initialized',
+                            item.get('query'),
+                            item.get('message', ''),
+                        )
+                else:
+                    logger.warning('Failed to validate ip-api response item: %s', item)
 
-                    # Transient server-side errors — wait and retry.
-                    if HTTPStatus(e.response.status_code).is_server_error:
-                        logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
-                        gui_closed__event.wait(5)
-                        continue
-
-                raise  # Re-raise unexpected HTTP errors (4xx, etc.)
-
-            requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
-            ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
-
-            iplookup_results_data: object = response.json()
-            if not isinstance(iplookup_results_data, list):
-                logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
-                continue
-            iplookup_results: list[IpApiResponse] = []
-
-            for raw_item in cast('list[object]', iplookup_results_data):
-                if not isinstance(raw_item, dict):
-                    logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
-                    continue
-                item = cast('dict[str, object]', raw_item)
-                try:
-                    iplookup_results.append(IpApiResponse.model_validate(item))
-                except ValidationError:
-                    # Mark IPs with a failed status as initialized so they are never retried.
-                    if item.get('status') == 'fail':
-                        query_raw = item.get('query', '')
-                        failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
-                        if failed_player is not None:
-                            failed_player.iplookup.ipapi.is_initialized = True
-                            logger.debug(
-                                'ip-api returned fail for %s (%s) — marking as initialized',
-                                item.get('query'),
-                                item.get('message', ''),
-                            )
-                    else:
-                        logger.warning('Failed to validate ip-api response item: %s', item)
-
-                    continue
-
-            for iplookup in iplookup_results:
-                matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
-                if matched_player is None:
-                    continue
-
-                matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
-                matched_player.iplookup.ipapi.is_initialized = True
-
-            _slowdown.check(time.monotonic() - _iter_start, 'iplookup_core')
-
-            if requests_remaining <= 0:
-                throttle_until(1, ttl_seconds)
-                requests_remaining = _IPAPI_MAX_REQUESTS
-                ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                 continue
 
-            throttle_until(requests_remaining, ttl_seconds)
+        for iplookup in iplookup_results:
+            matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
+            if matched_player is None:
+                continue
+
+            matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
+            matched_player.iplookup.ipapi.is_initialized = True
+
+        _slowdown.check(time.monotonic() - _iter_start, 'iplookup_core')
+
+        if requests_remaining <= 0:
+            throttle_until(1, ttl_seconds)
+            requests_remaining = _IPAPI_MAX_REQUESTS
+            ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+            continue
+
+        throttle_until(requests_remaining, ttl_seconds)
 
 
 def _run_player_future_core[T](
@@ -165,7 +164,7 @@ def _run_player_future_core[T](
     handle_exception: Callable[[str, Exception], bool] | None = None,
 ) -> None:
     """Run a background player task using one future per pending IP."""
-    with ThreadsExceptionHandler(), ThreadPoolExecutor(max_workers=32) as executor:
+    with ThreadPoolExecutor(max_workers=32) as executor:
         futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()  # Tracks IPs currently being processed
 

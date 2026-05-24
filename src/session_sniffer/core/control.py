@@ -113,49 +113,9 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
         terminate_script('SIGINT')
 
 
-class ThreadsExceptionHandler:
-    """Handle exceptions raised within threads and provide additional functionality for managing thread execution.
-
-    This class is designed to overcome the limitation where threads run independently from the main process, which continues execution without waiting for thread completion.
-
-    """
-
-    def __enter__(self) -> None:
-        """Enter the runtime context related to this object."""
-
-    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, exc_traceback: TracebackType | None) -> bool:
-        """Exit method called upon exiting the 'with' block.
-
-        Args:
-            exc_type: The type of the raised exception.
-            exc_value: The value of the raised exception.
-            exc_traceback: The traceback information of the raised exception.
-
-        Returns:
-            Whether to suppress the exception from propagating further.
-        """
-        # Return False to allow normal execution if no exception occurred
-        if exc_type is None or exc_value is None:
-            return False
-
-        # Create the exception info and terminate the script
-        exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
-        terminate_script(
-            'THREAD_RAISED',
-            (
-                'An unexpected (uncaught) error occurred.\n\n'
-                'Please kindly report it to:\n'
-                'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
-            ),
-            exception_info=exception_info,
-        )
-
-        # Suppress the exception from propagating
-        return True
-
 
 def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
-    """Handle uncaught exceptions in threads not wrapped by ThreadsExceptionHandler."""
+    """Handle uncaught exceptions in threads."""
     if args.exc_type is SystemExit:
         return
 

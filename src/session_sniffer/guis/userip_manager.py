@@ -6,7 +6,7 @@ from ipaddress import IPv4Address
 from pathlib import Path
 
 from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QUrl
-from PyQt6.QtGui import QCloseEvent, QColor, QDesktopServices, QFileSystemModel, QStandardItem, QStandardItemModel
+from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
@@ -57,7 +58,7 @@ from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI
 from session_sniffer.text_utils import pluralize
 
 
-class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, QDialog):  # pylint: disable=too-many-instance-attributes
+class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):  # pylint: disable=too-many-instance-attributes
     """Modal dialog for managing UserIP database files and their entries."""
 
     def __init__(self, parent: QWidget | None) -> None:
@@ -1081,27 +1082,11 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         ]
         self._stats_label.setText('\n'.join(parts))
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
-        """Prompt to save if there are unsaved changes before closing."""
-        if self._dirty:
-            result = QMessageBox.warning(
-                self,
-                TITLE,
-                'You have unsaved changes. Save before closing?',
-                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Save,
-            )
-            if result == QMessageBox.StandardButton.Save:
-                self._save_database()
-                if self._dirty:
-                    # Save failed — don't close
-                    if a0 is not None:
-                        a0.ignore()
-                    return
-            elif result == QMessageBox.StandardButton.Cancel:
-                if a0 is not None:
-                    a0.ignore()
-                return
+    def _has_unsaved_changes_for_close(self) -> bool:
+        """Return `True` if there are dirty (unsaved) changes."""
+        return self._dirty
 
-        if a0 is not None:
-            a0.accept()
+    def _save_on_close(self) -> bool:
+        """Save the database; return `True` if the save succeeded (no longer dirty)."""
+        self._save_database()
+        return not self._dirty

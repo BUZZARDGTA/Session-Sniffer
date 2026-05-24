@@ -4,6 +4,7 @@ import atexit
 import ctypes
 import logging
 import os
+import queue
 import sys
 import time
 from collections import deque
@@ -36,7 +37,6 @@ from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.core import ThreadsExceptionHandler
 from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
@@ -51,8 +51,9 @@ from session_sniffer.guis.utils import get_screen_size
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import get_logger, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
+from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
-from session_sniffer.networking.interface import AllInterfaces, Interface
+from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -78,6 +79,9 @@ def _hide_console_window() -> None:
         hwnd = ctypes.windll.kernel32.GetConsoleWindow()
         if hwnd:
             ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+
+
+_PACKET_DROUGHT_THRESHOLD_SECS = 8.0
 
 
 def main() -> None:
@@ -220,106 +224,105 @@ def main() -> None:
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
-        with ThreadsExceptionHandler():
-            _pkt_start = time.monotonic()
-            packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
-            CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
-            CaptureStats.total_packets_captured += 1
-            if packet_latency.total_seconds() >= Settings.capture_overflow_timer:
-                CaptureStats.restarted_times += 1
-                CaptureStats.packets_latencies.clear()
-                logger.warning(
-                    'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
-                    'Restarting capture now (restart no.%d). Skipping this packet.',
-                    packet_latency.total_seconds(),
-                    Settings.capture_overflow_timer,
-                    CaptureStats.restarted_times,
-                )
-                capture_holder.request_restart()
-                return  # Skip processing this packet
+        _pkt_start = time.monotonic()
+        packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
+        CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
+        CaptureStats.total_packets_captured += 1
+        if packet_latency.total_seconds() >= Settings.capture_overflow_timer:
+            CaptureStats.restarted_times += 1
+            CaptureStats.packets_latencies.clear()
+            logger.warning(
+                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
+                'Restarting capture now (restart no.%d). Skipping this packet.',
+                packet_latency.total_seconds(),
+                Settings.capture_overflow_timer,
+                CaptureStats.restarted_times,
+            )
+            capture_holder.request_restart()
+            return  # Skip processing this packet
 
-            if packet.ip.src == Settings.capture_ip_address:
-                target_ip = packet.ip.dst
-                target_port = packet.port.dst
-                sent_by_local_host = True
-            elif packet.ip.dst == Settings.capture_ip_address:
-                target_ip = packet.ip.src
-                target_port = packet.port.src
-                sent_by_local_host = False
-            else:
-                return  # Neither source nor destination matches the capture IP address.
+        if packet.ip.src == Settings.capture_ip_address:
+            target_ip = packet.ip.dst
+            target_port = packet.port.dst
+            sent_by_local_host = True
+        elif packet.ip.dst == Settings.capture_ip_address:
+            target_ip = packet.ip.src
+            target_port = packet.port.src
+            sent_by_local_host = False
+        else:
+            return  # Neither source nor destination matches the capture IP address.
 
-            if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
-                return  # IP is blocked; discard packet silently
+        if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
+            return  # IP is blocked; discard packet silently
 
-            matched_player = PlayersRegistry.get_player_by_ip(target_ip)
-            if matched_player is None:
-                matched_player = PlayersRegistry.add_connected_player(
-                    Player(
-                        ip=target_ip,
-                        packet=PacketInfo(
-                            datetime=packet.datetime,
-                            length=packet.length,
-                            port=target_port,
-                            sent_by_local_host=sent_by_local_host,
-                        ),
+        matched_player = PlayersRegistry.get_player_by_ip(target_ip)
+        if matched_player is None:
+            matched_player = PlayersRegistry.add_connected_player(
+                Player(
+                    ip=target_ip,
+                    packet=PacketInfo(
+                        datetime=packet.datetime,
+                        length=packet.length,
+                        port=target_port,
+                        sent_by_local_host=sent_by_local_host,
                     ),
-                )
+                ),
+            )
 
-                handle_detection_notification(matched_player, 'player_joined_session')
+            handle_detection_notification(matched_player, 'player_joined_session')
 
-            elif matched_player.left_event.is_set():
-                matched_player.mark_as_rejoined(
-                    port=target_port,
-                    packet_datetime=packet.datetime,
-                    packet_length=packet.length,
-                    sent_by_local_host=sent_by_local_host,
-                )
-                PlayersRegistry.move_player_to_connected(matched_player)
+        elif matched_player.left_event.is_set():
+            matched_player.mark_as_rejoined(
+                port=target_port,
+                packet_datetime=packet.datetime,
+                packet_length=packet.length,
+                sent_by_local_host=sent_by_local_host,
+            )
+            PlayersRegistry.move_player_to_connected(matched_player)
 
-                handle_detection_notification(matched_player, 'player_rejoined_session')
-            else:
-                matched_player.mark_as_seen(
-                    port=target_port,
-                    packet_datetime=packet.datetime,
-                    packet_length=packet.length,
-                    sent_by_local_host=sent_by_local_host,
-                )
+            handle_detection_notification(matched_player, 'player_rejoined_session')
+        else:
+            matched_player.mark_as_seen(
+                port=target_port,
+                packet_datetime=packet.datetime,
+                packet_length=packet.length,
+                sent_by_local_host=sent_by_local_host,
+            )
 
-            if not matched_player.protection_checked:
-                matched_player.protection_checked = True
-                Thread(
-                    target=check_global_protections,
-                    name=f'CheckProtections-{matched_player.ip}',
-                    args=(matched_player,),
-                    daemon=True,
-                ).start()
+        if not matched_player.protection_checked:
+            matched_player.protection_checked = True
+            Thread(
+                target=check_global_protections,
+                name=f'CheckProtections-{matched_player.ip}',
+                args=(matched_player,),
+                daemon=True,
+            ).start()
 
-            if not matched_player.relay_monitor_started:
-                matched_player.relay_monitor_started = True
-                Thread(
-                    target=monitor_gta5_relay_task,
-                    name=f'GTA5RelayMonitor-{matched_player.ip}',
-                    args=(matched_player,),
-                    daemon=True,
-                ).start()
+        if not matched_player.relay_monitor_started:
+            matched_player.relay_monitor_started = True
+            Thread(
+                target=monitor_gta5_relay_task,
+                name=f'GTA5RelayMonitor-{matched_player.ip}',
+                args=(matched_player,),
+                daemon=True,
+            ).start()
 
-            if UserIPDatabases.is_known_ip(matched_player.ip) and (
-                not matched_player.userip_detection
-                or not matched_player.userip_detection.as_processed_task
-            ):
-                matched_player.userip_detection = PlayerUserIPDetection(
-                    time=packet.datetime.strftime('%H:%M:%S'),
-                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
-                )
-                Thread(
-                    target=process_userip_task,
-                    name=f'ProcessUserIPTask-{matched_player.ip}-connected',
-                    args=(matched_player, 'connected'),
-                    daemon=True,
-                ).start()
+        if UserIPDatabases.is_known_ip(matched_player.ip) and (
+            not matched_player.userip_detection
+            or not matched_player.userip_detection.as_processed_task
+        ):
+            matched_player.userip_detection = PlayerUserIPDetection(
+                time=packet.datetime.strftime('%H:%M:%S'),
+                date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
+            )
+            Thread(
+                target=process_userip_task,
+                name=f'ProcessUserIPTask-{matched_player.ip}-connected',
+                args=(matched_player, 'connected'),
+                daemon=True,
+            ).start()
 
-            _packet_slowdown.check(time.monotonic() - _pkt_start, 'packet_callback')
+        _packet_slowdown.check(time.monotonic() - _pkt_start, 'packet_callback')
 
     _adapter_lost_event = Event()
 
@@ -492,6 +495,142 @@ def main() -> None:
     _arp_failed_timer.setInterval(500)
     _arp_failed_timer.timeout.connect(_on_arp_failed_poll)
     _arp_failed_timer.start()
+
+    _ip_changed_queue: queue.Queue[str] = queue.Queue()
+
+    def _on_ip_changed_poll() -> None:
+        """Poll for capture interface IP changes and silently restart the capture."""
+        if gui_closed__event.is_set():
+            return
+        try:
+            new_ip = _ip_changed_queue.get_nowait()
+        except queue.Empty:
+            return
+        current_config = capture_holder.config
+        if current_config.interface.ip_address == new_ip:
+            return  # Race: IP was already updated (e.g. manual interface switch ran concurrently)
+        was_running = capture_holder.is_running()
+        if was_running:
+            capture_holder.stop()
+        new_capture_filter, new_display_filter_fn = build_capture_filters(
+            capture_ip_address=new_ip,
+            broadcast_support=current_config.broadcast_support,
+            multicast_support=current_config.multicast_support,
+        )
+        Settings.capture_ip_address = new_ip
+        Settings.rewrite_settings_file()
+        new_selected_interface = SelectedInterfaceRow(
+            interface=current_config.interface.interface,
+            ip_address=new_ip,
+            is_neighbour=current_config.interface.is_neighbour,
+        )
+        new_capture = PacketCapture(
+            CaptureConfig(
+                interface=new_selected_interface,
+                broadcast_support=current_config.broadcast_support,
+                multicast_support=current_config.multicast_support,
+                capture_filter=new_capture_filter,
+                display_filter_fn=new_display_filter_fn,
+                callback=packet_callback,
+                on_capture_lost=_adapter_lost_event.set,
+            ),
+        )
+        new_capture.start()
+        CaptureStats.capture_started_at = time.monotonic()
+        capture_holder.set(new_capture)
+        window.on_interface_switched()
+
+    _ip_changed_timer = QTimer()
+    _ip_changed_timer.setInterval(500)
+    _ip_changed_timer.timeout.connect(_on_ip_changed_poll)
+    _ip_changed_timer.start()
+
+    def _monitor_capture_ip_change_loop() -> None:
+        """Background thread: detect when the capture interface IP changes and queue a silent restart.
+
+        Some VPN clients assign a new IP address to their adapter when switching servers.
+        The BPF capture filter is compiled once at capture start with the old IP, so after
+        the IP changes the sniffer keeps running but captures zero matching packets.
+
+        Strategy: poll `total_packets_captured` every 2 seconds.  When the counter stops advancing
+        for ≥8 seconds (packet drought), call `get_adapters_info()` once to check whether the
+        interface IP actually changed.  If it did → queue a restart.  If the IP is unchanged the
+        drought is just normal idle time (no game running) and nothing is done.  This avoids calling
+        the Windows adapter API on every iteration while also preventing false restarts when the
+        user simply isn't in a session.
+        """
+        last_packet_count = CaptureStats.total_packets_captured
+        last_count_change = time.monotonic()
+        drought_active = False
+
+        while not gui_closed__event.wait(2.0):
+            if not capture_holder.is_running() or not _ip_changed_queue.empty():
+                # Capture stopped or a restart is already queued — reset baseline and wait.
+                last_packet_count = CaptureStats.total_packets_captured
+                last_count_change = time.monotonic()
+                drought_active = False
+                continue
+
+            current_count = CaptureStats.total_packets_captured
+            if current_count != last_packet_count:
+                last_packet_count = current_count
+                last_count_change = time.monotonic()
+                drought_active = False
+                continue
+
+            if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECS:
+                continue  # Drought not long enough yet
+
+            # Packet drought confirmed — log once per drought event, then check whether the interface IP changed.
+            current_interface = capture_holder.config.interface
+            if not drought_active:
+                drought_active = True
+                logger.debug(
+                    'Packet drought on %s (capture IP: %s) — checking adapter IP.',
+                    current_interface.name,
+                    current_interface.ip_address,
+                )
+            if current_interface.is_neighbour:
+                last_count_change = time.monotonic()  # reset so we don't spin
+                drought_active = False
+                continue  # ARP-spoof mode: filter IP is the neighbour's IP, not the adapter's
+
+            adapter_guid = current_interface.interface.identity.adapter_guid
+            if adapter_guid is None:
+                last_count_change = time.monotonic()
+                drought_active = False
+                continue
+
+            adapter_has_ip = False
+            for adapter in get_adapters_info():
+                if adapter.identity.adapter_guid != adapter_guid:
+                    continue
+                if not adapter.ipv4_addresses:
+                    break  # Adapter found but no IP yet (VPN reconnecting)
+                adapter_has_ip = True
+                new_ip = adapter.ipv4_addresses[0]
+                if new_ip != current_interface.ip_address:
+                    logger.warning(
+                        'Capture interface IP changed from %s to %s — restarting capture.',
+                        current_interface.ip_address,
+                        new_ip,
+                    )
+                    _ip_changed_queue.put(new_ip)
+                break
+
+            # Reset the drought clock only if the adapter had a valid IP.
+            # If the adapter had no IP (VPN reconnecting) or was not found at all,
+            # keep the drought active so we re-check on the very next poll cycle
+            # (~2 s) rather than waiting another full 8 s.
+            if adapter_has_ip:
+                last_count_change = time.monotonic()
+                drought_active = False
+
+    Thread(
+        target=_monitor_capture_ip_change_loop,
+        name='CaptureIPChangeMonitor',
+        daemon=True,
+    ).start()
 
     splash.finish_loading()
     QTimer.singleShot(1500, splash.close_splash)

@@ -32,8 +32,9 @@ from PyQt6.QtWidgets import (
 from session_sniffer.background import clear_voice_notification_queue
 from session_sniffer.constants.local import COMBO_RULES_PATH, IMAGES_DIR_PATH, PROTECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis.country_data import COUNTRY_NAMES, get_country_flag_code
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_MANUAL,
@@ -612,7 +613,7 @@ class _ComboRuleEditorDialog(QDialog):
         )
 
 
-class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-attributes
+class DetectionsManagerDialog(UnsavedChangesMixin, QDialog):  # pylint: disable=too-many-instance-attributes
     """Comprehensive detections manager with VPN, IP range, and advanced threat detection capabilities."""
 
     def __init__(self, parent: QWidget) -> None:  # pylint: disable=too-many-statements
@@ -721,14 +722,14 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         layout.addWidget(header)
 
         # Tabs
-        tabs = QTabWidget()
-        tabs.addTab(self._create_player_events_tab(), '\U0001f464 Player Events')
-        tabs.addTab(self._create_network_based_tab(), '\U0001f310 Network-Based')
-        tabs.addTab(self._create_geo_based_tab(), '\U0001f30d Geography-Based')
-        tabs.addTab(self._create_combo_rules_tab(), '\U0001f517 Combo Rules')
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._create_player_events_tab(), '\U0001f464 Player Events')
+        self._tabs.addTab(self._create_network_based_tab(), '\U0001f310 Network-Based')
+        self._tabs.addTab(self._create_geo_based_tab(), '\U0001f30d Geography-Based')
+        self._tabs.addTab(self._create_combo_rules_tab(), '\U0001f517 Combo Rules')
         if Settings.capture_program_preset == 'GTA5':
-            tabs.addTab(self._create_gta5_relays_tab(), '\U0001f3ae GTA5 Relays')
-        layout.addWidget(tabs)
+            self._tabs.addTab(self._create_gta5_relays_tab(), '\U0001f3ae GTA5 Relays')
+        layout.addWidget(self._tabs)
 
         # Bottom buttons
         button_row = QHBoxLayout()
@@ -745,12 +746,10 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         export_button.clicked.connect(self._export_protections)
         button_row.addWidget(export_button)
 
-        button_row.addStretch()
-
-        save_button = QPushButton('\U0001f4be Save & Apply')
-        save_button.setToolTip('Save all protection settings and apply them immediately')
-        save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        save_button.setDefault(True)
+        reset_button = QPushButton('\U0001f504 Reset all\u2026')
+        reset_button.setToolTip('Reset all protection settings to defaults')
+        save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
+        save_button.setToolTip('Save all protection settings')
         save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
@@ -765,6 +764,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
         self.refresh_protection_availability()
         if hasattr(self, 'gta5_relay_enable_checkbox'):
             self.gta5_relay_enable_checkbox.toggled.connect(self._on_gta5_relay_enable_toggled)
+        self._snapshot = self._read_all_widget_values()
 
     # ------------------------------------------------------------------
     # Protection support restrictions
@@ -1714,7 +1714,7 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
 
         GUIProtectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        self.close()
+        self.accept()
 
     def _export_protections(self) -> None:
         """Export current protection settings (including combo rules) to a JSON file."""
@@ -1767,6 +1767,54 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
                 return
             self._load_current_settings()
             QMessageBox.information(self, TITLE, 'Protection settings imported successfully.')
+
+    def _reset_tab_to_defaults(self, prefixes: tuple[str, ...]) -> None:
+        """Reset all protection widgets for the given *prefixes* to their default values without saving."""
+        for prefix in prefixes:
+            getattr(self, f'{prefix}_enable_checkbox').setChecked(False)
+            getattr(self, f'{prefix}_process_edit').setText('')
+            self._set_duration_widgets(
+                getattr(self, f'{prefix}_duration_combo'),
+                getattr(self, f'{prefix}_duration_spin'),
+                'Auto',
+            )
+            self._set_voice_combo(getattr(self, f'{prefix}_voice_combo'), value=False)
+            getattr(self, f'{prefix}_logging_checkbox').setChecked(False)
+            getattr(self, f'{prefix}_msgbox_checkbox').setChecked(False)
+            if hasattr(self, f'{prefix}_list'):
+                getattr(self, f'{prefix}_list').clear()
+            if prefix == 'gta5_relay':
+                self.gta5_relay_packet_threshold_spin.setValue(40)
+
+    def _reset_current_tab(self) -> None:
+        """Reset the current tab's protection widgets to their default values."""
+        index_to_prefixes: dict[int, tuple[str, ...]] = {
+            0: ('player_join', 'player_rejoin', 'player_leave'),
+            1: ('mobile', 'vpn', 'hosting'),
+            2: ('country', 'isp', 'asn'),
+            4: ('gta5_relay',),
+        }
+        prefixes = index_to_prefixes.get(self._tabs.currentIndex())
+        if prefixes is None:
+            return
+        self._reset_tab_to_defaults(prefixes)
+
+    def _reset_to_defaults(self) -> None:
+        """Reset all protection widget values to defaults after user confirmation."""
+        result = QMessageBox.question(
+            self,
+            TITLE,
+            'Reset all protection settings to defaults?\n\nThis will clear all current values in the editor.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        prefixes: tuple[str, ...] = ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave')
+        if hasattr(self, 'gta5_relay_enable_checkbox'):
+            prefixes = (*prefixes, 'gta5_relay')
+        self._reset_tab_to_defaults(prefixes)
 
     def _save_widgets_to_singleton(self) -> None:  # pylint: disable=too-many-statements
         """Write current widget state to GUIProtectionSettings without persisting to disk."""
@@ -1876,6 +1924,103 @@ class DetectionsManagerDialog(QDialog):  # pylint: disable=too-many-instance-att
             GUIProtectionSettings.gta5_relay_voice_notifications = self._read_voice_combo(self.gta5_relay_voice_combo)
             GUIProtectionSettings.gta5_relay_logging = self.gta5_relay_logging_checkbox.isChecked()
             GUIProtectionSettings.gta5_relay_message_box = self.gta5_relay_msgbox_checkbox.isChecked()
+
+    def _read_all_widget_values(self) -> dict[str, object]:
+        """Capture a comparable snapshot of all widget values."""
+        values: dict[str, object] = {
+            'mobile_enabled': self.mobile_enable_checkbox.isChecked(),
+            'mobile_process_path': self.mobile_process_edit.text().strip(),
+            'mobile_duration': self._read_duration_widgets(self.mobile_duration_combo, self.mobile_duration_spin),
+            'mobile_voice': self._read_voice_combo(self.mobile_voice_combo),
+            'mobile_logging': self.mobile_logging_checkbox.isChecked(),
+            'mobile_msgbox': self.mobile_msgbox_checkbox.isChecked(),
+            'vpn_enabled': self.vpn_enable_checkbox.isChecked(),
+            'vpn_process_path': self.vpn_process_edit.text().strip(),
+            'vpn_duration': self._read_duration_widgets(self.vpn_duration_combo, self.vpn_duration_spin),
+            'vpn_voice': self._read_voice_combo(self.vpn_voice_combo),
+            'vpn_logging': self.vpn_logging_checkbox.isChecked(),
+            'vpn_msgbox': self.vpn_msgbox_checkbox.isChecked(),
+            'hosting_enabled': self.hosting_enable_checkbox.isChecked(),
+            'hosting_process_path': self.hosting_process_edit.text().strip(),
+            'hosting_duration': self._read_duration_widgets(self.hosting_duration_combo, self.hosting_duration_spin),
+            'hosting_voice': self._read_voice_combo(self.hosting_voice_combo),
+            'hosting_logging': self.hosting_logging_checkbox.isChecked(),
+            'hosting_msgbox': self.hosting_msgbox_checkbox.isChecked(),
+            'country_enabled': self.country_enable_checkbox.isChecked(),
+            'country_list': tuple(
+                item.data(Qt.ItemDataRole.UserRole)
+                for i in range(self.country_list.count())
+                if (item := self.country_list.item(i)) is not None
+            ),
+            'country_process_path': self.country_process_edit.text().strip(),
+            'country_duration': self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin),
+            'country_voice': self._read_voice_combo(self.country_voice_combo),
+            'country_logging': self.country_logging_checkbox.isChecked(),
+            'country_msgbox': self.country_msgbox_checkbox.isChecked(),
+            'isp_enabled': self.isp_enable_checkbox.isChecked(),
+            'isp_list': tuple(
+                item.text()
+                for i in range(self.isp_list.count())
+                if (item := self.isp_list.item(i)) is not None
+            ),
+            'isp_process_path': self.isp_process_edit.text().strip(),
+            'isp_duration': self._read_duration_widgets(self.isp_duration_combo, self.isp_duration_spin),
+            'isp_voice': self._read_voice_combo(self.isp_voice_combo),
+            'isp_logging': self.isp_logging_checkbox.isChecked(),
+            'isp_msgbox': self.isp_msgbox_checkbox.isChecked(),
+            'asn_enabled': self.asn_enable_checkbox.isChecked(),
+            'asn_list': tuple(
+                item.text()
+                for i in range(self.asn_list.count())
+                if (item := self.asn_list.item(i)) is not None
+            ),
+            'asn_process_path': self.asn_process_edit.text().strip(),
+            'asn_duration': self._read_duration_widgets(self.asn_duration_combo, self.asn_duration_spin),
+            'asn_voice': self._read_voice_combo(self.asn_voice_combo),
+            'asn_logging': self.asn_logging_checkbox.isChecked(),
+            'asn_msgbox': self.asn_msgbox_checkbox.isChecked(),
+            'player_join_enabled': self.player_join_enable_checkbox.isChecked(),
+            'player_join_process_path': self.player_join_process_edit.text().strip(),
+            'player_join_duration': self._read_duration_widgets(self.player_join_duration_combo, self.player_join_duration_spin),
+            'player_join_voice': self._read_voice_combo(self.player_join_voice_combo),
+            'player_join_logging': self.player_join_logging_checkbox.isChecked(),
+            'player_join_msgbox': self.player_join_msgbox_checkbox.isChecked(),
+            'player_rejoin_enabled': self.player_rejoin_enable_checkbox.isChecked(),
+            'player_rejoin_process_path': self.player_rejoin_process_edit.text().strip(),
+            'player_rejoin_duration': self._read_duration_widgets(self.player_rejoin_duration_combo, self.player_rejoin_duration_spin),
+            'player_rejoin_voice': self._read_voice_combo(self.player_rejoin_voice_combo),
+            'player_rejoin_logging': self.player_rejoin_logging_checkbox.isChecked(),
+            'player_rejoin_msgbox': self.player_rejoin_msgbox_checkbox.isChecked(),
+            'player_leave_enabled': self.player_leave_enable_checkbox.isChecked(),
+            'player_leave_process_path': self.player_leave_process_edit.text().strip(),
+            'player_leave_duration': self._read_duration_widgets(self.player_leave_duration_combo, self.player_leave_duration_spin),
+            'player_leave_voice': self._read_voice_combo(self.player_leave_voice_combo),
+            'player_leave_logging': self.player_leave_logging_checkbox.isChecked(),
+            'player_leave_msgbox': self.player_leave_msgbox_checkbox.isChecked(),
+            'combo_rules': [r.to_dict() for r in ComboRulesManager.rules],
+        }
+        if hasattr(self, 'gta5_relay_enable_checkbox'):
+            values['gta5_relay_enabled'] = self.gta5_relay_enable_checkbox.isChecked()
+            values['gta5_relay_packet_threshold'] = self.gta5_relay_packet_threshold_spin.value()
+            values['gta5_relay_process_path'] = self.gta5_relay_process_edit.text().strip()
+            values['gta5_relay_duration'] = self._read_duration_widgets(self.gta5_relay_duration_combo, self.gta5_relay_duration_spin)
+            values['gta5_relay_voice'] = self._read_voice_combo(self.gta5_relay_voice_combo)
+            values['gta5_relay_logging'] = self.gta5_relay_logging_checkbox.isChecked()
+            values['gta5_relay_msgbox'] = self.gta5_relay_msgbox_checkbox.isChecked()
+        return values
+
+    def _has_unsaved_changes(self) -> bool:
+        """Return True if any widget value differs from the state when the dialog was opened."""
+        return self._read_all_widget_values() != self._snapshot
+
+    def _has_unsaved_changes_for_close(self) -> bool:
+        """Return `True` if there are unsaved changes that should be saved before closing."""
+        return self._has_unsaved_changes()
+
+    def _save_on_close(self) -> bool:
+        """Save and apply protections; always succeeds."""
+        self._save_and_apply()
+        return True
 
 
 def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:

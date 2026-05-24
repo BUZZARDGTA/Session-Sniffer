@@ -33,8 +33,9 @@ from PyQt6.QtWidgets import (
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
+from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.interface import AllInterfaces
@@ -55,7 +56,7 @@ _RESTART_INDICATOR = ' \u27F3'
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
 
-class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
+class SettingsDialog(UnsavedChangesMixin, QDialog):
     """Modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture) -> None:
@@ -72,14 +73,15 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         self._old_values: dict[str, SettingValue] = {
             key: getattr(Settings, key) for key in SETTING_METADATA
         }
+        self._saved: bool = False
 
         root_layout = QVBoxLayout(self)
 
-        tabs = QTabWidget()
+        self._tabs = QTabWidget()
         for category in SETTING_CATEGORIES_ORDER:
             tab_widget = self._build_tab(category)
-            tabs.addTab(tab_widget, category)
-        root_layout.addWidget(tabs)
+            self._tabs.addTab(tab_widget, category)
+        root_layout.addWidget(self._tabs)
 
         button_row = QHBoxLayout()
 
@@ -95,25 +97,17 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        button_row.addStretch()
-
-        reset_button = QPushButton('\U0001f504 Reset All to Defaults')
+        reset_button = QPushButton('\U0001f504 Reset all\u2026')
         reset_button.setToolTip('Reset all settings across every tab to their default values (review before saving)')
-        reset_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        reset_button.clicked.connect(self._reset_to_defaults)
-        button_row.addWidget(reset_button)
-
-        save_button = QPushButton('\U0001f4be Save')
+        save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Validate and save all settings to Settings.ini')
-        save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        save_button.setDefault(True)
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
         cancel_button = QPushButton('\u274c Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.clicked.connect(self.close)
+        cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
 
         root_layout.addLayout(button_row)
@@ -203,15 +197,6 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         outer_layout.addStretch()
         scroll.setWidget(container)
         page_layout.addWidget(scroll)
-
-        reset_tab_row = QHBoxLayout()
-        reset_tab_row.addStretch()
-        reset_tab_button = QPushButton('\U0001f504 Reset Tab to Defaults')
-        reset_tab_button.setToolTip(f'Reset all {category} settings to their default values (review before saving)')
-        reset_tab_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        reset_tab_button.clicked.connect(partial(self._reset_tab_to_defaults, category))
-        reset_tab_row.addWidget(reset_tab_button)
-        page_layout.addLayout(reset_tab_row)
 
         return page
 
@@ -866,6 +851,7 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
 
+        self._saved = True
         self.accept()
 
     def _reset_tab_to_defaults(self, category: str) -> None:
@@ -873,6 +859,11 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         for key, widget in self._widgets.items():
             if key in SETTING_DEFAULTS and SETTING_METADATA[key].category == category:
                 self._set_widget_value(key, widget, SETTING_DEFAULTS[key])
+
+    def _reset_current_tab(self) -> None:
+        """Reset the current tab's settings to their default values."""
+        category = SETTING_CATEGORIES_ORDER[self._tabs.currentIndex()]
+        self._reset_tab_to_defaults(category)
 
     def _reset_to_defaults(self) -> None:
         """Populate all widgets with default values without saving."""
@@ -910,3 +901,24 @@ class SettingsDialog(QDialog):  # pylint: disable=too-few-public-methods
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._load_current_values()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
+
+    def _has_unsaved_changes(self) -> bool:
+        """Return True if any widget value differs from the value at dialog open."""
+        for key, widget in self._widgets.items():
+            current = self._read_widget_value(key, widget)
+            original = self._old_values.get(key)
+            if SETTING_METADATA[key].setting_type == SettingType.IP_RANGE_TUPLE:
+                if sorted(current if isinstance(current, tuple) else ()) != sorted(original if isinstance(original, tuple) else ()):
+                    return True
+            elif current != original:
+                return True
+        return False
+
+    def _has_unsaved_changes_for_close(self) -> bool:
+        """Return `True` if there are unsaved changes that should be saved before closing."""
+        return self._has_unsaved_changes()
+
+    def _save_on_close(self) -> bool:
+        """Save settings; return `True` if save succeeded."""
+        self._save_settings()
+        return self._saved

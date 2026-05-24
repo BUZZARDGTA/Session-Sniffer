@@ -3,7 +3,6 @@
 from .control import (
     ExceptionInfo,
     ScriptControl,
-    ThreadsExceptionHandler,
     handle_exception,
     handle_sigint,
     terminate_script,
@@ -12,7 +11,6 @@ from .control import (
 __all__ = [
     'ExceptionInfo',
     'ScriptControl',
-    'ThreadsExceptionHandler',
     'handle_exception',
     'handle_sigint',
     'terminate_script',

@@ -13,7 +13,7 @@ Important import note: even with the `src/` layout, Python imports remain `from 
 - GUI: `MainWindow` owns two `SessionTableView` / `SessionTableModel` pairs (connected & disconnected). Heavy operations are skipped when a table is hidden; selection counts update headers. Respect existing optimization checks (`connected_count_changed`, visibility guards).
 - Settings: Loaded frequently from `Settings.ini` via `Settings.load_from_settings_file`; after in‑memory changes call `Settings.reconstruct_settings()`. Feature toggles (detection flags, interface overrides) rely on this persistence.
 - Screen Resolution: Always obtain via `get_screen_size()` which raises `UnsupportedScreenResolutionError` if below minimum; catch and display its `msgbox_text`.
-- Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Use provided helpers (`ThreadsExceptionHandler`) for safe exception handling.
+- Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Uncaught exceptions in threads are handled automatically via `threading.excepthook` (installed in `src/session_sniffer/core/control.py`).
 
 ## Key Directories & Responsibilities
 - `src/session_sniffer/capture/`: Interface selection, scapy/npcap checks, filter helpers.
@@ -21,7 +21,7 @@ Important import note: even with the `src/` layout, Python imports remain `from 
 - `src/session_sniffer/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
 - `src/session_sniffer/rendering_core/`: Transforms registry + lookup results into GUI payloads.
 - `src/session_sniffer/models/`: External API / release / lookup models (e.g., GitHub, IP APIs).
-- `.github/workflows/Session_Sniffer.spec`: PyInstaller spec – update `datas` if adding runtime folders.
+- `.github/workflows/Session_Sniffer.spec`: PyInstaller spec - update `datas` if adding runtime folders.
 
 ## User Data Storage (AppData)
 Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `src/session_sniffer/constants/local.py`.
