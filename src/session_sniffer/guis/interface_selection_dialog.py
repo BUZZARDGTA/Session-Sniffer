@@ -32,6 +32,8 @@ from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFA
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from PyQt6.QtGui import QKeyEvent
+
     from session_sniffer.networking.manuf_lookup import MacLookup
 
 logger = get_logger(__name__)
@@ -941,6 +943,13 @@ class InterfaceSelectionDialog(QDialog):
         # Select the row and trigger selection
         self.table.selectRow(row)
         self.select_interface()
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        """Trigger interface selection when Enter/Return is pressed with a row selected."""
+        if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.table.currentRow() != -1:
+            self.select_interface()
+            return
+        super().keyPressEvent(a0)
 
     def select_interface(self) -> None:
         """Persist the current selection and close the dialog as accepted."""
