@@ -376,7 +376,7 @@ class SessionTableSection(QWidget):
 
     def _header_label_text(self) -> str:
         intro = 'Connected players' if self._section_name == 'Connected' else 'Disconnected Players'
-        base = f'{intro} ({max(0, self.last_count)}):'
+        base = f'{intro} ({max(0, self.last_count)})'
         if self._selected_count > 0:
             noun = 'player' if self._selected_count == 1 else 'players'
             return f'{base} ({self._selected_count} {noun} selected)'
