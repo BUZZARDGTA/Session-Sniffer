@@ -118,6 +118,28 @@ def resize_window_for_screen(window: QDialog | QMainWindow, screen_size: tuple[i
         window.resize(940, 680)
 
 
+def compute_ui_scale(screen_size: tuple[int, int]) -> float:
+    """Return a UI scale factor for the given screen resolution.
+
+    Uses the same breakpoints as `resize_window_for_screen` so that window
+    dimensions and element sizes stay in sync.  2560×1440 is the design
+    baseline (scale 1.0); smaller screens receive proportionally reduced values.
+
+    Args:
+        screen_size: Screen dimensions as (width, height) in pixels.
+
+    Returns:
+        A float in the range [0.65, 1.00].
+    """
+    if screen_size >= (2560, 1440):
+        return 1.00
+    if screen_size >= (1920, 1080):
+        return 0.80
+    if screen_size >= (1280, 800):
+        return 0.70
+    return 0.65  # ≥ 1024×768 (minimum supported resolution)
+
+
 # ---------------------------------------------------------------------------
 # Shared GUI helpers
 # ---------------------------------------------------------------------------

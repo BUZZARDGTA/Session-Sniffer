@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.utils import resize_window_for_screen
+from session_sniffer.guis.utils import compute_ui_scale, resize_window_for_screen
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
@@ -186,8 +186,64 @@ class InterfaceSelectionDialog(QDialog):
         # Set up the window
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
         # Set a minimum size for the window
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(940, 620)
         resize_window_for_screen(self, screen_size)
+
+        # UI scale factor – 2K (2560×1440) is the design baseline (1.0).
+        # Smaller screens receive proportionally reduced font sizes, row heights and spacings.
+        _scale = compute_ui_scale(screen_size)
+        self._ui_scale = _scale
+
+        def _s(n: int) -> int:
+            return max(1, round(n * _scale))
+
+        # Per-instance scaled button stylesheets (font sizes vary with screen resolution).
+        self._select_button_disabled_style = (
+            'QPushButton {'
+            f' font-size: {_s(20)}pt;'
+            ' background-color: #555555;'
+            ' color: #aaaaaa;'
+            ' border: 2px solid #3a3a3a;'
+            ' border-radius: 10px;'
+            '}'
+        )
+        self._select_button_enabled_style = (
+            'QPushButton {'
+            f' font-size: {_s(22)}pt;'
+            ' background-color: #175BB0;'
+            ' color: #ffffff;'
+            ' border: 2px solid #2a6aaa;'
+            ' border-radius: 10px;'
+            '}'
+            'QPushButton:hover {'
+            ' background-color: #1e6ec7;'
+            ' border: 2px solid #4a8fd4;'
+            '}'
+        )
+        self._refresh_arp_button_enabled_style = (
+            'QPushButton {'
+            f' font-size: {_s(16)}pt;'
+            ' background-color: #21334C;'
+            ' color: #e8f0f8;'
+            ' border: 2px solid #1e3f60;'
+            ' border-radius: 10px;'
+            f' padding: {_s(6)}px {_s(14)}px;'
+            '}'
+            'QPushButton:hover {'
+            ' background-color: #2c4463;'
+            ' border: 2px solid #2a5888;'
+            '}'
+        )
+        self._refresh_arp_button_disabled_style = (
+            'QPushButton {'
+            f' font-size: {_s(16)}pt;'
+            ' background-color: #555555;'
+            ' color: #aaaaaa;'
+            ' border: 2px solid #3a3a3a;'
+            ' border-radius: 10px;'
+            f' padding: {_s(6)}px {_s(14)}px;'
+            '}'
+        )
 
         # Custom variables
         self.selected_interface: SelectedInterfaceRow | None = None
@@ -198,8 +254,8 @@ class InterfaceSelectionDialog(QDialog):
 
         # Layout for the dialog
         layout = QVBoxLayout()
-        layout.setContentsMargins(12, 16, 12, 12)
-        layout.setSpacing(16)
+        layout.setContentsMargins(_s(12), _s(16), _s(12), _s(12))
+        layout.setSpacing(_s(16))
 
         # Header above the table
         header_label = QLabel('Available Network Interfaces for Packet Capture')
@@ -208,10 +264,10 @@ class InterfaceSelectionDialog(QDialog):
         header_label.setStyleSheet(
             'QLabel#dialogTitleLabel {'
             ' color: #f4f7fb;'
-            ' font-size: 23px;'
+            f' font-size: {_s(23)}px;'
             ' font-weight: 700;'
-            ' padding-top: 6px;'
-            ' padding-bottom: 6px;'
+            f' padding-top: {_s(6)}px;'
+            f' padding-bottom: {_s(6)}px;'
             '}',
         )
         layout.addWidget(header_label)
@@ -234,16 +290,16 @@ class InterfaceSelectionDialog(QDialog):
             ' outline: none;'
             '}'
             'QTableWidget::item {'
-            ' font-size: 12px;'
+            f' font-size: {_s(12)}px;'
             ' color: #c8ddf0;'
-            ' padding: 0px 16px;'
+            f' padding: 0px {_s(16)}px;'
             ' border-bottom: 1px solid #1e3048;'
             ' border-right: 1px solid #1e3048;'
             '}'
             'QTableWidget::item:selected {'
             ' background-color: #1a4a8a;'
             ' color: #ffffff;'
-            ' padding: 0px 16px;'
+            f' padding: 0px {_s(16)}px;'
             ' border-bottom: 1px solid #1e3048;'
             ' border-right: 1px solid #1e3048;'
             '}'
@@ -255,8 +311,8 @@ class InterfaceSelectionDialog(QDialog):
             'QHeaderView::section {'
             ' background-color: #0e1824;'
             ' color: #7bafd4;'
-            ' min-height: 36px;'
-            ' padding: 0px 16px;'
+            f' min-height: {_s(36)}px;'
+            f' padding: 0px {_s(16)}px;'
             ' border-bottom: 2px solid #2a5080;'
             ' border-right: 1px solid #1e3048;'
             ' border-top: none;'
@@ -269,7 +325,7 @@ class InterfaceSelectionDialog(QDialog):
 
         horizontal_header = self.table.horizontalHeader()
         header_font = QFont()
-        header_font.setPixelSize(14)
+        header_font.setPixelSize(_s(14))
         header_font.setBold(True)
         horizontal_header.setFont(header_font)
         horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -285,7 +341,7 @@ class InterfaceSelectionDialog(QDialog):
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
-        vertical_header.setDefaultSectionSize(48)
+        vertical_header.setDefaultSectionSize(_s(48))
 
         # Table container with a subtle dark-blue border matching the bottom container
         table_container = QFrame()
@@ -308,19 +364,20 @@ class InterfaceSelectionDialog(QDialog):
         # Filter controls layout
         options_layout = QHBoxLayout()
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        options_layout.setSpacing(28)
+        options_layout.setSpacing(_s(28))
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
-        refresh_arp_button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE if mac_lookup is not None else self._REFRESH_ARP_BUTTON_DISABLED_STYLE)
+        refresh_arp_button.setStyleSheet(self._refresh_arp_button_enabled_style if mac_lookup is not None else self._refresh_arp_button_disabled_style)
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
-        refresh_arp_button.setMinimumHeight(44)
-        refresh_arp_button.setMinimumWidth(190)
-        refresh_arp_icon_pixmap = QPixmap(36, 28)
+        refresh_arp_button.setMinimumHeight(_s(44))
+        refresh_arp_button.setMinimumWidth(_s(190))
+        refresh_arp_icon_pixmap = QPixmap(_s(36), _s(28))
         refresh_arp_icon_pixmap.fill(Qt.GlobalColor.transparent)
         refresh_arp_icon_painter = QPainter(refresh_arp_icon_pixmap)
         refresh_arp_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        refresh_arp_icon_painter.scale(_scale, _scale)
         refresh_arp_icon_painter.setPen(QPen(QColor('#e8f0f8'), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         refresh_arp_icon_painter.setBrush(Qt.BrushStyle.NoBrush)
         refresh_arp_icon_painter.drawArc(QRectF(5.0, 5.0, 18.0, 18.0), 40 * 16, -150 * 16)
@@ -330,7 +387,7 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_icon_painter.end()
         self._refresh_arp_icon = QIcon(refresh_arp_icon_pixmap)
         refresh_arp_button.setIcon(self._refresh_arp_icon)
-        refresh_arp_button.setIconSize(QSize(36, 28))
+        refresh_arp_button.setIconSize(QSize(_s(36), _s(28)))
         options_layout.addWidget(refresh_arp_button)
 
         remember_interface_checkbox = QCheckBox('Remember Interface')
@@ -338,7 +395,7 @@ class InterfaceSelectionDialog(QDialog):
         remember_interface_checkbox.setChecked(Settings.gui_interface_selection_auto_connect)
         remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
         remember_interface_checkbox.setStyleSheet(
-            'QCheckBox#remember_interface_checkbox { font-size: 14pt; } QCheckBox#remember_interface_checkbox::indicator { width: 20px; height: 20px; }',
+            f'QCheckBox#remember_interface_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#remember_interface_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
         )
         options_layout.addWidget(remember_interface_checkbox)
 
@@ -347,7 +404,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide disabled, disconnected, unconfigured, or interfaces with no traffic')
         hide_inactive_checkbox.setStyleSheet(
-            'QCheckBox#hide_inactive_checkbox { font-size: 14pt; } QCheckBox#hide_inactive_checkbox::indicator { width: 20px; height: 20px; }',
+            f'QCheckBox#hide_inactive_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#hide_inactive_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
         )
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
@@ -357,7 +414,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
         hide_neighbours_checkbox.setStyleSheet(
-            'QCheckBox#hide_neighbours_checkbox { font-size: 14pt; } QCheckBox#hide_neighbours_checkbox::indicator { width: 20px; height: 20px; }',
+            f'QCheckBox#hide_neighbours_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#hide_neighbours_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
         )
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
@@ -368,7 +425,7 @@ class InterfaceSelectionDialog(QDialog):
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
         arp_spoofing_checkbox.setStyleSheet(
-            'QCheckBox#arp_spoofing_checkbox { font-size: 14pt; } QCheckBox#arp_spoofing_checkbox::indicator { width: 20px; height: 20px; }',
+            f'QCheckBox#arp_spoofing_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#arp_spoofing_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
         )
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
@@ -405,7 +462,7 @@ class InterfaceSelectionDialog(QDialog):
             '}',
         )
         container_layout = QVBoxLayout(bottom_container)
-        container_layout.setContentsMargins(28, 18, 28, 20)
+        container_layout.setContentsMargins(_s(28), _s(18), _s(28), _s(20))
         container_layout.setSpacing(0)
 
         # Options row - centered using stretches on both sides
@@ -414,7 +471,7 @@ class InterfaceSelectionDialog(QDialog):
         centered_options_layout.addLayout(options_layout)
         centered_options_layout.addStretch()
         container_layout.addLayout(centered_options_layout)
-        container_layout.addSpacing(16)
+        container_layout.addSpacing(_s(16))
 
         # Horizontal separator between options row and action row
         separator = QFrame()
@@ -429,15 +486,16 @@ class InterfaceSelectionDialog(QDialog):
             '}',
         )
         container_layout.addWidget(separator)
-        container_layout.addSpacing(20)
+        container_layout.addSpacing(_s(20))
 
         # Action row: info text left, Start button right
         action_layout = QHBoxLayout()
-        action_layout.addSpacing(50)
-        info_icon_pixmap = QPixmap(32, 32)
+        action_layout.addSpacing(_s(50))
+        info_icon_pixmap = QPixmap(_s(32), _s(32))
         info_icon_pixmap.fill(Qt.GlobalColor.transparent)
         info_icon_painter = QPainter(info_icon_pixmap)
         info_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        info_icon_painter.scale(_scale, _scale)
         info_icon_painter.setBrush(QBrush(QColor('#1a2535')))
         info_icon_painter.setPen(QPen(QColor('#2570CB'), 2.0))
         info_icon_painter.drawEllipse(QRectF(1.5, 1.5, 29.0, 29.0))
@@ -448,29 +506,30 @@ class InterfaceSelectionDialog(QDialog):
         info_icon_painter.end()
         info_icon_label = QLabel()
         info_icon_label.setPixmap(info_icon_pixmap)
-        info_icon_label.setFixedSize(36, 36)
+        info_icon_label.setFixedSize(_s(36), _s(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')
-        instruction_label.setStyleSheet('font-size: 17px;')
+        instruction_label.setStyleSheet(f'font-size: {_s(17)}px;')
         action_layout.addWidget(info_icon_label)
-        action_layout.addSpacing(8)
+        action_layout.addSpacing(_s(8))
         action_layout.addWidget(instruction_label)
         action_layout.addStretch()
 
         select_button = QPushButton('Start Sniffing')
-        select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
+        select_button.setStyleSheet(self._select_button_disabled_style)
         select_button.setEnabled(False)  # Initially disabled
-        select_button.setMinimumSize(330, 56)
-        select_icon_pixmap = QPixmap(46, 28)
+        select_button.setMinimumSize(_s(330), _s(56))
+        select_icon_pixmap = QPixmap(_s(46), _s(28))
         select_icon_pixmap.fill(Qt.GlobalColor.transparent)
         select_icon_painter = QPainter(select_icon_pixmap)
         select_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        select_icon_painter.scale(_scale, _scale)
         select_icon_painter.setPen(Qt.PenStyle.NoPen)
         select_icon_painter.setBrush(QBrush(QColor('#ffffff')))
         select_icon_painter.drawPolygon(QPolygonF([QPointF(4.0, 2.0), QPointF(4.0, 26.0), QPointF(24.0, 14.0)]))
         select_icon_painter.end()
         select_button.setIcon(QIcon(select_icon_pixmap))
-        select_button.setIconSize(QSize(46, 28))
+        select_button.setIconSize(QSize(_s(46), _s(28)))
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
@@ -483,7 +542,7 @@ class InterfaceSelectionDialog(QDialog):
         )
 
         action_layout.addWidget(select_button)
-        action_layout.addSpacing(50)
+        action_layout.addSpacing(_s(50))
         container_layout.addLayout(action_layout)
 
         layout.addWidget(bottom_container)
@@ -523,52 +582,6 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
     # Custom Methods:
-    _SELECT_BUTTON_DISABLED_STYLE = (
-        'QPushButton {'
-        ' font-size: 20pt;'
-        ' background-color: #555555;'
-        ' color: #aaaaaa;'
-        ' border: 2px solid #3a3a3a;'
-        ' border-radius: 10px;'
-        '}'
-    )
-    _SELECT_BUTTON_ENABLED_STYLE = (
-        'QPushButton {'
-        ' font-size: 22pt;'
-        ' background-color: #175BB0;'
-        ' color: #ffffff;'
-        ' border: 2px solid #2a6aaa;'
-        ' border-radius: 10px;'
-        '}'
-        'QPushButton:hover {'
-        ' background-color: #1e6ec7;'
-        ' border: 2px solid #4a8fd4;'
-        '}'
-    )
-    _REFRESH_ARP_BUTTON_ENABLED_STYLE = (
-        'QPushButton {'
-        ' font-size: 16pt;'
-        ' background-color: #21334C;'
-        ' color: #e8f0f8;'
-        ' border: 2px solid #1e3f60;'
-        ' border-radius: 10px;'
-        ' padding: 6px 14px;'
-        '}'
-        'QPushButton:hover {'
-        ' background-color: #2c4463;'
-        ' border: 2px solid #2a5888;'
-        '}'
-    )
-    _REFRESH_ARP_BUTTON_DISABLED_STYLE = (
-        'QPushButton {'
-        ' font-size: 16pt;'
-        ' background-color: #555555;'
-        ' color: #aaaaaa;'
-        ' border: 2px solid #3a3a3a;'
-        ' border-radius: 10px;'
-        ' padding: 6px 14px;'
-        '}'
-    )
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
     # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
     _REFRESH_ARP_PROGRESS_FILL_LIGHT = '#e6e6e6'
@@ -586,7 +599,7 @@ class InterfaceSelectionDialog(QDialog):
         text_color = '#1a1a1a' if clamped >= 0.45 else '#f0f0f0'  # noqa: PLR2004
         return (
             'QPushButton {'
-            ' font-size: 12pt;'
+            f' font-size: {round(12 * self._ui_scale)}pt;'
             ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
             f' stop:0 {self._REFRESH_ARP_PROGRESS_FILL_LIGHT},'
             f' stop:{clamped:.4f} {self._REFRESH_ARP_PROGRESS_FILL_DARK},'
@@ -672,7 +685,7 @@ class InterfaceSelectionDialog(QDialog):
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
-        button.setStyleSheet(self._REFRESH_ARP_BUTTON_ENABLED_STYLE)
+        button.setStyleSheet(self._refresh_arp_button_enabled_style)
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
         button.setEnabled(self._mac_lookup is not None)
         button.setIcon(self._refresh_arp_icon)
@@ -890,10 +903,10 @@ class InterfaceSelectionDialog(QDialog):
         selected_row = self.table.currentRow()
         if selected_row != -1:
             self._controls.select_button.setEnabled(True)
-            self._controls.select_button.setStyleSheet(self._SELECT_BUTTON_ENABLED_STYLE)
+            self._controls.select_button.setStyleSheet(self._select_button_enabled_style)
         else:
             self._controls.select_button.setEnabled(False)
-            self._controls.select_button.setStyleSheet(self._SELECT_BUTTON_DISABLED_STYLE)
+            self._controls.select_button.setStyleSheet(self._select_button_disabled_style)
 
     def _on_arp_spoofing_changed(self) -> None:
         """Mutual-exclusion handler: checking ARP Spoofing automatically unchecks Hide Neighbours."""
@@ -916,7 +929,7 @@ class InterfaceSelectionDialog(QDialog):
         self._controls.refresh_arp_button.setEnabled(arp_enabled)
         self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
         self._controls.refresh_arp_button.setStyleSheet(
-            self._REFRESH_ARP_BUTTON_ENABLED_STYLE if arp_enabled else self._REFRESH_ARP_BUTTON_DISABLED_STYLE,
+            self._refresh_arp_button_enabled_style if arp_enabled else self._refresh_arp_button_disabled_style,
         )
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
