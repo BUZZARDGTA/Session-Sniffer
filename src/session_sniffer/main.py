@@ -29,7 +29,7 @@ from session_sniffer.background import (
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info, refresh_available_interfaces
+from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info
 from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
@@ -363,9 +363,19 @@ def main() -> None:
         # Lock the button immediately to prevent double-clicks
         window.set_change_interface_button_enabled(enabled=False)
 
-        # Refresh interface list then show the selection dialog.
-        # Capture keeps running at this point — no flash of "CAPTURE STOPPED".
-        new_available_interfaces = refresh_available_interfaces(mac_lookup)
+        # Build the initial interface list from the current AllInterfaces registry
+        # without calling refresh_available_interfaces(), which blocks the GUI thread
+        # via COM/ICS Windows APIs (win32com.client.Dispatch('HNetCfg.HNetShare')).
+        # The dialog's live-refresh timer will call refresh_available_interfaces()
+        # from within its own event loop a few seconds after the dialog opens.
+        new_available_interfaces: list[Interface] = []
+        for _device_name, _friendly_name in get_filtered_scapy_interfaces():
+            _interface = AllInterfaces.get_interface_by_name(_friendly_name)
+            if _interface is None:
+                continue
+            _interface.identity.device_name = _device_name
+            new_available_interfaces.append(_interface)
+
         new_interface = select_interface(
             new_available_interfaces,
             screen_size,
