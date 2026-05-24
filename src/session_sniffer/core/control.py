@@ -113,7 +113,6 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
         terminate_script('SIGINT')
 
 
-
 def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     """Handle uncaught exceptions in threads."""
     if args.exc_type is SystemExit:
