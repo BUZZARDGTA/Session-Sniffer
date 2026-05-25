@@ -72,6 +72,9 @@ class Settings:
     discord_webhook_columns_connected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_connected']
     discord_webhook_columns_disconnected: tuple[str, ...] = SETTING_DEFAULTS['discord_webhook_columns_disconnected']
     discord_webhook_message_ids: str | None = SETTING_DEFAULTS['discord_webhook_message_ids']
+    webserver_enabled: bool = SETTING_DEFAULTS['webserver_enabled']
+    webserver_host: str = SETTING_DEFAULTS['webserver_host']
+    webserver_port: int = SETTING_DEFAULTS['webserver_port']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
@@ -122,6 +125,9 @@ class Settings:
         'DISCORD_WEBHOOK_COLUMNS_CONNECTED',
         'DISCORD_WEBHOOK_COLUMNS_DISCONNECTED',
         'DISCORD_WEBHOOK_MESSAGE_IDS',
+        'WEBSERVER_ENABLED',
+        'WEBSERVER_HOST',
+        'WEBSERVER_PORT',
         'UPDATER_CHANNEL',
     )
 

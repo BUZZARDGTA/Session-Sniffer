@@ -46,6 +46,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Launcher',
     'Capture',
     'Session',
+    'Web Server',
     'Columns',
     'Discord',
 )
@@ -400,6 +401,27 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Internal storage for webhook message IDs (do not edit).',
         hidden=True,
     ),
+    'webserver_enabled': SettingMeta(
+        category='Web Server',
+        display_label='Enable Web Server',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Enable local web server for mobile access to live session data.',
+    ),
+    'webserver_host': SettingMeta(
+        category='Web Server',
+        display_label='Host',
+        setting_type=SettingType.STRING,
+        tooltip='IP address to bind the web server to (0.0.0.0 = all interfaces).',
+    ),
+    'webserver_port': SettingMeta(
+        category='Web Server',
+        display_label='Port',
+        setting_type=SettingType.INTEGER,
+        tooltip='Port number for the web server (1-65535).',
+        min_value=1,
+        max_value=65535,
+        step=1,
+    ),
     'updater_channel': SettingMeta(
         category='Launcher',
         group='Updater',
@@ -475,5 +497,8 @@ SETTING_DEFAULTS: dict[str, Any] = {
         'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Seen',
     ),
     'discord_webhook_message_ids': None,
+    'webserver_enabled': True,
+    'webserver_host': '0.0.0.0',
+    'webserver_port': 80,
     'updater_channel': 'Stable',
 }

@@ -94,6 +94,9 @@ class SettingsIniModel(BaseModel):
     DISCORD_WEBHOOK_COLUMNS_CONNECTED: tuple[str, ...]
     DISCORD_WEBHOOK_COLUMNS_DISCONNECTED: tuple[str, ...]
     DISCORD_WEBHOOK_MESSAGE_IDS: str | None
+    WEBSERVER_ENABLED: bool
+    WEBSERVER_HOST: str
+    WEBSERVER_PORT: int
     UPDATER_CHANNEL: str | None
 
     # --- Internal context helpers ---
@@ -104,6 +107,7 @@ class SettingsIniModel(BaseModel):
         'DISCORD_WEBHOOK_ENABLED',
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
         'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
+        'WEBSERVER_ENABLED',
         'GUI_COLUMNS_DATETIME_SHOW_DATE',
         'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
         'GUI_COLUMNS_DATETIME_SHOW_TIME',
@@ -445,6 +449,34 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         default = cls._get_default_for_field(info)
         return default if isinstance(default, int) else 3600
+
+    @field_validator('WEBSERVER_PORT', mode='before')
+    @classmethod
+    def _parse_webserver_port(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 1
+        max_val = 65535
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 80
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
 
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
     @classmethod

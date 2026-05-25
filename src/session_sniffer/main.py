@@ -10,6 +10,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from threading import Event, Thread
 
 import colorama
@@ -64,6 +65,7 @@ from session_sniffer.rendering_core.types import CaptureState, CaptureStats, Geo
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import is_pyinstaller_compiled
+from session_sniffer.webserver import WebServer
 
 # Production-friendly logging: file handlers only (no console output)
 setup_logging(console_level=logging.INFO)
@@ -218,8 +220,6 @@ def main() -> None:
     )
 
     splash.update_status('Starting packet capture')
-
-    _player_task_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='PlayerTask')
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
@@ -657,6 +657,34 @@ def main() -> None:
         daemon=True,
     )
     rendering_core__thread.start()
+
+    # Start web server if enabled
+    if Settings.webserver_enabled:
+        webserver_host = Settings.webserver_host
+        if webserver_host in ('127.0.0.1', 'localhost'):
+            logger.warning(
+                'Web server host is set to %s; remote connections will not work. '
+                'Binding to 0.0.0.0 instead for external access.',
+                webserver_host,
+            )
+            webserver_host = '0.0.0.0'
+
+        logger.info('Starting web server on %s:%s', webserver_host, Settings.webserver_port)
+        static_dir = Path(__file__).parent / 'webserver' / 'static'
+        web_server = WebServer(
+            host=webserver_host,
+            port=Settings.webserver_port,
+            static_dir=static_dir,
+        )
+        webserver_thread = Thread(
+            target=web_server.run,
+            name='webserver',
+            daemon=True,
+        )
+        webserver_thread.start()
+        logger.info('Web server started on %s:%s', webserver_host, Settings.webserver_port)
+    else:
+        logger.info('Skipping web server startup as it is disabled in settings.')
 
     hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
     hostname_core__thread.start()

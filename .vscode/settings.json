@@ -40,7 +40,6 @@
     "search.useIgnoreFiles": false,
     "extensions.ignoreRecommendations": false,
     "snyk.advanced.autoSelectOrganization": true,
-    "snyk.advanced.organization": "eb736547-7db6-4fd5-93e4-acf89de308a3",
     "ruff.interpreter": [
         "${workspaceFolder}/.venv/Scripts/python.exe"
     ],
