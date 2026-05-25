@@ -905,7 +905,7 @@ def player_rates_core() -> None:
         CaptureStats.global_pps_rate = global_pps_rate
 
         one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
-        recent_latencies = [(t, lat) for t, lat in CaptureStats.packets_latencies if t >= one_second_ago]
+        recent_latencies = [(t, lat) for t, lat in list(CaptureStats.packets_latencies) if t >= one_second_ago]
         CaptureStats.global_avg_latency_ms = (
             sum(lat.total_seconds() * 1000 for _, lat in recent_latencies) / len(recent_latencies)
             if recent_latencies else 0.0
