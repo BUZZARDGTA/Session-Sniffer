@@ -39,6 +39,7 @@ class SettingMeta:  # pylint: disable=too-many-instance-attributes
     display_labels: dict[str, str] | None = None
     group: str | None = None
     hidden: bool = False
+    special_value_text: str = 'All'
 
 
 SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
@@ -110,11 +111,23 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         display_label='Overflow Timer',
-        setting_type=SettingType.INTEGER,
-        tooltip='Seconds before resetting stale capture buffers.',
+        setting_type=SettingType.INTEGER_OR_ALL,
+        tooltip=(
+            'When the capture falls behind real time (e.g. during a sudden spike of incoming packets),\n'
+            'scapy buffers the backlog and delivers packets with increasing latency —\n'
+            'meaning you are processing old traffic instead of live sessions.\n\n'
+            'This threshold defines the maximum allowed packet latency (in seconds).\n'
+            'If a packet arrives more than this many seconds late, the capture is automatically\n'
+            'restarted to resync with real time and the stale backlog is discarded.\n\n'
+            'Recommended: 3-5 seconds — low enough to recover quickly without triggering on brief spikes.\n\n'
+            'Disabled (0): The capture never auto-restarts.\n'
+            'Under heavy traffic the sniffer will keep falling further behind real time,\n'
+            'showing outdated player data and missing live connections until traffic subsides or you restart manually.'
+        ),
         requires_capture_restart=True,
-        min_value=1,
+        min_value=0,
         step=1,
+        special_value_text='Disabled',
     ),
     'capture_prepend_custom_capture_filter': SettingMeta(
         category='Capture',

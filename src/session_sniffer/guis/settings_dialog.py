@@ -444,7 +444,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
         spin.setMinimum(0)
         spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
-        spin.setSpecialValueText('All')
+        spin.setSpecialValueText(meta.special_value_text)
         if meta.tooltip:
             spin.setToolTip(meta.tooltip)
         return spin

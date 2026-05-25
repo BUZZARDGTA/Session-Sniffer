@@ -313,14 +313,14 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_overflow_timer(cls, value: object, info: ValidationInfo) -> int:
         if isinstance(value, (int, float)):
-            return int(value) if value >= 1 else cast('int', cls._get_default_for_field(info) or 3)
+            return int(value) if value >= 0 else cast('int', cls._get_default_for_field(info) or 3)
         if isinstance(value, str):
             try:
                 parsed = int(float(value))
             except ValueError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return cast('int', cls._get_default_for_field(info) or 3)
-            if parsed >= 1:
+            if parsed >= 0:
                 return parsed
             cls._set_flag(info, 'should_rewrite', value=True)
             return cast('int', cls._get_default_for_field(info) or 3)
