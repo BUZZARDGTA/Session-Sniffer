@@ -19,7 +19,6 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ScriptControl
-from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
 from session_sniffer.guis.html_templates import generate_gui_header_html
@@ -472,22 +471,15 @@ def rendering_core(
         _country_flag_cache[country_code] = country_flag
         return country_flag
 
-    _rendering_slowdown = SlowdownDetector.get('rendering_loop')
-    _table_snapshot_slowdown = SlowdownDetector.get('table_snapshot')
-    _userip_db_slowdown = SlowdownDetector.get('userip_db_update', baseline_floor=0.05)
-
     while not gui_closed__event.is_set():  # pylint: disable=too-many-nested-blocks
         capture = capture_holder.get()  # Resolve the active capture each iteration
-        _rendering_loop_start = time.monotonic()
 
         if ScriptControl.has_crashed():
             break
 
         _userip_db_rebuilt = False
         if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
-            _t = time.monotonic()
             last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
-            _userip_db_slowdown.check(time.monotonic() - _t, 'userip_db_update')
             if _userip_db_rebuilt:
                 _userip_not_found.clear()
 
@@ -801,9 +793,7 @@ def rendering_core(
             status_issues_text,
             status_performance_text,
         ) = generate_gui_status_text()
-        _t = time.monotonic()
         session_table_snapshot = process_gui_session_tables_rendering()
-        _table_snapshot_slowdown.check(time.monotonic() - _t, 'table_snapshot')
 
         GUIRenderingState.publish_rendering_snapshot(
             GUIRenderingSnapshot(
@@ -835,7 +825,7 @@ def rendering_core(
             ),
         )
 
-        _rendering_slowdown.check(time.monotonic() - _rendering_loop_start, 'rendering_loop')
+        _has_players_for_poll = bool(session_connected)
 
         gui_closed__event.wait(1)
 

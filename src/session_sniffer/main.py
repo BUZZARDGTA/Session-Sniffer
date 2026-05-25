@@ -37,7 +37,6 @@ from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis.app import app
@@ -220,11 +219,10 @@ def main() -> None:
 
     splash.update_status('Starting packet capture')
 
-    _packet_slowdown = SlowdownDetector.get('packet_callback')
+    _player_task_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='PlayerTask')
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
-        _pkt_start = time.monotonic()
         packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
         CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
         CaptureStats.total_packets_captured += 1
@@ -321,8 +319,6 @@ def main() -> None:
                 args=(matched_player, 'connected'),
                 daemon=True,
             ).start()
-
-        _packet_slowdown.check(time.monotonic() - _pkt_start, 'packet_callback')
 
     _adapter_lost_event = Event()
 

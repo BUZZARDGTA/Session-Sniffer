@@ -1,11 +1,8 @@
 """Background QThread that polls rendering snapshots and emits GUI update payloads."""
 
-import time
-
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from session_sniffer.background.tasks import gui_closed__event
-from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.rendering_core.types import CellColor, GUIRenderingState, GUIUpdatePayload, PaginationState
 
 
@@ -37,7 +34,6 @@ class GUIWorkerThread(QThread):
     def run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
         last_snapshot_version = 0
-        _preprocessing_slowdown = SlowdownDetector.get('gui_worker_preprocessing')
 
         while not gui_closed__event.is_set():
             snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
@@ -53,7 +49,6 @@ class GUIWorkerThread(QThread):
             disconnected_num = snapshot.disconnected.num_rows
 
             # Preprocess rows with colors
-            _preprocess_start = time.monotonic()
             connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
                 (list(row), list(colors))
                 for row, colors in zip(snapshot.connected.rows, snapshot.connected.colors, strict=True)
@@ -73,7 +68,6 @@ class GUIWorkerThread(QThread):
                 disconnected_rows_with_colors, disconnected_num, d_rpp, d_page,
             )
 
-            _preprocessing_slowdown.check(time.monotonic() - _preprocess_start, 'gui_worker_preprocessing')
             self.update_signal.emit(GUIUpdatePayload(
                 snapshot_version=last_snapshot_version,
                 column_config=snapshot.column_config,
