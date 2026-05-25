@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
 from session_sniffer.core import ScriptControl
-from session_sniffer.diagnostics import SlowdownDetector
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
@@ -41,8 +40,6 @@ _IPAPI_FIELDS = (
 
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
-    _slowdown = SlowdownDetector.get('iplookup_core', baseline_floor=0.15)
-
     def throttle_until(requests_remaining: int, throttle_time: int) -> None:
         # Spread remaining requests evenly across the reset window to stay within the rate limit.
         sleep_time = throttle_time / requests_remaining
@@ -52,8 +49,6 @@ def iplookup_core() -> None:
     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
 
     while not gui_closed__event.is_set():
-        _iter_start = time.monotonic()
-
         if ScriptControl.has_crashed():
             return
 
@@ -144,8 +139,6 @@ def iplookup_core() -> None:
             matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
             matched_player.iplookup.ipapi.is_initialized = True
 
-        _slowdown.check(time.monotonic() - _iter_start, 'iplookup_core')
-
         if requests_remaining <= 0:
             throttle_until(1, ttl_seconds)
             requests_remaining = _IPAPI_MAX_REQUESTS
@@ -168,11 +161,7 @@ def _run_player_future_core[T](
         futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()  # Tracks IPs currently being processed
 
-        _slowdown = SlowdownDetector.get(core_name)
-
         while not gui_closed__event.is_set():
-            _iter_start = time.monotonic()
-
             if ScriptControl.has_crashed():
                 return
 
@@ -214,8 +203,6 @@ def _run_player_future_core[T](
             resolved_any = bool(done_futures)
 
             # Only poll quickly if there's active work; otherwise wait longer.
-            _slowdown.check(time.monotonic() - _iter_start, core_name)
-
             if not submitted_new and not resolved_any:
                 gui_closed__event.wait(1)
             else:
