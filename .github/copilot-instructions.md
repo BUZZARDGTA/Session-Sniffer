@@ -5,6 +5,15 @@ Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game s
 
 Important import note: even with the `src/` layout, Python imports remain `from session_sniffer...`, not `from src.session_sniffer...`. The `src` directory is a source root on `PYTHONPATH`; it is not part of the package name.
 
+## No Backward Compatibility — Ever
+This project **never** maintains backward compatibility. When renaming, removing, or replacing anything (settings keys, field names, constants, APIs, file paths), always:
+- Delete the old name/code outright.
+- Update every call site to use the new name.
+- Never add migration shims, alias wrappers, fallback lookups, or transitional validators.
+- Never add code whose sole purpose is to handle the old form "just in case" users have old data.
+
+If a user's saved data (e.g. `Settings.ini`) contains a stale key, it is treated as unknown and discarded by the existing rewrite logic — that is intentional and acceptable.
+
 ## Architecture & Data Flow
 - Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `src/session_sniffer/capture/packet_capture.py`) and invokes `config.callback` (created in `src/session_sniffer/main.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
 - PacketCapture config/state: Read config via `capture.config` (e.g., `capture.config.interface`). Runtime state (threads/events/process handles) lives in an internal `_CaptureState` dataclass.
@@ -81,6 +90,7 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Using `assert` for runtime checks — always use `raise` with an appropriate exception (e.g., `raise RuntimeError(...)`, `raise ValueError(...)`) instead. `assert` is stripped by Python's optimizer (`-O`) and triggers Ruff S101.
 - Adding `try/except` blocks defensively "just to be safe". Only catch exceptions that are explicitly documented or known to be raised by the called code (e.g., library APIs, I/O, external processes). Never wrap normal internal logic in broad `except Exception` or speculative `except (ValueError, RuntimeError)` guards. The project owner prefers a crash with a clear traceback over silent swallowing of unexpected errors.
 - Creating shortcut/alias variables for attributes or functions that are only used inline. Never write `x = obj.attr` then use `x` — write `obj.attr` directly at every usage site. No exceptions.
+- Adding any form of backward compatibility: migration validators, alias fields, fallback key lookups, shim functions, or transitional code paths. See **No Backward Compatibility — Ever** above.
 
 ## Before Committing Changes
 1. Run `📦 Install Dependencies` if you changed dependency files.
@@ -90,5 +100,5 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 
 Provide feedback if any section needs deeper detail (e.g., capture filter extension or rendering payload structure).
 
-## Feature Addition & Backward Compatibility Preference
-When adding or expanding features, prefer clean replacements over backward compatibility. Replace older usage outright and remove obsolete code.
+## Feature Addition
+When adding or expanding features, make clean replacements. Replace older usage outright and remove obsolete code. See **No Backward Compatibility — Ever** above.
