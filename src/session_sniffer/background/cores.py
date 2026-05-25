@@ -150,7 +150,6 @@ def iplookup_core() -> None:
 
 def _run_player_future_core[T](
     *,
-    core_name: str,
     worker: Callable[[str], T],
     should_submit: Callable[[Player], bool],
     apply_result: Callable[[Player, T], None],
