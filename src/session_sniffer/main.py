@@ -226,7 +226,7 @@ def main() -> None:
         packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
         CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
         CaptureStats.total_packets_captured += 1
-        if packet_latency.total_seconds() >= Settings.capture_overflow_timer:
+        if Settings.capture_overflow_timer > 0 and packet_latency.total_seconds() >= Settings.capture_overflow_timer:
             CaptureStats.restarted_times += 1
             CaptureStats.packets_latencies.clear()
             logger.warning(
