@@ -173,6 +173,9 @@ def _run_player_future_core[T](
                 if player.ip in pending_ips or not should_submit(player):
                     continue
 
+                if gui_closed__event.is_set():
+                    return
+
                 future = executor.submit(worker, player.ip)
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
@@ -257,7 +260,6 @@ def pinger_core() -> None:
         return False
 
     _run_player_future_core(
-        core_name='pinger_core',
         worker=fetch_and_parse_ping,
         should_submit=should_submit,
         apply_result=apply_result,
