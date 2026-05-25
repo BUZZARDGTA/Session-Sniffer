@@ -222,7 +222,6 @@ def hostname_core() -> None:
         player.reverse_dns.is_initialized = True
 
     _run_player_future_core(
-        core_name='hostname_core',
         worker=reverse_dns_lookup,
         should_submit=should_submit,
         apply_result=apply_result,
