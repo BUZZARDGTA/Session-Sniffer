@@ -113,7 +113,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.INTEGER,
         tooltip='Seconds before resetting stale capture buffers.',
         requires_capture_restart=True,
-        min_value=0,
+        min_value=1,
         step=1,
     ),
     'capture_prepend_custom_capture_filter': SettingMeta(
