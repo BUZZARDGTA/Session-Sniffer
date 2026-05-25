@@ -167,6 +167,9 @@ def _run_player_future_core[T](
             submitted_new = False
 
             for player in PlayersRegistry.get_default_sorted_players():
+                if gui_closed__event.is_set():
+                    return
+
                 if player.ip in pending_ips or not should_submit(player):
                     continue
 
