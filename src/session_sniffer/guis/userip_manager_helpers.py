@@ -49,6 +49,9 @@ DATABASE_COLUMN = 4
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
 
+_IPV4_BROADCAST_FREE_PREFIX = 31
+_IPV4_VERSION = 4
+
 
 def handle_ini_section_header(
     raw_line: str,
@@ -483,7 +486,7 @@ _MODE_RANGE = 1
 _MODE_SUBNET = 2
 
 
-class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attributes
+class IPRangeBuilderDialog(QDialog):
     """User-friendly dialog for building IP range entries without needing to know CIDR notation."""
 
     _PREVIEW_VALID_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #80c080;'
@@ -723,7 +726,7 @@ class IPRangeBuilderDialog(QDialog):  # pylint: disable=too-many-instance-attrib
             self._set_preview('Enter a valid base IPv4 address', valid=False)
             return
         host_count = network.num_addresses
-        usable = max(0, host_count - 2) if prefix < 31 and network.version == 4 else host_count  # noqa: PLR2004
+        usable = max(0, host_count - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else host_count
         self._set_preview(
             f'Network: {network.network_address}/{prefix}\n'
             f'Range: {network.network_address} \u2013 {network.broadcast_address}\n'

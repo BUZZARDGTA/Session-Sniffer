@@ -16,7 +16,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Country Breakdown')
         self.resize(420, 420)
-        layout = self._setup_window_layout(always_on_top=always_on_top)
+        layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(['Country', 'Players'])
@@ -30,7 +30,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         h_header.setStretchLastSection(False)
         self._table.setColumnWidth(1, 80)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -60,7 +60,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
             row = self._table.rowCount()
             self._table.insertRow(row)
             country_item = QTableWidgetItem(country)
-            count_item = NumericTableWidgetItem(str(count))
+            count_item = NumericTableWidgetItem(count)
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 0, country_item)
             self._table.setItem(row, 1, count_item)

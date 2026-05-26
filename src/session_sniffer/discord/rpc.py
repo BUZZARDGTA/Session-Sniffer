@@ -110,6 +110,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
             try:
                 rpc.connect()
             except (
+                OSError,
                 exceptions.DiscordNotFound,
                 exceptions.DiscordError,
                 exceptions.ConnectionTimeout,

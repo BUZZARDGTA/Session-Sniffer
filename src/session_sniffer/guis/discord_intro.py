@@ -25,7 +25,7 @@ class ClickableLabel(QLabel):
 
     clicked = pyqtSignal()
 
-    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
+    def mousePressEvent(self, ev: QMouseEvent | None) -> None:  # noqa: N802
         """Emit `clicked` when left mouse button is pressed."""
         if ev is not None and ev.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
@@ -139,7 +139,7 @@ class DiscordIntro(QDialog):
         # Initialize variables to track mouse position
         self._drag_pos: QPoint | None = None
 
-    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
         """Begin drag when clicking the dialog background."""
         if (
             a0 is not None
@@ -152,7 +152,7 @@ class DiscordIntro(QDialog):
 
         super().mousePressEvent(a0)
 
-    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
         """Move the dialog while dragging."""
         if (
             a0 is not None
@@ -164,7 +164,7 @@ class DiscordIntro(QDialog):
 
         super().mouseMoveEvent(a0)
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
         """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 

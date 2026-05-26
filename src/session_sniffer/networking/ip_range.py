@@ -3,6 +3,12 @@
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
 
+_IPV4_OCTET_COUNT = 4
+_IPV4_MAX_OCTET = 255
+_IPV4_SINGLE_HOST_PREFIX = 32
+_IPV4_MIN_USABLE_PREFIX = 31
+_IPV4_VERSION = 4
+
 
 @dataclass(frozen=True, slots=True)
 class IPRange:
@@ -61,7 +67,7 @@ def parse_ip_range(raw: str) -> IPRange:
 def _parse_wildcard(raw: str) -> IPRange:
     """Parse wildcard notation (e.g. `192.168.1.*`) into a CIDR-based `IPRange`."""
     parts = raw.split('.')
-    if len(parts) != 4:  # noqa: PLR2004
+    if len(parts) != _IPV4_OCTET_COUNT:
         msg = f'Invalid wildcard format: {raw}'
         raise ValueError(msg)
     cidr_parts: list[str] = []
@@ -76,7 +82,7 @@ def _parse_wildcard(raw: str) -> IPRange:
             raise ValueError(msg)
         else:
             int_val = int(part)
-            if not 0 <= int_val <= 255:  # noqa: PLR2004
+            if not 0 <= int_val <= _IPV4_MAX_OCTET:
                 msg = f'Invalid octet value: {part}'
                 raise ValueError(msg)
             cidr_parts.append(part)
@@ -111,9 +117,9 @@ def parse_ip_range_entry(entry: str) -> list[IPRange]:
     """
     results: list[IPRange] = []
     for raw_part in entry.split(','):
-        raw_part = raw_part.strip()  # noqa: PLW2901
-        if raw_part:
-            results.append(parse_ip_range(raw_part))
+        stripped = raw_part.strip()
+        if stripped:
+            results.append(parse_ip_range(stripped))
     if not results:
         msg = f'No valid IP ranges found in: {entry}'
         raise ValueError(msg)
@@ -143,10 +149,10 @@ def describe_range(r: IPRange) -> str:
         return f'Range: {r.start} \u2013 {r.end}  ({count:,} addresses)'
 
     if r.network is not None:
-        if r.network.prefixlen == 32:  # noqa: PLR2004
+        if r.network.prefixlen == _IPV4_SINGLE_HOST_PREFIX:
             return f'Single host: {r.network.network_address}'
         host_count = r.network.num_addresses
-        usable = max(0, host_count - 2) if r.network.prefixlen < 31 and r.network.version == 4 else host_count  # noqa: PLR2004
+        usable = max(0, host_count - 2) if r.network.prefixlen < _IPV4_MIN_USABLE_PREFIX and r.network.version == _IPV4_VERSION else host_count
         return (
             f'Network: {r.network.network_address}/{r.network.prefixlen}\n'
             f'Range: {r.network.network_address} \u2013 {r.network.broadcast_address}\n'

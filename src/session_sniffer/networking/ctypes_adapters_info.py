@@ -3,65 +3,12 @@
 import ctypes
 import socket
 from ctypes import wintypes
-from dataclasses import field
 from typing import TYPE_CHECKING
 
-from pydantic.dataclasses import dataclass
+from session_sniffer.networking.adapter_types import AdapterData, AdapterIdentity, AdapterStatus, AdapterTraffic, GetAdaptersAddressesError
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-
-
-class GetAdaptersAddressesError(OSError):
-    """Exception raised when GetAdaptersAddresses fails."""
-
-    def __init__(self, error_code: int) -> None:
-        """Initialize the exception with the error code."""
-        super().__init__(f'GetAdaptersAddresses failed with error code: {error_code}')
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class _AdapterIdentity:
-    """Identity fields for a network adapter."""
-
-    interface_index: int
-    friendly_name:   str
-    description:     str
-    mac_address:     str | None
-    adapter_guid:    str | None
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class _AdapterStatus:
-    """Status fields for a network adapter."""
-
-    operational_status:  int
-    ip_enabled:          bool
-    media_connect_state: int
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class _AdapterTraffic:
-    """Traffic statistics for a network adapter."""
-
-    packets_sent:       int
-    packets_recv:       int
-    transmit_link_speed: int
-    receive_link_speed:  int
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class AdapterData:
-    """Represent Windows network adapter details used by the sniffer."""
-
-    identity:          _AdapterIdentity
-    status:            _AdapterStatus
-    traffic:           _AdapterTraffic
-    ipv4_addresses:    list[str]
-    gateway_addresses: list[str] = field(default_factory=list[str])
-    neighbors:         list[tuple[str | None, str | None]] = field(
-        default_factory=list[tuple[str | None, str | None]],
-    )
 
 
 # Constants
@@ -95,19 +42,20 @@ NETWORK_ADAPTER_DISABLED = 3
 
 
 # Structures
-class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods
+class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows IP_ADAPTER_UNICAST_ADDRESS structure."""
 
 
-class IP_ADAPTER_GATEWAY_ADDRESS(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class IP_ADAPTER_GATEWAY_ADDRESS(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows IP_ADAPTER_GATEWAY_ADDRESS_LH structure."""
 
 
-class IP_ADAPTER_ADDRESSES(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class IP_ADAPTER_ADDRESSES(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows IP_ADAPTER_ADDRESSES structure."""
 
 
-class _OPER_STATUS_FLAGS(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801
     _fields_ = [
         ('HardwareInterface', ctypes.c_ubyte, 1),
         ('FilterInterface', ctypes.c_ubyte, 1),
@@ -120,13 +68,14 @@ class _OPER_STATUS_FLAGS(ctypes.Structure):  # pylint: disable=too-few-public-me
     ]
 
 
-class SOCKET_ADDRESS(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class SOCKET_ADDRESS(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows SOCKET_ADDRESS structure."""
 
     _fields_ = [
         ('lpSockaddr', ctypes.c_void_p),
         ('iSockaddrLength', ctypes.c_int),
     ]
+# pylint: enable=too-few-public-methods
 
 
 LP_IP_ADAPTER_UNICAST_ADDRESS = ctypes.POINTER(IP_ADAPTER_UNICAST_ADDRESS)
@@ -182,7 +131,8 @@ IP_ADAPTER_ADDRESSES._fields_ = [
 # pylint: enable=protected-access
 
 
-class MIB_IF_ROW2(ctypes.Structure):  # pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods
+class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows MIB_IF_ROW2 structure."""
 
     _fields_ = [
@@ -230,7 +180,7 @@ class MIB_IF_ROW2(ctypes.Structure):  # pylint: disable=too-few-public-methods
     ]
 
 
-class SOCKADDR_IN(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class SOCKADDR_IN(ctypes.Structure):  # noqa: N801
     """ctypes definition for a Windows IPv4 sockaddr_in structure."""
 
     _fields_ = [
@@ -239,6 +189,7 @@ class SOCKADDR_IN(ctypes.Structure):  # pylint: disable=too-few-public-methods
         ('sin_addr', ctypes.c_uint32),
         ('sin_zero', ctypes.c_char * 8),
     ]
+# pylint: enable=too-few-public-methods
 
 
 # Windows API
@@ -258,7 +209,7 @@ GetIfEntry2.restype = wintypes.ULONG
 # Neighbor ("Neighborhood")
 # =========================
 
-class MIB_IPNETROW(ctypes.Structure):  # pylint: disable=too-few-public-methods
+class MIB_IPNETROW(ctypes.Structure):  # pylint: disable=too-few-public-methods  # noqa: N801
     """IPv4 neighbor table row (classic ARP style for IPv4)."""
 
     _fields_ = [
@@ -408,8 +359,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
             gw = gw.contents.Next
 
         # Query MIB_IF_ROW2 by index
-        row = MIB_IF_ROW2()
-        row.InterfaceIndex = addr.IfIndex  # pylint: disable=attribute-defined-outside-init
+        row = MIB_IF_ROW2(InterfaceIndex=addr.IfIndex)
         if GetIfEntry2(ctypes.byref(row)) != ERROR_SUCCESS:
             packets_sent = packets_recv = 0
             media_connect_state = MEDIA_CONNECT_STATE_UNKNOWN
@@ -426,19 +376,19 @@ def get_adapters_info() -> Iterator[AdapterData]:
         adapter_guid = adapter_guid_raw.upper() if adapter_guid_raw else None
 
         yield AdapterData(
-            identity=_AdapterIdentity(
+            identity=AdapterIdentity(
                 interface_index=addr.IfIndex,
                 friendly_name=addr.FriendlyName,
                 description=addr.Description,
                 mac_address=mac_address,
                 adapter_guid=adapter_guid,
             ),
-            status=_AdapterStatus(
+            status=AdapterStatus(
                 operational_status=addr.OperStatus,
                 ip_enabled=bool(addr.Flags & IP_ADAPTER_IPV4_ENABLED),
                 media_connect_state=media_connect_state,
             ),
-            traffic=_AdapterTraffic(
+            traffic=AdapterTraffic(
                 packets_sent=packets_sent,
                 packets_recv=packets_recv,
                 transmit_link_speed=transmit_link_speed,

@@ -8,10 +8,14 @@ import atexit
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
+from typing import TYPE_CHECKING
 
 from rich.logging import RichHandler
 
 from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERRORS_LOG_PATH, WARNINGS_LOG_PATH
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = ['get_logger', 'setup_logging']
 
@@ -25,6 +29,7 @@ _ERRORS_FILE_HANDLER_NAME = 'errors_file_handler'
 _SUPPRESSED_URLLIB3_SUBSTRINGS = (
     'ReadTimeoutError',
     'RemoteDisconnected',
+    'ConnectionResetError',
 )
 
 # --- Suppress benign Scapy datalink-type warning for virtual/VPN adapters ---
@@ -48,15 +53,11 @@ def _app_only_filter(record: logging.LogRecord) -> bool:
     return record.name == 'session_sniffer' or record.name.startswith('session_sniffer.')
 
 
-class _MaxLevelFilter(logging.Filter):  # pylint: disable=too-few-public-methods
-    """Pass only records at or below a maximum log level."""
-
-    def __init__(self, max_level: int) -> None:
-        super().__init__()
-        self._max_level = max_level
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno <= self._max_level
+def _max_level_filter(max_level: int) -> Callable[[logging.LogRecord], bool]:
+    """Return a filter that passes only records at or below `max_level`."""
+    def _filter(record: logging.LogRecord) -> bool:
+        return record.levelno <= max_level
+    return _filter
 
 
 class _StderrToLogger:
@@ -128,7 +129,7 @@ def setup_logging(
         )
         debug_handler.name = _DEBUG_FILE_HANDLER_NAME
         debug_handler.setLevel(logging.DEBUG if _is_prerelease else logging.INFO)
-        debug_handler.addFilter(_MaxLevelFilter(logging.INFO))
+        debug_handler.addFilter(_max_level_filter(logging.INFO))
         debug_handler.addFilter(_urllib3_noise_filter)
         debug_handler.addFilter(_app_only_filter)
         debug_handler.setFormatter(_FILE_FORMATTER)
@@ -145,7 +146,7 @@ def setup_logging(
         )
         warnings_handler.name = _WARNINGS_FILE_HANDLER_NAME
         warnings_handler.setLevel(logging.WARNING)
-        warnings_handler.addFilter(_MaxLevelFilter(logging.WARNING))
+        warnings_handler.addFilter(_max_level_filter(logging.WARNING))
         warnings_handler.addFilter(_urllib3_noise_filter)
         warnings_handler.addFilter(_scapy_noise_filter)
         warnings_handler.setFormatter(_FILE_FORMATTER)

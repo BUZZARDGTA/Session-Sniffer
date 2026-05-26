@@ -22,8 +22,8 @@ class SettingType(Enum):
     IP_RANGE_TUPLE = auto()
 
 
-@dataclass(frozen=True)
-class SettingMeta:  # pylint: disable=too-many-instance-attributes
+@dataclass(frozen=True, slots=True)
+class SettingMeta:
     """Metadata describing a single application setting for the Settings dialog."""
     category: str
     display_label: str
@@ -96,9 +96,9 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
         requires_capture_restart=True,
     ),
-    'capture_program_preset': SettingMeta(
+    'capture_game_preset': SettingMeta(
         category='Capture',
-        display_label='Program Preset',
+        display_label='Game Preset',
         setting_type=SettingType.ENUM,
         tooltip='Predefined capture profile name.',
         requires_capture_restart=True,
@@ -417,7 +417,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_mac_address': None,
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
-    'capture_program_preset': None,
+    'capture_game_preset': None,
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_prepend_custom_display_filter': None,

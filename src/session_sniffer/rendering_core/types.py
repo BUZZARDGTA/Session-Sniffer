@@ -62,13 +62,32 @@ class PaginationState:
             )
 
 
-class CaptureState:  # pylint: disable=too-few-public-methods
+class CaptureState:
     """Runtime state derived from the active capture interface."""
     vpn_mode_enabled: ClassVar[bool] = False
     is_neighbour_interface: ClassVar[bool] = False
+    interface_name: ClassVar[str] = ''
+    interface_ip: ClassVar[str] = ''
+    discord_rpc_connected: ClassVar[bool] = False
+    gta5_is_running: ClassVar[bool] = False
+    gta5_just_started: ClassVar[bool] = False
+
+    @classmethod
+    def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str) -> None:
+        """Set the three interface-identity fields atomically."""
+        cls.is_neighbour_interface = is_neighbour
+        cls.interface_name = name
+        cls.interface_ip = ip
+
+    @classmethod
+    def update_gta5_status(cls, *, is_running: bool) -> None:
+        """Update GTA5 running state and set `gta5_just_started` on the first detected launch."""
+        if is_running and not cls.gta5_is_running:
+            cls.gta5_just_started = True
+        cls.gta5_is_running = is_running
 
 
-class CaptureStats:  # pylint: disable=too-few-public-methods
+class CaptureStats:
     """Statistics and data tracking for packet capture performance."""
     packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
     capture_health_samples: ClassVar[deque[tuple[float, int, int]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
@@ -79,8 +98,39 @@ class CaptureStats:  # pylint: disable=too-few-public-methods
     global_download: ClassVar[int] = 0
     global_upload: ClassVar[int] = 0
     global_bps_rate: ClassVar[int] = 0
+    global_bpm_rate: ClassVar[int] = 0
     global_pps_rate: ClassVar[int] = 0
     global_avg_latency_ms: ClassVar[float] = 0.0
+    app_cpu_percent: ClassVar[float] = 0.0
+    app_memory_mb: ClassVar[float] = 0.0
+    app_disk_read_rate_mb: ClassVar[float] = 0.0
+    app_disk_write_rate_mb: ClassVar[float] = 0.0
+    app_disk_read_total_mb: ClassVar[float] = 0.0
+    app_disk_write_total_mb: ClassVar[float] = 0.0
+    packets_dropped: ClassVar[int] = 0
+    peak_bps_rate: ClassVar[int] = 0
+    peak_bpm_rate: ClassVar[int] = 0
+    peak_pps_rate: ClassVar[int] = 0
+    peak_connected: ClassVar[int] = 0
+
+    @classmethod
+    def resize_history_deques(cls, maxlen: int) -> None:
+        """Replace the history deques with new ones sized to `maxlen`."""
+        cls.packets_latencies = deque(maxlen=maxlen)
+        cls.capture_health_samples = deque(maxlen=maxlen)
+
+    @classmethod
+    def reset_on_interface_switch(cls) -> None:
+        """Reset all per-capture counters and clear history buffers on an interface switch."""
+        cls.restarted_times = 0
+        cls.packets_latencies.clear()
+        cls.capture_health_samples.clear()
+        cls.global_bandwidth = 0
+        cls.global_download = 0
+        cls.global_upload = 0
+        cls.global_bps_rate = 0
+        cls.global_bpm_rate = 0
+        cls.global_pps_rate = 0
 
 
 class CellColor(NamedTuple):

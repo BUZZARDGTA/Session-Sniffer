@@ -26,6 +26,21 @@ from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNo
 
 
 @dataclass(slots=True)
+class SettingsValidationConfig:
+    """Bundled configuration parameters for `SettingsIniModel.validate_and_get_rewrites`."""
+
+    defaults: dict[str, Any]
+    all_setting_names: tuple[str, ...]
+    toggleable_connected_columns: tuple[str, ...]
+    toggleable_disconnected_columns: tuple[str, ...]
+    webhook_all_connected_columns: tuple[str, ...]
+    webhook_all_disconnected_columns: tuple[str, ...]
+    all_third_party_servers: tuple[str, ...]
+    max_gui_table_rows_per_page: int
+    min_gui_disconnected_players_timer: int
+
+
+@dataclass(slots=True)
 class _ValidatorContext:
     defaults: dict[str, Any]
     ini_rewrites: dict[str, str]
@@ -50,7 +65,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_MAC_ADDRESS: str | None
     CAPTURE_ARP_SPOOFING: bool
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
-    CAPTURE_PROGRAM_PRESET: str | None
+    CAPTURE_GAME_PRESET: str | None
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None
@@ -269,7 +284,7 @@ class SettingsIniModel(BaseModel):
             if not isinstance(parsed, tuple):
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
-            if not all(isinstance(item, str) for item in parsed):  # pyright: ignore[reportUnknownVariableType]
+            if not all(isinstance(item, str) for item in cast('tuple[str | int, ...]', parsed)):
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
             valid_items: list[str] = []
@@ -286,9 +301,9 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return ()
 
-    @field_validator('CAPTURE_PROGRAM_PRESET', mode='before')
+    @field_validator('CAPTURE_GAME_PRESET', mode='before')
     @classmethod
-    def _parse_program_preset(cls, value: object, info: ValidationInfo) -> str | None:
+    def _parse_game_preset(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:
             return None
         if isinstance(value, str):
@@ -636,69 +651,51 @@ class SettingsIniModel(BaseModel):
             self._set_flag(info, 'should_rewrite', value=True)
             context = self._get_context(info)
             if context is not None:
-                show_date = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False)
-                show_time = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False)
-                show_elapsed = context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True)
-                self.GUI_COLUMNS_DATETIME_SHOW_DATE = show_date  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
-                self.GUI_COLUMNS_DATETIME_SHOW_TIME = show_time  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
-                self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME = show_elapsed  # pyright: ignore[reportConstantRedefinition]  # pylint: disable=invalid-name
+                return self.model_copy(update={
+                    'GUI_COLUMNS_DATETIME_SHOW_DATE': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False),
+                    'GUI_COLUMNS_DATETIME_SHOW_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False),
+                    'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True),
+                })
         return self
 
     # --- Public API ---
 
     @classmethod
-    def validate_and_get_rewrites(  # pylint: disable=too-many-arguments
+    def validate_and_get_rewrites(
         cls,
         raw_settings: dict[str, str],
-        *,
-        defaults: dict[str, Any],
-        all_setting_names: tuple[str, ...],
-        toggleable_connected_columns: tuple[str, ...],
-        toggleable_disconnected_columns: tuple[str, ...],
-        webhook_all_connected_columns: tuple[str, ...],
-        webhook_all_disconnected_columns: tuple[str, ...],
-        all_third_party_servers: tuple[str, ...],
-        max_gui_table_rows_per_page: int,
-        min_gui_disconnected_players_timer: int,
+        config: SettingsValidationConfig,
     ) -> tuple[Self, dict[str, str], dict[str, Any]]:
         """Validate raw Settings.ini key/value strings and compute a rewrite plan.
 
         Args:
             raw_settings: Parsed raw settings mapping from the INI file (UPPER_CASE keys).
-            defaults: Default values for all settings (UPPER_CASE keys).
-            all_setting_names: Tuple of known setting names (UPPER_CASE).
-            toggleable_connected_columns: Allowed column names for connected shown columns.
-            toggleable_disconnected_columns: Allowed column names for disconnected shown columns.
-            webhook_all_connected_columns: Allowed column names for the connected webhook table.
-            webhook_all_disconnected_columns: Allowed column names for the disconnected webhook table.
-            all_third_party_servers: All third-party server names for block list.
-            max_gui_table_rows_per_page: Maximum allowed rows per page.
-            min_gui_disconnected_players_timer: Minimum allowed disconnected timer.
+            config: Bundled validation parameters (defaults, column lists, limits, etc.).
 
         Returns:
             (validated_model, ini_rewrites, flags)
         """
-        all_names_set = frozenset(all_setting_names)
+        all_names_set = frozenset(config.all_setting_names)
         raw_keys = set(raw_settings)
 
         ini_rewrites: dict[str, str] = {}
         flags: dict[str, Any] = {}
 
         # Build full input: defaults first, then overwrite with raw values from INI
-        full_input: dict[str, Any] = dict(defaults)
+        full_input: dict[str, Any] = dict(config.defaults)
         full_input.update(raw_settings)
 
         ctx = _ValidatorContext(
-            defaults=dict(defaults),
+            defaults=dict(config.defaults),
             ini_rewrites=ini_rewrites,
             flags=flags,
-            toggleable_connected_columns=toggleable_connected_columns,
-            toggleable_disconnected_columns=toggleable_disconnected_columns,
-            webhook_all_connected_columns=webhook_all_connected_columns,
-            webhook_all_disconnected_columns=webhook_all_disconnected_columns,
-            all_third_party_servers=all_third_party_servers,
-            max_gui_table_rows_per_page=max_gui_table_rows_per_page,
-            min_gui_disconnected_players_timer=min_gui_disconnected_players_timer,
+            toggleable_connected_columns=config.toggleable_connected_columns,
+            toggleable_disconnected_columns=config.toggleable_disconnected_columns,
+            webhook_all_connected_columns=config.webhook_all_connected_columns,
+            webhook_all_disconnected_columns=config.webhook_all_disconnected_columns,
+            all_third_party_servers=config.all_third_party_servers,
+            max_gui_table_rows_per_page=config.max_gui_table_rows_per_page,
+            min_gui_disconnected_players_timer=config.min_gui_disconnected_players_timer,
         )
         parsed = cls.model_validate(full_input, context=ctx)
 
@@ -736,16 +733,14 @@ def _normalize_tuple_column(
     if not isinstance(parsed, tuple):
         return None, False, True
 
-    if not all(isinstance(item, str) for item in parsed):  # pyright: ignore[reportUnknownVariableType]
+    if not all(isinstance(item, str) for item in cast('tuple[str | int, ...]', parsed)):
         return None, False, True
-
-    parsed = cast('tuple[str, ...]', parsed)
 
     filtered: list[str] = []
     need_rewrite_current = False
     need_rewrite_settings = False
 
-    for value in parsed:
+    for value in cast('tuple[str, ...]', parsed):
         try:
             case_match, normalized = check_case_insensitive_and_exact_match(value, allowed_columns)
         except NoMatchFoundError:

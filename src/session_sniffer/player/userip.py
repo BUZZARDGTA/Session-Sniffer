@@ -1,5 +1,6 @@
 """UserIP settings, database loading, and IP-to-user resolution."""
 
+import dataclasses
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Lock
@@ -48,7 +49,6 @@ gui_dispatcher = _GUIThreadDispatcher()
 class ProtectionSettings(NamedTuple):
     """Protection-related settings for a UserIP entry."""
     enabled: bool
-    process_path: Path | None
     suspend_process_mode: int | Literal['Auto']
 
 
@@ -86,6 +86,14 @@ class _UserIPDatabaseEntry(NamedTuple):
     range_ips: dict[str, list[str]]
 
 
+@dataclasses.dataclass(slots=True)
+class _BuildState:
+    """Mutable accumulator passed through single-IP processing during `UserIPDatabases.build`."""
+    ips_set: set[str]
+    ip_to_userip: dict[str, UserIP]
+    unresolved_conflicts: set[str]
+
+
 class UserIPDatabases:
     """Load and cache enabled UserIP databases and resolve IP-to-user mappings."""
 
@@ -106,7 +114,6 @@ class UserIPDatabases:
         conflicting_database_path: Path,
         conflicting_username: str,
     ) -> None:
-        ip = existing_userip.ip
         text = format_triple_quoted_text(format_userip_ip_conflict_message(
             existing_userip=existing_userip,
             conflicting_database_path=conflicting_database_path,
@@ -120,8 +127,11 @@ class UserIPDatabases:
                 QTimer.singleShot(500, _show_on_gui)
                 return
             dlg = create_nonmodal_warning(parent, text)
-            dlg.finished.connect(lambda _result: UserIPDatabases._open_conflict_dialogs.pop(ip, None))  # pyright: ignore[reportUnknownLambdaType]
-            UserIPDatabases._open_conflict_dialogs[ip] = dlg
+
+            def _on_finished(_result: int) -> None:
+                UserIPDatabases._open_conflict_dialogs.pop(existing_userip.ip, None)
+            dlg.finished.connect(_on_finished)
+            UserIPDatabases._open_conflict_dialogs[existing_userip.ip] = dlg
             dlg.show()
 
         gui_dispatcher.invoke(_show_on_gui)
@@ -162,42 +172,39 @@ class UserIPDatabases:
             cls.userip_databases = classified
 
     @classmethod
-    def _process_single_ip(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def _process_single_ip(
         cls,
         entry: str,
         username: str,
-        database_path: Path,
-        settings: UserIPSettings,
-        ips_set: set[str],
-        ip_to_userip: dict[str, UserIP],
-        unresolved_conflicts: set[str],
+        db_entry: _UserIPDatabaseEntry,
+        build_state: _BuildState,
     ) -> None:
         """Process a single IP entry during build."""
-        if entry in ip_to_userip and ip_to_userip[entry].database_path != database_path:
+        if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].database_path != db_entry.database_path:
             if entry not in cls.notified_ip_conflicts:
                 cls._notify_ip_conflict(
-                    existing_userip=ip_to_userip[entry],
-                    conflicting_database_path=database_path,
+                    existing_userip=build_state.ip_to_userip[entry],
+                    conflicting_database_path=db_entry.database_path,
                     conflicting_username=username,
                 )
                 cls.notified_ip_conflicts.add(entry)
-            unresolved_conflicts.add(entry)
+            build_state.unresolved_conflicts.add(entry)
             return
 
-        ips_set.add(entry)
+        build_state.ips_set.add(entry)
 
-        if entry not in ip_to_userip:
-            ip_to_userip[entry] = UserIP(
+        if entry not in build_state.ip_to_userip:
+            build_state.ip_to_userip[entry] = UserIP(
                 ip=entry,
-                database_path=database_path,
-                settings=settings,
+                database_path=db_entry.database_path,
+                settings=db_entry.settings,
                 usernames=[username],
             )
-        elif username not in ip_to_userip[entry].usernames:
-            ip_to_userip[entry].usernames.append(username)
+        elif username not in build_state.ip_to_userip[entry].usernames:
+            build_state.ip_to_userip[entry].usernames.append(username)
 
         if matched_player := PlayersRegistry.get_player_by_ip(entry):
-            matched_player.userip = ip_to_userip[entry]
+            matched_player.userip = build_state.ip_to_userip[entry]
 
     @staticmethod
     def _process_range_entry(
@@ -242,10 +249,12 @@ class UserIPDatabases:
             range_entries: list[_RangeEntry] = []
             unresolved_conflicts: set[str] = set()
 
+            build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, unresolved_conflicts=unresolved_conflicts)
+
             for db_entry in cls.userip_databases:
                 for username, ips in db_entry.single_ips.items():
                     for ip in ips:
-                        cls._process_single_ip(ip, username, db_entry.database_path, db_entry.settings, ips_set, ip_to_userip, unresolved_conflicts)
+                        cls._process_single_ip(ip, username, db_entry, build_state)
                 for username, ranges in db_entry.range_ips.items():
                     for range_str in ranges:
                         cls._process_range_entry(range_str, username, db_entry.database_path, db_entry.settings, range_entries)

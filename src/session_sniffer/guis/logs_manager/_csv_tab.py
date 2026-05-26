@@ -1,8 +1,9 @@
 """CSV log tab — reusable for UserIP_Logging.csv and Detection_Logging.csv."""
 import csv
 import shutil
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QStandardItem, QStandardItemModel
@@ -40,27 +41,37 @@ from session_sniffer.guis.logs_manager._helpers import (
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import ElidedTooltipFilter
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
+
+@dataclass(slots=True)
+class CsvLogTabConfig:
+    """Configuration bundle for `CsvLogTab`."""
+
+    file_path: Path
+    expected_headers: tuple[str, ...]
+    default_sort_columns: tuple[str, ...] = field(default_factory=tuple)
+    default_sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
+    stretch_column: int | None = None
+    column_min_widths: dict[int, int] = field(default_factory=dict[int, int])
+
+
+class CsvLogTab(QWidget):
     """Structured CSV log viewer with table, search, filter, sort, and management actions."""
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(
         self,
-        file_path: Path,
-        expected_headers: tuple[str, ...],
-        default_sort_columns: tuple[str, ...] = (),
-        default_sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder,
-        stretch_column: int | None = None,
-        column_min_widths: dict[int, int] | None = None,
+        config: CsvLogTabConfig,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._file_path = file_path
-        self._expected_headers = expected_headers
-        self._default_sort_columns = default_sort_columns
-        self._default_sort_order = default_sort_order
-        self._stretch_column = stretch_column
-        self._column_min_widths = column_min_widths or {}
+        self._file_path = config.file_path
+        self._expected_headers = config.expected_headers
+        self._default_sort_columns = config.default_sort_columns
+        self._default_sort_order = config.default_sort_order
+        self._stretch_column = config.stretch_column
+        self._column_min_widths = config.column_min_widths
         self._all_rows: list[list[str]] = []
         self._truncated = False
 
@@ -75,7 +86,7 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
         top_bar.addWidget(QLabel('Column:'))
         self._column_combo = QComboBox()
         self._column_combo.addItem('All Columns', -1)
-        for i, col_name in enumerate(expected_headers):
+        for i, col_name in enumerate(self._expected_headers):
             self._column_combo.addItem(col_name, i)
         self._column_combo.currentIndexChanged.connect(self._on_column_filter_changed)
         top_bar.addWidget(self._column_combo)
@@ -97,7 +108,7 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
         # --- Table ---
         self._model = QStandardItemModel(self)
-        self._model.setHorizontalHeaderLabels(list(expected_headers))
+        self._model.setHorizontalHeaderLabels(list(self._expected_headers))
 
         self._proxy = MultiColumnFilterProxy(self)
         self._proxy.setSourceModel(self._model)
@@ -258,12 +269,12 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
 
     def _rebuild_column_combo(self, headers: list[str]) -> None:
         """Rebuild the column filter combo box from actual file headers."""
-        self._column_combo.blockSignals(True)
+        self._column_combo.blockSignals(True)  # noqa: FBT003
         self._column_combo.clear()
         self._column_combo.addItem('All Columns', -1)
         for i, h in enumerate(headers):
             self._column_combo.addItem(h, i)
-        self._column_combo.blockSignals(False)
+        self._column_combo.blockSignals(False)  # noqa: FBT003
 
     def _on_search_changed(self, text: str) -> None:
         self._proxy.setFilterFixedString(text)
@@ -325,7 +336,7 @@ class CsvLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
             menu.addAction(action)
         menu.popup(h_header.mapToGlobal(pos))
 
-    def _toggle_column_visibility(self, checked: bool) -> None:
+    def _toggle_column_visibility(self, *, checked: bool) -> None:
         action = self.sender()
         if isinstance(action, QAction):
             col = action.data()

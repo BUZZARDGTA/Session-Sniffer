@@ -31,6 +31,7 @@ _SCOPE_ALL_TIME = 'All Time'
 _SCOPES = (_SCOPE_TODAY, _SCOPE_THIS_WEEK, _SCOPE_THIS_MONTH, _SCOPE_THIS_YEAR, _SCOPE_ALL_TIME)
 
 _HEADERS = ('Rank', 'IP Address', 'Usernames', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
+_COL_SESSIONS = 3
 
 
 def _format_bool(value: bool | None) -> str:  # noqa: FBT001
@@ -109,7 +110,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
                 return Qt.AlignmentFlag.AlignCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ItemDataRole.UserRole and col == 3:  # noqa: PLR2004
+        if role == Qt.ItemDataRole.UserRole and col == _COL_SESSIONS:
             return self.get_session_count(entry)
 
         return None
@@ -216,7 +217,7 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         return super().lessThan(left, right)
 
 
-class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-methods
+class PlayerLeaderboardWindow(QWidget):
     """Standalone window showing the most-seen players leaderboard."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -283,9 +284,10 @@ class PlayerLeaderboardWindow(QWidget):  # pylint: disable=too-few-public-method
 
         # Load data
         self._all_entries: list[LeaderboardEntry] = []
-        self._load_data()
+        self.refresh()
 
-    def _load_data(self) -> None:
+    def refresh(self) -> None:
+        """Reload leaderboard data from disk and refresh the table."""
         self._all_entries = build_leaderboard(SESSIONS_LOGGING_DIR_PATH)
         self._model.load_data(self._all_entries)
         self._proxy.invalidateFilter()

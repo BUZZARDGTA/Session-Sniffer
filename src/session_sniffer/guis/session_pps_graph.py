@@ -10,7 +10,6 @@ class SessionPpsGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Session PPS Graph'
     LEFT_LABEL = 'PPS'
-    ERROR_NAME = 'PPS'
     AXIS_PEN = 'lime'
     CURVE_PEN = 'lime'
     CURVE_BRUSH = (0, 255, 0, 60)
@@ -21,4 +20,4 @@ class SessionPpsGraphWindow(SingleRateGraphBase):
 
     def update_pps(self, pps: int) -> None:
         """Append a new PPS sample and refresh the graph."""
-        self._update_graph(pps)
+        self.update_graph(pps)

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 _MixinBase = QDialog
 
 
-class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-methods
+class EntriesContextMenuMixin(_MixinBase):
     """Mixin providing entries-table context menu and related navigation helpers.
 
     Expects these attributes on the concrete class:
@@ -65,7 +65,7 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
     # Entries: context menu
     # ------------------------------------------------------------------
 
-    def _show_entries_context_menu(self, position: QPoint) -> None:
+    def show_entries_context_menu(self, position: QPoint) -> None:
         """Show a right-click context menu for the entries table."""
         menu = QMenu(self)
         index = self._entries_table.indexAt(position)
@@ -281,7 +281,7 @@ class EntriesContextMenuMixin(_MixinBase):  # pylint: disable=too-few-public-met
             self._entries_table.scrollTo(proxy_index)
             return
 
-    def _on_entry_double_clicked(self, index: QModelIndex) -> None:
+    def on_entry_double_clicked(self, index: QModelIndex) -> None:
         """Handle double-click on an entry row in global search mode."""
         if not self._global_search_active or not index.isValid():
             return

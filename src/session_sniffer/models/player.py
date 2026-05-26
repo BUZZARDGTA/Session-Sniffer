@@ -829,6 +829,8 @@ class Player:
     ip: str
     left_event: Event
     usernames: list[str]
+    protection_checked: bool
+    relay_monitor_started: bool
     packets: PlayerPackets
     bandwidth: PlayerBandwidth
     ports: PlayerPorts
@@ -939,8 +941,8 @@ class Player:
         """Handle a player rejoin by resetting current-session counters."""
         self.left_event.clear()
         self.rejoins += 1
-        self.protection_checked = False  # pylint: disable=attribute-defined-outside-init
-        self.relay_monitor_started = False  # pylint: disable=attribute-defined-outside-init
+        self.protection_checked = False
+        self.relay_monitor_started = False
 
         self.datetime.accumulate_session_to_total()
         self.datetime.last_rejoin = packet_datetime

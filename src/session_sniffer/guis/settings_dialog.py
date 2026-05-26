@@ -47,6 +47,8 @@ from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from session_sniffer.capture.packet_capture import PacketCapture
 
 _NONE_PLACEHOLDER = 'None'
@@ -119,8 +121,8 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         if isinstance(webhook_enabled_widget, QCheckBox):
             webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())
 
-        # Show/hide Session Host Detection based on Program Preset.
-        preset_widget = self._widgets.get('capture_program_preset')
+        # Show/hide Session Host Detection based on Game Preset.
+        preset_widget = self._widgets.get('capture_game_preset')
         if isinstance(preset_widget, QComboBox):
             preset_widget.currentTextChanged.connect(self._on_preset_changed)
             self._on_preset_changed(preset_widget.currentText())
@@ -231,7 +233,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             if label:
                 label.setVisible(gta5_only)
 
-    def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:  # pylint: disable=too-many-locals,too-many-statements
+    def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
         group_box = QGroupBox('Server Webhook')
         outer = QVBoxLayout(group_box)
@@ -382,27 +384,23 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         else:
             QMessageBox.critical(self, TITLE, message)
 
-    def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:  # pylint: disable=too-many-return-statements
+    def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:
         """Return the appropriate input widget for a single setting."""
-        if meta.setting_type == SettingType.BOOLEAN:
-            return self._create_boolean_widget(meta)
-        if meta.setting_type in (SettingType.STRING, SettingType.IPV4, SettingType.MAC_ADDRESS):
-            return self._create_text_widget(meta)
-        if meta.setting_type == SettingType.FLOAT:
-            return self._create_float_widget(meta)
-        if meta.setting_type == SettingType.INTEGER:
-            return self._create_integer_widget(meta)
-        if meta.setting_type == SettingType.INTEGER_OR_ALL:
-            return self._create_integer_or_all_widget(meta)
-        if meta.setting_type == SettingType.ENUM:
-            return self._create_enum_widget(meta)
-        if meta.setting_type == SettingType.BOOL_OR_ENUM:
-            return self._create_bool_or_enum_widget(meta)
-        if meta.setting_type == SettingType.COLUMN_TUPLE:
-            return self._create_column_tuple_widget(key, meta)
-        if meta.setting_type == SettingType.IP_RANGE_TUPLE:
-            return self._create_ip_range_tuple_widget(meta)
-        return QLineEdit()
+        dispatch: dict[SettingType, Callable[[], QWidget]] = {
+            SettingType.BOOLEAN: partial(self._create_boolean_widget, meta),
+            SettingType.STRING: partial(self._create_text_widget, meta),
+            SettingType.IPV4: partial(self._create_text_widget, meta),
+            SettingType.MAC_ADDRESS: partial(self._create_text_widget, meta),
+            SettingType.FLOAT: partial(self._create_float_widget, meta),
+            SettingType.INTEGER: partial(self._create_integer_widget, meta),
+            SettingType.INTEGER_OR_ALL: partial(self._create_integer_or_all_widget, meta),
+            SettingType.ENUM: partial(self._create_enum_widget, meta),
+            SettingType.BOOL_OR_ENUM: partial(self._create_bool_or_enum_widget, meta),
+            SettingType.COLUMN_TUPLE: partial(self._create_column_tuple_widget, key, meta),
+            SettingType.IP_RANGE_TUPLE: partial(self._create_ip_range_tuple_widget, meta),
+        }
+        factory = dispatch.get(meta.setting_type)
+        return factory() if factory is not None else QLineEdit()
 
     def _create_boolean_widget(self, meta: SettingMeta) -> QCheckBox:
         cb = QCheckBox()
@@ -681,44 +679,36 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             if idx >= 0:
                 combo_be.setCurrentIndex(idx)
 
-    def _read_widget_value(self, key: str, widget: QWidget) -> SettingValue:  # pylint: disable=too-many-return-statements
+    def _read_widget_value(self, key: str, widget: QWidget) -> SettingValue:
         """Extract the current value from *widget* for setting *key*."""
         meta = SETTING_METADATA[key]
+        value: SettingValue = None
 
-        if meta.setting_type == SettingType.BOOLEAN:
-            return cast('QCheckBox', widget).isChecked()
+        match meta.setting_type:
+            case SettingType.BOOLEAN:
+                value = cast('QCheckBox', widget).isChecked()
+            case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
+                text = cast('QLineEdit', widget).text().strip()
+                value = text or None
+            case SettingType.FLOAT:
+                value = cast('QDoubleSpinBox', widget).value()
+            case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
+                value = cast('QSpinBox', widget).value()
+            case SettingType.ENUM:
+                text = cast('QComboBox', widget).currentText()
+                value = None if text == _NONE_PLACEHOLDER else text
+            case SettingType.BOOL_OR_ENUM:
+                text = cast('QComboBox', widget).currentText()
+                value = False if text == 'Disabled' else text
+            case SettingType.COLUMN_TUPLE:
+                value = self._read_column_tuple(meta, widget)
+            case SettingType.IP_RANGE_TUPLE:
+                list_widget = next(iter(widget.findChildren(QListWidget)), None)
+                value = () if list_widget is None else tuple(
+                    item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None
+                )
 
-        if meta.setting_type in (SettingType.STRING, SettingType.IPV4, SettingType.MAC_ADDRESS):
-            text = cast('QLineEdit', widget).text().strip()
-            return text or None
-
-        if meta.setting_type == SettingType.FLOAT:
-            return cast('QDoubleSpinBox', widget).value()
-
-        if meta.setting_type == SettingType.INTEGER:
-            return cast('QSpinBox', widget).value()
-
-        if meta.setting_type == SettingType.INTEGER_OR_ALL:
-            return cast('QSpinBox', widget).value()
-
-        if meta.setting_type == SettingType.ENUM:
-            text = cast('QComboBox', widget).currentText()
-            return None if text == _NONE_PLACEHOLDER else text
-
-        if meta.setting_type == SettingType.BOOL_OR_ENUM:
-            text = cast('QComboBox', widget).currentText()
-            return False if text == 'Disabled' else text
-
-        if meta.setting_type == SettingType.COLUMN_TUPLE:
-            return self._read_column_tuple(meta, widget)
-
-        if meta.setting_type == SettingType.IP_RANGE_TUPLE:
-            list_widget = next(iter(widget.findChildren(QListWidget)), None)
-            if list_widget is None:
-                return ()
-            return tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None)
-
-        return None
+        return value
 
     def _read_column_tuple(self, meta: SettingMeta, widget: QWidget) -> tuple[str, ...]:
         """Read checked column names from the column-tuple group box."""

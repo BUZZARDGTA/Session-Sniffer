@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+from scapy.layers.inet import UDP
+
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.settings.settings import Settings
 
@@ -60,8 +62,6 @@ def _is_rtcp(pkt: ScapyPacket) -> bool:
     RTCP is identified by: RTP version == 2 (top 2 bits of first payload byte),
     and payload type (PT) in the range 200-204.
     """
-    from scapy.layers.inet import UDP  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
     if not pkt.haslayer(UDP):
         return False
     payload = bytes(pkt[UDP].payload)
@@ -77,8 +77,6 @@ def _is_dtls(pkt: ScapyPacket) -> bool:
 
     DTLS content-type bytes (first byte of UDP payload): 20-23.
     """
-    from scapy.layers.inet import UDP  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
     if not pkt.haslayer(UDP):
         return False
     payload = bytes(pkt[UDP].payload)
@@ -153,14 +151,14 @@ def build_capture_filters(
     # Protocols that need Python-level payload inspection (strategy B)
     python_excluded_protocols: list[str] = []
 
-    if Settings.capture_program_preset:
-        if Settings.capture_program_preset == 'GTA5':
+    if Settings.capture_game_preset:
+        if Settings.capture_game_preset == 'GTA5':
             capture_filter.append('(len >= 71 and len <= 1032)')
-        elif Settings.capture_program_preset == 'Minecraft':
+        elif Settings.capture_game_preset == 'Minecraft':
             capture_filter.append('(len >= 49 and len <= 1498)')
 
-        # If the <CAPTURE_PROGRAM_PRESET> setting is set, automatically blocks RTCP connections.
-        # In case RTCP can be useful to get someone IP, I decided not to block them without using a <CAPTURE_PROGRAM_PRESET>.
+        # If the <capture_game_preset> setting is set, automatically blocks RTCP connections.
+        # In case RTCP can be useful to get someone IP, I decided not to block them without using a <capture_game_preset>.
         # RTCP is known to be for example the Discord's server IP while you are in a call there.
         # The "not rtcp" Display Filter have been heavily tested and I can confirm that it's indeed working correctly.
         # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.

@@ -34,7 +34,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
 
-class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
+class TextLogTab(QWidget):
     """Plain-text log viewer with search highlighting, auto-refresh, and log-level coloring."""
 
     def __init__(self, file_path: Path, parent: QWidget | None = None) -> None:
@@ -226,7 +226,7 @@ class TextLogTab(QWidget):  # pylint: disable=too-many-instance-attributes
     # Auto-refresh
     # ------------------------------------------------------------------
 
-    def _on_auto_refresh_toggled(self, checked: bool) -> None:
+    def _on_auto_refresh_toggled(self, *, checked: bool) -> None:
         if checked:
             self._refresh_timer.start(AUTO_REFRESH_INTERVAL_MS)
         else:

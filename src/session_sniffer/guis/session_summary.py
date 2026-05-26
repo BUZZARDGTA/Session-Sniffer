@@ -23,7 +23,7 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Session Summary')
         self.resize(400, 360)
-        layout = self._setup_window_layout(always_on_top=always_on_top, spacing=6)
+        layout = self.setup_window_layout(always_on_top=always_on_top, spacing=6)
 
         # Players group
         players_group = QGroupBox('Players')
@@ -67,7 +67,7 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         misc_form.addRow('Capture Restarts:', self._lbl_restarts)
         layout.addWidget(misc_group)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 

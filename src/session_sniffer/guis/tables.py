@@ -115,9 +115,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         horizontal_header.setSortIndicatorShown(True)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self._show_context_menu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
-    def setModel(self, model: QAbstractItemModel | None) -> None:
+    def setModel(self, model: QAbstractItemModel | None) -> None:  # noqa: N802
         """Override the setModel method to ensure the model is of type SessionTableModel."""
         super().setModel(ensure_instance(model, SessionTableModel))
 
@@ -125,7 +125,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         """Override the model method to ensure it returns a SessionTableModel."""
         return ensure_instance(super().model(), SessionTableModel)
 
-    def selectionModel(self) -> QItemSelectionModel:
+    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
@@ -133,19 +133,15 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         """Override the viewport method to ensure it returns a QWidget."""
         return ensure_instance(super().viewport(), QWidget)
 
-    def verticalHeader(self) -> QHeaderView:
+    def verticalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:
+    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
-    def window(self) -> MainWindow:
-        """Override the window method to ensure it returns the parent `MainWindow`."""
-        return cast('MainWindow', super().window())
-
-    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:
+    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # noqa: A002, N802
         """Show country flag tooltips on hover and forward other events."""
         if isinstance(object, QObject) and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
@@ -160,23 +156,22 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         return super().eventFilter(object, event)
 
-    def keyPressEvent(self, e: QKeyEvent | None) -> None:
+    def keyPressEvent(self, e: QKeyEvent | None) -> None:  # noqa: N802
         """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
 
         Fall back to default behavior for other key presses.
         """
-        if isinstance(e, QKeyEvent):
-            if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-                if e.key() == Qt.Key.Key_A:
-                    self.select_all_cells()
-                elif e.key() == Qt.Key.Key_C:
-                    self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
-                return
+        if isinstance(e, QKeyEvent) and e.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if e.key() == Qt.Key.Key_A:
+                self.select_all_cells()
+            elif e.key() == Qt.Key.Key_C:
+                self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
+            return
 
         # Fall back to default behavior
         super().keyPressEvent(e)
 
-    def mousePressEvent(self, e: QMouseEvent | None) -> None:
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
         """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
 
         Fall back to default behavior for non-cell areas.
@@ -205,9 +200,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                             else QItemSelectionModel.SelectionFlag.Select
                         )
 
-                elif e.button() == Qt.MouseButton.RightButton:
-                    if not selection_model.isSelected(index):
-                        selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
+                elif e.button() == Qt.MouseButton.RightButton and not selection_model.isSelected(index):
+                    selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
 
                 if selection_flag is not None:
                     selection_model.select(index, selection_flag)
@@ -215,32 +209,29 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Fall back to default behavior
         super().mousePressEvent(e)
 
-    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
         if e is not None:
             index = self.indexAt(e.pos())  # Get the index under the cursor
             if index.isValid():
                 selection_model = self.selectionModel()
 
-                if e.buttons() == Qt.MouseButton.LeftButton:
-                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-                        if self._drag_selecting and self._previous_cell != index:
-                            self._previous_cell = index
+                if e.buttons() == Qt.MouseButton.LeftButton and e.modifiers() == Qt.KeyboardModifier.ControlModifier and self._drag_selecting and self._previous_cell != index:
+                    self._previous_cell = index
 
-                            selection_model.select(index, (
-                                QItemSelectionModel.SelectionFlag.Deselect
-                                if selection_model.isSelected(index)
-                                else QItemSelectionModel.SelectionFlag.Select
-                            ))
+                    selection_model.select(index, (
+                        QItemSelectionModel.SelectionFlag.Deselect
+                        if selection_model.isSelected(index)
+                        else QItemSelectionModel.SelectionFlag.Select
+                    ))
 
         super().mouseMoveEvent(e)
 
-    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
         """Reset dragging state when the mouse button is released."""
-        if e is not None:
-            if e.button() == Qt.MouseButton.LeftButton:
-                self._drag_selecting = False
-                self._previous_cell = None
+        if e is not None and e.button() == Qt.MouseButton.LeftButton:
+            self._drag_selecting = False
+            self._previous_cell = None
 
         super().mouseReleaseEvent(e)
 
@@ -566,7 +557,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             ips: Set of IP addresses of the players to remove.
         """
         # Get the MainWindow instance
-        main_window = self.window()
+        main_window = cast('MainWindow', self.window())
 
         # Remove each player
         for ip in ips:

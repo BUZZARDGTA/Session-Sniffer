@@ -12,6 +12,9 @@ the classification rather than raising.
 import winreg
 from typing import Literal, cast
 
+import pythoncom
+import win32com.client
+
 from session_sniffer.logging_setup import get_logger
 
 logger = get_logger(__name__)
@@ -99,12 +102,6 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
     initialization issues, missing dependencies).
     """
     result: dict[str, AdapterClassification] = {}
-
-    try:
-        import pythoncom  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-        import win32com.client  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-    except ImportError:
-        return result
 
     try:
         pythoncom.CoInitialize()  # ty: ignore[unresolved-attribute]

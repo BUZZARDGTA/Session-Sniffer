@@ -1,15 +1,20 @@
 """Module for packet capture using scapy, including packet processing and capture lifecycle management."""
 import threading
 import time
+from ctypes import byref
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NamedTuple, Self, final
+
+from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
+from scapy.layers.inet import IP, UDP
+from scapy.libs.winpcapy import pcap_stat, pcap_stats
+from scapy.sendrecv import AsyncSniffer
 
 from session_sniffer.capture.exceptions import (
     CaptureAlreadyRunningError,
     CaptureError,
     CaptureExitError,
-    CaptureNoSnifferError,
     CaptureNotRunningError,
     CaptureThreadAlreadyRunningError,
     InvalidIPv4AddressFormatError,
@@ -74,7 +79,7 @@ def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
     return dt_utc.astimezone(LOCAL_TZ)
 
 
-class IP(NamedTuple):
+class PacketIP(NamedTuple):
     """Hold source and destination IP addresses for a packet."""
 
     src: str
@@ -92,7 +97,7 @@ class Packet(NamedTuple):
     """Represent a parsed packet emitted by the capture pipeline."""
 
     datetime: datetime
-    ip: IP
+    ip: PacketIP
     port: Port
     length: int
 
@@ -113,14 +118,11 @@ class Packet(NamedTuple):
             InvalidPortNumberError: If a port is out of the valid range.
             InvalidLengthNumericError: If frame length is invalid.
         """
-        from scapy.layers.inet import IP as ScapyIP  # noqa: N811 PLC0415  # pylint: disable=import-outside-toplevel
-        from scapy.layers.inet import UDP as ScapyUDP  # noqa: N811 PLC0415  # pylint: disable=import-outside-toplevel
-
-        if not raw_pkt.haslayer(ScapyIP) or not raw_pkt.haslayer(ScapyUDP):
+        if not raw_pkt.haslayer(IP) or not raw_pkt.haslayer(UDP):
             raise MissingRequiredPacketFieldError
 
-        ip_layer = raw_pkt[ScapyIP]
-        udp_layer = raw_pkt[ScapyUDP]
+        ip_layer = raw_pkt[IP]
+        udp_layer = raw_pkt[UDP]
 
         src_ip: str = ip_layer.src or ''
         dst_ip: str = ip_layer.dst or ''
@@ -135,7 +137,7 @@ class Packet(NamedTuple):
 
         return cls(
             datetime=_convert_epoch_time_to_datetime(float(raw_pkt.time)),
-            ip=IP(
+            ip=PacketIP(
                 src=_parse_and_validate_ip(src_ip),
                 dst=_parse_and_validate_ip(dst_ip),
             ),
@@ -190,7 +192,8 @@ class _CaptureState:
     running_event: threading.Event = field(default_factory=threading.Event)
     restart_requested: threading.Event = field(default_factory=threading.Event)
     capture_thread: threading.Thread | None = None
-    sniffer: object | None = None  # AsyncSniffer; typed as object to avoid top-level scapy import
+    sniffer: AsyncSniffer | None = None
+    pcap_socket: L2pcapListenSocket | None = None
 
 
 class PacketCapture:
@@ -237,14 +240,9 @@ class PacketCapture:
 
     def _terminate_sniffer(self) -> None:
         """Stop the scapy sniffer if one is active."""
-        from scapy.sendrecv import AsyncSniffer  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
         sniffer = self._state.sniffer
         if sniffer is None:
             return
-
-        if not isinstance(sniffer, AsyncSniffer):
-            raise CaptureNoSnifferError
 
         if sniffer.running:
             sniffer.stop(join=True)
@@ -285,10 +283,6 @@ class PacketCapture:
 
     def _capture_and_process(self) -> None:
         """Run one sniffer session until stopped, restarted, or crashed."""
-        from scapy.layers.inet import IP as ScapyIP  # noqa: N811 PLC0415  # pylint: disable=import-outside-toplevel
-        from scapy.layers.inet import UDP as ScapyUDP  # noqa: N811 PLC0415  # pylint: disable=import-outside-toplevel
-        from scapy.sendrecv import AsyncSniffer  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
         device_name = self.config.interface.device_name
         if not device_name:
             msg = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
@@ -299,7 +293,7 @@ class PacketCapture:
             # (loopback, VPN/TAP, certain Wi-Fi drivers).  Raw frames that
             # scapy cannot parse as IP/UDP arrive here before the filter rejects
             # them.  Bail out cheaply rather than paying exception overhead.
-            if not raw_pkt.haslayer(ScapyIP) or not raw_pkt.haslayer(ScapyUDP):
+            if not raw_pkt.haslayer(IP) or not raw_pkt.haslayer(UDP):
                 return
 
             try:
@@ -315,9 +309,19 @@ class PacketCapture:
 
             self.config.callback(packet)
 
+        try:
+            listen_socket = L2pcapListenSocket(
+                iface=device_name,
+                filter=self.config.capture_filter or None,
+            )
+        except OSError as exc:
+            raise CaptureExitError(exc) from exc
+
+        with self._state.control_lock:
+            self._state.pcap_socket = listen_socket
+
         sniffer = AsyncSniffer(
-            iface=device_name,
-            filter=self.config.capture_filter or '',
+            opened_socket=listen_socket,
             prn=prn,
             store=False,
         )
@@ -358,6 +362,9 @@ class PacketCapture:
                     break
                 time.sleep(0.05)
         finally:
+            with self._state.control_lock:
+                if self._state.pcap_socket is listen_socket:
+                    self._state.pcap_socket = None
             if sniffer.running:
                 sniffer.stop(join=True)
             with self._state.control_lock:
@@ -378,6 +385,21 @@ class PacketCapture:
                 and not self._state.restart_requested.is_set()
             ):
                 raise CaptureExitError(sniffer.exception)
+
+    def get_pcap_drop_count(self) -> int | None:
+        """Return cumulative npcap drop count (`ps_drop` + `ps_ifdrop`) for the current capture session.
+
+        Returns `None` when no active capture socket is available (e.g. between restarts).
+        The counters reset each time a new pcap handle is opened (i.e. on every capture restart).
+        """
+        with self._state.control_lock:
+            socket = self._state.pcap_socket
+            if socket is None:
+                return None
+            stat = pcap_stat()
+            if pcap_stats(socket.pcap_fd.pcap, byref(stat)):
+                return None
+            return int(stat.ps_drop) + int(stat.ps_ifdrop)
 
 
 @final

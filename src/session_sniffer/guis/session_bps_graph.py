@@ -11,7 +11,6 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Session BPS Graph'
     LEFT_LABEL = 'KB/s'
-    ERROR_NAME = 'BPS'
     AXIS_PEN = '#00bcd4'
     CURVE_PEN = '#00bcd4'
     CURVE_BRUSH = (0, 188, 212, 60)
@@ -26,4 +25,4 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
 
     def update_bps(self, bps: int) -> None:
         """Append a new BPS sample (bytes/s) and refresh the graph."""
-        self._update_graph(bps)
+        self.update_graph(bps)

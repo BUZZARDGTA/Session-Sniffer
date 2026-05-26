@@ -16,6 +16,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QBrush, QIcon
 from PyQt6.QtWidgets import (
     QHeaderView,
+    QTableView,
 )
 
 from session_sniffer.constants.standalone import BANDWIDTH_BASE_COLUMN_ATTRS
@@ -140,8 +141,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     def view(self) -> SessionTableView:
         """Get or attach a `SessionTableView` to this model."""
         if self._view is None:
-            error_message = 'SessionTableView is not attached to this model'
-            raise TypeError(error_message)
+            raise TypeError(format_type_error(self._view, QTableView))
         return self._view
 
     @view.setter
@@ -180,13 +180,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     # Qt model methods (overrides)
     # --------------------------------------------------------------------------
 
-    def rowCount(self, parent: QModelIndex | None = None) -> int:
+    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
         """Return number of rows in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._data)
 
-    def columnCount(self, parent: QModelIndex | None = None) -> int:
+    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
         """Return number of columns in the model."""
         if parent is None:
             parent = QModelIndex()
@@ -240,7 +240,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         return output
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
         """Return header display text and tooltips for the table model."""
         if orientation == Qt.Orientation.Horizontal:
             if role == Qt.ItemDataRole.DisplayRole:

@@ -32,7 +32,7 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 
 
-class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-many-instance-attributes
+class SessionsLogTab(QWidget):
     """Browse and view session log files in a YYYY/MM/DD folder hierarchy."""
 
     def __init__(self, sessions_dir: Path, parent: QWidget | None = None) -> None:
@@ -81,7 +81,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         self._tree.setRootIndex(self._fs_model.index(str(self._sessions_dir)))
         self._tree.setHeaderHidden(True)
         for col in (1, 2, 3):
-            self._tree.setColumnHidden(col, True)
+            self._tree.setColumnHidden(col, True)  # noqa: FBT003
         self._tree.clicked.connect(self._on_tree_clicked)
         self._tree.setMinimumWidth(200)
 
@@ -122,13 +122,13 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         button_row.addWidget(open_location_button)
 
         # Initial metadata
-        self._update_dir_metadata()
+        self.update_dir_metadata()
 
     # ------------------------------------------------------------------
     # Directory metadata
     # ------------------------------------------------------------------
 
-    def _update_dir_metadata(self) -> None:
+    def update_dir_metadata(self) -> None:
         """Update the metadata label with total size and file count of the sessions directory."""
         if not self._sessions_dir.exists():
             self._metadata_label.setText(f'{self._sessions_dir.name}  —  Directory not found')
@@ -226,7 +226,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         else:
             self._global_search_checkbox.setChecked(True)
 
-    def _on_global_search_toggled(self, checked: bool) -> None:
+    def _on_global_search_toggled(self, *, checked: bool) -> None:
         """Switch between single-file view mode and global search mode."""
         if checked:
             self._global_search_active = True
@@ -339,7 +339,7 @@ class SessionsLogTab(QWidget):  # pylint: disable=too-few-public-methods, too-ma
         self._file_info_label.setText('')
         self._current_file = None
         self._selected_path = None
-        self._update_dir_metadata()
+        self.update_dir_metadata()
 
     def _open_location(self) -> None:
         if self._selected_path and self._selected_path.exists():

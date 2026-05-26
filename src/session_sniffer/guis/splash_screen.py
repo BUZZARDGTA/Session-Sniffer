@@ -2,13 +2,16 @@
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QTextCursor
 from PyQt6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
 
 from session_sniffer.constants.standalone import TITLE
+
+_P = ParamSpec('_P')
+_T = TypeVar('_T')
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -129,7 +132,7 @@ class SplashScreen(QWidget):
             scrollbar.setValue(scrollbar.maximum())
         QApplication.processEvents()
 
-    def run_with_spinner(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    def run_with_spinner(self, fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         """Run a callable in a background thread while keeping the spinner animated.
 
         The Qt event loop is pumped continuously so the spinner QTimer fires.

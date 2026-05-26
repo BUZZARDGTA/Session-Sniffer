@@ -5,17 +5,24 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt
+from pyqtgraph.graphicsItems.AxisItem import AxisItem  # pyright: ignore[reportMissingTypeStubs]
+from pyqtgraph.graphicsItems.PlotItem import PlotItem  # pyright: ignore[reportMissingTypeStubs]
 
+from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
 
 if TYPE_CHECKING:
+    import xml.etree.ElementTree as ET
+
     from PyQt6.QtWidgets import QVBoxLayout
+    from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent  # pyright: ignore[reportMissingTypeStubs]
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
+_LIVE_EDGE_X_MAX = -2
 
 
-def build_rate_plot_widget(left_label: str, max_history: int, error_name: str) -> tuple[pg.PlotWidget, Any]:  # pyright: ignore[reportUnknownVariableType]
+def build_rate_plot_widget(left_label: str, max_history: int) -> tuple[pg.PlotWidget, PlotItem]:
     """Create and configure a standard dark, grid-enabled rate-monitoring `PlotWidget`.
 
     Returns `(widget, plot_item)`. Raises `RuntimeError` if the plot item is unavailable.
@@ -32,14 +39,13 @@ def build_rate_plot_widget(left_label: str, max_history: int, error_name: str) -
     widget.setLabel('left', left_label)
     widget.setLabel('bottom', 'Time (seconds ago)')
     plot = widget.getPlotItem()  # pyright: ignore[reportUnknownVariableType]
-    if plot is None:
-        msg = f'Failed to get {error_name} plot item'
-        raise RuntimeError(msg)
-    return widget, plot  # pyright: ignore[reportUnknownVariableType]
+    if not isinstance(plot, PlotItem):
+        raise TypeError(format_type_error(plot, PlotItem))  # pyright: ignore[reportUnknownArgumentType]
+    return widget, plot
 
 
-class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
-    """Mixin providing a sliding-window x-cache growth helper."""
+class SlidingWindowCacheMixin:  # pylint: disable=too-few-public-methods
+    """Mixin that provides a shared `_grow_cache` helper for sliding-window graph classes."""
 
     _buf_len: int
     _x_cache_len: int
@@ -55,12 +61,11 @@ class SlidingWindowMixin:  # pylint: disable=too-few-public-methods
         return n
 
 
-class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
+class SingleRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
     """Base class for single-series sliding-window rate graph windows."""
 
     WINDOW_TITLE: str
     LEFT_LABEL: str
-    ERROR_NAME: str
     AXIS_PEN: str
     CURVE_PEN: str
     CURVE_BRUSH: tuple[int, int, int, int]
@@ -70,6 +75,7 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     _max_history: int
     _buf: np.ndarray[Any, np.dtype[np.float64]]
     _buf_sum: float
+    _graph_idle: bool
 
     def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
         """Initialize the shared single-series graph window."""
@@ -80,10 +86,10 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle(self.WINDOW_TITLE)
         self.resize(700, 350)
-        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+        layout = self.setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
 
-        self._widget, plot = build_rate_plot_widget(self.LEFT_LABEL, max_history, self.ERROR_NAME)
-        plot.getAxis('left').setTextPen(pg.mkPen(self.AXIS_PEN))  # pyright: ignore[reportUnknownVariableType]
+        self._widget, plot = build_rate_plot_widget(self.LEFT_LABEL, max_history)
+        plot.getAxis('left').setTextPen(pg.mkPen(self.AXIS_PEN))
         self._curve = self._widget.plot(pen=pg.mkPen(self.CURVE_PEN, width=2))
         self._curve.setFillLevel(0)
         self._curve.setBrush(pg.mkBrush(*self.CURVE_BRUSH))
@@ -94,7 +100,7 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._widget.addItem(self._avg_line)
 
         layout.addWidget(self._widget)
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
         self._setup_single_history_buffers()
 
     def _setup_single_history_buffers(self) -> None:
@@ -104,12 +110,13 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._buf_sum = 0.0
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
+        self._graph_idle: bool = False
 
     def _transform_sample(self, sample: float) -> float:
         """Convert an incoming sample into the value stored in the buffer."""
         return float(sample)
 
-    def _update_graph(self, sample: float) -> None:
+    def update_graph(self, sample: float) -> None:
         """Append a new sample and refresh the graph."""
         value = self._transform_sample(sample)
         n = self._buf_len
@@ -123,6 +130,11 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
             self._buf[:-1] = self._buf[1:]
             self._buf[-1] = value
 
+        # Skip pyqtgraph draw calls when the graph is already showing a stable
+        # flat zero baseline and the new sample is also zero.
+        if not value and self._graph_idle:
+            return
+
         data = self._buf[:n]
         self._curve.setData(self._x_cache, data)
         if self._is_at_live_edge(self._widget):
@@ -131,6 +143,9 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._widget.setYRange(0, max(visible_max * 1.2, self.Y_FLOOR))
         if n:
             self._avg_line.setPos(self._buf_sum / n)
+
+        # Mark graph as idle once the visible window is fully zeroed out.
+        self._graph_idle = not value and not visible_max
 
     def reset(self) -> None:
         """Clear all history and reset the graph to zero."""
@@ -145,15 +160,16 @@ class SingleRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._widget.setXRange(-VISIBLE_WINDOW, 0)
         self._widget.setYRange(0, self.Y_FLOOR)
         self._avg_line.setPos(0)
+        self._graph_idle = False
 
     @staticmethod
-    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
+    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:
         """Return True if the widget's x-axis view includes the live (rightmost) edge."""
         x_range: list[float] = widget.viewRange()[0]
-        return x_range[1] >= -2  # noqa: PLR2004
+        return x_range[1] >= _LIVE_EDGE_X_MAX
 
 
-class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
+class DualRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
     """Base class for dual PPS+BPS graph windows.
 
     Subclasses must call `_finish_graph_init(always_on_top=...)` at the end of
@@ -162,6 +178,18 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
 
     _BYTES_TO_KBS: int = 1024
     _max_history: int
+    _buf_sum: float
+    _dual_graph_idle: bool
+    _pps_widget: pg.PlotWidget
+    _pps_curve: Any
+    _pps_avg_line: pg.InfiniteLine
+    _bps_widget: pg.PlotWidget
+    _bps_curve: Any
+    _bps_avg_line: pg.InfiniteLine
+    _pps_buf: np.ndarray[Any, np.dtype[np.float64]]
+    _bps_buf: np.ndarray[Any, np.dtype[np.float64]]
+    _pps_sum: float
+    _bps_sum: float
 
     def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
         """Create PPS and BPS PlotWidgets and add them to *layout*.
@@ -170,10 +198,11 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         after constructing each widget, allowing subclasses to add threshold lines
         or custom limits.
         """
-        # pylint: disable=attribute-defined-outside-init
         # ── PPS graph (top) — lime green tones ──────────────────────────
-        self._pps_widget, pps_plot = build_rate_plot_widget('PPS', self._max_history, 'PPS')
+        self._pps_widget, pps_plot = build_rate_plot_widget('PPS', self._max_history)
         pps_left = pps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
+        if not isinstance(pps_left, AxisItem):
+            raise TypeError(format_type_error(pps_left, AxisItem))  # pyright: ignore[reportUnknownArgumentType]
         pps_left.setTextPen(pg.mkPen('lime'))
 
         self._pps_curve = self._pps_widget.plot(pen=pg.mkPen('lime', width=2))
@@ -191,8 +220,10 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         layout.addWidget(self._pps_widget)
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
-        self._bps_widget, bps_plot = build_rate_plot_widget('KB/s', self._max_history, 'BPS')
+        self._bps_widget, bps_plot = build_rate_plot_widget('KB/s', self._max_history)
         bps_left = bps_plot.getAxis('left')  # pyright: ignore[reportUnknownVariableType]
+        if not isinstance(bps_left, AxisItem):
+            raise TypeError(format_type_error(bps_left, AxisItem))  # pyright: ignore[reportUnknownArgumentType]
         bps_left.setTextPen(pg.mkPen('#00bcd4'))
 
         self._bps_curve = self._bps_widget.plot(pen=pg.mkPen('#00bcd4', width=2))
@@ -218,14 +249,13 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
     def _finish_graph_init(self, *, always_on_top: bool) -> None:
         """Initialize the common window layout, widgets, and history buffers."""
         self.resize(700, 500)
-        layout = self._setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+        layout = self.setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
         self._setup_history_buffers()
 
     def _setup_history_buffers(self) -> None:
         """Initialise pre-allocated numpy sliding-window buffers."""
-        # pylint: disable=attribute-defined-outside-init
         self._pps_buf = np.zeros(self._max_history, dtype=np.float64)
         self._bps_buf = np.zeros(self._max_history, dtype=np.float64)
         self._buf_len = VISIBLE_WINDOW
@@ -234,6 +264,7 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         self._buf_sum = 0.0
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
+        self._dual_graph_idle: bool = False
 
     def _advance_buffers(self, pps: int, bps: int) -> tuple[np.ndarray, np.ndarray, int]:
         """Advance the dual sliding window; return `(pps_data, bps_data, n)`."""
@@ -262,6 +293,11 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         """Append new PPS and BPS samples and refresh both graphs."""
         pps_data, bps_data, n = self._advance_buffers(pps, bps)
 
+        # Skip pyqtgraph draw calls when both graphs are already showing a stable
+        # flat zero baseline and both new samples are also zero.
+        if not pps and not bps and self._dual_graph_idle:
+            return
+
         self._pps_curve.setData(self._x_cache, pps_data)
         if self._is_at_live_edge(self._pps_widget):
             self._pps_widget.setXRange(-VISIBLE_WINDOW, 0)
@@ -276,6 +312,14 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         if n:
             self._bps_avg_line.setPos(self._bps_sum / n)
 
+        # Mark graphs as idle once both visible windows are fully zeroed out.
+        if not pps and not bps:
+            _pps_visible_max = float(np.max(pps_data[-VISIBLE_WINDOW:]))
+            _bps_visible_max = float(np.max(bps_data[-VISIBLE_WINDOW:]))
+            self._dual_graph_idle = not _pps_visible_max and not _bps_visible_max
+        else:
+            self._dual_graph_idle = False
+
     def _on_pps_rendered(self, pps_data: np.ndarray) -> None:
         """Hook called after PPS graph is updated. Override to add auto-scaling."""
 
@@ -283,14 +327,17 @@ class DualRateGraphBase(SlidingWindowMixin, ToggleAlwaysOnTopMixin):
         """Hook called after BPS graph is updated. Override to add auto-scaling."""
 
     @staticmethod
-    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:  # pyright: ignore[reportMissingTypeStubs]
+    def _is_at_live_edge(widget: pg.PlotWidget) -> bool:
         """Return True if the widget's x-axis view includes the live (rightmost) edge."""
         x_range: list[float] = widget.viewRange()[0]
-        return x_range[1] >= -2  # noqa: PLR2004
+        return x_range[1] >= _LIVE_EDGE_X_MAX
 
 
 class PlayerRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs stacked vertically."""
+
+    _pps_threshold_line: pg.InfiniteLine
+    _bps_threshold_line: pg.InfiniteLine
 
     def __init__(  # pylint: disable=too-many-arguments
         self, *, ip: str, initial_pps_threshold: int, initial_bps_threshold: int,
@@ -311,7 +358,6 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     # ——————————————————————————————————————————————————————————————————————————————
 
     def _configure_pps_widget(self) -> None:
-        # pylint: disable=attribute-defined-outside-init
         self._pps_widget.setYRange(0, 100)
         self._pps_widget.setLimits(yMin=0, yMax=1_000, xMax=0, xMin=-self._max_history)
         self._pps_threshold_line = pg.InfiniteLine(
@@ -322,7 +368,6 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._pps_widget.addItem(self._pps_threshold_line)
 
     def _configure_bps_widget(self) -> None:
-        # pylint: disable=attribute-defined-outside-init
         self._bps_widget.setYRange(0, 50)
         self._bps_threshold_line = pg.InfiniteLine(
             angle=0,
@@ -347,7 +392,6 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
-        # pylint: disable=attribute-defined-outside-init
         # Pad to at least VISIBLE_WINDOW, keep up to max_history
         pps_trimmed = pps_history[-self._max_history:]
         bps_trimmed = bps_history[-self._max_history:]
@@ -383,21 +427,29 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             self._bps_avg_line.setPos(self._bps_sum / n)
 
 
-class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]  # pylint: disable=abstract-method
+class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]
     """Axis that displays tick labels as positive integers."""
 
-    def tickStrings(self, values: list[float], _scale: float, _spacing: float) -> list[str]:  # ty: ignore[invalid-method-override]  # noqa: N802
+    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:  # noqa: ARG002, N802
         """Override to show absolute tick values."""
         return [str(abs(int(v))) for v in values]
 
+    def generateSvg(self, nodes: dict[str, ET.Element]) -> tuple[ET.Element, list[ET.Element]] | None:  # noqa: N802
+        """Delegate SVG generation to the parent class."""
+        return super().generateSvg(nodes)  # type: ignore[no-any-return]
 
-class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]  # pylint: disable=abstract-method
+
+class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]
     """ViewBox that changes cursor shape during vertical drag."""
 
-    def mouseDragEvent(self, ev: Any, axis: int | None = None) -> None:  # noqa: ANN401, N802
+    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:  # noqa: N802
         """Override to show a vertical resize cursor while dragging."""
         if hasattr(ev, 'isStart') and ev.isStart():
             self.setCursor(Qt.CursorShape.SizeVerCursor)
         elif hasattr(ev, 'isFinish') and ev.isFinish():
             self.setCursor(Qt.CursorShape.ArrowCursor)
         super().mouseDragEvent(ev, axis=axis)
+
+    def generateSvg(self, nodes: dict[str, ET.Element]) -> tuple[ET.Element, list[ET.Element]] | None:  # noqa: N802
+        """Delegate SVG generation to the parent class."""
+        return super().generateSvg(nodes)  # type: ignore[no-any-return]

@@ -52,6 +52,7 @@ class PersistentMenu(QMenu):
 # userip_manager_settings_mixin so they stay in sync.
 # ---------------------------------------------------------------------------
 
+SUSPEND_TOOLTIP_DISABLED = 'Protection is disabled — no process will be suspended when this detection triggers.'
 SUSPEND_TOOLTIP_AUTO = (
     'Resume when the hostile player fully disconnects.\n'
     '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
@@ -144,25 +145,45 @@ def compute_ui_scale(screen_size: tuple[int, int]) -> float:
 # Shared GUI helpers
 # ---------------------------------------------------------------------------
 
-class NumericTableWidgetItem(QTableWidgetItem):  # pylint: disable=too-few-public-methods
+class NumericTableWidgetItem(QTableWidgetItem):
     """QTableWidgetItem that sorts numerically."""
+
+    def __init__(self, value: float | str) -> None:
+        """Create an item displaying *str(value)*; store numeric values as UserRole data for sorting."""
+        super().__init__(str(value))
+        if isinstance(value, (int, float)):
+            self.setData(Qt.ItemDataRole.UserRole, value)
+
+    def numeric_value(self) -> float | None:
+        """Return the item's value as a float for sorting, or `None` if it cannot be parsed as a number."""
+        val = self.data(Qt.ItemDataRole.UserRole)
+        if isinstance(val, (int, float)):
+            return float(val)
+        try:
+            return float(self.text())
+        except ValueError:
+            return None
 
     def __lt__(self, other: QTableWidgetItem) -> bool:
         """Compare numerically using UserRole data if available, falling back to text then string comparison."""
-        self_val = self.data(Qt.ItemDataRole.UserRole)
-        other_val = other.data(Qt.ItemDataRole.UserRole)
-        if isinstance(self_val, (int, float)) and isinstance(other_val, (int, float)):
-            return float(self_val) < float(other_val)
-        try:
-            return float(self.text()) < float(other.text())
-        except ValueError:
-            return super().__lt__(other)
+        self_val = self.numeric_value()
+        other_raw = other.data(Qt.ItemDataRole.UserRole)
+        if isinstance(other_raw, (int, float)):
+            other_val: float | None = float(other_raw)
+        else:
+            try:
+                other_val = float(other.text())
+            except ValueError:
+                other_val = None
+        if self_val is not None and other_val is not None:
+            return self_val < other_val
+        return super().__lt__(other)
 
 
-class ToggleAlwaysOnTopMixin(QWidget):  # pylint: disable=too-few-public-methods
+class ToggleAlwaysOnTopMixin(QWidget):
     """Mixin providing an always-on-top toggle and window-layout helpers for QWidget subclasses."""
 
-    def _setup_window_layout(
+    def setup_window_layout(
         self,
         *,
         always_on_top: bool,
@@ -178,15 +199,16 @@ class ToggleAlwaysOnTopMixin(QWidget):  # pylint: disable=too-few-public-methods
         layout.setSpacing(spacing)
         return layout
 
-    def _add_always_on_top_checkbox(self, layout: QVBoxLayout, *, always_on_top: bool) -> None:
+    def add_always_on_top_checkbox(self, layout: QVBoxLayout, *, always_on_top: bool) -> None:
         """Create and add the standard 'Always on Top' checkbox to *layout*."""
         checkbox = QCheckBox('Always on Top')
         checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
         checkbox.setChecked(always_on_top)
-        checkbox.toggled.connect(self._toggle_always_on_top)
+        checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(checkbox)
 
-    def _toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
+    def toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
+        """Apply or remove the always-on-top window flag based on *checked*."""
         apply_always_on_top(self, checked)
 
 

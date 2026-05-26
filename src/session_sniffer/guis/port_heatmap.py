@@ -16,7 +16,7 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Port Heatmap')
         self.resize(400, 420)
-        layout = self._setup_window_layout(always_on_top=always_on_top)
+        layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Port', 'Count', '% of Total'])
@@ -24,7 +24,7 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
         h_header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         h_header.setStretchLastSection(False)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -44,9 +44,9 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
         for port, count in sorted_ports:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            port_item = NumericTableWidgetItem(str(port))
+            port_item = NumericTableWidgetItem(port)
             port_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            count_item = NumericTableWidgetItem(str(count))
+            count_item = NumericTableWidgetItem(count)
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             pct = f'{count / total * 100:.1f}%' if total else '0.0%'
             pct_item = QTableWidgetItem(pct)
