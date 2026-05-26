@@ -75,7 +75,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -87,7 +88,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -99,7 +101,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -111,7 +114,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -123,7 +127,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -135,7 +140,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -147,7 +153,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -159,7 +166,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -171,7 +179,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         },
         {
@@ -183,7 +192,8 @@
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "panel": "shared"
+                "panel": "shared",
+                "clear": true
             }
         }
     ]
