@@ -84,6 +84,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 | AnyDesk                                    | PC                                            |                                                                                                                                                                                   |
 | RustDesk                                   | PC                                            |                                                                                                                                                                                   |
 | Parsec                                     | PC                                            |                                                                                                                                                                                   |
+| Any torrenting softwares                   |                                               |                                                                                                                                                                                   |
 
 > _Note_: The script works with all P2P (Peer-to-Peer) games, but only the titles above are confirmed to work.
 
