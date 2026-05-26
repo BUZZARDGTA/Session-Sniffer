@@ -40,7 +40,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 
 ## 🎮 Officially Tested and Supported P2P Video Games
 
-| Supported P2P Video Games                  | Tested Platforms                              | Additional Note(s)                                                                                                                                                                |
+| Supported P2P Video Games or Software      | Tested Platforms                              | Additional Note(s)                                                                                                                                                                |
 | :----------------------------------------- | :-------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | Grand Theft Auto Online                    | PC, Xbox Series X\|S, Xbox One, PS5, PS4      |                                                                                                                                                                                   |
 | Grand Theft Auto IV                        | PS3                                           |                                                                                                                                                                                   |
@@ -80,6 +80,10 @@ Grab the latest stable release and get started instantly, or build it yourself f
 | OmeTV                                      | Android                                       |                                                                                                                                                                                   |
 | Azar                                       | Android                                       |                                                                                                                                                                                   |
 | Chatspin                                   | Android                                       |                                                                                                                                                                                   |
+| TeamViewer                                 | PC                                            |                                                                                                                                                                                   |
+| AnyDesk                                    | PC                                            |                                                                                                                                                                                   |
+| RustDesk                                   | PC                                            |                                                                                                                                                                                   |
+| Parsec                                     | PC                                            |                                                                                                                                                                                   |
 
 > _Note_: The script works with all P2P (Peer-to-Peer) games, but only the titles above are confirmed to work.
 
