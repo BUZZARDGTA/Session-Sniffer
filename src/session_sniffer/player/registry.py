@@ -39,7 +39,7 @@ def is_third_party_server_ip(ip: str) -> bool:
     return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_NETWORKS)
 
 
-@dataclass
+@dataclass(slots=True)
 class HostHistoryEntry:
     """Snapshot of a session host at the time of detection."""
 
