@@ -45,6 +45,7 @@ from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
+from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -156,6 +157,9 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             else:
                 ungrouped.append((key, meta))
 
+        if category == 'Web Server':
+            outer_layout.addWidget(self._build_web_server_help_group())
+
         # For the Discord tab, the join button is appended at the bottom of
         # the page (see below). Other tabs have no extra page-level widgets.
 
@@ -202,9 +206,50 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
 
         return page
 
+    def _build_web_server_help_group(self) -> QGroupBox:
+        """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
+        group_box = QGroupBox('Web Server Usage Guide')
+        layout = QVBoxLayout(group_box)
+
+        help_label = QLabel(
+            '<b>Host binding explained</b><br>'
+            '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
+            '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
+            '<b>Typical setups</b><br>'
+            '- Desktop only: host = 127.0.0.1<br>'
+            '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
+            '<b>Troubleshooting tips</b><br>'
+            '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
+            '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
+            '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
+            '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
+            '<b>Security note</b><br>'
+            'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
+            'Use trusted networks and firewall scope limits.',
+        )
+        help_label.setWordWrap(True)
+        help_label.setTextFormat(Qt.TextFormat.RichText)
+        help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        help_label.setStyleSheet(
+            'QLabel {'
+            'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+            'border: 1px solid #3b4455;'
+            'border-left: 4px solid #61afef;'
+            'border-radius: 10px;'
+            'padding: 12px 14px;'
+            'color: #dbe4f0;'
+            'line-height: 1.35;'
+            '}',
+        )
+        layout.addWidget(help_label)
+
+        return group_box
+
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
         widget = self._create_widget(key, meta)
+        if key == 'webserver_password' and isinstance(widget, QLineEdit):
+            widget.setEchoMode(QLineEdit.EchoMode.Password)
         self._widgets[key] = widget
 
         label_text = meta.display_label
@@ -838,6 +883,27 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 display_filter_fn=display_filter_fn,
             )
             self._capture.request_restart()
+
+        webserver_enabled_changed = new_values['webserver_enabled'] != self._old_values.get('webserver_enabled')
+        webserver_host_changed = new_values['webserver_host'] != self._old_values.get('webserver_host')
+        webserver_port_changed = new_values['webserver_port'] != self._old_values.get('webserver_port')
+        webserver_credentials_changed = (
+            new_values['webserver_username'] != self._old_values.get('webserver_username')
+            or new_values['webserver_password'] != self._old_values.get('webserver_password')
+        )
+
+        if webserver_enabled_changed:
+            if Settings.webserver_enabled:
+                start_webserver_from_settings()
+            else:
+                WebServer.stop_server()
+        elif Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed):
+            start_webserver_from_settings()
+        elif Settings.webserver_enabled and webserver_credentials_changed:
+            WebServer.update_auth_credentials(
+                auth_username=Settings.webserver_username,
+                auth_password=Settings.webserver_password,
+            )
 
         prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
 

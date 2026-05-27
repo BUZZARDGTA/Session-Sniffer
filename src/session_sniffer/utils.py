@@ -281,13 +281,13 @@ def terminate_process_tree(pid: int | None = None) -> None:
         with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             child.terminate()
 
-    with suppress(psutil.NoSuchProcess):
+    with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
         psutil.wait_procs(children, timeout=3)
 
     with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
         parent.terminate()
 
-    with suppress(psutil.NoSuchProcess):
+    with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
         parent.wait(3)
 
 

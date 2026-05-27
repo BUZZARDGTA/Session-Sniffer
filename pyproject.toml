@@ -23,6 +23,8 @@ dependencies = [
     "QDarkStyle==3.2.3",
     "requests==2.34.2",
     "rich==15.0.0",
+    "sanic==25.12.0",
+    "sanic-ext==25.12.0",
     "scapy==2.7.0",
     "sentinel==1.0.0",
     "toml==0.10.2",

@@ -3,6 +3,8 @@
 It connects to Discord using a provided client ID, updates the presence state with a message, and provides
 functionality to update or close the presence. It uses threading to run the update process asynchronously.
 """
+import asyncio
+import sys
 import time
 from queue import SimpleQueue
 from threading import Event, Thread
@@ -87,6 +89,20 @@ class DiscordRPC:
         self._thread.join(timeout=3)
 
 
+def _create_rpc_event_loop() -> asyncio.AbstractEventLoop:
+    """Create an event loop that supports Discord IPC on the current platform."""
+    if sys.platform == 'win32':
+        return asyncio.ProactorEventLoop()
+
+    return asyncio.new_event_loop()
+
+
+def _connect_rpc(rpc: Presence) -> None:
+    """Connect the RPC client using a loop that supports its IPC transport."""
+    rpc.update_event_loop(_create_rpc_event_loop())
+    rpc.loop.run_until_complete(rpc.handshake())
+
+
 def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
     """Run the Discord RPC update loop in a separate thread."""
     last_connect_attempt: float = 0.0
@@ -108,7 +124,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 continue
             last_connect_attempt = now
             try:
-                rpc.connect()
+                _connect_rpc(rpc)
             except (
                 OSError,
                 exceptions.DiscordNotFound,

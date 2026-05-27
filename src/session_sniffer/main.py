@@ -66,6 +66,7 @@ from session_sniffer.rendering_core.types import CaptureState, CaptureStats, Geo
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import find_running_gta5_path, is_pyinstaller_compiled
+from session_sniffer.webserver import start_webserver_from_settings
 
 # Production-friendly logging: file handlers only (no console output)
 setup_logging(console_level=logging.INFO)
@@ -216,8 +217,6 @@ def main() -> None:
     )
 
     splash.update_status('Starting packet capture')
-
-    _player_task_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='PlayerTask')
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
@@ -666,6 +665,12 @@ def main() -> None:
         daemon=True,
     )
     rendering_core__thread.start()
+
+    # Start web server if enabled
+    if Settings.webserver_enabled:
+        logger.info('Starting web server on %s:%s', Settings.webserver_host, Settings.webserver_port)
+        start_webserver_from_settings()
+        logger.info('Web server started on %s:%s', Settings.webserver_host, Settings.webserver_port)
 
     hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
     hostname_core__thread.start()

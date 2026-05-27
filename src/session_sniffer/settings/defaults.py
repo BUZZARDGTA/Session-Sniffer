@@ -48,6 +48,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Session',
     'Columns',
     'Discord',
+    'Web Server',
 )
 
 
@@ -400,6 +401,39 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Internal storage for webhook message IDs (do not edit).',
         hidden=True,
     ),
+    'webserver_enabled': SettingMeta(
+        category='Web Server',
+        display_label='Enable Web Server',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Enable local web server for browser access to live session data.',
+    ),
+    'webserver_host': SettingMeta(
+        category='Web Server',
+        display_label='Host',
+        setting_type=SettingType.STRING,
+        tooltip='IP address to bind the web server to (0.0.0.0 = all interfaces).',
+    ),
+    'webserver_port': SettingMeta(
+        category='Web Server',
+        display_label='Port',
+        setting_type=SettingType.INTEGER,
+        tooltip='Port number for the web server (1-65535).',
+        min_value=1,
+        max_value=65535,
+        step=1,
+    ),
+    'webserver_username': SettingMeta(
+        category='Web Server',
+        display_label='Username',
+        setting_type=SettingType.STRING,
+        tooltip='Optional HTTP Basic Auth username. Leave empty to disable authentication.',
+    ),
+    'webserver_password': SettingMeta(
+        category='Web Server',
+        display_label='Password',
+        setting_type=SettingType.STRING,
+        tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
+    ),
     'updater_channel': SettingMeta(
         category='Launcher',
         group='Updater',
@@ -475,5 +509,10 @@ SETTING_DEFAULTS: dict[str, Any] = {
         'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Seen',
     ),
     'discord_webhook_message_ids': None,
+    'webserver_enabled': False,
+    'webserver_host': '0.0.0.0',  # noqa: S104
+    'webserver_port': 80,
+    'webserver_username': None,
+    'webserver_password': None,
     'updater_channel': 'Stable',
 }

@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
+from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.utils import (
@@ -109,6 +110,11 @@ class SettingsIniModel(BaseModel):
     DISCORD_WEBHOOK_COLUMNS_CONNECTED: tuple[str, ...]
     DISCORD_WEBHOOK_COLUMNS_DISCONNECTED: tuple[str, ...]
     DISCORD_WEBHOOK_MESSAGE_IDS: str | None
+    WEBSERVER_ENABLED: bool
+    WEBSERVER_HOST: str
+    WEBSERVER_PORT: int
+    WEBSERVER_USERNAME: str | None
+    WEBSERVER_PASSWORD: str | None
     UPDATER_CHANNEL: str | None
 
     # --- Internal context helpers ---
@@ -119,6 +125,7 @@ class SettingsIniModel(BaseModel):
         'DISCORD_WEBHOOK_ENABLED',
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
         'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
+        'WEBSERVER_ENABLED',
         'GUI_COLUMNS_DATETIME_SHOW_DATE',
         'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
         'GUI_COLUMNS_DATETIME_SHOW_TIME',
@@ -461,6 +468,36 @@ class SettingsIniModel(BaseModel):
         default = cls._get_default_for_field(info)
         return default if isinstance(default, int) else 3600
 
+    @field_validator('WEBSERVER_PORT', mode='before')
+    @classmethod
+    def _parse_webserver_port(cls, value: object, info: ValidationInfo) -> int:
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 80
+
+        if isinstance(value, bool):
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+
+        if isinstance(value, int):
+            port = value
+        elif isinstance(value, float):
+            port = int(value)
+        elif isinstance(value, str):
+            try:
+                port = int(value)
+            except ValueError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return default_int
+        else:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+
+        if MIN_PORT <= port <= MAX_PORT:
+            return port
+
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return default_int
+
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
     @classmethod
     def _parse_disconnected_timer(cls, value: object, info: ValidationInfo) -> int:
@@ -501,7 +538,7 @@ class SettingsIniModel(BaseModel):
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, str) else ''
 
-    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', mode='before')
+    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', mode='before')
     @classmethod
     def _parse_optional_string(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:
