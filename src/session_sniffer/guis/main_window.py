@@ -54,6 +54,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
+from session_sniffer.updater import check_for_updates
 from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
@@ -513,6 +514,13 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         discord_action.triggered.connect(self._join_discord)
         help_menu.addAction(discord_action)
 
+        help_menu.addSeparator()
+
+        check_updates_action = QAction('🔄 Check for Updates', self)
+        check_updates_action.setToolTip('Check GitHub for a newer version of Session Sniffer')
+        check_updates_action.triggered.connect(self._check_for_updates)
+        help_menu.addAction(check_updates_action)
+
         # Main title header
         self._header = QLabel()
         self._header.setTextFormat(Qt.TextFormat.RichText)
@@ -783,6 +791,10 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
     def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
+
+    def _check_for_updates(self) -> None:
+        """Manually trigger an update check against GitHub."""
+        check_for_updates(updater_channel=Settings.updater_channel)
 
     def _open_directory(self, directory_path: Path) -> None:
         """Ensure a directory exists and open it in Windows Explorer."""

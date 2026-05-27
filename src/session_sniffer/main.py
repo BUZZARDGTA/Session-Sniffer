@@ -1,6 +1,7 @@
 """Session Sniffer application entry point and main GUI/capture orchestration."""
 
 import atexit
+import contextlib
 import logging
 import os
 import queue
@@ -8,6 +9,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from threading import Event, Thread
 
 import colorama
@@ -77,6 +79,11 @@ _PACKET_DROUGHT_THRESHOLD_SECS = 8.0
 
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
+    if is_pyinstaller_compiled():
+        old_exe = Path(sys.executable).with_suffix('.old')
+        with contextlib.suppress(OSError):
+            old_exe.unlink()
+
     hide_console_window()
 
     colorama.init(autoreset=True)

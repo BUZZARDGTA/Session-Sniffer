@@ -12,6 +12,8 @@ class VersionInfo(BaseModel):
 
     version: str
     release_url: str
+    download_url: str
+    sha256: str
 
 
 class GithubVersionsResponse(BaseModel):
