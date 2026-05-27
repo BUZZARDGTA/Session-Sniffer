@@ -25,6 +25,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from session_sniffer.capture.interface_setup import refresh_available_interfaces
+from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.utils import compute_ui_scale, resize_window_for_screen
 from session_sniffer.logging_setup import get_logger
@@ -138,15 +140,15 @@ class _FilterControls:
 class SafeQTableWidget(QTableWidget):
     """A subclass of QTableWidget that ensures the selection model is of the correct type."""
 
-    def selectionModel(self) -> QItemSelectionModel:
+    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
-    def verticalHeader(self) -> QHeaderView:
+    def verticalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:
+    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
@@ -591,6 +593,7 @@ class InterfaceSelectionDialog(QDialog):
     # Darker grey gradient for the unfilled track.
     _REFRESH_ARP_PROGRESS_TRACK_LIGHT = '#4a4a4a'
     _REFRESH_ARP_PROGRESS_TRACK_DARK = '#2e2e2e'
+    _DARK_TEXT_FILL_THRESHOLD: float = 0.45
 
     def _format_refresh_arp_progress_style(self, fraction: float) -> str:
         """Build a stylesheet that renders a horizontal grey gradient progress fill inside the button."""
@@ -598,7 +601,7 @@ class InterfaceSelectionDialog(QDialog):
         # Two stops at the same point keep the color transition crisp instead of blended.
         next_stop = min(1.0, clamped + 0.0001)
         # Text color flips to dark once enough of the bar is filled to keep contrast readable.
-        text_color = '#1a1a1a' if clamped >= 0.45 else '#f0f0f0'  # noqa: PLR2004
+        text_color = '#1a1a1a' if clamped >= self._DARK_TEXT_FILL_THRESHOLD else '#f0f0f0'
         return (
             'QPushButton {'
             f' font-size: {round(12 * self._ui_scale)}pt;'
@@ -668,8 +671,6 @@ class InterfaceSelectionDialog(QDialog):
             progress_signal.emit(completed, total)
 
         def worker() -> None:
-            from session_sniffer.capture.utils.arp_refresh import refresh_arp_table  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-
             try:
                 refresh_arp_table(interfaces_snapshot, on_progress)
             finally:
@@ -699,8 +700,6 @@ class InterfaceSelectionDialog(QDialog):
         Preserves the user's current selection by matching on
         (interface_name, ip_address, is_neighbour).
         """
-        from session_sniffer.capture.interface_setup import refresh_available_interfaces  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-
         if self._mac_lookup is None:
             return
 
@@ -915,9 +914,9 @@ class InterfaceSelectionDialog(QDialog):
         if self._controls.arp_spoofing_checkbox.isChecked():
             # Block signals to prevent hide_neighbours.stateChanged from triggering apply_filters
             # before enforce_spoofing_constraints has a chance to run with the correct state.
-            self._controls.hide_neighbours_checkbox.blockSignals(True)
+            self._controls.hide_neighbours_checkbox.blockSignals(True)  # noqa: FBT003
             self._controls.hide_neighbours_checkbox.setChecked(False)
-            self._controls.hide_neighbours_checkbox.blockSignals(False)
+            self._controls.hide_neighbours_checkbox.blockSignals(False)  # noqa: FBT003
         self.enforce_spoofing_constraints()
 
     def enforce_spoofing_constraints(self) -> None:
@@ -944,7 +943,7 @@ class InterfaceSelectionDialog(QDialog):
         self.table.selectRow(row)
         self.select_interface()
 
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:  # noqa: N802
         """Trigger interface selection when Enter/Return is pressed with a row selected."""
         if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.table.currentRow() != -1:
             self.select_interface()

@@ -45,7 +45,9 @@
         "${workspaceFolder}/.venv/Scripts/python.exe"
     ],
 
+   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
    "python.analysis.typeCheckingMode": "strict",
+   "python.analysis.extraPaths": ["src"],
    "python.analysis.diagnosticSeverityOverrides": {
        "reportUnknownVariableType": "warning",
        "reportUnknownMemberType": "warning",

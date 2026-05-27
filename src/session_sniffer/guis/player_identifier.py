@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 
-class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
+class PlayerIdentifierWidget(QWidget):
     """Baseline PPS/BPS then detect spikes to identify which IP belongs to a target player."""
 
     def __init__(self, highlight_ips_callback: Callable[[list[str]], None], parent: QWidget | None = None) -> None:
@@ -223,7 +223,7 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._reset_btn = QPushButton('Reset')
         self._reset_btn.setToolTip('Discard all data and start over from scratch.')
         self._reset_btn.setFixedWidth(BUTTON_WIDTH)
-        self._reset_btn.clicked.connect(self._on_reset)
+        self._reset_btn.clicked.connect(self.reset)
         self._reset_btn.setEnabled(False)
         btn_layout.addWidget(self._reset_btn)
 
@@ -451,7 +451,8 @@ class PlayerIdentifierWidget(QWidget):  # pylint: disable=too-few-public-methods
         self._stability_bar.setStyleSheet('')
         # Timer is already running from baseline/READY phase; no restart needed
 
-    def _on_reset(self) -> None:
+    def reset(self) -> None:
+        """Discard all data and return the widget to its initial idle state."""
         self._timer.stop()
         self._phase = Phase.IDLE
         self._baseline_ips.clear()

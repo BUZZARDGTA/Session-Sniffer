@@ -46,7 +46,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Session Timeline')
         self.resize(1000, 500)
-        layout = self._setup_window_layout(always_on_top=always_on_top, spacing=4)
+        layout = self.setup_window_layout(always_on_top=always_on_top, spacing=4)
 
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
@@ -66,7 +66,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
 
         self._table.sortByColumn(_COL_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
         # Tracks the ordered IP list from the last full repopulate to detect row set changes.
         self._last_player_ips: list[str] = []
@@ -125,7 +125,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                 total_item = NumericTableWidgetItem(_fmt_duration(total_secs))
                 total_item.setData(Qt.ItemDataRole.UserRole, total_secs)
 
-                rejoins_item = NumericTableWidgetItem(str(player.rejoins))
+                rejoins_item = NumericTableWidgetItem(player.rejoins)
                 rejoins_item.setData(Qt.ItemDataRole.UserRole, player.rejoins)
 
                 for col, item in enumerate((player_item, status_item, first_item, rejoin_item,

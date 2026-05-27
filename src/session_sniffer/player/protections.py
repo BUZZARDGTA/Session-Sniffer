@@ -1,11 +1,14 @@
 """Global protection settings singleton and persistence."""
 
 import json
-from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
+from session_sniffer.error_messages import format_type_error
 from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class GUIProtectionSettings:
@@ -13,7 +16,6 @@ class GUIProtectionSettings:
 
     # Mobile-based protection
     mobile_suspend_enabled: ClassVar[bool] = False
-    mobile_suspend_process_path: ClassVar[Path | None] = None
     mobile_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     mobile_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     mobile_logging: ClassVar[bool] = False
@@ -21,7 +23,6 @@ class GUIProtectionSettings:
 
     # VPN-based protection
     vpn_suspend_enabled: ClassVar[bool] = False
-    vpn_suspend_process_path: ClassVar[Path | None] = None
     vpn_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     vpn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     vpn_logging: ClassVar[bool] = False
@@ -29,7 +30,6 @@ class GUIProtectionSettings:
 
     # Hosting-based protection
     hosting_suspend_enabled: ClassVar[bool] = False
-    hosting_suspend_process_path: ClassVar[Path | None] = None
     hosting_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     hosting_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     hosting_logging: ClassVar[bool] = False
@@ -38,7 +38,6 @@ class GUIProtectionSettings:
     # Country-based protection
     country_block_enabled: ClassVar[bool] = False
     country_block_list: ClassVar[list[str]] = []
-    country_block_process_path: ClassVar[Path | None] = None
     country_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     country_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     country_logging: ClassVar[bool] = False
@@ -47,7 +46,6 @@ class GUIProtectionSettings:
     # ISP-based protection
     isp_block_enabled: ClassVar[bool] = False
     isp_block_list: ClassVar[list[str]] = []
-    isp_block_process_path: ClassVar[Path | None] = None
     isp_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     isp_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     isp_logging: ClassVar[bool] = False
@@ -56,7 +54,6 @@ class GUIProtectionSettings:
     # ASN-based protection
     asn_block_enabled: ClassVar[bool] = False
     asn_block_list: ClassVar[list[str]] = []
-    asn_block_process_path: ClassVar[Path | None] = None
     asn_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     asn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     asn_logging: ClassVar[bool] = False
@@ -64,7 +61,6 @@ class GUIProtectionSettings:
 
     # Player join protection
     player_join_enabled: ClassVar[bool] = False
-    player_join_process_path: ClassVar[Path | None] = None
     player_join_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_join_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_join_logging: ClassVar[bool] = False
@@ -72,7 +68,6 @@ class GUIProtectionSettings:
 
     # Player rejoin protection
     player_rejoin_enabled: ClassVar[bool] = False
-    player_rejoin_process_path: ClassVar[Path | None] = None
     player_rejoin_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_rejoin_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_rejoin_logging: ClassVar[bool] = False
@@ -80,7 +75,6 @@ class GUIProtectionSettings:
 
     # Player leave protection
     player_leave_enabled: ClassVar[bool] = False
-    player_leave_process_path: ClassVar[Path | None] = None
     player_leave_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_leave_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_leave_logging: ClassVar[bool] = False
@@ -89,7 +83,6 @@ class GUIProtectionSettings:
     # GTA5 relay protection (GTA5 preset only)
     gta5_relay_enabled: ClassVar[bool] = False
     gta5_relay_packet_threshold: ClassVar[int] = 40
-    gta5_relay_process_path: ClassVar[Path | None] = None
     gta5_relay_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     gta5_relay_logging: ClassVar[bool] = False
@@ -105,7 +98,6 @@ class GUIProtectionSettings:
     def _export_common_fields(cls, prefix: str) -> dict[str, object]:
         """Build the common export fields for a protection type."""
         enabled = getattr(cls, f'{prefix}_enabled', getattr(cls, f'{prefix}_suspend_enabled', False))
-        process_path = getattr(cls, f'{prefix}_process_path', getattr(cls, f'{prefix}_suspend_process_path', None))
         duration = cast(
             'int | Literal["Auto"]',
             getattr(cls, f'{prefix}_duration', getattr(cls, f'{prefix}_suspend_duration', 'Auto')),
@@ -113,7 +105,6 @@ class GUIProtectionSettings:
         voice = getattr(cls, f'{prefix}_voice_notifications', False)
         return {
             'enabled': enabled,
-            'process_path': str(process_path) if process_path else '',
             'duration': format_duration_setting(duration),
             'voice_notifications': str(voice) if voice else 'False',
             'logging': getattr(cls, f'{prefix}_logging', False),
@@ -172,10 +163,6 @@ class GUIProtectionSettings:
         enabled_attr = f'{prefix}_enabled' if hasattr(cls, f'{prefix}_enabled') else f'{prefix}_suspend_enabled'
         setattr(cls, enabled_attr, section.get('enabled', False))
 
-        path_attr = f'{prefix}_process_path' if hasattr(cls, f'{prefix}_process_path') else f'{prefix}_suspend_process_path'
-        path_str = str(section.get('process_path', ''))
-        setattr(cls, path_attr, Path(path_str) if path_str else None)
-
         duration_attr = f'{prefix}_duration' if hasattr(cls, f'{prefix}_duration') else f'{prefix}_suspend_duration'
         setattr(cls, duration_attr, parse_duration_setting(str(section.get('duration', 'Auto'))))
 
@@ -189,8 +176,7 @@ class GUIProtectionSettings:
         """Import protection settings from a JSON file."""
         data: object = json.loads(file_path.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
-            msg = f'Expected a JSON object in {file_path}'
-            raise TypeError(msg)
+            raise TypeError(format_type_error(data, dict))
         data_dict = cast('dict[str, dict[str, object]]', data)
 
         for key in ('mobile', 'vpn', 'hosting', 'player_join', 'player_rejoin', 'player_leave'):

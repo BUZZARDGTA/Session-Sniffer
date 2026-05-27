@@ -1,6 +1,7 @@
 ﻿"""Core data models and statistical helpers for the Player Identifier."""
 
 from collections import deque
+from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import islice
 from math import sqrt
@@ -34,16 +35,14 @@ class Phase(Enum):
     RESOLVED = auto()
 
 
-class ResolvedIP:  # pylint: disable=too-few-public-methods
+@dataclass(slots=True)
+class ResolvedIP:
     """A resolved IP with its confidence score and reason."""
 
-    __slots__ = ('confidence', 'ip', 'reason', 'username')
-
-    def __init__(self, ip: str, confidence: float, reason: str, username: str) -> None:
-        self.ip = ip
-        self.confidence = confidence
-        self.reason = reason
-        self.username = username
+    ip: str
+    confidence: float
+    reason: str
+    username: str
 
 
 class IPBaseline:

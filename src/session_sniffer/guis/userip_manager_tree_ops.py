@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
-from PyQt6.QtWidgets import QDialog, QFileDialog, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
+from PyQt6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -28,7 +28,7 @@ from session_sniffer.text_utils import format_triple_quoted_text
 _MixinBase = QDialog
 
 
-class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
+class TreeOperationsMixin(_MixinBase):
     """Mixin providing tree-panel context menu and file-system operations.
 
     Expects these attributes on the concrete class:
@@ -42,7 +42,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     _fs_model: QFileSystemModel
     _current_path: Path | None
     _dirty: bool
-    _next_index: int
+    _next_index: int = 0
     _model: QStandardItemModel
     _open_db_button: QPushButton
     _export_selected_action: QAction | None
@@ -51,24 +51,131 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
     _add_button: QPushButton
     _edit_ip_button: QPushButton
     _delete_button: QPushButton
+    _delete_tree_button: QPushButton
     _entries_dirty: bool
+    _global_search_active: bool
+    _global_search_checkbox: QCheckBox
     _settings_snapshot: dict[str, str]
 
+    # pylint: disable=unused-argument
     def _mark_entries_dirty(self) -> None: ...
     def _mark_settings_dirty(self) -> None: ...
-
-    def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
+    def _refresh_protection_visibility(self) -> None: ...
+    def _set_status(self, text: str) -> None: ...
     def _refresh_stats(self) -> None: ...
-    def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
-    def _update_file_info(self, path: Path | None) -> None: ...  # pylint: disable=unused-argument
-    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None: ...  # pylint: disable=unused-argument
-    def _populate_settings_widgets(self, settings_dict: dict[str, str]) -> None: ...  # pylint: disable=unused-argument
+    def _load_database(self, path: Path) -> None: ...
+    def _update_file_info(self, path: Path | None) -> None: ...
+    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None: ...
+    # pylint: enable=unused-argument
+
+    def populate_settings_widgets(self, settings_dict: dict[str, str]) -> None:
+        """Populate settings widgets from *settings_dict*."""
 
     def _highlight_duplicates(self) -> int:
         raise NotImplementedError
 
-    def _read_settings_from_widgets(self) -> dict[str, str]:
+    def read_settings_from_widgets(self) -> dict[str, str]:
+        """Read current widget values and return them as a settings dict."""
         raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Tree: selection
+    # ------------------------------------------------------------------
+
+    def _on_tree_selection_changed(self) -> None:
+        """Load the selected database when a .ini file is clicked in the tree."""
+        indexes = self._tree.selectedIndexes()
+
+        if not indexes:
+            self._delete_tree_button.setEnabled(False)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
+            return
+
+        file_path_str = self._fs_model.filePath(indexes[0])
+        if not file_path_str:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
+            return
+
+        path = Path(file_path_str)
+        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🔄 Reset')
+            self._delete_tree_button.setToolTip('Reset this default database to factory content')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._reset_tree_item)
+        else:
+            self._delete_tree_button.setEnabled(True)
+            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setToolTip('Delete the selected database or folder')
+            self._delete_tree_button.clicked.disconnect()
+            self._delete_tree_button.clicked.connect(self._delete_tree_item)
+
+        if not path.is_file() or path.suffix.lower() != '.ini':
+            return
+
+        if path == self._current_path and not self._global_search_active:
+            return
+
+        if self._global_search_active:
+            self._global_search_checkbox.setChecked(False)
+
+        if self._dirty and not self._confirm_discard():
+            self._reselect_current_path()
+            return
+
+        self._current_path = path
+        self._load_database(path)
+        self._open_db_button.setEnabled(True)
+        self._add_button.setEnabled(True)
+        self._delete_button.setEnabled(True)
+        self._save_button.setEnabled(True)
+        if self._export_selected_action is not None:
+            self._export_selected_action.setEnabled(True)
+
+    def refresh_runtime_capabilities(self) -> None:
+        """Refresh capability-gated controls after runtime preset/interface changes."""
+        if self._global_search_active or self._current_path is None:
+            return
+        self._refresh_protection_visibility()
+
+    def _reselect_current_path(self) -> None:
+        """Revert the tree selection back to the currently loaded database file."""
+        if self._current_path is None:
+            return
+
+        selection = self._tree.selectionModel()
+        if selection is None:
+            return
+
+        current_index = self._fs_model.index(str(self._current_path))
+        if not current_index.isValid():
+            return
+
+        selection.blockSignals(True)  # noqa: FBT003
+        self._tree.setCurrentIndex(current_index)
+        selection.blockSignals(False)  # noqa: FBT003
+
+    # ------------------------------------------------------------------
+    # Discard confirmation
+    # ------------------------------------------------------------------
+
+    def _confirm_discard(self) -> bool:
+        """Ask the user whether to discard unsaved changes."""
+        result = QMessageBox.warning(
+            self,
+            TITLE,
+            'You have unsaved changes. Discard them?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return result == QMessageBox.StandardButton.Yes
 
     # ------------------------------------------------------------------
     # Tree: context menu
@@ -651,7 +758,7 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
 
         _, imported_settings_lines = read_preserved_sections(src_path)
         imported_settings = parse_settings_from_lines(imported_settings_lines)
-        current_settings = self._read_settings_from_widgets()
+        current_settings = self.read_settings_from_widgets()
 
         if imported_settings != current_settings:
             msg_box = QMessageBox(self)
@@ -670,14 +777,14 @@ class TreeOperationsMixin(_MixinBase):  # pylint: disable=too-few-public-methods
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return
             if clicked is use_button:
-                self._populate_settings_widgets(imported_settings)
+                self.populate_settings_widgets(imported_settings)
                 self._mark_settings_dirty()
             _ = keep_button  # suppress unused-variable warning
 
         added = 0
         for username, ip in iter_userip_entries(content):
-            self._append_row(username, ip, index=self._next_index)  # pylint: disable=no-member
-            self._next_index += 1  # pylint: disable=no-member
+            self._append_row(username, ip, index=self._next_index)
+            self._next_index += 1
             added += 1
 
         if added:

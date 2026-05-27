@@ -3,12 +3,14 @@
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player
 from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = get_logger(__name__)
 
@@ -36,7 +38,6 @@ class ComboRule:
 
     # Action settings
     protection_enabled: bool = False
-    process_path: Path | None = None
     duration: int | Literal['Auto'] = 'Auto'
     voice_notifications: Literal['Male', 'Female'] | bool = False
     logging: bool = False
@@ -59,7 +60,6 @@ class ComboRule:
             'enabled': self.enabled,
             'conditions': self.conditions,
             'protection_enabled': self.protection_enabled,
-            'process_path': str(self.process_path) if self.process_path else '',
             'duration': format_duration_setting(self.duration),
             'voice_notifications': str(self.voice_notifications) if self.voice_notifications else 'False',
             'logging': self.logging,
@@ -93,15 +93,11 @@ class ComboRule:
                 if valid_events:
                     conditions[key] = valid_events
 
-        path_raw = data.get('process_path', '')
-        path_str = path_raw.strip() if isinstance(path_raw, str) else ''
-
         return cls(
             name=str(data.get('name', 'Unnamed Rule')),
             enabled=bool(data.get('enabled', True)),
             conditions=conditions,
             protection_enabled=bool(data.get('protection_enabled', False)),
-            process_path=Path(path_str) if path_str else None,
             duration=parse_duration_setting(str(data.get('duration', 'Auto'))),
             voice_notifications=parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
             logging=bool(data.get('logging', False)),

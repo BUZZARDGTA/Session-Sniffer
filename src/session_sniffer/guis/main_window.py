@@ -1,28 +1,22 @@
-"""Main window implementation for Session Sniffer."""  # pylint: disable=too-many-lines
+"""Main window implementation for Session Sniffer."""
 
 import os
 import webbrowser
 from dataclasses import dataclass
-from threading import Event
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QFont
 from PyQt6.QtWidgets import (
     QFrame,
-    QHBoxLayout,
-    QHeaderView,
     QLabel,
     QMainWindow,
     QMenu,
-    QPushButton,
-    QSpinBox,
-    QStatusBar,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 
-from session_sniffer import msgbox
 from session_sniffer.background import gui_closed__event
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.local import (
@@ -43,65 +37,32 @@ from session_sniffer.constants.local import (
 )
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.core import terminate_script
-from session_sniffer.error_messages import (
-    format_gta5_solo_session_no_process_path_message,
-    format_gta5_solo_session_process_not_running_message,
-    format_gta5_solo_session_suspend_failed_message,
-)
-from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
-from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
+from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
+from session_sniffer.guis._main_window_stats_mixin import StatsMixin
+from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
-from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
-from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
-from session_sniffer.guis.port_heatmap import PortHeatmapWindow
-from session_sniffer.guis.reconnect_frequency import ReconnectFrequencyWindow
-from session_sniffer.guis.session_bps_graph import SessionBpsGraphWindow
-from session_sniffer.guis.session_duration import SessionDurationWindow
-from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
-from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
-from session_sniffer.guis.session_timeline import SessionTimelineWindow
+from session_sniffer.guis.session_host_history_window import populate_host_history_submenu
 from session_sniffer.guis.settings_dialog import SettingsDialog
-from session_sniffer.guis.stylesheets import (
-    COMMON_COLLAPSE_BUTTON_STYLESHEET,
-    CONNECTED_CLEAR_BUTTON_STYLESHEET,
-    CONNECTED_EXPAND_BUTTON_STYLESHEET,
-    CONNECTED_HEADER_CONTAINER_STYLESHEET,
-    CONNECTED_HEADER_TEXT_STYLESHEET,
-    DISCONNECTED_CLEAR_BUTTON_STYLESHEET,
-    DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
-    DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
-    DISCONNECTED_HEADER_TEXT_STYLESHEET,
-    MENU_BAR_STYLESHEET,
-    STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
-    STATUS_BAR_CONFIG_LABEL_STYLESHEET,
-    STATUS_BAR_ISSUES_LABEL_STYLESHEET,
-    STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
-    STATUS_BAR_STYLESHEET,
-)
-from session_sniffer.guis.table_model import SessionTableModel
-from session_sniffer.guis.tables import SessionTableView
+from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
-from session_sniffer.logging_setup import get_logger
-from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
-from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState
+from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
-from session_sniffer.utils import get_pid_by_path
+from session_sniffer.updater import check_for_updates
+from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
     from session_sniffer.capture.packet_capture import CaptureHolder
-    from session_sniffer.models.player import Player
-
-logger = get_logger(__name__)
+    from session_sniffer.guis.table_model import SessionTableModel
 
 GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
 DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
@@ -122,406 +83,14 @@ class _WindowState:
     min_accepted_snapshot_version: int
 
 
-class SessionStatusBar(QStatusBar):
-    """Status bar with dedicated labels for capture, config, issues, and performance info."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Create the status bar and add the four section labels."""
-        super().__init__(parent)
-        self.setSizeGripEnabled(False)
-        self.setStyleSheet(STATUS_BAR_STYLESHEET)
-
-        self._capture_label = QLabel()
-        self._capture_label.setTextFormat(Qt.TextFormat.RichText)
-        self._capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
-
-        self._config_label = QLabel()
-        self._config_label.setTextFormat(Qt.TextFormat.RichText)
-        self._config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
-
-        self._issues_label = QLabel()
-        self._issues_label.setTextFormat(Qt.TextFormat.RichText)
-        self._issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
-
-        self._performance_label = QLabel()
-        self._performance_label.setTextFormat(Qt.TextFormat.RichText)
-        self._performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
-
-        self.addWidget(self._capture_label)
-        self.addWidget(self._config_label)
-        self.addWidget(self._issues_label)
-        self.addPermanentWidget(self._performance_label)
-
-    def set_texts(self, *, capture: str, config: str, issues: str, performance: str) -> None:
-        """Update all four status label texts at once."""
-        self._capture_label.setText(capture)
-        self._config_label.setText(config)
-        self._issues_label.setText(issues)
-        self._performance_label.setText(performance)
-
-
-class SessionTableSection(QWidget):
-    """Self-contained collapsible widget containing a session table with header controls."""
-
-    section_toggled = pyqtSignal()
-    table_model: SessionTableModel
-    table_view: SessionTableView
-
-    def __init__(
-        self,
-        *,
-        is_connected: bool,
-        column_names: list[str],
-        clear_slot: Callable[[], None],
-        parent: QWidget | None = None,
-    ) -> None:
-        """Build the header, table, and expand button for a collapsible session section."""
-        super().__init__(parent)
-
-        self._section_name = 'Connected' if is_connected else 'Disconnected'
-        self.last_count: int = -1
-        self._selected_count: int = 0
-
-        self._is_connected = is_connected
-        self._rows_keyboard_editing = False
-
-        if is_connected:
-            header_container_stylesheet = CONNECTED_HEADER_CONTAINER_STYLESHEET
-            header_text_stylesheet = CONNECTED_HEADER_TEXT_STYLESHEET
-            clear_button_stylesheet = CONNECTED_CLEAR_BUTTON_STYLESHEET
-            expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
-            collapse_tooltip = 'Hide the connected players table'
-            clear_tooltip = 'Clear all connected players'
-            expand_tooltip = 'Show the connected players table'
-            sort_column_name = 'Last Rejoin'
-            sort_order = Qt.SortOrder.DescendingOrder
-        else:
-            header_container_stylesheet = DISCONNECTED_HEADER_CONTAINER_STYLESHEET
-            header_text_stylesheet = DISCONNECTED_HEADER_TEXT_STYLESHEET
-            clear_button_stylesheet = DISCONNECTED_CLEAR_BUTTON_STYLESHEET
-            expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
-            collapse_tooltip = 'Hide the disconnected players table'
-            clear_tooltip = 'Clear all disconnected players'
-            expand_tooltip = 'Show the disconnected players table'
-            sort_column_name = 'Last Seen'
-            sort_order = Qt.SortOrder.AscendingOrder
-
-        # Header container
-        header_container = QWidget()
-        header_container.setStyleSheet(header_container_stylesheet)
-        header_layout = QHBoxLayout(header_container)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        self._header_label = QLabel(self._header_label_text())
-        self._header_label.setTextFormat(Qt.TextFormat.RichText)
-        self._header_label.setStyleSheet(header_text_stylesheet)
-        self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._header_label.setFont(QFont('Courier', 9, QFont.Weight.Bold))
-
-        clear_button = QPushButton('CLEAR')
-        clear_button.setToolTip(clear_tooltip)
-        clear_button.setStyleSheet(clear_button_stylesheet)
-        clear_button.clicked.connect(clear_slot)
-
-        collapse_button = QPushButton('▼')
-        collapse_button.setToolTip(collapse_tooltip)
-        collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
-        collapse_button.clicked.connect(self.minimize)
-
-        header_layout.addWidget(self._header_label, 1)
-
-        # Pagination controls — rows per page
-        rows_label = QLabel('Rows:')
-        rows_label.setToolTip('Rows per page (0 = show all)')
-        header_layout.addWidget(rows_label)
-
-        initial_rpp = (
-            Settings.gui_connected_table_rows_per_page
-            if is_connected
-            else Settings.gui_disconnected_table_rows_per_page
-        )
-
-        self._rows_per_page_spinbox = QSpinBox()
-        self._rows_per_page_spinbox.setRange(0, 5000)
-        self._rows_per_page_spinbox.setSpecialValueText('All')
-        self._rows_per_page_spinbox.setSuffix(' rows/page')
-        self._rows_per_page_spinbox.setValue(initial_rpp)
-        self._rows_per_page_spinbox.setToolTip(
-            f'Limit how many {self._section_name.lower()} players are shown per page. Set 0 to show all.',
-        )
-        self._rows_per_page_spinbox.setKeyboardTracking(False)
-        self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
-        self._rows_per_page_spinbox.editingFinished.connect(self._finalize_rows_edit)
-        header_layout.addWidget(self._rows_per_page_spinbox)
-        self._install_spinbox_input_filter(self._rows_per_page_spinbox)
-
-        # Pagination controls — page number
-        page_label = QLabel('Page:')
-        page_label.setToolTip('Current page when rows are limited.')
-        header_layout.addWidget(page_label)
-
-        self._page_spinbox = QSpinBox()
-        self._page_spinbox.setRange(1, 1)
-        self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
-        self._page_spinbox.setSuffix(' / 1')
-        self._page_spinbox.valueChanged.connect(self._handle_page_changed)
-        header_layout.addWidget(self._page_spinbox)
-
-        nav_separator = QFrame()
-        nav_separator.setFrameShape(QFrame.Shape.VLine)
-        nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        nav_separator.setStyleSheet(
-            'background-color: rgba(128,128,128,0.55); max-width: 0.5px; min-width: 0.5px; margin: 30% 14px; height: 18px;',
-        )
-        header_layout.addWidget(nav_separator)
-
-        # Internal paging state
-        self._rows_per_page: int = initial_rpp
-        self._current_page: int = 1
-        self._total_pages: int = 1
-
-        # Seed PaginationState so the worker thread knows the initial values
-        if is_connected:
-            PaginationState.set_connected(rows_per_page=initial_rpp, page=1)
-        else:
-            PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
-
-        header_layout.addWidget(clear_button)
-        header_layout.addWidget(collapse_button)
-
-        # Table model and view
-        self.table_model = SessionTableModel(column_names)
-        self.table_view = SessionTableView(
-            self.table_model,
-            column_names.index(sort_column_name),
-            sort_order,
-            is_connected_table=is_connected,
-        )
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
-        self.table_view.setup_static_column_resizing()
-        self.table_model.view = self.table_view
-
-        # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
-        self.expand_button = QPushButton(f'▲  Show {self._section_name} Players (0)')
-        self.expand_button.setToolTip(expand_tooltip)
-        self.expand_button.setStyleSheet(expand_button_stylesheet)
-        self.expand_button.setVisible(False)
-        self.expand_button.clicked.connect(self.expand)
-
-        # Section layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(header_container)
-        layout.addWidget(self.table_view, 1)
-
-        self.table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
-
-    @property
-    def _header_widget(self) -> QWidget:
-        """The header container widget, accessed via the header label's parent."""
-        return cast('QWidget', self._header_label.parentWidget())
-
-    @property
-    def is_expanded(self) -> bool:
-        """True when the section content (header + table) is visible."""
-        return self.isVisible()
-
-    def expand(self) -> None:
-        """Show section content and hide the expand button."""
-        self.expand_button.setVisible(False)
-        self.setVisible(True)
-        self.table_model.refresh_view()
-        self.section_toggled.emit()
-
-    def minimize(self) -> None:
-        """Collapse section to just an expand button."""
-        self.setVisible(False)
-        self.expand_button.setText(
-            f'▲  Show {self._section_name} Players ({max(self.last_count, 0)})',
-        )
-        self.expand_button.setVisible(True)
-        self.section_toggled.emit()
-
-    def update_current_count(self, count: int) -> None:
-        """Update the player count, refresh the header, and sync the expand button text."""
-        self.last_count = count
-        self._update_header_label()
-        if not self.is_expanded:
-            self.expand_button.setText(
-                f'▲  Show {self._section_name} Players ({count})',
-            )
-
-    def clear_table(self) -> None:
-        """Clear all table data and reset selection count."""
-        self.table_model.reset_columns()
-        self._selected_count = 0
-        self._update_header_label()
-
-    def update_columns(self, column_names: list[str]) -> None:
-        """Replace the column set at runtime and reconfigure the view."""
-        sort_col_name = 'Last Rejoin' if self._section_name == 'Connected' else 'Last Seen'
-        self.table_model.reset_columns(column_names)
-        sort_index = column_names.index(sort_col_name)
-        header = self.table_view.horizontalHeader()
-        header.setSortIndicator(sort_index, header.sortIndicatorOrder())
-        self.table_view.setup_static_column_resizing()
-
-    def set_all_enabled(self, *, enabled: bool) -> None:
-        """Enable or disable all interactive child widgets."""
-        self._header_widget.setEnabled(enabled)
-        self.table_view.setEnabled(enabled)
-        self.expand_button.setEnabled(enabled)
-
-    def _header_label_text(self) -> str:
-        intro = 'Connected players' if self._section_name == 'Connected' else 'Disconnected Players'
-        base = f'{intro} ({max(0, self.last_count)})'
-        if self._selected_count > 0:
-            noun = 'player' if self._selected_count == 1 else 'players'
-            return f'{base} ({self._selected_count} {noun} selected)'
-        return base
-
-    def _update_header_label(self) -> None:
-        self._header_label.setText(self._header_label_text())
-
-    def refresh_selection_count(self) -> None:
-        """Recompute the selected-row count and update the header label."""
-        self._on_selection_changed()
-
-    def _on_selection_changed(self) -> None:
-        self._selected_count = len({idx.row() for idx in self.table_view.selectionModel().selectedIndexes()})
-        self._update_header_label()
-
-    # -- Pagination handlers --------------------------------------------------
-
-    def _handle_rows_per_page_changed(self, value: int) -> None:
-        self._rows_per_page = max(value, 0)
-        self._current_page, self._total_pages = self._sync_paging_controls(
-            total_rows=max(self.last_count, 0),
-            rows_per_page=self._rows_per_page,
-            requested_page=1,
-        )
-        self._push_pagination_state()
-        self._update_header_label()
-
-    def _handle_page_changed(self, value: int) -> None:
-        self._current_page = max(value, 1)
-        self._push_pagination_state()
-        self._update_header_label()
-
-    def _finalize_rows_edit(self) -> None:
-        val = self._rows_per_page_spinbox.value()
-        self._handle_rows_per_page_changed(val)
-        self._rows_per_page_spinbox.clearFocus()
-
-    def _push_pagination_state(self) -> None:
-        """Write current pagination state to the shared PaginationState."""
-        if self._is_connected:
-            PaginationState.set_connected(rows_per_page=self._rows_per_page, page=self._current_page)
-        else:
-            PaginationState.set_disconnected(rows_per_page=self._rows_per_page, page=self._current_page)
-
-    def _sync_paging_controls(
-        self,
-        *,
-        total_rows: int,
-        rows_per_page: int,
-        requested_page: int,
-    ) -> tuple[int, int]:
-        """Update the page spinbox range/value and return (clamped_page, total_pages)."""
-        if not rows_per_page:
-            total_pages = 1
-            page = 1
-        else:
-            total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
-            page = min(max(1, requested_page), total_pages)
-
-        self._page_spinbox.blockSignals(True)
-        self._page_spinbox.setMinimum(1)
-        self._page_spinbox.setMaximum(total_pages)
-        self._page_spinbox.setEnabled(0 < rows_per_page < total_rows)
-        self._page_spinbox.setValue(page)
-        self._page_spinbox.blockSignals(False)
-
-        return page, total_pages
-
-    def sync_paging_from_payload(
-        self,
-        *,
-        total_count: int,
-        rows_per_page: int,
-        page: int,
-    ) -> None:
-        """Called from _update_gui to keep spinbox decorations in sync."""
-        self._rows_per_page = rows_per_page
-
-        if not self._rows_keyboard_editing:
-            self._rows_per_page_spinbox.setRange(0, 5000)
-            if self._rows_per_page > 0:
-                self._rows_per_page_spinbox.setPrefix(f'{total_count} / ')
-                self._rows_per_page_spinbox.setSuffix('')
-                self._rows_per_page_spinbox.setSpecialValueText('')
-            else:
-                self._rows_per_page_spinbox.setPrefix('')
-                self._rows_per_page_spinbox.setSuffix('')
-                self._rows_per_page_spinbox.setSpecialValueText(f'All ({total_count})')
-
-        self._current_page, self._total_pages = self._sync_paging_controls(
-            total_rows=max(self.last_count, 0),
-            rows_per_page=self._rows_per_page,
-            requested_page=page,
-        )
-        self._push_pagination_state()
-
-        if not self._rows_keyboard_editing:
-            self._page_spinbox.setSuffix(f' / {self._total_pages}')
-
-    def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
-        """Attach an event filter that tracks keyboard vs. wheel editing."""
-        line_edit = spinbox.lineEdit()
-        if line_edit is None:
-            return
-
-        section = self
-
-        class _SpinboxInputGuard(QObject):
-            def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
-                """Track input method to distinguish keyboard edits from wheel/spin changes."""
-                _ = a0
-                if a1 is None:
-                    return False
-                et = a1.type()
-                if et == QEvent.Type.KeyPress:
-                    section.set_keyboard_editing(is_editing=True)
-                elif et in (QEvent.Type.FocusOut, QEvent.Type.Hide, QEvent.Type.Wheel):
-                    section.set_keyboard_editing(is_editing=False)
-                return False
-
-        guard = _SpinboxInputGuard(self)
-        spinbox.installEventFilter(guard)
-        line_edit.installEventFilter(guard)
-        # prevent GC
-        self._spinbox_guard = guard
-
-    def set_keyboard_editing(self, *, is_editing: bool) -> None:
-        """Set the keyboard editing state for the rows-per-page spinbox."""
-        self._rows_keyboard_editing = is_editing
-
-
-class MainWindow(QMainWindow):
+class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
     _actions: _MenuActions
     _connected: SessionTableSection
     _disconnected: SessionTableSection
-    _gta5_menu: QMenu
-    _gta5_process_submenu: QMenu
-    _gta5_suspend_resume_action: QAction
-    _gta5_solo_menu_action: QAction
-    _manual_gta5_suspend_active: bool
-    _gta5_solo_active: bool
-    _gta5_process_suspended: bool
+    _gta5_status_label: QLabel
+    _session_host_submenu: QMenu
     _player_resolver_action: QAction
 
     def _update_separator_visibility(self) -> None:
@@ -545,21 +114,21 @@ class MainWindow(QMainWindow):
         self._logs_manager_window: LogsManager | None = None
         self._settings_dialog_window: SettingsDialog | None = None
         self._userip_manager_window: UserIPDatabasesManager | None = None
-        self._leaderboard_window: PlayerLeaderboardWindow | None = None
-        self._session_rate_graph_window: SessionRateGraphWindow | None = None
-        self._session_pps_graph_window: SessionPpsGraphWindow | None = None
-        self._session_bps_graph_window: SessionBpsGraphWindow | None = None
-        self._packets_latency_graph_window: PacketsLatencyGraphWindow | None = None
-        self._country_breakdown_window: CountryBreakdownWindow | None = None
-        self._reconnect_frequency_window: ReconnectFrequencyWindow | None = None
-        self._session_timeline_window: SessionTimelineWindow | None = None
-        self._port_heatmap_window: PortHeatmapWindow | None = None
-        self._session_duration_window: SessionDurationWindow | None = None
-        self._capture_statistics_window: CaptureStatisticsWindow | None = None
+        self._leaderboard_window = None
+        self._session_rate_graph_window = None
+        self._session_pps_graph_window = None
+        self._session_bps_graph_window = None
+        self._packets_latency_graph_window = None
+        self._country_breakdown_window = None
+        self._reconnect_frequency_window = None
+        self._session_timeline_window = None
+        self._port_heatmap_window = None
+        self._session_duration_window = None
+        self._capture_statistics_window = None
 
         # Set up the window
         self.setWindowTitle(TITLE)
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(1024, 768)
         resize_window_for_screen(self, screen_size)
         # Central widget
         central_widget = QWidget()
@@ -602,8 +171,31 @@ class MainWindow(QMainWindow):
         if gta5_menu_action is None:
             msg = 'Failed to get GTA5 menu action'
             raise RuntimeError(msg)
-        gta5_menu_action.setVisible(Settings.capture_program_preset == 'GTA5')
+        gta5_menu_action.setVisible(Settings.capture_game_preset == 'GTA5')
         self._gta5_menu = gta5_menu
+
+        gta5_status_label = QLabel()
+        gta5_status_label.setTextFormat(Qt.TextFormat.RichText)
+        gta5_status_label.setStyleSheet('QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }')
+        gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+        gta5_status_label.setToolTip('GTA V process detection state')
+        gta5_status_widget_action = QWidgetAction(self)
+        gta5_status_widget_action.setDefaultWidget(gta5_status_label)
+        gta5_menu.addAction(gta5_status_widget_action)
+        self._gta5_status_label = gta5_status_label
+
+        def _update_gta5_status_display() -> None:
+            gta5_exe = find_running_gta5_path()
+            if gta5_exe:
+                version = 'GTA V Enhanced' if gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+                self._gta5_status_label.setToolTip(str(gta5_exe))
+            else:
+                self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+                self._gta5_status_label.setToolTip('GTA V process detection state')
+
+        gta5_menu.aboutToShow.connect(_update_gta5_status_display)
+        gta5_menu.addSeparator()
 
         player_resolver_action = QAction('🔍 Player Resolver', self)
         player_resolver_action.setToolTip('High Rate Monitor and Player Identifier tools')
@@ -618,6 +210,8 @@ class MainWindow(QMainWindow):
             msg = 'Failed to create Session Host submenu'
             raise RuntimeError(msg)
         session_host_submenu.setToolTipsVisible(True)
+        cast('QAction', session_host_submenu.menuAction()).setToolTip('Session host detection controls for the current GTA5 lobby')
+        self._session_host_submenu = session_host_submenu
 
         host_status_action = QAction('ℹ️ No host', self)  # noqa: RUF001
         host_status_action.setEnabled(False)
@@ -647,6 +241,14 @@ class MainWindow(QMainWindow):
         redetect_host_action.triggered.connect(self._redetect_session_host)
         session_host_submenu.addAction(redetect_host_action)
 
+        session_host_submenu.addSeparator()
+        host_history_submenu = session_host_submenu.addMenu('📜 Host History')
+        if host_history_submenu is None:
+            msg = 'Failed to create Host History submenu'
+            raise RuntimeError(msg)
+        host_history_submenu.setToolTipsVisible(True)
+        host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, self._highlight_ips))
+
         gta5_menu.addSeparator()
 
         gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
@@ -654,6 +256,7 @@ class MainWindow(QMainWindow):
             msg = 'Failed to create GTA5 Process submenu'
             raise RuntimeError(msg)
         gta5_process_submenu.setToolTipsVisible(True)
+        cast('QAction', gta5_process_submenu.menuAction()).setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
         self._gta5_process_submenu = gta5_process_submenu
 
         gta5_menu_solo_action = QAction('🎯 Solo Public Session (~8s)', self)
@@ -661,14 +264,14 @@ class MainWindow(QMainWindow):
             'Suspend GTA5 for ~8 seconds then auto-resume.\n'
             'This forces the game to spawn you alone in a public session.',
         )
-        gta5_menu_solo_action.triggered.connect(self._gta5_solo_session)
+        gta5_menu_solo_action.triggered.connect(self.gta5_solo_session)
         gta5_process_submenu.addAction(gta5_menu_solo_action)
 
         gta5_process_submenu.addSeparator()
 
         gta5_suspend_resume_action = QAction('⏸️ Suspend Process', self)
         gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — stays suspended until you click it again to resume')
-        gta5_suspend_resume_action.triggered.connect(self._toggle_manual_gta5_suspend)
+        gta5_suspend_resume_action.triggered.connect(self.toggle_manual_gta5_suspend)
         gta5_process_submenu.addAction(gta5_suspend_resume_action)
 
         self._gta5_solo_menu_action = gta5_menu_solo_action
@@ -677,8 +280,15 @@ class MainWindow(QMainWindow):
         self._gta5_solo_active = False
         self._gta5_process_suspended = False
         self._gta5_process_detected = False
-        if Settings.capture_program_preset == 'GTA5':
+        if Settings.capture_game_preset == 'GTA5':
             self._sync_gta5_process_button()
+            if CaptureState.gta5_is_running:
+                gta5_exe = find_running_gta5_path()
+                version = 'GTA V Enhanced' if gta5_exe and gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+                self._gta5_status_label.setToolTip(str(gta5_exe) if gta5_exe else 'GTA5 process detection state')
+            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
+            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
 
         # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
@@ -692,22 +302,22 @@ class MainWindow(QMainWindow):
         detections_manager_action.triggered.connect(self._open_detections_manager)
         tools_menu.addAction(detections_manager_action)
 
-        leaderboard_action = QAction('🏆 Most Seen Players', self)
-        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
-        leaderboard_action.triggered.connect(self._open_player_leaderboard)
-        tools_menu.addAction(leaderboard_action)
-
-        tools_menu.addSeparator()
+        userip_manager_action = QAction('🗃️ UserIP Manager', self)
+        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
+        userip_manager_action.triggered.connect(self._open_userip_manager)
+        tools_menu.addAction(userip_manager_action)
 
         logs_manager_action = QAction('📋 Logs Manager', self)
         logs_manager_action.setToolTip('View, search, filter, and manage application log files')
         logs_manager_action.triggered.connect(self._open_logs_manager)
         tools_menu.addAction(logs_manager_action)
 
-        userip_manager_action = QAction('🗃️ UserIP Manager', self)
-        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
-        userip_manager_action.triggered.connect(self._open_userip_manager)
-        tools_menu.addAction(userip_manager_action)
+        tools_menu.addSeparator()
+
+        leaderboard_action = QAction('🏆 Most Seen Players', self)
+        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
+        leaderboard_action.triggered.connect(self._open_player_leaderboard)
+        tools_menu.addAction(leaderboard_action)
 
         # ----- Statistics menu -----
         statistics_menu = menu_bar.addMenu('Statistics')
@@ -802,6 +412,7 @@ class MainWindow(QMainWindow):
             msg = 'Failed to create Debug Logs submenu'
             raise RuntimeError(msg)
         debug_logs_submenu.setToolTipsVisible(True)
+        cast('QAction', debug_logs_submenu.menuAction()).setToolTip('Open or browse the application debug log files')
 
         open_debug_logs_folder_action = QAction('📂 Open Debug Logs Folder', self)
         open_debug_logs_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug')
@@ -831,6 +442,7 @@ class MainWindow(QMainWindow):
             msg = 'Failed to create Application Logs submenu'
             raise RuntimeError(msg)
         app_logs_submenu.setToolTipsVisible(True)
+        cast('QAction', app_logs_submenu.menuAction()).setToolTip('Open or browse CSV application log files (detections, protection, UserIP)')
 
         open_logging_folder_action = QAction('📂 Open Logging Folder', self)
         open_logging_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging')
@@ -901,6 +513,13 @@ class MainWindow(QMainWindow):
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
         discord_action.triggered.connect(self._join_discord)
         help_menu.addAction(discord_action)
+
+        help_menu.addSeparator()
+
+        check_updates_action = QAction('🔄 Check for Updates', self)
+        check_updates_action.setToolTip('Check GitHub for a newer version of Session Sniffer')
+        check_updates_action.triggered.connect(self._check_for_updates)
+        help_menu.addAction(check_updates_action)
 
         # Main title header
         self._header = QLabel()
@@ -984,7 +603,7 @@ class MainWindow(QMainWindow):
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
         """Filter events to detect window movement."""
         if a0 == self and a1 is not None:
             event_type = a1.type()
@@ -1037,7 +656,7 @@ class MainWindow(QMainWindow):
             return
         status_bar.setEnabled(True)
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
         """Handle the main window close event and terminate background work."""
         gui_closed__event.set()
         if self.capture.is_running():
@@ -1138,6 +757,22 @@ class MainWindow(QMainWindow):
             page=payload.disconnected_page,
         )
 
+        if self._session_host_submenu.isEnabled() != CaptureState.gta5_is_running:
+            if CaptureState.gta5_is_running:
+                gta5_exe = find_running_gta5_path()
+                version = 'GTA V Enhanced' if gta5_exe and gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+                self._gta5_status_label.setToolTip(str(gta5_exe) if gta5_exe else 'GTA V process detection state')
+            else:
+                self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+                self._gta5_status_label.setToolTip('GTA V process detection state')
+            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
+            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
+            self._sync_gta5_process_button()
+
+        if self._capture_statistics_window is not None:
+            self._capture_statistics_window.refresh()
+
     @staticmethod
     def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:
         """Remove rows from the model whose IPs are not in the current payload."""
@@ -1156,6 +791,10 @@ class MainWindow(QMainWindow):
     def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
+
+    def _check_for_updates(self) -> None:
+        """Manually trigger an update check against GitHub."""
+        check_for_updates(updater_channel=Settings.updater_channel)
 
     def _open_directory(self, directory_path: Path) -> None:
         """Ensure a directory exists and open it in Windows Explorer."""
@@ -1232,6 +871,7 @@ class MainWindow(QMainWindow):
         """Clear the current session host and immediately re-trigger host detection."""
         SessionHost.clear_session_host_data()
         SessionHost.search_player = True
+        SessionHost.manual_redetect = True
 
     def _toggle_main_window_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
         """Toggle the always-on-top window flag for this session."""
@@ -1280,237 +920,7 @@ class MainWindow(QMainWindow):
 
     def _open_player_resolver(self) -> None:
         """Open the Player Resolver window, or focus the existing one."""
-        self._player_resolver_window.show()
-        self._player_resolver_window.raise_()
-        self._player_resolver_window.activateWindow()
-
-    def _gta5_has_any_process_path(self) -> bool:
-        """Return `True` if any protection has a GTA5 process path configured."""
-        return any(
-            getattr(GUIProtectionSettings, attr) is not None
-            for attr in (
-                'gta5_relay_process_path',
-                'mobile_suspend_process_path',
-                'vpn_suspend_process_path',
-                'hosting_suspend_process_path',
-                'country_block_process_path',
-                'isp_block_process_path',
-                'asn_block_process_path',
-                'player_join_process_path',
-                'player_rejoin_process_path',
-                'player_leave_process_path',
-            )
-        )
-
-    def _get_gta5_process_path(self) -> Path | None:
-        """Return the first configured process path across all GTA5 protections, or `None`."""
-        return next(
-            (
-                p for attr in (
-                    'gta5_relay_process_path',
-                    'mobile_suspend_process_path',
-                    'vpn_suspend_process_path',
-                    'hosting_suspend_process_path',
-                    'country_block_process_path',
-                    'isp_block_process_path',
-                    'asn_block_process_path',
-                    'player_join_process_path',
-                    'player_rejoin_process_path',
-                    'player_leave_process_path',
-                )
-                if (p := getattr(GUIProtectionSettings, attr)) is not None
-            ),
-            None,
-        )
-
-    def _gta5_process_is_running(self) -> bool:
-        """Return `True` if the configured GTA5 process is currently running."""
-        process_path = self._get_gta5_process_path()
-        if process_path is None:
-            return False
-        return get_pid_by_path(process_path) is not None
-
-    def _toggle_manual_gta5_suspend(self) -> None:
-        """Toggle the manual GTA5 process suspend on or off.
-
-        When not suspended: registers a `'manual:toolbar'` reason in `ProcessSuspendManager`
-        with `'Manual'` duration so it never auto-clears.
-        When already suspended: releases the `'manual:toolbar'` reason.
-        Auto-protection reasons are unaffected and may also independently keep the process suspended.
-        """
-        self._sync_gta5_process_button()
-        if self._manual_gta5_suspend_active:
-            ProcessSuspendManager.release_reason_global('manual:toolbar')
-        else:
-            process_path = self._get_gta5_process_path()
-            if process_path is None:
-                logger.warning('Manual GTA5 suspend: no process path is configured in any protection')
-                return
-            if ProcessSuspendManager.is_process_suspended(process_path):
-                logger.info('Manual GTA5 suspend: process is already suspended by another protection reason')
-                self._sync_gta5_process_button()
-                return
-            ProcessSuspendManager.request_suspend(
-                process_path=process_path,
-                reason_key='manual:toolbar',
-                left_event=Event(),
-                duration='Manual',
-            )
-        self._sync_gta5_process_button()
-
-    def _gta5_solo_session(self) -> None:
-        """Suspend GTA5 for ~8 seconds then auto-resume, forcing a solo public session."""
-        self._sync_gta5_process_button()
-        process_path = self._get_gta5_process_path()
-        if process_path is None:
-            logger.warning('GTA5 solo session: no process path is configured in any protection')
-            msgbox.show(
-                title=TITLE,
-                text=format_gta5_solo_session_no_process_path_message(),
-                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
-            )
-            return
-        if get_pid_by_path(process_path) is None:
-            logger.warning('GTA5 solo session: process not running (%s)', process_path)
-            msgbox.show(
-                title=TITLE,
-                text=format_gta5_solo_session_process_not_running_message(),
-                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
-            )
-            return
-        if ProcessSuspendManager.is_process_suspended(process_path):
-            logger.info('GTA5 solo session: process is already suspended')
-            self._sync_gta5_process_button()
-            return
-        already_left = Event()
-        already_left.set()
-        ProcessSuspendManager.request_suspend(
-            process_path=process_path,
-            reason_key='solo:toolbar',
-            left_event=already_left,
-            duration=8,
-        )
-        if not ProcessSuspendManager.has_reason('solo:toolbar'):
-            logger.warning('GTA5 solo session: suspend failed for process %s', process_path)
-            msgbox.show(
-                title=TITLE,
-                text=format_gta5_solo_session_suspend_failed_message(),
-                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
-            )
-            return
-        self._gta5_solo_active = True
-        self._sync_gta5_process_button()
-
-    def _refresh_gta5_process_state(self) -> None:
-        """Refresh GTA5 process-control flags from live process and suspend-manager state."""
-        self._manual_gta5_suspend_active = ProcessSuspendManager.has_reason('manual:toolbar')
-        self._gta5_solo_active = ProcessSuspendManager.has_reason('solo:toolbar')
-
-        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
-        self._gta5_process_detected = can_act and self._gta5_process_is_running()
-
-        process_path = self._get_gta5_process_path()
-        self._gta5_process_suspended = (
-            can_act
-            and process_path is not None
-            and ProcessSuspendManager.is_process_suspended(process_path)
-        )
-
-    def _sync_gta5_process_button(self) -> None:
-        """Update the GTA5 Process submenu title and menu-item enabled states."""
-        self._refresh_gta5_process_state()
-        is_manual = self._manual_gta5_suspend_active
-        is_solo = self._gta5_solo_active
-        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
-        self._gta5_process_submenu.setEnabled(can_act)
-        if not can_act:
-            if is_manual:
-                ProcessSuspendManager.release_reason_global('manual:toolbar')
-                self._manual_gta5_suspend_active = False
-            if is_solo:
-                ProcessSuspendManager.release_reason_global('solo:toolbar')
-                self._gta5_solo_active = False
-            self._gta5_process_suspended = False
-            self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
-            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
-            self._gta5_suspend_resume_action.setEnabled(False)
-            self._gta5_solo_menu_action.setEnabled(False)
-            self._gta5_suspend_resume_action.setToolTip(
-                'ARP spoofing mode — process control not available.'
-                if CaptureState.is_neighbour_interface
-                else 'No process path configured — set one in Detections Manager to enable.',
-            )
-        elif is_manual:
-            self._gta5_process_submenu.setTitle('⏸️ GTA5 Process (Suspended)')
-            self._gta5_suspend_resume_action.setText('▶️ Resume Process')
-            self._gta5_suspend_resume_action.setToolTip('Remove the manual suspend hold from the GTA5 process')
-            self._gta5_suspend_resume_action.setEnabled(True)
-            self._gta5_solo_menu_action.setEnabled(False)
-        elif is_solo:
-            self._gta5_process_submenu.setTitle('🎯 GTA5 Process (Going Solo...)')
-            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
-            self._gta5_suspend_resume_action.setEnabled(False)
-            self._gta5_solo_menu_action.setEnabled(False)
-        elif self._gta5_process_suspended:
-            self._gta5_process_submenu.setTitle('⏸️ GTA5 Process (Suspended)')
-            self._gta5_suspend_resume_action.setText('▶️ Resume Process')
-            self._gta5_suspend_resume_action.setEnabled(False)
-            self._gta5_solo_menu_action.setEnabled(False)
-            self._gta5_suspend_resume_action.setToolTip(
-                'Process is currently suspended by active protection rules. It will resume automatically when those rules clear.',
-            )
-            self._gta5_solo_menu_action.setToolTip('Process is already suspended')
-        else:
-            self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
-            self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
-            if self._gta5_process_detected:
-                self._gta5_suspend_resume_action.setEnabled(True)
-                self._gta5_solo_menu_action.setEnabled(True)
-                self._gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — click again to resume')
-                self._gta5_solo_menu_action.setToolTip(
-                    'Suspend GTA5 for ~8 seconds then auto-resume.\n'
-                    'This forces the game to spawn you alone in a public session.',
-                )
-            else:
-                self._gta5_suspend_resume_action.setEnabled(False)
-                self._gta5_solo_menu_action.setEnabled(False)
-                self._gta5_suspend_resume_action.setToolTip('GTA5 is not currently running')
-                self._gta5_solo_menu_action.setToolTip('GTA5 is not currently running')
-
-    def _highlight_connected_ips(self, ips: list[str]) -> None:
-        """Select and scroll to player rows by IP in the connected table."""
-        model = self._connected.table_model
-        view = self._connected.table_view
-        selection = QItemSelection()
-        first_index = None
-        for ip in ips:
-            row = model.get_row_index_by_ip(ip)
-            if row is None:
-                continue
-            top_left = model.index(row, 0)
-            bottom_right = model.index(row, model.columnCount() - 1)
-            selection.select(top_left, bottom_right)
-            if first_index is None:
-                first_index = top_left
-        if first_index is None:
-            return
-        if not self._connected.is_expanded:
-            self._connected.expand()
-        view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-        view.scrollTo(first_index)
-
-    def _open_player_leaderboard(self) -> None:
-        """Open the Most Seen Players leaderboard, or focus the existing one."""
-        if self._leaderboard_window is not None and self._leaderboard_window.isVisible():
-            self._leaderboard_window.raise_()
-            self._leaderboard_window.activateWindow()
-            return
-        self._leaderboard_window = PlayerLeaderboardWindow(self)
-        self._leaderboard_window.destroyed.connect(self._on_leaderboard_window_destroyed)
-        self._leaderboard_window.show()
-
-    def _on_leaderboard_window_destroyed(self) -> None:
-        self._leaderboard_window = None
+        self._player_resolver_window.show_and_focus()
 
     def _update_header_capture_status(self) -> None:
         """Immediately update the header text to reflect current capture state."""
@@ -1550,224 +960,11 @@ class MainWindow(QMainWindow):
         """Clear all player data in preparation for a new capture interface."""
         self._clear_connected_players()
         self._clear_disconnected_players()
-
-    def reset_session_graph(self) -> None:
-        """Reset graph history for all open statistics windows (called on capture restart)."""
-        if self._session_rate_graph_window is not None:
-            self._session_rate_graph_window.reset()
-        if self._session_pps_graph_window is not None:
-            self._session_pps_graph_window.reset()
-        if self._session_bps_graph_window is not None:
-            self._session_bps_graph_window.reset()
-        if self._packets_latency_graph_window is not None:
-            self._packets_latency_graph_window.reset()
-        if self._capture_statistics_window is not None:
-            self._capture_statistics_window.reset()
-
-    def _open_session_rate_graph(self) -> None:
-        """Open or focus the session-wide rate graph window."""
-        if self._session_rate_graph_window is not None:
-            self._session_rate_graph_window.show()
-            self._session_rate_graph_window.raise_()
-            self._session_rate_graph_window.activateWindow()
-            return
-
-        window = SessionRateGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None))
-        self._session_rate_graph_window = window
-
-    def _tick_stats(self) -> None:
-        """Tick all open statistics windows with the latest data."""
-        CaptureStats.capture_health_samples.append((
-            CaptureStats.global_avg_latency_ms,
-            CaptureStats.global_pps_rate,
-            CaptureStats.global_bps_rate,
-        ))
-        if self._session_rate_graph_window is not None:
-            self._session_rate_graph_window.update_rates(
-                pps=CaptureStats.global_pps_rate,
-                bps=CaptureStats.global_bps_rate,
-            )
-        if self._session_pps_graph_window is not None:
-            self._session_pps_graph_window.update_pps(CaptureStats.global_pps_rate)
-        if self._session_bps_graph_window is not None:
-            self._session_bps_graph_window.update_bps(CaptureStats.global_bps_rate)
-        if self._packets_latency_graph_window is not None:
-            self._packets_latency_graph_window.update_latency(CaptureStats.global_avg_latency_ms)
-        if self._country_breakdown_window is not None:
-            self._country_breakdown_window.refresh()
-        if self._reconnect_frequency_window is not None:
-            self._reconnect_frequency_window.refresh()
-        if self._session_timeline_window is not None:
-            self._session_timeline_window.refresh()
-        if self._port_heatmap_window is not None:
-            self._port_heatmap_window.refresh()
-        if self._session_duration_window is not None:
-            self._session_duration_window.refresh()
-        if self._capture_statistics_window is not None:
-            self._capture_statistics_window.refresh()
-
-        # Sync GTA5 process control state every tick
-        if Settings.capture_program_preset == 'GTA5':
-            self._sync_gta5_process_button()
-
-    def _open_session_pps_graph(self) -> None:
-        """Open or focus the session-wide PPS graph window."""
-        if self._session_pps_graph_window is not None:
-            self._session_pps_graph_window.show()
-            self._session_pps_graph_window.raise_()
-            self._session_pps_graph_window.activateWindow()
-            return
-
-        window = SessionPpsGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None))
-        self._session_pps_graph_window = window
-
-    def _open_session_bps_graph(self) -> None:
-        """Open or focus the session-wide BPS graph window."""
-        if self._session_bps_graph_window is not None:
-            self._session_bps_graph_window.show()
-            self._session_bps_graph_window.raise_()
-            self._session_bps_graph_window.activateWindow()
-            return
-
-        window = SessionBpsGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None))
-        self._session_bps_graph_window = window
-
-    def _open_packets_latency_graph(self) -> None:
-        """Open or focus the packets latency graph window."""
-        if self._packets_latency_graph_window is not None:
-            self._packets_latency_graph_window.show()
-            self._packets_latency_graph_window.raise_()
-            self._packets_latency_graph_window.activateWindow()
-            return
-
-        window = PacketsLatencyGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None))
-        self._packets_latency_graph_window = window
-
-    def _open_country_breakdown(self) -> None:
-        """Open or focus the country breakdown window."""
-        if self._country_breakdown_window is not None:
-            self._country_breakdown_window.show()
-            self._country_breakdown_window.raise_()
-            self._country_breakdown_window.activateWindow()
-            return
-
-        window = CountryBreakdownWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None))
-        self._country_breakdown_window = window
-
-    def _open_reconnect_frequency(self) -> None:
-        """Open or focus the reconnect frequency window."""
-        if self._reconnect_frequency_window is not None:
-            self._reconnect_frequency_window.show()
-            self._reconnect_frequency_window.raise_()
-            self._reconnect_frequency_window.activateWindow()
-            return
-
-        window = ReconnectFrequencyWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None))
-        self._reconnect_frequency_window = window
-
-    def _open_session_timeline(self) -> None:
-        """Open or focus the session timeline window."""
-        if self._session_timeline_window is not None:
-            self._session_timeline_window.show()
-            self._session_timeline_window.raise_()
-            self._session_timeline_window.activateWindow()
-            return
-
-        window = SessionTimelineWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None))
-        self._session_timeline_window = window
-
-    def _open_port_heatmap(self) -> None:
-        """Open or focus the port heatmap window."""
-        if self._port_heatmap_window is not None:
-            self._port_heatmap_window.show()
-            self._port_heatmap_window.raise_()
-            self._port_heatmap_window.activateWindow()
-            return
-
-        window = PortHeatmapWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None))
-        self._port_heatmap_window = window
-
-    def _open_session_duration(self) -> None:
-        """Open or focus the session duration window."""
-        if self._session_duration_window is not None:
-            self._session_duration_window.show()
-            self._session_duration_window.raise_()
-            self._session_duration_window.activateWindow()
-            return
-
-        window = SessionDurationWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None))
-        self._session_duration_window = window
-
-    def _open_capture_health(self) -> None:
-        """Open or focus the capture statistics window."""
-        if self._capture_statistics_window is not None:
-            self._capture_statistics_window.show()
-            self._capture_statistics_window.raise_()
-            self._capture_statistics_window.activateWindow()
-            return
-
-        window = CaptureStatisticsWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
-        window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
-        window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
-        window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_capture_statistics_window', None))
-        self._capture_statistics_window = window
+        SessionHost.clear_history()
 
     def set_capture_toggle_enabled(self, *, enabled: bool) -> None:
         """Enable or disable the Stop/Start Capture toolbar button."""
         self._actions.toggle_capture.setEnabled(enabled)
-
-    def _refresh_runtime_capability_windows(self) -> None:
-        """Refresh open dialogs that gate controls by preset/interface support."""
-        if self._userip_manager_window is not None and self._userip_manager_window.isVisible():
-            self._userip_manager_window.refresh_runtime_capabilities()
-
-        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
-            self._detections_manager_window.refresh_protection_availability()
-
-    def _update_gta5_toolbar_visibility(self) -> None:
-        """Show or hide the GTA5 menu based on current preset."""
-        gta5_preset = Settings.capture_program_preset == 'GTA5'
-        SessionHost.clear_session_host_data()
-        gta5_menu_action = self._gta5_menu.menuAction()
-        if gta5_menu_action is not None:
-            gta5_menu_action.setVisible(gta5_preset)
-
-        self._refresh_runtime_capability_windows()
 
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
@@ -1813,31 +1010,3 @@ class MainWindow(QMainWindow):
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
             VPNWarnings.remove_notified_ips_batch(disconnected_ips)
             HostingWarnings.remove_notified_ips_batch(disconnected_ips)
-
-    def remove_player_from_connected(self, ip: str) -> None:
-        """Remove a single player from connected table and registry by IP address."""
-        removed_player: Player | None = PlayersRegistry.remove_connected_player(ip)
-        if removed_player is None:
-            return
-
-        SessionHost.players_pending_for_disconnection = [
-            p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
-        ]
-
-        self._connected.table_model.remove_player_by_ip(ip)
-
-        MobileWarnings.remove_notified_ip(ip)
-        VPNWarnings.remove_notified_ip(ip)
-        HostingWarnings.remove_notified_ip(ip)
-
-    def remove_player_from_disconnected(self, ip: str) -> None:
-        """Remove a single player from disconnected table and registry by IP address."""
-        removed_player: Player | None = PlayersRegistry.remove_disconnected_player(ip)
-        if removed_player is None:
-            return
-
-        self._disconnected.table_model.remove_player_by_ip(ip)
-
-        MobileWarnings.remove_notified_ip(ip)
-        VPNWarnings.remove_notified_ip(ip)
-        HostingWarnings.remove_notified_ip(ip)

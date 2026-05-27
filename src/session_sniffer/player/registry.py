@@ -1,12 +1,14 @@
 ﻿"""Player registry for connected and disconnected players."""
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from heapq import nsmallest
 from ipaddress import IPv4Address, IPv4Network
 from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
+from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
@@ -35,6 +37,15 @@ _ALL_THIRD_PARTY_NETWORKS: tuple[IPv4Network, ...] = tuple(
 def is_third_party_server_ip(ip: str) -> bool:
     """Return True if `ip` matches any known third-party server CIDR range."""
     return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_NETWORKS)
+
+
+@dataclass(slots=True)
+class HostHistoryEntry:
+    """Snapshot of a session host at the time of detection."""
+
+    ip: str
+    detected_at: datetime
+    country_code: str
 
 
 class PlayersRegistry:
@@ -235,18 +246,43 @@ class SessionHost:
 
     player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
+    manual_redetect: ClassVar[bool] = False
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
+    _history: ClassVar[list[HostHistoryEntry]] = []
 
     @classmethod
     def clear_session_host_data(cls) -> None:
         """Clear all session host data including pending disconnections."""
         cls.players_pending_for_disconnection.clear()
         cls.search_player = False
+        cls.manual_redetect = False
         cls.search_start_time = None
         cls.player = None
         cls.last_timing_gap_candidate = None
+
+    @classmethod
+    def record_host(cls, player: Player) -> None:
+        """Snapshot the given player as a detected session host and append to history."""
+        country_code = player.iplookup.geolite2.country_code
+        if country_code in {'...', 'N/A'}:
+            country_code = player.iplookup.ipapi.country_code
+        cls._history.append(HostHistoryEntry(
+            ip=player.ip,
+            detected_at=datetime.now(tz=LOCAL_TZ),
+            country_code=country_code,
+        ))
+
+    @classmethod
+    def get_history(cls) -> list[HostHistoryEntry]:
+        """Return a snapshot list of the in-memory session host history."""
+        return list(cls._history)
+
+    @classmethod
+    def clear_history(cls) -> None:
+        """Clear the in-memory session host history."""
+        cls._history.clear()
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
@@ -315,7 +351,9 @@ class SessionHost:
             or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
             # A candidate with too many packets has been connected far too long to be the host of a
             # newly joined session — host detection only applies at session join time.
-            or potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION
+            # Skip this check for manual re-detects: the user explicitly requested re-detection,
+            # so packet count is irrelevant (the session is already in progress).
+            or (not SessionHost.manual_redetect and potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION)
         ):
             if not potential_session_host_player:
                 logger.debug('[SessionHost] Rejected: no potential host candidate was selected')
@@ -347,5 +385,6 @@ class SessionHost:
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
         SessionHost.player = potential_session_host_player
         SessionHost.search_player = False
+        SessionHost.manual_redetect = False
         SessionHost.search_start_time = None
         return potential_session_host_player

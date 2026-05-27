@@ -300,14 +300,6 @@ def format_npcap_success_message() -> str:
     """
 
 
-def format_gta5_solo_session_no_process_path_message() -> str:
-    """Format the warning shown when Solo Public Session is triggered with no GTA5 process path configured."""
-    return (
-        'No GTA5 process path is configured.\n\n'
-        'Please configure a GTA5 process path in at least one of the protection settings before using this feature.'
-    )
-
-
 def format_gta5_solo_session_process_not_running_message() -> str:
     """Format the warning shown when Solo Public Session is triggered but GTA5 is not running."""
     return (

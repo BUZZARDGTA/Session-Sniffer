@@ -1,7 +1,13 @@
 """Updater: GitHub version fetch + retry + UI + version comparison."""
 
+import hashlib
+import shutil
+import subprocess
+import sys
+import tempfile
 import webbrowser
 from enum import Enum, auto
+from pathlib import Path
 
 import requests
 from packaging.version import Version
@@ -14,6 +20,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
+from session_sniffer.guis.update_download_dialog import UpdateDownloadDialog
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -95,6 +102,87 @@ def _fetch_github_versions() -> GithubVersionsResponse:
     return GithubVersionsResponse.model_validate(response.json())
 
 
+def _is_frozen() -> bool:
+    """Return True when running as a PyInstaller-compiled executable."""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def _apply_update(new_exe: Path) -> None:
+    """Replace the running executable with `new_exe`, relaunch it, and exit.
+
+    Renames the currently running exe to `.old` (Windows allows renaming open
+    files on NTFS), copies the new exe to the original path, launches the new
+    process, then exits the current one. The `.old` file is cleaned up on the
+    next startup by `main()`.
+    """
+    current_exe = Path(sys.executable)
+    old_exe = current_exe.with_suffix('.old')
+
+    try:
+        current_exe.rename(old_exe)
+    except OSError as exc:
+        new_exe.unlink(missing_ok=True)
+        msgbox.show(
+            title=TITLE,
+            text=format_triple_quoted_text(
+                f'Failed to rename the current executable before updating.\n\n{exc}',
+            ),
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
+        )
+        return
+
+    try:
+        shutil.copy2(new_exe, current_exe)
+    except OSError as exc:
+        # Restore the original exe so the user can still run the app
+        old_exe.rename(current_exe)
+        new_exe.unlink(missing_ok=True)
+        msgbox.show(
+            title=TITLE,
+            text=format_triple_quoted_text(
+                f'Failed to write the new executable. The previous version has been restored.\n\n{exc}',
+            ),
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
+        )
+        return
+
+    new_exe.unlink(missing_ok=True)
+    subprocess.Popen([str(current_exe)])
+    sys.exit(0)
+
+
+def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
+    """Download the update exe, verify its SHA-256 hash, and apply it."""
+    with tempfile.NamedTemporaryFile(suffix='.exe', prefix='Session_Sniffer_', delete=False) as tmp:
+        dest = Path(tmp.name)
+
+    dialog = UpdateDownloadDialog(
+        download_url=candidate_info.download_url,
+        dest_path=dest,
+        version_label=version_str,
+    )
+    dialog.exec()
+    if not dialog.success:
+        dest.unlink(missing_ok=True)
+        return
+
+    actual_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
+    if actual_hash != candidate_info.sha256.lower():
+        dest.unlink(missing_ok=True)
+        msgbox.show(
+            title=TITLE,
+            text=format_triple_quoted_text(
+                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.'
+                f'\n\nExpected: {candidate_info.sha256}'
+                f'\nActual:   {actual_hash}',
+            ),
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
+        )
+        return
+
+    _apply_update(dest)
+
+
 def _handle_update_decision(
     *,
     updater_channel: str | None,
@@ -129,7 +217,10 @@ def _handle_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
-        webbrowser.open(candidate_info.release_url)
+        if _is_frozen():
+            _download_and_apply(candidate_info, format_project_version(candidate))
+        else:
+            webbrowser.open(candidate_info.release_url)
 
     return UpdateCheckOutcome.PROCEED
 
@@ -164,7 +255,7 @@ def _handle_prerelease_update_decision(
             Latest stable release: {format_project_version(latest_stable)}
             Latest pre-release: {format_project_version(latest_prerelease)}
         """)
-        open_url = (latest_prerelease_info if latest_prerelease > latest_stable else latest_stable_info).release_url
+        open_info = latest_prerelease_info if latest_prerelease > latest_stable else latest_stable_info
     elif stable_newer:
         message = format_triple_quoted_text(f"""
             You are running a pre-release version. A newer stable release is available. Do you want to update?
@@ -172,7 +263,7 @@ def _handle_prerelease_update_decision(
             Current version: {current_str}
             Latest stable release: {format_project_version(latest_stable)}
         """)
-        open_url = latest_stable_info.release_url
+        open_info = latest_stable_info
     else:
         message = format_triple_quoted_text(f"""
             You are running a pre-release version. A newer pre-release is available. Do you want to update?
@@ -180,7 +271,7 @@ def _handle_prerelease_update_decision(
             Current version: {current_str}
             Latest pre-release: {format_project_version(latest_prerelease)}
         """)
-        open_url = latest_prerelease_info.release_url
+        open_info = latest_prerelease_info
 
     if (
         msgbox.show(
@@ -190,6 +281,9 @@ def _handle_prerelease_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
-        webbrowser.open(open_url)
+        if _is_frozen():
+            _download_and_apply(open_info, format_project_version(Version(open_info.version)))
+        else:
+            webbrowser.open(open_info.release_url)
 
     return UpdateCheckOutcome.PROCEED

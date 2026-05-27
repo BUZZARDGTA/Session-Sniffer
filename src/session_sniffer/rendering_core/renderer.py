@@ -427,7 +427,10 @@ def rendering_core(
     logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
     last_userip_parse_time = None
     last_session_logging_processing_time = None
+    last_modmenu_refresh_time: float | None = None
+    _has_players_for_poll: bool = False
     _relay_host_logged_ip: str | None = None
+    _last_recorded_host_ip: str | None = None
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
@@ -471,19 +474,22 @@ def rendering_core(
         _country_flag_cache[country_code] = country_flag
         return country_flag
 
-    while not gui_closed__event.is_set():  # pylint: disable=too-many-nested-blocks
+    while not gui_closed__event.is_set():
         capture = capture_holder.get()  # Resolve the active capture each iteration
 
         if ScriptControl.has_crashed():
             break
 
         _userip_db_rebuilt = False
-        if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
+        _poll_interval = 1.0 if _has_players_for_poll else 5.0
+        if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= _poll_interval:
             last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
             if _userip_db_rebuilt:
                 _userip_not_found.clear()
 
-        ModMenuLogsParser.refresh()
+        if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
+            ModMenuLogsParser.refresh()
+            last_modmenu_refresh_time = time.monotonic()
 
         session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
         players_to_disconnect: list[int] = []
@@ -561,8 +567,8 @@ def rendering_core(
                 player.iplookup.geolite2.asn = get_asn_info(player.ip)
                 player.iplookup.geolite2.is_initialized = True
 
-        if Settings.capture_program_preset == 'GTA5':
-            if not Settings.gui_session_host_detection:
+        if Settings.capture_game_preset == 'GTA5':
+            if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
                 if (
                     SessionHost.player
                     or SessionHost.players_pending_for_disconnection
@@ -571,6 +577,12 @@ def rendering_core(
                 ):
                     SessionHost.clear_session_host_data()
             else:
+                if CaptureState.gta5_just_started:
+                    CaptureState.gta5_just_started = False
+                    _sniffer_just_started = True
+                    _sniffer_start_time = time.monotonic()
+                    _session_host_was_active = False
+                    _relay_host_logged_ip = None
                 p2p_session_connected = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
                 if SessionHost.player and SessionHost.player.left_event.is_set():
                     if (
@@ -619,14 +631,15 @@ def rendering_core(
                 # elapses we snapshot whoever is still connected and either skip or allow search.
                 if _sniffer_just_started:
                     elapsed = time.monotonic() - _sniffer_start_time
-                    if elapsed >= SESSION_HOST_STARTUP_WINDOW_SECONDS:
+                    past_window = elapsed >= SESSION_HOST_STARTUP_WINDOW_SECONDS
+                    if past_window:
                         _sniffer_just_started = False
-                        if p2p_session_connected:
-                            SessionHost.search_player = False
-                            logger.debug(
-                                '[SessionHost] Sniffer startup: %d pre-existing player%s detected within %.0fs window, skipping host search',
-                                len(p2p_session_connected), pluralize(len(p2p_session_connected)), SESSION_HOST_STARTUP_WINDOW_SECONDS,
-                            )
+                    if p2p_session_connected and past_window:
+                        logger.debug(
+                            '[SessionHost] Sniffer startup: %d pre-existing player%s detected within %.0fs window, skipping host search',
+                            len(p2p_session_connected), pluralize(len(p2p_session_connected)), SESSION_HOST_STARTUP_WINDOW_SECONDS,
+                        )
+                        SessionHost.search_player = False
                     elif p2p_session_connected:
                         SessionHost.search_player = False
 
@@ -699,6 +712,13 @@ def rendering_core(
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
 
+        _current_host = SessionHost.player
+        if _current_host is not None and _current_host.ip != _last_recorded_host_ip:
+            SessionHost.record_host(_current_host)
+            _last_recorded_host_ip = _current_host.ip
+        elif _current_host is None and _last_recorded_host_ip is not None:
+            _last_recorded_host_ip = None
+
         if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
             last_session_logging_processing_time = time.monotonic()
             process_session_logging()
@@ -709,6 +729,8 @@ def rendering_core(
         elif not Settings.discord_presence and discord_rpc_manager is not None:
             discord_rpc_manager.close()
             discord_rpc_manager = None
+
+        CaptureState.discord_rpc_connected = (discord_rpc_manager is not None and discord_rpc_manager.connection_status.is_set())
 
         if (discord_rpc_manager is not None and
             (discord_rpc_manager.last_update_time is None or
@@ -731,18 +753,20 @@ def rendering_core(
         ):
             last_webhook_submit_time = time.monotonic()
             use_mobile_text = Settings.discord_webhook_format in ('Mobile', 'Embed')
-            webhook_cols_connected = Settings.discord_webhook_columns_connected
-            webhook_cols_disconnected = Settings.discord_webhook_columns_disconnected
-            max_conn = Settings.discord_webhook_max_connected_players
-            max_disconn = Settings.discord_webhook_max_disconnected_players
-            webhook_connected = session_connected[:max_conn] if max_conn > 0 else session_connected
-            webhook_disconnected = session_disconnected[:max_disconn] if max_disconn > 0 else session_disconnected
+            webhook_connected = (
+                session_connected[:Settings.discord_webhook_max_connected_players]
+                if Settings.discord_webhook_max_connected_players > 0 else session_connected
+            )
+            webhook_disconnected = (
+                session_disconnected[:Settings.discord_webhook_max_disconnected_players]
+                if Settings.discord_webhook_max_disconnected_players > 0 else session_disconnected
+            )
             if Settings.discord_webhook_include_connected:
                 connected_text = (
-                    build_webhook_mobile_text(webhook_connected, webhook_cols_connected) if use_mobile_text
+                    build_webhook_mobile_text(webhook_connected, Settings.discord_webhook_columns_connected) if use_mobile_text
                     else build_webhook_table_text(
                         webhook_connected,
-                        columns=webhook_cols_connected,
+                        columns=Settings.discord_webhook_columns_connected,
                         title=f'Connected ({len(session_connected)})',
                     )
                 )
@@ -750,10 +774,10 @@ def rendering_core(
                 connected_text = None
             if Settings.discord_webhook_include_disconnected:
                 disconnected_text = (
-                    build_webhook_mobile_text(webhook_disconnected, webhook_cols_disconnected) if use_mobile_text
+                    build_webhook_mobile_text(webhook_disconnected, Settings.discord_webhook_columns_disconnected) if use_mobile_text
                     else build_webhook_table_text(
                         webhook_disconnected,
-                        columns=webhook_cols_disconnected,
+                        columns=Settings.discord_webhook_columns_disconnected,
                         title=f'Disconnected ({len(session_disconnected)})',
                     )
                 )
@@ -825,7 +849,8 @@ def rendering_core(
             ),
         )
 
-        gui_closed__event.wait(1)
+        _has_players_for_poll = bool(session_connected)
+        gui_closed__event.wait(1.0 if _has_players_for_poll else 2.0)
 
     if discord_rpc_manager is not None:
         discord_rpc_manager.close()

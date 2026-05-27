@@ -1,4 +1,4 @@
-"""UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""  # pylint: disable=too-many-lines
+"""UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -54,11 +54,10 @@ from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixi
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
-from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI
 from session_sniffer.text_utils import pluralize
 
 
-class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):  # pylint: disable=too-many-instance-attributes
+class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
     """Modal dialog for managing UserIP database files and their entries."""
 
     def __init__(self, parent: QWidget | None) -> None:
@@ -66,8 +65,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(920, 560)
-        self.resize(1060, 680)
+        self.setMinimumSize(1100, 660)
+        self.resize(1280, 800)
 
         self._current_path: Path | None = None
         self._dirty = False
@@ -144,7 +143,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         # Hide size / type / date-modified columns — keep only the name
         for col in range(1, self._fs_model.columnCount()):
-            self._tree.setColumnHidden(col, True)
+            self._tree.setColumnHidden(col, True)  # noqa: FBT003
 
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_tree_context_menu)
@@ -224,7 +223,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         right_layout.addLayout(search_bar)
 
         # ------ Settings panel (collapsible, built by mixin) ------
-        self._build_settings_panel(right_layout)
+        self.build_settings_panel(right_layout)
 
         # Entries table
         self._model = QStandardItemModel(0, 5)
@@ -255,11 +254,11 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
                 header.resizeSection(col, width)
             header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
 
-        self._entries_table.setColumnHidden(DATABASE_COLUMN, True)
+        self._entries_table.setColumnHidden(DATABASE_COLUMN, True)  # noqa: FBT003
 
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._entries_table.customContextMenuRequested.connect(self._show_entries_context_menu)
-        self._entries_table.doubleClicked.connect(self._on_entry_double_clicked)
+        self._entries_table.customContextMenuRequested.connect(self.show_entries_context_menu)
+        self._entries_table.doubleClicked.connect(self.on_entry_double_clicked)
 
         entries_selection = self._entries_table.selectionModel()
         if entries_selection is not None:
@@ -351,113 +350,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
     def _mark_settings_dirty(self) -> None:
         """Re-evaluate settings dirtiness against the loaded snapshot."""
-        self._settings_dirty = self._read_settings_from_widgets() != self._settings_snapshot
+        self._settings_dirty = self.read_settings_from_widgets() != self._settings_snapshot
         self._sync_dirty_state()
 
     def _capture_settings_snapshot(self) -> None:
         """Record the current serialized settings as the clean baseline."""
-        self._settings_snapshot = self._read_settings_from_widgets()
+        self._settings_snapshot = self.read_settings_from_widgets()
         self._settings_dirty = False
         self._sync_dirty_state()
-
-    # ------------------------------------------------------------------
-    # Tree: selection
-    # ------------------------------------------------------------------
-
-    def _on_tree_selection_changed(self) -> None:
-        """Load the selected database when a .ini file is clicked in the tree."""
-        indexes = self._tree.selectedIndexes()
-
-        if not indexes:
-            self._delete_tree_button.setEnabled(False)
-            self._delete_tree_button.setText('🗑️ Delete')
-            self._delete_tree_button.setToolTip('Delete the selected database or folder')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._delete_tree_item)
-            return
-
-        file_path_str = self._fs_model.filePath(indexes[0])
-        if not file_path_str:
-            self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🗑️ Delete')
-            self._delete_tree_button.setToolTip('Delete the selected database or folder')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._delete_tree_item)
-            return
-
-        path = Path(file_path_str)
-        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
-            self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🔄 Reset')
-            self._delete_tree_button.setToolTip('Reset this default database to factory content')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._reset_tree_item)
-        else:
-            self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🗑️ Delete')
-            self._delete_tree_button.setToolTip('Delete the selected database or folder')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._delete_tree_item)
-
-        if not path.is_file() or path.suffix.lower() != '.ini':
-            return
-
-        if path == self._current_path and not self._global_search_active:
-            return
-
-        if self._global_search_active:
-            self._global_search_checkbox.setChecked(False)
-
-        if self._dirty and not self._confirm_discard():
-            self._reselect_current_path()
-            return
-
-        self._current_path = path
-        self._load_database(path)
-        self._open_db_button.setEnabled(True)
-        self._add_button.setEnabled(True)
-        self._delete_button.setEnabled(True)
-        self._save_button.setEnabled(True)
-        if self._export_selected_action is not None:
-            self._export_selected_action.setEnabled(True)
-
-    def refresh_runtime_capabilities(self) -> None:
-        """Refresh capability-gated controls after runtime preset/interface changes."""
-        if self._global_search_active or self._current_path is None:
-            return
-        self._refresh_protection_visibility()
-
-    def _reselect_current_path(self) -> None:
-        """Revert the tree selection back to the currently loaded database file."""
-        if self._current_path is None:
-            return
-
-        selection = self._tree.selectionModel()
-        if selection is None:
-            return
-
-        current_index = self._fs_model.index(str(self._current_path))
-        if not current_index.isValid():
-            return
-
-        selection.blockSignals(True)
-        self._tree.setCurrentIndex(current_index)
-        selection.blockSignals(False)
-
-    # ------------------------------------------------------------------
-    # Discard confirmation
-    # ------------------------------------------------------------------
-
-    def _confirm_discard(self) -> bool:
-        """Ask the user whether to discard unsaved changes."""
-        result = QMessageBox.warning(
-            self,
-            TITLE,
-            'You have unsaved changes. Discard them?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        return result == QMessageBox.StandardButton.Yes
 
     # ------------------------------------------------------------------
     # Load / parse
@@ -493,7 +393,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         # Load settings panel
         _, settings_lines = read_preserved_sections(path)
         settings_dict = parse_settings_from_lines(settings_lines)
-        self._populate_settings_widgets(settings_dict)
+        self.populate_settings_widgets(settings_dict)
         self._capture_settings_snapshot()
         self._settings_container.setVisible(True)
 
@@ -572,13 +472,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if not self._global_search_active:
             self._global_search_checkbox.setChecked(True)
 
-    def _on_global_search_toggled(self, checked: bool) -> None:
+    def _on_global_search_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Switch between single-database editing mode and read-only global search mode."""
         if checked:
             if self._dirty and not self._confirm_discard():
-                self._global_search_checkbox.blockSignals(True)
+                self._global_search_checkbox.blockSignals(True)  # noqa: FBT003
                 self._global_search_checkbox.setChecked(False)
-                self._global_search_checkbox.blockSignals(False)
+                self._global_search_checkbox.blockSignals(False)  # noqa: FBT003
                 return
             self._dirty = False
             self._global_search_active = True
@@ -626,11 +526,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             content = ini_path.read_text('utf-8')
 
             total_files += 1
-            db_label = ini_path.stem
-
             for username, ip in iter_userip_entries(content):
                 total_entries += 1
-                self._append_row(username, ip, index=total_entries, database=(db_label, ini_path))
+                self._append_row(username, ip, index=total_entries, database=(ini_path.stem, ini_path))
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
         self._proxy.setFilterFixedString(self._search_input.text())
@@ -940,7 +838,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         header_lines, _ = read_preserved_sections(self._current_path)
 
         # --- Build settings from widgets ---
-        settings_values = self._read_settings_from_widgets()
+        settings_values = self.read_settings_from_widgets()
 
         # --- Validate COLOR ---
         color_value = settings_values.get('COLOR', '')
@@ -1000,7 +898,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             else:
                 seen[key] = row
 
-        self._model.blockSignals(True)
+        self._model.blockSignals(True)  # noqa: FBT003
         try:
             for row in range(self._model.rowCount()):
                 for col in range(DATABASE_COLUMN):
@@ -1012,7 +910,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
                     else:
                         item.setData(None, Qt.ItemDataRole.BackgroundRole)
         finally:
-            self._model.blockSignals(False)
+            self._model.blockSignals(False)  # noqa: FBT003
 
         return len(duplicate_rows)
 

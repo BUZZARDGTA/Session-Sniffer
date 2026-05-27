@@ -2,9 +2,9 @@
 import os
 import shutil
 import subprocess
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFont, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
@@ -13,6 +13,9 @@ from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessa
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 MAX_CSV_ROWS = 50_000
 AUTO_REFRESH_INTERVAL_MS = 2000
@@ -108,7 +111,7 @@ class LogLevelHighlighter(QSyntaxHighlighter):
         fmt_critical.setBackground(QColor(80, 20, 20))
         self._formats.append(('CRITICAL', fmt_critical))
 
-    def highlightBlock(self, text: str | None) -> None:
+    def highlightBlock(self, text: str | None) -> None:  # noqa: N802
         """Apply log-level coloring to a single text block."""
         if text is None:
             return
@@ -142,7 +145,7 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         self._date_cutoff = cutoff
         self.invalidateFilter()
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
         """Determine whether a source row passes the current text and date filters."""
         _ = source_parent
         source_model = self.sourceModel()

@@ -1,4 +1,4 @@
-"""Update release_versions.json with version info from a release tag."""
+"""Update release_versions.json with version info from a release tag."""  # noqa: INP001
 import argparse
 import json
 from pathlib import Path
@@ -17,6 +17,8 @@ def main() -> None:
     parser.add_argument('tag', action='store', help='The release tag (e.g., 1.3.7+20250405.1644)')
     parser.add_argument('--prerelease', action='store_true', help='Mark the release as a prerelease')
     parser.add_argument('--release-url', required=True, help='The URL of the GitHub release page (e.g., https://github.com/owner/repo/releases/tag/1.0.0)')
+    parser.add_argument('--download-url', required=True, help='The direct download URL for the release executable')
+    parser.add_argument('--sha256', required=True, help='The SHA-256 hash of the release executable (lowercase hex)')
 
     args = parser.parse_args()
 
@@ -35,6 +37,8 @@ def main() -> None:
         'base_version': version.base_version,
         'epoch': version.epoch,
         'release_url': args.release_url,
+        'download_url': args.download_url,
+        'sha256': args.sha256,
         'is_devrelease': version.is_devrelease,
         'is_postrelease': version.is_postrelease,
         'is_prerelease': version.is_prerelease,

@@ -61,6 +61,9 @@ jobs:
     needs: [build]
     runs-on: ubuntu-24.04
     name: Upload Release Artifact
+    outputs:
+      sha256: ${{ steps.compute.outputs.sha256 }}
+      download_url: ${{ steps.compute.outputs.download_url }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6.0.2
@@ -79,6 +82,17 @@ jobs:
           echo "Uploading release artifact..."
           gh release upload "$RELEASE_TAG" \
             "artifacts/Session_Sniffer.exe"
+
+      - name: Compute SHA256 and Get Download URL
+        id: compute
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA256=$(sha256sum artifacts/Session_Sniffer.exe | cut -d ' ' -f 1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          DOWNLOAD_URL=$(gh api "repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
+          echo "download_url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
 
   update-version-info:
     needs: [upload-release-artifact]
@@ -118,6 +132,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
           IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.download_url }}
+          SHA256: ${{ needs.upload-release-artifact.outputs.sha256 }}
         run: |
           # Determine if the release is a pre-release and build the appropriate argument
           PRERELEASE_ARG=""
@@ -126,7 +142,7 @@ jobs:
           fi
 
           # Execute the Python version update script with the release tag and prerelease argument
-          python ".github/workflows/scripts/update_release_versions.py" "$RELEASE_TAG" $PRERELEASE_ARG --release-url "$RELEASE_URL"
+          python ".github/workflows/scripts/update_release_versions.py" "$RELEASE_TAG" $PRERELEASE_ARG --release-url "$RELEASE_URL" --download-url "$DOWNLOAD_URL" --sha256 "$SHA256"
 
       - name: Ensure Script Is Not Staged for Commit
         run: |

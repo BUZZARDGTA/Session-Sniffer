@@ -28,7 +28,7 @@ class SessionDurationWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Session Duration')
         self.resize(520, 420)
-        layout = self._setup_window_layout(always_on_top=always_on_top)
+        layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Duration', 'IP', 'Usernames'])
@@ -38,7 +38,7 @@ class SessionDurationWindow(ToggleAlwaysOnTopMixin):
         self._table.setColumnWidth(0, 90)
         self._table.setColumnWidth(1, 130)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 

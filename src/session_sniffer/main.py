@@ -1,15 +1,15 @@
 """Session Sniffer application entry point and main GUI/capture orchestration."""
 
 import atexit
-import ctypes
+import contextlib
 import logging
 import os
 import queue
 import sys
 import time
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from threading import Event, Thread
 
 import colorama
@@ -23,6 +23,7 @@ from session_sniffer.background import (
     handle_detection_notification,
     hostname_core,
     iplookup_core,
+    is_gta5_relay_ip,
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
@@ -37,6 +38,7 @@ from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis.app import app
@@ -63,7 +65,7 @@ from session_sniffer.rendering_core.renderer import rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import is_pyinstaller_compiled
+from session_sniffer.utils import find_running_gta5_path, is_pyinstaller_compiled
 from session_sniffer.webserver import start_webserver_from_settings
 
 # Production-friendly logging: file handlers only (no console output)
@@ -73,20 +75,17 @@ logger = get_logger(__name__)
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
 
-def _hide_console_window() -> None:
-    """Hide the console window on Windows (best-effort)."""
-    if sys.platform == 'win32':
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-
-
 _PACKET_DROUGHT_THRESHOLD_SECS = 8.0
 
 
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
-    _hide_console_window()
+    if is_pyinstaller_compiled():
+        old_exe = Path(sys.executable).with_suffix('.old')
+        with contextlib.suppress(OSError):
+            old_exe.unlink()
+
+    hide_console_window()
 
     colorama.init(autoreset=True)
     os.chdir(SCRIPT_DIR)
@@ -131,8 +130,7 @@ def main() -> None:
     splash.update_status('Applying custom settings from Settings.ini')
     splash.run_with_spinner(Settings.load_from_settings_file, SETTINGS_PATH)
     Settings.rebuild_blocked_ip_ranges()
-    CaptureStats.packets_latencies = deque(maxlen=Settings.gui_rate_graph_max_history)
-    CaptureStats.capture_health_samples = deque(maxlen=Settings.gui_rate_graph_max_history)
+    CaptureStats.resize_history_deques(Settings.gui_rate_graph_max_history)
 
     splash.run_with_spinner(GUIProtectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
@@ -288,21 +286,17 @@ def main() -> None:
 
         if not matched_player.protection_checked:
             matched_player.protection_checked = True
-            Thread(
-                target=check_global_protections,
-                name=f'CheckProtections-{matched_player.ip}',
-                args=(matched_player,),
-                daemon=True,
-            ).start()
+            _player_task_pool.submit(check_global_protections, matched_player)
 
         if not matched_player.relay_monitor_started:
             matched_player.relay_monitor_started = True
-            Thread(
-                target=monitor_gta5_relay_task,
-                name=f'GTA5RelayMonitor-{matched_player.ip}',
-                args=(matched_player,),
-                daemon=True,
-            ).start()
+            if Settings.capture_game_preset == 'GTA5' and CaptureState.gta5_is_running and is_gta5_relay_ip(matched_player.ip):
+                Thread(
+                    target=monitor_gta5_relay_task,
+                    name=f'GTA5RelayMonitor-{matched_player.ip}',
+                    args=(matched_player,),
+                    daemon=True,
+                ).start()
 
         if UserIPDatabases.is_known_ip(matched_player.ip) and (
             not matched_player.userip_detection
@@ -338,6 +332,8 @@ def main() -> None:
     splash.run_with_spinner(capture.start)
     CaptureStats.capture_started_at = time.monotonic()
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
+    CaptureState.interface_name = selected_interface.name
+    CaptureState.interface_ip = selected_interface.ip_address
 
     _arp_failed_event = Event()
     arp_stop_event = Event()
@@ -401,7 +397,7 @@ def main() -> None:
             new_broadcast, new_multicast = _future.result()
         new_vpn_mode = not (new_broadcast and new_multicast)
 
-        CaptureState.is_neighbour_interface = new_interface.is_neighbour
+        CaptureState.apply_interface_names(is_neighbour=new_interface.is_neighbour, name=new_interface.name, ip=new_interface.ip_address)
         Settings.capture_interface_name = new_interface.name
         Settings.capture_mac_address = new_interface.mac_address
         Settings.capture_ip_address = new_interface.ip_address
@@ -414,14 +410,7 @@ def main() -> None:
         )
 
         CaptureState.vpn_mode_enabled = new_vpn_mode
-        CaptureStats.restarted_times = 0
-        CaptureStats.packets_latencies.clear()
-        CaptureStats.capture_health_samples.clear()
-        CaptureStats.global_bandwidth = 0
-        CaptureStats.global_download = 0
-        CaptureStats.global_upload = 0
-        CaptureStats.global_bps_rate = 0
-        CaptureStats.global_pps_rate = 0
+        CaptureStats.reset_on_interface_switch()
 
         window.reset_players_for_interface_switch()
         window.reset_session_graph()
@@ -566,9 +555,8 @@ def main() -> None:
                 drought_active = False
                 continue
 
-            current_count = CaptureStats.total_packets_captured
-            if current_count != last_packet_count:
-                last_packet_count = current_count
+            if CaptureStats.total_packets_captured != last_packet_count:
+                last_packet_count = CaptureStats.total_packets_captured
                 last_count_change = time.monotonic()
                 drought_active = False
                 continue
@@ -576,15 +564,10 @@ def main() -> None:
             if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECS:
                 continue  # Drought not long enough yet
 
-            # Packet drought confirmed — log once per drought event, then check whether the interface IP changed.
+            # Packet drought confirmed — check whether the interface IP changed.
             current_interface = capture_holder.config.interface
             if not drought_active:
                 drought_active = True
-                logger.debug(
-                    'Packet drought on %s (capture IP: %s) — checking adapter IP.',
-                    current_interface.name,
-                    current_interface.ip_address,
-                )
             if current_interface.is_neighbour:
                 last_count_change = time.monotonic()  # reset so we don't spin
                 drought_active = False
@@ -627,9 +610,35 @@ def main() -> None:
         daemon=True,
     ).start()
 
+    def _gta5_process_monitor() -> None:
+        """Background thread: poll for GTA5 process presence and update `CaptureState.gta5_is_running`."""
+        while not gui_closed__event.is_set():
+            is_running = Settings.capture_game_preset == 'GTA5' and find_running_gta5_path() is not None
+            CaptureState.update_gta5_status(is_running=is_running)
+            gui_closed__event.wait(5.0)
+
+    Thread(
+        target=_gta5_process_monitor,
+        name='GTA5ProcessMonitor',
+        daemon=True,
+    ).start()
+
     splash.finish_loading()
-    QTimer.singleShot(1500, splash.close_splash)
-    QTimer.singleShot(1500, window.show)
+
+    def _reveal_main_window() -> None:
+        # Remove always-on-top from the splash so the main window can rise above it.
+        # With auto-connect the dialog is skipped, so lower_to_back() is never called
+        # via before_dialog; calling it here is idempotent for the manual-connect path.
+        splash.lower_to_back()
+        # Show and activate the main window while the splash still owns the foreground.
+        # Closing the splash first surrenders foreground ownership to whatever Windows
+        # picks next, causing activateWindow() to be silently ignored on the new window.
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        QTimer.singleShot(100, splash.close_splash)
+
+    QTimer.singleShot(1500, _reveal_main_window)
 
     def _check_startup_relay_conflict() -> None:
         """Warn at startup when relay protection is enabled but relay IPs are being filtered out."""

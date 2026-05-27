@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from session_sniffer.constants.external import LOCAL_TZ
@@ -119,9 +119,15 @@ class LeaderboardEntry:
     sessions_month: int = 0
     sessions_year: int = 0
     sessions_total: int = 0
+    days_today: int = 0
+    days_week: int = 0
+    days_month: int = 0
+    days_year: int = 0
+    days_total: int = 0
     first_seen: datetime | None = None
     last_seen: datetime | None = None
     country: str = ''
+    country_code: str = ''
     isp: str = ''
     mobile: bool | None = None
     vpn: bool | None = None
@@ -159,6 +165,10 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any])
     if isinstance(raw_country, str) and raw_country != 'N/A':
         entry.country = raw_country
 
+    raw_country_code = player_info.get('Country Code')
+    if isinstance(raw_country_code, str) and raw_country_code != 'N/A':
+        entry.country_code = raw_country_code
+
     raw_isp = player_info.get('ISP')
     if isinstance(raw_isp, str) and raw_isp != 'N/A':
         entry.isp = raw_isp
@@ -176,9 +186,10 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any])
         entry.hosting = raw_hosting
 
 
-def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
+def build_leaderboard(folder_path: Path, *, limit: int = 1000) -> list[LeaderboardEntry]:
     """Scan all JSON session logs and build a leaderboard of all players sorted by total sessions."""
     entries: dict[str, LeaderboardEntry] = {}
+    seen_dates: dict[str, set[date]] = {}
     now = datetime.now(tz=LOCAL_TZ)
 
     for json_file in folder_path.rglob('*.json'):
@@ -200,7 +211,11 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
 
             if ip not in entries:
                 entries[ip] = LeaderboardEntry(ip=ip)
+                seen_dates[ip] = set()
             entry = entries[ip]
+
+            # Track unique calendar date for days-mode counting
+            seen_dates[ip].add(first_seen.date())
 
             # Update session counts
             entry.sessions_total += 1
@@ -223,4 +238,20 @@ def build_leaderboard(folder_path: Path) -> list[LeaderboardEntry]:
             entry.last_seen = first_seen
             _update_entry_metadata(entry, player_info)
 
-    return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)[:1000]
+    # Derive unique-days counts from the collected date sets
+    today = now.date()
+    current_week = now.isocalendar()[:2]
+    for ip, dates in seen_dates.items():
+        entry = entries[ip]
+        for d in dates:
+            entry.days_total += 1
+            if d == today:
+                entry.days_today += 1
+            if d.isocalendar()[:2] == current_week:
+                entry.days_week += 1
+            if d.year == now.year and d.month == now.month:
+                entry.days_month += 1
+            if d.year == now.year:
+                entry.days_year += 1
+
+    return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)[:limit]

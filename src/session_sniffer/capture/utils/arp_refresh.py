@@ -5,16 +5,14 @@ ARP Table" action that wakes up devices on the local subnet(s) so that
 recently plugged-in or idle devices show up as ARP neighbors.
 """
 
-import ctypes
-import ctypes.wintypes
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address, IPv4Network
-from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING
 
+from session_sniffer.capture.utils.ctypes_win32 import get_system32_dir
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.utils import is_valid_private_ipv4
 
@@ -28,14 +26,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_system32_dir() -> Path:
-    """Return the System32 path via the Win32 API, bypassing environment variables."""
-    buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
-    ctypes.windll.kernel32.GetSystemDirectoryW(buf, ctypes.wintypes.MAX_PATH)
-    return Path(buf.value)
-
-
-_SYSTEM32_DIR = _get_system32_dir()
+_SYSTEM32_DIR = get_system32_dir()
 _PING_PATH = str(_SYSTEM32_DIR / 'PING.EXE')
 
 _PING_TIMEOUT_MS = 50

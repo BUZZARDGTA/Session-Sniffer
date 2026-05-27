@@ -31,7 +31,6 @@ class SessionRateGraphWindow(DualRateGraphBase):
 
     def reset(self) -> None:
         """Clear all history buffers and reset both graphs to zero."""
-        # pylint: disable=attribute-defined-outside-init
         self._pps_buf[:] = 0.0
         self._bps_buf[:] = 0.0
         self._buf_len = VISIBLE_WINDOW
@@ -50,3 +49,4 @@ class SessionRateGraphWindow(DualRateGraphBase):
         self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
         self._bps_widget.setYRange(0, 1)
         self._bps_avg_line.setPos(0)
+        self._dual_graph_idle = False

@@ -10,7 +10,6 @@ class PacketsLatencyGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Packets Latency Graph'
     LEFT_LABEL = 'Latency (ms/s)'
-    ERROR_NAME = 'latency'
     AXIS_PEN = '#ff9800'
     CURVE_PEN = '#ff9800'
     CURVE_BRUSH = (255, 152, 0, 60)
@@ -21,4 +20,4 @@ class PacketsLatencyGraphWindow(SingleRateGraphBase):
 
     def update_latency(self, latency_ms: float) -> None:
         """Append a new latency sample and refresh the graph."""
-        self._update_graph(latency_ms)
+        self.update_graph(latency_ms)

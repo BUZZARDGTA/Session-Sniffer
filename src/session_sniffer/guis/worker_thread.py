@@ -3,7 +3,22 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from session_sniffer.background.tasks import gui_closed__event
-from session_sniffer.rendering_core.types import CellColor, GUIRenderingState, GUIUpdatePayload, PaginationState
+from session_sniffer.rendering_core.types import CellColor, GUIRenderingSnapshot, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState
+
+
+def _search_filter(
+    rows: list[tuple[list[str], list[CellColor]]],
+    text: str,
+    column: int,
+) -> list[tuple[list[str], list[CellColor]]]:
+    """Return only rows whose target cell(s) contain `text` (case-insensitive).
+
+    When `column` is -1, all cells are checked. Otherwise only the cell at `column` is checked.
+    """
+    lowered = text.lower()
+    if column < 0:
+        return [(row, colors) for row, colors in rows if any(lowered in cell.lower() for cell in row)]
+    return [(row, colors) for row, colors in rows if column < len(row) and lowered in row[column].lower()]
 
 
 def _paginate(
@@ -33,30 +48,46 @@ class GUIWorkerThread(QThread):
 
     def run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
-        last_snapshot_version = 0
+        last_seen_version = 0
+        last_snapshot: GUIRenderingSnapshot | None = None
+        last_search_version: int = -1
 
         while not gui_closed__event.is_set():
-            snapshot, last_snapshot_version = GUIRenderingState.wait_rendering_snapshot(
+            snapshot, last_seen_version = GUIRenderingState.wait_rendering_snapshot(
                 timeout=0.1,
-                last_seen_version=last_snapshot_version,
+                last_seen_version=last_seen_version,
             )
 
-            if snapshot is None:
+            c_text, c_col, d_text, d_col, search_version = SearchState.get()
+
+            if snapshot is not None:
+                last_snapshot = snapshot
+            elif search_version == last_search_version or last_snapshot is None:
                 continue
 
-            status = snapshot.status
-            connected_num = snapshot.connected.num_rows
-            disconnected_num = snapshot.disconnected.num_rows
+            last_search_version = search_version
+
+            status = last_snapshot.status
+            connected_num = last_snapshot.connected.num_rows
+            disconnected_num = last_snapshot.disconnected.num_rows
 
             # Preprocess rows with colors
             connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
                 (list(row), list(colors))
-                for row, colors in zip(snapshot.connected.rows, snapshot.connected.colors, strict=True)
+                for row, colors in zip(last_snapshot.connected.rows, last_snapshot.connected.colors, strict=True)
             ]
             disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
                 (list(row), list(colors))
-                for row, colors in zip(snapshot.disconnected.rows, snapshot.disconnected.colors, strict=True)
+                for row, colors in zip(last_snapshot.disconnected.rows, last_snapshot.disconnected.colors, strict=True)
             ]
+
+            # Apply search filter (before pagination so counts and pages stay accurate)
+            if c_text:
+                connected_rows_with_colors = _search_filter(connected_rows_with_colors, c_text, c_col)
+                connected_num = len(connected_rows_with_colors)
+            if d_text:
+                disconnected_rows_with_colors = _search_filter(disconnected_rows_with_colors, d_text, d_col)
+                disconnected_num = len(disconnected_rows_with_colors)
 
             # Apply pagination
             c_rpp, c_page, d_rpp, d_page = PaginationState.get()
@@ -69,8 +100,8 @@ class GUIWorkerThread(QThread):
             )
 
             self.update_signal.emit(GUIUpdatePayload(
-                snapshot_version=last_snapshot_version,
-                column_config=snapshot.column_config,
+                snapshot_version=last_seen_version,
+                column_config=last_snapshot.column_config,
                 header_text=status.header_text,
                 status_capture_text=status.status_capture_text,
                 status_config_text=status.status_config_text,

@@ -10,7 +10,7 @@ from session_sniffer.constants.standalone import BANDWIDTH_BASE_COLUMN_ATTRS, TI
 from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.models.settings_ini_model import SettingsIniModel
+from session_sniffer.models.settings_ini_model import SettingsIniModel, SettingsValidationConfig
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_templates import build_settings_ini_header_text
@@ -35,7 +35,7 @@ class Settings:
     capture_arp_spoofing: bool = SETTING_DEFAULTS['capture_arp_spoofing']
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
-    capture_program_preset: str | None = SETTING_DEFAULTS['capture_program_preset']
+    capture_game_preset: str | None = SETTING_DEFAULTS['capture_game_preset']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
@@ -90,7 +90,7 @@ class Settings:
         'CAPTURE_ARP_SPOOFING',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_BLOCKED_IPS',
-        'CAPTURE_PROGRAM_PRESET',
+        'CAPTURE_GAME_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
@@ -462,15 +462,17 @@ class Settings:
 
             validated, _ini_rewrites, flags = SettingsIniModel.validate_and_get_rewrites(
                 raw_settings,
-                defaults=upper_defaults,
-                all_setting_names=cls.ALL_SETTINGS,
-                toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
-                toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
-                webhook_all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
-                webhook_all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
-                all_third_party_servers=cls.ALL_THIRD_PARTY_SERVERS,
-                max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
-                min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
+                SettingsValidationConfig(
+                    defaults=upper_defaults,
+                    all_setting_names=cls.ALL_SETTINGS,
+                    toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
+                    toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
+                    webhook_all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
+                    webhook_all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
+                    all_third_party_servers=cls.ALL_THIRD_PARTY_SERVERS,
+                    max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
+                    min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
+                ),
             )
 
             # Apply all validated fields to Settings class attrs (UPPER model field → lower class attr)

@@ -18,7 +18,7 @@ from session_sniffer.constants.local import (
     WARNINGS_LOG_PATH,
 )
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab
+from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab, CsvLogTabConfig
 from session_sniffer.guis.logs_manager._helpers import backup_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
@@ -26,7 +26,7 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.utils import set_dialog_window_flags
 
 
-class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
+class LogsManager(QDialog):
     """Modal dialog for viewing, searching, filtering, and managing application log files."""
 
     def __init__(self, parent: QWidget | None) -> None:
@@ -43,28 +43,34 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         tabs = QTabWidget()
 
         self._userip_tab = CsvLogTab(
-            file_path=USERIP_LOGGING_PATH,
-            expected_headers=('Database', 'Username', 'IP', 'Date', 'Time', 'Country'),
-            default_sort_columns=('Date', 'Time'),
-            stretch_column=1,
-            column_min_widths={5: 160},
+            CsvLogTabConfig(
+                file_path=USERIP_LOGGING_PATH,
+                expected_headers=('Database', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                default_sort_columns=('Date', 'Time'),
+                stretch_column=1,
+                column_min_widths={5: 160},
+            ),
         )
         tabs.addTab(self._userip_tab, '📄 UserIP Logging')
 
         self._detection_tab = CsvLogTab(
-            file_path=DETECTION_LOGGING_PATH,
-            expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
-            default_sort_columns=('Date', 'Time'),
-            stretch_column=1,
-            column_min_widths={0: 220, 5: 160},
+            CsvLogTabConfig(
+                file_path=DETECTION_LOGGING_PATH,
+                expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                default_sort_columns=('Date', 'Time'),
+                stretch_column=1,
+                column_min_widths={0: 220, 5: 160},
+            ),
         )
         tabs.addTab(self._detection_tab, '🔍 Detection Logging')
         self._protection_tab = CsvLogTab(
-            file_path=PROTECTION_LOGGING_PATH,
-            expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
-            default_sort_columns=('Date', 'Time'),
-            stretch_column=1,
-            column_min_widths={0: 220, 5: 160},
+            CsvLogTabConfig(
+                file_path=PROTECTION_LOGGING_PATH,
+                expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                default_sort_columns=('Date', 'Time'),
+                stretch_column=1,
+                column_min_widths={0: 220, 5: 160},
+            ),
         )
         tabs.addTab(self._protection_tab, '\U0001f6e1\ufe0f Protection Logging')
         self._warnings_tab = TextLogTab(file_path=WARNINGS_LOG_PATH)
@@ -83,7 +89,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
         purge_all_button = QPushButton('🗑️ Purge All Logs')
         purge_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         purge_all_button.setToolTip('Clear ALL log files at once (creates backups first)')
-        purge_all_button.clicked.connect(self._purge_all_logs)
+        purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
 
         close_button = QPushButton('\u2716 Close')
@@ -98,7 +104,7 @@ class LogsManager(QDialog):  # pylint: disable=too-few-public-methods
     # Purge all
     # ------------------------------------------------------------------
 
-    def _purge_all_logs(self) -> None:
+    def purge_all_logs(self) -> None:
         """Purge all CSV log files, warnings.log, and errors.log after strong confirmation."""
         reply = QMessageBox.warning(
             self, TITLE,

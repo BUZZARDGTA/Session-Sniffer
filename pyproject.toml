@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.5.0rc4+20260524.2120"
+version = "v1.5.0rc7+20260527.1626"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",
@@ -205,23 +205,6 @@ runtime-evaluated-base-classes = [
     "pydantic.BaseModel",
     "typing.NamedTuple",
 ]
-
-[tool.ruff.lint.per-file-ignores]
-".github/workflows/scripts/update_release_versions.py" = ["INP001"]
-"scripts/spoofed_ping.py" = ["INP001"]
-"src/session_sniffer/guis/discord_intro.py" = ["N802"]
-"src/session_sniffer/guis/interface_selection_dialog.py" = ["FBT003", "N802"]
-"src/session_sniffer/guis/logs_manager/*.py" = ["FBT001", "FBT003", "N802", "TC003"]
-"src/session_sniffer/guis/main_window.py" = ["FBT003", "N802"]
-"src/session_sniffer/guis/logs_manager/_csv_tab.py" = ["PLR0913"]
-"src/session_sniffer/guis/tables_player_actions.py" = ["PLR0913"]
-"src/session_sniffer/guis/settings_dialog.py" = ["PLR0911"]
-"src/session_sniffer/guis/table_model.py" = ["N802"]
-"src/session_sniffer/guis/tables.py" = ["A002", "N802", "SIM102"]
-"src/session_sniffer/guis/userip_manager.py" = ["FBT001", "FBT003", "N802"]
-"src/session_sniffer/logging_setup.py" = ["PLR0913", "PLW0603"]
-"src/session_sniffer/models/settings_ini_model.py" = ["PLR0913"]
-"src/session_sniffer/networking/ctypes_adapters_info.py" = ["N801"]
 
 
 [tool.ty.environment]

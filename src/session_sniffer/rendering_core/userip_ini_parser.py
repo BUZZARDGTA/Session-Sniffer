@@ -22,7 +22,7 @@ RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>
 
 USERIP_INI_SETTINGS = [
     'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
-    'PROTECTION_PROCESS_PATH', 'PROTECTION_SUSPEND_PROCESS_MODE',
+    'PROTECTION_SUSPEND_PROCESS_MODE',
 ]
 
 _USERIP_SETTING_DEFAULTS: dict[str, str] = {
@@ -32,7 +32,6 @@ _USERIP_SETTING_DEFAULTS: dict[str, str] = {
     'VOICE_NOTIFICATIONS': 'False',
     'LOG': 'False',
     'PROTECTION': 'False',
-    'PROTECTION_PROCESS_PATH': 'None',
     'PROTECTION_SUSPEND_PROCESS_MODE': 'Auto',
 }
 
@@ -256,7 +255,6 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
         voice_notifications=validated.VOICE_NOTIFICATIONS,
         protection=ProtectionSettings(
             enabled=bool(validated.PROTECTION),
-            process_path=validated.PROTECTION_PROCESS_PATH,
             suspend_process_mode=validated.PROTECTION_SUSPEND_PROCESS_MODE,
         ),
     ), userip

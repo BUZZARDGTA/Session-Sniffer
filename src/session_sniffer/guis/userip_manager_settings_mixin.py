@@ -1,4 +1,4 @@
-﻿"""Database settings panel mixin for the UserIP Databases Manager dialog."""
+"""Database settings panel mixin for the UserIP Databases Manager dialog."""
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -6,13 +6,10 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QFileDialog,
-    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -22,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
+    SUSPEND_TOOLTIP_DISABLED,
     SUSPEND_TOOLTIP_MANUAL,
 )
 from session_sniffer.rendering_core.types import CaptureState
@@ -91,6 +89,7 @@ _SVG_COLOR_GROUPS: dict[str, list[str]] = {
 _SWATCH_COLS = 8
 _SWATCH_W = 110
 _SWATCH_H = 30
+_LUMINANCE_DARK_THRESHOLD = 128
 
 
 class _SVGColorPickerDialog(QDialog):
@@ -135,7 +134,7 @@ class _SVGColorPickerDialog(QDialog):
                 row, col = divmod(idx, _SWATCH_COLS)
                 color = QColor(name)
                 lum = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
-                text_color = '#111111' if lum > 128 else '#eeeeee'  # noqa: PLR2004
+                text_color = '#111111' if lum > _LUMINANCE_DARK_THRESHOLD else '#eeeeee'
                 is_current = color.name().lower() == initial_hex
                 border_color = '#ffffff' if is_current else '#555555'
                 border_width = 3 if is_current else 1
@@ -147,7 +146,10 @@ class _SVGColorPickerDialog(QDialog):
                     f' border: {border_width}px solid {border_color}; border-radius: 2px;'
                     ' font-size: 8pt; font-weight: bold; text-align: center;',
                 )
-                btn.clicked.connect(lambda _, n=name: self._pick(QColor(n), n))  # pyright: ignore[reportUnknownLambdaType]
+
+                def _on_clicked(*_: object, n: str = name) -> None:
+                    self._pick(QColor(n), n)
+                btn.clicked.connect(_on_clicked)
                 grid.addWidget(btn, row, col)
 
             content_layout.addWidget(group_widget)
@@ -198,10 +200,9 @@ class _SVGColorPickerDialog(QDialog):
 
 _SETTINGS_CONTAINER_STYLESHEET = """
 #SettingsContainer {
-    border: 2px solid #4A90E2;
+    border: 2px solid #455364;
     border-radius: 8px;
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 rgba(74, 144, 226, 0.08), stop:1 rgba(74, 144, 226, 0.02));
+    background: transparent;
 }
 """
 
@@ -248,23 +249,6 @@ QLineEdit:focus {
     border-color: #4A90E2;
     background: #333;
 }
-QComboBox::drop-down {
-    border: none;
-    width: 20px;
-}
-QComboBox::down-arrow {
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 6px solid #888;
-    margin-right: 6px;
-}
-QComboBox QAbstractItemView {
-    background: #2d2d2d;
-    color: #d4d4d4;
-    border: 1px solid #4A90E2;
-    selection-background-color: #4A90E2;
-    selection-color: white;
-}
 QPushButton {
     background: #3a3a3a;
     color: #d4d4d4;
@@ -283,7 +267,7 @@ QPushButton:hover {
 """
 
 
-class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class SettingsPanelMixin(_MixinBase):
     """Mixin that builds and manages the database settings panel.
 
     Expects these attributes on the concrete class:
@@ -304,9 +288,6 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
     _setting_log: QCheckBox
     _setting_notifications: QCheckBox
     _setting_voice: QComboBox
-    _setting_protection: QCheckBox
-    _protection_details: QWidget
-    _setting_proc_path: QLineEdit
     _setting_suspend_mode: QComboBox
     _setting_suspend_custom: QSpinBox
     _settings_snapshot: dict[str, str]
@@ -316,13 +297,13 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
     @staticmethod
     def _is_protection_supported() -> bool:
         """Return whether UserIP protection actions are currently supported."""
-        return Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface
+        return Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface
 
     def _refresh_protection_visibility(self) -> None:
         """Refresh protection section visibility for current runtime capture mode."""
         self._protection_section.setVisible(self._is_protection_supported())
 
-    def _build_settings_panel(self, parent_layout: QVBoxLayout) -> None:  # pylint: disable=too-many-statements
+    def build_settings_panel(self, parent_layout: QVBoxLayout) -> None:
         """Construct the collapsible database settings panel and add it to the layout."""
         self._settings_container = QFrame()
         self._settings_container.setObjectName('SettingsContainer')
@@ -334,6 +315,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         group_outer.setSpacing(0)
 
         self._settings_toggle = QPushButton('▼ ⚙ Database Settings')
+        self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(self._settings_toggle.cursor())
         self._settings_toggle.setStyleSheet(_SETTINGS_TOGGLE_STYLESHEET)
         self._settings_toggle.clicked.connect(self._on_settings_toggle_clicked)
@@ -415,42 +397,14 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         separator.setStyleSheet('background-color: rgba(74, 144, 226, 0.2); border: none;')
         protection_section_layout.addWidget(separator)
 
-        prot_row = QHBoxLayout()
-
-        self._setting_protection = QCheckBox('Protection')
-        self._setting_protection.setToolTip('Suspend the target process when an IP from this database connects')
-        self._setting_protection.toggled.connect(self._on_protection_changed)
-        prot_row.addWidget(self._setting_protection)
-
-        prot_row.addStretch()
-        protection_section_layout.addLayout(prot_row)
-
-        # ── Protection Details (enabled/disabled by Protection combo) ──
-        self._protection_details = QWidget()
-        prot_form = QFormLayout(self._protection_details)
-        prot_form.setContentsMargins(0, 2, 0, 0)
-        prot_form.setHorizontalSpacing(12)
-        prot_form.setVerticalSpacing(6)
-
-        proc_row = QHBoxLayout()
-        self._setting_proc_path = QLineEdit()
-        self._setting_proc_path.setPlaceholderText('None')
-        self._setting_proc_path.setToolTip('Path to the process to protect')
-        self._setting_proc_path.textChanged.connect(self._on_setting_changed)
-        proc_row.addWidget(self._setting_proc_path)
-        proc_browse = QPushButton('…')
-        proc_browse.setFixedWidth(30)
-        proc_browse.setToolTip('Browse for process executable')
-        proc_browse.clicked.connect(lambda: self._browse_path(self._setting_proc_path))
-        proc_row.addWidget(proc_browse)
-        prot_form.addRow('Process Path:', proc_row)
-
         suspend_row = QHBoxLayout()
+        suspend_row.addWidget(QLabel('Suspend Mode:'))
         self._setting_suspend_mode = QComboBox()
-        self._setting_suspend_mode.addItems(['Auto', 'Manual'])
-        self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.currentIndexChanged.connect(self._on_suspend_mode_changed)
+        self._setting_suspend_mode.addItems(['Disabled', 'Auto', 'Manual'])
+        self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
+        self._setting_suspend_mode.currentTextChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()
         self._setting_suspend_custom.setSingleStep(1)
@@ -460,9 +414,8 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         self._setting_suspend_custom.setVisible(False)
         self._setting_suspend_custom.valueChanged.connect(self._on_setting_changed)
         suspend_row.addWidget(self._setting_suspend_custom)
-        prot_form.addRow('Suspend Mode:', suspend_row)
-
-        protection_section_layout.addWidget(self._protection_details)
+        suspend_row.addStretch()
+        protection_section_layout.addLayout(suspend_row)
 
         body_layout.addWidget(self._protection_section)
         content.addWidget(self._settings_body)
@@ -476,7 +429,7 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
     # Populate / read
     # ------------------------------------------------------------------
 
-    def _populate_settings_widgets(self, settings_dict: dict[str, str]) -> None:
+    def populate_settings_widgets(self, settings_dict: dict[str, str]) -> None:
         """Populate settings widgets from a parsed settings dictionary, suppressing dirty signals."""
         self._settings_loading = True
 
@@ -493,17 +446,15 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         self._setting_voice.setCurrentIndex(voice_map.get(voice_val.lower(), 0))
 
         prot_val = settings_dict.get('PROTECTION', 'False').strip()
-        self._setting_protection.setChecked(prot_val.lower() not in ('false', '0', ''))
-
-        proc_path = settings_dict.get('PROTECTION_PROCESS_PATH', 'None').strip()
-        self._setting_proc_path.setText('' if proc_path.lower() == 'none' else proc_path)
-
         suspend_val = settings_dict.get('PROTECTION_SUSPEND_PROCESS_MODE', 'Auto').strip()
-        if suspend_val.lower() == 'auto':
-            self._setting_suspend_mode.setCurrentIndex(0)
+        if prot_val.lower() in ('false', '0', ''):
+            self._setting_suspend_mode.setCurrentIndex(0)  # Disabled
+            self._setting_suspend_custom.setVisible(False)
+        elif suspend_val.lower() == 'auto':
+            self._setting_suspend_mode.setCurrentIndex(1)  # Auto
             self._setting_suspend_custom.setVisible(False)
         else:
-            self._setting_suspend_mode.setCurrentIndex(1)
+            self._setting_suspend_mode.setCurrentIndex(2)  # Manual
             self._setting_suspend_custom.setVisible(True)
             try:
                 if suspend_val.startswith('Manual(') and suspend_val.endswith(')'):
@@ -513,14 +464,13 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
             except ValueError:
                 self._setting_suspend_custom.setValue(0)
 
-        self._update_protection_fields_enabled()
         self._update_enabled_body_visible()
 
         self._refresh_protection_visibility()
 
         self._settings_loading = False
 
-    def _read_settings_from_widgets(self) -> dict[str, str]:
+    def read_settings_from_widgets(self) -> dict[str, str]:
         """Read current widget values and return a settings dictionary for serialization."""
         settings: dict[str, str] = {}
 
@@ -535,13 +485,10 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         if not self._is_protection_supported():
             settings['PROTECTION'] = 'False'
         else:
-            settings['PROTECTION'] = 'Suspend_Process' if self._setting_protection.isChecked() else 'False'
-
-        proc_text = self._setting_proc_path.text().strip()
-        settings['PROTECTION_PROCESS_PATH'] = proc_text or 'None'
+            settings['PROTECTION'] = 'Suspend_Process' if self._setting_suspend_mode.currentIndex() else 'False'
 
         suspend_idx = self._setting_suspend_mode.currentIndex()
-        if not suspend_idx:
+        if suspend_idx <= 1:  # Disabled or Auto
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Auto'
         else:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = f'Manual({self._setting_suspend_custom.value()})'
@@ -580,19 +527,10 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         else:
             self._setting_color.setStyleSheet('background-color: transparent; border: 1px solid #555; border-radius: 4px;')
 
-    def _on_protection_changed(self) -> None:
-        """Update protection field enabled state and mark dirty."""
-        self._update_protection_fields_enabled()
-        self._on_setting_changed()
-
-    def _on_suspend_mode_changed(self, index: int) -> None:
+    def _on_suspend_mode_changed(self, text: str) -> None:
         """Show/hide the custom duration spin box based on suspend mode selection."""
-        self._setting_suspend_custom.setVisible(index == 1)
+        self._setting_suspend_custom.setVisible(text == 'Manual')
         self._on_setting_changed()
-
-    def _update_protection_fields_enabled(self) -> None:
-        """Show/hide protection sub-fields based on the protection checkbox."""
-        self._protection_details.setVisible(self._setting_protection.isChecked())
 
     def _update_enabled_body_visible(self) -> None:
         """Show/hide all settings below Enabled based on the checkbox state."""
@@ -604,15 +542,3 @@ class SettingsPanelMixin(_MixinBase):  # pylint: disable=too-few-public-methods,
         self._settings_content.setVisible(visible)
         arrow = '▼' if visible else '▶'
         self._settings_toggle.setText(f'{arrow} ⚙ Database Settings')
-
-    @staticmethod
-    def _browse_path(line_edit: QLineEdit) -> None:
-        """Open a file dialog and set the selected path into the given QLineEdit."""
-        path, _ = QFileDialog.getOpenFileName(
-            None,
-            'Select Executable',
-            '',
-            'Executables (*.exe);;All Files (*)',
-        )
-        if path:
-            line_edit.setText(path)

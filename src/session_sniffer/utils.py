@@ -16,6 +16,7 @@ from win32com.client import Dispatch
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import CMD_EXE
+from session_sniffer.ctypes_wintrust import has_valid_authenticode_signature
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.utils_exceptions import (
     InvalidBooleanValueError,
@@ -230,6 +231,34 @@ def get_pid_by_path(filepath: Path, /) -> int | None:
 
         return process_pid
 
+    return None
+
+
+_GTA5_PROCESS_NAMES: frozenset[str] = frozenset({'gta5', 'gta5_enhanced'})
+
+
+def find_running_gta5_path() -> Path | None:
+    """Return the path to the running GTA5 executable, or `None` if not detected.
+
+    Scans all running processes for `GTA5.exe` or `GTA5_Enhanced.exe`
+    (legacy retail and enhanced PC versions respectively) using a
+    case-insensitive filename stem match, then verifies the binary carries
+    a valid Authenticode signature to reject any impostor executable that
+    merely reuses the GTA5 process name.
+
+    Returns:
+        Resolved `Path` to the first matching authentic executable, or `None` if neither is running.
+    """
+    for process in psutil.process_iter(['exe']):
+        process_exe: str | None = process.info.get('exe')
+        if not process_exe:
+            continue
+        process_path = Path(process_exe)
+        if process_path.stem.lower() not in _GTA5_PROCESS_NAMES:
+            continue
+        resolved = process_path.resolve()
+        if has_valid_authenticode_signature(resolved):
+            return resolved
     return None
 
 

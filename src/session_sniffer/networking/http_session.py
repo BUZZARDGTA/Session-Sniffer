@@ -9,6 +9,8 @@ HEADERS = {
 
 _RETRY_STRATEGY = Retry(
     total=3,
+    connect=0,
+    read=0,
     backoff_factor=0.5,
     status_forcelist=[500, 502, 503, 504],
     allowed_methods=['GET', 'POST'],

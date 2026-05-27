@@ -7,15 +7,14 @@ a `ValidationError` that the caller translates into a user notification.
 """
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 from PyQt6.QtGui import QColor
 
 from session_sniffer.text_utils import parse_duration_setting
-from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool, custom_str_to_nonetype
-from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool
+from session_sniffer.utils_exceptions import InvalidBooleanValueError, NoMatchFoundError
 
 
 @dataclass(slots=True)
@@ -38,7 +37,6 @@ class UserIPSettingsModel(BaseModel):
     NOTIFICATIONS: bool
     VOICE_NOTIFICATIONS: Literal['Male', 'Female', False]
     PROTECTION: Literal['Suspend_Process', False]
-    PROTECTION_PROCESS_PATH: Path | None
     PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto']
 
     @staticmethod
@@ -132,28 +130,6 @@ class UserIPSettingsModel(BaseModel):
             msg = f'expected protection value, got {type(value).__name__}'
             raise ValueError(msg)
         msg = f'expected protection value, got {type(value).__name__}'
-        raise ValueError(msg)
-
-    @field_validator('PROTECTION_PROCESS_PATH', mode='before')
-    @classmethod
-    def _parse_path(cls, value: object, info: ValidationInfo) -> Path | None:
-        if value is None:
-            return None
-        if isinstance(value, Path):
-            return value
-        if isinstance(value, str):
-            try:
-                none_value, need_rewrite = custom_str_to_nonetype(value)
-            except InvalidNoneTypeValueError:
-                stripped = value.strip("\"'")
-                if value != stripped:
-                    msg = f'path has extraneous quotes: {value!r}'
-                    raise ValueError(msg) from None
-                return Path(stripped)
-            if need_rewrite and isinstance(info.field_name, str):
-                cls._record_rewrite(info, info.field_name, 'None')
-            return none_value
-        msg = f'expected path string, got {type(value).__name__}'
         raise ValueError(msg)
 
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')

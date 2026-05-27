@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import PlayerRateGraphWindow
-from session_sniffer.guis.utils import setup_table_view_headers
+from session_sniffer.guis.utils import popup_menu_at_table, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -480,11 +480,7 @@ class HighRateMonitorWidget(QWidget):
         graph_action.triggered.connect(lambda: self.open_graph(data.ip))
         menu.addAction(graph_action)
 
-        viewport = self._table.viewport()
-        if viewport is None:
-            msg = 'Failed to get table viewport'
-            raise RuntimeError(msg)
-        menu.popup(viewport.mapToGlobal(pos))
+        popup_menu_at_table(menu, self._table, pos)
 
     def _blacklist_ip(self, ip: str) -> None:
         self._blacklisted_ips.add(ip)

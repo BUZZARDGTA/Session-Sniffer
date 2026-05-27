@@ -5,17 +5,16 @@ messages on a configurable interval so the channel doesn't get spammed. Message
 IDs are persisted in `Settings.discord_webhook_message_ids` (JSON-encoded) so
 edits survive application restarts.
 
-Wire format: stdlib `urllib.request` only (no extra dependencies). Each request
+Wire format: stdlib `http.client` only (no extra dependencies). Each request
 uses `?wait=true` so Discord returns the message JSON, allowing us to capture
 the message id on first POST.
 """
 
+import http.client
 import json
 import re
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from queue import Empty, SimpleQueue
 from threading import Event, Lock, Thread
@@ -182,14 +181,19 @@ def _build_message_content(
     return '\n'.join(parts)
 
 
-def _build_multi_embed_payload(  # noqa: PLR0913  # pylint: disable=too-many-arguments
+@dataclass(slots=True)
+class _EmbedStyle:
+    timestamp: datetime
+    color: int
+
+
+def _build_multi_embed_payload(
     *,
     title: str,
     table_text: str | None,
-    timestamp: datetime,
+    style: _EmbedStyle,
     max_rows: int,
     empty_label: str,
-    color: int,
 ) -> list[dict[str, object]]:
     """Build one or more Discord embed dicts for one table using markdown blocks.
 
@@ -203,8 +207,8 @@ def _build_multi_embed_payload(  # noqa: PLR0913  # pylint: disable=too-many-arg
         return {
             'title': embed_title,
             'description': description,
-            'color': color,
-            'timestamp': timestamp.isoformat(),
+            'color': style.color,
+            'timestamp': style.timestamp.isoformat(),
         }
 
     if not table_text:
@@ -288,20 +292,22 @@ def _http_request(
         'Content-Type': 'application/json',
         'User-Agent': f'SessionSniffer ({TITLE})',
     }
-    request = urllib.request.Request(url, data=body, method=method, headers=headers)  # noqa: S310
+    parsed = urllib.parse.urlsplit(url)
+    path = parsed.path or '/'
+    if parsed.query:
+        path += '?' + parsed.query
+    conn = http.client.HTTPSConnection(parsed.netloc, timeout=_REQUEST_TIMEOUT_SECONDS)
     try:
-        with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_SECONDS) as response:  # noqa: S310
-            return (
-                int(response.status),
-                {str(k).lower(): str(v) for k, v in response.headers.items()},
-                response.read(),
-            )
-    except urllib.error.HTTPError as http_err:
-        body_bytes = http_err.read() if hasattr(http_err, 'read') else b''
-        response_headers: dict[str, str] = (
-            {str(k).lower(): str(v) for k, v in http_err.headers.items()} if http_err.headers else {}
-        )
-        return int(http_err.code), response_headers, body_bytes
+        conn.request(method, path, body=body, headers=headers)
+        response = conn.getresponse()
+        response_body = response.read()
+    finally:
+        conn.close()
+    return (
+        response.status,
+        {str(k).lower(): str(v) for k, v in response.getheaders()},
+        response_body,
+    )
 
 
 def send_test_message(url: str) -> tuple[bool, str]:
@@ -317,10 +323,8 @@ def send_test_message(url: str) -> tuple[bool, str]:
     }).encode('utf-8')
     try:
         status, _headers, response_body = _http_request(url, method='POST', body=payload)
-    except (urllib.error.URLError, TimeoutError) as err:
+    except (http.client.HTTPException, OSError) as err:
         return False, f'Network error: {err}'
-    except OSError as err:
-        return False, f'I/O error: {err}'
 
     if status in (_HTTP_OK_CREATED, _HTTP_NO_CONTENT):
         return True, 'Test message posted successfully.'
@@ -362,7 +366,7 @@ def _describe_auto_disable_status(status: int) -> str:
 class DiscordWebhookSender:
     """Background sender that mirrors live tables to a Discord webhook channel."""
 
-    _instance: 'DiscordWebhookSender | None' = None  # noqa: UP037  # forward reference inside its own class
+    _instance: DiscordWebhookSender | None = None
     _instance_lock: Lock = Lock()
 
     def __init__(self) -> None:
@@ -380,11 +384,16 @@ class DiscordWebhookSender:
         self.connection_status = Event()
         self._thread.start()
 
+    @property
+    def is_closed(self) -> bool:
+        """Return `True` if this sender has been closed."""
+        return self._closed
+
     @classmethod
-    def instance(cls) -> 'DiscordWebhookSender':  # noqa: UP037  # forward reference inside its own class
+    def instance(cls) -> DiscordWebhookSender:
         """Return the lazily-created process-wide singleton."""
         with cls._instance_lock:
-            if cls._instance is None or cls._instance._closed:  # noqa: SLF001  # pylint: disable=protected-access
+            if cls._instance is None or cls._instance.is_closed:
                 cls._instance = cls()
             return cls._instance
 
@@ -451,7 +460,7 @@ class DiscordWebhookSender:
 
             try:
                 self._dispatch(url, payload)
-            except (urllib.error.URLError, TimeoutError, OSError) as err:
+            except (http.client.HTTPException, OSError) as err:
                 logger.warning('Discord webhook network error: %s', err)
                 self.connection_status.clear()
 
@@ -499,10 +508,9 @@ class DiscordWebhookSender:
                 embeds = _build_multi_embed_payload(
                     title=title,
                     table_text=table_text,
-                    timestamp=payload.generated_at,
+                    style=_EmbedStyle(timestamp=payload.generated_at, color=color),
                     max_rows=max_rows,
                     empty_label=empty_label,
-                    color=color,
                 )
                 # Always include 'content' (empty string) so that if the
                 # message previously had a Desktop text body it is cleared.
@@ -544,7 +552,7 @@ class DiscordWebhookSender:
         if ids_changed:
             _save_message_ids(message_ids)
 
-    def _post_or_patch(self, url: str, existing_id: str | None, body: bytes) -> str | None:  # pylint: disable=too-many-return-statements  # noqa: PLR0911
+    def _post_or_patch(self, url: str, existing_id: str | None, body: bytes) -> str | None:
         """Post a new message or patch *existing_id*. Return the message id on success."""
         if existing_id:
             patch_url = f'{url.rstrip("/")}/messages/{urllib.parse.quote(existing_id)}'
@@ -567,26 +575,31 @@ class DiscordWebhookSender:
         post_url = f'{url}{"&" if "?" in url else "?"}wait=true'
         status, _headers, response_body = self._send(post_url, method='POST', body=body)
         if status == _HTTP_OK_CREATED:
-            try:
-                parsed: object = json.loads(response_body.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                return None
-            if not isinstance(parsed, dict):
-                return None
-            parsed_dict = cast('dict[str, object]', parsed)
-            new_id = parsed_dict.get('id')
-            if isinstance(new_id, (str, int)):
+            new_id = self._parse_posted_id(response_body)
+            if new_id is not None:
                 self.connection_status.set()
-                return str(new_id)
-            return None
+            return new_id
         if status == _HTTP_TOO_MANY_REQUESTS:
             self._respect_retry_after(_headers, response_body)
             return existing_id
         if status in (_HTTP_UNAUTHORIZED, _HTTP_FORBIDDEN, _HTTP_NOT_FOUND):
             self._auto_disable(url, status, response_body)
-            return None
-        logger.warning('Discord webhook unexpected POST status %d: %s', status, response_body[:200])
+        else:
+            logger.warning('Discord webhook unexpected POST status %d: %s', status, response_body[:200])
         return None
+
+    @staticmethod
+    def _parse_posted_id(response_body: bytes) -> str | None:
+        """Extract the message id from a POST ?wait=true response body."""
+        try:
+            parsed: object = json.loads(response_body.decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        parsed_dict = cast('dict[str, object]', parsed)
+        new_id = parsed_dict.get('id')
+        return str(new_id) if isinstance(new_id, (str, int)) else None
 
     @staticmethod
     def _send(url: str, *, method: str, body: bytes) -> tuple[int, dict[str, str], bytes]:

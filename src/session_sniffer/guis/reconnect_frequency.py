@@ -16,7 +16,7 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Reconnect Frequency')
         self.resize(520, 420)
-        layout = self._setup_window_layout(always_on_top=always_on_top)
+        layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Rejoins', 'IP', 'Usernames'])
@@ -26,7 +26,7 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
         self._table.setColumnWidth(0, 100)
         self._table.setColumnWidth(1, 130)
 
-        self._add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -45,7 +45,7 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
         for rejoins, ip, usernames in entries:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            rejoins_item = NumericTableWidgetItem(str(rejoins))
+            rejoins_item = NumericTableWidgetItem(rejoins)
             rejoins_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             ip_item = QTableWidgetItem(ip)
             ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)

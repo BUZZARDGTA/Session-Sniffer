@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from PyQt6.QtWidgets import QWidget
 
 
-class PlayerResolverWindow(ToggleAlwaysOnTopMixin):  # pylint: disable=too-few-public-methods
+class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
     """Tabbed window hosting the High Rate Monitor and Player Identifier tools."""
 
     def __init__(self, highlight_ips_callback: Callable[[list[str]], None], parent: QWidget | None = None) -> None:
@@ -52,5 +52,11 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):  # pylint: disable=too-few-p
         always_on_top_checkbox = QCheckBox('Always on Top')
         always_on_top_checkbox.setToolTip('Keep this window above all other windows.')
         always_on_top_checkbox.setChecked(Settings.gui_rate_graph_always_on_top)
-        always_on_top_checkbox.toggled.connect(self._toggle_always_on_top)
+        always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(always_on_top_checkbox, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    def show_and_focus(self) -> None:
+        """Show the window, bring it to the front, and activate it."""
+        self.show()
+        self.raise_()
+        self.activateWindow()

@@ -1,14 +1,15 @@
 """Context menu mixin for SessionTableView right-click interactions."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QUrl
+from PyQt6.QtCore import QItemSelectionModel, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices
-from PyQt6.QtWidgets import QMenu
+from PyQt6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
@@ -42,16 +43,29 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from PyQt6.QtCore import QPoint
+    from PyQt6.QtCore import QModelIndex, QPoint
 
-    from session_sniffer.guis.tables import SessionTableView
+    from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
 
 
-class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
+class TableContextMenuMixin(QTableView):
     """Mixin that adds a context menu to SessionTableView."""
 
-    def _show_context_menu(self: SessionTableView, pos: QPoint) -> None:  # type: ignore[misc]
+    if TYPE_CHECKING:
+        is_connected_table: bool
+        open_rate_graph_callback: Callable[[str], None] | None
+        handle_menu_hovered: Callable[[QAction], None]
+        copy_selected_cells: Callable[[SessionTableModel, list[QModelIndex]], None]
+        remove_players_by_ip_from_table: Callable[[set[str]], None]
+        select_all_cells: Callable[[], None]
+        unselect_all_cells: Callable[[], None]
+        select_row_cells: Callable[[int], None]
+        unselect_row_cells: Callable[[int], None]
+        select_column_cells: Callable[[int], None]
+        unselect_column_cells: Callable[[int], None]
+
+    def show_context_menu(self, pos: QPoint) -> None:
         """Show the context menu at the specified position with options to interact with the table's content."""
         def add_action(
             menu: QMenu,
@@ -94,22 +108,21 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
 
             for database_path in database_paths:
                 rel = database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-                parts = rel.parts
 
-                if len(parts) == 1:
-                    action = add_action(parent_menu, parts[0], tooltip=tooltip, handler=handler_factory(database_path))
+                if len(rel.parts) == 1:
+                    action = add_action(parent_menu, rel.parts[0], tooltip=tooltip, handler=handler_factory(database_path))
                     if disabled_path is not None and database_path == disabled_path:
                         action.setEnabled(False)
                 else:
                     # Build / reuse nested submenus for each folder level
                     current_menu = parent_menu
-                    for depth in range(len(parts) - 1):
-                        folder_key = parts[: depth + 1]
+                    for depth in range(len(rel.parts) - 1):
+                        folder_key = rel.parts[: depth + 1]
                         if folder_key not in folder_menus:
-                            folder_menus[folder_key] = add_menu(current_menu, parts[depth])
+                            folder_menus[folder_key] = add_menu(current_menu, rel.parts[depth])
                         current_menu = folder_menus[folder_key]
 
-                    action = add_action(current_menu, parts[-1], tooltip=tooltip, handler=handler_factory(database_path))
+                    action = add_action(current_menu, rel.parts[-1], tooltip=tooltip, handler=handler_factory(database_path))
                     if disabled_path is not None and database_path == disabled_path:
                         action.setEnabled(False)
 
@@ -118,8 +131,8 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
         if not index.isValid():
             return  # Do nothing if the click is outside valid cells
 
-        selected_model = self.model()
-        selection_model = self.selectionModel()
+        selected_model = ensure_instance(self.model(), SessionTableModel)
+        selection_model = ensure_instance(self.selectionModel(), QItemSelectionModel)
         selected_indexes = selection_model.selectedIndexes()
 
         # Create the main context menu
@@ -271,7 +284,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                         entry = block_ip_as_range(self, ip_address)
                         if entry is None:
                             return
-                        _main_window = self.window()
+                        _main_window = cast('MainWindow', self.window())
                         for _player in PlayersRegistry.get_default_sorted_players():
                             if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
                                 if _player.left_event.is_set():
@@ -294,12 +307,12 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     )
 
                     if self.is_connected_table and self.open_rate_graph_callback is not None:
-                        _graph_cb = self.open_rate_graph_callback
+                        _rate_graph_cb = self.open_rate_graph_callback
                         add_action(
                             context_menu,
                             '📈 Rate Graph',
                             tooltip='Open a live PPS/BPS graph for this player.',
-                            handler=lambda: _graph_cb(ip_address),
+                            handler=lambda: _rate_graph_cb(ip_address),
                         )
 
                     add_action(
@@ -324,13 +337,13 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                     )
 
                     # --- Detections submenu (single IP) ---
-                    if Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
+                    if Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
                         detections_menu = add_menu(context_menu, '🚨 Detections')
                         build_detections_menu(detections_menu, add_action, player_obj, self)
 
                     # --- Clear Session Host (single IP, GTA5 only) ---
                     if (
-                        Settings.capture_program_preset == 'GTA5'
+                        Settings.capture_game_preset == 'GTA5'
                         and SessionHost.player is not None
                         and SessionHost.player.ip == ip_address
                     ):
@@ -365,15 +378,10 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                             handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path),
                         )
                     else:
-                        userip = player_obj.userip
-                        if userip is None:
-                            msg = 'Expected player_obj.userip to be set in else branch'
-                            raise TypeError(msg)
-
-                        _userip_db_path = userip.database_path
+                        userip = matched_player.userip
 
                         def _open_userip_database() -> None:
-                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(_userip_db_path)))
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(userip.database_path)))
 
                         add_action(
                             userip_menu,
@@ -442,7 +450,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                         block_ip_as_range(self, _ip)
                     if not Settings.blocked_ip_ranges:
                         return
-                    _main_window = self.window()
+                    _main_window = cast('MainWindow', self.window())
                     for _player in PlayersRegistry.get_default_sorted_players():
                         if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
                             if _player.left_event.is_set():
@@ -471,12 +479,12 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
 
                 # --- Rate Graph (multi-IP, connected table only) ---
                 if self.is_connected_table and self.open_rate_graph_callback is not None:
-                    _multi_graph_cb = self.open_rate_graph_callback
                     _multi_ips = list(all_ips)
+                    _rate_graph_cb = self.open_rate_graph_callback
 
                     def _open_multi_graphs() -> None:
                         for _ip in _multi_ips:
-                            _multi_graph_cb(_ip)
+                            _rate_graph_cb(_ip)
 
                     add_action(
                         context_menu,
@@ -524,7 +532,7 @@ class TableContextMenuMixin:  # pylint: disable=too-few-public-methods
                 )
 
                 # --- Detections submenu (multi-IP) ---
-                if matched_players and Settings.capture_program_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
+                if matched_players and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
                     detections_menu = add_menu(context_menu, '🚨 Detections')
                     build_detections_menu_multi(detections_menu, add_action, matched_players, self)
 
