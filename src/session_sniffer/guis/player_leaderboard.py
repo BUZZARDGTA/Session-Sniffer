@@ -3,11 +3,13 @@
 from typing import TYPE_CHECKING, ClassVar
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -31,6 +33,20 @@ _SCOPE_ALL_TIME = 'All Time'
 _SCOPES = (_SCOPE_TODAY, _SCOPE_THIS_WEEK, _SCOPE_THIS_MONTH, _SCOPE_THIS_YEAR, _SCOPE_ALL_TIME)
 
 _HEADERS = ('Rank', 'IP Address', 'Usernames', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
+
+_SEARCH_COL_ALL = 'All Columns'
+_SEARCH_COL_IP = 'IP Address'
+_SEARCH_COL_USERNAMES = 'Usernames'
+_SEARCH_COL_COUNTRY = 'Country'
+_SEARCH_COL_ISP = 'ISP'
+
+_SEARCH_COLUMNS = (
+    _SEARCH_COL_ALL,
+    _SEARCH_COL_IP,
+    _SEARCH_COL_USERNAMES,
+    _SEARCH_COL_COUNTRY,
+    _SEARCH_COL_ISP,
+)
 _COL_SESSIONS = 3
 
 
@@ -194,15 +210,51 @@ class _LeaderboardTableModel(QAbstractTableModel):
 class _LeaderboardSortProxy(QSortFilterProxyModel):
     """Proxy that filters out zero-session entries and supports custom sorting."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._search_text: str = ''
+        self._search_column: str = _SEARCH_COL_ALL
+
+    def set_search_text(self, text: str) -> None:
+        """Update the search filter text and re-evaluate visible rows."""
+        self._search_text = text.strip().lower()
+        self.invalidateFilter()
+
+    def set_search_column(self, column: str) -> None:
+        """Update which column is searched and re-evaluate visible rows."""
+        self._search_column = column
+        self.invalidateFilter()
+
+    def _entry_matches_search(self, entry: LeaderboardEntry, text: str) -> bool:
+        """Return True if *entry* contains *text* within the active search column."""
+        if self._search_column == _SEARCH_COL_ALL:
+            return (
+                text in entry.ip.lower()
+                or any(text in u.lower() for u in entry.usernames)
+                or text in entry.country.lower()
+                or text in entry.isp.lower()
+            )
+        if self._search_column == _SEARCH_COL_USERNAMES:
+            return any(text in u.lower() for u in entry.usernames)
+        _targets: dict[str, str] = {
+            _SEARCH_COL_IP: entry.ip,
+            _SEARCH_COL_COUNTRY: entry.country,
+            _SEARCH_COL_ISP: entry.isp,
+        }
+        return text in _targets.get(self._search_column, '').lower()
+
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
-        """Reject rows where the session count for the active scope is zero."""
+        """Reject rows where the session count is zero or they don't match the search text."""
         _ = source_parent
         model = self.sourceModel()
         if not isinstance(model, _LeaderboardTableModel):
             return True
-        # Direct entry access avoids QModelIndex creation + data() indirection
         entry = model.entries[source_row]
-        return model.get_session_count(entry) > 0
+        if not model.get_session_count(entry):
+            return False
+        if self._search_text:
+            return self._entry_matches_search(entry, self._search_text)
+        return True
 
     def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # noqa: N802
         """Sort integers numerically instead of lexicographically."""
@@ -243,6 +295,27 @@ class PlayerLeaderboardWindow(QWidget):
         self._scope_combo.setCurrentText(_SCOPE_ALL_TIME)
         self._scope_combo.currentTextChanged.connect(self._on_scope_changed)
         controls_layout.addWidget(self._scope_combo)
+
+        controls_layout.addSpacing(12)
+
+        search_label = QLabel('Search:')
+        controls_layout.addWidget(search_label)
+
+        self._search_box = QLineEdit()
+        self._search_box.setPlaceholderText('Filter... (Ctrl+F)')
+        self._search_box.setClearButtonEnabled(True)
+        self._search_box.setMaximumWidth(280)
+        self._search_box.textChanged.connect(self._on_search_changed)
+        controls_layout.addWidget(self._search_box)
+
+        self._search_col_combo = QComboBox()
+        self._search_col_combo.addItems(_SEARCH_COLUMNS)
+        self._search_col_combo.setCurrentText(_SEARCH_COL_ALL)
+        self._search_col_combo.currentTextChanged.connect(self._on_search_column_changed)
+        controls_layout.addWidget(self._search_col_combo)
+
+        search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
+        search_shortcut.activated.connect(self._search_box.setFocus)
 
         controls_layout.addStretch()
 
@@ -297,6 +370,14 @@ class PlayerLeaderboardWindow(QWidget):
         self._model.set_scope(scope)
         self._proxy.invalidateFilter()
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
+        self._update_count_label()
+
+    def _on_search_changed(self, text: str) -> None:
+        self._proxy.set_search_text(text)
+        self._update_count_label()
+
+    def _on_search_column_changed(self, column: str) -> None:
+        self._proxy.set_search_column(column)
         self._update_count_label()
 
     def _update_count_label(self) -> None:
