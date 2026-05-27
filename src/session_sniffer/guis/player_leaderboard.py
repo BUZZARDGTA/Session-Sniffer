@@ -2,22 +2,29 @@
 
 from typing import TYPE_CHECKING, ClassVar
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
-from session_sniffer.guis.utils import setup_table_view_headers
-from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
+from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
+from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
+from session_sniffer.guis.utils import format_player_display, popup_menu_at_table, setup_table_view_headers
+from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, LeaderboardEntry, analyze_sessions_logging, build_leaderboard
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,6 +38,10 @@ _SCOPE_THIS_YEAR = 'This Year'
 _SCOPE_ALL_TIME = 'All Time'
 
 _SCOPES = (_SCOPE_TODAY, _SCOPE_THIS_WEEK, _SCOPE_THIS_MONTH, _SCOPE_THIS_YEAR, _SCOPE_ALL_TIME)
+
+_MODE_DAYS = 'Unique Days'
+_MODE_SESSIONS = 'Sessions'
+_MODES = (_MODE_DAYS, _MODE_SESSIONS)
 
 _HEADERS = ('Rank', 'Usernames', 'IP Address', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
 
@@ -48,6 +59,18 @@ _SEARCH_COLUMNS = (
     _SEARCH_COL_ISP,
 )
 _COL_SESSIONS = 3
+_COL_COUNTRY = 6
+
+_flag_icon_cache: dict[str, QIcon | None] = {}
+
+
+def _get_flag_icon(country_code: str) -> QIcon | None:
+    """Return a cached QIcon for the given ISO country code, or None if unavailable."""
+    if country_code in _flag_icon_cache:
+        return _flag_icon_cache[country_code]
+    icon: QIcon | None = QIcon(QPixmap(str(_COUNTRY_FLAGS_DIR / f'{country_code}.png'))) if country_code and country_code in AVAILABLE_FLAG_CODES else None
+    _flag_icon_cache[country_code] = icon
+    return icon
 
 
 def _format_bool(value: bool | None) -> str:  # noqa: FBT001
@@ -66,7 +89,15 @@ def _format_datetime(dt: datetime | None) -> str:
 
 class _LeaderboardTableModel(QAbstractTableModel):
 
-    _SCOPE_ATTR: ClassVar[dict[str, str]] = {
+    _SCOPE_ATTR_DAYS: ClassVar[dict[str, str]] = {
+        _SCOPE_TODAY: 'days_today',
+        _SCOPE_THIS_WEEK: 'days_week',
+        _SCOPE_THIS_MONTH: 'days_month',
+        _SCOPE_THIS_YEAR: 'days_year',
+        _SCOPE_ALL_TIME: 'days_total',
+    }
+
+    _SCOPE_ATTR_SESSIONS: ClassVar[dict[str, str]] = {
         _SCOPE_TODAY: 'sessions_today',
         _SCOPE_THIS_WEEK: 'sessions_week',
         _SCOPE_THIS_MONTH: 'sessions_month',
@@ -80,7 +111,8 @@ class _LeaderboardTableModel(QAbstractTableModel):
         super().__init__()
         self._entries: list[LeaderboardEntry] = []
         self._scope: str = _SCOPE_ALL_TIME
-        self._scope_attr: str = 'sessions_total'
+        self._mode: str = _MODE_DAYS
+        self._scope_attr: str = 'days_total'
         self._username_cache: dict[str, str] = {}
         # Bound method dispatch — avoids per-cell getattr() overhead
         self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {
@@ -122,19 +154,27 @@ class _LeaderboardTableModel(QAbstractTableModel):
             return method(index.row(), entry) if method is not None else None
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if col in self._CENTER_COLS:
-                return Qt.AlignmentFlag.AlignCenter
-            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignCenter if col in self._CENTER_COLS else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
         if role == Qt.ItemDataRole.UserRole and col == _COL_SESSIONS:
             return self.get_session_count(entry)
 
-        return None
+        if role == Qt.ItemDataRole.ToolTipRole and col == _COL_SESSIONS:
+            count = self.get_session_count(entry)
+            return (
+                f'{count} unique calendar day(s) this player was seen within the selected time period'
+                if self._mode == _MODE_DAYS
+                else f'{count} sniffer session(s) in which this player was seen within the selected time period'
+            )
+
+        return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and col == _COL_COUNTRY else None
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:  # noqa: N802
         """Return column header labels."""
         if role != Qt.ItemDataRole.DisplayRole or orientation != Qt.Orientation.Horizontal:
             return None
+        if section == _COL_SESSIONS:
+            return 'Days' if self._mode == _MODE_DAYS else 'Sessions'
         return _HEADERS[section]
 
     # Display helpers --------------------------------------------------------
@@ -183,10 +223,8 @@ class _LeaderboardTableModel(QAbstractTableModel):
         return _format_bool(entry.hosting)
 
     def get_session_count(self, entry: LeaderboardEntry) -> int:
-        """Return the session count for the current time scope."""
+        """Return the days or session count for the current mode and time scope."""
         return int(getattr(entry, self._scope_attr))
-
-    _get_session_count = get_session_count  # internal alias for backward compat
 
     @property
     def entries(self) -> list[LeaderboardEntry]:
@@ -202,9 +240,22 @@ class _LeaderboardTableModel(QAbstractTableModel):
     def set_scope(self, scope: str) -> None:
         """Change the active time scope and refresh the model."""
         self._scope = scope
-        self._scope_attr = self._SCOPE_ATTR.get(scope, 'sessions_total')
+        self._refresh_scope_attr()
         self.beginResetModel()
         self.endResetModel()
+
+    def set_mode(self, mode: str) -> None:
+        """Switch between Unique Days and Sessions counting modes."""
+        self._mode = mode
+        self._refresh_scope_attr()
+        self.beginResetModel()
+        self.endResetModel()
+        self.headerDataChanged.emit(Qt.Orientation.Horizontal, _COL_SESSIONS, _COL_SESSIONS)
+
+    def _refresh_scope_attr(self) -> None:
+        scope_map = self._SCOPE_ATTR_DAYS if self._mode == _MODE_DAYS else self._SCOPE_ATTR_SESSIONS
+        default = 'days_total' if self._mode == _MODE_DAYS else 'sessions_total'
+        self._scope_attr = scope_map.get(self._scope, default)
 
 
 class _LeaderboardSortProxy(QSortFilterProxyModel):
@@ -299,6 +350,28 @@ class PlayerLeaderboardWindow(QWidget):
 
         controls_layout.addSpacing(12)
 
+        mode_label = QLabel('Count by:')
+        controls_layout.addWidget(mode_label)
+
+        self._mode_combo = QComboBox()
+        self._mode_combo.addItems(_MODES)
+        self._mode_combo.setCurrentText(_MODE_DAYS)
+        self._mode_combo.setToolTip('Choose how encounters are counted — by unique calendar days or by individual sniffer sessions')
+        self._mode_combo.setItemData(
+            _MODES.index(_MODE_DAYS),
+            'Count each calendar day at most once — seeing a player 5 times in one day still counts as 1',
+            Qt.ItemDataRole.ToolTipRole,
+        )
+        self._mode_combo.setItemData(
+            _MODES.index(_MODE_SESSIONS),
+            'Count every individual sniffer session — seeing a player in 5 sessions counts as 5',
+            Qt.ItemDataRole.ToolTipRole,
+        )
+        self._mode_combo.currentTextChanged.connect(self._on_mode_changed)
+        controls_layout.addWidget(self._mode_combo)
+
+        controls_layout.addSpacing(12)
+
         search_label = QLabel('Search:')
         controls_layout.addWidget(search_label)
 
@@ -313,13 +386,34 @@ class PlayerLeaderboardWindow(QWidget):
         self._search_col_combo = QComboBox()
         self._search_col_combo.addItems(_SEARCH_COLUMNS)
         self._search_col_combo.setCurrentText(_SEARCH_COL_ALL)
+        self._search_col_combo.setToolTip('Restrict the search to a specific column')
         self._search_col_combo.currentTextChanged.connect(self._on_search_column_changed)
         controls_layout.addWidget(self._search_col_combo)
+
+        controls_layout.addSpacing(12)
+
+        cap_label = QLabel('Show top:')
+        controls_layout.addWidget(cap_label)
+
+        self._cap_spinbox = QSpinBox()
+        self._cap_spinbox.setRange(50, 10000)
+        self._cap_spinbox.setSingleStep(50)
+        self._cap_spinbox.setValue(1000)
+        self._cap_spinbox.setToolTip('Maximum number of players to load from session logs')
+        self._cap_spinbox.editingFinished.connect(self.refresh)
+        controls_layout.addWidget(self._cap_spinbox)
 
         search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
         search_shortcut.activated.connect(self._search_box.setFocus)
 
         controls_layout.addStretch()
+
+        refresh_btn = QPushButton('🔄 Refresh')
+        refresh_btn.setToolTip('Reload leaderboard data from disk')
+        refresh_btn.clicked.connect(self.refresh)
+        controls_layout.addWidget(refresh_btn)
+
+        controls_layout.addSpacing(12)
 
         self._count_label = QLabel()
         controls_layout.addWidget(self._count_label)
@@ -337,6 +431,8 @@ class PlayerLeaderboardWindow(QWidget):
         self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self._table.setSortingEnabled(True)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._show_context_menu)
 
         header = setup_table_view_headers(self._table)
         header.setStretchLastSection(False)
@@ -363,9 +459,15 @@ class PlayerLeaderboardWindow(QWidget):
 
     def refresh(self) -> None:
         """Reload leaderboard data from disk and refresh the table."""
-        self._all_entries = build_leaderboard(SESSIONS_LOGGING_DIR_PATH)
+        self._all_entries = build_leaderboard(SESSIONS_LOGGING_DIR_PATH, limit=self._cap_spinbox.value())
         self._model.load_data(self._all_entries)
         self._proxy.invalidateFilter()
+        self._update_count_label()
+
+    def _on_mode_changed(self, mode: str) -> None:
+        self._model.set_mode(mode)
+        self._proxy.invalidateFilter()
+        self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
     def _on_scope_changed(self, scope: str) -> None:
@@ -381,6 +483,45 @@ class PlayerLeaderboardWindow(QWidget):
     def _on_search_column_changed(self, column: str) -> None:
         self._proxy.set_search_column(column)
         self._update_count_label()
+
+    def _show_context_menu(self, pos: QPoint) -> None:
+        index = self._table.indexAt(pos)
+        if not index.isValid():
+            return
+        entry = self._model.entries[self._proxy.mapToSource(index).row()]
+
+        menu = QMenu(self)
+
+        copy_ip_action = QAction(f'Copy IP:  {entry.ip}', self)
+        copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
+        menu.addAction(copy_ip_action)
+
+        usernames_text = ', '.join(entry.usernames)
+        copy_usernames_action = QAction(f'Copy Usernames:  {usernames_text}' if usernames_text else 'Copy Usernames (none)', self)
+        copy_usernames_action.setEnabled(bool(entry.usernames))
+        copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
+        menu.addAction(copy_usernames_action)
+
+        menu.addSeparator()
+
+        seen_stats_action = QAction('View Seen Stats', self)
+        seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
+        menu.addAction(seen_stats_action)
+
+        popup_menu_at_table(menu, self._table, pos)
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            msg = 'Failed to get clipboard'
+            raise RuntimeError(msg)
+        clipboard.setText(text)
+
+    def _show_seen_stats_for_entry(self, entry: LeaderboardEntry) -> None:
+        stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, entry.ip)
+        display = format_player_display(entry.ip, entry.usernames)
+        lines = '\n'.join(f'{label}:  {getattr(stats, key)}' for key, label in SEEN_STATS_LABELS.items())
+        QMessageBox.information(self, f'Seen Stats — {display}', lines)
 
     def _update_count_label(self) -> None:
         visible = self._proxy.rowCount()

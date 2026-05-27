@@ -6,7 +6,7 @@ This module provides helper functions to interact with GUI elements.
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -304,3 +304,15 @@ def setup_stat_table_with_header(table: QTableWidget, layout: QVBoxLayout, *, so
         msg = 'Failed to get horizontal header'
         raise RuntimeError(msg)
     return h_header
+
+
+def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
+    """Pop up *menu* at the viewport-relative position *pos* of *table*.
+
+    Raises `RuntimeError` if the table viewport cannot be obtained.
+    """
+    viewport = table.viewport()
+    if viewport is None:
+        msg = 'Failed to get table viewport'
+        raise RuntimeError(msg)
+    menu.popup(viewport.mapToGlobal(pos))
