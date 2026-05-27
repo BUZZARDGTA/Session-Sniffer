@@ -14,6 +14,67 @@ DISCONNECTED_HEADER_CONTAINER_STYLESHEET = 'background-color: red;'
 
 
 # =============================================================================
+# SEARCH BAR STYLES
+# =============================================================================
+
+SEARCH_BAR_STYLESHEET = """
+QLineEdit {
+    background-color: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    max-height: 22px;
+    min-width: 200px;
+    max-width: 350px;
+}
+QLineEdit:focus {
+    background-color: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+}
+""".strip()
+
+SEARCH_COMBO_STYLESHEET = """
+QComboBox {
+    background-color: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 11px;
+    max-height: 22px;
+    max-width: 120px;
+}
+QComboBox:focus, QComboBox:on {
+    background-color: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+}
+QComboBox::drop-down {
+    border: none;
+    width: 16px;
+}
+QComboBox::down-arrow {
+    image: none;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid rgba(255, 255, 255, 0.75);
+    width: 0;
+    height: 0;
+    margin-right: 4px;
+    margin-top: 1px;
+}
+QComboBox QAbstractItemView {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid rgba(128, 128, 128, 0.5);
+    selection-background-color: #404040;
+    outline: 0;
+}
+""".strip()
+
+
+# =============================================================================
 # HEADER STYLES
 # =============================================================================
 

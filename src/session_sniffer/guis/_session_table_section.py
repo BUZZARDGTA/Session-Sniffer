@@ -4,10 +4,12 @@ from typing import TYPE_CHECKING, cast
 from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSpinBox,
     QStatusBar,
@@ -25,6 +27,8 @@ from session_sniffer.guis.stylesheets import (
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
     DISCONNECTED_HEADER_TEXT_STYLESHEET,
+    SEARCH_BAR_STYLESHEET,
+    SEARCH_COMBO_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
@@ -33,11 +37,49 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
-from session_sniffer.rendering_core.types import PaginationState
+from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+_NON_SEARCHABLE_COLUMNS: frozenset[str] = frozenset({
+    # Boolean columns
+    'Mobile',
+    'VPN',
+    'Hosting',
+    'Pinging',
+    # Datetime columns
+    'First Seen',
+    'Last Rejoin',
+    'Last Seen',
+    # Elapsed time columns
+    'T. Session Time',
+    'Session Time',
+    # Pure numeric stat columns
+    'Rejoins',
+    'T. Packets',
+    'Packets',
+    'T. Packets Received',
+    'Packets Received',
+    'T. Packets Sent',
+    'Packets Sent',
+    'PPS',
+    'PPM',
+    'T. Bandwidth',
+    'Bandwidth',
+    'T. Download',
+    'Download',
+    'T. Upload',
+    'Upload',
+    'BPS',
+    'BPM',
+    # Geographic numeric columns
+    'Lat',
+    'Lon',
+    'Offset',
+})
 
 
 class SessionStatusBar(QStatusBar):
@@ -130,7 +172,7 @@ class SessionTableSection(QWidget):
         header_container = QWidget()
         header_container.setStyleSheet(header_container_stylesheet)
         header_layout = QHBoxLayout(header_container)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setContentsMargins(100, 0, 0, 0)
 
         self._header_label = QLabel(self._header_label_text())
         self._header_label.setTextFormat(Qt.TextFormat.RichText)
@@ -148,7 +190,31 @@ class SessionTableSection(QWidget):
         collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
         collapse_button.clicked.connect(self.minimize)
 
-        header_layout.addWidget(self._header_label, 1)
+        header_layout.addWidget(self._header_label)
+        header_layout.addStretch(1)
+
+        # Search controls — column selector and text input
+        self._search_combo = QComboBox()
+        self._search_combo.addItem('All Columns')
+        self._search_combo.setItemData(0, -1)
+        for col_idx, col_name in enumerate(column_names):
+            if col_name not in _NON_SEARCHABLE_COLUMNS:
+                self._search_combo.addItem(col_name)
+                self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
+        self._search_combo.setToolTip(
+            f'Select which column to search in the {self._section_name.lower()} players table',
+        )
+        self._search_combo.setStyleSheet(SEARCH_COMBO_STYLESHEET)
+        self._search_combo.currentIndexChanged.connect(self._on_search_column_changed)
+
+        self._search_bar = QLineEdit()
+        self._search_bar.setPlaceholderText('Search...')
+        self._search_bar.setClearButtonEnabled(True)
+        self._search_bar.setStyleSheet(SEARCH_BAR_STYLESHEET)
+        self._search_bar.textChanged.connect(self._on_search_changed)
+        header_layout.addWidget(self._search_bar)
+        header_layout.addWidget(self._search_combo)
+        header_layout.addStretch(1)
 
         # Pagination controls — rows per page
         rows_label = QLabel('Rows:')
@@ -286,6 +352,22 @@ class SessionTableSection(QWidget):
         header = self.table_view.horizontalHeader()
         header.setSortIndicator(sort_index, header.sortIndicatorOrder())
         self.table_view.setup_static_column_resizing()
+
+        # Refresh search combo to match new column set, preserving current selection
+        self._search_combo.blockSignals(True)  # noqa: FBT003
+        current_text = self._search_combo.currentText()
+        self._search_combo.clear()
+        self._search_combo.addItem('All Columns')
+        self._search_combo.setItemData(0, -1)
+        for col_idx, col_name in enumerate(column_names):
+            if col_name not in _NON_SEARCHABLE_COLUMNS:
+                self._search_combo.addItem(col_name)
+                self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
+        restored_index = self._search_combo.findText(current_text)
+        self._search_combo.setCurrentIndex(max(0, restored_index))
+        self._search_combo.blockSignals(False)  # noqa: FBT003
+        # Resync SearchState in case the column index shifted after rebuild
+        self._on_search_column_changed(self._search_combo.currentIndex())
 
     def set_all_enabled(self, *, enabled: bool) -> None:
         """Enable or disable all interactive child widgets."""
@@ -426,3 +508,24 @@ class SessionTableSection(QWidget):
     def set_keyboard_editing(self, *, is_editing: bool) -> None:
         """Set the keyboard editing state for the rows-per-page spinbox."""
         self._rows_keyboard_editing = is_editing
+
+    def _on_search_changed(self, text: str) -> None:
+        raw = self._search_combo.itemData(self._search_combo.currentIndex())
+        col = raw if isinstance(raw, int) else -1
+        if self._is_connected:
+            SearchState.set_connected(text, col)
+            PaginationState.set_connected_page(1)
+        else:
+            SearchState.set_disconnected(text, col)
+            PaginationState.set_disconnected_page(1)
+
+    def _on_search_column_changed(self, index: int) -> None:
+        raw = self._search_combo.itemData(index)
+        col = raw if isinstance(raw, int) else -1
+        text = self._search_bar.text()
+        if self._is_connected:
+            SearchState.set_connected(text, col)
+            PaginationState.set_connected_page(1)
+        else:
+            SearchState.set_disconnected(text, col)
+            PaginationState.set_disconnected_page(1)

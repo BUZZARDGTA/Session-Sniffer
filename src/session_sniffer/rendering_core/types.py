@@ -62,6 +62,39 @@ class PaginationState:
             )
 
 
+class SearchState:
+    """Thread-safe search filter text and column shared between the GUI and the worker thread."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _connected_text: ClassVar[str] = ''
+    _disconnected_text: ClassVar[str] = ''
+    _connected_col: ClassVar[int] = -1   # -1 = all columns
+    _disconnected_col: ClassVar[int] = -1
+    _version: ClassVar[int] = 0
+
+    @classmethod
+    def set_connected(cls, text: str, column: int) -> None:
+        """Update the connected-table search text and column, then bump the version."""
+        with cls._lock:
+            cls._connected_text = text
+            cls._connected_col = column
+            cls._version += 1
+
+    @classmethod
+    def set_disconnected(cls, text: str, column: int) -> None:
+        """Update the disconnected-table search text and column, then bump the version."""
+        with cls._lock:
+            cls._disconnected_text = text
+            cls._disconnected_col = column
+            cls._version += 1
+
+    @classmethod
+    def get(cls) -> tuple[str, int, str, int, int]:
+        """Return (connected_text, connected_col, disconnected_text, disconnected_col, version)."""
+        with cls._lock:
+            return cls._connected_text, cls._connected_col, cls._disconnected_text, cls._disconnected_col, cls._version
+
+
 class CaptureState:
     """Runtime state derived from the active capture interface."""
     vpn_mode_enabled: ClassVar[bool] = False
