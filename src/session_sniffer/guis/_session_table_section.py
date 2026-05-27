@@ -1,8 +1,9 @@
 """Session status bar and collapsible session table section widgets."""
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QByteArray, QEvent, QObject, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QPainter, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -13,27 +14,21 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QStatusBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import (
-    COMMON_COLLAPSE_BUTTON_STYLESHEET,
-    CONNECTED_CLEAR_BUTTON_STYLESHEET,
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
-    CONNECTED_HEADER_CONTAINER_STYLESHEET,
-    CONNECTED_HEADER_TEXT_STYLESHEET,
-    DISCONNECTED_CLEAR_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
-    DISCONNECTED_HEADER_CONTAINER_STYLESHEET,
-    DISCONNECTED_HEADER_TEXT_STYLESHEET,
-    SEARCH_BAR_STYLESHEET,
-    SEARCH_COMBO_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
     STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
     STATUS_BAR_STYLESHEET,
+    section_bar_qss,
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
@@ -80,6 +75,23 @@ _NON_SEARCHABLE_COLUMNS: frozenset[str] = frozenset({
     'Lon',
     'Offset',
 })
+
+_PLAYER_ICON_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+    b'<circle cx="10" cy="5.5" r="3" fill="white" opacity="0.9"/>'
+    b'<path d="M3.5 18 Q3.5 12 10 12 Q16.5 12 16.5 18" fill="white" opacity="0.9"/>'
+    b'</svg>'
+)
+
+
+def _svg_to_pixmap(svg_bytes: bytes, size: int) -> QPixmap:
+    renderer = QSvgRenderer(QByteArray(svg_bytes))
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter, QRectF(0, 0, size, size))
+    painter.end()
+    return pixmap
 
 
 class SessionStatusBar(QStatusBar):
@@ -148,9 +160,7 @@ class SessionTableSection(QWidget):
         self._rows_keyboard_editing = False
 
         if is_connected:
-            header_container_stylesheet = CONNECTED_HEADER_CONTAINER_STYLESHEET
-            header_text_stylesheet = CONNECTED_HEADER_TEXT_STYLESHEET
-            clear_button_stylesheet = CONNECTED_CLEAR_BUTTON_STYLESHEET
+            accent = '#198754'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the connected players table'
             clear_tooltip = 'Clear all connected players'
@@ -158,9 +168,7 @@ class SessionTableSection(QWidget):
             sort_column_name = 'Last Rejoin'
             sort_order = Qt.SortOrder.DescendingOrder
         else:
-            header_container_stylesheet = DISCONNECTED_HEADER_CONTAINER_STYLESHEET
-            header_text_stylesheet = DISCONNECTED_HEADER_TEXT_STYLESHEET
-            clear_button_stylesheet = DISCONNECTED_CLEAR_BUTTON_STYLESHEET
+            accent = '#c0392b'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the disconnected players table'
             clear_tooltip = 'Clear all disconnected players'
@@ -169,31 +177,43 @@ class SessionTableSection(QWidget):
             sort_order = Qt.SortOrder.AscendingOrder
 
         # Header container
-        header_container = QWidget()
-        header_container.setStyleSheet(header_container_stylesheet)
+        header_container = QFrame()
+        header_container.setObjectName('sectionBar')
+        header_container.setFixedHeight(46)
+        header_container.setStyleSheet(section_bar_qss(accent, RESOURCES_DIR_PATH))
         header_layout = QHBoxLayout(header_container)
-        header_layout.setContentsMargins(100, 0, 0, 0)
+        header_layout.setContentsMargins(10, 4, 10, 8)
+        header_layout.setSpacing(8)
+
+        icon_label = QLabel()
+        icon_label.setFixedSize(40, 34)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setStyleSheet('background: rgba(0, 0, 0, 0.18); border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 6px;')
+        icon_label.setPixmap(_svg_to_pixmap(_PLAYER_ICON_SVG, 24))
 
         self._header_label = QLabel(self._header_label_text())
-        self._header_label.setTextFormat(Qt.TextFormat.RichText)
-        self._header_label.setStyleSheet(header_text_stylesheet)
-        self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._header_label.setFont(QFont('Courier', 9, QFont.Weight.Bold))
+        self._header_label.setObjectName('sectionTitle')
+        self._header_label.setAutoFillBackground(False)
 
         clear_button = QPushButton('CLEAR')
+        clear_button.setStyleSheet('font-weight: 700; font-size: 12px;')
         clear_button.setToolTip(clear_tooltip)
-        clear_button.setStyleSheet(clear_button_stylesheet)
         clear_button.clicked.connect(clear_slot)
 
-        collapse_button = QPushButton('▼')
+        collapse_button = QToolButton()
+        collapse_button.setText('▼')
         collapse_button.setToolTip(collapse_tooltip)
-        collapse_button.setStyleSheet(COMMON_COLLAPSE_BUTTON_STYLESHEET)
         collapse_button.clicked.connect(self.minimize)
 
-        header_layout.addWidget(self._header_label)
+        icon_title_pair = QHBoxLayout()
+        icon_title_pair.setSpacing(6)
+        icon_title_pair.setContentsMargins(0, 0, 0, 0)
+        icon_title_pair.addWidget(icon_label)
+        icon_title_pair.addWidget(self._header_label)
+        header_layout.addLayout(icon_title_pair)
         header_layout.addStretch(1)
 
-        # Search controls — column selector and text input
+        # Search controls — text input and column selector
         self._search_combo = QComboBox()
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
@@ -204,22 +224,25 @@ class SessionTableSection(QWidget):
         self._search_combo.setToolTip(
             f'Select which column to search in the {self._section_name.lower()} players table',
         )
-        self._search_combo.setStyleSheet(SEARCH_COMBO_STYLESHEET)
         self._search_combo.currentIndexChanged.connect(self._on_search_column_changed)
 
         self._search_bar = QLineEdit()
         self._search_bar.setPlaceholderText('Search...')
         self._search_bar.setClearButtonEnabled(True)
-        self._search_bar.setStyleSheet(SEARCH_BAR_STYLESHEET)
+        self._search_bar.setMinimumWidth(220)
         self._search_bar.textChanged.connect(self._on_search_changed)
-        header_layout.addWidget(self._search_bar)
-        header_layout.addWidget(self._search_combo)
+
+        search_pair = QHBoxLayout()
+        search_pair.setSpacing(3)
+        search_pair.setContentsMargins(0, 0, 0, 0)
+        search_pair.addWidget(self._search_bar)
+        search_pair.addWidget(self._search_combo)
+        header_layout.addLayout(search_pair)
         header_layout.addStretch(1)
 
         # Pagination controls — rows per page
         rows_label = QLabel('Rows:')
         rows_label.setToolTip('Rows per page (0 = show all)')
-        header_layout.addWidget(rows_label)
 
         initial_rpp = (
             Settings.gui_connected_table_rows_per_page
@@ -230,7 +253,6 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox = QSpinBox()
         self._rows_per_page_spinbox.setRange(0, 5000)
         self._rows_per_page_spinbox.setSpecialValueText('All')
-        self._rows_per_page_spinbox.setSuffix(' rows/page')
         self._rows_per_page_spinbox.setValue(initial_rpp)
         self._rows_per_page_spinbox.setToolTip(
             f'Limit how many {self._section_name.lower()} players are shown per page. Set 0 to show all.',
@@ -238,26 +260,37 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox.setKeyboardTracking(False)
         self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
         self._rows_per_page_spinbox.editingFinished.connect(self._finalize_rows_edit)
-        header_layout.addWidget(self._rows_per_page_spinbox)
         self._install_spinbox_input_filter(self._rows_per_page_spinbox)
+
+        rows_pair = QHBoxLayout()
+        rows_pair.setSpacing(3)
+        rows_pair.setContentsMargins(0, 0, 0, 0)
+        rows_pair.addWidget(rows_label)
+        rows_pair.addWidget(self._rows_per_page_spinbox)
+        header_layout.addLayout(rows_pair)
 
         # Pagination controls — page number
         page_label = QLabel('Page:')
         page_label.setToolTip('Current page when rows are limited.')
-        header_layout.addWidget(page_label)
 
         self._page_spinbox = QSpinBox()
         self._page_spinbox.setRange(1, 1)
         self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
         self._page_spinbox.setSuffix(' / 1')
         self._page_spinbox.valueChanged.connect(self._handle_page_changed)
-        header_layout.addWidget(self._page_spinbox)
+
+        page_pair = QHBoxLayout()
+        page_pair.setSpacing(3)
+        page_pair.setContentsMargins(0, 0, 0, 0)
+        page_pair.addWidget(page_label)
+        page_pair.addWidget(self._page_spinbox)
+        header_layout.addLayout(page_pair)
 
         nav_separator = QFrame()
         nav_separator.setFrameShape(QFrame.Shape.VLine)
         nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
         nav_separator.setStyleSheet(
-            'background-color: rgba(128,128,128,0.55); max-width: 0.5px; min-width: 0.5px; margin: 30% 14px; height: 18px;',
+            'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;',
         )
         header_layout.addWidget(nav_separator)
 

@@ -4,205 +4,97 @@ This module contains all the QSS (Qt Style Sheets) used throughout the applicati
 Centralizing stylesheets here makes them easier to maintain and modify.
 """
 
-# =============================================================================
-# CONTAINER HEADER STYLES
-# =============================================================================
+from typing import TYPE_CHECKING
 
-CONNECTED_HEADER_CONTAINER_STYLESHEET = 'background-color: green;'
-
-DISCONNECTED_HEADER_CONTAINER_STYLESHEET = 'background-color: red;'
-
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # =============================================================================
-# SEARCH BAR STYLES
+# SECTION HEADER BAR STYLES
 # =============================================================================
 
-SEARCH_BAR_STYLESHEET = """
-QLineEdit {
-    background-color: rgba(0, 0, 0, 0.18);
-    color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 3px;
-    padding: 1px 6px;
-    font-size: 11px;
-    max-height: 22px;
-    min-width: 200px;
-    max-width: 350px;
-}
-QLineEdit:focus {
-    background-color: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-}
-""".strip()
 
-SEARCH_COMBO_STYLESHEET = """
-QComboBox {
-    background-color: rgba(0, 0, 0, 0.18);
-    color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 3px;
-    padding: 1px 4px;
-    font-size: 11px;
-    max-height: 22px;
-    max-width: 120px;
-}
-QComboBox:focus, QComboBox:on {
-    background-color: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-}
-QComboBox::drop-down {
-    border: none;
-    width: 16px;
-}
-QComboBox::down-arrow {
-    image: none;
-    border-left: 3px solid transparent;
-    border-right: 3px solid transparent;
-    border-top: 4px solid rgba(255, 255, 255, 0.75);
-    width: 0;
-    height: 0;
-    margin-right: 4px;
-    margin-top: 1px;
-}
-QComboBox QAbstractItemView {
-    background-color: #2a2a2a;
-    color: #e0e0e0;
-    border: 1px solid rgba(128, 128, 128, 0.5);
-    selection-background-color: #404040;
-    outline: 0;
-}
-""".strip()
+def section_bar_qss(accent: str, resources_dir: Path) -> str:
+    """Return the QSS for a session table section header bar with the given `accent` color."""
+    r, g, b = int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16)
+    dark = f'#{int(r * 0.6):02x}{int(g * 0.6):02x}{int(b * 0.6):02x}'
+    arrow_down_path = (resources_dir / 'icons' / 'arrow_down.svg').as_posix()
+    arrow_up_path = (resources_dir / 'icons' / 'arrow_up.svg').as_posix()
+    return f"""
+    QFrame#sectionBar {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                    stop:0 {accent},
+                                    stop:1 {dark});
+        border: 2px solid {accent};
+        border-radius: 8px;
+    }}
+    QLabel {{
+        color: white;
+        background: transparent;
+    }}
+    QLabel#sectionTitle {{
+        font-size: 15px;
+        font-weight: 600;
+    }}
+    QLineEdit, QComboBox, QPushButton, QToolButton, QSpinBox {{
+        min-height: 28px;
+        padding: 0 8px;
+        color: white;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 6px;
+    }}
+    QPushButton:hover, QToolButton:hover, QComboBox:hover, QLineEdit:hover, QSpinBox:hover {{
+        border-color: rgba(255, 255, 255, 0.85);
+        background: rgba(0, 0, 0, 0.28);
+    }}
+    QPushButton:pressed, QToolButton:pressed {{
+        background: rgba(0, 0, 0, 0.40);
+    }}
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 20px;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.55);
+    }}
+    QComboBox::down-arrow {{
+        image: url("{arrow_down_path}");
+        width: 8px;
+        height: 5px;
+    }}
+    QSpinBox::up-button {{
+        subcontrol-origin: border;
+        subcontrol-position: top right;
+        width: 18px;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.55);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    }}
+    QSpinBox::up-arrow {{
+        image: url("{arrow_up_path}");
+        width: 7px;
+        height: 4px;
+    }}
+    QSpinBox::down-button {{
+        subcontrol-origin: border;
+        subcontrol-position: bottom right;
+        width: 18px;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.55);
+    }}
+    QSpinBox::down-arrow {{
+        image: url("{arrow_down_path}");
+        width: 7px;
+        height: 4px;
+    }}
+    QComboBox QAbstractItemView {{
+        background-color: #2a2a2a; color: #e0e0e0;
+        border: 1px solid rgba(128, 128, 128, 0.5);
+        selection-background-color: #404040; outline: 0;
+    }}
+    """.strip()
 
-
-# =============================================================================
-# HEADER STYLES
-# =============================================================================
-
-CONNECTED_HEADER_TEXT_STYLESHEET = """
-background-color: green;
-color: white;
-font-size: 16px;
-font-weight: bold;
-padding: 5px;
-background: transparent;
-""".strip()
-
-
-DISCONNECTED_HEADER_TEXT_STYLESHEET = """
-background-color: red;
-color: white;
-font-size: 16px;
-font-weight: bold;
-padding: 5px;
-background: transparent;
-""".strip()
-
-
-# =============================================================================
-# COMMON BUTTON STYLES
-# =============================================================================
-
-CONNECTED_CLEAR_BUTTON_STYLESHEET = """
-QPushButton {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(236, 240, 241, 0.1), stop:1 rgba(189, 195, 199, 0.2));
-    color: #ecf0f1;
-    border: 1px solid rgba(52, 73, 94, 0.6);
-    border-radius: 6px;
-    padding: 3px;
-    font-size: 11px;
-    font-weight: bold;
-    min-width: 40px;
-    max-width: 45px;
-    min-height: 28px;
-    max-height: 30px;
-    margin-left: 6px;
-    margin-right: 2px;
-}
-
-QPushButton:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(52, 152, 219, 0.3), stop:1 rgba(41, 128, 185, 0.4));
-    border: 1px solid rgba(52, 152, 219, 0.8);
-    color: white;
-}
-
-QPushButton:pressed {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(41, 128, 185, 0.5), stop:1 rgba(52, 152, 219, 0.6));
-    border: 1px solid rgba(41, 128, 185, 1.0);
-    padding-top: 4px;
-    padding-left: 4px;
-}
-""".strip()
-
-DISCONNECTED_CLEAR_BUTTON_STYLESHEET = """
-QPushButton {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(236, 240, 241, 0.1), stop:1 rgba(189, 195, 199, 0.2));
-    color: #ecf0f1;
-    border: 1px solid rgba(52, 73, 94, 0.6);
-    border-radius: 6px;
-    padding: 3px;
-    font-size: 11px;
-    font-weight: bold;
-    min-width: 40px;
-    max-width: 45px;
-    min-height: 28px;
-    max-height: 30px;
-    margin-left: 6px;
-    margin-right: 2px;
-}
-
-QPushButton:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(52, 152, 219, 0.3), stop:1 rgba(41, 128, 185, 0.4));
-    border: 1px solid rgba(52, 152, 219, 0.8);
-    color: white;
-}
-
-QPushButton:pressed {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(41, 128, 185, 0.5), stop:1 rgba(52, 152, 219, 0.6));
-    border: 1px solid rgba(41, 128, 185, 1.0);
-    padding-top: 4px;
-    padding-left: 4px;
-}
-""".strip()
-
-COMMON_COLLAPSE_BUTTON_STYLESHEET = """
-QPushButton {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(236, 240, 241, 0.1), stop:1 rgba(189, 195, 199, 0.2));
-    color: #ecf0f1;
-    border: 1px solid rgba(52, 73, 94, 0.6);
-    border-radius: 6px;
-    padding: 3px;
-    font-size: 11px;
-    font-weight: bold;
-    min-width: 24px;
-    max-width: 24px;
-    min-height: 24px;
-    max-height: 24px;
-    margin-left: 5px;
-    margin-right: 2px;
-}
-
-QPushButton:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(52, 152, 219, 0.3), stop:1 rgba(41, 128, 185, 0.4));
-    border: 1px solid rgba(52, 152, 219, 0.8);
-    color: white;
-}
-
-QPushButton:pressed {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 rgba(41, 128, 185, 0.5), stop:1 rgba(52, 152, 219, 0.6));
-    border: 1px solid rgba(41, 128, 185, 1.0);
-    padding-top: 4px;
-    padding-left: 4px;
-}
-""".strip()
 
 CONNECTED_EXPAND_BUTTON_STYLESHEET = """
 QPushButton {
