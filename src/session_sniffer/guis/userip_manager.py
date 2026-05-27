@@ -472,7 +472,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if not self._global_search_active:
             self._global_search_checkbox.setChecked(True)
 
-    def _on_global_search_toggled(self, *, checked: bool) -> None:
+    def _on_global_search_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Switch between single-database editing mode and read-only global search mode."""
         if checked:
             if self._dirty and not self._confirm_discard():

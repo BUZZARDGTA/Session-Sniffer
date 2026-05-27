@@ -336,7 +336,7 @@ class CsvLogTab(QWidget):
             menu.addAction(action)
         menu.popup(h_header.mapToGlobal(pos))
 
-    def _toggle_column_visibility(self, *, checked: bool) -> None:
+    def _toggle_column_visibility(self, checked: bool) -> None:  # noqa: FBT001
         action = self.sender()
         if isinstance(action, QAction):
             col = action.data()

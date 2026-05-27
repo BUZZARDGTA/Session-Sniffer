@@ -226,7 +226,7 @@ class TextLogTab(QWidget):
     # Auto-refresh
     # ------------------------------------------------------------------
 
-    def _on_auto_refresh_toggled(self, *, checked: bool) -> None:
+    def _on_auto_refresh_toggled(self, checked: bool) -> None:  # noqa: FBT001
         if checked:
             self._refresh_timer.start(AUTO_REFRESH_INTERVAL_MS)
         else:
