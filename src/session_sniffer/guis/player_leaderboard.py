@@ -5,17 +5,20 @@ from typing import TYPE_CHECKING, ClassVar
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableView,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -24,7 +27,7 @@ from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
 from session_sniffer.guis.utils import format_player_display, popup_menu_at_table, setup_table_view_headers
-from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, LeaderboardEntry, analyze_sessions_logging, build_leaderboard
+from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -320,6 +323,51 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         return super().lessThan(left, right)
 
 
+_STATS_PERIODS: tuple[tuple[str, str, str], ...] = (
+    ('Today',      'sessions_today',  'days_today'),
+    ('This Week',  'sessions_week',   'days_week'),
+    ('This Month', 'sessions_month',  'days_month'),
+    ('This Year',  'sessions_year',   'days_year'),
+    ('Total',      'sessions_total',  'days_total'),
+)
+
+
+def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = None) -> QDialog:
+    """Build and return a dialog showing Unique Days and Sessions side-by-side for each time period."""
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(f'Seen Stats \u2014 {format_player_display(entry.ip, entry.usernames)}')
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+    table = QTableWidget(len(_STATS_PERIODS), 3, dialog)
+    table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
+    v_header = table.verticalHeader()
+    if v_header is not None:
+        v_header.setVisible(False)
+    table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+    table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    for row, (period, sessions_attr, days_attr) in enumerate(_STATS_PERIODS):
+        period_item = QTableWidgetItem(period)
+        days_item = QTableWidgetItem(str(getattr(entry, days_attr)))
+        sessions_item = QTableWidgetItem(str(getattr(entry, sessions_attr)))
+        days_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        sessions_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        table.setItem(row, 0, period_item)
+        table.setItem(row, 1, days_item)
+        table.setItem(row, 2, sessions_item)
+
+    h_header = table.horizontalHeader()
+    if h_header is not None:
+        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        h_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+
+    layout = QVBoxLayout(dialog)
+    layout.addWidget(table)
+    return dialog
+
+
 class PlayerLeaderboardWindow(QWidget):
     """Standalone window showing the most-seen players leaderboard."""
 
@@ -518,10 +566,7 @@ class PlayerLeaderboardWindow(QWidget):
         clipboard.setText(text)
 
     def _show_seen_stats_for_entry(self, entry: LeaderboardEntry) -> None:
-        stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, entry.ip)
-        display = format_player_display(entry.ip, entry.usernames)
-        lines = '\n'.join(f'{label}:  {getattr(stats, key)}' for key, label in SEEN_STATS_LABELS.items())
-        QMessageBox.information(self, f'Seen Stats — {display}', lines)
+        _build_seen_stats_dialog(entry, self).exec()
 
     def _update_count_label(self) -> None:
         visible = self._proxy.rowCount()
