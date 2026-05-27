@@ -293,6 +293,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._scope_combo = QComboBox()
         self._scope_combo.addItems(_SCOPES)
         self._scope_combo.setCurrentText(_SCOPE_ALL_TIME)
+        self._scope_combo.setToolTip('Restrict the count to encounters within the selected time window')
         self._scope_combo.currentTextChanged.connect(self._on_scope_changed)
         controls_layout.addWidget(self._scope_combo)
 
@@ -303,6 +304,7 @@ class PlayerLeaderboardWindow(QWidget):
 
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText('Filter... (Ctrl+F)')
+        self._search_box.setToolTip('Type to filter visible rows (Ctrl+F to focus)')
         self._search_box.setClearButtonEnabled(True)
         self._search_box.setMaximumWidth(280)
         self._search_box.textChanged.connect(self._on_search_changed)
