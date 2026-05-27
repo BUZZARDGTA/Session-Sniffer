@@ -301,22 +301,22 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         detections_manager_action.triggered.connect(self._open_detections_manager)
         tools_menu.addAction(detections_manager_action)
 
-        leaderboard_action = QAction('🏆 Most Seen Players', self)
-        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
-        leaderboard_action.triggered.connect(self._open_player_leaderboard)
-        tools_menu.addAction(leaderboard_action)
-
-        tools_menu.addSeparator()
+        userip_manager_action = QAction('🗃️ UserIP Manager', self)
+        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
+        userip_manager_action.triggered.connect(self._open_userip_manager)
+        tools_menu.addAction(userip_manager_action)
 
         logs_manager_action = QAction('📋 Logs Manager', self)
         logs_manager_action.setToolTip('View, search, filter, and manage application log files')
         logs_manager_action.triggered.connect(self._open_logs_manager)
         tools_menu.addAction(logs_manager_action)
 
-        userip_manager_action = QAction('🗃️ UserIP Manager', self)
-        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
-        userip_manager_action.triggered.connect(self._open_userip_manager)
-        tools_menu.addAction(userip_manager_action)
+        tools_menu.addSeparator()
+
+        leaderboard_action = QAction('🏆 Most Seen Players', self)
+        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
+        leaderboard_action.triggered.connect(self._open_player_leaderboard)
+        tools_menu.addAction(leaderboard_action)
 
         # ----- Statistics menu -----
         statistics_menu = menu_bar.addMenu('Statistics')
