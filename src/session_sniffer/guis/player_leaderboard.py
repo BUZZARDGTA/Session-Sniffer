@@ -32,7 +32,7 @@ _SCOPE_ALL_TIME = 'All Time'
 
 _SCOPES = (_SCOPE_TODAY, _SCOPE_THIS_WEEK, _SCOPE_THIS_MONTH, _SCOPE_THIS_YEAR, _SCOPE_ALL_TIME)
 
-_HEADERS = ('Rank', 'IP Address', 'Usernames', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
+_HEADERS = ('Rank', 'Usernames', 'IP Address', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
 
 _SEARCH_COL_ALL = 'All Columns'
 _SEARCH_COL_IP = 'IP Address'
@@ -85,8 +85,8 @@ class _LeaderboardTableModel(QAbstractTableModel):
         # Bound method dispatch — avoids per-cell getattr() overhead
         self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {
             0: self._display_rank,
-            1: self._display_ip,
-            2: self._display_usernames,
+            1: self._display_usernames,
+            2: self._display_ip,
             3: self._display_sessions,
             4: self._display_first_seen,
             5: self._display_last_seen,
@@ -339,8 +339,8 @@ class PlayerLeaderboardWindow(QWidget):
         header = setup_table_view_headers(self._table)
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # IP
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Usernames
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Usernames
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # IP
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Sessions
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # First Seen
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Last Seen
