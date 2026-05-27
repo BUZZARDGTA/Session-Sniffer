@@ -825,8 +825,6 @@ def rendering_core(
             ),
         )
 
-        _has_players_for_poll = bool(session_connected)
-
         gui_closed__event.wait(1)
 
     if discord_rpc_manager is not None:
