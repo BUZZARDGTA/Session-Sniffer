@@ -618,7 +618,7 @@
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/updates`;
-            
+
             const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
@@ -655,7 +655,7 @@
         // Initialize
         window.addEventListener('load', () => {
             connectWebSocket();
-            
+
             // Fallback: Poll REST API every 5 seconds if WebSocket fails
             setInterval(() => {
                 if (!isConnected) {
