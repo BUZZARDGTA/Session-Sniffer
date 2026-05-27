@@ -75,6 +75,8 @@ class Settings:
     webserver_enabled: bool = SETTING_DEFAULTS['webserver_enabled']
     webserver_host: str = SETTING_DEFAULTS['webserver_host']
     webserver_port: int = SETTING_DEFAULTS['webserver_port']
+    webserver_username: str | None = SETTING_DEFAULTS['webserver_username']
+    webserver_password: str | None = SETTING_DEFAULTS['webserver_password']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
@@ -128,6 +130,8 @@ class Settings:
         'WEBSERVER_ENABLED',
         'WEBSERVER_HOST',
         'WEBSERVER_PORT',
+        'WEBSERVER_USERNAME',
+        'WEBSERVER_PASSWORD',
         'UPDATER_CHANNEL',
     )
 

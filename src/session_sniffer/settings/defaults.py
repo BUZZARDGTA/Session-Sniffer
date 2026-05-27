@@ -46,9 +46,9 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Launcher',
     'Capture',
     'Session',
-    'Web Server',
     'Columns',
     'Discord',
+    'Web Server',
 )
 
 
@@ -405,7 +405,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='Web Server',
         display_label='Enable Web Server',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Enable local web server for mobile access to live session data.',
+        tooltip='Enable local web server for browser access to live session data.',
     ),
     'webserver_host': SettingMeta(
         category='Web Server',
@@ -421,6 +421,18 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=1,
         max_value=65535,
         step=1,
+    ),
+    'webserver_username': SettingMeta(
+        category='Web Server',
+        display_label='Username',
+        setting_type=SettingType.STRING,
+        tooltip='Optional HTTP Basic Auth username. Leave empty to disable authentication.',
+    ),
+    'webserver_password': SettingMeta(
+        category='Web Server',
+        display_label='Password',
+        setting_type=SettingType.STRING,
+        tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
     ),
     'updater_channel': SettingMeta(
         category='Launcher',
@@ -497,8 +509,10 @@ SETTING_DEFAULTS: dict[str, Any] = {
         'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Seen',
     ),
     'discord_webhook_message_ids': None,
-    'webserver_enabled': True,
-    'webserver_host': '0.0.0.0',
+    'webserver_enabled': False,
+    'webserver_host': '0.0.0.0',  # noqa: S104
     'webserver_port': 80,
+    'webserver_username': None,
+    'webserver_password': None,
     'updater_channel': 'Stable',
 }

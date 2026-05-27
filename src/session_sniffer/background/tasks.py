@@ -7,6 +7,7 @@ import winsound
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
@@ -399,18 +400,20 @@ def handle_detection_notification(
                     conditions_summary = ', '.join(
                         f'{k}={v}' for k, v in rule.conditions.items() if k != 'event'
                     )
-                    _display_title = f'Combo Rule Matched: {rule.name}'
-                    _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
-                    _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
-
-                    def _show_event_combo_notif(  # pylint: disable=dangerous-default-value
-                        _t: str = _display_title,
-                        _e: list[tuple[str, str]] = _extra,
-                        _et_: str = _et,
-                    ) -> None:
-                        show_detection_notification_dialog(find_main_window(), player, '\U0001f517', _t, _e, _et_)
-
-                    gui_dispatcher.invoke(_show_event_combo_notif)
+                    display_title = f'Combo Rule Matched: {rule.name}'
+                    extra_detection_fields = [('Event', combo_event), ('Conditions', conditions_summary)]
+                    event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
+                    gui_dispatcher.invoke(
+                        partial(
+                            show_detection_notification_dialog,
+                            find_main_window(),
+                            player,
+                            '\U0001f517',
+                            display_title,
+                            extra_detection_fields,
+                            event_time,
+                        ),
+                    )
 
     config = _NOTIFICATION_CONFIGS[notification_type]
 
