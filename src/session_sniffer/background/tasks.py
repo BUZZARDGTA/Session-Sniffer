@@ -7,7 +7,6 @@ import winsound
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from functools import partial
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
@@ -56,6 +55,7 @@ _VOICE_QUEUE_MAXSIZE = 10
 _INTER_SOUND_PAUSE_SECONDS = 0.5
 _MINUTE_INTERVAL_SECONDS = 60.0
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
+_protection_check_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='ProtectionCheck')
 
 
 class _DeduplicatedQueue:
@@ -716,7 +716,6 @@ def check_global_protections(player: Player) -> None:
                 tts_filename='mobile_connection_detected',
             ),
         )
-
     # VPN/Proxy/Tor Detection
     if player.iplookup.ipapi.proxy:
         if GUIProtectionSettings.vpn_suspend_enabled:
@@ -882,6 +881,11 @@ def check_global_protections(player: Player) -> None:
                 tts_filename='combo_rule_detected',
             ),
         )
+
+
+def submit_global_protections_check(player: Player) -> None:
+    """Submit global protection checks to the background protection worker pool."""
+    _protection_check_pool.submit(check_global_protections, player)
 
 
 def player_rates_core() -> None:

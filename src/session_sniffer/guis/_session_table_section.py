@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import CONNECTED_RATE_STAT_COLUMNS, DATETIME_TRACKING_COLUMNS, SESSION_TRACKING_COLUMNS
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
@@ -46,30 +47,11 @@ _NON_SEARCHABLE_COLUMNS: frozenset[str] = frozenset({
     'Hosting',
     'Pinging',
     # Datetime columns
-    'First Seen',
-    'Last Rejoin',
-    'Last Seen',
-    # Elapsed time columns
-    'T. Session Time',
-    'Session Time',
-    # Pure numeric stat columns
-    'Rejoins',
-    'T. Packets',
-    'Packets',
-    'T. Packets Received',
-    'Packets Received',
-    'T. Packets Sent',
-    'Packets Sent',
-    'PPS',
-    'PPM',
-    'T. Bandwidth',
-    'Bandwidth',
-    'T. Download',
-    'Download',
-    'T. Upload',
-    'Upload',
-    'BPS',
-    'BPM',
+    *DATETIME_TRACKING_COLUMNS,
+    # Elapsed time + rejoin-count columns
+    *SESSION_TRACKING_COLUMNS,
+    # Numeric stat columns (connected-table superset includes PPS/PPM/BPS/BPM)
+    *CONNECTED_RATE_STAT_COLUMNS,
     # Geographic numeric columns
     'Lat',
     'Lon',

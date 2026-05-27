@@ -17,7 +17,7 @@ from PyQt6.QtGui import QImage
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
@@ -110,7 +110,7 @@ def rendering_core(
     default_userip_file_header = format_triple_quoted_text(
         USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
             title=TITLE,
-            configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+            configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
         ),
     )
 

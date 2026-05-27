@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.5.0rc7+20260527.1626"
+version = "v1.5.0rc8+20260527.2158"
 dependencies = [
     "colorama==0.4.6",
     "dnspython==2.8.0",

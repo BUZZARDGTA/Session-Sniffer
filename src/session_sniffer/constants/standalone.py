@@ -4,8 +4,13 @@ MIN_PORT: int = 1
 MAX_PORT: int = 65535
 TITLE: str = 'Session Sniffer'
 DISCORD_INVITE_URL: str = 'https://discord.gg/hMZ7MsPX7G'
+GITHUB_REPO_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer'
+GITHUB_ISSUES_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
 GITHUB_RELEASES_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
 GITHUB_VERSIONS_URL: str = 'https://raw.githubusercontent.com/BUZZARDGTA/Session-Sniffer/version/release_versions.json'
+GITHUB_WIKI_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
+GITHUB_WIKI_SCRIPT_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration'
+GITHUB_WIKI_USERIP_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration'
 
 # Shared bandwidth column → attribute-path mapping (first 6 entries identical in both
 # table_model sort map and Settings.GUI_COLUMNS_MAPPING; BPS/BPM paths differ per usage).
@@ -17,3 +22,25 @@ BANDWIDTH_BASE_COLUMN_ATTRS: dict[str, str] = {
     'T. Upload': 'bandwidth.total_upload',
     'Upload': 'bandwidth.upload',
 }
+
+# Shared packet stat column names, used in Settings column lists and the search filter.
+PACKET_STAT_COLUMNS: tuple[str, ...] = (
+    'T. Packets',
+    'Packets',
+    'T. Packets Received',
+    'Packets Received',
+    'T. Packets Sent',
+    'Packets Sent',
+)
+
+# Bandwidth column names derived from the attribute map above.
+BANDWIDTH_STAT_COLUMNS: tuple[str, ...] = tuple(BANDWIDTH_BASE_COLUMN_ATTRS)
+
+# Connected-table rate stat block: packets + PPS/PPM + bandwidth + BPS/BPM.
+CONNECTED_RATE_STAT_COLUMNS: tuple[str, ...] = (*PACKET_STAT_COLUMNS, 'PPS', 'PPM', *BANDWIDTH_STAT_COLUMNS, 'BPS', 'BPM')
+
+# Elapsed time + rejoin-count columns present in every all-columns list.
+SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 'Rejoins')
+
+# Timestamp columns that appear in both connected and disconnected rows.
+DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')

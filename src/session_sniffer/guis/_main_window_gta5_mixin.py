@@ -28,10 +28,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_MixinBase = QMainWindow
 
-
-class GTA5Mixin(_MixinBase):
+class GTA5Mixin(QMainWindow):
     """GTA5 process-control and toolbar-visibility mixin for `MainWindow`.
 
     Expects these attributes on the concrete class (set in `__init__`):

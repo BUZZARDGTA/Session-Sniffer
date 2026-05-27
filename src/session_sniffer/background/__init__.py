@@ -13,6 +13,7 @@ from session_sniffer.background.tasks import (
     monitor_gta5_relay_task,
     player_rates_core,
     process_userip_task,
+    submit_global_protections_check,
     wait_for_player_data_ready,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     'pinger_core',
     'player_rates_core',
     'process_userip_task',
+    'submit_global_protections_check',
     'wait_for_player_data_ready',
 ]

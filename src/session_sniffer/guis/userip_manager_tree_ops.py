@@ -12,7 +12,7 @@ from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardIt
 from PyQt6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.guis.userip_manager_helpers import (
     NEW_DATABASE_TEMPLATE,
     SETTINGS_DEFAULTS,
@@ -25,10 +25,8 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
 
-_MixinBase = QDialog
 
-
-class TreeOperationsMixin(_MixinBase):
+class TreeOperationsMixin(QDialog):
     """Mixin providing tree-panel context menu and file-system operations.
 
     Expects these attributes on the concrete class:
@@ -377,7 +375,7 @@ class TreeOperationsMixin(_MixinBase):
         default_file_header = format_triple_quoted_text(
             USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
                 title=TITLE,
-                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
             ),
         )
         default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
@@ -547,7 +545,7 @@ class TreeOperationsMixin(_MixinBase):
         default_file_header = format_triple_quoted_text(
             USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
                 title=TITLE,
-                configuration_guide_url='https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration',
+                configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
             ),
         )
         default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)

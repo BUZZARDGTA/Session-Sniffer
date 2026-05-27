@@ -25,10 +25,8 @@ if TYPE_CHECKING:
     from session_sniffer.guis._session_table_section import SessionTableSection
     from session_sniffer.models.player import Player
 
-_MixinBase = QMainWindow
 
-
-class StatsMixin(_MixinBase):
+class StatsMixin(QMainWindow):
     """Statistics windows and player-display mixin for `MainWindow`.
 
     Expects these attributes on the concrete class (set in `__init__`):

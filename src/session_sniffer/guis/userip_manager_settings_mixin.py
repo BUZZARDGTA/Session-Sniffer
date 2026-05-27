@@ -25,9 +25,6 @@ from session_sniffer.guis.utils import (
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
-_MixinBase = QDialog
-
-
 _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     'Reds': [
         'red', 'darkred', 'firebrick', 'crimson', 'indianred',
@@ -267,7 +264,7 @@ QPushButton:hover {
 """
 
 
-class SettingsPanelMixin(_MixinBase):
+class SettingsPanelMixin(QDialog):
     """Mixin that builds and manages the database settings panel.
 
     Expects these attributes on the concrete class:

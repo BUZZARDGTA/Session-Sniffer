@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import QMessageBox
 
 from session_sniffer import msgbox
 from session_sniffer.background import (
-    check_global_protections,
     gui_closed__event,
     handle_detection_notification,
     hostname_core,
@@ -28,6 +27,7 @@ from session_sniffer.background import (
     pinger_core,
     player_rates_core,
     process_userip_task,
+    submit_global_protections_check,
 )
 from session_sniffer.capture.arp_spoofing import arp_spoofing_task
 from session_sniffer.capture.filters import build_capture_filters
@@ -286,7 +286,7 @@ def main() -> None:
 
         if not matched_player.protection_checked:
             matched_player.protection_checked = True
-            _player_task_pool.submit(check_global_protections, matched_player)
+            submit_global_protections_check(matched_player)
 
         if not matched_player.relay_monitor_started:
             matched_player.relay_monitor_started = True

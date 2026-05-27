@@ -20,10 +20,8 @@ from session_sniffer.guis.userip_manager_helpers import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-_MixinBase = QDialog
 
-
-class EntriesContextMenuMixin(_MixinBase):
+class EntriesContextMenuMixin(QDialog):
     """Mixin providing entries-table context menu and related navigation helpers.
 
     Expects these attributes on the concrete class:

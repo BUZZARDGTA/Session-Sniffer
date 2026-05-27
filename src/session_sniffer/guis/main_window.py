@@ -1,7 +1,5 @@
 """Main window implementation for Session Sniffer."""
 
-import os
-import webbrowser
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -19,24 +17,9 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.background import gui_closed__event
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
-from session_sniffer.constants.local import (
-    APP_DIR_LOCAL,
-    APP_DIR_ROAMING,
-    DEBUG_DIR_PATH,
-    DEBUG_LOG_PATH,
-    DETECTION_LOGGING_PATH,
-    ERRORS_LOG_PATH,
-    LOGGING_DIR_PATH,
-    PROTECTION_LOGGING_PATH,
-    SESSIONS_LOGGING_DIR_PATH,
-    SETTINGS_PATH,
-    USER_SCRIPTS_DIR_PATH,
-    USERIP_DATABASES_DIR_PATH,
-    USERIP_LOGGING_PATH,
-    WARNINGS_LOG_PATH,
-)
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
+from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
@@ -54,18 +37,13 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
-from session_sniffer.updater import check_for_updates
 from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.guis.table_model import SessionTableModel
-
-GITHUB_REPO_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer'
-DOCUMENTATION_URL = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,7 +61,7 @@ class _WindowState:
     min_accepted_snapshot_version: int
 
 
-class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
+class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
     _actions: _MenuActions
@@ -779,89 +757,6 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         stale_ips = set(model.get_all_ips()) - ips_to_keep
         for ip in stale_ips:
             model.remove_player_by_ip(ip)
-
-    def _open_project_repo(self) -> None:
-        """Open the GitHub repository in the default browser."""
-        webbrowser.open(GITHUB_REPO_URL)
-
-    def _open_documentation(self) -> None:
-        """Open the documentation URL in the default browser."""
-        webbrowser.open(DOCUMENTATION_URL)
-
-    def _join_discord(self) -> None:
-        """Open the Discord invite URL in the default browser."""
-        webbrowser.open(DISCORD_INVITE_URL)
-
-    def _check_for_updates(self) -> None:
-        """Manually trigger an update check against GitHub."""
-        check_for_updates(updater_channel=Settings.updater_channel)
-
-    def _open_directory(self, directory_path: Path) -> None:
-        """Ensure a directory exists and open it in Windows Explorer."""
-        directory_path.mkdir(parents=True, exist_ok=True)
-        os.startfile(str(directory_path))
-
-    def _open_file(self, file_path: Path) -> None:
-        """Ensure a file path exists and open the file using the default Windows association."""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.touch(exist_ok=True)
-        os.startfile(str(file_path))
-
-    def _open_local_appdata_folder(self) -> None:
-        """Open the Local AppData Session Sniffer directory."""
-        self._open_directory(APP_DIR_LOCAL)
-
-    def _open_roaming_appdata_folder(self) -> None:
-        """Open the Roaming AppData Session Sniffer directory."""
-        self._open_directory(APP_DIR_ROAMING)
-
-    def _open_userip_databases_folder(self) -> None:
-        """Open the UserIP databases directory."""
-        self._open_directory(USERIP_DATABASES_DIR_PATH)
-
-    def _open_sessions_logging_folder(self) -> None:
-        """Open the sessions logging directory."""
-        self._open_directory(SESSIONS_LOGGING_DIR_PATH)
-
-    def _open_user_scripts_folder(self) -> None:
-        """Open the user scripts directory."""
-        self._open_directory(USER_SCRIPTS_DIR_PATH)
-
-    def _open_settings_file(self) -> None:
-        """Open the Settings.ini file."""
-        self._open_file(SETTINGS_PATH)
-
-    def _open_userip_log_file(self) -> None:
-        """Open the UserIP_Logging.csv file."""
-        self._open_file(USERIP_LOGGING_PATH)
-
-    def _open_detection_log_file(self) -> None:
-        """Open the Detection_Logging.csv file."""
-        self._open_file(DETECTION_LOGGING_PATH)
-
-    def _open_protection_log_file(self) -> None:
-        """Open the Protection_Logging.csv file."""
-        self._open_file(PROTECTION_LOGGING_PATH)
-
-    def _open_error_log_file(self) -> None:
-        """Open the errors.log file."""
-        self._open_file(ERRORS_LOG_PATH)
-
-    def _open_warnings_log_file(self) -> None:
-        """Open the warnings.log file."""
-        self._open_file(WARNINGS_LOG_PATH)
-
-    def _open_debug_log_file(self) -> None:
-        """Open the debug.log file."""
-        self._open_file(DEBUG_LOG_PATH)
-
-    def _open_debug_logs_folder(self) -> None:
-        """Open the Debug logs directory."""
-        self._open_directory(DEBUG_DIR_PATH)
-
-    def _open_logging_folder(self) -> None:
-        """Open the Logging directory."""
-        self._open_directory(LOGGING_DIR_PATH)
 
     def _clear_session_host(self) -> None:
         """Manually clear the current session host and reset host detection state."""

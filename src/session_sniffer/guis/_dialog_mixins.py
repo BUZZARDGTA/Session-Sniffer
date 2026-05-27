@@ -12,10 +12,8 @@ if TYPE_CHECKING:
 
     from PyQt6.QtGui import QCloseEvent
 
-_MixinBase = QDialog
 
-
-class UnsavedChangesMixin(_MixinBase):
+class UnsavedChangesMixin(QDialog):
     """Mixin providing a `closeEvent` that prompts to save unsaved changes.
 
     Concrete subclasses must implement `_has_unsaved_changes_for_close` and `_save_on_close`.

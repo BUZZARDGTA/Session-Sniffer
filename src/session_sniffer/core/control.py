@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import terminate_process_tree
 
@@ -100,7 +100,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
-        'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\nhttps://github.com/BUZZARDGTA/Session-Sniffer/issues',
+        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
         exception_info=exception_info,
     )
 
@@ -123,9 +123,9 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     terminate_script(
         'THREAD_RAISED',
         (
-            'An unexpected (uncaught) error occurred.\n\n'
-            'Please kindly report it to:\n'
-            'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
+            f'An unexpected (uncaught) error occurred.\n\n'
+            f'Please kindly report it to:\n'
+            f'{GITHUB_ISSUES_URL}'
         ),
         exception_info=exception_info,
     )

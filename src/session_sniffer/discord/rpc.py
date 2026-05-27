@@ -14,6 +14,7 @@ import sentinel  # pyright: ignore[reportMissingTypeStubs]
 from pypresence import exceptions
 from pypresence.presence import Presence
 
+from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
 
 
@@ -29,7 +30,7 @@ SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')
 START_TIME_INT = int(time.time())
 _RECONNECT_COOLDOWN_SECONDS = 60.0
 DISCORD_RPC_BUTTONS = [
-    {'label': 'GitHub Repo', 'url': 'https://github.com/BUZZARDGTA/Session-Sniffer'},
+    {'label': 'GitHub Repo', 'url': GITHUB_REPO_URL},
 ]
 
 
