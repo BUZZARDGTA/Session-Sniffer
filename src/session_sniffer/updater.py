@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import webbrowser
+from collections.abc import Callable
 from enum import Enum, auto
 from pathlib import Path
 
@@ -35,15 +36,19 @@ class UpdateCheckOutcome(Enum):
     ABORT = auto()
 
 
-def check_for_updates(*, updater_channel: str | None) -> UpdateCheckOutcome:
-    """Fetch versions, handle failures, and prompt for update if needed."""
+def check_for_updates(*, updater_channel: str | None) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
+    """Fetch versions, handle failures, and prompt for update if needed.
+
+    Returns a tuple of (outcome, pending_download) where `pending_download` is a
+    callable that must be invoked on the main Qt thread if not None.
+    """
     outcome, versions = _fetch_versions_with_retries()
 
     if outcome is UpdateCheckOutcome.PROCEED and versions is not None:
         return _handle_update_decision(updater_channel=updater_channel, versions=versions)
     if outcome is UpdateCheckOutcome.ABORT:
-        return outcome
-    return UpdateCheckOutcome.IGNORE
+        return (outcome, None)
+    return (UpdateCheckOutcome.IGNORE, None)
 
 
 def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckOutcome, GithubVersionsResponse | None]:
@@ -187,7 +192,7 @@ def _handle_update_decision(
     *,
     updater_channel: str | None,
     versions: GithubVersionsResponse,
-) -> UpdateCheckOutcome:
+) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
     """Compare versions and optionally prompt user to update."""
     if CURRENT_VERSION.is_prerelease:
         return _handle_prerelease_update_decision(
@@ -200,10 +205,11 @@ def _handle_update_decision(
     candidate = Version(candidate_info.version)
 
     if candidate <= CURRENT_VERSION:
-        return UpdateCheckOutcome.PROCEED
+        return (UpdateCheckOutcome.PROCEED, None)
 
     label = 'pre-release' if is_rc_updater_channel else 'stable release'
 
+    pending: Callable[[], None] | None = None
     if (
         msgbox.show(
             title=TITLE,
@@ -218,18 +224,19 @@ def _handle_update_decision(
         == msgbox.ReturnValues.IDYES
     ):
         if _is_frozen():
-            _download_and_apply(candidate_info, format_project_version(candidate))
+            version_str = format_project_version(candidate)
+            pending = lambda: _download_and_apply(candidate_info, version_str)  # noqa: E731
         else:
             webbrowser.open(candidate_info.release_url)
 
-    return UpdateCheckOutcome.PROCEED
+    return (UpdateCheckOutcome.PROCEED, pending)
 
 
 def _handle_prerelease_update_decision(
     *,
     latest_stable_info: VersionInfo,
     latest_prerelease_info: VersionInfo,
-) -> UpdateCheckOutcome:
+) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
     """Prompt the user about available updates when running a pre-release build.
 
     Checks both the latest stable and latest pre-release candidates independently.
@@ -243,7 +250,7 @@ def _handle_prerelease_update_decision(
     prerelease_newer = latest_prerelease > CURRENT_VERSION and latest_prerelease != latest_stable
 
     if not stable_newer and not prerelease_newer:
-        return UpdateCheckOutcome.PROCEED
+        return (UpdateCheckOutcome.PROCEED, None)
 
     current_str = format_project_version(CURRENT_VERSION)
 
@@ -273,6 +280,7 @@ def _handle_prerelease_update_decision(
         """)
         open_info = latest_prerelease_info
 
+    pending: Callable[[], None] | None = None
     if (
         msgbox.show(
             title=TITLE,
@@ -282,8 +290,9 @@ def _handle_prerelease_update_decision(
         == msgbox.ReturnValues.IDYES
     ):
         if _is_frozen():
-            _download_and_apply(open_info, format_project_version(Version(open_info.version)))
+            version_str = format_project_version(Version(open_info.version))
+            pending = lambda: _download_and_apply(open_info, version_str)  # noqa: E731
         else:
             webbrowser.open(open_info.release_url)
 
-    return UpdateCheckOutcome.PROCEED
+    return (UpdateCheckOutcome.PROCEED, pending)

@@ -47,7 +47,9 @@ class FilesMixin(QMainWindow):
 
     def _check_for_updates(self) -> None:
         """Manually trigger an update check against GitHub."""
-        check_for_updates(updater_channel=Settings.updater_channel)
+        _, pending_download = check_for_updates(updater_channel=Settings.updater_channel)
+        if pending_download is not None:
+            pending_download()
 
     @staticmethod
     def open_directory(directory_path: Path) -> None:

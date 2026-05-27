@@ -136,9 +136,12 @@ def main() -> None:
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
 
     splash.update_status('Checking for updates')
-    outcome = splash.run_with_spinner(check_for_updates, updater_channel=Settings.updater_channel)
+    outcome, pending_download = splash.run_with_spinner(check_for_updates, updater_channel=Settings.updater_channel)
     if outcome is UpdateCheckOutcome.ABORT:
         sys.exit(0)
+    if pending_download is not None:
+        splash.lower_to_back()
+        pending_download()
 
     splash.update_status('Verifying Npcap driver')
     splash.run_with_spinner(ensure_npcap_installed)
