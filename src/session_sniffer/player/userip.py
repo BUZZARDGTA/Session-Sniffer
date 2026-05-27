@@ -259,10 +259,10 @@ class UserIPDatabases:
                     for range_str in ranges:
                         cls._process_range_entry(range_str, username, db_entry.database_path, db_entry.settings, range_entries)
 
-            # Assign range-matched UserIP to players that don't already have a match
+            # Assign or refresh range-matched UserIP for players not covered by single-IP entries.
             if range_entries:
                 for player in PlayersRegistry.get_default_sorted_players():
-                    if player.userip is not None:
+                    if player.ip in ip_to_userip:
                         continue
                     for range_entry in range_entries:
                         if player.ip in range_entry.ip_range:
