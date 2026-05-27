@@ -235,6 +235,7 @@ class SessionHost:
 
     player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
+    manual_redetect: ClassVar[bool] = False
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
@@ -244,6 +245,7 @@ class SessionHost:
         """Clear all session host data including pending disconnections."""
         cls.players_pending_for_disconnection.clear()
         cls.search_player = False
+        cls.manual_redetect = False
         cls.search_start_time = None
         cls.player = None
         cls.last_timing_gap_candidate = None
@@ -315,7 +317,9 @@ class SessionHost:
             or potential_session_host_player.packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
             # A candidate with too many packets has been connected far too long to be the host of a
             # newly joined session — host detection only applies at session join time.
-            or potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION
+            # Skip this check for manual re-detects: the user explicitly requested re-detection,
+            # so packet count is irrelevant (the session is already in progress).
+            or (not SessionHost.manual_redetect and potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION)
         ):
             if not potential_session_host_player:
                 logger.debug('[SessionHost] Rejected: no potential host candidate was selected')
@@ -347,5 +351,6 @@ class SessionHost:
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
         SessionHost.player = potential_session_host_player
         SessionHost.search_player = False
+        SessionHost.manual_redetect = False
         SessionHost.search_start_time = None
         return potential_session_host_player

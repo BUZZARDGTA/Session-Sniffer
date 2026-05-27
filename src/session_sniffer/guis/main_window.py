@@ -850,6 +850,7 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         """Clear the current session host and immediately re-trigger host detection."""
         SessionHost.clear_session_host_data()
         SessionHost.search_player = True
+        SessionHost.manual_redetect = True
 
     def _toggle_main_window_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
         """Toggle the always-on-top window flag for this session."""
