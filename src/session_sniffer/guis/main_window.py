@@ -44,6 +44,7 @@ from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
+from session_sniffer.guis.session_host_history_window import populate_host_history_submenu
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
@@ -238,6 +239,14 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
         redetect_host_action.triggered.connect(self._redetect_session_host)
         session_host_submenu.addAction(redetect_host_action)
+
+        session_host_submenu.addSeparator()
+        host_history_submenu = session_host_submenu.addMenu('📜 Host History')
+        if host_history_submenu is None:
+            msg = 'Failed to create Host History submenu'
+            raise RuntimeError(msg)
+        host_history_submenu.setToolTipsVisible(True)
+        host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, self._highlight_ips))
 
         gta5_menu.addSeparator()
 
@@ -939,6 +948,7 @@ class MainWindow(GTA5Mixin, StatsMixin, QMainWindow):
         """Clear all player data in preparation for a new capture interface."""
         self._clear_connected_players()
         self._clear_disconnected_players()
+        SessionHost.clear_history()
 
     def set_capture_toggle_enabled(self, *, enabled: bool) -> None:
         """Enable or disable the Stop/Start Capture toolbar button."""

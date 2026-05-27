@@ -430,6 +430,7 @@ def rendering_core(
     last_modmenu_refresh_time: float | None = None
     _has_players_for_poll: bool = False
     _relay_host_logged_ip: str | None = None
+    _last_recorded_host_ip: str | None = None
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
@@ -710,6 +711,13 @@ def rendering_core(
                         )
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
+
+        _current_host = SessionHost.player
+        if _current_host is not None and _current_host.ip != _last_recorded_host_ip:
+            SessionHost.record_host(_current_host)
+            _last_recorded_host_ip = _current_host.ip
+        elif _current_host is None and _last_recorded_host_ip is not None:
+            _last_recorded_host_ip = None
 
         if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
             last_session_logging_processing_time = time.monotonic()

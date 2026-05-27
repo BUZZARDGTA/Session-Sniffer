@@ -1,12 +1,14 @@
 ﻿"""Player registry for connected and disconnected players."""
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from heapq import nsmallest
 from ipaddress import IPv4Address, IPv4Network
 from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
+from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
@@ -35,6 +37,15 @@ _ALL_THIRD_PARTY_NETWORKS: tuple[IPv4Network, ...] = tuple(
 def is_third_party_server_ip(ip: str) -> bool:
     """Return True if `ip` matches any known third-party server CIDR range."""
     return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_NETWORKS)
+
+
+@dataclass
+class HostHistoryEntry:
+    """Snapshot of a session host at the time of detection."""
+
+    ip: str
+    detected_at: datetime
+    country_code: str
 
 
 class PlayersRegistry:
@@ -239,6 +250,7 @@ class SessionHost:
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
+    _history: ClassVar[list[HostHistoryEntry]] = []
 
     @classmethod
     def clear_session_host_data(cls) -> None:
@@ -249,6 +261,28 @@ class SessionHost:
         cls.search_start_time = None
         cls.player = None
         cls.last_timing_gap_candidate = None
+
+    @classmethod
+    def record_host(cls, player: Player) -> None:
+        """Snapshot the given player as a detected session host and append to history."""
+        country_code = player.iplookup.geolite2.country_code
+        if country_code in {'...', 'N/A'}:
+            country_code = player.iplookup.ipapi.country_code
+        cls._history.append(HostHistoryEntry(
+            ip=player.ip,
+            detected_at=datetime.now(tz=LOCAL_TZ),
+            country_code=country_code,
+        ))
+
+    @classmethod
+    def get_history(cls) -> list[HostHistoryEntry]:
+        """Return a snapshot list of the in-memory session host history."""
+        return list(cls._history)
+
+    @classmethod
+    def clear_history(cls) -> None:
+        """Clear the in-memory session host history."""
+        cls._history.clear()
 
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:

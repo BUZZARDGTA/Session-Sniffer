@@ -79,6 +79,39 @@ class StatsMixin(_MixinBase):
         view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         view.scrollTo(first_index)
 
+    def _highlight_ips(self, ips: list[str]) -> None:
+        """Select and scroll to player rows by IP, checking connected first then disconnected."""
+        connected_selection = QItemSelection()
+        disconnected_selection = QItemSelection()
+        connected_first_index = None
+        disconnected_first_index = None
+        for ip in ips:
+            row = self._connected.table_model.get_row_index_by_ip(ip)
+            if row is not None:
+                top_left = self._connected.table_model.index(row, 0)
+                bottom_right = self._connected.table_model.index(row, self._connected.table_model.columnCount() - 1)
+                connected_selection.select(top_left, bottom_right)
+                if connected_first_index is None:
+                    connected_first_index = top_left
+            else:
+                row = self._disconnected.table_model.get_row_index_by_ip(ip)
+                if row is not None:
+                    top_left = self._disconnected.table_model.index(row, 0)
+                    bottom_right = self._disconnected.table_model.index(row, self._disconnected.table_model.columnCount() - 1)
+                    disconnected_selection.select(top_left, bottom_right)
+                    if disconnected_first_index is None:
+                        disconnected_first_index = top_left
+        if connected_first_index is not None:
+            if not self._connected.is_expanded:
+                self._connected.expand()
+            self._connected.table_view.selectionModel().select(connected_selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+            self._connected.table_view.scrollTo(connected_first_index)
+        if disconnected_first_index is not None:
+            if not self._disconnected.is_expanded:
+                self._disconnected.expand()
+            self._disconnected.table_view.selectionModel().select(disconnected_selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+            self._disconnected.table_view.scrollTo(disconnected_first_index)
+
     def _open_player_leaderboard(self) -> None:
         """Open the Most Seen Players leaderboard, or focus the existing one."""
         if self._leaderboard_window is not None and self._leaderboard_window.isVisible():
