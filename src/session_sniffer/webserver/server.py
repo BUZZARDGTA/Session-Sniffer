@@ -152,15 +152,8 @@ class WebServer:
         )
         if snapshot is None:
             logger.debug('Snapshot request returned no data (status=503).')
-            return aiohttp.web.Response(
-                text=json.dumps({'error': 'No data available'}),
-                status=503,
-                content_type='application/json',
-            )
-        return aiohttp.web.Response(
-            text=json.dumps(self._build_snapshot_payload(snapshot, version)),
-            content_type='application/json',
-        )
+            return aiohttp.web.json_response({'error': 'No data available'}, status=503)
+        return aiohttp.web.json_response(self._build_snapshot_payload(snapshot, version))
 
     async def _serve_static(self, request: aiohttp.web.Request) -> aiohttp.web.StreamResponse:
         if not self._is_request_authorized(request):
