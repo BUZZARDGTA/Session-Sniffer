@@ -34,19 +34,6 @@ _RESERVED_NETWORK_RANGES = (
 )
 _RESERVED_NETWORKS_FILTER = ' or '.join(_RESERVED_NETWORK_RANGES)
 
-# BPF port-range exclusions for protocols formerly excluded via display filters.
-# Protocols already excluded by the `portrange 0-1023` BPF term:
-#   nbns (137), pcp (5351), dhcp (67/68)
-# Protocols already excluded by the `port 5353` BPF term:
-#   mdns (5353)
-_PROTOCOL_BPF_EXCLUSIONS: dict[str, str] = {
-    'ssdp':        'port 1900',
-    'uaudp':       'port 4569',
-    'classicstun': 'port 3478',
-    'llmnr':       'port 5355',
-    'raknet':      'port 19132',
-}
-
 _RTCP_RTP_VERSION = 2
 _RTCP_PT_MIN = 200
 _RTCP_PT_MAX = 204
@@ -156,31 +143,26 @@ def build_capture_filters(
         elif Settings.capture_game_preset == 'Minecraft':
             capture_filter.append('(len >= 49 and len <= 1498)')
 
-        # If the <capture_game_preset> setting is set, automatically blocks RTCP connections.
-        # In case RTCP can be useful to get someone IP, I decided not to block them without using a <capture_game_preset>.
-        # RTCP is known to be for example the Discord's server IP while you are in a call there.
-        # The "not rtcp" Display Filter have been heavily tested and I can confirm that it's indeed working correctly.
-        # I know that eventually you will see their corresponding IPs time to time but I can guarantee that it does the job it is supposed to do.
-        # It filters RTCP but some connections are STILL made out of it, but those are not RTCP ¯\_(ツ)_/¯.
-        # And that's exactly why the "Discord" (`class ThirdPartyServers`) IP ranges Capture Filters are useful for.
+    if Settings.capture_filter_block_rtcp:
         python_excluded_protocols.append('rtcp')
+    if Settings.capture_filter_block_dtls:
+        python_excluded_protocols.append('dtls')
 
     if Settings.capture_block_third_party_servers:
         blocked_ip_ranges = ThirdPartyServers.get_ip_ranges_for(Settings.capture_block_third_party_servers)
         if blocked_ip_ranges:
             capture_filter.append(f"not (net {' or '.join(blocked_ip_ranges)})")
 
-        # Here I'm trying to exclude various UDP protocols that are useless for the script.
-        # But there can be a lot more, those are just a couple I could find on my own usage.
-        # Port-based protocols are added directly to the BPF capture filter (strategy A).
-        # Payload-inspection protocols go to the Python-level display filter (strategy B).
-        for proto in ('ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'):
-            bpf_exclusion = _PROTOCOL_BPF_EXCLUSIONS.get(proto)
-            if bpf_exclusion is not None:
-                capture_filter.append(f'not {bpf_exclusion}')
-            elif proto == 'dtls':
-                python_excluded_protocols.append(proto)
-            # nbns/pcp/dhcp/mdns already excluded by portrange 0-1023 / port 5353
+    if Settings.capture_filter_block_ssdp:
+        capture_filter.append('not port 1900')
+    if Settings.capture_filter_block_raknet:
+        capture_filter.append('not port 19132')
+    if Settings.capture_filter_block_uaudp:
+        capture_filter.append('not port 4569')
+    if Settings.capture_filter_block_classicstun:
+        capture_filter.append('not port 3478')
+    if Settings.capture_filter_block_llmnr:
+        capture_filter.append('not port 5355')
 
     if Settings.capture_blocked_ips:
         blocked_bpf: list[str] = []

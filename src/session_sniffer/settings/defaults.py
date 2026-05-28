@@ -38,6 +38,7 @@ class SettingMeta:
     allowed_columns_attr: str | None = None
     display_labels: dict[str, str] | None = None
     group: str | None = None
+    subgroup: str | None = None
     hidden: bool = False
     special_value_text: str = 'All'
 
@@ -55,6 +56,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
 SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_interface_name': SettingMeta(
         category='Capture',
+        group='Interface',
         display_label='Interface Name',
         setting_type=SettingType.STRING,
         tooltip='Network interface name for packet capture.',
@@ -62,6 +64,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'capture_ip_address': SettingMeta(
         category='Capture',
+        group='Interface',
         display_label='IP Address',
         setting_type=SettingType.IPV4,
         tooltip='Local IP address to bind for capture.',
@@ -69,6 +72,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'capture_mac_address': SettingMeta(
         category='Capture',
+        group='Interface',
         display_label='MAC Address',
         setting_type=SettingType.MAC_ADDRESS,
         tooltip='Local MAC address override for capture.',
@@ -76,29 +80,15 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'capture_arp_spoofing': SettingMeta(
         category='Capture',
+        group='Interface',
         display_label='ARP Spoofing',
         setting_type=SettingType.BOOLEAN,
         tooltip='Enable ARP spoofing for packet interception.',
         requires_capture_restart=True,
     ),
-    'capture_block_third_party_servers': SettingMeta(
-        category='Capture',
-        display_label='Block Third-Party Servers',
-        setting_type=SettingType.COLUMN_TUPLE,
-        tooltip='Select which third-party server IP ranges to exclude from capture.',
-        requires_capture_restart=True,
-        allowed_columns_attr='ALL_THIRD_PARTY_SERVERS',
-        display_labels=THIRD_PARTY_SERVER_DISPLAY_NAMES,
-    ),
-    'capture_blocked_ips': SettingMeta(
-        category='Capture',
-        display_label='Blocked IPs / Ranges',
-        setting_type=SettingType.IP_RANGE_TUPLE,
-        tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
-        requires_capture_restart=True,
-    ),
     'capture_game_preset': SettingMeta(
         category='Capture',
+        group='General',
         display_label='Game Preset',
         setting_type=SettingType.ENUM,
         tooltip='Predefined capture profile name.',
@@ -111,6 +101,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'capture_overflow_timer': SettingMeta(
         category='Capture',
+        group='General',
         display_label='Overflow Timer',
         setting_type=SettingType.INTEGER_OR_ALL,
         tooltip=(
@@ -130,18 +121,103 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         step=1,
         special_value_text='Disabled',
     ),
+    'capture_block_third_party_servers': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        display_label='Block Third-Party Servers',
+        setting_type=SettingType.COLUMN_TUPLE,
+        tooltip='Select which third-party server IP ranges to exclude from capture.',
+        requires_capture_restart=True,
+        allowed_columns_attr='ALL_THIRD_PARTY_SERVERS',
+        display_labels=THIRD_PARTY_SERVER_DISPLAY_NAMES,
+    ),
+    'capture_blocked_ips': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        display_label='Blocked IPs / Ranges',
+        setting_type=SettingType.IP_RANGE_TUPLE,
+        tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
+        requires_capture_restart=True,
+    ),
     'capture_prepend_custom_capture_filter': SettingMeta(
         category='Capture',
+        group='Custom Filter',
         display_label='Custom Capture Filter',
         setting_type=SettingType.STRING,
         tooltip='Additional BPF filter prepended to the capture filter.',
         requires_capture_restart=True,
     ),
-    'capture_prepend_custom_display_filter': SettingMeta(
+    'capture_filter_block_rtcp': SettingMeta(
         category='Capture',
-        display_label='Custom Display Filter',
-        setting_type=SettingType.STRING,
-        tooltip='Additional display filter prepended to packet filtering.',
+        group='IP Filters',
+        subgroup='Payload Filters',
+        display_label='Block RTCP',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Exclude RTCP (Real-Time Control Protocol) packets from capture.\n\n'
+            'RTCP packets can reveal IPs of third-party services such as Discord voice servers.\n'
+            'Enable this to hide those IPs; disable to see them in the session table.'
+        ),
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_ssdp': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Port Filters',
+        display_label='Block SSDP',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Exclude SSDP (Simple Service Discovery Protocol) packets from capture (port 1900).'
+            ' These are local network device discovery broadcasts unrelated to gaming sessions.'
+        ),
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_raknet': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Port Filters',
+        display_label='Block RakNet',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Exclude RakNet protocol packets from capture (port 19132). Used by Minecraft Bedrock Edition LAN discovery and similar services.',
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_dtls': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Payload Filters',
+        display_label='Block DTLS',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Exclude DTLS (Datagram Transport Layer Security) packets from capture. Identified by payload inspection.',
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_uaudp': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Port Filters',
+        display_label='Block UAUDP',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Exclude UAUDP (Avaya/UA audio over UDP) packets from capture (port 4569).',
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_classicstun': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Port Filters',
+        display_label='Block ClassicSTUN',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Exclude ClassicSTUN (Session Traversal Utilities for NAT) packets from capture (port 3478).',
+        requires_capture_restart=True,
+    ),
+    'capture_filter_block_llmnr': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        subgroup='Port Filters',
+        display_label='Block LLMNR',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Exclude LLMNR (Link-Local Multicast Name Resolution) packets from capture (port 5355).'
+            ' These are Windows local network name resolution broadcasts unrelated to gaming sessions.'
+        ),
         requires_capture_restart=True,
     ),
     'gui_interface_selection_auto_connect': SettingMeta(
@@ -188,14 +264,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'gui_rate_graph_always_on_top': SettingMeta(
         category='Session',
-        group='General',
+        group='Rate Graph',
         display_label='Rate Graph Always on Top',
         setting_type=SettingType.BOOLEAN,
         tooltip='Keep rate graph windows above all other windows by default.',
     ),
     'gui_rate_graph_max_history': SettingMeta(
         category='Session',
-        group='General',
+        group='Rate Graph',
         display_label='Rate Graph Max History',
         setting_type=SettingType.INTEGER,
         tooltip='Maximum number of seconds of rate history stored for the Rate Graph. Determines how far back in time you can scroll.',
@@ -205,6 +281,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'gui_columns_connected_shown': SettingMeta(
         category='Columns',
+        group='Toggle Columns',
         display_label='Connected Shown Columns',
         setting_type=SettingType.COLUMN_TUPLE,
         tooltip='Columns shown in the connected-players table.',
@@ -212,6 +289,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'gui_columns_disconnected_shown': SettingMeta(
         category='Columns',
+        group='Toggle Columns',
         display_label='Disconnected Shown Columns',
         setting_type=SettingType.COLUMN_TUPLE,
         tooltip='Columns shown in the disconnected-players table.',
@@ -219,30 +297,35 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'gui_columns_datetime_show_date': SettingMeta(
         category='Columns',
+        group='Datetime',
         display_label='Show Date',
         setting_type=SettingType.BOOLEAN,
         tooltip='Display the date portion in datetime columns.',
     ),
     'gui_columns_datetime_show_time': SettingMeta(
         category='Columns',
+        group='Datetime',
         display_label='Show Time',
         setting_type=SettingType.BOOLEAN,
         tooltip='Display the time portion in datetime columns.',
     ),
     'gui_columns_datetime_show_elapsed_time': SettingMeta(
         category='Columns',
+        group='Datetime',
         display_label='Show Elapsed Time',
         setting_type=SettingType.BOOLEAN,
         tooltip='Display elapsed time in datetime columns.',
     ),
     'gui_columns_geo_country_append_alpha2': SettingMeta(
         category='Columns',
+        group='Geo',
         display_label='Country Append Alpha-2',
         setting_type=SettingType.BOOLEAN,
         tooltip='Append ISO 3166-1 alpha-2 code to country names.',
     ),
     'gui_columns_geo_continent_append_alpha2': SettingMeta(
         category='Columns',
+        group='Geo',
         display_label='Continent Append Alpha-2',
         setting_type=SettingType.BOOLEAN,
         tooltip='Append two-letter code to continent names.',
@@ -293,28 +376,28 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'show_discord_popup': SettingMeta(
         category='Launcher',
-        group='Startup',
+        group='Popups',
         display_label='Show Discord Intro Popup',
         setting_type=SettingType.BOOLEAN,
         tooltip='Show the Discord intro popup on application startup.',
     ),
     'discord_webhook_enabled': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Enabled',
         setting_type=SettingType.BOOLEAN,
         tooltip='Mirror the live Connected/Disconnected players tables to a Discord channel via webhook.',
     ),
     'discord_webhook_url': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Webhook URL',
         setting_type=SettingType.STRING,
         tooltip='Discord channel webhook URL (e.g. https://discord.com/api/webhooks/<id>/<token>).',
     ),
     'discord_webhook_refresh_interval': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Refresh Interval (s)',
         setting_type=SettingType.INTEGER,
         tooltip='Seconds between webhook updates. Lower values risk Discord rate limits (minimum 5).',
@@ -324,21 +407,21 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_include_connected': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Include Connected Table',
         setting_type=SettingType.BOOLEAN,
         tooltip='Post the connected-players table.',
     ),
     'discord_webhook_include_disconnected': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Include Disconnected Table',
         setting_type=SettingType.BOOLEAN,
         tooltip='Post the disconnected-players table.',
     ),
     'discord_webhook_max_rows_per_table': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Max Rows Per Table',
         setting_type=SettingType.INTEGER,
         tooltip='Maximum rows shown per table (extra rows are summarized as "… and N more").',
@@ -348,7 +431,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_max_connected_players': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Max Connected Players',
         setting_type=SettingType.INTEGER_OR_ALL,
         tooltip='Maximum number of connected players sent to the webhook. Set to 0 to include all players.',
@@ -358,7 +441,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_max_disconnected_players': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Max Disconnected Players',
         setting_type=SettingType.INTEGER_OR_ALL,
         tooltip='Maximum number of disconnected players sent to the webhook. Set to 0 to include all players.',
@@ -368,7 +451,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_format': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Output Format',
         setting_type=SettingType.ENUM,
         tooltip=(
@@ -379,7 +462,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_columns_connected': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Connected Columns',
         setting_type=SettingType.COLUMN_TUPLE,
         tooltip='Columns shown in the connected-players webhook table.',
@@ -387,7 +470,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_columns_disconnected': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Disconnected Columns',
         setting_type=SettingType.COLUMN_TUPLE,
         tooltip='Columns shown in the disconnected-players webhook table.',
@@ -395,7 +478,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'discord_webhook_message_ids': SettingMeta(
         category='Discord',
-        group='Server Webhook',
+        group='Webhook',
         display_label='Message IDs (internal)',
         setting_type=SettingType.STRING,
         tooltip='Internal storage for webhook message IDs (do not edit).',
@@ -403,18 +486,21 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'webserver_enabled': SettingMeta(
         category='Web Server',
+        group='Connection',
         display_label='Enable Web Server',
         setting_type=SettingType.BOOLEAN,
         tooltip='Enable local web server for browser access to live session data.',
     ),
     'webserver_host': SettingMeta(
         category='Web Server',
+        group='Connection',
         display_label='Host',
         setting_type=SettingType.STRING,
         tooltip='IP address to bind the web server to (0.0.0.0 = all interfaces).',
     ),
     'webserver_port': SettingMeta(
         category='Web Server',
+        group='Connection',
         display_label='Port',
         setting_type=SettingType.INTEGER,
         tooltip='Port number for the web server (1-65535).',
@@ -424,12 +510,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'webserver_username': SettingMeta(
         category='Web Server',
+        group='Authentication',
         display_label='Username',
         setting_type=SettingType.STRING,
         tooltip='Optional HTTP Basic Auth username. Leave empty to disable authentication.',
     ),
     'webserver_password': SettingMeta(
         category='Web Server',
+        group='Authentication',
         display_label='Password',
         setting_type=SettingType.STRING,
         tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
@@ -454,8 +542,14 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_game_preset': None,
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
-    'capture_prepend_custom_display_filter': None,
     'capture_blocked_ips': (),
+    'capture_filter_block_rtcp': False,
+    'capture_filter_block_ssdp': True,
+    'capture_filter_block_raknet': True,
+    'capture_filter_block_dtls': True,
+    'capture_filter_block_uaudp': True,
+    'capture_filter_block_classicstun': True,
+    'capture_filter_block_llmnr': True,
     'gui_interface_selection_auto_connect': False,
     'gui_interface_selection_hide_inactive': True,
     'gui_interface_selection_hide_neighbours': False,

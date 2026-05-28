@@ -1,6 +1,5 @@
 """Settings dialog for viewing, editing, saving, and resetting all application settings."""
 
-import webbrowser
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -55,6 +54,19 @@ if TYPE_CHECKING:
 _NONE_PLACEHOLDER = 'None'
 
 _RESTART_INDICATOR = ' \u27F3'
+
+_COMPACT_BTN_STYLESHEET = (
+    'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
+    ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
+    ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
+    ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
+    ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
+    ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
+    ' border: 1px solid rgba(41,128,185,1.0); }'
+)
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
@@ -159,9 +171,8 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
 
         if category == 'Web Server':
             outer_layout.addWidget(self._build_web_server_help_group())
-
-        # For the Discord tab, the join button is appended at the bottom of
-        # the page (see below). Other tabs have no extra page-level widgets.
+        elif category == 'Discord':
+            outer_layout.addWidget(self._build_discord_info_group())
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
@@ -181,30 +192,70 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 continue
 
             group_box = QGroupBox(group_name)
-            group_form = QFormLayout(group_box)
-            group_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-            group_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            for key, meta in items:
-                self._add_setting_row(group_form, key, meta)
-            outer_layout.addWidget(group_box)
+            direct_items = [(k, m) for k, m in items if not m.subgroup]
+            subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
+            for k, m in items:
+                if m.subgroup:
+                    subgrouped.setdefault(m.subgroup, []).append((k, m))
 
-        # Append the Discord join button at the bottom of the Discord tab.
-        if category == 'Discord':
-            join_row = QHBoxLayout()
-            join_button = QPushButton('\U0001f3ae Join Session Sniffer Discord Server')
-            join_button.setToolTip('Open the Session Sniffer Discord server invite in your browser')
-            join_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            join_button.clicked.connect(lambda: webbrowser.open(DISCORD_INVITE_URL))
-            join_row.addStretch()
-            join_row.addWidget(join_button)
-            join_row.addStretch()
-            outer_layout.addLayout(join_row)
+            if subgrouped:
+                group_vbox = QVBoxLayout(group_box)
+                if direct_items:
+                    direct_form = QFormLayout()
+                    direct_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+                    direct_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    for key, meta in direct_items:
+                        self._add_setting_row(direct_form, key, meta)
+                    group_vbox.addLayout(direct_form)
+                for sub_name, sub_items in subgrouped.items():
+                    sub_box = QGroupBox(sub_name)
+                    sub_form = QFormLayout(sub_box)
+                    sub_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+                    sub_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    for key, meta in sub_items:
+                        self._add_setting_row(sub_form, key, meta)
+                    group_vbox.addWidget(sub_box)
+            else:
+                group_form = QFormLayout(group_box)
+                group_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+                group_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                for key, meta in items:
+                    self._add_setting_row(group_form, key, meta)
+            outer_layout.addWidget(group_box)
 
         outer_layout.addStretch()
         scroll.setWidget(container)
         page_layout.addWidget(scroll)
 
         return page
+
+    def _build_discord_info_group(self) -> QGroupBox:
+        """Build a Discord server invite header for the Discord settings tab."""
+        group_box = QGroupBox('Session Sniffer Community')
+        layout = QVBoxLayout(group_box)
+
+        info_label = QLabel(
+            'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
+            f'<a href="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+        )
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
+        info_label.setOpenExternalLinks(True)
+        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        info_label.setStyleSheet(
+            'QLabel {'
+            'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+            'border: 1px solid #3b4455;'
+            'border-left: 4px solid #5865f2;'
+            'border-radius: 10px;'
+            'padding: 12px 14px;'
+            'color: #dbe4f0;'
+            'line-height: 1.35;'
+            '}',
+        )
+        layout.addWidget(info_label)
+
+        return group_box
 
     def _build_web_server_help_group(self) -> QGroupBox:
         """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
@@ -251,6 +302,12 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         if key == 'webserver_password' and isinstance(widget, QLineEdit):
             widget.setEchoMode(QLineEdit.EchoMode.Password)
         self._widgets[key] = widget
+
+        # COLUMN_TUPLE and IP_RANGE_TUPLE widgets carry their label as the QGroupBox title — add
+        # as a full-width spanning row so the widget gets all available horizontal space.
+        if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.IP_RANGE_TUPLE):
+            form.addRow(widget)
+            return
 
         label_text = meta.display_label
         if meta.requires_capture_restart:
@@ -516,8 +573,10 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
         default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
 
-        group = QGroupBox()
-        group.setFlat(True)
+        title = meta.display_label
+        if meta.requires_capture_restart:
+            title += _RESTART_INDICATOR
+        group = QGroupBox(title)
         if meta.tooltip:
             group.setToolTip(meta.tooltip)
 
@@ -544,20 +603,8 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         btn_deselect_all = QPushButton('Deselect All')
         btn_reset = QPushButton('Reset')
         btn_reset.setToolTip('Reset to default selected columns')
-        compact_btn_style = (
-            'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
-            ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
-            ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
-            ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
-            ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
-            ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
-            ' border: 1px solid rgba(41,128,185,1.0); }'
-        )
         for btn in (btn_select_all, btn_deselect_all, btn_reset):
-            btn.setStyleSheet(compact_btn_style)
+            btn.setStyleSheet(_COMPACT_BTN_STYLESHEET)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         btn_select_all.clicked.connect(lambda: self._set_all_checkboxes(inner, checked=True))
@@ -573,7 +620,6 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         btn_row.addStretch()
 
         outer = QVBoxLayout(group)
-        outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(4)
         outer.addLayout(btn_row)
         outer.addWidget(scroll, 1)
@@ -581,8 +627,10 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
 
     def _create_ip_range_tuple_widget(self, meta: SettingMeta) -> QGroupBox:
         """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
-        group = QGroupBox()
-        group.setFlat(True)
+        title = meta.display_label
+        if meta.requires_capture_restart:
+            title += _RESTART_INDICATOR
+        group = QGroupBox(title)
         if meta.tooltip:
             group.setToolTip(meta.tooltip)
 
@@ -591,28 +639,15 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         list_widget.setSortingEnabled(True)
 
-        compact_btn_style = (
-            'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
-            ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
-            ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
-            ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
-            ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
-            ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-            ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
-            ' border: 1px solid rgba(41,128,185,1.0); }'
-        )
-
         add_button = QPushButton('\u2795 Add')
         add_button.setToolTip('Add a new blocked IP address, range, or subnet')
-        add_button.setStyleSheet(compact_btn_style)
+        add_button.setStyleSheet(_COMPACT_BTN_STYLESHEET)
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         remove_button = QPushButton('\U0001f5d1 Remove')
         remove_button.setToolTip('Remove the selected entries')
-        remove_button.setStyleSheet(compact_btn_style)
+        remove_button.setStyleSheet(_COMPACT_BTN_STYLESHEET)
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
@@ -642,7 +677,6 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         btn_row.addStretch()
 
         outer_layout = QVBoxLayout(group)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(4)
         outer_layout.addLayout(btn_row)
         outer_layout.addWidget(list_widget, 1)
@@ -783,10 +817,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 if not is_mac_address(formatted):
                     errors.append(f'{meta.display_label}: "{value}" is not a valid MAC address (expected format: AA:BB:CC:DD:EE:FF).')
 
-            elif meta.setting_type == SettingType.STRING and key in (
-                'capture_prepend_custom_capture_filter',
-                'capture_prepend_custom_display_filter',
-            ) and isinstance(value, str):
+            elif meta.setting_type == SettingType.STRING and key == 'capture_prepend_custom_capture_filter' and isinstance(value, str):
                 try:
                     validate_and_strip_balanced_outer_parens(value)
                 except ParenthesisMismatchError:

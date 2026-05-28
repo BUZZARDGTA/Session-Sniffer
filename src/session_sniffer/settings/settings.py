@@ -9,6 +9,7 @@ from session_sniffer.constants.local import SETTINGS_PATH
 from session_sniffer.constants.standalone import (
     BANDWIDTH_BASE_COLUMN_ATTRS,
     BANDWIDTH_STAT_COLUMNS,
+    CAPTURE_FILTER_BLOCK_SETTINGS,
     CONNECTED_RATE_STAT_COLUMNS,
     DATETIME_TRACKING_COLUMNS,
     PACKET_STAT_COLUMNS,
@@ -46,7 +47,13 @@ class Settings:
     capture_game_preset: str | None = SETTING_DEFAULTS['capture_game_preset']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
-    capture_prepend_custom_display_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_display_filter']
+    capture_filter_block_rtcp: bool = SETTING_DEFAULTS['capture_filter_block_rtcp']
+    capture_filter_block_ssdp: bool = SETTING_DEFAULTS['capture_filter_block_ssdp']
+    capture_filter_block_raknet: bool = SETTING_DEFAULTS['capture_filter_block_raknet']
+    capture_filter_block_dtls: bool = SETTING_DEFAULTS['capture_filter_block_dtls']
+    capture_filter_block_uaudp: bool = SETTING_DEFAULTS['capture_filter_block_uaudp']
+    capture_filter_block_classicstun: bool = SETTING_DEFAULTS['capture_filter_block_classicstun']
+    capture_filter_block_llmnr: bool = SETTING_DEFAULTS['capture_filter_block_llmnr']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
     gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
     gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
@@ -101,7 +108,7 @@ class Settings:
         'CAPTURE_GAME_PRESET',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
-        'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER',
+        *CAPTURE_FILTER_BLOCK_SETTINGS,
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
         'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',

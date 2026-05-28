@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
-from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
+from session_sniffer.constants.standalone import CAPTURE_FILTER_BLOCK_SETTINGS, MAX_PORT, MIN_PORT
 from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.utils import (
@@ -69,8 +69,14 @@ class SettingsIniModel(BaseModel):
     CAPTURE_GAME_PRESET: str | None
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
-    CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
+    CAPTURE_FILTER_BLOCK_RTCP: bool
+    CAPTURE_FILTER_BLOCK_SSDP: bool
+    CAPTURE_FILTER_BLOCK_RAKNET: bool
+    CAPTURE_FILTER_BLOCK_DTLS: bool
+    CAPTURE_FILTER_BLOCK_UAUDP: bool
+    CAPTURE_FILTER_BLOCK_CLASSICSTUN: bool
+    CAPTURE_FILTER_BLOCK_LLMNR: bool
 
     # GUI settings
     GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool
@@ -121,6 +127,7 @@ class SettingsIniModel(BaseModel):
 
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset({
         'CAPTURE_ARP_SPOOFING',
+        *CAPTURE_FILTER_BLOCK_SETTINGS,
         'DISCORD_PRESENCE',
         'DISCORD_WEBHOOK_ENABLED',
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
@@ -349,7 +356,7 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('int', cls._get_default_for_field(info) or 3)
 
-    @field_validator('CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER', 'CAPTURE_PREPEND_CUSTOM_DISPLAY_FILTER', mode='before')
+    @field_validator('CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER', mode='before')
     @classmethod
     def _parse_custom_filter(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:

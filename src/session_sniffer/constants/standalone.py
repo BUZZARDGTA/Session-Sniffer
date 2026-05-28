@@ -44,3 +44,24 @@ SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 
 
 # Timestamp columns that appear in both connected and disconnected rows.
 DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')
+
+# Setting names for payload-inspection-based capture filters.
+CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS: tuple[str, ...] = (
+    'CAPTURE_FILTER_BLOCK_RTCP',
+    'CAPTURE_FILTER_BLOCK_DTLS',
+)
+
+# Setting names for port-based capture filters.
+CAPTURE_FILTER_BLOCK_PORT_SETTINGS: tuple[str, ...] = (
+    'CAPTURE_FILTER_BLOCK_SSDP',
+    'CAPTURE_FILTER_BLOCK_RAKNET',
+    'CAPTURE_FILTER_BLOCK_UAUDP',
+    'CAPTURE_FILTER_BLOCK_CLASSICSTUN',
+    'CAPTURE_FILTER_BLOCK_LLMNR',
+)
+
+# Combined tuple of all capture filter block settings (payload + port).
+CAPTURE_FILTER_BLOCK_SETTINGS: tuple[str, ...] = (
+    *CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS,
+    *CAPTURE_FILTER_BLOCK_PORT_SETTINGS,
+)
