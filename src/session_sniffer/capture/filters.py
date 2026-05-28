@@ -41,7 +41,6 @@ _RESERVED_NETWORKS_FILTER = ' or '.join(_RESERVED_NETWORK_RANGES)
 #   mdns (5353)
 _PROTOCOL_BPF_EXCLUSIONS: dict[str, str] = {
     'ssdp':        'port 1900',
-    'bt-dht':      'port 6881',
     'uaudp':       'port 4569',
     'classicstun': 'port 3478',
     'llmnr':       'port 5355',
@@ -175,7 +174,7 @@ def build_capture_filters(
         # But there can be a lot more, those are just a couple I could find on my own usage.
         # Port-based protocols are added directly to the BPF capture filter (strategy A).
         # Payload-inspection protocols go to the Python-level display filter (strategy B).
-        for proto in ('ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'bt-dht', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'):
+        for proto in ('ssdp', 'raknet', 'dtls', 'nbns', 'pcp', 'uaudp', 'classicstun', 'dhcp', 'mdns', 'llmnr'):
             bpf_exclusion = _PROTOCOL_BPF_EXCLUSIONS.get(proto)
             if bpf_exclusion is not None:
                 capture_filter.append(f'not {bpf_exclusion}')
