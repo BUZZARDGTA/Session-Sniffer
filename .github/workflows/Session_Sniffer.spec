@@ -11,7 +11,8 @@ a = Analysis(
         ('..\\..\\images', 'images'),
         ('..\\..\\resources', 'resources'),
         ('..\\..\\scripts', 'scripts'),
-        ('..\\..\\TTS', 'TTS')
+        ('..\\..\\TTS', 'TTS'),
+        ('..\\..\\src\\session_sniffer\\webserver\\static', 'session_sniffer\\webserver\\static'),
     ],
     hiddenimports=[],
     hookspath=[],

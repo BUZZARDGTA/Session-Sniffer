@@ -31,7 +31,7 @@ jobs:
       - name: Setup Python for x64 Build
         uses: actions/setup-python@v6.2.0
         with:
-          python-version: 3.x
+          python-version: '3.14'
           architecture: x64
 
       - name: Create a Python Virtual Environment
@@ -121,7 +121,7 @@ jobs:
       - name: Setup Python Environment
         uses: actions/setup-python@v6.2.0
         with:
-          python-version: 3.x
+          python-version: '3.14'
 
       - name: Install Packaging Python Library
         run: |

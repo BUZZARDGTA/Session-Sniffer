@@ -81,7 +81,7 @@ _PACKET_DROUGHT_THRESHOLD_SECS = 8.0
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
     if is_pyinstaller_compiled():
-        old_exe = Path(sys.executable).with_suffix('.old')
+        old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')
         with contextlib.suppress(OSError):
             old_exe.unlink()
 

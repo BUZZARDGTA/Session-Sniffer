@@ -1,7 +1,9 @@
 """Updater: GitHub version fetch + retry + UI + version comparison."""
 
+import contextlib
 import functools
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -116,21 +118,40 @@ def _is_frozen() -> bool:
     return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
 
 
+def _remove_file_if_possible(path: Path) -> None:
+    """Remove `path`, silently ignoring any `OSError` (e.g. antivirus lock)."""
+    with contextlib.suppress(OSError):
+        path.unlink(missing_ok=True)
+
+
 def _apply_update(new_exe: Path) -> None:
     """Replace the running executable with `new_exe`, relaunch it, and exit.
 
-    Renames the currently running exe to `.old` (Windows allows renaming open
-    files on NTFS), copies the new exe to the original path, launches the new
-    process, then exits the current one. The `.old` file is cleaned up on the
-    next startup by `main()`.
+    Attempts to rename the currently running executable to `.old`, copies the new
+    executable to the original path, launches the new process with a fresh
+    PyInstaller environment, then exits immediately. The `.old` file is cleaned up
+    on the next startup by `main()`.
     """
     current_exe = Path(sys.executable)
-    old_exe = current_exe.with_suffix('.old')
+    old_exe = current_exe.with_name(f'{current_exe.name}.old')
+
+    try:
+        old_exe.unlink(missing_ok=True)
+    except OSError as exc:
+        _remove_file_if_possible(new_exe)
+        msgbox.show(
+            title=TITLE,
+            text=format_triple_quoted_text(
+                f'Failed to remove the stale backup executable before updating.\n\n{exc}',
+            ),
+            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
+        )
+        return
 
     try:
         current_exe.rename(old_exe)
     except OSError as exc:
-        new_exe.unlink(missing_ok=True)
+        _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
@@ -144,8 +165,21 @@ def _apply_update(new_exe: Path) -> None:
         shutil.copy2(new_exe, current_exe)
     except OSError as exc:
         # Restore the original exe so the user can still run the app
-        old_exe.rename(current_exe)
-        new_exe.unlink(missing_ok=True)
+        try:
+            old_exe.rename(current_exe)
+        except OSError as restore_exc:
+            _remove_file_if_possible(new_exe)
+            msgbox.show(
+                title=TITLE,
+                text=format_triple_quoted_text(
+                    f'Failed to write the new executable, and failed to restore the previous version.'
+                    f'\n\nWrite error: {exc}'
+                    f'\n\nRestore error: {restore_exc}',
+                ),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
+            )
+            return
+        _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
@@ -155,9 +189,22 @@ def _apply_update(new_exe: Path) -> None:
         )
         return
 
-    new_exe.unlink(missing_ok=True)
-    subprocess.Popen([str(current_exe)])
-    sys.exit(0)
+    _remove_file_if_possible(new_exe)
+    # PyInstaller 6.10+ changed sub-process detection: a child process that inherits
+    # _PYI_APPLICATION_HOME_DIR / _PYI_ARCHIVE_FILE env vars is treated as a worker
+    # sub-process of the same app instance and reuses the parent's _MEI temp dir.
+    # Setting PYINSTALLER_RESET_ENVIRONMENT=1 tells the bootloader that this is a
+    # new independent application launch, so it extracts to its own fresh _MEI dir.
+    subprocess.Popen(
+        [str(current_exe)],
+        cwd=str(current_exe.parent),
+        env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
+        close_fds=True,
+    )
+    # os._exit bypasses atexit handlers and Qt/thread teardown, which is intentional:
+    # background threads (capture, rendering, etc.) are still running at this point,
+    # and sys.exit would attempt a full teardown after the exe has already been replaced.
+    os._exit(0)
 
 
 def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
@@ -172,12 +219,12 @@ def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
     )
     dialog.exec()
     if not dialog.success:
-        dest.unlink(missing_ok=True)
+        _remove_file_if_possible(dest)
         return
 
     actual_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
-    if actual_hash != candidate_info.sha256.lower():
-        dest.unlink(missing_ok=True)
+    if actual_hash.lower() != candidate_info.sha256.lower():
+        _remove_file_if_possible(dest)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
