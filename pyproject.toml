@@ -9,6 +9,7 @@ build-backend = "setuptools.build_meta"
 name = "session_sniffer"
 version = "v1.5.0rc8+20260527.2158"
 dependencies = [
+    "aiohttp==3.13.5",
     "colorama==0.4.6",
     "dnspython==2.8.0",
     "geoip2==5.2.0",
@@ -17,21 +18,18 @@ dependencies = [
     "psutil==7.2.2",
     "pydantic==2.13.4",
     "pypresence==4.6.1",
-    "pyqtgraph==0.14.0",
     "PyQt6==6.8.1",
+    "pyqtgraph==0.14.0",
     "pywin32==311; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
     "requests==2.34.2",
     "rich==15.0.0",
-    "sanic==25.12.0",
-    "sanic-ext==25.12.0",
     "scapy==2.7.0",
     "sentinel==1.0.0",
     "toml==0.10.2",
     "tzlocal==5.3.1",
 
     # Security fixes
-    "aiohttp>=3.12.14",
     "certifi>=2024.7.4",
     "idna>=3.7",
 ]

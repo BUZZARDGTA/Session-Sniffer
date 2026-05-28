@@ -1,27 +1,18 @@
-"""Async web server (Sanic) for real-time session data with WebSocket support."""
+"""Async web server (aiohttp) for real-time session data with WebSocket support."""
 
 import asyncio
 import base64
 import binascii
-import contextlib
 import hmac
 import json
 import threading
-import warnings
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, cast
-from unittest.mock import patch
+from typing import TYPE_CHECKING, ClassVar
 
-from sanic import HTTPResponse, Request, Sanic, Websocket, text
-from sanic import json as sanic_json
-from sanic.exceptions import WebsocketClosed
-from sanic.response import file as sanic_file
-from sanic_ext import Extend
-from websockets.exceptions import ConnectionClosed
+import aiohttp.web
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.rendering_core.types import GUIRenderingSnapshot, GUIRenderingState
-from session_sniffer.utils import is_pyinstaller_compiled
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
@@ -48,23 +39,16 @@ class WebServer:
     _thread: ClassVar[threading.Thread | None] = None
 
     def __init__(self, config: WebServerConfig) -> None:
-        """Initialize the web server.
-
-        Args:
-            config: Web server startup configuration.
-        """
+        """Initialize the web server with the given `config`."""
         self.host = config.host
         self.port = config.port
         self.static_dir = config.static_dir
         self.auth_username = config.auth_username
         self.auth_password = config.auth_password
-        self.app = Sanic('session_sniffer')
-        Extend(self.app)
         self._event_loop: AbstractEventLoop | None = None
-        self.app.register_listener(self._on_after_server_start, 'after_server_start')
-        self.app.register_listener(self._on_after_server_stop, 'after_server_stop')
+        self._stop_event: asyncio.Event | None = None
+        self._runner: aiohttp.web.AppRunner | None = None
         self._connected_clients: set[str] = set()
-        self._setup_routes()
         logger.debug(
             'WebServer initialized host=%s port=%d static_dir=%s auth_enabled=%s',
             self.host,
@@ -73,29 +57,20 @@ class WebServer:
             self._is_auth_enabled(),
         )
 
-    async def _on_after_server_start(self, _app: object) -> None:
-        self._event_loop = asyncio.get_running_loop()
-        logger.debug('Web server event loop attached (thread=%s).', threading.current_thread().name)
-
-    async def _on_after_server_stop(self, _app: object) -> None:
-        self._event_loop = None
-        logger.debug('Web server event loop detached (thread=%s).', threading.current_thread().name)
-
     def _is_auth_enabled(self) -> bool:
         return bool(self.auth_username and self.auth_password)
 
-    def _is_request_authorized(self, request: Request) -> bool:
+    def _is_request_authorized(self, request: aiohttp.web.Request) -> bool:
         if not self._is_auth_enabled():
             logger.debug('Auth bypassed for %s because credentials are not configured.', request.path)
             return True
 
-        authorization_header_value = cast('object | None', request.headers.get('authorization'))
-        if not isinstance(authorization_header_value, str) or not authorization_header_value:
+        authorization_header_value = request.headers.get('Authorization')
+        if not authorization_header_value:
             logger.debug('Authorization rejected for %s: missing Authorization header.', request.path)
             return False
-        authorization_header = authorization_header_value
 
-        auth_type, _, auth_value = authorization_header.partition(' ')
+        auth_type, _, auth_value = authorization_header_value.partition(' ')
         if auth_type.casefold() != 'basic' or not auth_value:
             logger.debug('Authorization rejected for %s: invalid Authorization scheme.', request.path)
             return False
@@ -120,42 +95,20 @@ class WebServer:
         return authorized
 
     @staticmethod
-    def _unauthorized_response() -> HTTPResponse:
-        return text(
-            'Unauthorized',
+    def _unauthorized_response() -> aiohttp.web.Response:
+        return aiohttp.web.Response(
+            text='Unauthorized',
             status=401,
             headers={'WWW-Authenticate': 'Basic realm="Session Sniffer Web Panel"'},
         )
 
-    def _suppress_sanic_signal_registration(self) -> contextlib.AbstractContextManager[object]:
-        """Prevent Sanic from calling signal.signal() in non-main threads."""
-        if threading.current_thread() is threading.main_thread():
-            return contextlib.nullcontext()
-
-        return self._patch_sanic_signal_func()
-
-    @staticmethod
-    def _patch_sanic_signal_func() -> contextlib.AbstractContextManager[object]:
-        """Temporarily replace Sanic's signal registration function with a no-op."""
-
-        def _noop_signal_func(_signalnum: int, handler: object) -> object:
-            return handler
-
-        return patch('sanic.server.runners.signal_func', _noop_signal_func)
-
-    def _setup_routes(self) -> None:
-        """Set up all API routes and static file serving."""
-        # Serve index.html on root
-        self.app.add_route(self._index, '/', methods=['GET'])
-
-        # API: Get current rendering snapshot
-        self.app.add_route(self._get_snapshot, '/api/snapshot', methods=['GET'])
-
-        # WebSocket: Real-time updates
-        self.app.add_websocket_route(self._websocket_updates, '/ws/updates')
-
-        # Static file serving
-        self.app.add_route(self._serve_static, '/<filename:path>', methods=['GET'])
+    def _build_app(self) -> aiohttp.web.Application:
+        app = aiohttp.web.Application()
+        app.router.add_get('/', self._index)
+        app.router.add_get('/api/snapshot', self._get_snapshot)
+        app.router.add_get('/ws/updates', self._websocket_updates)
+        app.router.add_get('/{filename:.+}', self._serve_static)
+        return app
 
     @staticmethod
     def _build_snapshot_payload(snapshot: GUIRenderingSnapshot, version: int, *, message_type: str | None = None) -> dict[str, object]:
@@ -183,15 +136,13 @@ class WebServer:
             payload['type'] = message_type
         return payload
 
-    async def _index(self, request: Request) -> HTTPResponse:
-        """Serve the web UI entry point."""
+    async def _index(self, request: aiohttp.web.Request) -> aiohttp.web.StreamResponse:
         if not self._is_request_authorized(request):
             logger.debug('Request unauthorized: %s %s', request.method, request.path)
             return self._unauthorized_response()
         return await self._serve_static_file('index.html')
 
-    async def _get_snapshot(self, request: Request) -> HTTPResponse:
-        """Return the latest rendering snapshot for HTTP clients."""
+    async def _get_snapshot(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         if not self._is_request_authorized(request):
             logger.debug('Request unauthorized: %s %s', request.method, request.path)
             return self._unauthorized_response()
@@ -202,41 +153,47 @@ class WebServer:
         )
         if snapshot is None:
             logger.debug('Snapshot request returned no data (status=503).')
-            return sanic_json({'error': 'No data available'}, status=503)
+            return aiohttp.web.Response(
+                text=json.dumps({'error': 'No data available'}),
+                status=503,
+                content_type='application/json',
+            )
+        return aiohttp.web.Response(
+            text=json.dumps(self._build_snapshot_payload(snapshot, version)),
+            content_type='application/json',
+        )
 
-        return sanic_json(self._build_snapshot_payload(snapshot, version))
-
-    async def _serve_static(self, request: Request, filename: str) -> HTTPResponse:
-        """Serve a static file route request."""
+    async def _serve_static(self, request: aiohttp.web.Request) -> aiohttp.web.StreamResponse:
         if not self._is_request_authorized(request):
             logger.debug('Request unauthorized: %s %s', request.method, request.path)
             return self._unauthorized_response()
+        filename = request.match_info.get('filename', '')
         return await self._serve_static_file(filename)
 
-    async def _serve_static_file(self, filename: str) -> HTTPResponse:
-        """Serve a static file from the static directory."""
+    async def _serve_static_file(self, filename: str) -> aiohttp.web.StreamResponse:
         if not self.static_dir:
             logger.debug('Static file request failed for %s: static_dir is not configured.', filename)
-            return text('Static files not configured', status=404)
+            return aiohttp.web.Response(text='Static files not configured', status=404)
 
         file_path = self.static_dir / filename
         if not file_path.exists() or not file_path.is_file():
             logger.debug('Static file request failed for %s: not found at %s', filename, file_path)
-            return text('Not found', status=404)
+            return aiohttp.web.Response(text='Not found', status=404)
 
         try:
             logger.debug('Serving static file %s', file_path)
-            return await sanic_file(str(file_path))
+            return aiohttp.web.FileResponse(file_path)
         except OSError:
             logger.exception('Error serving file %s', filename)
-            return text('Internal server error', status=500)
+            return aiohttp.web.Response(text='Internal server error', status=500)
 
-    async def _websocket_updates(self, request: Request, ws: Websocket) -> None:
-        """WebSocket endpoint for real-time snapshot updates."""
+    async def _websocket_updates(self, request: aiohttp.web.Request) -> aiohttp.web.WebSocketResponse:
         if not self._is_request_authorized(request):
             logger.debug('WebSocket unauthorized: %s', request.path)
-            await ws.close(code=1008, reason='Unauthorized')
-            return
+            raise aiohttp.web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Basic realm="Session Sniffer Web Panel"'})
+
+        ws = aiohttp.web.WebSocketResponse()
+        await ws.prepare(request)
 
         client_id = str(id(ws))
         self._connected_clients.add(client_id)
@@ -244,76 +201,61 @@ class WebServer:
 
         try:
             last_version = 0
-            while True:
-                # Wait for new snapshot with 5 second timeout
+            while not ws.closed:
                 snapshot, version = await asyncio.to_thread(
                     GUIRenderingState.wait_rendering_snapshot,
                     timeout=5.0,
                     last_seen_version=last_version,
                 )
-
+                if ws.closed:
+                    break
                 if snapshot is None:
-                    # Timeout - send keep-alive
-                    await ws.send(json.dumps({'type': 'keep-alive'}))
+                    await ws.send_str(json.dumps({'type': 'keep-alive'}))
                     continue
-
                 last_version = version
-
-                await ws.send(json.dumps(self._build_snapshot_payload(snapshot, version, message_type='snapshot')))
-        except (ConnectionClosed, WebsocketClosed):
-            logger.warning('WebSocket error for client %s', client_id, exc_info=True)
+                await ws.send_str(json.dumps(self._build_snapshot_payload(snapshot, version, message_type='snapshot')))
+        except ConnectionResetError:
+            logger.warning('WebSocket connection reset for client %s', client_id)
         finally:
             self._connected_clients.discard(client_id)
             logger.info('WebSocket client disconnected: %s (total: %d)', client_id, len(self._connected_clients))
 
+        return ws
+
+    async def _run_async(self, stop_event: asyncio.Event) -> None:
+        app = self._build_app()
+        self._runner = aiohttp.web.AppRunner(app, access_log=None)
+        await self._runner.setup()
+        site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
+        await site.start()
+        logger.info('Web server started on %s:%d', self.host, self.port)
+        await stop_event.wait()
+        await self._runner.cleanup()
+        logger.info('Web server stopped.')
+
     def run(self) -> None:
         """Start the web server (blocks until stopped)."""
-        run_debug_mode = not is_pyinstaller_compiled()
         logger.info('Starting web server on %s:%d', self.host, self.port)
-        logger.debug('Web server run invoked on thread %s (debug_mode=%s).', threading.current_thread().name, run_debug_mode)
-        with warnings.catch_warnings():
-            # Sanic 25.12 triggers Windows event-loop policy deprecations on Python 3.14+.
-            warnings.filterwarnings(
-                'ignore',
-                message=".*'asyncio.get_event_loop_policy' is deprecated.*",
-                category=DeprecationWarning,
-                module='sanic.server.loop',
-            )
-            warnings.filterwarnings(
-                'ignore',
-                message=".*'asyncio.WindowsSelectorEventLoopPolicy' is deprecated.*",
-                category=DeprecationWarning,
-                module='sanic.server.loop',
-            )
-            warnings.filterwarnings(
-                'ignore',
-                message=".*'asyncio.set_event_loop_policy' is deprecated.*",
-                category=DeprecationWarning,
-                module='sanic.server.loop',
-            )
-            with self._suppress_sanic_signal_registration():
-                self.app.run(
-                    host=self.host,
-                    port=self.port,
-                    debug=run_debug_mode,
-                    single_process=True,
-                    auto_reload=False,
-                    access_log=False,
-                    register_sys_signals=False,
-                )
+        logger.debug('Web server run invoked on thread %s.', threading.current_thread().name)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._event_loop = loop
+        stop_event = asyncio.Event()
+        self._stop_event = stop_event
+        try:
+            loop.run_until_complete(self._run_async(stop_event))
+        finally:
+            loop.close()
+            self._event_loop = None
+            self._stop_event = None
 
     def stop(self) -> None:
         """Request web server shutdown."""
-        if self._event_loop is not None and self._event_loop.is_running():
+        if self._event_loop is not None and self._event_loop.is_running() and self._stop_event is not None:
             logger.debug('Scheduling web server stop on event loop thread.')
-            self._event_loop.call_soon_threadsafe(self.app.stop)
+            self._event_loop.call_soon_threadsafe(self._stop_event.set)
             return
-
-        try:
-            logger.debug('Stopping web server directly without event-loop scheduling.')
-            self.app.stop()
-        except RuntimeError:
-            logger.warning('Unable to stop web server because Sanic event loop is unavailable.')
+        logger.debug('Web server stop requested but event loop is not running.')
 
     @classmethod
     def start_server(
