@@ -62,7 +62,6 @@ class WebServer:
 
     def _is_request_authorized(self, request: aiohttp.web.Request) -> bool:
         if not self._is_auth_enabled():
-            logger.debug('Auth bypassed for %s because credentials are not configured.', request.path)
             return True
 
         authorization_header_value = request.headers.get('Authorization')
@@ -236,7 +235,6 @@ class WebServer:
     def run(self) -> None:
         """Start the web server (blocks until stopped)."""
         logger.info('Starting web server on %s:%d', self.host, self.port)
-        logger.debug('Web server run invoked on thread %s.', threading.current_thread().name)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         self._event_loop = loop
