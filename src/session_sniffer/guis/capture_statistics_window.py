@@ -13,7 +13,6 @@ from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, SlidingWindow
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
 
@@ -65,14 +64,12 @@ class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
         self._lbl_vpn = QLabel('—')
         self._lbl_preset = QLabel('—')
         self._lbl_discord = QLabel('—')
-        self._lbl_userip_conflicts = QLabel('0')
         capture_config_form.addRow('Interface:', self._lbl_interface)
         capture_config_form.addRow('IP:', self._lbl_ip)
         capture_config_form.addRow('ARP:', self._lbl_arp)
         capture_config_form.addRow('VPN Mode:', self._lbl_vpn)
         capture_config_form.addRow('Game Preset:', self._lbl_preset)
         capture_config_form.addRow('Discord RPC:', self._lbl_discord)
-        capture_config_form.addRow('UserIP Conflicts:', self._lbl_userip_conflicts)
         left_col_a.addWidget(capture_config_group)
 
         # Players group
@@ -302,7 +299,6 @@ class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
             self._lbl_discord.setText('Connected' if CaptureState.discord_rpc_connected else 'Waiting')
         else:
             self._lbl_discord.setText('Disabled')
-        self._lbl_userip_conflicts.setText(str(len(UserIPDatabases.notified_ip_conflicts)))
 
         elapsed = int(time.monotonic() - CaptureStats.capture_started_at)
         h, rem = divmod(elapsed, 3600)
