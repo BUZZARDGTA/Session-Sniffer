@@ -170,7 +170,6 @@ class SessionTableSection(QWidget):
         icon_label = QLabel()
         icon_label.setFixedSize(40, 34)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet('background: rgba(0, 0, 0, 0.18); border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 6px;')
         icon_label.setPixmap(_svg_to_pixmap(_PLAYER_ICON_SVG, 24))
 
         self._header_label = QLabel(self._header_label_text())
@@ -188,7 +187,7 @@ class SessionTableSection(QWidget):
         collapse_button.clicked.connect(self.minimize)
 
         icon_title_pair = QHBoxLayout()
-        icon_title_pair.setSpacing(6)
+        icon_title_pair.setSpacing(1)
         icon_title_pair.setContentsMargins(0, 0, 0, 0)
         icon_title_pair.addWidget(icon_label)
         icon_title_pair.addWidget(self._header_label)
