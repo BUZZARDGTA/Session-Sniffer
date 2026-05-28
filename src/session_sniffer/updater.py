@@ -6,9 +6,9 @@ import subprocess
 import sys
 import tempfile
 import webbrowser
-from collections.abc import Callable
 from enum import Enum, auto
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import requests
 from packaging.version import Version
@@ -26,6 +26,9 @@ from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import format_project_version
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class UpdateCheckOutcome(Enum):
