@@ -48,7 +48,7 @@ class WebServer:
         self._event_loop: AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._runner: aiohttp.web.AppRunner | None = None
-        self._connected_clients: set[str] = set()
+        self._websockets: set[aiohttp.web.WebSocketResponse] = set()
         logger.debug(
             'WebServer initialized host=%s port=%d static_dir=%s auth_enabled=%s',
             self.host,
@@ -101,8 +101,16 @@ class WebServer:
             headers={'WWW-Authenticate': 'Basic realm="Session Sniffer Web Panel"'},
         )
 
+    async def _on_shutdown(self, _app: aiohttp.web.Application) -> None:
+        for ws in set(self._websockets):
+            await ws.close(
+                code=aiohttp.WSCloseCode.GOING_AWAY,
+                message=b'Server shutting down',
+            )
+
     def _build_app(self) -> aiohttp.web.Application:
         app = aiohttp.web.Application()
+        app.on_shutdown.append(self._on_shutdown)
         app.router.add_get('/', self._index)
         app.router.add_get('/api/snapshot', self._get_snapshot)
         app.router.add_get('/ws/updates', self._websocket_updates)
@@ -167,8 +175,12 @@ class WebServer:
             logger.debug('Static file request failed for %s: static_dir is not configured.', filename)
             return aiohttp.web.Response(text='Static files not configured', status=404)
 
-        file_path = self.static_dir / filename
-        if not file_path.exists() or not file_path.is_file():
+        static_root = self.static_dir.resolve()
+        file_path = (static_root / filename).resolve()
+        if not file_path.is_relative_to(static_root):
+            logger.debug('Static file request rejected for %s: path traversal detected.', filename)
+            return aiohttp.web.Response(text='Not found', status=404)
+        if not file_path.is_file():
             logger.debug('Static file request failed for %s: not found at %s', filename, file_path)
             return aiohttp.web.Response(text='Not found', status=404)
 
@@ -187,9 +199,8 @@ class WebServer:
         ws = aiohttp.web.WebSocketResponse()
         await ws.prepare(request)
 
-        client_id = str(id(ws))
-        self._connected_clients.add(client_id)
-        logger.info('WebSocket client connected: %s (total: %d)', client_id, len(self._connected_clients))
+        self._websockets.add(ws)
+        logger.info('WebSocket client connected (total: %d)', len(self._websockets))
 
         try:
             last_version = 0
@@ -207,10 +218,10 @@ class WebServer:
                 last_version = version
                 await ws.send_str(json.dumps(self._build_snapshot_payload(snapshot, version, message_type='snapshot')))
         except ConnectionResetError:
-            logger.warning('WebSocket connection reset for client %s', client_id)
+            logger.warning('WebSocket connection reset unexpectedly.')
         finally:
-            self._connected_clients.discard(client_id)
-            logger.info('WebSocket client disconnected: %s (total: %d)', client_id, len(self._connected_clients))
+            self._websockets.discard(ws)
+            logger.info('WebSocket client disconnected (total: %d)', len(self._websockets))
 
         return ws
 
