@@ -141,7 +141,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     ),
     'capture_prepend_custom_capture_filter': SettingMeta(
         category='Capture',
-        group='Custom Filter',
+        group='IP Filters',
         display_label='Custom Capture Filter',
         setting_type=SettingType.STRING,
         tooltip='Additional BPF filter prepended to the capture filter.',
