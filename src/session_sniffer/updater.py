@@ -1,5 +1,6 @@
 """Updater: GitHub version fetch + retry + UI + version comparison."""
 
+import functools
 import hashlib
 import shutil
 import subprocess
@@ -228,7 +229,7 @@ def _handle_update_decision(
     ):
         if _is_frozen():
             version_str = format_project_version(candidate)
-            pending = lambda: _download_and_apply(candidate_info, version_str)  # noqa: E731
+            pending = functools.partial(_download_and_apply, candidate_info, version_str)
         else:
             webbrowser.open(candidate_info.release_url)
 
@@ -294,7 +295,7 @@ def _handle_prerelease_update_decision(
     ):
         if _is_frozen():
             version_str = format_project_version(Version(open_info.version))
-            pending = lambda: _download_and_apply(open_info, version_str)  # noqa: E731
+            pending = functools.partial(_download_and_apply, open_info, version_str)
         else:
             webbrowser.open(open_info.release_url)
 
