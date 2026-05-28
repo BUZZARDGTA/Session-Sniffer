@@ -6,7 +6,7 @@ import binascii
 import hmac
 import json
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 
 import aiohttp.web
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+_WEB_SERVER_STARTUP_TIMEOUT_SECONDS = 3.0
+
 
 @dataclass(slots=True, frozen=True)
 class WebServerConfig:
@@ -30,6 +32,14 @@ class WebServerConfig:
     static_dir: Path | None = None
     auth_username: str | None = None
     auth_password: str | None = None
+
+
+@dataclass(slots=True)
+class _ServerStartupState:
+    """Tracks whether the server thread has finished binding its port."""
+
+    ready: threading.Event = field(default_factory=threading.Event)
+    error: Exception | None = None
 
 
 class WebServer:
@@ -225,18 +235,25 @@ class WebServer:
 
         return ws
 
-    async def _run_async(self, stop_event: asyncio.Event) -> None:
+    async def _run_async(self, stop_event: asyncio.Event, startup_state: _ServerStartupState) -> None:
         app = self._build_app()
         self._runner = aiohttp.web.AppRunner(app, access_log=None)
-        await self._runner.setup()
-        site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
-        await site.start()
+        try:
+            await self._runner.setup()
+            site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
+            await site.start()
+        except Exception as exc:
+            startup_state.error = exc
+            startup_state.ready.set()
+            await self._runner.cleanup()
+            raise
+        startup_state.ready.set()
         logger.info('Web server started on %s:%d', self.host, self.port)
         await stop_event.wait()
         await self._runner.cleanup()
         logger.info('Web server stopped.')
 
-    def run(self) -> None:
+    def run(self, startup_state: _ServerStartupState) -> None:
         """Start the web server (blocks until stopped)."""
         logger.info('Starting web server on %s:%d', self.host, self.port)
         loop = asyncio.new_event_loop()
@@ -245,7 +262,7 @@ class WebServer:
         stop_event = asyncio.Event()
         self._stop_event = stop_event
         try:
-            loop.run_until_complete(self._run_async(stop_event))
+            loop.run_until_complete(self._run_async(stop_event, startup_state))
         finally:
             loop.close()
             self._event_loop = None
@@ -272,14 +289,29 @@ class WebServer:
             logger.error('Web server restart skipped because the previous instance is still shutting down.')
             return
 
+        startup_state = _ServerStartupState()
         cls._instance = cls(config)
         cls._thread = threading.Thread(
             target=cls._instance.run,
+            args=(startup_state,),
             name='webserver',
             daemon=True,
         )
         cls._thread.start()
         logger.debug('Managed web server thread started (name=%s).', cls._thread.name)
+
+        if not startup_state.ready.wait(timeout=_WEB_SERVER_STARTUP_TIMEOUT_SECONDS):
+            logger.error(
+                'Web server startup timed out after %.1f s; stopping.',
+                _WEB_SERVER_STARTUP_TIMEOUT_SECONDS,
+            )
+            cls.stop_server()
+            return
+
+        if startup_state.error is not None:
+            logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, startup_state.error)
+            cls.stop_server()
+            return
 
     @classmethod
     def stop_server(cls) -> None:
