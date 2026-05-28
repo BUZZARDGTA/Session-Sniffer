@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from session_sniffer.player.userip import UserIP
 
 
+BANDWIDTH_GB_THRESHOLD = 1_073_741_824  # 1 GB in bytes
 BANDWIDTH_MB_THRESHOLD = 1_048_576  # 1 MB in bytes
 BANDWIDTH_KB_THRESHOLD = 1024  # 1 KB in bytes
 
@@ -364,6 +365,8 @@ class PlayerBandwidth:
     @staticmethod
     def format_bytes(total_bytes: int) -> str:
         """Format bytes to human-readable string."""
+        if total_bytes >= BANDWIDTH_GB_THRESHOLD:
+            return f'{total_bytes / BANDWIDTH_GB_THRESHOLD:.1f} GB'
         if total_bytes >= BANDWIDTH_MB_THRESHOLD:
             return f'{total_bytes / BANDWIDTH_MB_THRESHOLD:.1f} MB'
         if total_bytes >= BANDWIDTH_KB_THRESHOLD:
