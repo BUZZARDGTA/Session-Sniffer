@@ -15,6 +15,7 @@ from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._fmt import fmt_bool, fmt_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -69,7 +70,7 @@ class DetectionNotificationDialog(PlayerInfoDialogMixin):
         self._add_row(form, 'Time', event_time)
         for label, value in extra_detection_fields:
             self._add_row(form, label, value)
-        self._add_row(form, 'Username(s)', ', '.join(player.usernames) or 'N/A')
+        self._add_row(form, f'Username{pluralize(len(player.usernames))}', ', '.join(player.usernames) or 'N/A')
         parent_layout.addWidget(group)
 
     def _build_connection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
@@ -185,7 +186,7 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         group, form = self._make_group('\U0001f464  Player Details', accent=accent)
         self._add_row(form, 'Event', info.description)
         self._add_row(form, 'Event Time', info.event_time)
-        self._add_row(form, 'Username(s)', ', '.join(player.usernames) or 'N/A')
+        self._add_row(form, f'Username{pluralize(len(player.usernames))}', ', '.join(player.usernames) or 'N/A')
         parent_layout.addWidget(group)
 
     def _build_connection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:

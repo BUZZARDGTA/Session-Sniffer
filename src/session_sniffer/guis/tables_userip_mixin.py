@@ -99,7 +99,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
     username, ok = QInputDialog.getText(
         parent, 'Add Username',
-        f'Current username(s) for {ip_address}: {existing}\n\nEnter the new username to add:',
+        f'Current usernames for {ip_address}: {existing}\n\nEnter the new username to add:',
     )
 
     if not ok:

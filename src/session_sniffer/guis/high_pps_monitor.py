@@ -125,7 +125,7 @@ class _HighRateTableModel(QAbstractTableModel):
     _COL_TOTAL_DURATION = 5
     _HEADERS = ('Username', 'IP', 'PPS', 'BPS', 'Duration (s)', 'Total Duration (s)')
     _HEADER_TOOLTIPS = (
-        'Username(s) associated with this IP.',
+        'Usernames associated with this IP.',
         'The IP address of the player being tracked.',
         'Packets Per Second — the number of network packets this IP is sending/receiving right now.',
         'Bytes Per Second — the amount of data (bandwidth) this IP is sending/receiving right now.',

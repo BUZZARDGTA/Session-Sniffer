@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Usernames': (
-        'Displays the username(s) of players from your UserIP database files.\n\n'
+        'Displays the usernames of players from your UserIP database files.\n\n'
         'For GTA V PC users who have used the Session Sniffer mod menu plugin,\n'
         'it automatically resolves usernames while the plugin is running,\n'
         'or shows previously resolved players that were seen by the plugin.'

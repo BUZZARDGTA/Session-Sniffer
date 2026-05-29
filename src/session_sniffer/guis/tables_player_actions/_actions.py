@@ -23,6 +23,7 @@ from session_sniffer.guis.tables_player_actions._fmt import (
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import run_cmd_command, run_cmd_script
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ def build_discord_player_report(player: Player) -> str:
     hostname = fmt_text(player.reverse_dns.hostname)
     lines.append(f'> **Hostname:** `{hostname}`')
     usernames = ', '.join(player.usernames) if player.usernames else 'N/A'
-    lines.append(f'> **Username(s):** {usernames}')
+    lines.append(f'> **Username{pluralize(len(player.usernames))}:** {usernames}')
     lines.append(f'> **First Port:** {player.ports.first}  |  **Last Port:** {player.ports.last}')
     middle_ports = ', '.join(map(str, player.ports.middle))
     if middle_ports:

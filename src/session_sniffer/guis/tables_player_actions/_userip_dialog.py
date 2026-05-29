@@ -13,6 +13,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.tables_player_actions._fmt import fmt_bool, fmt_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -60,7 +61,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
             relative_db = 'N/A'
         detection_type = detection.type if detection is not None else 'N/A'
         self._add_row(form, 'Detection Time', detection_time)
-        self._add_row(form, 'Username(s)', usernames)
+        self._add_row(form, f'Username{pluralize(len(userip.usernames) if userip is not None else 0)}', usernames)
         self._add_row(form, 'IP Address', player.ip)
         self._add_row(form, 'Hostname', fmt_text(player.reverse_dns.hostname))
         self._add_row(form, 'Port(s)', ports_str)

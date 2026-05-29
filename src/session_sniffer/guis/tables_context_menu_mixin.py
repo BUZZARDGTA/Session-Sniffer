@@ -406,7 +406,7 @@ class TableContextMenuMixin(QTableView):
                             add_action(
                                 userip_menu,
                                 '❌ Remove Username',
-                                tooltip='Remove selected username(s) for this IP address while keeping others.',
+                                tooltip='Remove selected usernames for this IP address while keeping others.',
                                 handler=lambda: userip_remove_username(self, ip_address, player_obj),
                             )
                         move_userip_menu = add_menu(userip_menu, '📦 Move', 'Move selected IP address to another database.')

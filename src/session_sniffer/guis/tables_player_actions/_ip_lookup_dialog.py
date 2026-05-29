@@ -93,7 +93,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         group, form = self._make_group('\U0001f464  Player Info', accent='#2b6cb0')
         self._add_live_row(form, 'IP Address', lambda p: p.ip)
         self._add_live_row(form, 'Hostname', lambda p: fmt_text(p.reverse_dns.hostname))
-        self._add_live_row(form, 'Username(s)', lambda p: ', '.join(p.usernames) or 'N/A')
+        self._add_live_row(form, 'Usernames', lambda p: ', '.join(p.usernames) or 'N/A')
         self._add_live_row(form, 'In UserIP database', userip_database_text)
         self._add_live_row(form, 'First Port', lambda p: str(p.ports.first))
         self._add_live_row(form, 'Middle Port(s)', lambda p: ', '.join(map(str, p.ports.middle)) or '')

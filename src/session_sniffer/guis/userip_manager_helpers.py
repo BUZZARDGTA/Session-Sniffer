@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET, SUBNET_DESC_LABEL_STYLESHEET
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -397,7 +398,7 @@ class RemoveUsernameDialog(QDialog):
         layout = QVBoxLayout(self)
 
         layout.addWidget(QLabel(f'IP address:  <b>{ip_address}</b>'))
-        layout.addWidget(QLabel('Select username(s) to remove:'))
+        layout.addWidget(QLabel(f'Select username{pluralize(self._total_count)} to remove:'))
 
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames ...')
