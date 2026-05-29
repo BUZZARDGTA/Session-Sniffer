@@ -255,7 +255,7 @@ class WebServer:
 
     def run(self, startup_state: _ServerStartupState) -> None:
         """Start the web server (blocks until stopped)."""
-        logger.info('Starting web server on %s:%d', self.host, self.port)
+        logger.debug('Starting web server on %s:%d', self.host, self.port)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         self._event_loop = loop
