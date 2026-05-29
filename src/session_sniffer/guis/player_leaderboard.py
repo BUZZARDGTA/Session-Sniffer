@@ -424,8 +424,8 @@ class PlayerLeaderboardWindow(QWidget):
         controls_layout.addWidget(search_label)
 
         self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText('Filter... (Ctrl+F)')
-        self._search_box.setToolTip('Type to filter visible rows (Ctrl+F to focus)')
+        self._search_box.setPlaceholderText('Search...')
+        self._search_box.setToolTip('Type to filter visible rows')
         self._search_box.setClearButtonEnabled(True)
         self._search_box.setMaximumWidth(280)
         self._search_box.textChanged.connect(self._on_search_changed)

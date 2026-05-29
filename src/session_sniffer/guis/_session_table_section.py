@@ -2,7 +2,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QByteArray, QEvent, QObject, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QPixmap
+from PyQt6.QtGui import QPainter, QPixmap, QKeySequence, QShortcut
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -302,6 +302,10 @@ class SessionTableSection(QWidget):
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.table_view.setup_static_column_resizing()
         self.table_model.view = self.table_view
+
+        search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self.table_view)
+        search_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        search_shortcut.activated.connect(self._search_bar.setFocus)
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
         self.expand_button = QPushButton(f'▲  Show {self._section_name} Players (0)')
