@@ -6,12 +6,15 @@ This module provides helper functions to interact with GUI elements.
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtCore import QByteArray, QPoint, Qt
+from PyQt6.QtGui import QIcon, QPainter, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QDialog,
     QHeaderView,
+    QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -316,3 +319,23 @@ def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
         msg = 'Failed to get table viewport'
         raise RuntimeError(msg)
     menu.popup(viewport.mapToGlobal(pos))
+
+
+_SEARCH_ICON_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+    b'<g opacity="0.65">'
+    b'<circle cx="6.5" cy="6.5" r="4" fill="none" stroke="white" stroke-width="1.5"/>'
+    b'<line x1="9.5" y1="9.5" x2="13.5" y2="13.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
+    b'</g></svg>'
+)
+
+
+def apply_search_icon(line_edit: QLineEdit) -> None:
+    """Add a trailing magnifying-glass action icon inside *line_edit*."""
+    renderer = QSvgRenderer(QByteArray(_SEARCH_ICON_SVG))
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    line_edit.addAction(QIcon(pixmap), QLineEdit.ActionPosition.TrailingPosition)

@@ -36,13 +36,27 @@ def section_bar_qss(accent: str, resources_dir: Path) -> str:
         font-size: 15px;
         font-weight: 600;
     }}
-    QLineEdit, QComboBox, QPushButton, QToolButton, QSpinBox {{
+    QComboBox, QPushButton, QToolButton, QSpinBox {{
         min-height: 28px;
         padding: 0 8px;
         color: white;
         background: rgba(0, 0, 0, 0.18);
         border: 1px solid rgba(255, 255, 255, 0.55);
         border-radius: 6px;
+    }}
+    QLineEdit {{
+        min-height: 28px;
+        padding: 0 30px 0 8px;
+        color: white;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 6px;
+    }}
+    QLineEdit QToolButton {{
+        min-height: 0;
+        padding: 0 2px;
+        border: none;
+        background: transparent;
     }}
     QPushButton:hover, QToolButton:hover, QComboBox:hover, QLineEdit:hover, QSpinBox:hover {{
         border-color: rgba(255, 255, 255, 0.85);

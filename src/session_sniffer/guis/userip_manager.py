@@ -52,7 +52,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import apply_search_icon, set_dialog_window_flags
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
@@ -213,6 +213,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._search_input.setClearButtonEnabled(True)
         self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
+        apply_search_icon(self._search_input)
         search_bar.addWidget(self._search_input)
 
         self._global_search_checkbox = QCheckBox('Search All Databases')

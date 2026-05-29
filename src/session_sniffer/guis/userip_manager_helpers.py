@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET, SUBNET_DESC_LABEL_STYLESHEET
+from session_sniffer.guis.utils import apply_search_icon
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -339,6 +340,7 @@ class RenameUsernameDialog(QDialog):
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames ...')
         self._search.setClearButtonEnabled(True)
+        apply_search_icon(self._search)
         layout.addWidget(self._search)
 
         self._list_model = QStandardItemModel()
@@ -402,6 +404,7 @@ class RemoveUsernameDialog(QDialog):
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames ...')
         self._search.setClearButtonEnabled(True)
+        apply_search_icon(self._search)
         layout.addWidget(self._search)
 
         self._list_model = QStandardItemModel()

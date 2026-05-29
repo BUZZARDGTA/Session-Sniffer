@@ -35,6 +35,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
+from session_sniffer.guis.utils import apply_search_icon
 from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
 
@@ -214,6 +215,7 @@ class SessionTableSection(QWidget):
         self._search_bar.setClearButtonEnabled(True)
         self._search_bar.setMinimumWidth(220)
         self._search_bar.textChanged.connect(self._on_search_changed)
+        apply_search_icon(self._search_bar)
 
         search_pair = QHBoxLayout()
         search_pair.setSpacing(3)

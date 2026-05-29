@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
-from session_sniffer.guis.utils import format_player_display, popup_menu_at_table, setup_table_view_headers
+from session_sniffer.guis.utils import apply_search_icon, format_player_display, popup_menu_at_table, setup_table_view_headers
 from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
 
 if TYPE_CHECKING:
@@ -429,6 +429,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._search_box.setClearButtonEnabled(True)
         self._search_box.setMaximumWidth(280)
         self._search_box.textChanged.connect(self._on_search_changed)
+        apply_search_icon(self._search_box)
         controls_layout.addWidget(self._search_box)
 
         self._search_col_combo = QComboBox()
