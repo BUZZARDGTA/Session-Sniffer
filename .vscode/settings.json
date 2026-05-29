@@ -46,6 +46,13 @@
     ],
 
    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+   "terminal.integrated.profiles.windows": {
+       "PowerShell (.venv)": {
+           "source": "PowerShell",
+           "args": ["-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "& '${workspaceFolder}/.venv/Scripts/Activate.ps1'"]
+       }
+   },
+   "terminal.integrated.defaultProfile.windows": "PowerShell (.venv)",
    "python.analysis.typeCheckingMode": "strict",
    "python.analysis.extraPaths": ["src"],
    "python.analysis.diagnosticSeverityOverrides": {
