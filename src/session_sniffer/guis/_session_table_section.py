@@ -2,7 +2,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QByteArray, QEvent, QObject, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QPixmap, QKeySequence, QShortcut
+from PyQt6.QtGui import QKeySequence, QPainter, QPixmap, QShortcut
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QComboBox,
