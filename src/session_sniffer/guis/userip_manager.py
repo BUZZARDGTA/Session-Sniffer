@@ -210,7 +210,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText('Filter entries by username or IP ...')
-        self._search_input.setClearButtonEnabled(True)
         self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
         apply_search_icon(self._search_input)

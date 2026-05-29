@@ -339,7 +339,6 @@ class RenameUsernameDialog(QDialog):
 
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames ...')
-        self._search.setClearButtonEnabled(True)
         apply_search_icon(self._search)
         layout.addWidget(self._search)
 
@@ -403,7 +402,6 @@ class RemoveUsernameDialog(QDialog):
 
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames ...')
-        self._search.setClearButtonEnabled(True)
         apply_search_icon(self._search)
         layout.addWidget(self._search)
 

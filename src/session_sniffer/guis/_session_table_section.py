@@ -212,7 +212,6 @@ class SessionTableSection(QWidget):
 
         self._search_bar = QLineEdit()
         self._search_bar.setPlaceholderText('Search...')
-        self._search_bar.setClearButtonEnabled(True)
         self._search_bar.setMinimumWidth(220)
         self._search_bar.textChanged.connect(self._on_search_changed)
         apply_search_icon(self._search_bar)

@@ -49,7 +49,6 @@ class SessionsLogTab(QWidget):
         top_bar = QHBoxLayout()
 
         self._search_input = create_search_input(top_bar, 'Search in displayed file ...', self._on_search_changed)
-        self._search_input.setClearButtonEnabled(True)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
 
         self._global_search_checkbox = QCheckBox('Search All Files')

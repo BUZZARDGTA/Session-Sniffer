@@ -329,13 +329,36 @@ _SEARCH_ICON_SVG = (
     b'</g></svg>'
 )
 
+_CLEAR_ICON_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+    b'<g opacity="0.65">'
+    b'<line x1="4" y1="4" x2="12" y2="12" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
+    b'<line x1="12" y1="4" x2="4" y2="12" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
+    b'</g></svg>'
+)
 
-def apply_search_icon(line_edit: QLineEdit) -> None:
-    """Add a trailing magnifying-glass action icon inside *line_edit*."""
-    renderer = QSvgRenderer(QByteArray(_SEARCH_ICON_SVG))
+
+def _svg_to_icon(svg: bytes) -> QIcon:
+    renderer = QSvgRenderer(QByteArray(svg))
     pixmap = QPixmap(16, 16)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     renderer.render(painter)
     painter.end()
-    line_edit.addAction(QIcon(pixmap), QLineEdit.ActionPosition.TrailingPosition)
+    return QIcon(pixmap)
+
+
+def apply_search_icon(line_edit: QLineEdit) -> None:
+    """Add a trailing icon to *line_edit*: magnifying glass when empty, × to clear when filled."""
+    line_edit.setClearButtonEnabled(False)
+    search_icon = _svg_to_icon(_SEARCH_ICON_SVG)
+    clear_icon = _svg_to_icon(_CLEAR_ICON_SVG)
+    action = line_edit.addAction(search_icon, QLineEdit.ActionPosition.TrailingPosition)
+    if action is None:
+        return
+
+    def _update(text: str) -> None:
+        action.setIcon(clear_icon if text else search_icon)
+
+    action.triggered.connect(line_edit.clear)
+    line_edit.textChanged.connect(_update)
