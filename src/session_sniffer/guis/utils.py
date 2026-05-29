@@ -349,7 +349,7 @@ def _svg_to_icon(svg: bytes) -> QIcon:
 
 
 def apply_search_icon(line_edit: QLineEdit) -> None:
-    """Add a trailing icon to *line_edit*: magnifying glass when empty, × to clear when filled."""
+    """Add a trailing icon to *line_edit*: magnifying glass when empty, x to clear when filled."""
     line_edit.setClearButtonEnabled(False)
     search_icon = _svg_to_icon(_SEARCH_ICON_SVG)
     clear_icon = _svg_to_icon(_CLEAR_ICON_SVG)
