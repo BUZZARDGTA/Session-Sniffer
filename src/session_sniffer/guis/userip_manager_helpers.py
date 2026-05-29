@@ -5,8 +5,8 @@ import re
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QStandardItem, QStandardItemModel
+from PyQt6.QtCore import QEvent, QModelIndex, QObject, QRegularExpression, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -527,6 +527,8 @@ class IPRangeBuilderDialog(QDialog):
         self._single_label = QLabel('IP Address:')
         self._single_input = QLineEdit()
         self._single_input.setPlaceholderText('e.g. 192.168.1.1')
+        self._single_input.setMaxLength(15)
+        self._single_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
         input_layout.addWidget(self._single_label, 0, 0)
         input_layout.addWidget(self._single_input, 0, 1)
 
@@ -534,9 +536,13 @@ class IPRangeBuilderDialog(QDialog):
         self._range_from_label = QLabel('From:')
         self._range_from_input = QLineEdit()
         self._range_from_input.setPlaceholderText('e.g. 192.168.1.100')
+        self._range_from_input.setMaxLength(15)
+        self._range_from_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
         self._range_to_label = QLabel('To:')
         self._range_to_input = QLineEdit()
         self._range_to_input.setPlaceholderText('e.g. 192.168.1.200')
+        self._range_to_input.setMaxLength(15)
+        self._range_to_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
         input_layout.addWidget(self._range_from_label, 1, 0)
         input_layout.addWidget(self._range_from_input, 1, 1)
         input_layout.addWidget(self._range_to_label, 2, 0)
@@ -546,6 +552,8 @@ class IPRangeBuilderDialog(QDialog):
         self._subnet_ip_label = QLabel('Base IP:')
         self._subnet_ip_input = QLineEdit()
         self._subnet_ip_input.setPlaceholderText('e.g. 192.168.1.0')
+        self._subnet_ip_input.setMaxLength(15)
+        self._subnet_ip_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
         input_layout.addWidget(self._subnet_ip_label, 3, 0)
         input_layout.addWidget(self._subnet_ip_input, 3, 1)
 

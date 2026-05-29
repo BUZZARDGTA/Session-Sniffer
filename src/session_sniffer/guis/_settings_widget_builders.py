@@ -1,6 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRegularExpression, Qt
+from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -40,8 +41,34 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
     le = QLineEdit()
     if meta.setting_type == SettingType.IPV4:
         le.setPlaceholderText('e.g. 192.168.1.100')
+        le.setMaxLength(15)
+        le.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
     elif meta.setting_type == SettingType.MAC_ADDRESS:
         le.setPlaceholderText('e.g. AA:BB:CC:DD:EE:FF')
+        le.setMaxLength(17)
+        le.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9A-Fa-f:]{0,17}')))
+
+        def _auto_format_mac(text: str, widget: QLineEdit = le) -> None:
+            cursor = widget.cursorPosition()
+            hex_before = sum(1 for c in text[:cursor] if c in '0123456789ABCDEFabcdef')
+            hex_only = ''.join(c for c in text.upper() if c in '0123456789ABCDEF')[:12]
+            formatted = ':'.join(hex_only[i:i + 2] for i in range(0, len(hex_only), 2))
+            if formatted == text:
+                return
+            widget.blockSignals(True)  # noqa: FBT003
+            widget.setText(formatted)
+            widget.blockSignals(False)  # noqa: FBT003
+            new_pos = len(formatted)
+            hex_count = 0
+            for i, c in enumerate(formatted):
+                if hex_count == hex_before:
+                    new_pos = i
+                    break
+                if c != ':':
+                    hex_count += 1
+            widget.setCursorPosition(new_pos)
+
+        le.textEdited.connect(_auto_format_mac)
     if meta.tooltip:
         le.setToolTip(meta.tooltip)
     return le
