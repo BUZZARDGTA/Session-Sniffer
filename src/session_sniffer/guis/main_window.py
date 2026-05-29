@@ -487,6 +487,11 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         docs_action.triggered.connect(self._open_documentation)
         help_menu.addAction(docs_action)
 
+        changelog_action = QAction('📋 Changelog', self)
+        changelog_action.setToolTip('View the release history and changelog on GitHub')
+        changelog_action.triggered.connect(self._open_changelog)
+        help_menu.addAction(changelog_action)
+
         discord_action = QAction('💬 Discord Server', self)
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
         discord_action.triggered.connect(self._join_discord)

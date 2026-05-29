@@ -22,7 +22,7 @@ from session_sniffer.constants.local import (
     USERIP_LOGGING_PATH,
     WARNINGS_LOG_PATH,
 )
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_REPO_URL, GITHUB_WIKI_URL, TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_RELEASES_URL, GITHUB_REPO_URL, GITHUB_WIKI_URL, TITLE
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -44,6 +44,10 @@ class FilesMixin(QMainWindow):
     def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
+
+    def _open_changelog(self) -> None:
+        """Open the GitHub releases/changelog page in the default browser."""
+        webbrowser.open(GITHUB_RELEASES_URL)
 
     def _check_for_updates(self) -> None:
         """Manually trigger an update check against GitHub."""
