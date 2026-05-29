@@ -505,6 +505,16 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return default_int
 
+    @field_validator('WEBSERVER_HOST', mode='before')
+    @classmethod
+    def _parse_webserver_host(cls, value: object, info: ValidationInfo) -> str:
+        default = cls._get_default_for_field(info)
+        default_str = default if isinstance(default, str) else WEBSERVER_DEFAULT_HOST
+        if isinstance(value, str) and is_ipv4_address(value):
+            return value
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return default_str
+
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
     @classmethod
     def _parse_disconnected_timer(cls, value: object, info: ValidationInfo) -> int:
