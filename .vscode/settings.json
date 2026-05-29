@@ -53,6 +53,10 @@
        }
    },
    "terminal.integrated.defaultProfile.windows": "PowerShell (.venv)",
+   "terminal.integrated.automationProfile.windows": {
+       "path": "powershell.exe",
+       "args": ["-ExecutionPolicy", "Bypass"]
+   },
    "python.analysis.typeCheckingMode": "strict",
    "python.analysis.extraPaths": ["src"],
    "python.analysis.diagnosticSeverityOverrides": {
