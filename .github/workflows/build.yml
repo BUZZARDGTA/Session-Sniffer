@@ -34,6 +34,32 @@ jobs:
           python-version: '3.14'
           architecture: x64
 
+      - name: Bake Build Metadata into _build_info.py
+        shell: pwsh
+        env:
+          COMMIT: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:BUILD_DATE = (git show -s --format=%cI $env:COMMIT).Trim()
+          python -c @"
+          import os
+          from pathlib import Path
+          commit = os.environ['COMMIT']
+          build_date = os.environ['BUILD_DATE']
+          release_tag = os.environ['RELEASE_TAG']
+          path = Path('src/session_sniffer/constants/_build_info.py')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(
+              '"""Build-time metadata frozen by the CI workflow."""\n'
+              f'COMMIT: str = {commit!r}\n'
+              f'BUILD_DATE: str = {build_date!r}\n'
+              f'RELEASE_TAG: str = {release_tag!r}\n',
+              encoding='utf-8',
+          )
+          "@
+          Get-Content 'src/session_sniffer/constants/_build_info.py'
+
       - name: Create a Python Virtual Environment
         run: |
           python -m venv --upgrade-deps "venv"
@@ -44,6 +70,23 @@ jobs:
           venv\Scripts\pip install "..\.."
           venv\Scripts\pip install pyinstaller
         working-directory: .github/workflows
+
+      - name: Verify Baked Build Metadata
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $content = Get-Content 'src/session_sniffer/constants/_build_info.py' -Raw
+          if ($content -match 'subprocess' -or $content -match '_git') {
+            throw 'Build metadata was not baked correctly. Refusing to build release exe.'
+          }
+          if ($content -match 'Unknown' -or $content -match "'dev'") {
+            throw 'Build metadata still contains development fallback values.'
+          }
+          if ($content -notmatch 'COMMIT: str =' -or $content -notmatch 'BUILD_DATE: str =' -or $content -notmatch 'RELEASE_TAG: str =') {
+            throw 'Build metadata is missing one or more required fields.'
+          }
+          python -m py_compile 'src/session_sniffer/constants/_build_info.py'
+          Write-Host $content
 
       - name: Build with PyInstaller
         run: |
@@ -81,7 +124,8 @@ jobs:
         run: |
           echo "Uploading release artifact..."
           gh release upload "$RELEASE_TAG" \
-            "artifacts/Session_Sniffer.exe"
+            "artifacts/Session_Sniffer.exe" \
+            --clobber
 
       - name: Compute SHA256 and Get Download URL
         id: compute

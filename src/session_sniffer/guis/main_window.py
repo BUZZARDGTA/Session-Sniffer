@@ -487,10 +487,27 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         docs_action.triggered.connect(self._open_documentation)
         help_menu.addAction(docs_action)
 
-        changelog_action = QAction('📋 Changelog', self)
-        changelog_action.setToolTip('View the release history and changelog on GitHub')
-        changelog_action.triggered.connect(self._open_changelog)
-        help_menu.addAction(changelog_action)
+        tips_action = QAction('💡 Tips and Tricks', self)
+        tips_action.setToolTip('Learn optimization strategies, hidden features, and best practices')
+        tips_action.triggered.connect(self._open_tips_and_tricks)
+        help_menu.addAction(tips_action)
+
+        release_notes_action = QAction('📋 Release Notes', self)
+        release_notes_action.setToolTip('View the release history and notes on GitHub')
+        release_notes_action.triggered.connect(self._open_release_notes)
+        help_menu.addAction(release_notes_action)
+
+        license_action = QAction('⚖️ View License', self)
+        license_action.setToolTip('View the GNU General Public License (GPLv3) for Session Sniffer')
+        license_action.triggered.connect(self._view_license)
+        help_menu.addAction(license_action)
+
+        help_menu.addSeparator()
+
+        report_issue_action = QAction('🐛 Report Issue', self)
+        report_issue_action.setToolTip('Open a new issue on GitHub to report a bug or request a feature')
+        report_issue_action.triggered.connect(self._report_issue)
+        help_menu.addAction(report_issue_action)
 
         discord_action = QAction('💬 Discord Server', self)
         discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
@@ -503,6 +520,13 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         check_updates_action.setToolTip('Check GitHub for a newer version of Session Sniffer')
         check_updates_action.triggered.connect(self._check_for_updates)
         help_menu.addAction(check_updates_action)
+
+        help_menu.addSeparator()
+
+        about_action = QAction('💡 About', self)
+        about_action.setToolTip(f'About {TITLE}')
+        about_action.triggered.connect(self._show_about_dialog)
+        help_menu.addAction(about_action)
 
         # Main title header
         self._header = QLabel()

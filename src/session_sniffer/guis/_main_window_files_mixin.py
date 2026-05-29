@@ -1,11 +1,26 @@
 """File, folder, and URL open helpers mixin for `MainWindow`."""
 
+import contextlib
 import os
+import platform
 import webbrowser
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QMainWindow, QMessageBox
+from PyQt6.QtCore import PYQT_VERSION_STR, Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QStyle,
+    QVBoxLayout,
+)
 
+from session_sniffer.constants._build_info import BUILD_DATE, COMMIT, RELEASE_TAG
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -20,9 +35,19 @@ from session_sniffer.constants.local import (
     USER_SCRIPTS_DIR_PATH,
     USERIP_DATABASES_DIR_PATH,
     USERIP_LOGGING_PATH,
+    VERSION,
     WARNINGS_LOG_PATH,
 )
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_RELEASES_URL, GITHUB_REPO_URL, GITHUB_WIKI_URL, TITLE
+from session_sniffer.constants.standalone import (
+    DISCORD_INVITE_URL,
+    GITHUB_ISSUES_URL,
+    GITHUB_LICENSE_URL,
+    GITHUB_RELEASES_URL,
+    GITHUB_REPO_URL,
+    GITHUB_WIKI_TIPS_URL,
+    GITHUB_WIKI_URL,
+    TITLE,
+)
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -41,13 +66,25 @@ class FilesMixin(QMainWindow):
         """Open the documentation URL in the default browser."""
         webbrowser.open(GITHUB_WIKI_URL)
 
+    def _open_tips_and_tricks(self) -> None:
+        """Open the Tips and Tricks wiki page in the default browser."""
+        webbrowser.open(GITHUB_WIKI_TIPS_URL)
+
     def _join_discord(self) -> None:
         """Open the Discord invite URL in the default browser."""
         webbrowser.open(DISCORD_INVITE_URL)
 
-    def _open_changelog(self) -> None:
-        """Open the GitHub releases/changelog page in the default browser."""
+    def _open_release_notes(self) -> None:
+        """Open the GitHub releases page in the default browser."""
         webbrowser.open(GITHUB_RELEASES_URL)
+
+    def _view_license(self) -> None:
+        """Open the project license on GitHub in the default browser."""
+        webbrowser.open(GITHUB_LICENSE_URL)
+
+    def _report_issue(self) -> None:
+        """Open the GitHub issues page in the default browser."""
+        webbrowser.open(GITHUB_ISSUES_URL)
 
     def _check_for_updates(self) -> None:
         """Manually trigger an update check against GitHub."""
@@ -129,3 +166,100 @@ class FilesMixin(QMainWindow):
     def _open_logging_folder(self) -> None:
         """Open the Logging directory."""
         self.open_directory(LOGGING_DIR_PATH)
+
+    def _show_about_dialog(self) -> None:
+        """Show the About dialog with version, build, and system info."""
+        machine = platform.machine()
+        arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
+        os_str = f'{os.environ.get("OS", platform.system())} {arch} {platform.version()}'
+
+        build_date_display = BUILD_DATE
+        if BUILD_DATE != 'Unknown':
+            with contextlib.suppress(ValueError):
+                build_date_display = datetime.fromisoformat(BUILD_DATE).strftime('%Y/%m/%d %H:%M')
+
+        commit_display = COMMIT[:7] if COMMIT != 'Unknown' else 'Unknown'
+
+        copy_text = '\n'.join([
+            f'Version: {VERSION}',
+            f'Release Tag: {RELEASE_TAG}',
+            f'Commit: {COMMIT}',
+            f'Build Date: {BUILD_DATE}',
+            f'PyQt: {PYQT_VERSION_STR}',
+            f'OS: {os_str}',
+        ])
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'About {TITLE}')
+        dialog.setMinimumWidth(440)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(6)
+
+        style = dialog.style()
+        if style is not None:
+            icon_label = QLabel()
+            icon_label.setPixmap(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation).pixmap(32, 32))
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(icon_label)
+
+        title_label = QLabel(f'<b style="font-size:13pt">{TITLE}</b>')
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        desc_label = QLabel('A packet sniffer designed for Peer-To-Peer (P2P) video games on PC and consoles.')
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+
+        layout.addSpacing(6)
+
+        app_header = QLabel('<b>Application</b>')
+        layout.addWidget(app_header)
+        app_sep = QFrame()
+        app_sep.setFrameShape(QFrame.Shape.HLine)
+        app_sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(app_sep)
+        app_info = QLabel(
+            '<table cellspacing="2">'
+            f'<tr><td><b>Version</b></td><td>&nbsp;&nbsp;{VERSION}</td></tr>'
+            f'<tr><td><b>Release Tag</b></td><td>&nbsp;&nbsp;{RELEASE_TAG}</td></tr>'
+            f'<tr><td><b>Build Date</b></td><td>&nbsp;&nbsp;{build_date_display}</td></tr>'
+            '</table>',
+        )
+        app_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(app_info)
+
+        layout.addSpacing(6)
+
+        build_header = QLabel('<b>Build Information</b>')
+        layout.addWidget(build_header)
+        build_sep = QFrame()
+        build_sep.setFrameShape(QFrame.Shape.HLine)
+        build_sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(build_sep)
+        build_info = QLabel(
+            '<table cellspacing="2">'
+            f'<tr><td><b>Commit</b></td><td>&nbsp;&nbsp;{commit_display}</td></tr>'
+            f'<tr><td><b>PyQt</b></td><td>&nbsp;&nbsp;{PYQT_VERSION_STR}</td></tr>'
+            f'<tr><td><b>OS</b></td><td>&nbsp;&nbsp;{os_str}</td></tr>'
+            '</table>',
+        )
+        build_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(build_info)
+
+        layout.addSpacing(8)
+
+        button_box = QDialogButtonBox()
+        copy_btn = button_box.addButton('Copy Details', QDialogButtonBox.ButtonRole.ActionRole)
+        button_box.addButton(QDialogButtonBox.StandardButton.Close)
+
+        if copy_btn is not None:
+            clipboard = QApplication.clipboard()
+            if clipboard is not None:
+                copy_btn.clicked.connect(lambda: clipboard.setText(copy_text))
+
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        dialog.exec()
