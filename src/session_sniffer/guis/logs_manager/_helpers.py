@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessa
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import apply_search_icon
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
+from session_sniffer.guis.utils import apply_search_icon
 
 if TYPE_CHECKING:
     from collections.abc import Callable
