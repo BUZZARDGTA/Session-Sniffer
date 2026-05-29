@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QItemSelection, QItemSelectionModel
 from PyQt6.QtWidgets import QMainWindow
 
+from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
 from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
@@ -329,6 +330,7 @@ class StatsMixin(QMainWindow):
 
         self._connected.table_model.remove_player_by_ip(ip)
 
+        ProcessSuspendManager.release_reasons_for_ip(ip)
         MobileWarnings.remove_notified_ip(ip)
         VPNWarnings.remove_notified_ip(ip)
         HostingWarnings.remove_notified_ip(ip)
@@ -341,6 +343,7 @@ class StatsMixin(QMainWindow):
 
         self._disconnected.table_model.remove_player_by_ip(ip)
 
+        ProcessSuspendManager.release_reasons_for_ip(ip)
         MobileWarnings.remove_notified_ip(ip)
         VPNWarnings.remove_notified_ip(ip)
         HostingWarnings.remove_notified_ip(ip)

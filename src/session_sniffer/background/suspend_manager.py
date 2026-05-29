@@ -186,6 +186,25 @@ class ProcessSuspendManager:
                 state.reasons.pop(reason_key, None)
 
     @classmethod
+    def release_reasons_for_ip(cls, ip: str) -> None:
+        """Remove all protection reasons associated with *ip* from every tracked process.
+
+        All player-specific reason keys end with `:{ip}` (e.g. `global:vpn:1.2.3.4`,
+        `userip:1.2.3.4`, `combo:RuleName:1.2.3.4`).  This is called whenever a
+        player is forcibly removed from the registry so that the GTA5 process is
+        no longer kept suspended on their behalf.
+
+        The monitor thread for each affected process will resume it once all
+        remaining reasons are satisfied.
+        """
+        suffix = f':{ip}'
+        with cls._lock:
+            for state in cls._states.values():
+                keys_to_remove = [k for k in state.reasons if k.endswith(suffix)]
+                for k in keys_to_remove:
+                    del state.reasons[k]
+
+    @classmethod
     def shutdown(cls) -> None:
         """Resume every suspended process and stop all monitor threads.
 

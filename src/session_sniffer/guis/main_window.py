@@ -914,6 +914,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.clear_table()
 
         if connected_ips:
+            for ip in connected_ips:
+                ProcessSuspendManager.release_reasons_for_ip(ip)
             MobileWarnings.remove_notified_ips_batch(connected_ips)
             VPNWarnings.remove_notified_ips_batch(connected_ips)
             HostingWarnings.remove_notified_ips_batch(connected_ips)
@@ -931,6 +933,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._disconnected.clear_table()
 
         if disconnected_ips:
+            for ip in disconnected_ips:
+                ProcessSuspendManager.release_reasons_for_ip(ip)
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
             VPNWarnings.remove_notified_ips_batch(disconnected_ips)
             HostingWarnings.remove_notified_ips_batch(disconnected_ips)
