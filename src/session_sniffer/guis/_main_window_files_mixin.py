@@ -4,7 +4,7 @@ import os
 import webbrowser
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QMainWindow
+from PyQt6.QtWidgets import QMainWindow, QMessageBox
 
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
@@ -22,9 +22,9 @@ from session_sniffer.constants.local import (
     USERIP_LOGGING_PATH,
     WARNINGS_LOG_PATH,
 )
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_REPO_URL, GITHUB_WIKI_URL
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_REPO_URL, GITHUB_WIKI_URL, TITLE
 from session_sniffer.settings import Settings
-from session_sniffer.updater import check_for_updates
+from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -47,9 +47,15 @@ class FilesMixin(QMainWindow):
 
     def _check_for_updates(self) -> None:
         """Manually trigger an update check against GitHub."""
-        _, pending_download = check_for_updates(updater_channel=Settings.updater_channel)
+        outcome, pending_download = check_for_updates(updater_channel=Settings.updater_channel)
         if pending_download is not None:
             pending_download()
+        elif outcome is UpdateCheckOutcome.PROCEED:
+            QMessageBox.information(
+                self,
+                TITLE,
+                'You are running the latest version.',
+            )
 
     @staticmethod
     def open_directory(directory_path: Path) -> None:
