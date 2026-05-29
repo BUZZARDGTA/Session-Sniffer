@@ -29,7 +29,7 @@ from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.session_host_history_window import populate_host_history_submenu
 from session_sniffer.guis.settings_dialog import SettingsDialog
-from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
+from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET, MENU_BAR_STYLESHEET
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
@@ -154,7 +154,7 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         gta5_status_label = QLabel()
         gta5_status_label.setTextFormat(Qt.TextFormat.RichText)
-        gta5_status_label.setStyleSheet('QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }')
+        gta5_status_label.setStyleSheet(GTA5_STATUS_LABEL_STYLESHEET)
         gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
         gta5_status_label.setToolTip('GTA V process detection state')
         gta5_status_widget_action = QWidgetAction(self)

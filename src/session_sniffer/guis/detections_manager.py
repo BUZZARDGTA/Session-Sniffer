@@ -27,7 +27,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
@@ -120,11 +120,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Header
         header = QLabel('\U0001f6e1\ufe0f Advanced Protection & Security Manager')
-        header.setStyleSheet(
-            'font-size: 16pt; font-weight: bold; color: #4A90E2; padding: 10px;'
-            'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e1e2e, stop:1 #2d2d4e);'
-            'border-radius: 6px;',
-        )
+        header.setStyleSheet(DETECTIONS_MANAGER_HEADER_STYLESHEET)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
 

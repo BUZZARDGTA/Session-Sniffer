@@ -28,6 +28,15 @@ from PyQt6.QtWidgets import (
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.error_messages import ensure_instance
+from session_sniffer.guis.stylesheets import (
+    INTERFACE_BOTTOM_CONTAINER_STYLESHEET,
+    INTERFACE_BOTTOM_SEPARATOR_STYLESHEET,
+    INTERFACE_TABLE_CONTAINER_STYLESHEET,
+    interface_checkbox_stylesheet,
+    interface_header_label_stylesheet,
+    interface_instruction_label_stylesheet,
+    interface_table_stylesheet,
+)
 from session_sniffer.guis.utils import compute_ui_scale, resize_window_for_screen
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
@@ -265,15 +274,7 @@ class InterfaceSelectionDialog(QDialog):
         header_label = QLabel('Available Network Interfaces for Packet Capture')
         header_label.setObjectName('dialogTitleLabel')
         header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_label.setStyleSheet(
-            'QLabel#dialogTitleLabel {'
-            ' color: #f4f7fb;'
-            f' font-size: {_s(23)}px;'
-            ' font-weight: 700;'
-            f' padding-top: {_s(6)}px;'
-            f' padding-bottom: {_s(6)}px;'
-            '}',
-        )
+        header_label.setStyleSheet(interface_header_label_stylesheet(_scale))
         layout.addWidget(header_label)
 
         # Table widget for displaying interfaces
@@ -286,43 +287,7 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
-        self.table.setStyleSheet(
-            'QTableWidget {'
-            ' background-color: #131e2c;'
-            ' alternate-background-color: #182536;'
-            ' border: none;'
-            ' outline: none;'
-            '}'
-            'QTableWidget::item {'
-            f' font-size: {_s(12)}px;'
-            ' color: #c8ddf0;'
-            f' padding: 0px {_s(16)}px;'
-            ' border-bottom: 1px solid #1e3048;'
-            ' border-right: 1px solid #1e3048;'
-            '}'
-            'QTableWidget::item:selected {'
-            ' background-color: #1a4a8a;'
-            ' color: #ffffff;'
-            f' padding: 0px {_s(16)}px;'
-            ' border-bottom: 1px solid #1e3048;'
-            ' border-right: 1px solid #1e3048;'
-            '}'
-            'QTableWidget::item:hover:!selected {'
-            ' background-color: #1c3050;'
-            ' border-bottom: 1px solid #1e3048;'
-            ' border-right: 1px solid #1e3048;'
-            '}'
-            'QHeaderView::section {'
-            ' background-color: #0e1824;'
-            ' color: #7bafd4;'
-            f' min-height: {_s(36)}px;'
-            f' padding: 0px {_s(16)}px;'
-            ' border-bottom: 2px solid #2a5080;'
-            ' border-right: 1px solid #1e3048;'
-            ' border-top: none;'
-            ' border-left: none;'
-            '}',
-        )
+        self.table.setStyleSheet(interface_table_stylesheet(_scale))
 
         # Connect cell hover to tooltip logic
         self.table.cellEntered.connect(self.show_tooltip_if_elided)
@@ -351,12 +316,7 @@ class InterfaceSelectionDialog(QDialog):
         table_container = QFrame()
         table_container.setObjectName('tableContainer')
         table_container.setFrameShape(QFrame.Shape.NoFrame)
-        table_container.setStyleSheet(
-            'QFrame#tableContainer {'
-            ' border: 1px solid #3a6aaa;'
-            ' border-radius: 6px;'
-            '}',
-        )
+        table_container.setStyleSheet(INTERFACE_TABLE_CONTAINER_STYLESHEET)
         table_container_layout = QVBoxLayout(table_container)
         table_container_layout.setContentsMargins(0, 0, 0, 0)
         table_container_layout.setSpacing(0)
@@ -399,7 +359,7 @@ class InterfaceSelectionDialog(QDialog):
         remember_interface_checkbox.setChecked(Settings.gui_interface_selection_auto_connect)
         remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
         remember_interface_checkbox.setStyleSheet(
-            f'QCheckBox#remember_interface_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#remember_interface_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
+            interface_checkbox_stylesheet('remember_interface_checkbox', _scale),
         )
         options_layout.addWidget(remember_interface_checkbox)
 
@@ -408,7 +368,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide disabled, disconnected, unconfigured, or interfaces with no traffic')
         hide_inactive_checkbox.setStyleSheet(
-            f'QCheckBox#hide_inactive_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#hide_inactive_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
+            interface_checkbox_stylesheet('hide_inactive_checkbox', _scale),
         )
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
@@ -418,7 +378,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
         hide_neighbours_checkbox.setStyleSheet(
-            f'QCheckBox#hide_neighbours_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#hide_neighbours_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
+            interface_checkbox_stylesheet('hide_neighbours_checkbox', _scale),
         )
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
@@ -429,7 +389,7 @@ class InterfaceSelectionDialog(QDialog):
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
         arp_spoofing_checkbox.setStyleSheet(
-            f'QCheckBox#arp_spoofing_checkbox {{ font-size: {_s(14)}pt; }} QCheckBox#arp_spoofing_checkbox::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}',
+            interface_checkbox_stylesheet('arp_spoofing_checkbox', _scale),
         )
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
@@ -452,19 +412,7 @@ class InterfaceSelectionDialog(QDialog):
         bottom_container = QFrame()
         bottom_container.setObjectName('bottomContainer')
         bottom_container.setFrameShape(QFrame.Shape.NoFrame)
-        bottom_container.setStyleSheet(
-            'QFrame#bottomContainer {'
-            ' background-color: #1a2535;'
-            ' border: 1px solid #3a6aaa;'
-            ' border-radius: 6px;'
-            '}'
-            'QFrame#bottomContainer QCheckBox {'
-            ' background-color: transparent;'
-            '}'
-            'QFrame#bottomContainer QLabel {'
-            ' background-color: transparent;'
-            '}',
-        )
+        bottom_container.setStyleSheet(INTERFACE_BOTTOM_CONTAINER_STYLESHEET)
         container_layout = QVBoxLayout(bottom_container)
         container_layout.setContentsMargins(_s(28), _s(18), _s(28), _s(20))
         container_layout.setSpacing(0)
@@ -482,13 +430,7 @@ class InterfaceSelectionDialog(QDialog):
         separator.setObjectName('bottomSeparator')
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Plain)
-        separator.setStyleSheet(
-            'QFrame#bottomSeparator {'
-            ' background-color: #2f4356;'
-            ' max-height: 1px;'
-            ' border: none;'
-            '}',
-        )
+        separator.setStyleSheet(INTERFACE_BOTTOM_SEPARATOR_STYLESHEET)
         container_layout.addWidget(separator)
         container_layout.addSpacing(_s(20))
 
@@ -513,7 +455,7 @@ class InterfaceSelectionDialog(QDialog):
         info_icon_label.setFixedSize(_s(36), _s(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')
-        instruction_label.setStyleSheet(f'font-size: {_s(17)}px;')
+        instruction_label.setStyleSheet(interface_instruction_label_stylesheet(_scale))
         action_layout.addWidget(info_icon_label)
         action_layout.addSpacing(_s(8))
         action_layout.addWidget(instruction_label)

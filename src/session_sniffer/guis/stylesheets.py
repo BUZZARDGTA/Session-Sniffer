@@ -541,3 +541,362 @@ QPushButton:pressed {
     padding-left: 9px;
 }
 """.strip()
+
+
+# =============================================================================
+# COMBO RULE / DETECTIONS MANAGER STYLES
+# =============================================================================
+
+GROUPBOX_STYLE = """
+    QGroupBox {
+        font-size: 12pt;
+        font-weight: bold;
+        border: 2px solid #4A90E2;
+        border-radius: 8px;
+        margin-top: 12px;
+        padding-top: 15px;
+        background: rgba(74, 144, 226, 0.05);
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        subcontrol-position: top left;
+        left: 15px;
+        padding: 0 5px;
+        color: #4A90E2;
+    }
+"""
+
+LIST_WIDGET_STYLE = """
+    QListWidget {
+        background: #2d2d2d;
+        border: 2px solid #4A90E2;
+        border-radius: 4px;
+        padding: 5px;
+        font-family: 'Consolas', 'Courier New', monospace;
+    }
+    QListWidget::item {
+        padding: 5px;
+        border-radius: 3px;
+    }
+    QListWidget::item:selected {
+        background: #4A90E2;
+        color: white;
+    }
+"""
+
+SECTION_SEPARATOR_LABEL_STYLESHEET = 'color: #666; font-size: 9pt; padding: 5px 0;'
+
+DESC_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;'
+
+HINT_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic; padding-bottom: 4px;'
+
+BOLD_LABEL_STYLESHEET = 'font-weight: bold;'
+
+RELAY_FILTER_WARNING_STYLESHEET = (
+    'QWidget { background-color: #3a2400; border: 1px solid #c87800; border-radius: 6px; padding: 2px; }'
+    'QLabel { border: none; }'
+    'QPushButton { border: 1px solid #c87800; border-radius: 4px; background-color: #5a3a00;'
+    ' color: #ffcc66; padding: 4px 10px; font-weight: bold; }'
+    'QPushButton:hover { background-color: #7a5200; }'
+)
+
+WARNING_ICON_LABEL_STYLESHEET = 'font-size: 18pt; border: none;'
+
+WARNING_TEXT_LABEL_STYLESHEET = 'color: #ffcc66; border: none;'
+
+DETECTIONS_MANAGER_HEADER_STYLESHEET = (
+    'font-size: 16pt; font-weight: bold; color: #4A90E2; padding: 10px;'
+    'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e1e2e, stop:1 #2d2d4e);'
+    'border-radius: 6px;'
+)
+
+
+# =============================================================================
+# SECTION TABLE HEADER STYLES
+# =============================================================================
+
+SECTION_CLEAR_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 12px;'
+
+SECTION_HEADER_SEPARATOR_STYLESHEET = (
+    'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;'
+)
+
+
+# =============================================================================
+# MAIN WINDOW STYLES
+# =============================================================================
+
+GTA5_STATUS_LABEL_STYLESHEET = (
+    'QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }'
+)
+
+
+# =============================================================================
+# PLAYER IDENTIFIER STYLES
+# =============================================================================
+
+PROGRESS_BAR_IDLE_STYLESHEET = ''
+
+PROGRESS_BAR_CHUNK_GREEN_STYLESHEET = 'QProgressBar::chunk { background-color: #27ae60; }'
+
+PROGRESS_BAR_CHUNK_RED_STYLESHEET = 'QProgressBar::chunk { background-color: #e74c3c; }'
+
+
+# =============================================================================
+# PLAYER INFO DIALOG STYLES
+# =============================================================================
+
+PLAYER_INFO_FORM_LABEL_STYLESHEET = 'color: #cbd5e0; font-weight: 600; background: transparent;'
+
+PLAYER_INFO_VALUE_LABEL_STYLESHEET = (
+    'color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);'
+)
+
+DETECTION_WARN_LABEL_STYLESHEET = (
+    'color: #f6e05e; font-weight: bold; padding: 4px 8px;'
+    'background: rgba(214, 158, 46, 20); border: 1px solid rgba(214, 158, 46, 80);'
+    'border-radius: 4px;'
+)
+
+
+def player_info_group_stylesheet(accent: str) -> str:
+    """Return the QSS for a player info group box with the given `accent` color."""
+    return (
+        'QGroupBox {'
+        f' border: 1px solid {accent};'
+        ' border-radius: 6px;'
+        ' margin-top: 14px;'
+        ' padding-top: 10px;'
+        ' background: rgba(255, 255, 255, 8);'
+        ' font-weight: bold;'
+        '}'
+        'QGroupBox::title {'
+        ' subcontrol-origin: margin;'
+        ' subcontrol-position: top left;'
+        ' left: 10px; padding: 2px 8px;'
+        f' background: {accent};'
+        ' color: #ffffff;'
+        ' border-radius: 4px;'
+        '}'
+    )
+
+
+def player_info_header_stylesheet(grad_stop0: str, grad_stop1: str) -> str:
+    """Return the QSS for a player info dialog header label with the given gradient stops."""
+    return (
+        'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
+        'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+        f' stop:0 {grad_stop0}, stop:1 {grad_stop1}); border-radius: 6px;'
+    )
+
+
+# =============================================================================
+# SETTINGS DIALOG STYLES
+# =============================================================================
+
+DISCORD_INFO_LABEL_STYLESHEET = (
+    'QLabel {'
+    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+    'border: 1px solid #3b4455;'
+    'border-left: 4px solid #5865f2;'
+    'border-radius: 10px;'
+    'padding: 12px 14px;'
+    'color: #dbe4f0;'
+    'line-height: 1.35;'
+    '}'
+)
+
+WEBSERVER_HELP_LABEL_STYLESHEET = (
+    'QLabel {'
+    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+    'border: 1px solid #3b4455;'
+    'border-left: 4px solid #61afef;'
+    'border-radius: 10px;'
+    'padding: 12px 14px;'
+    'color: #dbe4f0;'
+    'line-height: 1.35;'
+    '}'
+)
+
+WEBHOOK_NOTE_LABEL_STYLESHEET = 'color: #888; font-size: 11px;'
+
+
+# =============================================================================
+# SPLASH SCREEN STYLES
+# =============================================================================
+
+SPLASH_SCREEN_STYLESHEET = 'background-color: #19232d;'
+
+SPLASH_TITLE_LABEL_STYLESHEET = 'color: #e0e6ee; background: transparent;'
+
+SPLASH_SUBTITLE_LABEL_STYLESHEET = 'color: #667788; background: transparent;'
+
+SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent;'
+
+SPLASH_LOG_AREA_STYLESHEET = (
+    'QTextEdit {'
+    '  background-color: #141922;'
+    '  color: #8899aa;'
+    '  border: 1px solid #2a3544;'
+    '  border-radius: 6px;'
+    '  padding: 8px;'
+    '}'
+)
+
+
+# =============================================================================
+# USERIP MANAGER STYLES
+# =============================================================================
+
+SUBNET_DESC_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic;'
+
+COLOR_SWATCH_GROUP_HEADER_STYLESHEET = (
+    'color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;'
+)
+
+COLOR_SWATCH_SEPARATOR_STYLESHEET = 'color: #3a3a3a;'
+
+SETTINGS_SEPARATOR_STYLESHEET = 'background-color: rgba(74, 144, 226, 0.2); border: none;'
+
+COLOR_BUTTON_EMPTY_STYLESHEET = (
+    'background-color: transparent; border: 1px solid #555; border-radius: 4px;'
+)
+
+
+def color_swatch_btn_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str) -> str:
+    """Return the QSS for a color swatch button in the SVG color picker."""
+    return (
+        f'background-color: {bg_color}; color: {text_color};'
+        f' border: {border_width}px solid {border_color}; border-radius: 2px;'
+        ' font-size: 8pt; font-weight: bold; text-align: center;'
+    )
+
+
+def color_button_filled_stylesheet(color_name: str) -> str:
+    """Return the QSS for a color preview button showing the given `color_name`."""
+    return f'background-color: {color_name}; border: 1px solid #555; border-radius: 4px;'
+
+
+# =============================================================================
+# INTERFACE SELECTION DIALOG STYLES
+# =============================================================================
+
+INTERFACE_TABLE_CONTAINER_STYLESHEET = (
+    'QFrame#tableContainer {'
+    ' border: 1px solid #3a6aaa;'
+    ' border-radius: 6px;'
+    '}'
+)
+
+INTERFACE_BOTTOM_CONTAINER_STYLESHEET = (
+    'QFrame#bottomContainer {'
+    ' background-color: #1a2535;'
+    ' border: 1px solid #3a6aaa;'
+    ' border-radius: 6px;'
+    '}'
+    'QFrame#bottomContainer QCheckBox {'
+    ' background-color: transparent;'
+    '}'
+    'QFrame#bottomContainer QLabel {'
+    ' background-color: transparent;'
+    '}'
+)
+
+INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = (
+    'QFrame#bottomSeparator {'
+    ' background-color: #2f4356;'
+    ' max-height: 1px;'
+    ' border: none;'
+    '}'
+)
+
+
+def interface_header_label_stylesheet(scale: float) -> str:
+    """Return the QSS for the interface selection dialog title label at the given UI `scale`."""
+    def _s(n: int) -> int:
+        return max(1, round(n * scale))
+    return (
+        'QLabel#dialogTitleLabel {'
+        ' color: #f4f7fb;'
+        f' font-size: {_s(23)}px;'
+        ' font-weight: 700;'
+        f' padding-top: {_s(6)}px;'
+        f' padding-bottom: {_s(6)}px;'
+        '}'
+    )
+
+
+def interface_table_stylesheet(scale: float) -> str:
+    """Return the QSS for the interface selection table widget at the given UI `scale`."""
+    def _s(n: int) -> int:
+        return max(1, round(n * scale))
+    return (
+        'QTableWidget {'
+        ' background-color: #131e2c;'
+        ' alternate-background-color: #182536;'
+        ' border: none;'
+        ' outline: none;'
+        '}'
+        'QTableWidget::item {'
+        f' font-size: {_s(12)}px;'
+        ' color: #c8ddf0;'
+        f' padding: 0px {_s(16)}px;'
+        ' border-bottom: 1px solid #1e3048;'
+        ' border-right: 1px solid #1e3048;'
+        '}'
+        'QTableWidget::item:selected {'
+        ' background-color: #1a4a8a;'
+        ' color: #ffffff;'
+        f' padding: 0px {_s(16)}px;'
+        ' border-bottom: 1px solid #1e3048;'
+        ' border-right: 1px solid #1e3048;'
+        '}'
+        'QTableWidget::item:hover:!selected {'
+        ' background-color: #1c3050;'
+        ' border-bottom: 1px solid #1e3048;'
+        ' border-right: 1px solid #1e3048;'
+        '}'
+        'QHeaderView::section {'
+        ' background-color: #0e1824;'
+        ' color: #7bafd4;'
+        f' min-height: {_s(36)}px;'
+        f' padding: 0px {_s(16)}px;'
+        ' border-bottom: 2px solid #2a5080;'
+        ' border-right: 1px solid #1e3048;'
+        ' border-top: none;'
+        ' border-left: none;'
+        '}'
+    )
+
+
+def interface_checkbox_stylesheet(obj_name: str, scale: float) -> str:
+    """Return the QSS for an interface selection dialog checkbox at the given UI `scale`."""
+    def _s(n: int) -> int:
+        return max(1, round(n * scale))
+    return (
+        f'QCheckBox#{obj_name} {{ font-size: {_s(14)}pt; }}'
+        f' QCheckBox#{obj_name}::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}'
+    )
+
+
+def interface_instruction_label_stylesheet(scale: float) -> str:
+    """Return the QSS for the interface selection dialog instruction label at the given UI `scale`."""
+    return f'font-size: {max(1, round(17 * scale))}px;'
+
+
+# =============================================================================
+# COMPACT BUTTON STYLE (shared across settings widgets)
+# =============================================================================
+
+COMPACT_BUTTON_STYLESHEET = (
+    'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
+    ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
+    ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
+    ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
+    ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
+    ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
+    ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
+    ' border: 1px solid rgba(41,128,185,1.0); }'
+)

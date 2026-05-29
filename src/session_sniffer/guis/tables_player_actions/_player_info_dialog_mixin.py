@@ -13,6 +13,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.stylesheets import (
+    PLAYER_INFO_FORM_LABEL_STYLESHEET,
+    PLAYER_INFO_VALUE_LABEL_STYLESHEET,
+    player_info_group_stylesheet,
+    player_info_header_stylesheet,
+)
 from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen
 
 
@@ -28,24 +34,7 @@ class PlayerInfoDialogMixin(QDialog):
     def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
         """Create a styled group box with an attached QFormLayout and return both."""
         group = QGroupBox(title)
-        group.setStyleSheet(
-            'QGroupBox {'
-            f' border: 1px solid {accent};'
-            ' border-radius: 6px;'
-            ' margin-top: 14px;'
-            ' padding-top: 10px;'
-            ' background: rgba(255, 255, 255, 8);'
-            ' font-weight: bold;'
-            '}'
-            'QGroupBox::title {'
-            ' subcontrol-origin: margin;'
-            ' subcontrol-position: top left;'
-            ' left: 10px; padding: 2px 8px;'
-            f' background: {accent};'
-            ' color: #ffffff;'
-            ' border-radius: 4px;'
-            '}',
-        )
+        group.setStyleSheet(player_info_group_stylesheet(accent))
         form = QFormLayout(group)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
@@ -59,7 +48,7 @@ class PlayerInfoDialogMixin(QDialog):
     def _add_row(form: QFormLayout, label_text: str, value: str) -> None:
         """Append a copyable label/value row to *form*."""
         label_widget = QLabel(f'{label_text}:')
-        label_widget.setStyleSheet('color: #cbd5e0; font-weight: 600; background: transparent;')
+        label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
         form.addRow(label_widget, PlayerInfoDialogMixin._make_value_label(value))
 
     @staticmethod
@@ -70,7 +59,7 @@ class PlayerInfoDialogMixin(QDialog):
         value_widget.setCursor(Qt.CursorShape.IBeamCursor)
         value_widget.setWordWrap(True)
         value_widget.setFont(QFont('Consolas'))
-        value_widget.setStyleSheet('color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);')
+        value_widget.setStyleSheet(PLAYER_INFO_VALUE_LABEL_STYLESHEET)
         value_widget.setToolTip('Click and drag to select; Ctrl+C to copy.')
         return value_widget
 
@@ -111,11 +100,7 @@ class PlayerInfoDialogMixin(QDialog):
         """Create a gradient header label, add it to *outer_layout*, and return it."""
         header = QLabel(text)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(
-            'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
-            'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-            f' stop:0 {grad_stop0}, stop:1 {grad_stop1}); border-radius: 6px;',
-        )
+        header.setStyleSheet(player_info_header_stylesheet(grad_stop0, grad_stop1))
         header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         outer_layout.addWidget(header)
         return header

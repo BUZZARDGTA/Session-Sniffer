@@ -24,6 +24,8 @@ from session_sniffer.constants.standalone import CONNECTED_RATE_STAT_COLUMNS, DA
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
+    SECTION_CLEAR_BUTTON_STYLESHEET,
+    SECTION_HEADER_SEPARATOR_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
@@ -177,7 +179,7 @@ class SessionTableSection(QWidget):
         self._header_label.setAutoFillBackground(False)
 
         clear_button = QPushButton('CLEAR')
-        clear_button.setStyleSheet('font-weight: 700; font-size: 12px;')
+        clear_button.setStyleSheet(SECTION_CLEAR_BUTTON_STYLESHEET)
         clear_button.setToolTip(clear_tooltip)
         clear_button.clicked.connect(clear_slot)
 
@@ -270,9 +272,7 @@ class SessionTableSection(QWidget):
         nav_separator = QFrame()
         nav_separator.setFrameShape(QFrame.Shape.VLine)
         nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        nav_separator.setStyleSheet(
-            'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;',
-        )
+        nav_separator.setStyleSheet(SECTION_HEADER_SEPARATOR_STYLESHEET)
         header_layout.addWidget(nav_separator)
 
         # Internal paging state

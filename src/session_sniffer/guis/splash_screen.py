@@ -9,6 +9,13 @@ from PyQt6.QtGui import QFont, QTextCursor
 from PyQt6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.stylesheets import (
+    SPLASH_LOG_AREA_STYLESHEET,
+    SPLASH_SCREEN_STYLESHEET,
+    SPLASH_SUBTITLE_LABEL_STYLESHEET,
+    SPLASH_SUBTITLE_READY_STYLESHEET,
+    SPLASH_TITLE_LABEL_STYLESHEET,
+)
 
 _P = ParamSpec('_P')
 _T = TypeVar('_T')
@@ -36,7 +43,7 @@ class SplashScreen(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint,
         )
         self.setFixedSize(560, 340)
-        self.setStyleSheet('background-color: #19232d;')
+        self.setStyleSheet(SPLASH_SCREEN_STYLESHEET)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
@@ -45,27 +52,19 @@ class SplashScreen(QWidget):
         title_label = QLabel(TITLE)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setFont(QFont('Segoe UI', 20, QFont.Weight.Bold))
-        title_label.setStyleSheet('color: #e0e6ee; background: transparent;')
+        title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
         self._subtitle = QLabel('Initializing sniffing engine\u2009\u2026')
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._subtitle.setFont(QFont('Segoe UI', 10))
-        self._subtitle.setStyleSheet('color: #667788; background: transparent;')
+        self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)
         layout.addWidget(self._subtitle)
 
         self._log_area = QTextEdit()
         self._log_area.setReadOnly(True)
         self._log_area.setFont(QFont('Consolas', 9))
-        self._log_area.setStyleSheet(
-            'QTextEdit {'
-            '  background-color: #141922;'
-            '  color: #8899aa;'
-            '  border: 1px solid #2a3544;'
-            '  border-radius: 6px;'
-            '  padding: 8px;'
-            '}',
-        )
+        self._log_area.setStyleSheet(SPLASH_LOG_AREA_STYLESHEET)
         layout.addWidget(self._log_area)
 
         self._current_message: str | None = None
@@ -149,7 +148,7 @@ class SplashScreen(QWidget):
         self._mark_current_done()
         self._current_message = None
         self._subtitle.setText('Ready!')
-        self._subtitle.setStyleSheet(f'color: {_READY_COLOR}; background: transparent;')
+        self._subtitle.setStyleSheet(SPLASH_SUBTITLE_READY_STYLESHEET)
 
         ready_html = (
             f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">'

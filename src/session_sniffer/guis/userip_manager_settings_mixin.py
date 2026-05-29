@@ -17,6 +17,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.stylesheets import (
+    COLOR_BUTTON_EMPTY_STYLESHEET,
+    COLOR_SWATCH_GROUP_HEADER_STYLESHEET,
+    COLOR_SWATCH_SEPARATOR_STYLESHEET,
+    SETTINGS_SEPARATOR_STYLESHEET,
+    color_button_filled_stylesheet,
+    color_swatch_btn_stylesheet,
+)
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_DISABLED,
@@ -114,12 +122,12 @@ class _SVGColorPickerDialog(QDialog):
 
         for group_name, color_names in _SVG_COLOR_GROUPS.items():
             header = QLabel(group_name)
-            header.setStyleSheet('color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;')
+            header.setStyleSheet(COLOR_SWATCH_GROUP_HEADER_STYLESHEET)
             content_layout.addWidget(header)
 
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
-            sep.setStyleSheet('color: #3a3a3a;')
+            sep.setStyleSheet(COLOR_SWATCH_SEPARATOR_STYLESHEET)
             content_layout.addWidget(sep)
 
             group_widget = QWidget()
@@ -139,9 +147,7 @@ class _SVGColorPickerDialog(QDialog):
                 btn.setFixedSize(_SWATCH_W, _SWATCH_H)
                 btn.setAutoDefault(False)
                 btn.setStyleSheet(
-                    f'background-color: {color.name()}; color: {text_color};'
-                    f' border: {border_width}px solid {border_color}; border-radius: 2px;'
-                    ' font-size: 8pt; font-weight: bold; text-align: center;',
+                    color_swatch_btn_stylesheet(color.name(), text_color, border_width, border_color),
                 )
 
                 def _on_clicked(*_: object, n: str = name) -> None:
@@ -391,7 +397,7 @@ class SettingsPanelMixin(QDialog):
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFixedHeight(1)
-        separator.setStyleSheet('background-color: rgba(74, 144, 226, 0.2); border: none;')
+        separator.setStyleSheet(SETTINGS_SEPARATOR_STYLESHEET)
         protection_section_layout.addWidget(separator)
 
         suspend_row = QHBoxLayout()
@@ -519,10 +525,10 @@ class SettingsPanelMixin(QDialog):
         """Refresh the color button's background to reflect the current color."""
         if self._current_color.isValid():
             self._setting_color.setStyleSheet(
-                f'background-color: {self._current_color.name()}; border: 1px solid #555; border-radius: 4px;',
+                color_button_filled_stylesheet(self._current_color.name()),
             )
         else:
-            self._setting_color.setStyleSheet('background-color: transparent; border: 1px solid #555; border-radius: 4px;')
+            self._setting_color.setStyleSheet(COLOR_BUTTON_EMPTY_STYLESHEET)
 
     def _on_suspend_mode_changed(self, text: str) -> None:
         """Show/hide the custom duration spin box based on suspend mode selection."""

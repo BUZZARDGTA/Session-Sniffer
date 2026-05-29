@@ -42,7 +42,12 @@ from session_sniffer.guis._settings_widget_builders import (
     create_text_widget,
 )
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    DIALOG_BUTTON_STYLESHEET,
+    DISCORD_INFO_LABEL_STYLESHEET,
+    WEBHOOK_NOTE_LABEL_STYLESHEET,
+    WEBSERVER_HELP_LABEL_STYLESHEET,
+)
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
@@ -236,17 +241,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         info_label.setTextFormat(Qt.TextFormat.RichText)
         info_label.setOpenExternalLinks(True)
         info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        info_label.setStyleSheet(
-            'QLabel {'
-            'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
-            'border: 1px solid #3b4455;'
-            'border-left: 4px solid #5865f2;'
-            'border-radius: 10px;'
-            'padding: 12px 14px;'
-            'color: #dbe4f0;'
-            'line-height: 1.35;'
-            '}',
-        )
+        info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
         layout.addWidget(info_label)
 
         return group_box
@@ -275,17 +270,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         help_label.setWordWrap(True)
         help_label.setTextFormat(Qt.TextFormat.RichText)
         help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        help_label.setStyleSheet(
-            'QLabel {'
-            'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
-            'border: 1px solid #3b4455;'
-            'border-left: 4px solid #61afef;'
-            'border-radius: 10px;'
-            'padding: 12px 14px;'
-            'color: #dbe4f0;'
-            'line-height: 1.35;'
-            '}',
-        )
+        help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
         layout.addWidget(help_label)
 
         return group_box
@@ -424,7 +409,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             'whitelist this webhook (or its channel) to prevent the messages \u2014 and the webhook itself \u2014 from being deleted.',
         )
         note.setWordWrap(True)
-        note.setStyleSheet('color: #888; font-size: 11px;')
+        note.setStyleSheet(WEBHOOK_NOTE_LABEL_STYLESHEET)
         outer.addWidget(note)
 
         # Wire enable cascade.

@@ -43,6 +43,11 @@ from session_sniffer.guis._player_identifier_core import (
     ResolvedIP,
     zscore_to_confidence,
 )
+from session_sniffer.guis.stylesheets import (
+    PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
+    PROGRESS_BAR_CHUNK_RED_STYLESHEET,
+    PROGRESS_BAR_IDLE_STYLESHEET,
+)
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
@@ -402,7 +407,7 @@ class PlayerIdentifierWidget(QWidget):
         )
         self._stability_bar.setFormat('Collecting\u2026')
         self._stability_bar.setValue(0)
-        self._stability_bar.setStyleSheet('')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         self._stability_label.setVisible(True)
         self._stability_bar.setVisible(True)
         self._sample_label.setVisible(True)
@@ -429,7 +434,7 @@ class PlayerIdentifierWidget(QWidget):
         )
         self._stability_bar.setFormat('Locked')
         self._stability_bar.setValue(100)
-        self._stability_bar.setStyleSheet('QProgressBar::chunk { background-color: #27ae60; }')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
         self._stability_label.setText('Stability: <span style="color:green;">Locked \u2714</span>')
         self._contamination_streak.clear()
 
@@ -448,7 +453,7 @@ class PlayerIdentifierWidget(QWidget):
         self._result_label.setText('')
         self._stability_bar.setFormat('Resolving\u2026')
         self._stability_bar.setValue(0)
-        self._stability_bar.setStyleSheet('')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         # Timer is already running from baseline/READY phase; no restart needed
 
     def reset(self) -> None:
@@ -469,7 +474,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_label.setVisible(False)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Waiting...')
-        self._stability_bar.setStyleSheet('')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         self._stability_bar.setVisible(False)
         self._sample_label.setText('')
         self._sample_label.setVisible(False)
@@ -487,7 +492,7 @@ class PlayerIdentifierWidget(QWidget):
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
-        self._stability_bar.setStyleSheet('QProgressBar::chunk { background-color: #e74c3c; }')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
             'Stability: <span style="color:red;">Aborted \u2014 not enough players remaining</span>',
         )
@@ -505,7 +510,7 @@ class PlayerIdentifierWidget(QWidget):
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Contaminated')
-        self._stability_bar.setStyleSheet('QProgressBar::chunk { background-color: #e74c3c; }')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
             'Stability: <span style="color:red;">Aborted \u2014 baseline contaminated</span>',
         )
@@ -526,7 +531,7 @@ class PlayerIdentifierWidget(QWidget):
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
-        self._stability_bar.setStyleSheet('QProgressBar::chunk { background-color: #e74c3c; }')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
             'Stability: <span style="color:red;">Aborted \u2014 session conditions changed</span>',
         )
@@ -844,7 +849,7 @@ class PlayerIdentifierWidget(QWidget):
         )
         self._stability_bar.setValue(100)
         self._stability_bar.setFormat('Resolved \u2714')
-        self._stability_bar.setStyleSheet('QProgressBar::chunk { background-color: #27ae60; }')
+        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
         self._start_btn.setEnabled(False)
         self._resolve_btn.setEnabled(False)
         self._zscore_table.setRowCount(0)

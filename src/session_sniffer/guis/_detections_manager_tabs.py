@@ -26,8 +26,6 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import (
     AVAILABLE_FLAG_CODES,
     COUNTRY_FLAGS_DIR,
-    GROUPBOX_STYLE,
-    LIST_WIDGET_STYLE,
     ComboRuleEditorDialog,
     CountrySelectionDialog,
     read_duration_widgets_helper,
@@ -36,6 +34,16 @@ from session_sniffer.guis._combo_rule_editor import (
     set_voice_combo_helper,
 )
 from session_sniffer.guis.country_data import get_country_flag_code
+from session_sniffer.guis.stylesheets import (
+    BOLD_LABEL_STYLESHEET,
+    DESC_LABEL_STYLESHEET,
+    GROUPBOX_STYLE,
+    LIST_WIDGET_STYLE,
+    RELAY_FILTER_WARNING_STYLESHEET,
+    SECTION_SEPARATOR_LABEL_STYLESHEET,
+    WARNING_ICON_LABEL_STYLESHEET,
+    WARNING_TEXT_LABEL_STYLESHEET,
+)
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.settings import Settings
@@ -189,18 +197,12 @@ class DetectionsManagerTabsMixin(QDialog):
         # Warning banner: shown when GTAV_TAKETWO ranges are in the capture block list,
         # which prevents relay IPs from ever reaching the capture engine.
         filter_warning = QWidget()
-        filter_warning.setStyleSheet(
-            'QWidget { background-color: #3a2400; border: 1px solid #c87800; border-radius: 6px; padding: 2px; }'
-            'QLabel { border: none; }'
-            'QPushButton { border: 1px solid #c87800; border-radius: 4px; background-color: #5a3a00;'
-            ' color: #ffcc66; padding: 4px 10px; font-weight: bold; }'
-            'QPushButton:hover { background-color: #7a5200; }',
-        )
+        filter_warning.setStyleSheet(RELAY_FILTER_WARNING_STYLESHEET)
         filter_warning_layout = QHBoxLayout(filter_warning)
         filter_warning_layout.setContentsMargins(8, 6, 8, 6)
         filter_warning_layout.setSpacing(10)
         warning_icon_label = QLabel('\u26a0\ufe0f')
-        warning_icon_label.setStyleSheet('font-size: 18pt; border: none;')
+        warning_icon_label.setStyleSheet(WARNING_ICON_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
             '<b>Relay IPs are currently filtered out of the capture.</b><br>'
@@ -210,7 +212,7 @@ class DetectionsManagerTabsMixin(QDialog):
             'Remove that entry from the blocked servers list to enable relay detection.',
         )
         warning_text_label.setWordWrap(True)
-        warning_text_label.setStyleSheet('color: #ffcc66; border: none;')
+        warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
         fix_button = QPushButton('Fix It')
         fix_button.setToolTip("Remove 'Take-Two (GTA V)' from the blocked servers list and save the setting")
@@ -226,7 +228,7 @@ class DetectionsManagerTabsMixin(QDialog):
             'packet threshold while still connected.',
         )
         desc.setWordWrap(True)
-        desc.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
+        desc.setStyleSheet(DESC_LABEL_STYLESHEET)
         layout.addWidget(desc)
 
         scroll = QScrollArea()
@@ -253,7 +255,7 @@ class DetectionsManagerTabsMixin(QDialog):
             'but delaying the response.'
         )
         threshold_label = QLabel('Packet Threshold:')
-        threshold_label.setStyleSheet('font-weight: bold;')
+        threshold_label.setStyleSheet(BOLD_LABEL_STYLESHEET)
         threshold_label.setToolTip(_threshold_tooltip)
         threshold_layout.addWidget(threshold_label)
         threshold_spin = QSpinBox()
@@ -285,7 +287,7 @@ class DetectionsManagerTabsMixin(QDialog):
             'Rules with an event condition require at least one IP-based condition.',
         )
         desc.setWordWrap(True)
-        desc.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
+        desc.setStyleSheet(DESC_LABEL_STYLESHEET)
         layout.addWidget(desc)
 
         # Rule list
@@ -482,7 +484,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
         desc_label = QLabel(description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
+        desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
         group_layout.addWidget(desc_label)
 
         # -- Action section container (hideable when protection is not supported) --
@@ -492,7 +494,7 @@ class DetectionsManagerTabsMixin(QDialog):
         setattr(self, f'{protection_type}_action_section', action_section)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
+        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_section_layout.addWidget(protection_separator)
 
@@ -541,7 +543,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
         desc_label = QLabel(description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet('color: #a0a0a0; font-style: italic; font-size: 10pt; padding: 5px;')
+        desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
         group_layout.addWidget(desc_label)
 
         # List widget
@@ -578,7 +580,7 @@ class DetectionsManagerTabsMixin(QDialog):
         setattr(self, f'{blocklist_type}_action_section', action_section)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
+        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_section_layout.addWidget(protection_separator)
 
@@ -622,7 +624,7 @@ class DetectionsManagerTabsMixin(QDialog):
     def _create_notification_controls(self, parent_layout: QVBoxLayout, prefix: str) -> None:
         """Add voice notification, logging, and message box controls to a group layout."""
         separator = QLabel('\u2500\u2500\u2500 Notification Settings \u2500\u2500\u2500')
-        separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
+        separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         parent_layout.addWidget(separator)
 

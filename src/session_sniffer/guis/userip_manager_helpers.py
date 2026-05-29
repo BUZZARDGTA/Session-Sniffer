@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET, SUBNET_DESC_LABEL_STYLESHEET
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -559,7 +559,7 @@ class IPRangeBuilderDialog(QDialog):
         input_layout.addWidget(self._subnet_slider, 4, 1)
 
         self._subnet_desc_label = QLabel('')
-        self._subnet_desc_label.setStyleSheet('color: #a0a0a0; font-style: italic;')
+        self._subnet_desc_label.setStyleSheet(SUBNET_DESC_LABEL_STYLESHEET)
         input_layout.addWidget(self._subnet_desc_label, 5, 0, 1, 2)
 
         layout.addWidget(input_group)

@@ -19,24 +19,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
 _RESTART_INDICATOR = ' \u27F3'
-
-_COMPACT_BTN_STYLESHEET = (
-    'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
-    ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
-    ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
-    ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
-    ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
-    ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
-    ' border: 1px solid rgba(41,128,185,1.0); }'
-)
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
@@ -153,7 +141,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     btn_reset = QPushButton('Reset')
     btn_reset.setToolTip('Reset to default selected columns')
     for btn in (btn_select_all, btn_deselect_all, btn_reset):
-        btn.setStyleSheet(_COMPACT_BTN_STYLESHEET)
+        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     btn_select_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=True))
@@ -191,13 +179,13 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
 
     add_button = QPushButton('\u2795 Add')
     add_button.setToolTip('Add a new blocked IP address, range, or subnet')
-    add_button.setStyleSheet(_COMPACT_BTN_STYLESHEET)
+    add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     add_button.setCursor(Qt.CursorShape.PointingHandCursor)
     add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     remove_button = QPushButton('\U0001f5d1 Remove')
     remove_button.setToolTip('Remove the selected entries')
-    remove_button.setStyleSheet(_COMPACT_BTN_STYLESHEET)
+    remove_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
     remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 

@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._fmt import fmt_bool, fmt_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
@@ -165,11 +166,7 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
             warn_label = QLabel('\u26a0\ufe0f  Some data may still be loading and missing from this notification')
             warn_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             warn_label.setWordWrap(True)
-            warn_label.setStyleSheet(
-                'color: #f6e05e; font-weight: bold; padding: 4px 8px;'
-                'background: rgba(214, 158, 46, 20); border: 1px solid rgba(214, 158, 46, 80);'
-                'border-radius: 4px;',
-            )
+            warn_label.setStyleSheet(DETECTION_WARN_LABEL_STYLESHEET)
             outer_layout.addWidget(warn_label)
 
         scroll_layout = self._init_scroll_area(outer_layout)

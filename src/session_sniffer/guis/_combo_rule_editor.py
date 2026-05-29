@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH
 from session_sniffer.guis.country_data import COUNTRY_NAMES
+from session_sniffer.guis.stylesheets import GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
 from session_sniffer.player.combo_rules import ComboRule
 from session_sniffer.rendering_core.types import CaptureState
@@ -34,43 +35,6 @@ COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(
     p.stem for p in COUNTRY_FLAGS_DIR.glob('*.png')
 ) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
-
-GROUPBOX_STYLE = """
-    QGroupBox {
-        font-size: 12pt;
-        font-weight: bold;
-        border: 2px solid #4A90E2;
-        border-radius: 8px;
-        margin-top: 12px;
-        padding-top: 15px;
-        background: rgba(74, 144, 226, 0.05);
-    }
-    QGroupBox::title {
-        subcontrol-origin: margin;
-        subcontrol-position: top left;
-        left: 15px;
-        padding: 0 5px;
-        color: #4A90E2;
-    }
-"""
-
-LIST_WIDGET_STYLE = """
-    QListWidget {
-        background: #2d2d2d;
-        border: 2px solid #4A90E2;
-        border-radius: 4px;
-        padding: 5px;
-        font-family: 'Consolas', 'Courier New', monospace;
-    }
-    QListWidget::item {
-        padding: 5px;
-        border-radius: 3px;
-    }
-    QListWidget::item:selected {
-        background: #4A90E2;
-        color: white;
-    }
-"""
 
 _COUNTRY_SELECTOR_COMBO_STYLE = """
     QComboBox {
@@ -138,7 +102,7 @@ class CountrySelectionDialog(QDialog):
         layout = QVBoxLayout(self)
 
         hint = QLabel('Type to search by country name or code:')
-        hint.setStyleSheet('color: #a0a0a0; font-style: italic; padding-bottom: 4px;')
+        hint.setStyleSheet(HINT_LABEL_STYLESHEET)
         layout.addWidget(hint)
 
         self._combo = QComboBox()
@@ -277,7 +241,7 @@ class ComboRuleEditorDialog(QDialog):
 
         # Notification Settings
         notification_separator = QLabel('\u2500\u2500\u2500 Notification Settings \u2500\u2500\u2500')
-        notification_separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
+        notification_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         notification_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_layout.addWidget(notification_separator)
 
@@ -309,7 +273,7 @@ class ComboRuleEditorDialog(QDialog):
         protection_section_layout.setContentsMargins(0, 0, 0, 0)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet('color: #666; font-size: 9pt; padding: 5px 0;')
+        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         protection_section_layout.addWidget(protection_separator)
 

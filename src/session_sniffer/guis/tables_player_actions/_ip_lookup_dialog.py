@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._fmt import (
     fmt_bool,
     fmt_packets_and_stats,
@@ -141,7 +142,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _add_live_row(self, form: QFormLayout, label_text: str, provider: Callable[[Player], str]) -> None:
         """Append a label / copyable-value row to *form* and register it for refresh."""
         label_widget = QLabel(f'{label_text}:')
-        label_widget.setStyleSheet('color: #cbd5e0; font-weight: 600; background: transparent;')
+        label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
         value_widget = self._make_value_label()
         form.addRow(label_widget, value_widget)
         self._rows.append((value_widget, provider))
