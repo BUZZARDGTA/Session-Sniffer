@@ -78,9 +78,7 @@ class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
         self._lbl_connected = QLabel('0')
         self._lbl_disconnected = QLabel('0')
         self._lbl_total = QLabel('0')
-        self._lbl_peak_connected = QLabel('0')
         players_form.addRow('Total:', self._lbl_total)
-        players_form.addRow('Peak Connected:', self._lbl_peak_connected)
         players_form.addRow('Connected:', self._lbl_connected)
         players_form.addRow('Disconnected:', self._lbl_disconnected)
         left_col_a.addWidget(players_group)
@@ -325,7 +323,6 @@ class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
         self._lbl_connected.setText(str(len(connected_players)))
         self._lbl_disconnected.setText(str(len(all_players) - len(connected_players)))
         self._lbl_total.setText(str(len(all_players)))
-        self._lbl_peak_connected.setText(str(CaptureStats.peak_connected))
 
         self._lbl_bandwidth.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.exchanged for p in all_players)))
         self._lbl_download.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.download for p in all_players)))

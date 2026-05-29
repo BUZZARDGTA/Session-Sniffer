@@ -144,7 +144,6 @@ class CaptureStats:
     peak_bps_rate: ClassVar[int] = 0
     peak_bpm_rate: ClassVar[int] = 0
     peak_pps_rate: ClassVar[int] = 0
-    peak_connected: ClassVar[int] = 0
 
     @classmethod
     def resize_history_deques(cls, maxlen: int) -> None:

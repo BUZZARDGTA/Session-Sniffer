@@ -941,7 +941,6 @@ def player_rates_core() -> None:
         CaptureStats.peak_bps_rate = max(CaptureStats.peak_bps_rate, global_bps_rate)
         CaptureStats.peak_bpm_rate = max(CaptureStats.peak_bpm_rate, global_bpm_rate)
         CaptureStats.peak_pps_rate = max(CaptureStats.peak_pps_rate, global_pps_rate)
-        CaptureStats.peak_connected = max(CaptureStats.peak_connected, connected_count)
 
         one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
         recent_latencies = [(t, lat) for t, lat in list(CaptureStats.packets_latencies) if t >= one_second_ago]
