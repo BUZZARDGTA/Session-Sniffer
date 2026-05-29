@@ -671,9 +671,7 @@ def main() -> None:
 
     # Start web server if enabled
     if Settings.webserver_enabled:
-        logger.info('Starting web server on %s:%s', Settings.webserver_host, Settings.webserver_port)
         start_webserver_from_settings()
-        logger.info('Web server started on %s:%s', Settings.webserver_host, Settings.webserver_port)
 
     hostname_core__thread = Thread(target=hostname_core, name='hostname_core', daemon=True)
     hostname_core__thread.start()
