@@ -4,6 +4,21 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
+from session_sniffer.constants.standalone import (
+    CLASSICSTUN_PORT,
+    GTA5_PACKET_SIZE_MAX,
+    GTA5_PACKET_SIZE_MIN,
+    LLMNR_PORT,
+    MAX_PORT,
+    MIN_PORT,
+    MINECRAFT_PACKET_SIZE_MAX,
+    MINECRAFT_PACKET_SIZE_MIN,
+    RAKNET_PORT,
+    SSDPP_PORT,
+    UAUDP_PORT,
+    WEBSERVER_DEFAULT_HOST,
+    WEBSERVER_DEFAULT_PORT,
+)
 from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES, THIRD_PARTY_SERVER_DISPLAY_NAMES
 
 
@@ -99,6 +114,23 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'Minecraft',
         ),
     ),
+    'capture_filter_preset_packet_size': SettingMeta(
+        category='Capture',
+        group='General',
+        display_label='Preset Packet Size Filter',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'When a Game Preset is active, restrict capture to packets within the expected size range for that game.\n'
+            'This helps focus exclusively on P2P traffic by blocking packets outside these ranges.\n\n'
+            f'GTA5: {GTA5_PACKET_SIZE_MIN} - {GTA5_PACKET_SIZE_MAX} bytes\n'
+            f'Minecraft Bedrock: {MINECRAFT_PACKET_SIZE_MIN} - {MINECRAFT_PACKET_SIZE_MAX} bytes\n\n'
+            'Note: these ranges were designed for P2P sessions. If you are scanning game servers,\n'
+            'some of their packets may fall outside these bounds and get filtered out.\n'
+            'Disable this if you want the preset behaviour (e.g. third-party server blocks, host detection)\n'
+            'without the size-based packet filter.'
+        ),
+        requires_capture_restart=True,
+    ),
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         group='General',
@@ -167,7 +199,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Block SSDP',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'Exclude SSDP (Simple Service Discovery Protocol) packets from capture (port 1900).'
+            f'Exclude SSDP (Simple Service Discovery Protocol) packets from capture (port {SSDPP_PORT}).'
             ' These are local network device discovery broadcasts unrelated to gaming sessions.'
         ),
         requires_capture_restart=True,
@@ -178,7 +210,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         subgroup='Port Filters',
         display_label='Block RakNet',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Exclude RakNet protocol packets from capture (port 19132). Used by Minecraft Bedrock Edition LAN discovery and similar services.',
+        tooltip=f'Exclude RakNet protocol packets from capture (port {RAKNET_PORT}). Used by Minecraft Bedrock Edition LAN discovery and similar services.',
         requires_capture_restart=True,
     ),
     'capture_filter_block_dtls': SettingMeta(
@@ -196,7 +228,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         subgroup='Port Filters',
         display_label='Block UAUDP',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Exclude UAUDP (Avaya/UA audio over UDP) packets from capture (port 4569).',
+        tooltip=f'Exclude UAUDP (Avaya/UA audio over UDP) packets from capture (port {UAUDP_PORT}).',
         requires_capture_restart=True,
     ),
     'capture_filter_block_classicstun': SettingMeta(
@@ -205,7 +237,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         subgroup='Port Filters',
         display_label='Block ClassicSTUN',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Exclude ClassicSTUN (Session Traversal Utilities for NAT) packets from capture (port 3478).',
+        tooltip=f'Exclude ClassicSTUN (Session Traversal Utilities for NAT) packets from capture (port {CLASSICSTUN_PORT}).',
         requires_capture_restart=True,
     ),
     'capture_filter_block_llmnr': SettingMeta(
@@ -215,7 +247,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Block LLMNR',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'Exclude LLMNR (Link-Local Multicast Name Resolution) packets from capture (port 5355).'
+            f'Exclude LLMNR (Link-Local Multicast Name Resolution) packets from capture (port {LLMNR_PORT}).'
             ' These are Windows local network name resolution broadcasts unrelated to gaming sessions.'
         ),
         requires_capture_restart=True,
@@ -495,7 +527,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='Web Server',
         group='Connection',
         display_label='Host',
-        setting_type=SettingType.STRING,
+        setting_type=SettingType.IPV4,
         tooltip='IP address to bind the web server to (0.0.0.0 = all interfaces).',
     ),
     'webserver_port': SettingMeta(
@@ -503,9 +535,9 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Connection',
         display_label='Port',
         setting_type=SettingType.INTEGER,
-        tooltip='Port number for the web server (1-65535).',
-        min_value=1,
-        max_value=65535,
+        tooltip=f'Port number for the web server ({MIN_PORT}-{MAX_PORT}).',
+        min_value=MIN_PORT,
+        max_value=MAX_PORT,
         step=1,
     ),
     'webserver_username': SettingMeta(
@@ -540,6 +572,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_game_preset': None,
+    'capture_filter_preset_packet_size': True,
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),
@@ -604,8 +637,8 @@ SETTING_DEFAULTS: dict[str, Any] = {
     ),
     'discord_webhook_message_ids': None,
     'webserver_enabled': False,
-    'webserver_host': '0.0.0.0',  # noqa: S104
-    'webserver_port': 80,
+    'webserver_host': WEBSERVER_DEFAULT_HOST,
+    'webserver_port': WEBSERVER_DEFAULT_PORT,
     'webserver_username': None,
     'webserver_password': None,
     'updater_channel': 'Stable',

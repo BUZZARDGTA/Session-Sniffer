@@ -4,6 +4,17 @@ from typing import TYPE_CHECKING
 
 from scapy.layers.inet import UDP
 
+from session_sniffer.constants.standalone import (
+    CLASSICSTUN_PORT,
+    GTA5_PACKET_SIZE_MAX,
+    GTA5_PACKET_SIZE_MIN,
+    LLMNR_PORT,
+    MINECRAFT_PACKET_SIZE_MAX,
+    MINECRAFT_PACKET_SIZE_MIN,
+    RAKNET_PORT,
+    SSDPP_PORT,
+    UAUDP_PORT,
+)
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.settings.settings import Settings
 
@@ -137,11 +148,11 @@ def build_capture_filters(
     # Protocols that need Python-level payload inspection (strategy B)
     python_excluded_protocols: list[str] = []
 
-    if Settings.capture_game_preset:
+    if Settings.capture_game_preset and Settings.capture_filter_preset_packet_size:
         if Settings.capture_game_preset == 'GTA5':
-            capture_filter.append('(len >= 71 and len <= 1032)')
+            capture_filter.append(f'(len >= {GTA5_PACKET_SIZE_MIN} and len <= {GTA5_PACKET_SIZE_MAX})')
         elif Settings.capture_game_preset == 'Minecraft':
-            capture_filter.append('(len >= 49 and len <= 1498)')
+            capture_filter.append(f'(len >= {MINECRAFT_PACKET_SIZE_MIN} and len <= {MINECRAFT_PACKET_SIZE_MAX})')
 
     if Settings.capture_filter_block_rtcp:
         python_excluded_protocols.append('rtcp')
@@ -154,15 +165,15 @@ def build_capture_filters(
             capture_filter.append(f"not (net {' or '.join(blocked_ip_ranges)})")
 
     if Settings.capture_filter_block_ssdp:
-        capture_filter.append('not port 1900')
+        capture_filter.append(f'not port {SSDPP_PORT}')
     if Settings.capture_filter_block_raknet:
-        capture_filter.append('not port 19132')
+        capture_filter.append(f'not port {RAKNET_PORT}')
     if Settings.capture_filter_block_uaudp:
-        capture_filter.append('not port 4569')
+        capture_filter.append(f'not port {UAUDP_PORT}')
     if Settings.capture_filter_block_classicstun:
-        capture_filter.append('not port 3478')
+        capture_filter.append(f'not port {CLASSICSTUN_PORT}')
     if Settings.capture_filter_block_llmnr:
-        capture_filter.append('not port 5355')
+        capture_filter.append(f'not port {LLMNR_PORT}')
 
     if Settings.capture_blocked_ips:
         blocked_bpf: list[str] = []

@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
-from session_sniffer.constants.standalone import CAPTURE_FILTER_BLOCK_SETTINGS, MAX_PORT, MIN_PORT
+from session_sniffer.constants.standalone import CAPTURE_FILTER_BLOCK_SETTINGS, MAX_PORT, MIN_PORT, WEBSERVER_DEFAULT_HOST
 from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.utils import (
@@ -67,6 +67,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_ARP_SPOOFING: bool
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
     CAPTURE_GAME_PRESET: str | None
+    CAPTURE_FILTER_PRESET_PACKET_SIZE: bool
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
@@ -128,6 +129,7 @@ class SettingsIniModel(BaseModel):
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset({
         'CAPTURE_ARP_SPOOFING',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
+        'CAPTURE_FILTER_PRESET_PACKET_SIZE',
         'DISCORD_PRESENCE',
         'DISCORD_WEBHOOK_ENABLED',
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',

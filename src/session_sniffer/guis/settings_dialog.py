@@ -30,7 +30,7 @@ from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_widget_builders import (
-    _RESTART_INDICATOR,
+    RESTART_INDICATOR,
     create_bool_or_enum_widget,
     create_boolean_widget,
     create_column_tuple_widget,
@@ -290,7 +290,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
 
         label_text = meta.display_label
         if meta.requires_capture_restart:
-            label_text += _RESTART_INDICATOR
+            label_text += RESTART_INDICATOR
         label = QLabel(label_text + ':')
         self._labels[key] = label
 
@@ -303,8 +303,9 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         form.addRow(label, widget)
 
     def _on_preset_changed(self, preset: str) -> None:
-        """Show or hide the Session Host Detection row depending on the active preset."""
+        """Show or hide preset-dependent rows depending on the active preset."""
         gta5_only = preset == 'GTA5'
+        has_preset = bool(preset) and preset != 'None'
         for key in ('gui_session_host_detection',):
             widget = self._widgets.get(key)
             label = self._labels.get(key)
@@ -313,6 +314,13 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 widget.setEnabled(gta5_only)
             if label:
                 label.setVisible(gta5_only)
+        for key in ('capture_filter_preset_packet_size',):
+            widget = self._widgets.get(key)
+            label = self._labels.get(key)
+            if widget:
+                widget.setVisible(has_preset)
+            if label:
+                label.setVisible(has_preset)
 
     def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""

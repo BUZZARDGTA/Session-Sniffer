@@ -2,6 +2,8 @@
 
 MIN_PORT: int = 1
 MAX_PORT: int = 65535
+WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104
+WEBSERVER_DEFAULT_PORT: int = 80
 TITLE: str = 'Session Sniffer'
 DISCORD_INVITE_URL: str = 'https://discord.gg/hMZ7MsPX7G'
 GITHUB_REPO_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer'
@@ -44,6 +46,19 @@ SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 
 
 # Timestamp columns that appear in both connected and disconnected rows.
 DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')
+
+# Packet size bounds used by preset capture filters.
+GTA5_PACKET_SIZE_MIN: int = 59
+GTA5_PACKET_SIZE_MAX: int = 1032
+MINECRAFT_PACKET_SIZE_MIN: int = 49
+MINECRAFT_PACKET_SIZE_MAX: int = 1498
+
+# Port numbers used by protocol-specific capture filters.
+SSDPP_PORT: int = 1900
+RAKNET_PORT: int = 19132
+UAUDP_PORT: int = 4569
+CLASSICSTUN_PORT: int = 3478
+LLMNR_PORT: int = 5355
 
 # Setting names for payload-inspection-based capture filters.
 CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS: tuple[str, ...] = (

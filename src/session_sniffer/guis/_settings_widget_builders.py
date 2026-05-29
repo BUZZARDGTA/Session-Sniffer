@@ -25,7 +25,7 @@ from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
-_RESTART_INDICATOR = ' \u27F3'
+RESTART_INDICATOR = ' \u27F3'
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
@@ -139,7 +139,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     title = meta.display_label
     if meta.requires_capture_restart:
-        title += _RESTART_INDICATOR
+        title += RESTART_INDICATOR
     group = QGroupBox(title)
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
@@ -194,7 +194,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
     title = meta.display_label
     if meta.requires_capture_restart:
-        title += _RESTART_INDICATOR
+        title += RESTART_INDICATOR
     group = QGroupBox(title)
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
