@@ -41,6 +41,7 @@ class LookyUserData(BaseModel):
 
     username: str
     apiAccess: bool  # noqa: N815
+    status: bool
     rid: int
 
 

@@ -114,7 +114,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
     whoami = LookyWhoAmI.model_validate(response.json())
     return LookyVerifyResponse(
         success=True,
-        userData=LookyUserData(username=whoami.username, apiAccess=whoami.apiAccess, rid=whoami.rid),
+        userData=LookyUserData(username=whoami.username, apiAccess=whoami.apiAccess, status=whoami.status, rid=whoami.rid),
     )
 
 

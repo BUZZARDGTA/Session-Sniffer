@@ -356,8 +356,10 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         def add_row(label: str, html: str) -> None:
             self._looky_card_form.addRow(self._make_card_label(label), self._make_card_value(html))
 
-        add_row('Username',   f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.username}</b>')
-        add_row('API Access', _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
+        add_row('Username',    f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.username}</b>')
+        add_row('Rockstar ID', f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.rid}</b>')
+        add_row('API Access',  _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
+        add_row('Status',      _bool_badge(data.userData.status, 'Active', 'Inactive'))
 
         self._looky_account_card.setVisible(True)
 
