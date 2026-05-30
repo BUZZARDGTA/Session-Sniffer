@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import binascii
+import errno
 import hmac
 import json
 import threading
@@ -242,11 +243,11 @@ class WebServer:
             await self._runner.setup()
             site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
             await site.start()
-        except Exception as exc:
+        except OSError as exc:
             startup_state.error = exc
             startup_state.ready.set()
             await self._runner.cleanup()
-            raise
+            return
         startup_state.ready.set()
         logger.info('Web server started on %s:%d', self.host, self.port)
         await stop_event.wait()
@@ -309,7 +310,15 @@ class WebServer:
             return
 
         if startup_state.error is not None:
-            logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, startup_state.error)
+            exc = startup_state.error
+            if isinstance(exc, OSError) and exc.errno == errno.EADDRINUSE:
+                logger.error(
+                    'Web server failed to start: port %d on %s is already in use by another process. '
+                    'Change the Web Server port in Settings or stop the conflicting application.',
+                    config.port, config.host,
+                )
+            else:
+                logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, exc)
             cls.stop_server()
             return
 
