@@ -19,7 +19,7 @@ from session_sniffer.networking.looky import extract_rate_limit_wait_seconds
 from session_sniffer.networking.looky import lookup_ip_batch as looky_lookup_ip_batch
 from session_sniffer.networking.looky import verify_token as looky_verify_token
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, is_third_party_server_ip
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -320,6 +320,7 @@ def looky_core() -> None:
             player.ip
             for player in PlayersRegistry.get_default_sorted_players()
             if not (player.looky.is_initialized and not player.looky.needs_refresh)
+            and not is_third_party_server_ip(player.ip)
         ]
 
         if not pending_ips:
