@@ -161,7 +161,7 @@ class FilesMixin(QMainWindow):
             '',
             f'Release Tag: {RELEASE_TAG}',
             f'Release Date: {RELEASE_DATE}',
-            f'Commit Hash: {COMMIT_SHA}',
+            f'Commit Sha: {COMMIT_SHA}',
             f'Commit Date: {COMMIT_DATE}',
             '',
             f'PyQt Version: {PYQT_VERSION}',
@@ -205,7 +205,7 @@ class FilesMixin(QMainWindow):
             '<tr><td style="padding-top:0px"></td></tr>'
             f'<tr><td><b>Release Tag</b></td><td>&nbsp;&nbsp;{RELEASE_TAG}</td></tr>'
             f'<tr><td><b>Release Date</b></td><td>&nbsp;&nbsp;{RELEASE_DATE}</td></tr>'
-            f'<tr><td><b>Commit Hash</b></td><td>&nbsp;&nbsp;{COMMIT_SHA}</td></tr>'
+            f'<tr><td><b>Commit Sha</b></td><td>&nbsp;&nbsp;{COMMIT_SHA}</td></tr>'
             f'<tr><td><b>Commit Date</b></td><td>&nbsp;&nbsp;{COMMIT_DATE}</td></tr>'
             '<tr><td style="padding-top:0px"></td></tr>'
             f'<tr><td><b>PyQt Version</b></td><td>&nbsp;&nbsp;{PYQT_VERSION}</td></tr>'
