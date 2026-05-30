@@ -2,7 +2,8 @@
 
 Console outputs INFO+ with Rich formatting (app loggers only).
 All log records go to a single debug.log file; severity is readable from each line's level field.
-Supports rotating log files, stderr capture, and safe flushing."""
+Supports rotating log files, stderr capture, and safe flushing.
+"""
 import atexit
 import logging
 import sys
