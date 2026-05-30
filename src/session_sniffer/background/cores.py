@@ -157,9 +157,10 @@ def _run_player_future_core[T](
     should_submit: Callable[[Player], bool],
     apply_result: Callable[[Player, T], None],
     handle_exception: Callable[[str, Exception], bool] | None = None,
+    max_workers: int = 32,
 ) -> None:
     """Run a background player task using one future per pending IP."""
-    with ThreadPoolExecutor(max_workers=32) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()  # Tracks IPs currently being processed
 
@@ -273,10 +274,10 @@ def pinger_core() -> None:
 def looky_core() -> None:
     """Resolve GTA player names via the Looky API in the background.
 
-    Dispatches up to 32 concurrent requests.  Skips all work when no API key
+    Dispatches up to 8 concurrent requests.  Skips all work when no API key
     is configured.
     """
-    with ThreadPoolExecutor(max_workers=32) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         futures: dict[Future[list[LookyPlayer]], str] = {}
         pending_ips: set[str] = set()
 

@@ -9,16 +9,16 @@ import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.models.looky import LookyPlayer
-from session_sniffer.networking.http_session import session
+from session_sniffer.networking.http_session import LOOKY_BASE_HOST, session
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-LOOKY_BASE_URL = 'https://looky-gta.cc/api/search'
-LOOKY_INSTRUCTION_URL = 'https://looky-gta.cc/api/instruction'
-LOOKY_CRAWLME_URL = 'https://looky-gta.cc/api/instruction/crawlme'
-LOOKY_SSE_URL = 'https://looky-gta.cc/api/sse/instruction-status'
-LOOKY_GETRID_URL = 'https://looky-gta.cc/api/scapi/getrid'
+LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
+LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
+LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
+LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
+LOOKY_GETRID_URL = f'{LOOKY_BASE_HOST}/api/scapi/getrid'
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 

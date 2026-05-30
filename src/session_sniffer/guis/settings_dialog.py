@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, LOOKY_BASE_HOST, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_widget_builders import (
@@ -275,7 +275,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             'To obtain an API key, purchase access through the '
             '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">'
             "Looky System's Discord server</a> or visit "
-            '<a href="https://looky-gta.cc" title="https://looky-gta.cc" style="color: #a78bfa; text-decoration: underline;">https://looky-gta.cc</a>.<br><br>'
+            f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
             'Once you have your key, paste it in the <b>Looky API Key</b> field below.<br><br>'
             'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br>',
         )

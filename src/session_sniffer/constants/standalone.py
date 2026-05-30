@@ -6,6 +6,7 @@ WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104
 WEBSERVER_DEFAULT_PORT: int = 80
 TITLE: str = 'Session Sniffer'
 DISCORD_INVITE_URL: str = 'https://discord.gg/hMZ7MsPX7G'
+LOOKY_BASE_HOST: str = 'https://looky-gta.cc'
 GITHUB_REPO_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer'
 GITHUB_ISSUES_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/issues'
 GITHUB_RELEASES_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/releases'
