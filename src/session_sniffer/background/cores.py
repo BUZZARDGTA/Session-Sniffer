@@ -15,7 +15,9 @@ from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.looky import lookup_ip as looky_lookup_ip
+from session_sniffer.networking.looky import extract_rate_limit_wait_seconds
+from session_sniffer.networking.looky import lookup_ip_batch as looky_lookup_ip_batch
+from session_sniffer.networking.looky import verify_token as looky_verify_token
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -23,7 +25,6 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.models.looky import LookyPlayer
     from session_sniffer.models.player import Player
 
 logger = get_logger(__name__)
@@ -274,72 +275,104 @@ def pinger_core() -> None:
 def looky_core() -> None:
     """Resolve GTA player names via the Looky API in the background.
 
-    Dispatches up to 8 concurrent requests.  Skips all work when no API key
-    is configured.
+    Sends batched requests of up to 32 IPs at a time.  Skips all work when no
+    API key is configured.
     """
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures: dict[Future[list[LookyPlayer]], str] = {}
-        pending_ips: set[str] = set()
+    _batch_size = 32
+    _verified_api_key: str | None = None
 
-        while not gui_closed__event.is_set():
-            if ScriptControl.has_crashed():
+    while not gui_closed__event.is_set():
+        if ScriptControl.has_crashed():
+            return
+
+        if not Settings.looky_api_key or not Settings.looky_enabled:
+            if _verified_api_key is not None:
+                _verified_api_key = None
+                Settings.looky_api_access = False
+                Settings.looky_user_data = None
+            gui_closed__event.wait(5)
+            continue
+
+        if Settings.looky_api_key != _verified_api_key:
+            try:
+                response = looky_verify_token(Settings.looky_api_key)
+                Settings.looky_api_access = response.userData.apiAccess
+                Settings.looky_user_data = response
+                if Settings.looky_api_access:
+                    _verified_api_key = Settings.looky_api_key
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else '?'
+                reason = exc.response.reason if exc.response is not None else 'Unknown'
+                logger.warning('[Looky System] Token verification failed: HTTP %s %s', status, reason)
+            except requests.RequestException as exc:
+                logger.warning('[Looky System] Token verification failed: %s', exc)
+                Settings.looky_api_access = False
+                Settings.looky_user_data = None
+
+        if not Settings.looky_auto_resolve or not Settings.looky_api_access:
+            if not Settings.looky_api_access:
+                gui_closed__event.wait(30)
+            else:
+                gui_closed__event.wait(5)
+            continue
+
+        pending_ips = [
+            player.ip
+            for player in PlayersRegistry.get_default_sorted_players()
+            if not (player.looky.is_initialized and not player.looky.needs_refresh)
+        ]
+
+        if not pending_ips:
+            gui_closed__event.wait(1)
+            continue
+
+        resolved_any = False
+        rate_limited = False
+
+        for batch_start in range(0, len(pending_ips), _batch_size):
+            if gui_closed__event.is_set():
                 return
 
-            if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.looky_auto_resolve:
-                gui_closed__event.wait(5)
-                continue
+            batch = pending_ips[batch_start:batch_start + _batch_size]
+            api_key = Settings.looky_api_key
 
-            submitted_new = False
-
-            for player in PlayersRegistry.get_default_sorted_players():
-                if gui_closed__event.is_set():
-                    return
-
-                if player.ip in pending_ips or (player.looky.is_initialized and not player.looky.needs_refresh):
-                    continue
-
-                future = executor.submit(looky_lookup_ip, player.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
-                futures[future] = player.ip
-                pending_ips.add(player.ip)
-                submitted_new = True
-
-            if not futures:
-                gui_closed__event.wait(1)
-                continue
-
-            done_futures = [(future, ip) for future, ip in futures.items() if future.done()]
-
-            for future, ip in done_futures:
-                futures.pop(future)
-                pending_ips.remove(ip)
-
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-
-                try:
-                    result = future.result()
-                except requests.HTTPError as exc:
-                    logger.debug('[Looky System] HTTP error for %s: %s', ip, exc)
+            try:
+                results = looky_lookup_ip_batch(batch, api_key, Settings.looky_game_version.lower())
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    wait_seconds = extract_rate_limit_wait_seconds(exc)
+                    logger.warning('[Looky System] Rate limited — waiting %s seconds', wait_seconds)
+                    gui_closed__event.wait(wait_seconds)
+                    rate_limited = True
+                    break
+                logger.debug('[Looky System] HTTP error for batch %s: %s', batch, exc)
+                for ip in batch:
+                    matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
                         matched_player.looky.needs_refresh = False
                         matched_player.looky.is_initialized = True
-                except requests.RequestException as exc:
-                    logger.warning('[Looky System] Request error for %s: %s', ip, exc)
-                    # Not marked as initialized — will be retried on the next pass.
-                except ValidationError as exc:
-                    logger.warning('[Looky System] Validation error for %s: %s', ip, exc)
+            except requests.RequestException as exc:
+                logger.warning('[Looky System] Request error for batch %s: %s', batch, exc)
+                # Not marked as initialized — will be retried on the next pass.
+            except ValidationError as exc:
+                logger.warning('[Looky System] Validation error for batch %s: %s', batch, exc)
+                for ip in batch:
+                    matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
                         matched_player.looky.needs_refresh = False
                         matched_player.looky.is_initialized = True
-                else:
-                    if matched_player is not None:
-                        matched_player.looky.names = [p.name for p in result]
-                        matched_player.looky.rockstarids = [p.rockstarid for p in result]
-                        matched_player.looky.needs_refresh = False
-                        matched_player.looky.is_initialized = True
-
-            resolved_any = bool(done_futures)
-
-            if not submitted_new and not resolved_any:
-                gui_closed__event.wait(1)
             else:
-                gui_closed__event.wait(0.1)
+                for ip in batch:
+                    matched_player = PlayersRegistry.get_player_by_ip(ip)
+                    if matched_player is not None:
+                        players = results.get(ip, [])
+                        matched_player.looky.names = [p.name for p in players]
+                        matched_player.looky.rockstarids = [p.rockstarid for p in players]
+                        matched_player.looky.needs_refresh = False
+                        matched_player.looky.is_initialized = True
+                resolved_any = True
+
+        if not resolved_any and not rate_limited:
+            gui_closed__event.wait(1)
+        else:
+            gui_closed__event.wait(0.1)

@@ -9,18 +9,20 @@ import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
-from session_sniffer.models.looky import LookyPlayer
+from session_sniffer.models.looky import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
+LOOKY_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
 LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
 LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
 LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
+_BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
 
 
 def extract_rate_limit_message(exc: requests.HTTPError) -> str:
@@ -88,6 +90,38 @@ _DEVICE_FINGERPRINT: str = json.dumps({
 })
 
 
+def verify_token(api_key: str) -> LookyVerifyResponse:
+    """Verify a Looky API key by making a test search request.
+
+    Extracts the username from the key prefix (e.g. `'BUZZARD-...'` → `'BUZZARD'`)
+    and confirms the key is accepted by `/api/search`. A 404 response is treated as
+    success — it means the test IP has no GTA data, but the key itself was accepted.
+
+    Args:
+        api_key: Looky Bearer API key.
+
+    Returns:
+        `LookyVerifyResponse` with `userData.apiAccess` set to `True` on success.
+
+    Raises:
+        requests.HTTPError: On a non-2xx response other than 404 (e.g. 401 for invalid key).
+        requests.RequestException: On connection/timeout errors.
+    """
+    username = api_key.split('-', 1)[0] if '-' in api_key else api_key[:8]
+    response = session.get(
+        f'{LOOKY_BASE_URL}/1.1.1.1',
+        headers={'Authorization': f'Bearer {api_key}'},
+        params={'version': 'both'},
+        timeout=10,
+    )
+    if response.status_code != requests.codes.not_found:
+        response.raise_for_status()
+    return LookyVerifyResponse(
+        success=True,
+        userData=LookyUserData(username=username, apiAccess=True),
+    )
+
+
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:
     """Query the Looky API for GTA players associated with `ip`.
 
@@ -109,6 +143,38 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
     response = session.get(url, headers=headers, params={'version': version}, timeout=10)
     response.raise_for_status()
     return _RESPONSE_ADAPTER.validate_json(response.content)
+
+
+def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
+    """Query the Looky batch endpoint for GTA players associated with multiple IPs in one request.
+
+    Args:
+        ips: List of IPv4 addresses to look up (max 32 per call).
+        api_key: Looky Bearer API key.
+        version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
+
+    Returns:
+        A dict mapping each IP address to its (possibly empty) list of `LookyPlayer` entries.
+        IPs that have no data in the response are not included in the returned dict.
+
+    Raises:
+        requests.HTTPError: On a non-2xx response.
+        requests.RequestException: On connection/timeout errors.
+        pydantic.ValidationError: If the response JSON shape is unexpected.
+    """
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json',
+    }
+    response = session.post(
+        LOOKY_BATCH_URL,
+        headers=headers,
+        json={'ips': ips, 'version': version},
+        timeout=10,
+    )
+    response.raise_for_status()
+    parsed = _BATCH_RESPONSE_ADAPTER.validate_json(response.content)
+    return {item.ip: item.players for item in parsed}
 
 
 def send_crawlme_instruction(api_key: str) -> str:

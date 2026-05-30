@@ -16,3 +16,25 @@ class LookyPlayer(BaseModel):
     isEnhanced: bool  # noqa: N815
     isLegacy: bool  # noqa: N815
     isVpn: bool  # noqa: N815
+
+
+class LookyIpBatchResult(BaseModel):
+    """One entry in a Looky `/api/search/ip-batch` response, mapping an IP to its player list."""
+
+    ip: str
+    players: list[LookyPlayer]
+
+
+class LookyUserData(BaseModel):
+    """User account data derived from a successful Looky API key verification."""
+
+    username: str
+    apiAccess: bool  # noqa: N815
+
+
+class LookyVerifyResponse(BaseModel):
+    """Result of verifying a Looky API key via a test `/api/search` call."""
+
+    success: bool
+    message: str | None = None
+    userData: LookyUserData  # noqa: N815
