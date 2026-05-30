@@ -89,9 +89,8 @@ class SettingsDialogLookyMixin(QDialog):
 
         info_label = QLabel(
             '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
-            'To obtain an API key, purchase access through the '
-            '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">'
-            "Looky System's Discord server</a> or visit "
+            'To obtain an API key, purchase access through their official '
+            '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">Discord server</a> or visit '
             f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
             'Once you have your key, paste it in the <b>Looky API Key</b> field below.<br><br>'
             'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br>',
