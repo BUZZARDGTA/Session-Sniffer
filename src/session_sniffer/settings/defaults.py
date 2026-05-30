@@ -579,7 +579,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Authentication',
         display_label='API Key',
         setting_type=SettingType.STRING,
-        tooltip='Looky API key (Bearer token) for GTA IP-to-player lookups. Leave empty to disable.',
+        tooltip='Your Looky Bearer token. Required for all Looky features — auto-resolve, manual lookups, and crawler requests.',
         secret=True,
     ),
     'looky_auto_resolve': SettingMeta(
@@ -587,14 +587,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Auto-Resolve',
         display_label='Auto-resolve Usernames',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Automatically resolve GTA player names in the background and append them to the Usernames column.',
+        tooltip='Continuously resolve GTA player usernames via Looky in the background and display them in the Usernames column.',
     ),
     'looky_game_version': SettingMeta(
         category='Looky System',
         group='Auto-Resolve',
         display_label='Game Version',
         setting_type=SettingType.ENUM,
-        tooltip='Game version to search for when querying the Looky API.',
+        tooltip='GTA version filter applied to all Looky API queries. Affects both background auto-resolve and manual Looky Lookup.',
         allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
 }
