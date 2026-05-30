@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 import requests
 from pydantic import TypeAdapter
 
+from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.models.looky import LookyPlayer
-from session_sniffer.networking.http_session import LOOKY_BASE_HOST, session
+from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -18,7 +19,6 @@ LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
 LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
 LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
 LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
-LOOKY_GETRID_URL = f'{LOOKY_BASE_HOST}/api/scapi/getrid'
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 
@@ -231,28 +231,3 @@ def watch_instruction_status(
         if attempt >= max_reconnects:
             msg = f'SSE stream for instruction {tracking_id!r} ended without a completed event after {max_reconnects} reconnect attempts'
             raise requests.ConnectionError(msg)
-
-
-def get_rid_by_username(username: str, api_key: str) -> int:
-    """Fetch the Rockstar ID for `username` via the Looky scapi endpoint.
-
-    Args:
-        username: The Rockstar Social Club username to look up.
-        api_key: Looky Bearer API key.
-
-    Returns:
-        The integer Rockstar ID.
-
-    Raises:
-        requests.HTTPError: On a non-2xx response.
-        requests.RequestException: On connection/timeout errors.
-        KeyError: If the response JSON does not contain a `'rid'` field.
-        ValueError: If the `'rid'` field cannot be converted to an integer.
-    """
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'x-device-fingerprint': _DEVICE_FINGERPRINT,
-    }
-    response = session.get(f'{LOOKY_GETRID_URL}/{username}', headers=headers, timeout=10)
-    response.raise_for_status()
-    return int(response.json()['rid'])
