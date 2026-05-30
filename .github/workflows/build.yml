@@ -4,188 +4,177 @@ on:
   release:
     types: [published]
 
-jobs:
-  handle-new-release:
-    runs-on: ubuntu-24.04
-    name: Process New Release
-    steps:
-      - name: Log Release Information
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
-        run: |
-          echo "Release Tag: $RELEASE_TAG"
-          echo "Is Pre-Release: $IS_PRERELEASE"
+permissions:
+  contents: write
 
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
   build:
-    needs: [handle-new-release]
     runs-on: windows-latest
     name: Build Windows x64
     defaults:
       run:
-        shell: cmd
+        shell: pwsh
     steps:
-      - name: Checkout Repository
+      - name: Checkout release source
         uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
-      - name: Setup Python for x64 Build
+      - name: Setup Python
         uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.14'
           architecture: x64
 
-      - name: Bake Build Metadata into _build_info.py
-        shell: pwsh
+      - name: Bake build metadata
         env:
-          COMMIT: ${{ github.sha }}
+          COMMIT_HASH: ${{ github.sha }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_DATE: ${{ github.event.release.published_at }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:BUILD_DATE = (git show -s --format=%cI $env:COMMIT).Trim()
-          python -c @"
+          $env:COMMIT_DATE = (git show -s --format=%cI $env:COMMIT_HASH).Trim()
+
+          python -c @'
           import os
           import platform
           import tomllib
           from pathlib import Path
-          commit = os.environ['COMMIT']
-          build_date = os.environ['BUILD_DATE']
-          release_tag = os.environ['RELEASE_TAG']
+
           pyproject_data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
           dependencies = pyproject_data['project']['dependencies']
-          pyqt_version = 'Unknown'
+
+          pyqt_version = '-'
           for dependency in dependencies:
-              if dependency.startswith('PyQt6=='):
-                  pyqt_version = dependency.removeprefix('PyQt6==')
+              name, _, version = dependency.partition('==')
+              if name.strip().lower() == 'pyqt6' and version:
+                  pyqt_version = version.split(';', 1)[0].strip()
                   break
+
           machine = platform.machine()
           arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
-          os_build_info = f'{os.environ.get(\"OS\", platform.system())} {arch} {platform.version()}'
+          os_info = f'{os.environ.get("OS", platform.system())} {arch} {platform.version()}'
+
           path = Path('src/session_sniffer/constants/_build_info.py')
-          path.parent.mkdir(parents=True, exist_ok=True)
           path.write_text(
               '"""Build-time metadata frozen by the CI workflow."""\n'
-              f'COMMIT: str = {commit!r}\n'
-              f'BUILD_DATE: str = {build_date!r}\n'
-              f'RELEASE_TAG: str = {release_tag!r}\n'
+              f'RELEASE_TAG: str = {os.environ["RELEASE_TAG"]!r}\n'
+              f'RELEASE_DATE: str = {os.environ["RELEASE_DATE"]!r}\n'
+              f'COMMIT_HASH: str = {os.environ["COMMIT_HASH"]!r}\n'
+              f'COMMIT_DATE: str = {os.environ["COMMIT_DATE"]!r}\n'
               f'PYQT_VERSION: str = {pyqt_version!r}\n'
-              f'OS_BUILD_INFO: str = {os_build_info!r}\n',
+              f'OS_INFO: str = {os_info!r}\n',
               encoding='utf-8',
           )
-          "@
+          '@
+
           Get-Content 'src/session_sniffer/constants/_build_info.py'
 
-      - name: Create a Python Virtual Environment
-        run: |
-          python -m venv --upgrade-deps "venv"
-        working-directory: .github/workflows
-
-      - name: Install Python Project Dependencies
-        run: |
-          venv\Scripts\pip install "..\.."
-          venv\Scripts\pip install pyinstaller
-        working-directory: .github/workflows
-
-      - name: Verify Baked Build Metadata
-        shell: pwsh
+      - name: Verify baked build metadata
         run: |
           $ErrorActionPreference = 'Stop'
           $content = Get-Content 'src/session_sniffer/constants/_build_info.py' -Raw
-          if ($content -match 'subprocess' -or $content -match '_git') {
-            throw 'Build metadata was not baked correctly. Refusing to build release exe.'
+
+          foreach ($bad in @('import ', 'subprocess', '_git', 'Unknown')) {
+            if ($content -match [regex]::Escape($bad)) {
+              throw "Build metadata still contains development/runtime value: $bad"
+            }
           }
-          if ($content -match 'Unknown' -or $content -match "'dev'") {
-            throw 'Build metadata still contains development fallback values.'
+
+          foreach ($required in @('RELEASE_TAG', 'RELEASE_DATE', 'COMMIT_HASH', 'COMMIT_DATE', 'PYQT_VERSION', 'OS_INFO')) {
+            if ($content -notmatch "$required`: str =") {
+              throw "Build metadata is missing $required."
+            }
           }
-          if ($content -notmatch 'COMMIT: str =' -or $content -notmatch 'BUILD_DATE: str =' -or $content -notmatch 'RELEASE_TAG: str =' -or $content -notmatch 'PYQT_VERSION: str =' -or $content -notmatch 'OS_BUILD_INFO: str =') {
-            throw 'Build metadata is missing one or more required fields.'
-          }
+
           python -m py_compile 'src/session_sniffer/constants/_build_info.py'
-          Write-Host $content
 
-      - name: Build with PyInstaller
-        run: |
-          venv\Scripts\pyinstaller "session_sniffer.spec"
-        # Output will be in the `dist/` folder
+      - name: Create virtual environment
         working-directory: .github/workflows
+        run: python -m venv --upgrade-deps '.venv'
 
-      - name: Upload Build Artifact
+      - name: Install build dependencies
+        working-directory: .github/workflows
+        run: |
+          .venv\Scripts\python -m pip install '..\..'
+          .venv\Scripts\python -m pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        working-directory: .github/workflows
+        run: .venv\Scripts\pyinstaller 'Session_Sniffer.spec'
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
         with:
           name: Session_Sniffer.exe
           path: .github/workflows/dist/Session_Sniffer.exe
+          if-no-files-found: error
 
   upload-release-artifact:
     needs: [build]
     runs-on: ubuntu-24.04
-    name: Upload Release Artifact
+    name: Upload release artifact
     outputs:
-      sha256: ${{ steps.compute.outputs.sha256 }}
-      download_url: ${{ steps.compute.outputs.download_url }}
+      sha256: ${{ steps.release_asset.outputs.sha256 }}
+      download_url: ${{ steps.release_asset.outputs.download_url }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v6.0.2
-
-      - name: Download Build Artifact
+      - name: Download workflow artifact
         uses: actions/download-artifact@v8.0.1
         with:
-          path: artifacts
           name: Session_Sniffer.exe
+          path: artifacts
 
-      - name: Upload Artifact to Release
+      - name: Upload asset and compute release info
+        id: release_asset
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          echo "Uploading release artifact..."
-          gh release upload "$RELEASE_TAG" \
-            "artifacts/Session_Sniffer.exe" \
-            --clobber
+          set -euo pipefail
 
-      - name: Compute SHA256 and Get Download URL
-        id: compute
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          SHA256=$(sha256sum artifacts/Session_Sniffer.exe | cut -d ' ' -f 1)
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          DOWNLOAD_URL=$(gh api "repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
-          echo "download_url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
+          exe_path='artifacts/Session_Sniffer.exe'
+          sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
+
+          gh release upload "$RELEASE_TAG" "$exe_path" --clobber
+          download_url=$(gh api "repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" \
+            --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
+
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
 
   update-version-info:
     needs: [upload-release-artifact]
     runs-on: ubuntu-24.04
-    name: Update Version Info
+    name: Update version branch
     steps:
-      - name: Checkout Version Branch
+      - name: Checkout version branch
         uses: actions/checkout@v6.0.2
         with:
           ref: version
+          fetch-depth: 0
 
-      - name: Fetch Latest Changes and Checkout Main Branch Script
+      - name: Checkout updater from main
         run: |
-          # Fetch all branches to ensure we have the latest changes
-          git fetch --all
-
-          # Checkout the update_release_versions.py script from the main branch
+          git fetch origin main
           git checkout origin/main -- .github/workflows/scripts/update_release_versions.py
 
-      - name: Set Git Identity for Commits
-        run: |
-          # Set GitHub Actions bot identity for commits
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Setup Python Environment
+      - name: Setup Python
         uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.14'
 
-      - name: Install Packaging Python Library
-        run: |
-          pip install packaging
+      - name: Install updater dependency
+        run: python -m pip install packaging
 
-      - name: Run Version Update Script
+      - name: Update release_versions.json
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
@@ -193,33 +182,32 @@ jobs:
           DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.download_url }}
           SHA256: ${{ needs.upload-release-artifact.outputs.sha256 }}
         run: |
-          # Determine if the release is a pre-release and build the appropriate argument
-          PRERELEASE_ARG=""
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            PRERELEASE_ARG="--prerelease"
+          set -euo pipefail
+
+          prerelease_arg=()
+          if [[ "$IS_PRERELEASE" == 'true' ]]; then
+            prerelease_arg+=(--prerelease)
           fi
 
-          # Execute the Python version update script with the release tag and prerelease argument
-          python ".github/workflows/scripts/update_release_versions.py" "$RELEASE_TAG" $PRERELEASE_ARG --release-url "$RELEASE_URL" --download-url "$DOWNLOAD_URL" --sha256 "$SHA256"
+          python '.github/workflows/scripts/update_release_versions.py' \
+            "$RELEASE_TAG" \
+            "${prerelease_arg[@]}" \
+            --release-url "$RELEASE_URL" \
+            --download-url "$DOWNLOAD_URL" \
+            --sha256 "$SHA256"
 
-      - name: Ensure Script Is Not Staged for Commit
+      - name: Commit and push release version data
         run: |
-          # Ensure the script is not staged for commit
-          # This is to prevent the script from being committed to the repository
-          git reset ".github/workflows/scripts/update_release_versions.py"
+          set -euo pipefail
 
-      - name: Remove Temporary Script Path
-        run: |
-          # Delete the "update_release_versions.py" script path after it's used to avoid committing it
-          rm -rf ".github/"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Commit and Push Changes to release_versions.json
-        run: |
-          # Stage the modified release_versions.json file for commit
-          git add "release_versions.json"
+          git add release_versions.json
+          if git diff --cached --quiet; then
+            echo 'release_versions.json is already up to date.'
+            exit 0
+          fi
 
-          # Commit the changes with a meaningful message
-          git commit -m "Update release_versions.json"
-
-          # Push Changes
+          git commit -m "Update release_versions.json for ${{ github.event.release.tag_name }}"
           git push origin version
