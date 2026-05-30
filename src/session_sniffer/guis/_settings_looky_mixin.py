@@ -61,7 +61,7 @@ class _LookyVerifyWorker(CrashingQThread):
             self.failed.emit(f'Unexpected response format: {exc}')
 
 
-class SettingsDialogLookyMixin(QDialog):  # pylint: disable=too-few-public-methods
+class SettingsDialogLookyMixin(QDialog):
     """Looky System tab helpers — account info card, verify worker, and related slots.
 
     Expects these attributes on the concrete class (set in `__init__`):
