@@ -27,7 +27,6 @@ from session_sniffer.constants.local import (
     DEBUG_DIR_PATH,
     DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
-    ERRORS_LOG_PATH,
     LOGGING_DIR_PATH,
     PROTECTION_LOGGING_PATH,
     SESSIONS_LOGGING_DIR_PATH,
@@ -36,7 +35,6 @@ from session_sniffer.constants.local import (
     USERIP_DATABASES_DIR_PATH,
     USERIP_LOGGING_PATH,
     VERSION,
-    WARNINGS_LOG_PATH,
 )
 from session_sniffer.constants.standalone import (
     DISCORD_INVITE_URL,
@@ -146,14 +144,6 @@ class FilesMixin(QMainWindow):
     def _open_protection_log_file(self) -> None:
         """Open the Protection_Logging.csv file."""
         self.open_file(PROTECTION_LOGGING_PATH)
-
-    def _open_error_log_file(self) -> None:
-        """Open the errors.log file."""
-        self.open_file(ERRORS_LOG_PATH)
-
-    def _open_warnings_log_file(self) -> None:
-        """Open the warnings.log file."""
-        self.open_file(WARNINGS_LOG_PATH)
 
     def _open_debug_log_file(self) -> None:
         """Open the debug.log file."""

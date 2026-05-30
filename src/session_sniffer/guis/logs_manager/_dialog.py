@@ -10,12 +10,11 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import (
+    DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
-    ERRORS_LOG_PATH,
     PROTECTION_LOGGING_PATH,
     SESSIONS_LOGGING_DIR_PATH,
     USERIP_LOGGING_PATH,
-    WARNINGS_LOG_PATH,
 )
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab, CsvLogTabConfig
@@ -73,10 +72,8 @@ class LogsManager(QDialog):
             ),
         )
         tabs.addTab(self._protection_tab, '\U0001f6e1\ufe0f Protection Logging')
-        self._warnings_tab = TextLogTab(file_path=WARNINGS_LOG_PATH)
-        tabs.addTab(self._warnings_tab, '⚠️ Warnings Log')
-        self._errors_tab = TextLogTab(file_path=ERRORS_LOG_PATH)
-        tabs.addTab(self._errors_tab, '❌ Errors Log')
+        self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH)
+        tabs.addTab(self._debug_tab, '📄 Debug Log')
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
         tabs.addTab(self._sessions_tab, '📂 Sessions Logging')
 
@@ -105,15 +102,14 @@ class LogsManager(QDialog):
     # ------------------------------------------------------------------
 
     def purge_all_logs(self) -> None:
-        """Purge all CSV log files, warnings.log, and errors.log after strong confirmation."""
+        """Purge all CSV log files and debug.log after strong confirmation."""
         reply = QMessageBox.warning(
             self, TITLE,
             'This will purge ALL log files:\n\n'
             '  • UserIP_Logging.csv\n'
             '  • Detection_Logging.csv\n'
             '  • Protection_Logging.csv\n'
-            '  • warnings.log\n'
-            '  • errors.log\n\n'
+            '  • debug.log\n\n'
             'Backups (.bak) will be created first.\n'
             'Are you sure?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -124,7 +120,7 @@ class LogsManager(QDialog):
         purged: list[str] = []
         errors: list[str] = []
 
-        for path in (USERIP_LOGGING_PATH, DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, WARNINGS_LOG_PATH, ERRORS_LOG_PATH):
+        for path in (USERIP_LOGGING_PATH, DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, DEBUG_LOG_PATH):
             if not path.exists():
                 continue
             backup_file(path)
@@ -134,8 +130,7 @@ class LogsManager(QDialog):
         self._userip_tab.load_data()
         self._detection_tab.load_data()
         self._protection_tab.load_data()
-        self._warnings_tab.load_data()
-        self._errors_tab.load_data()
+        self._debug_tab.load_data()
 
         parts: list[str] = []
         if purged:

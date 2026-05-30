@@ -28,8 +28,6 @@ APP_DIR_ROAMING: Path = get_app_dir(scope='roaming')
 # Local (machine-specific): logs and large databases
 DEBUG_DIR_PATH: Path = APP_DIR_LOCAL / 'Debug'
 DEBUG_LOG_PATH: Path = DEBUG_DIR_PATH / 'debug.log'
-ERRORS_LOG_PATH: Path = DEBUG_DIR_PATH / 'errors.log'
-WARNINGS_LOG_PATH: Path = DEBUG_DIR_PATH / 'warnings.log'
 
 LOGGING_DIR_PATH: Path = APP_DIR_LOCAL / 'Logging'
 DETECTION_LOGGING_PATH: Path = LOGGING_DIR_PATH / 'Detection_Logging.csv'

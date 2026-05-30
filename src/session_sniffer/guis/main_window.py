@@ -430,16 +430,6 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_debug_log_action.triggered.connect(self._open_debug_log_file)
         debug_logs_submenu.addAction(open_debug_log_action)
 
-        open_warnings_log_action = QAction('📄 warnings.log', self)
-        open_warnings_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\warnings.log')
-        open_warnings_log_action.triggered.connect(self._open_warnings_log_file)
-        debug_logs_submenu.addAction(open_warnings_log_action)
-
-        open_error_log_action = QAction('📄 errors.log', self)
-        open_error_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\errors.log')
-        open_error_log_action.triggered.connect(self._open_error_log_file)
-        debug_logs_submenu.addAction(open_error_log_action)
-
         # --- Application Logs Submenu ---
         app_logs_submenu = data_menu.addMenu('📋 Application Logs')
         if app_logs_submenu is None:

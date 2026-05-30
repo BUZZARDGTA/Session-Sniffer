@@ -1,9 +1,8 @@
-"""Logging setup using Rich with console + split rotating file handlers.
+"""Logging setup using Rich with console + rotating file handler.
 
 Console outputs INFO+ with Rich formatting (app loggers only).
-File handlers split by severity: debug.log (DEBUG/INFO), warnings.log (WARNING only), and errors.log (ERROR+).
-Supports rotating log files, stderr capture, and safe flushing.
-"""
+All log records go to a single debug.log file; severity is readable from each line's level field.
+Supports rotating log files, stderr capture, and safe flushing."""
 import atexit
 import logging
 import sys
@@ -12,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from rich.logging import RichHandler
 
-from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERRORS_LOG_PATH, WARNINGS_LOG_PATH
+from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -22,8 +21,6 @@ __all__ = ['get_logger', 'register_secret_provider', 'setup_logging']
 # --- Handler names for idempotency ---
 _CONSOLE_HANDLER_NAME = 'console_handler'
 _DEBUG_FILE_HANDLER_NAME = 'debug_file_handler'
-_WARNINGS_FILE_HANDLER_NAME = 'warnings_file_handler'
-_ERRORS_FILE_HANDLER_NAME = 'errors_file_handler'
 
 # --- Suppress noisy third-party retry spam ---
 _SUPPRESSED_URLLIB3_SUBSTRINGS = (
@@ -51,13 +48,6 @@ def _scapy_noise_filter(record: logging.LogRecord) -> bool:
 def _app_only_filter(record: logging.LogRecord) -> bool:
     """Pass only records from the app's own loggers (session_sniffer.*)."""
     return record.name == 'session_sniffer' or record.name.startswith('session_sniffer.')
-
-
-def _max_level_filter(max_level: int) -> Callable[[logging.LogRecord], bool]:
-    """Return a filter that passes only records at or below `max_level`."""
-    def _filter(record: logging.LogRecord) -> bool:
-        return record.levelno <= max_level
-    return _filter
 
 
 class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
@@ -122,13 +112,11 @@ _FILE_FORMATTER = logging.Formatter(
 def setup_logging(
     console_level: int = DEFAULT_CONSOLE_LEVEL,
 ) -> None:
-    """Configure root logging with Rich console + split rotating file handlers (idempotent).
+    """Configure root logging with Rich console + rotating file handler (idempotent).
 
     Handlers:
         - console: INFO+ with Rich formatting (app loggers only).
-        - debug.log: DEBUG/INFO on pre-release; INFO only on stable (5 MiB, 3 backups).
-        - warnings.log: WARNING only (1 MiB, 3 backups).
-        - errors.log: ERROR and above (2 MiB, 5 backups).
+        - debug.log: DEBUG+ on pre-release; INFO+ on stable (10 MiB, 5 backups).
 
     Args:
         console_level: Minimum log level for the console handler.
@@ -150,56 +138,22 @@ def setup_logging(
         rich_handler.addFilter(_app_only_filter)
         root.addHandler(rich_handler)
 
-    # --- Rotating file handler: debug.log (DEBUG/INFO on pre-release; INFO only on stable) ---
+    # --- Rotating file handler: debug.log (DEBUG+ on pre-release; INFO+ on stable) ---
     if not any(h.name == _DEBUG_FILE_HANDLER_NAME for h in root.handlers):
         DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         _is_prerelease = CURRENT_VERSION.pre is not None
         debug_handler = RotatingFileHandler(
             DEBUG_LOG_PATH,
-            maxBytes=5_242_880,  # 5 MiB
-            backupCount=3,
+            maxBytes=10_485_760,  # 10 MiB
+            backupCount=5,
             encoding='utf-8',
         )
         debug_handler.name = _DEBUG_FILE_HANDLER_NAME
         debug_handler.setLevel(logging.DEBUG if _is_prerelease else logging.INFO)
-        debug_handler.addFilter(_max_level_filter(logging.INFO))
         debug_handler.addFilter(_urllib3_noise_filter)
-        debug_handler.addFilter(_app_only_filter)
+        debug_handler.addFilter(_scapy_noise_filter)
         debug_handler.setFormatter(_FILE_FORMATTER)
         root.addHandler(debug_handler)
-
-    # --- Rotating file handler: warnings.log (WARNING only) ---
-    if not any(h.name == _WARNINGS_FILE_HANDLER_NAME for h in root.handlers):
-        WARNINGS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        warnings_handler = RotatingFileHandler(
-            WARNINGS_LOG_PATH,
-            maxBytes=1_048_576,  # 1 MiB
-            backupCount=3,
-            encoding='utf-8',
-        )
-        warnings_handler.name = _WARNINGS_FILE_HANDLER_NAME
-        warnings_handler.setLevel(logging.WARNING)
-        warnings_handler.addFilter(_max_level_filter(logging.WARNING))
-        warnings_handler.addFilter(_urllib3_noise_filter)
-        warnings_handler.addFilter(_scapy_noise_filter)
-        warnings_handler.setFormatter(_FILE_FORMATTER)
-        root.addHandler(warnings_handler)
-
-    # --- Rotating file handler: errors.log (ERROR+) ---
-    if not any(h.name == _ERRORS_FILE_HANDLER_NAME for h in root.handlers):
-        ERRORS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        errors_handler = RotatingFileHandler(
-            ERRORS_LOG_PATH,
-            maxBytes=2_097_152,  # 2 MiB
-            backupCount=5,
-            encoding='utf-8',
-        )
-        errors_handler.name = _ERRORS_FILE_HANDLER_NAME
-        errors_handler.setLevel(logging.ERROR)
-        errors_handler.addFilter(_urllib3_noise_filter)
-        errors_handler.addFilter(_scapy_noise_filter)
-        errors_handler.setFormatter(_FILE_FORMATTER)
-        root.addHandler(errors_handler)
 
     # --- Root logger must be permissive enough to reach all handlers ---
     root.setLevel(min(console_level, logging.DEBUG))
