@@ -136,6 +136,7 @@ jobs:
         id: release_asset
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
@@ -143,8 +144,8 @@ jobs:
           exe_path='artifacts/Session_Sniffer.exe'
           sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
 
-          gh release upload "$RELEASE_TAG" "$exe_path" --clobber
-          download_url=$(gh api "repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" \
+          gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
+          download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
             --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
 
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
