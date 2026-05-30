@@ -16,6 +16,7 @@ from pypresence.presence import Presence
 
 from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
+from session_sniffer.logging_setup import get_logger
 
 
 class _PresenceUpdate(NamedTuple):
@@ -32,6 +33,8 @@ _RECONNECT_COOLDOWN_SECONDS = 60.0
 DISCORD_RPC_BUTTONS = [
     {'label': 'GitHub Repo', 'url': GITHUB_REPO_URL},
 ]
+
+logger = get_logger(__name__)
 
 
 class DiscordRPC:
@@ -132,9 +135,11 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 exceptions.DiscordError,
                 exceptions.ConnectionTimeout,
                 exceptions.InvalidPipe,
-            ):
+            ) as exc:
+                logger.debug('Discord RPC connection failed: %s: %s', type(exc).__name__, exc)
                 continue
             else:
+                logger.debug('Discord RPC connected')
                 connection_status.set()
 
         try:
@@ -144,6 +149,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 start=START_TIME_INT,
                 buttons=DISCORD_RPC_BUTTONS,
             )
-        except (exceptions.PipeClosed, exceptions.ResponseTimeout):
+        except (exceptions.PipeClosed, exceptions.ResponseTimeout) as exc:
+            logger.debug('Discord RPC pipe lost: %s: %s', type(exc).__name__, exc)
             rpc.close()
             connection_status.clear()

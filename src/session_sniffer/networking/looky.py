@@ -9,11 +9,14 @@ import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.looky import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse, LookyWhoAmI
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+logger = get_logger(__name__)
 
 LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
 LOOKY_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
@@ -287,6 +290,7 @@ def watch_instruction_status(
         except requests.RequestException:
             if attempt >= max_reconnects:
                 raise
+            logger.debug('SSE stream disconnected for instruction %r; reconnecting (attempt %d/%d)', tracking_id, attempt + 1, max_reconnects)
             continue
         if completed:
             return

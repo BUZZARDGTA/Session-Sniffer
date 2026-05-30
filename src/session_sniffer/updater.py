@@ -25,6 +25,7 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
 from session_sniffer.guis.update_download_dialog import UpdateDownloadDialog
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -32,6 +33,9 @@ from session_sniffer.utils import format_project_version
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+logger = get_logger(__name__)
 
 
 class UpdateCheckOutcome(Enum):
@@ -73,6 +77,11 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
         except requests.exceptions.RequestException as exc:
             response = exc.response
             http_code = response.status_code if response is not None else None
+            http_str = str(http_code) if http_code is not None else 'no response'
+            logger.warning(
+                'Update check failed (attempt %d/%d): %s (HTTP %s)',
+                attempt, max_attempts, type(exc).__name__, http_str,
+            )
 
             choice = msgbox.show(
                 title=TITLE,
@@ -134,6 +143,7 @@ def _apply_update(new_exe: Path) -> None:
     """
     current_exe = Path(sys.executable)
     old_exe = current_exe.with_name(f'{current_exe.name}.old')
+    logger.info('Applying update: replacing %s', current_exe)
 
     try:
         old_exe.unlink(missing_ok=True)
@@ -224,6 +234,7 @@ def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
 
     actual_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
     if actual_hash.lower() != candidate_info.sha256.lower():
+        logger.warning('SHA-256 mismatch for update download: expected %s, got %s', candidate_info.sha256, actual_hash)
         _remove_file_if_possible(dest)
         msgbox.show(
             title=TITLE,
