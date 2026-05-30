@@ -58,6 +58,7 @@ class SettingMeta:
     special_value_text: str = 'All'
     max_length: int | None = None
     min_length: int | None = None
+    validator_pattern: str | None = None
     secret: bool = False
 
 
@@ -580,6 +581,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='API Key',
         setting_type=SettingType.STRING,
         tooltip='Your Looky Bearer token. Required for all Looky features — auto-resolve, manual lookups, and crawler requests.',
+        validator_pattern=r'[A-Za-z0-9._\-]',
         secret=True,
     ),
     'looky_auto_resolve': SettingMeta(

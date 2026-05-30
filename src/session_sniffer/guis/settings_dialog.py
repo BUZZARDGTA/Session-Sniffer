@@ -5,14 +5,13 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
-    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -27,9 +26,10 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, LOOKY_BASE_HOST, TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
+from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin, _LookyVerifyWorker
 from session_sniffer.guis._settings_widget_builders import (
     RESTART_INDICATOR,
     create_bool_or_enum_widget,
@@ -46,8 +46,6 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
-    LOOKY_ACCOUNT_CARD_STYLESHEET,
-    LOOKY_INFO_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
@@ -67,7 +65,6 @@ if TYPE_CHECKING:
     from PyQt6.QtWidgets import QDoubleSpinBox, QSpinBox
 
     from session_sniffer.capture.packet_capture import PacketCapture
-    from session_sniffer.models.looky import LookyVerifyResponse
 
 _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
@@ -86,19 +83,8 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
     return child
 
 
-def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
-    """Return an HTML-coloured badge string: green for `True`, red for `False`."""
-    if value:
-        return f'<span style="color:#4ade80; font-weight:600;">✓ {true_text}</span>'
-    return f'<span style="color:#f87171; font-weight:600;">✗ {false_text}</span>'
-
-
-class SettingsDialog(UnsavedChangesMixin, QDialog):
+class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     """Modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
-
-    # -- Attribute stubs (set during _build_tab for the Looky System tab) --
-    _looky_account_card: QFrame
-    _looky_card_form: QFormLayout
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture) -> None:
         """Build the tabbed settings dialog from setting metadata."""
@@ -115,6 +101,11 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             key: getattr(Settings, key) for key in SETTING_METADATA
         }
         self._saved: bool = False
+        self._last_verified_key: str = Settings.looky_api_key or '' if Settings.looky_user_data is not None else ''
+        self._verify_worker: _LookyVerifyWorker | None = None
+        self._verify_debounce: QTimer = QTimer(self)
+        self._verify_debounce.setSingleShot(True)
+        self._verify_debounce.timeout.connect(self._trigger_looky_verify)
 
         root_layout = QVBoxLayout(self)
 
@@ -168,6 +159,13 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         if isinstance(preset_widget, QComboBox):
             preset_widget.currentTextChanged.connect(self._on_preset_changed)
             self._on_preset_changed(preset_widget.currentText())
+
+        # Show/hide Account Information based on API key presence.
+        api_key_widget = self._widgets.get('looky_api_key')
+        if isinstance(api_key_widget, QLineEdit):
+            api_key_widget.textChanged.connect(self._on_looky_api_key_changed)
+            api_key_widget.installEventFilter(self)
+            self._on_looky_api_key_changed(api_key_widget.text())
 
     # ------------------------------------------------------------------
     # Tab / widget construction
@@ -246,6 +244,16 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
                     group_vbox.addWidget(sub_box)
+            elif category == 'Looky System' and group_name == 'Authentication':
+                auth_vbox = QVBoxLayout(group_box)
+                auth_form = QFormLayout()
+                auth_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+                auth_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                for key, meta in items:
+                    self._add_setting_row(auth_form, key, meta)
+                auth_vbox.addLayout(auth_form)
+                self._looky_account_info_group = self._build_looky_account_info_group()
+                auth_vbox.addWidget(self._looky_account_info_group)
             else:
                 group_form = QFormLayout(group_box)
                 group_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -253,9 +261,6 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 for key, meta in items:
                     self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
-
-        if category == 'Looky System':
-            outer_layout.addWidget(self._build_looky_account_info_group())
 
         outer_layout.addStretch()
         scroll.setWidget(container)
@@ -281,87 +286,6 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         layout.addWidget(info_label)
 
         return group_box
-
-    def _build_looky_info_group(self) -> QGroupBox:
-        """Build an informational banner for the Looky API key setting."""
-        group_box = QGroupBox('\U0001f6b9 Looky System — GTA IP Lookup')
-        layout = QVBoxLayout(group_box)
-
-        info_label = QLabel(
-            '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
-            'To obtain an API key, purchase access through the '
-            '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">'
-            "Looky System's Discord server</a> or visit "
-            f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
-            'Once you have your key, paste it in the <b>Looky API Key</b> field below.<br><br>'
-            'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br>',
-        )
-        info_label.setWordWrap(True)
-        info_label.setTextFormat(Qt.TextFormat.RichText)
-        info_label.setOpenExternalLinks(True)
-        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        info_label.setStyleSheet(LOOKY_INFO_LABEL_STYLESHEET)
-        info_label.linkHovered.connect(info_label.setToolTip)
-        layout.addWidget(info_label)
-
-        return group_box
-
-    def _build_looky_account_info_group(self) -> QGroupBox:
-        """Build the Account Information panel for the Looky System tab."""
-        group_box = QGroupBox('Account Information')
-        outer = QVBoxLayout(group_box)
-        outer.setSpacing(8)
-
-        self._looky_account_card = QFrame()
-        self._looky_account_card.setStyleSheet(LOOKY_ACCOUNT_CARD_STYLESHEET)
-        card_layout = QVBoxLayout(self._looky_account_card)
-        card_layout.setContentsMargins(14, 10, 14, 10)
-        card_layout.setSpacing(6)
-
-        self._looky_card_form = QFormLayout()
-        self._looky_card_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        self._looky_card_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._looky_card_form.setHorizontalSpacing(16)
-        self._looky_card_form.setVerticalSpacing(6)
-        card_layout.addLayout(self._looky_card_form)
-
-        outer.addWidget(self._looky_account_card)
-        self._looky_account_card.setVisible(False)
-
-        if Settings.looky_user_data is not None:
-            self._populate_looky_account_card(Settings.looky_user_data)
-
-        return group_box
-
-    def _make_card_label(self, text: str) -> QLabel:
-        """Return a right-aligned label styled for the account card."""
-        lbl = QLabel(text + ':')
-        lbl.setStyleSheet('color: #9ca3af; font-size: 10pt;')
-        return lbl
-
-    def _make_card_value(self, html: str) -> QLabel:
-        """Return a value label with rich-text support for the account card."""
-        lbl = QLabel(html)
-        lbl.setTextFormat(Qt.TextFormat.RichText)
-        lbl.setStyleSheet('color: #e2d9f3; font-size: 10pt;')
-        lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        return lbl
-
-    def _populate_looky_account_card(self, data: LookyVerifyResponse) -> None:
-        """Fill the account info card with `data` and make it visible."""
-        # Clear previous rows
-        while self._looky_card_form.rowCount() > 0:
-            self._looky_card_form.removeRow(0)
-
-        def add_row(label: str, html: str) -> None:
-            self._looky_card_form.addRow(self._make_card_label(label), self._make_card_value(html))
-
-        add_row('Username',    f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.username}</b>')
-        add_row('Rockstar ID', f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.rid}</b>')
-        add_row('API Access',  _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
-        add_row('Status',      _bool_badge(data.userData.status, 'Active', 'Inactive'))
-
-        self._looky_account_card.setVisible(True)
 
     def _build_web_server_help_group(self) -> QGroupBox:
         """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""

@@ -1,5 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
+import re
+
 from PyQt6.QtCore import QRegularExpression, Qt
 from PyQt6.QtGui import QAction, QIcon, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
@@ -76,6 +78,18 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         le.textEdited.connect(_auto_format_mac)
     if meta.max_length is not None:
         le.setMaxLength(meta.max_length)
+    if meta.validator_pattern is not None:
+        _char_rx = re.compile(meta.validator_pattern)
+
+        def _filter_chars(text: str, _le: QLineEdit = le, _rx: re.Pattern[str] = _char_rx) -> None:
+            filtered = ''.join(_rx.findall(text))
+            if filtered == text:
+                return
+            _le.blockSignals(True)  # noqa: FBT003
+            _le.setText(filtered)
+            _le.blockSignals(False)  # noqa: FBT003
+
+        le.textEdited.connect(_filter_chars)
     if meta.tooltip:
         le.setToolTip(meta.tooltip)
     if meta.secret:

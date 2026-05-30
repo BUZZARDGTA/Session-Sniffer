@@ -88,9 +88,9 @@ LOOKY_INFO_LABEL_STYLESHEET = (
 
 LOOKY_ACCOUNT_CARD_STYLESHEET = (
     'QFrame {'
-    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1e1b2e, stop:1 #16131f);'
-    'border: 1px solid #4c1d95;'
-    'border-radius: 10px;'
+    'background: rgba(76, 29, 149, 0.12);'
+    'border: 1px solid #3d2d6e;'
+    'border-radius: 8px;'
     'padding: 4px;'
     '}'
 )
