@@ -1,9 +1,7 @@
 """File, folder, and URL open helpers mixin for `MainWindow`."""
 
-import contextlib
 import os
 import webbrowser
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
@@ -19,7 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from session_sniffer.constants._build_info import BUILD_DATE, COMMIT, OS_BUILD_INFO, PYQT_VERSION, RELEASE_TAG
+from session_sniffer.constants._build_info import COMMIT_DATE, COMMIT_HASH, OS_INFO, PYQT_VERSION, RELEASE_DATE, RELEASE_TAG
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -158,20 +156,16 @@ class FilesMixin(QMainWindow):
 
     def _show_about_dialog(self) -> None:
         """Show the About dialog with version, build, and system info."""
-        build_date_display = BUILD_DATE
-        if BUILD_DATE != 'Unknown':
-            with contextlib.suppress(ValueError):
-                build_date_display = datetime.fromisoformat(BUILD_DATE).strftime('%Y/%m/%d %H:%M')
-
-        commit_display = COMMIT[:7] if COMMIT != 'Unknown' else 'Unknown'
-
         copy_text = '\n'.join([
             f'Version: {VERSION}',
+            '',
             f'Release Tag: {RELEASE_TAG}',
-            f'Commit: {COMMIT}',
-            f'Build Date: {BUILD_DATE}',
-            f'PyQt: {PYQT_VERSION}',
-            f'Build OS: {OS_BUILD_INFO}',
+            f'Release Date: {RELEASE_DATE}',
+            f'Commit Hash: {COMMIT_HASH}',
+            f'Commit Date: {COMMIT_DATE}',
+            '',
+            f'PyQt Version: {PYQT_VERSION}',
+            f'OS Info: {OS_INFO}',
         ])
 
         dialog = QDialog(self)
@@ -199,24 +193,6 @@ class FilesMixin(QMainWindow):
 
         layout.addSpacing(6)
 
-        app_header = QLabel('<b>Application</b>')
-        layout.addWidget(app_header)
-        app_sep = QFrame()
-        app_sep.setFrameShape(QFrame.Shape.HLine)
-        app_sep.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(app_sep)
-        app_info = QLabel(
-            '<table cellspacing="2">'
-            f'<tr><td><b>Version</b></td><td>&nbsp;&nbsp;{VERSION}</td></tr>'
-            f'<tr><td><b>Release Tag</b></td><td>&nbsp;&nbsp;{RELEASE_TAG}</td></tr>'
-            f'<tr><td><b>Build Date</b></td><td>&nbsp;&nbsp;{build_date_display}</td></tr>'
-            '</table>',
-        )
-        app_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(app_info)
-
-        layout.addSpacing(6)
-
         build_header = QLabel('<b>Build Information</b>')
         layout.addWidget(build_header)
         build_sep = QFrame()
@@ -225,9 +201,15 @@ class FilesMixin(QMainWindow):
         layout.addWidget(build_sep)
         build_info = QLabel(
             '<table cellspacing="2">'
-            f'<tr><td><b>Commit</b></td><td>&nbsp;&nbsp;{commit_display}</td></tr>'
-            f'<tr><td><b>PyQt</b></td><td>&nbsp;&nbsp;{PYQT_VERSION}</td></tr>'
-            f'<tr><td><b>Build OS</b></td><td>&nbsp;&nbsp;{OS_BUILD_INFO}</td></tr>'
+            f'<tr><td><b>Version</b></td><td>&nbsp;&nbsp;{VERSION}</td></tr>'
+            '<tr><td style="padding-top:0px"></td></tr>'
+            f'<tr><td><b>Release Tag</b></td><td>&nbsp;&nbsp;{RELEASE_TAG}</td></tr>'
+            f'<tr><td><b>Release Date</b></td><td>&nbsp;&nbsp;{RELEASE_DATE}</td></tr>'
+            f'<tr><td><b>Commit Hash</b></td><td>&nbsp;&nbsp;{COMMIT_HASH}</td></tr>'
+            f'<tr><td><b>Commit Date</b></td><td>&nbsp;&nbsp;{COMMIT_DATE}</td></tr>'
+            '<tr><td style="padding-top:0px"></td></tr>'
+            f'<tr><td><b>PyQt Version</b></td><td>&nbsp;&nbsp;{PYQT_VERSION}</td></tr>'
+            f'<tr><td><b>OS Info</b></td><td>&nbsp;&nbsp;{OS_INFO}</td></tr>'
             '</table>',
         )
         build_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
