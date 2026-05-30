@@ -318,15 +318,15 @@ def looky_core() -> None:
                 try:
                     result = future.result()
                 except requests.HTTPError as exc:
-                    logger.debug('Looky HTTP error for %s: %s', ip, exc)
+                    logger.debug('[Looky System] HTTP error for %s: %s', ip, exc)
                     if matched_player is not None:
                         matched_player.looky.needs_refresh = False
                         matched_player.looky.is_initialized = True
                 except requests.RequestException as exc:
-                    logger.warning('Looky request error for %s: %s', ip, exc)
+                    logger.warning('[Looky System] Request error for %s: %s', ip, exc)
                     # Not marked as initialized — will be retried on the next pass.
                 except ValidationError as exc:
-                    logger.warning('Looky validation error for %s: %s', ip, exc)
+                    logger.warning('[Looky System] Validation error for %s: %s', ip, exc)
                     if matched_player is not None:
                         matched_player.looky.needs_refresh = False
                         matched_player.looky.is_initialized = True
