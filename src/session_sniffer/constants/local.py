@@ -1,8 +1,8 @@
 """Module for defining and managing constants that require a local function to be executed first."""
+import tomllib
 from pathlib import Path
 from typing import Any
 
-import toml
 from packaging.version import Version
 
 from session_sniffer.utils import format_project_version, get_app_dir, get_working_directory_to_script_location, resource_path
@@ -17,7 +17,7 @@ BUILTIN_SCRIPTS_DIR_PATH: Path = resource_path(Path('scripts'))
 TTS_DIR_PATH: Path = resource_path(Path('TTS'))
 
 
-PYPROJECT_DATA: dict[str, Any] = toml.load(PYPROJECT_PATH)
+PYPROJECT_DATA: dict[str, Any] = tomllib.loads(PYPROJECT_PATH.read_text(encoding='utf-8'))
 CURRENT_VERSION: Version = Version(PYPROJECT_DATA['project']['version'])
 VERSION: str = format_project_version(CURRENT_VERSION)
 

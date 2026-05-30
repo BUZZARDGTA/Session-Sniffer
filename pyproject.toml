@@ -26,7 +26,6 @@ dependencies = [
     "rich==15.0.0",
     "scapy==2.7.0",
     "sentinel==1.0.0",
-    "toml==0.10.2",
     "tzlocal==5.3.1",
 
     # Security fixes
