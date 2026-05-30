@@ -47,7 +47,7 @@ class GUIWorkerThread(CrashingQThread):
 
     update_signal = pyqtSignal(GUIUpdatePayload)
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
         last_seen_version = 0
         last_snapshot: GUIRenderingSnapshot | None = None

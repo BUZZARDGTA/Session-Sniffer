@@ -47,7 +47,7 @@ class _LookyVerifyWorker(CrashingQThread):
         super().__init__()
         self._api_key = api_key
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """Call `looky_verify_token` and emit the result or error signal."""
         try:
             result = looky_verify_token(self._api_key)

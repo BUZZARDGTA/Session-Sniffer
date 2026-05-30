@@ -2,6 +2,7 @@
 
 import time
 from collections import deque
+from typing import Any
 
 import numpy as np
 import psutil
@@ -9,7 +10,7 @@ import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, SlidingWindowCacheMixin, build_rate_plot_widget
+from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, build_rate_plot_widget, grow_x_cache
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -24,10 +25,14 @@ _MIN_PPM_SAMPLES = 2
 _LIVE_EDGE_X_MAX = -2
 
 
-class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
+class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
     """A standalone window showing capture statistics, latency, and live graphs."""
 
     WINDOW_TITLE = 'Capture Statistics'
+
+    _buf_len: int
+    _x_cache_len: int
+    _x_cache: np.ndarray[Any, np.dtype[np.float64]]
 
     open_packets_latency_graph_requested = pyqtSignal()
     open_session_pps_graph_requested = pyqtSignal()
@@ -349,7 +354,8 @@ class CaptureStatisticsWindow(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
             self._pps_sum += CaptureStats.global_pps_rate
             self._bps_buf[n] = kbps
             self._bps_sum += kbps
-            n = self._grow_cache(n)
+            n, self._x_cache, self._x_cache_len = grow_x_cache(n, self._x_cache, self._x_cache_len)
+            self._buf_len = n
         else:
             self._latency_sum += CaptureStats.global_avg_latency_ms - self._latency_buf[0]
             self._latency_buf[:-1] = self._latency_buf[1:]

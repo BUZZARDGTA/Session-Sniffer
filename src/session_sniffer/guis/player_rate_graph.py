@@ -44,24 +44,23 @@ def build_rate_plot_widget(left_label: str, max_history: int) -> tuple[pg.PlotWi
     return widget, plot
 
 
-class SlidingWindowCacheMixin:  # pylint: disable=too-few-public-methods
-    """Mixin that provides a shared `_grow_cache` helper for sliding-window graph classes."""
+def grow_x_cache(
+    n: int,
+    x_cache: np.ndarray[Any, np.dtype[np.float64]],
+    x_cache_len: int,
+) -> tuple[int, np.ndarray[Any, np.dtype[np.float64]], int]:
+    """Increment *n* and rebuild the x-axis cache array if the window length changed.
 
-    _buf_len: int
-    _x_cache_len: int
-    _x_cache: np.ndarray[Any, np.dtype[np.float64]]
-
-    def _grow_cache(self, n: int) -> int:
-        """Increment *n*, advance `_buf_len`, and rebuild `_x_cache` if length changed."""
-        n += 1
-        self._buf_len = n
-        if n != self._x_cache_len:
-            self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
-            self._x_cache_len = n
-        return n
+    Returns `(new_n, x_cache, x_cache_len)`.
+    """
+    n += 1
+    if n != x_cache_len:
+        x_cache = np.arange(-n + 1, 1, dtype=np.float64)
+        x_cache_len = n
+    return n, x_cache, x_cache_len
 
 
-class SingleRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
+class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
     """Base class for single-series sliding-window rate graph windows."""
 
     WINDOW_TITLE: str
@@ -74,8 +73,11 @@ class SingleRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
 
     _max_history: int
     _buf: np.ndarray[Any, np.dtype[np.float64]]
+    _buf_len: int
     _buf_sum: float
     _graph_idle: bool
+    _x_cache_len: int
+    _x_cache: np.ndarray[Any, np.dtype[np.float64]]
 
     def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
         """Initialize the shared single-series graph window."""
@@ -124,7 +126,8 @@ class SingleRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
         if n < self._max_history:
             self._buf[n] = value
             self._buf_sum += value
-            n = self._grow_cache(n)
+            n, self._x_cache, self._x_cache_len = grow_x_cache(n, self._x_cache, self._x_cache_len)
+            self._buf_len = n
         else:
             self._buf_sum += value - self._buf[0]
             self._buf[:-1] = self._buf[1:]
@@ -169,7 +172,7 @@ class SingleRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
         return x_range[1] >= _LIVE_EDGE_X_MAX
 
 
-class DualRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
+class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     """Base class for dual PPS+BPS graph windows.
 
     Subclasses must call `_finish_graph_init(always_on_top=...)` at the end of
@@ -178,8 +181,11 @@ class DualRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
 
     _BYTES_TO_KBS: int = 1024
     _max_history: int
+    _buf_len: int
     _buf_sum: float
     _dual_graph_idle: bool
+    _x_cache_len: int
+    _x_cache: np.ndarray[Any, np.dtype[np.float64]]
     _pps_widget: pg.PlotWidget
     _pps_curve: Any
     _pps_avg_line: pg.InfiniteLine
@@ -277,7 +283,8 @@ class DualRateGraphBase(SlidingWindowCacheMixin, ToggleAlwaysOnTopMixin):
             self._bps_buf[n] = kbps
             self._pps_sum += pps
             self._bps_sum += kbps
-            n = self._grow_cache(n)
+            n, self._x_cache, self._x_cache_len = grow_x_cache(n, self._x_cache, self._x_cache_len)
+            self._buf_len = n
         else:
             # Steady state: shift left (C-level memcpy), append at end
             self._pps_sum += pps - self._pps_buf[0]

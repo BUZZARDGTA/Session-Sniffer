@@ -51,32 +51,22 @@ def _app_only_filter(record: logging.LogRecord) -> bool:
     return record.name == 'session_sniffer' or record.name.startswith('session_sniffer.')
 
 
-class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
-    """Redact sensitive setting values (API keys, passwords) from all log records.
-
-    Reads secrets dynamically from registered provider callables so that
-    `logging_setup` never imports `settings.settings` (which would create a
-    cyclic import). Providers are registered via `register_secret_provider()`.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Scrub known secret values from the log record message in-place."""
-        secrets = [v for fn in _secret_providers if (v := fn())]
-        if not secrets:
-            return True
-        msg = record.getMessage()
-        for secret in secrets:
-            msg = msg.replace(secret, '<redacted>')
-        record.msg = msg
-        record.args = None
-        return True
-
-
-_REDACT_FILTER_NAME = 'secret_redact_filter'
-
 # Callables registered by the application layer to supply secret values at
 # emit time.  Populated via `register_secret_provider()` after Settings load.
 _secret_providers: list[Callable[[], str | None]] = []
+
+
+def _secret_redact_filter(record: logging.LogRecord) -> bool:
+    """Scrub known secret values (API keys, passwords) from log record messages in-place."""
+    secrets = [v for fn in _secret_providers if (v := fn())]
+    if not secrets:
+        return True
+    msg = record.getMessage()
+    for secret in secrets:
+        msg = msg.replace(secret, '<redacted>')
+    record.msg = msg
+    record.args = None
+    return True
 
 
 def register_secret_provider(fn: Callable[[], str | None]) -> None:
@@ -160,9 +150,8 @@ def setup_logging(
     root.setLevel(min(console_level, logging.DEBUG))
 
     # --- Redact secrets from all log output ---
-    if not any(isinstance(f, logging.Filter) and f.name == _REDACT_FILTER_NAME for f in root.filters):
-        redact_filter = _SecretRedactFilter(name=_REDACT_FILTER_NAME)
-        root.addFilter(redact_filter)
+    if _secret_redact_filter not in root.filters:
+        root.addFilter(_secret_redact_filter)
 
     # --- Redirect Python warnings to logging ---
     logging.captureWarnings(capture=True)

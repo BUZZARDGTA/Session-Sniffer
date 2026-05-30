@@ -1,43 +1,31 @@
-"""QThread base that crashes the app when `run()` raises an unhandled exception.
+"""QThread base that crashes the app when `_run()` raises an unhandled exception.
 
 PyQt6's SIP layer silently swallows Python exceptions that escape `QThread.run()`,
-preventing `threading.excepthook` from firing. This base class wraps each subclass
-`run()` at class-creation time so that any unhandled exception terminates the app
-via the same crash path used by plain `threading.Thread` exceptions.
+preventing `threading.excepthook` from firing. This base class overrides `run()` with
+a try/except wrapper that delegates to `_run()`, which subclasses implement instead.
 """
-
-import functools
-from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QThread
 
 from session_sniffer.core import terminate_on_uncaught_exception
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
+class CrashingQThread(QThread):
+    """QThread that crashes the app when `_run()` raises an unhandled exception.
 
-def _wrap_qthread_run[T: QThread](original_run: Callable[[T], None]) -> Callable[[T], None]:
-    @functools.wraps(original_run)
-    def run(self: T) -> None:
-        try:
-            original_run(self)
-        except BaseException as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
-            if isinstance(exc, SystemExit):
-                return
-            terminate_on_uncaught_exception(exc)
-    return run
-
-
-class CrashingQThread(QThread):  # pylint: disable=too-few-public-methods
-    """QThread that crashes the app when `run()` raises an unhandled exception.
-
-    Inherit from this instead of `QThread`. Any unhandled exception escaping `run()`
-    is forwarded to `terminate_script` — the same crash path triggered by
-    `_handle_thread_exception` for plain `threading.Thread` exceptions.
+    Inherit from this instead of `QThread` and override `_run()` instead of `run()`.
+    Any unhandled exception escaping `_run()` is forwarded to `terminate_on_uncaught_exception` —
+    the same crash path triggered by `_handle_thread_exception` for plain `threading.Thread` exceptions.
     """
 
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-        if 'run' in cls.__dict__:
-            setattr(cls, 'run', _wrap_qthread_run(cls.__dict__['run']))  # noqa: B010
+    def run(self) -> None:
+        """Run the thread, forwarding unhandled exceptions to `terminate_on_uncaught_exception`."""
+        try:
+            self._run()
+        except SystemExit:
+            return
+        except BaseException as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+            terminate_on_uncaught_exception(exc)
+
+    def _run(self) -> None:
+        """Override in subclasses to define the thread's work."""

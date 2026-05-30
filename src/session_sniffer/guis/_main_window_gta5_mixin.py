@@ -136,7 +136,7 @@ class _CrawlerWorker(CrashingQThread):
         super().__init__()
         self._api_key = api_key
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """Send a crawlme instruction and track it to completion via SSE."""
         try:
             tracking_id = send_crawlme_instruction(self._api_key)
@@ -181,7 +181,7 @@ class _PlayerCrawlerWorker(CrashingQThread):
         self._names = names
         self._api_key = api_key
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """Send and track a crawler instruction per RID serially, retrying after rate-limit waits."""
         errors: list[str] = []
         any_succeeded = False

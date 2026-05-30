@@ -32,7 +32,7 @@ class _DownloadWorker(CrashingQThread):
         """Signal the download thread to abort."""
         self._cancel_event.set()
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """Stream download, emitting progress updates until complete or cancelled."""
         try:
             response = session.get(self._download_url, stream=True, timeout=30)
