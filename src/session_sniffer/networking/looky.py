@@ -9,7 +9,7 @@ import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
-from session_sniffer.models.looky import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse
+from session_sniffer.models.looky import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse, LookyWhoAmI
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
 LOOKY_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
+LOOKY_WHOAMI_URL = f'{LOOKY_BASE_HOST}/api/whoami'
 LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
 LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
 LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
@@ -91,34 +92,29 @@ _DEVICE_FINGERPRINT: str = json.dumps({
 
 
 def verify_token(api_key: str) -> LookyVerifyResponse:
-    """Verify a Looky API key by making a test search request.
-
-    Extracts the username from the key prefix (e.g. `'BUZZARD-...'` → `'BUZZARD'`)
-    and confirms the key is accepted by `/api/search`. A 404 response is treated as
-    success — it means the test IP has no GTA data, but the key itself was accepted.
+    """Verify a Looky API key via `GET /api/whoami`.
 
     Args:
         api_key: Looky Bearer API key.
 
     Returns:
-        `LookyVerifyResponse` with `userData.apiAccess` set to `True` on success.
+        `LookyVerifyResponse` with `userData` populated from the API response.
 
     Raises:
-        requests.HTTPError: On a non-2xx response other than 404 (e.g. 401 for invalid key).
+        requests.HTTPError: On a non-2xx response (e.g. 401 for invalid key).
         requests.RequestException: On connection/timeout errors.
+        pydantic.ValidationError: If the response JSON shape is unexpected.
     """
-    username = api_key.split('-', 1)[0] if '-' in api_key else api_key[:8]
     response = session.get(
-        f'{LOOKY_BASE_URL}/1.1.1.1',
+        LOOKY_WHOAMI_URL,
         headers={'Authorization': f'Bearer {api_key}'},
-        params={'version': 'both'},
         timeout=10,
     )
-    if response.status_code != requests.codes.not_found:
-        response.raise_for_status()
+    response.raise_for_status()
+    whoami = LookyWhoAmI.model_validate(response.json())
     return LookyVerifyResponse(
         success=True,
-        userData=LookyUserData(username=username, apiAccess=True),
+        userData=LookyUserData(username=whoami.username, apiAccess=whoami.apiAccess, rid=whoami.rid),
     )
 
 

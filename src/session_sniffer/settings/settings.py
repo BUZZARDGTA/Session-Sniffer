@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+    from session_sniffer.models.looky import LookyVerifyResponse
+
 logger = get_logger(__name__)
 
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
@@ -98,6 +100,8 @@ class Settings:
     looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
     looky_auto_resolve: bool = SETTING_DEFAULTS['looky_auto_resolve']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
+    looky_api_access: bool = False  # Runtime-only: True after token verification confirms API access.
+    looky_user_data: LookyVerifyResponse | None = None  # Runtime-only: populated after token verification.
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000

@@ -453,7 +453,9 @@ class GTA5Mixin(QMainWindow):
         if not Settings.looky_api_key or not Settings.looky_enabled:
             QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings → Looky System → Authentication.')
             return
-
+        if not Settings.looky_api_access:
+            QMessageBox.warning(self, TITLE, 'Your Looky account does not have API access.')
+            return
         if self._crawler_progress_dialog is not None:
             QMessageBox.information(self, TITLE, 'A crawler request is already in progress.')
             return
@@ -528,6 +530,10 @@ class GTA5Mixin(QMainWindow):
         """Request the Looky crawler for a specific player's Rockstar IDs."""
         if not Settings.looky_api_key or not Settings.looky_enabled:
             QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings \u2192 Looky System \u2192 Authentication.')
+            return
+
+        if not Settings.looky_api_access:
+            QMessageBox.warning(self, TITLE, 'Your Looky account does not have API access.')
             return
 
         if self._crawler_progress_dialog is not None:

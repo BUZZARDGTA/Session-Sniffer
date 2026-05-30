@@ -54,6 +54,15 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             self._add_close_button_box(outer_layout)
             return
 
+        if not Settings.looky_api_access:
+            no_access_label = QLabel('Your Looky account does not have API access.')
+            no_access_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            no_access_label.setWordWrap(True)
+            scroll_layout.addWidget(no_access_label)
+            scroll_layout.addStretch(1)
+            self._add_close_button_box(outer_layout)
+            return
+
         try:
             results = lookup_ip(player.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as exc:

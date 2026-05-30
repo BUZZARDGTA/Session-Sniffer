@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -45,6 +46,7 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
+    LOOKY_ACCOUNT_CARD_STYLESHEET,
     LOOKY_INFO_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
@@ -65,6 +67,7 @@ if TYPE_CHECKING:
     from PyQt6.QtWidgets import QDoubleSpinBox, QSpinBox
 
     from session_sniffer.capture.packet_capture import PacketCapture
+    from session_sniffer.models.looky import LookyVerifyResponse
 
 _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
@@ -83,8 +86,19 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
     return child
 
 
+def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
+    """Return an HTML-coloured badge string: green for `True`, red for `False`."""
+    if value:
+        return f'<span style="color:#4ade80; font-weight:600;">✓ {true_text}</span>'
+    return f'<span style="color:#f87171; font-weight:600;">✗ {false_text}</span>'
+
+
 class SettingsDialog(UnsavedChangesMixin, QDialog):
     """Modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
+
+    # -- Attribute stubs (set during _build_tab for the Looky System tab) --
+    _looky_account_card: QFrame
+    _looky_card_form: QFormLayout
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture) -> None:
         """Build the tabbed settings dialog from setting metadata."""
@@ -240,6 +254,9 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                     self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
 
+        if category == 'Looky System':
+            outer_layout.addWidget(self._build_looky_account_info_group())
+
         outer_layout.addStretch()
         scroll.setWidget(container)
         page_layout.addWidget(scroll)
@@ -288,6 +305,61 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         layout.addWidget(info_label)
 
         return group_box
+
+    def _build_looky_account_info_group(self) -> QGroupBox:
+        """Build the Account Information panel for the Looky System tab."""
+        group_box = QGroupBox('Account Information')
+        outer = QVBoxLayout(group_box)
+        outer.setSpacing(8)
+
+        self._looky_account_card = QFrame()
+        self._looky_account_card.setStyleSheet(LOOKY_ACCOUNT_CARD_STYLESHEET)
+        card_layout = QVBoxLayout(self._looky_account_card)
+        card_layout.setContentsMargins(14, 10, 14, 10)
+        card_layout.setSpacing(6)
+
+        self._looky_card_form = QFormLayout()
+        self._looky_card_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self._looky_card_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._looky_card_form.setHorizontalSpacing(16)
+        self._looky_card_form.setVerticalSpacing(6)
+        card_layout.addLayout(self._looky_card_form)
+
+        outer.addWidget(self._looky_account_card)
+        self._looky_account_card.setVisible(False)
+
+        if Settings.looky_user_data is not None:
+            self._populate_looky_account_card(Settings.looky_user_data)
+
+        return group_box
+
+    def _make_card_label(self, text: str) -> QLabel:
+        """Return a right-aligned label styled for the account card."""
+        lbl = QLabel(text + ':')
+        lbl.setStyleSheet('color: #9ca3af; font-size: 10pt;')
+        return lbl
+
+    def _make_card_value(self, html: str) -> QLabel:
+        """Return a value label with rich-text support for the account card."""
+        lbl = QLabel(html)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lbl.setStyleSheet('color: #e2d9f3; font-size: 10pt;')
+        lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        return lbl
+
+    def _populate_looky_account_card(self, data: LookyVerifyResponse) -> None:
+        """Fill the account info card with `data` and make it visible."""
+        # Clear previous rows
+        while self._looky_card_form.rowCount() > 0:
+            self._looky_card_form.removeRow(0)
+
+        def add_row(label: str, html: str) -> None:
+            self._looky_card_form.addRow(self._make_card_label(label), self._make_card_value(html))
+
+        add_row('Username',   f'<b style="color:#c4b5fd; font-size:11pt;">{data.userData.username}</b>')
+        add_row('API Access', _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
+
+        self._looky_account_card.setVisible(True)
 
     def _build_web_server_help_group(self) -> QGroupBox:
         """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""

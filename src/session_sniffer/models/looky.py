@@ -25,15 +25,27 @@ class LookyIpBatchResult(BaseModel):
     players: list[LookyPlayer]
 
 
+class LookyWhoAmI(BaseModel):
+    """Raw response shape returned by `GET /api/whoami`."""
+
+    authenticated: bool
+    source: str
+    apiAccess: bool  # noqa: N815
+    status: bool
+    username: str
+    rid: int
+
+
 class LookyUserData(BaseModel):
     """User account data derived from a successful Looky API key verification."""
 
     username: str
     apiAccess: bool  # noqa: N815
+    rid: int
 
 
 class LookyVerifyResponse(BaseModel):
-    """Result of verifying a Looky API key via a test `/api/search` call."""
+    """Result of verifying a Looky API key via `GET /api/whoami`."""
 
     success: bool
     message: str | None = None
