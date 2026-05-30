@@ -285,8 +285,7 @@ def looky_core() -> None:
             if ScriptControl.has_crashed():
                 return
 
-            api_key = Settings.looky_api_key
-            if not api_key or not Settings.looky_enabled or not Settings.looky_auto_resolve:
+            if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.looky_auto_resolve:
                 gui_closed__event.wait(5)
                 continue
 
@@ -299,7 +298,7 @@ def looky_core() -> None:
                 if player.ip in pending_ips or (player.looky.is_initialized and not player.looky.needs_refresh):
                     continue
 
-                future = executor.submit(looky_lookup_ip, player.ip, api_key, Settings.looky_game_version.lower())
+                future = executor.submit(looky_lookup_ip, player.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
                 submitted_new = True
