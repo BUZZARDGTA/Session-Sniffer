@@ -1,8 +1,9 @@
 """Background QThread that polls rendering snapshots and emits GUI update payloads."""
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 
 from session_sniffer.background.tasks import gui_closed__event
+from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.rendering_core.types import CellColor, GUIRenderingSnapshot, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState
 
 
@@ -41,7 +42,7 @@ def _paginate(
     return rows[start_index:start_index + rows_per_page], page, total_pages
 
 
-class GUIWorkerThread(QThread):
+class GUIWorkerThread(CrashingQThread):
     """Emit GUI update payloads compiled by the rendering core."""
 
     update_signal = pyqtSignal(GUIUpdatePayload)

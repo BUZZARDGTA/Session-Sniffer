@@ -4,9 +4,10 @@ import threading
 from typing import TYPE_CHECKING
 
 import requests
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QProgressBar, QVBoxLayout
 
+from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from PyQt6.QtGui import QCloseEvent
 
 
-class _DownloadWorker(QThread):
+class _DownloadWorker(CrashingQThread):
     """Background thread that streams an HTTP download and reports progress."""
 
     progress_signal: pyqtSignal = pyqtSignal(int, int)  # bytes_done, total_bytes

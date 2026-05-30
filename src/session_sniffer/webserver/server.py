@@ -8,10 +8,12 @@ import hmac
 import json
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import aiohttp.web
 
+from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
+from session_sniffer.core import ExceptionInfo, terminate_script
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.rendering_core.types import GUIRenderingSnapshot, GUIRenderingState
 
@@ -22,6 +24,21 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 _WEB_SERVER_STARTUP_TIMEOUT_SECONDS = 3.0
+
+
+def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+    """Crash the app when an asyncio task raises an unexpected exception."""
+    exc = context.get('exception')
+    if exc is None:
+        logger.error('Asyncio exception handler called without exception: %s', context.get('message', ''))
+        return
+    if isinstance(exc, asyncio.CancelledError):
+        return
+    terminate_script(
+        'THREAD_RAISED',
+        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
+        exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -259,6 +276,7 @@ class WebServer:
         logger.debug('Starting web server on %s:%d', self.host, self.port)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        loop.set_exception_handler(_handle_asyncio_exception)
         self._event_loop = loop
         stop_event = asyncio.Event()
         self._stop_event = stop_event

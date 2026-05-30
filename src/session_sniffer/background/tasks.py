@@ -5,7 +5,7 @@ import csv
 import time
 import winsound
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
@@ -16,8 +16,9 @@ from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
+from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
-from session_sniffer.core import ScriptControl
+from session_sniffer.core import ExceptionInfo, ScriptControl, terminate_script
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.tables_player_actions import (
     DetectionNotificationInfo,
@@ -48,6 +49,20 @@ class _DetectionSettings(NamedTuple):
 
 
 gui_closed__event = Event()
+
+
+def _on_pool_task_done(future: Future[None]) -> None:
+    """Crash the app when a pool task raised an unexpected exception."""
+    exc = future.exception()
+    if exc is None:
+        return
+    terminate_script(
+        'THREAD_RAISED',
+        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
+        exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
+    )
+
+
 _detection_logging_file_write_lock = Lock()
 _protection_logging_file_write_lock = Lock()
 _userip_logging_file_write_lock = Lock()
@@ -433,7 +448,7 @@ def handle_detection_notification(
 
                     _make_event_combo_notif(_display_title, _extra, _et)
 
-    _notification_pool.submit(notification_thread)
+    _notification_pool.submit(notification_thread).add_done_callback(_on_pool_task_done)
 
 
 def process_userip_task(
@@ -885,7 +900,7 @@ def check_global_protections(player: Player) -> None:
 
 def submit_global_protections_check(player: Player) -> None:
     """Submit global protection checks to the background protection worker pool."""
-    _protection_check_pool.submit(check_global_protections, player)
+    _protection_check_pool.submit(check_global_protections, player).add_done_callback(_on_pool_task_done)
 
 
 def player_rates_core() -> None:
