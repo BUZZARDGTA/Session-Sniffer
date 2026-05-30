@@ -76,7 +76,7 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
     """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
     if isinstance(widget, QLineEdit):
         return widget
-    child = widget.findChild(QLineEdit)
+    child = cast('QLineEdit | None', widget.findChild(QLineEdit))
     if child is None:
         msg = f'No QLineEdit child found in {widget!r}'
         raise RuntimeError(msg)
