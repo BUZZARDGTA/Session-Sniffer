@@ -2,12 +2,11 @@
 
 import contextlib
 import os
-import platform
 import webbrowser
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import PYQT_VERSION_STR, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -20,7 +19,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from session_sniffer.constants._build_info import BUILD_DATE, COMMIT, RELEASE_TAG
+from session_sniffer.constants._build_info import BUILD_DATE, COMMIT, OS_BUILD_INFO, PYQT_VERSION, RELEASE_TAG
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -159,10 +158,6 @@ class FilesMixin(QMainWindow):
 
     def _show_about_dialog(self) -> None:
         """Show the About dialog with version, build, and system info."""
-        machine = platform.machine()
-        arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
-        os_str = f'{os.environ.get("OS", platform.system())} {arch} {platform.version()}'
-
         build_date_display = BUILD_DATE
         if BUILD_DATE != 'Unknown':
             with contextlib.suppress(ValueError):
@@ -175,8 +170,8 @@ class FilesMixin(QMainWindow):
             f'Release Tag: {RELEASE_TAG}',
             f'Commit: {COMMIT}',
             f'Build Date: {BUILD_DATE}',
-            f'PyQt: {PYQT_VERSION_STR}',
-            f'OS: {os_str}',
+            f'PyQt: {PYQT_VERSION}',
+            f'Build OS: {OS_BUILD_INFO}',
         ])
 
         dialog = QDialog(self)
@@ -231,8 +226,8 @@ class FilesMixin(QMainWindow):
         build_info = QLabel(
             '<table cellspacing="2">'
             f'<tr><td><b>Commit</b></td><td>&nbsp;&nbsp;{commit_display}</td></tr>'
-            f'<tr><td><b>PyQt</b></td><td>&nbsp;&nbsp;{PYQT_VERSION_STR}</td></tr>'
-            f'<tr><td><b>OS</b></td><td>&nbsp;&nbsp;{os_str}</td></tr>'
+            f'<tr><td><b>PyQt</b></td><td>&nbsp;&nbsp;{PYQT_VERSION}</td></tr>'
+            f'<tr><td><b>Build OS</b></td><td>&nbsp;&nbsp;{OS_BUILD_INFO}</td></tr>'
             '</table>',
         )
         build_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

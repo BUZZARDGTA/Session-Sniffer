@@ -44,17 +44,31 @@ jobs:
           $env:BUILD_DATE = (git show -s --format=%cI $env:COMMIT).Trim()
           python -c @"
           import os
+          import platform
+          import tomllib
           from pathlib import Path
           commit = os.environ['COMMIT']
           build_date = os.environ['BUILD_DATE']
           release_tag = os.environ['RELEASE_TAG']
+          pyproject_data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          dependencies = pyproject_data['project']['dependencies']
+          pyqt_version = 'Unknown'
+          for dependency in dependencies:
+              if dependency.startswith('PyQt6=='):
+                  pyqt_version = dependency.removeprefix('PyQt6==')
+                  break
+          machine = platform.machine()
+          arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
+          os_build_info = f'{os.environ.get(\"OS\", platform.system())} {arch} {platform.version()}'
           path = Path('src/session_sniffer/constants/_build_info.py')
           path.parent.mkdir(parents=True, exist_ok=True)
           path.write_text(
               '"""Build-time metadata frozen by the CI workflow."""\n'
               f'COMMIT: str = {commit!r}\n'
               f'BUILD_DATE: str = {build_date!r}\n'
-              f'RELEASE_TAG: str = {release_tag!r}\n',
+              f'RELEASE_TAG: str = {release_tag!r}\n'
+              f'PYQT_VERSION: str = {pyqt_version!r}\n'
+              f'OS_BUILD_INFO: str = {os_build_info!r}\n',
               encoding='utf-8',
           )
           "@
@@ -82,7 +96,7 @@ jobs:
           if ($content -match 'Unknown' -or $content -match "'dev'") {
             throw 'Build metadata still contains development fallback values.'
           }
-          if ($content -notmatch 'COMMIT: str =' -or $content -notmatch 'BUILD_DATE: str =' -or $content -notmatch 'RELEASE_TAG: str =') {
+          if ($content -notmatch 'COMMIT: str =' -or $content -notmatch 'BUILD_DATE: str =' -or $content -notmatch 'RELEASE_TAG: str =' -or $content -notmatch 'PYQT_VERSION: str =' -or $content -notmatch 'OS_BUILD_INFO: str =') {
             throw 'Build metadata is missing one or more required fields.'
           }
           python -m py_compile 'src/session_sniffer/constants/_build_info.py'
