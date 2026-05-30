@@ -29,7 +29,7 @@ from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
-from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin, _LookyVerifyWorker
+from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_widget_builders import (
     RESTART_INDICATOR,
     create_bool_or_enum_widget,
@@ -102,7 +102,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         }
         self._saved: bool = False
         self._last_verified_key: str = Settings.looky_api_key or '' if Settings.looky_user_data is not None else ''
-        self._verify_worker: _LookyVerifyWorker | None = None
+        self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
         self._verify_debounce.setSingleShot(True)
         self._verify_debounce.timeout.connect(self._trigger_looky_verify)
