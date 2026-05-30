@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QThread
 
-from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
-from session_sniffer.core import ExceptionInfo, terminate_script
+from session_sniffer.core import terminate_on_uncaught_exception
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -26,11 +25,7 @@ def _wrap_qthread_run[T: QThread](original_run: Callable[[T], None]) -> Callable
         except BaseException as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
             if isinstance(exc, SystemExit):
                 return
-            terminate_script(
-                'THREAD_RAISED',
-                f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
-                exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
-            )
+            terminate_on_uncaught_exception(exc)
     return run
 
 

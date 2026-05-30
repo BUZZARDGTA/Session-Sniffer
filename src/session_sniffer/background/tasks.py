@@ -16,9 +16,8 @@ from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
-from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
 from session_sniffer.constants.third_party_servers import ThirdPartyServers
-from session_sniffer.core import ExceptionInfo, ScriptControl, terminate_script
+from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.tables_player_actions import (
     DetectionNotificationInfo,
@@ -56,11 +55,7 @@ def _on_pool_task_done(future: Future[None]) -> None:
     exc = future.exception()
     if exc is None:
         return
-    terminate_script(
-        'THREAD_RAISED',
-        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
-        exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
-    )
+    terminate_on_uncaught_exception(exc)
 
 
 _detection_logging_file_write_lock = Lock()

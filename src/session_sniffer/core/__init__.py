@@ -5,6 +5,7 @@ from .control import (
     ScriptControl,
     handle_exception,
     handle_sigint,
+    terminate_on_uncaught_exception,
     terminate_script,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     'ScriptControl',
     'handle_exception',
     'handle_sigint',
+    'terminate_on_uncaught_exception',
     'terminate_script',
 ]

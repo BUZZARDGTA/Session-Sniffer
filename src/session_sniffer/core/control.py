@@ -113,6 +113,19 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
         terminate_script('SIGINT')
 
 
+def terminate_on_uncaught_exception(exc: BaseException) -> None:
+    """Crash the app with the standard uncaught-thread-exception message.
+
+    Shared helper used by pool-task callbacks and QThread wrappers so the
+    crash call is not duplicated across modules.
+    """
+    terminate_script(
+        'THREAD_RAISED',
+        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
+        exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
+    )
+
+
 def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     """Handle uncaught exceptions in threads."""
     if args.exc_type is SystemExit:
