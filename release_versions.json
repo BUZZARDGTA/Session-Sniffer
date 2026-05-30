@@ -2,28 +2,28 @@
     "latest_prerelease": {
         "base_version": "1.5.0",
         "epoch": 0,
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.11%2B20260528.1811",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.11%2B20260528.1811/Session_Sniffer.exe",
-        "sha256": "a46ed077e5d73c8f50249ecda9f6c7a34d6865bd275090ea5338aa1e55845430",
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.12%2B20260530.0749",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.12%2B20260530.0749/Session_Sniffer.exe",
+        "sha256": "ad2a73266d6102c6a6131666c5220310c15c056edb0295af950e5a09c8da2bc4",
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20260528.1811",
+        "local": "20260530.749",
         "major": 1,
         "micro": 0,
         "minor": 5,
         "post": null,
         "pre": [
             "rc",
-            11
+            12
         ],
-        "public": "1.5.0rc11",
+        "public": "1.5.0rc12",
         "release": [
             1,
             5,
             0
         ],
-        "version": "1.5.0rc11+20260528.1811"
+        "version": "1.5.0rc12+20260530.749"
     },
     "latest_stable": {
         "base_version": "1.4.3",
