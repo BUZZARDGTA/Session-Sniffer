@@ -21,6 +21,10 @@ from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
     IPLookupDetailsDialog,
     show_detailed_ip_lookup,
 )
+from session_sniffer.guis.tables_player_actions._looky_lookup_dialog import (
+    LookyLookupDialog,
+    show_looky_lookup,
+)
 from session_sniffer.guis.tables_player_actions._seen_stats_dialog import (
     SeenStatsDialog,
     show_seen_stats,
@@ -34,6 +38,7 @@ __all__ = [
     'DetectionNotificationDialog',
     'DetectionNotificationInfo',
     'IPLookupDetailsDialog',
+    'LookyLookupDialog',
     'PlayerDetectionDialog',
     'PlayerDetectionInfo',
     'SeenStatsDialog',
@@ -45,6 +50,7 @@ __all__ = [
     'ping_ip',
     'show_detailed_ip_lookup',
     'show_detection_notification_dialog',
+    'show_looky_lookup',
     'show_player_detection_dialog',
     'show_seen_stats',
     'show_userip_detected_dialog',

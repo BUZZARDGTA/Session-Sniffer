@@ -123,6 +123,9 @@ class SettingsIniModel(BaseModel):
     WEBSERVER_USERNAME: str | None
     WEBSERVER_PASSWORD: str | None
     UPDATER_CHANNEL: str | None
+    LOOKY_API_KEY: str | None
+    LOOKY_AUTO_RESOLVE: bool
+    LOOKY_GAME_VERSION: str
 
     # --- Internal context helpers ---
 
@@ -147,6 +150,7 @@ class SettingsIniModel(BaseModel):
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_SESSION_HOST_DETECTION',
         'GUI_SESSIONS_LOGGING',
+        'LOOKY_AUTO_RESOLVE',
         'SHOW_DISCORD_POPUP',
     })
 
@@ -557,7 +561,7 @@ class SettingsIniModel(BaseModel):
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, str) else ''
 
-    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', mode='before')
+    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', 'LOOKY_API_KEY', mode='before')
     @classmethod
     def _parse_optional_string(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:
@@ -663,6 +667,21 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, ('Desktop', 'Mobile'))
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
+    @field_validator('LOOKY_GAME_VERSION', mode='before')
+    @classmethod
+    def _parse_looky_game_version(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Both', 'Legacy', 'Enhanced'))
             except NoMatchFoundError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return cast('str', cls._get_default_for_field(info))

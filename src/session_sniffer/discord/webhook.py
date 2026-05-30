@@ -38,13 +38,6 @@ WEBHOOK_URL_RE: Final = re.compile(
     r'^https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+/?$',
 )
 
-_HTTP_OK_CREATED = 200
-_HTTP_NO_CONTENT = 204
-_HTTP_TOO_MANY_REQUESTS = 429
-_HTTP_NOT_FOUND = 404
-_HTTP_UNAUTHORIZED = 401
-_HTTP_FORBIDDEN = 403
-
 _REQUEST_TIMEOUT_SECONDS = 10.0
 # Discord plain-message content limit is 2000 chars. Reserve room for the
 # header line, the ```\n ... \n``` fence (8 chars), and the optional
@@ -326,7 +319,7 @@ def send_test_message(url: str) -> tuple[bool, str]:
     except (http.client.HTTPException, OSError) as err:
         return False, f'Network error: {err}'
 
-    if status in (_HTTP_OK_CREATED, _HTTP_NO_CONTENT):
+    if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
         return True, 'Test message posted successfully.'
     return False, f'Discord returned HTTP {status}: {response_body.decode("utf-8", errors="replace")[:300]}'
 
@@ -354,11 +347,11 @@ def _save_message_ids(message_ids: dict[str, str]) -> None:
 
 def _describe_auto_disable_status(status: int) -> str:
     """Return a short human-friendly description of the failure status."""
-    if status == _HTTP_NOT_FOUND:
+    if status == http.HTTPStatus.NOT_FOUND:
         return 'Webhook not found (deleted, or URL is wrong)'
-    if status == _HTTP_UNAUTHORIZED:
+    if status == http.HTTPStatus.UNAUTHORIZED:
         return 'Unauthorized (invalid webhook token)'
-    if status == _HTTP_FORBIDDEN:
+    if status == http.HTTPStatus.FORBIDDEN:
         return 'Forbidden (webhook revoked or lacks permission)'
     return 'Webhook rejected the request'
 
@@ -557,32 +550,32 @@ class DiscordWebhookSender:
         if existing_id:
             patch_url = f'{url.rstrip("/")}/messages/{urllib.parse.quote(existing_id)}'
             status, _headers, response_body = self._send(patch_url, method='PATCH', body=body)
-            if status in (_HTTP_OK_CREATED, _HTTP_NO_CONTENT):
+            if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
                 self.connection_status.set()
                 return existing_id
-            if status == _HTTP_NOT_FOUND:
+            if status == http.HTTPStatus.NOT_FOUND:
                 # Message was deleted on Discord; fall through to re-create.
                 logger.info('Discord webhook message %s no longer exists, recreating.', existing_id)
                 existing_id = None
-            elif status == _HTTP_TOO_MANY_REQUESTS:
+            elif status == http.HTTPStatus.TOO_MANY_REQUESTS:
                 self._respect_retry_after(_headers, response_body)
                 return existing_id
-            elif status in (_HTTP_UNAUTHORIZED, _HTTP_FORBIDDEN):
+            elif status in (http.HTTPStatus.UNAUTHORIZED, http.HTTPStatus.FORBIDDEN):
                 self._auto_disable(url, status, response_body)
                 return None
 
         # POST new message with ?wait=true to receive the message id back
         post_url = f'{url}{"&" if "?" in url else "?"}wait=true'
         status, _headers, response_body = self._send(post_url, method='POST', body=body)
-        if status == _HTTP_OK_CREATED:
+        if status == http.HTTPStatus.OK:
             new_id = self._parse_posted_id(response_body)
             if new_id is not None:
                 self.connection_status.set()
             return new_id
-        if status == _HTTP_TOO_MANY_REQUESTS:
+        if status == http.HTTPStatus.TOO_MANY_REQUESTS:
             self._respect_retry_after(_headers, response_body)
             return existing_id
-        if status in (_HTTP_UNAUTHORIZED, _HTTP_FORBIDDEN, _HTTP_NOT_FOUND):
+        if status in (http.HTTPStatus.UNAUTHORIZED, http.HTTPStatus.FORBIDDEN, http.HTTPStatus.NOT_FOUND):
             self._auto_disable(url, status, response_body)
         else:
             logger.warning('Discord webhook unexpected POST status %d: %s', status, response_body[:200])

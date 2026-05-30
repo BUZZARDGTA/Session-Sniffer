@@ -22,6 +22,9 @@ from session_sniffer.guis.stylesheets import (
     COLOR_SWATCH_GROUP_HEADER_STYLESHEET,
     COLOR_SWATCH_SEPARATOR_STYLESHEET,
     SETTINGS_SEPARATOR_STYLESHEET,
+    USERIP_SETTINGS_BODY_STYLESHEET,
+    USERIP_SETTINGS_CONTAINER_STYLESHEET,
+    USERIP_SETTINGS_TOGGLE_STYLESHEET,
     color_button_filled_stylesheet,
     color_swatch_btn_stylesheet,
 )
@@ -201,75 +204,6 @@ class _SVGColorPickerDialog(QDialog):
         return False, QColor(), ''
 
 
-_SETTINGS_CONTAINER_STYLESHEET = """
-#SettingsContainer {
-    border: 2px solid #455364;
-    border-radius: 8px;
-    background: transparent;
-}
-"""
-
-_SETTINGS_TOGGLE_STYLESHEET = """
-QPushButton {
-    background: transparent;
-    border: none;
-    color: #4A90E2;
-    font-size: 11pt;
-    font-weight: bold;
-    text-align: left;
-    padding: 4px 8px;
-}
-QPushButton:hover {
-    color: #6DB3F2;
-}
-"""
-
-_SETTINGS_BODY_STYLESHEET = """
-QLabel {
-    color: #b0bec5;
-    font-size: 10pt;
-    font-weight: normal;
-    background: transparent;
-}
-QComboBox, QLineEdit, QDoubleSpinBox {
-    background: #2d2d2d;
-    color: #d4d4d4;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 10pt;
-    min-height: 22px;
-}
-QComboBox:hover, QLineEdit:hover, QDoubleSpinBox:hover {
-    border-color: #4A90E2;
-}
-QComboBox:disabled, QLineEdit:disabled, QDoubleSpinBox:disabled {
-    background: #222;
-    color: #555;
-    border-color: #3a3a3a;
-}
-QLineEdit:focus {
-    border-color: #4A90E2;
-    background: #333;
-}
-QPushButton {
-    background: #3a3a3a;
-    color: #d4d4d4;
-    border: 1px solid #555;
-    border-radius: 4px;
-    font-size: 10pt;
-    min-width: 28px;
-    min-height: 24px;
-    padding: 2px 6px;
-}
-QPushButton:hover {
-    background: #4A90E2;
-    color: white;
-    border-color: #4A90E2;
-}
-"""
-
-
 class SettingsPanelMixin(QDialog):
     """Mixin that builds and manages the database settings panel.
 
@@ -310,7 +244,7 @@ class SettingsPanelMixin(QDialog):
         """Construct the collapsible database settings panel and add it to the layout."""
         self._settings_container = QFrame()
         self._settings_container.setObjectName('SettingsContainer')
-        self._settings_container.setStyleSheet(_SETTINGS_CONTAINER_STYLESHEET)
+        self._settings_container.setStyleSheet(USERIP_SETTINGS_CONTAINER_STYLESHEET)
         self._settings_container.setVisible(False)
 
         group_outer = QVBoxLayout(self._settings_container)
@@ -320,12 +254,12 @@ class SettingsPanelMixin(QDialog):
         self._settings_toggle = QPushButton('▼ ⚙ Database Settings')
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(self._settings_toggle.cursor())
-        self._settings_toggle.setStyleSheet(_SETTINGS_TOGGLE_STYLESHEET)
+        self._settings_toggle.setStyleSheet(USERIP_SETTINGS_TOGGLE_STYLESHEET)
         self._settings_toggle.clicked.connect(self._on_settings_toggle_clicked)
         group_outer.addWidget(self._settings_toggle)
 
         self._settings_content = QWidget()
-        self._settings_content.setStyleSheet(_SETTINGS_BODY_STYLESHEET)
+        self._settings_content.setStyleSheet(USERIP_SETTINGS_BODY_STYLESHEET)
         content = QVBoxLayout(self._settings_content)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(8)

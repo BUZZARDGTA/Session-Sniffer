@@ -23,6 +23,7 @@ from session_sniffer.background import (
     hostname_core,
     iplookup_core,
     is_gta5_relay_ip,
+    looky_core,
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
@@ -641,7 +642,7 @@ def main() -> None:
     def _gta5_process_monitor() -> None:
         """Background thread: poll for GTA5 process presence and update `CaptureState.gta5_is_running`."""
         while not gui_closed__event.is_set():
-            is_running = Settings.capture_game_preset == 'GTA5' and find_running_gta5_path() is not None
+            is_running = Settings.capture_game_preset == 'GTA5' and find_running_gta5_path().is_running
             CaptureState.update_gta5_status(is_running=is_running)
             gui_closed__event.wait(5.0)
 
@@ -706,6 +707,9 @@ def main() -> None:
 
     pinger_core__thread = Thread(target=pinger_core, name='pinger_core', daemon=True)
     pinger_core__thread.start()
+
+    looky_core__thread = Thread(target=looky_core, name='looky_core', daemon=True)
+    looky_core__thread.start()
 
     if Settings.show_discord_popup:
         # Delay the popup opening by 3 seconds

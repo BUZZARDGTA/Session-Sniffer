@@ -94,6 +94,9 @@ class Settings:
     webserver_username: str | None = SETTING_DEFAULTS['webserver_username']
     webserver_password: str | None = SETTING_DEFAULTS['webserver_password']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
+    looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
+    looky_auto_resolve: bool = SETTING_DEFAULTS['looky_auto_resolve']
+    looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
@@ -150,6 +153,9 @@ class Settings:
         'WEBSERVER_USERNAME',
         'WEBSERVER_PASSWORD',
         'UPDATER_CHANNEL',
+        'LOOKY_API_KEY',
+        'LOOKY_AUTO_RESOLVE',
+        'LOOKY_GAME_VERSION',
     )
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)

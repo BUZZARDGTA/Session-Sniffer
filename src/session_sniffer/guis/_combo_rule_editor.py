@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH
 from session_sniffer.guis.country_data import COUNTRY_NAMES
-from session_sniffer.guis.stylesheets import GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
+from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
 from session_sniffer.player.combo_rules import ComboRule
 from session_sniffer.rendering_core.types import CaptureState
@@ -35,17 +35,6 @@ COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(
     p.stem for p in COUNTRY_FLAGS_DIR.glob('*.png')
 ) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
-
-_COUNTRY_SELECTOR_COMBO_STYLE = """
-    QComboBox {
-        font-size: 11pt;
-        padding: 6px 10px;
-        min-height: 28px;
-    }
-    QComboBox QAbstractItemView {
-        font-size: 10pt;
-    }
-"""
 
 
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
@@ -108,7 +97,7 @@ class CountrySelectionDialog(QDialog):
         self._combo = QComboBox()
         self._combo.setEditable(True)
         self._combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self._combo.setStyleSheet(_COUNTRY_SELECTOR_COMBO_STYLE)
+        self._combo.setStyleSheet(COUNTRY_SELECTOR_COMBO_STYLESHEET)
         self._combo.setMaxVisibleItems(15)
 
         model = QStandardItemModel(self._combo)

@@ -56,6 +56,9 @@ class SettingMeta:
     subgroup: str | None = None
     hidden: bool = False
     special_value_text: str = 'All'
+    max_length: int | None = None
+    min_length: int | None = None
+    secret: bool = False
 
 
 SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
@@ -65,6 +68,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Columns',
     'Discord',
     'Web Server',
+    'Looky System',
 )
 
 
@@ -553,6 +557,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Password',
         setting_type=SettingType.STRING,
         tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
+        secret=True,
     ),
     'updater_channel': SettingMeta(
         category='Launcher',
@@ -561,6 +566,29 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.ENUM,
         tooltip='Release channel to check for updates.',
         allowed_values=('Stable', 'Pre-release'),
+    ),
+    'looky_api_key': SettingMeta(
+        category='Looky System',
+        group='Authentication',
+        display_label='API Key',
+        setting_type=SettingType.STRING,
+        tooltip='Looky API key (Bearer token) for GTA IP-to-player lookups. Leave empty to disable.',
+        secret=True,
+    ),
+    'looky_auto_resolve': SettingMeta(
+        category='Looky System',
+        group='Auto-Resolve',
+        display_label='Auto-resolve Usernames',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Automatically resolve GTA player names in the background and append them to the Usernames column.',
+    ),
+    'looky_game_version': SettingMeta(
+        category='Looky System',
+        group='Auto-Resolve',
+        display_label='Game Version',
+        setting_type=SettingType.ENUM,
+        tooltip='Game version to search for when querying the Looky API.',
+        allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
 }
 
@@ -642,4 +670,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'webserver_username': None,
     'webserver_password': None,
     'updater_channel': 'Stable',
+    'looky_api_key': None,
+    'looky_auto_resolve': True,
+    'looky_game_version': 'Both',
 }

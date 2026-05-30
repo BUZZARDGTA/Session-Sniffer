@@ -32,9 +32,14 @@ from session_sniffer.guis.stylesheets import (
     INTERFACE_BOTTOM_CONTAINER_STYLESHEET,
     INTERFACE_BOTTOM_SEPARATOR_STYLESHEET,
     INTERFACE_TABLE_CONTAINER_STYLESHEET,
+    format_interface_refresh_arp_progress_style,
     interface_checkbox_stylesheet,
     interface_header_label_stylesheet,
     interface_instruction_label_stylesheet,
+    interface_refresh_arp_button_disabled_style,
+    interface_refresh_arp_button_enabled_style,
+    interface_select_button_disabled_style,
+    interface_select_button_enabled_style,
     interface_table_stylesheet,
 )
 from session_sniffer.guis.utils import compute_ui_scale, resize_window_for_screen
@@ -210,54 +215,6 @@ class InterfaceSelectionDialog(QDialog):
         def _s(n: int) -> int:
             return max(1, round(n * _scale))
 
-        # Per-instance scaled button stylesheets (font sizes vary with screen resolution).
-        self._select_button_disabled_style = (
-            'QPushButton {'
-            f' font-size: {_s(20)}pt;'
-            ' background-color: #555555;'
-            ' color: #aaaaaa;'
-            ' border: 2px solid #3a3a3a;'
-            ' border-radius: 10px;'
-            '}'
-        )
-        self._select_button_enabled_style = (
-            'QPushButton {'
-            f' font-size: {_s(22)}pt;'
-            ' background-color: #175BB0;'
-            ' color: #ffffff;'
-            ' border: 2px solid #2a6aaa;'
-            ' border-radius: 10px;'
-            '}'
-            'QPushButton:hover {'
-            ' background-color: #1e6ec7;'
-            ' border: 2px solid #4a8fd4;'
-            '}'
-        )
-        self._refresh_arp_button_enabled_style = (
-            'QPushButton {'
-            f' font-size: {_s(16)}pt;'
-            ' background-color: #21334C;'
-            ' color: #e8f0f8;'
-            ' border: 2px solid #1e3f60;'
-            ' border-radius: 10px;'
-            f' padding: {_s(6)}px {_s(14)}px;'
-            '}'
-            'QPushButton:hover {'
-            ' background-color: #2c4463;'
-            ' border: 2px solid #2a5888;'
-            '}'
-        )
-        self._refresh_arp_button_disabled_style = (
-            'QPushButton {'
-            f' font-size: {_s(16)}pt;'
-            ' background-color: #555555;'
-            ' color: #aaaaaa;'
-            ' border: 2px solid #3a3a3a;'
-            ' border-radius: 10px;'
-            f' padding: {_s(6)}px {_s(14)}px;'
-            '}'
-        )
-
         # Custom variables
         self.selected_interface: SelectedInterfaceRow | None = None
 
@@ -332,7 +289,8 @@ class InterfaceSelectionDialog(QDialog):
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
-        refresh_arp_button.setStyleSheet(self._refresh_arp_button_enabled_style if mac_lookup is not None else self._refresh_arp_button_disabled_style)
+        arp_style = interface_refresh_arp_button_enabled_style(self._ui_scale) if mac_lookup is not None else interface_refresh_arp_button_disabled_style(self._ui_scale)
+        refresh_arp_button.setStyleSheet(arp_style)
         refresh_arp_button.setEnabled(mac_lookup is not None)
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(_s(44))
@@ -462,7 +420,7 @@ class InterfaceSelectionDialog(QDialog):
         action_layout.addStretch()
 
         select_button = QPushButton('Start Sniffing')
-        select_button.setStyleSheet(self._select_button_disabled_style)
+        select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(_s(330), _s(56))
         select_icon_pixmap = QPixmap(_s(46), _s(28))
@@ -529,36 +487,6 @@ class InterfaceSelectionDialog(QDialog):
 
     # Custom Methods:
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
-    # Polished silvery grey for the filled portion (light -> slightly darker across the bar).
-    _REFRESH_ARP_PROGRESS_FILL_LIGHT = '#e6e6e6'
-    _REFRESH_ARP_PROGRESS_FILL_DARK = '#9a9a9a'
-    # Darker grey gradient for the unfilled track.
-    _REFRESH_ARP_PROGRESS_TRACK_LIGHT = '#4a4a4a'
-    _REFRESH_ARP_PROGRESS_TRACK_DARK = '#2e2e2e'
-    _DARK_TEXT_FILL_THRESHOLD: float = 0.45
-
-    def _format_refresh_arp_progress_style(self, fraction: float) -> str:
-        """Build a stylesheet that renders a horizontal grey gradient progress fill inside the button."""
-        clamped = max(0.0, min(1.0, fraction))
-        # Two stops at the same point keep the color transition crisp instead of blended.
-        next_stop = min(1.0, clamped + 0.0001)
-        # Text color flips to dark once enough of the bar is filled to keep contrast readable.
-        text_color = '#1a1a1a' if clamped >= self._DARK_TEXT_FILL_THRESHOLD else '#f0f0f0'
-        return (
-            'QPushButton {'
-            f' font-size: {round(12 * self._ui_scale)}pt;'
-            ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-            f' stop:0 {self._REFRESH_ARP_PROGRESS_FILL_LIGHT},'
-            f' stop:{clamped:.4f} {self._REFRESH_ARP_PROGRESS_FILL_DARK},'
-            f' stop:{next_stop:.4f} {self._REFRESH_ARP_PROGRESS_TRACK_LIGHT},'
-            f' stop:1 {self._REFRESH_ARP_PROGRESS_TRACK_DARK});'
-            f' color: {text_color};'
-            ' font-weight: bold;'
-            ' border: 1px solid #1a1a1a;'
-            ' border-radius: 10px;'
-            ' padding: 4px 12px;'
-            ' }'
-        )
 
     def _refresh_arp_progress_tick(self) -> None:
         """GUI-thread tick: render current ARP-refresh progress on the button."""
@@ -575,7 +503,7 @@ class InterfaceSelectionDialog(QDialog):
             fraction = completed / total
             button.setText(f'{int(fraction * 100)}%')
 
-        button.setStyleSheet(self._format_refresh_arp_progress_style(fraction))
+        button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction))
 
     def _on_refresh_arp_clicked(self) -> None:
         """Flush the Windows ARP cache and ping the local subnet to rediscover devices.
@@ -630,7 +558,7 @@ class InterfaceSelectionDialog(QDialog):
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
-        button.setStyleSheet(self._refresh_arp_button_enabled_style)
+        button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
         button.setEnabled(self._mac_lookup is not None)
         button.setIcon(self._refresh_arp_icon)
@@ -846,10 +774,10 @@ class InterfaceSelectionDialog(QDialog):
         selected_row = self.table.currentRow()
         if selected_row != -1:
             self._controls.select_button.setEnabled(True)
-            self._controls.select_button.setStyleSheet(self._select_button_enabled_style)
+            self._controls.select_button.setStyleSheet(interface_select_button_enabled_style(self._ui_scale))
         else:
             self._controls.select_button.setEnabled(False)
-            self._controls.select_button.setStyleSheet(self._select_button_disabled_style)
+            self._controls.select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
 
     def _on_arp_spoofing_changed(self) -> None:
         """Mutual-exclusion handler: checking ARP Spoofing automatically unchecks Hide Neighbours."""
@@ -872,7 +800,7 @@ class InterfaceSelectionDialog(QDialog):
         self._controls.refresh_arp_button.setEnabled(arp_enabled)
         self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
         self._controls.refresh_arp_button.setStyleSheet(
-            self._refresh_arp_button_enabled_style if arp_enabled else self._refresh_arp_button_disabled_style,
+            interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled else interface_refresh_arp_button_disabled_style(self._ui_scale),
         )
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:

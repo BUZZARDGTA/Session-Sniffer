@@ -60,6 +60,31 @@ def _max_level_filter(max_level: int) -> Callable[[logging.LogRecord], bool]:
     return _filter
 
 
+class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
+    """Redact sensitive setting values (API keys, passwords) from all log records.
+
+    Replaces the current values of `Settings.looky_api_key` and
+    `Settings.webserver_password` with `<redacted>` in every formatted
+    log message before it reaches any handler.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Scrub known secret values from the log record message in-place."""
+        from session_sniffer.settings.settings import Settings  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        secrets = [v for v in (Settings.looky_api_key, Settings.webserver_password) if v]
+        if not secrets:
+            return True
+        msg = record.getMessage()
+        for secret in secrets:
+            msg = msg.replace(secret, '<redacted>')
+        record.msg = msg
+        record.args = None
+        return True
+
+
+_REDACT_FILTER_NAME = 'secret_redact_filter'
+
+
 class _StderrToLogger:
     """Redirect stderr writes to the logging system."""
 
@@ -170,6 +195,11 @@ def setup_logging(
 
     # --- Root logger must be permissive enough to reach all handlers ---
     root.setLevel(min(console_level, logging.DEBUG))
+
+    # --- Redact secrets from all log output ---
+    if not any(isinstance(f, logging.Filter) and f.name == _REDACT_FILTER_NAME for f in root.filters):
+        redact_filter = _SecretRedactFilter(name=_REDACT_FILTER_NAME)
+        root.addFilter(redact_filter)
 
     # --- Redirect Python warnings to logging ---
     logging.captureWarnings(capture=True)

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import winreg
 from contextlib import suppress
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -237,8 +238,32 @@ def get_pid_by_path(filepath: Path, /) -> int | None:
 _GTA5_PROCESS_NAMES: frozenset[str] = frozenset({'gta5', 'gta5_enhanced'})
 
 
-def find_running_gta5_path() -> Path | None:
-    """Return the path to the running GTA5 executable, or `None` if not detected.
+@dataclass(frozen=True, slots=True)
+class GTA5Status:
+    """Immutable snapshot of the running GTA5 process state.
+
+    Attributes:
+        path: Resolved path to the running GTA5 executable, or `None` if not running.
+        is_running: `True` if a GTA5 process was detected.
+        is_enhanced: `True` if the running version is GTA V Enhanced (`GTA5_Enhanced.exe`).
+        is_legacy: `True` if the running version is GTA V Legacy (`GTA5.exe`).
+    """
+
+    path: Path | None
+    is_running: bool = field(init=False)
+    is_enhanced: bool = field(init=False)
+    is_legacy: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Derive `is_running`, `is_enhanced`, and `is_legacy` from `path`."""
+        stem = self.path.stem.lower() if self.path is not None else ''
+        object.__setattr__(self, 'is_running', self.path is not None)
+        object.__setattr__(self, 'is_enhanced', stem == 'gta5_enhanced')
+        object.__setattr__(self, 'is_legacy', stem == 'gta5')
+
+
+def find_running_gta5_path() -> GTA5Status:
+    """Return a `GTA5Status` snapshot for the currently running GTA5 process.
 
     Scans all running processes for `GTA5.exe` or `GTA5_Enhanced.exe`
     (legacy retail and enhanced PC versions respectively) using a
@@ -247,7 +272,8 @@ def find_running_gta5_path() -> Path | None:
     merely reuses the GTA5 process name.
 
     Returns:
-        Resolved `Path` to the first matching authentic executable, or `None` if neither is running.
+        `GTA5Status` with `path` set to the resolved executable path when found,
+        or `path=None` (and all boolean flags `False`) when neither version is running.
     """
     for process in psutil.process_iter(['exe']):
         process_exe: str | None = process.info.get('exe')
@@ -258,8 +284,8 @@ def find_running_gta5_path() -> Path | None:
             continue
         resolved = process_path.resolve()
         if has_valid_authenticode_signature(resolved):
-            return resolved
-    return None
+            return GTA5Status(path=resolved)
+    return GTA5Status(path=None)
 
 
 def terminate_process_tree(pid: int | None = None) -> None:

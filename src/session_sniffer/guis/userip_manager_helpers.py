@@ -29,7 +29,14 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET, SUBNET_DESC_LABEL_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    DIALOG_BUTTON_STYLESHEET,
+    DIALOG_PRIMARY_BUTTON_STYLESHEET,
+    IP_RANGE_PREVIEW_EMPTY_STYLESHEET,
+    IP_RANGE_PREVIEW_ERROR_STYLESHEET,
+    IP_RANGE_PREVIEW_VALID_STYLESHEET,
+    SUBNET_DESC_LABEL_STYLESHEET,
+)
 from session_sniffer.guis.utils import apply_search_icon
 
 if TYPE_CHECKING:
@@ -487,10 +494,6 @@ _MODE_SUBNET = 2
 class IPRangeBuilderDialog(QDialog):
     """User-friendly dialog for building IP range entries without needing to know CIDR notation."""
 
-    _PREVIEW_VALID_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #80c080;'
-    _PREVIEW_ERROR_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #e06060;'
-    _PREVIEW_EMPTY_STYLE = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #a0a0a0;'
-
     def __init__(self, parent: QWidget | None, initial_ip: str | None = None, initial_entry: str | None = None) -> None:
         """Build the IP Range Builder dialog."""
         super().__init__(parent)
@@ -578,7 +581,7 @@ class IPRangeBuilderDialog(QDialog):
         preview_layout = QVBoxLayout(preview_group)
         self._preview = QLabel('')
         self._preview.setWordWrap(True)
-        self._preview.setStyleSheet(self._PREVIEW_EMPTY_STYLE)
+        self._preview.setStyleSheet(IP_RANGE_PREVIEW_EMPTY_STYLESHEET)
         preview_layout.addWidget(self._preview)
         layout.addWidget(preview_group)
 
@@ -744,11 +747,11 @@ class IPRangeBuilderDialog(QDialog):
         """Update the preview label text and style, and toggle the OK button."""
         self._preview.setText(text)
         if valid is None:
-            self._preview.setStyleSheet(self._PREVIEW_EMPTY_STYLE)
+            self._preview.setStyleSheet(IP_RANGE_PREVIEW_EMPTY_STYLESHEET)
         elif valid:
-            self._preview.setStyleSheet(self._PREVIEW_VALID_STYLE)
+            self._preview.setStyleSheet(IP_RANGE_PREVIEW_VALID_STYLESHEET)
         else:
-            self._preview.setStyleSheet(self._PREVIEW_ERROR_STYLE)
+            self._preview.setStyleSheet(IP_RANGE_PREVIEW_ERROR_STYLESHEET)
         if self._ok_button is not None:
             self._ok_button.setEnabled(valid is True)
 

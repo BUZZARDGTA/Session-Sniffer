@@ -1,6 +1,6 @@
 """Background processing tasks and cores for player data enrichment."""
 
-from session_sniffer.background.cores import hostname_core, iplookup_core, pinger_core
+from session_sniffer.background.cores import hostname_core, iplookup_core, looky_core, pinger_core
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.background.tasks import (
     NotificationConfig,
@@ -28,6 +28,7 @@ __all__ = [
     'hostname_core',
     'iplookup_core',
     'is_gta5_relay_ip',
+    'looky_core',
     'monitor_gta5_relay_task',
     'pinger_core',
     'player_rates_core',

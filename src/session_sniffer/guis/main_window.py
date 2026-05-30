@@ -163,11 +163,11 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_status_label = gta5_status_label
 
         def _update_gta5_status_display() -> None:
-            gta5_exe = find_running_gta5_path()
-            if gta5_exe:
-                version = 'GTA V Enhanced' if gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+            gta5 = find_running_gta5_path()
+            if gta5.is_running:
+                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
                 self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5_exe))
+                self._gta5_status_label.setToolTip(str(gta5.path))
             else:
                 self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
                 self._gta5_status_label.setToolTip('GTA V process detection state')
@@ -258,13 +258,39 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_solo_active = False
         self._gta5_process_suspended = False
         self._gta5_process_detected = False
+
+        gta5_menu.addSeparator()
+
+        looky_submenu = gta5_menu.addMenu('\U0001F441 Looky')
+        if looky_submenu is None:
+            msg = 'Failed to create Looky submenu'
+            raise RuntimeError(msg)
+        looky_submenu.setToolTipsVisible(True)
+        cast('QAction', looky_submenu.menuAction()).setToolTip('Looky tools for the current GTA5 session')
+        self._looky_submenu = looky_submenu
+
+        looky_crawler_session_action = QAction('🤖 Request Crawler in My Session', self)
+        looky_crawler_session_action.setToolTip(
+            'Request the Looky crawler bot to join your session.\n'
+            'The bot will resolve all player usernames in your session to the Looky database.\n'
+            'Once completed, all players are automatically re-queried via Looky to pick up resolved or updated usernames.',
+        )
+        looky_crawler_session_action.triggered.connect(self.request_crawler_in_my_session)
+        looky_submenu.addAction(looky_crawler_session_action)
+        self._looky_crawler_session_action = looky_crawler_session_action
+        self._crawler_worker = None
+        self._crawler_progress_dialog = None
+        self._player_crawler_worker = None
+        self._player_crawler_rockstarids: list[int] | None = None
+
         if Settings.capture_game_preset == 'GTA5':
             self._sync_gta5_process_button()
+            self._sync_looky_submenu()
             if CaptureState.gta5_is_running:
-                gta5_exe = find_running_gta5_path()
-                version = 'GTA V Enhanced' if gta5_exe and gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+                gta5 = find_running_gta5_path()
+                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
                 self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5_exe) if gta5_exe else 'GTA5 process detection state')
+                self._gta5_status_label.setToolTip(str(gta5.path) if gta5.is_running else 'GTA5 process detection state')
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
 
@@ -766,10 +792,10 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         if self._session_host_submenu.isEnabled() != CaptureState.gta5_is_running:
             if CaptureState.gta5_is_running:
-                gta5_exe = find_running_gta5_path()
-                version = 'GTA V Enhanced' if gta5_exe and gta5_exe.stem.lower() == 'gta5_enhanced' else 'GTA V Legacy'
+                gta5 = find_running_gta5_path()
+                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
                 self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5_exe) if gta5_exe else 'GTA V process detection state')
+                self._gta5_status_label.setToolTip(str(gta5.path) if gta5.is_running else 'GTA V process detection state')
             else:
                 self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
                 self._gta5_status_label.setToolTip('GTA V process detection state')

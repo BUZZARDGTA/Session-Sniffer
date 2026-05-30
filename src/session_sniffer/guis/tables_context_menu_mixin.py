@@ -17,6 +17,7 @@ from session_sniffer.guis.tables_player_actions import (
     copy_players_info_for_discord,
     ping_ip,
     show_detailed_ip_lookup,
+    show_looky_lookup,
     show_seen_stats,
     tcp_port_ping,
     tcp_port_ping_multi,
@@ -37,7 +38,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.utils import run_cmd_script
+from session_sniffer.utils import find_running_gta5_path, run_cmd_script
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -279,6 +280,19 @@ class TableContextMenuMixin(QTableView):
                     ip_address = displayed_ip
                     player_obj = matched_player
 
+                    # --- Clear Session Host (single IP, GTA5 only) ---
+                    if (
+                        Settings.capture_game_preset == 'GTA5'
+                        and SessionHost.player is not None
+                        and SessionHost.player.ip == ip_address
+                    ):
+                        add_action(
+                            context_menu,
+                            '❌ Clear Session Host',
+                            tooltip='Manually clear this player as the detected session host.',
+                            handler=SessionHost.clear_session_host_data,
+                        )
+
                     # --- Block IP (single IP) ---
                     def _do_block_single_ip() -> None:
                         entry = block_ip_as_range(self, ip_address)
@@ -322,6 +336,24 @@ class TableContextMenuMixin(QTableView):
                         handler=lambda: show_seen_stats(self, player_obj),
                     )
 
+                    if Settings.looky_api_key:
+                        looky_menu = add_menu(context_menu, '\U0001F441 Looky')
+                        add_action(
+                            looky_menu,
+                            '🔎 Looky Lookup',
+                            tooltip='Query the Looky API to find GTA players associated with this IP.',
+                            handler=lambda: show_looky_lookup(self, player_obj),
+                        )
+
+                        # --- Request Crawler (single IP, GTA5 legacy only) ---
+                        if Settings.capture_game_preset == 'GTA5' and not find_running_gta5_path().is_enhanced:
+                            add_action(
+                                looky_menu,
+                                '🤖 Request Crawler',
+                                tooltip="Call the crawler bot into the session to resolve this player's username.",
+                                handler=lambda: cast('MainWindow', self.window()).request_crawler_for_player(player_obj),
+                            )
+
                     ping_menu = add_menu(context_menu, '📡 Ping')
                     add_action(
                         ping_menu,
@@ -340,19 +372,6 @@ class TableContextMenuMixin(QTableView):
                     if Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
                         detections_menu = add_menu(context_menu, '🚨 Detections')
                         build_detections_menu(detections_menu, add_action, player_obj, self)
-
-                    # --- Clear Session Host (single IP, GTA5 only) ---
-                    if (
-                        Settings.capture_game_preset == 'GTA5'
-                        and SessionHost.player is not None
-                        and SessionHost.player.ip == ip_address
-                    ):
-                        add_action(
-                            context_menu,
-                            '❌ Clear Session Host',
-                            tooltip='Manually clear this player as the detected session host.',
-                            handler=SessionHost.clear_session_host_data,
-                        )
 
                     scripts_menu = add_menu(context_menu, '📜 User Scripts')
                     _single_ip = [ip_address]

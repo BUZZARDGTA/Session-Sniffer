@@ -69,6 +69,10 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             widget.setCursorPosition(new_pos)
 
         le.textEdited.connect(_auto_format_mac)
+    if meta.secret:
+        le.setEchoMode(QLineEdit.EchoMode.Password)
+    if meta.max_length is not None:
+        le.setMaxLength(meta.max_length)
     if meta.tooltip:
         le.setToolTip(meta.tooltip)
     return le

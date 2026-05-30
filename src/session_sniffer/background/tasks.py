@@ -317,10 +317,10 @@ def handle_detection_notification(
 
             # Execute protection action (only when enabled and protection is supported)
             if enabled and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                gta5_path = find_running_gta5_path()
-                if gta5_path is not None:
+                gta5 = find_running_gta5_path()
+                if gta5.path is not None:
                     ProcessSuspendManager.request_suspend(
-                        process_path=gta5_path,
+                        process_path=gta5.path,
                         reason_key=f'event:{notification_type}:{player.ip}',
                         left_event=player.left_event,
                         duration=duration,
@@ -380,10 +380,10 @@ def handle_detection_notification(
             for rule in matched_combo_rules:
                 # Protection action
                 if rule.protection_enabled and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                    gta5_path = find_running_gta5_path()
-                    if gta5_path is not None:
+                    gta5 = find_running_gta5_path()
+                    if gta5.path is not None:
                         ProcessSuspendManager.request_suspend(
-                            process_path=gta5_path,
+                            process_path=gta5.path,
                             reason_key=f'combo:{rule.name}:{player.ip}',
                             left_event=player.left_event,
                             duration=rule.duration,
@@ -464,11 +464,11 @@ def process_userip_task(
         and Settings.capture_game_preset == 'GTA5'
         and not CaptureState.is_neighbour_interface
     ):
-        gta5_path = find_running_gta5_path()
-        if gta5_path is not None:
+        gta5 = find_running_gta5_path()
+        if gta5.path is not None:
             suspend_mode = player.userip.settings.protection.suspend_process_mode
             ProcessSuspendManager.request_suspend(
-                process_path=gta5_path,
+                process_path=gta5.path,
                 reason_key=f'userip:{player.ip}',
                 left_event=player.left_event,
                 duration=suspend_mode,
@@ -577,10 +577,10 @@ def monitor_gta5_relay_task(player: Player) -> None:
         return
 
     if GUIProtectionSettings.gta5_relay_enabled and not CaptureState.is_neighbour_interface:
-        gta5_path = find_running_gta5_path()
-        if gta5_path is not None:
+        gta5 = find_running_gta5_path()
+        if gta5.path is not None:
             ProcessSuspendManager.request_suspend(
-                process_path=gta5_path,
+                process_path=gta5.path,
                 reason_key=f'gta5_relay:{player.ip}',
                 left_event=player.left_event,
                 duration=GUIProtectionSettings.gta5_relay_duration,
@@ -642,11 +642,11 @@ def check_global_protections(player: Player) -> None:
         """Execute a protection action (Suspend)."""
         if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
             return
-        gta5_path = find_running_gta5_path()
-        if gta5_path is None:
+        gta5 = find_running_gta5_path()
+        if gta5.path is None:
             return
         ProcessSuspendManager.request_suspend(
-            process_path=gta5_path,
+            process_path=gta5.path,
             reason_key=f'global:{protection_name}:{player.ip}',
             left_event=player.left_event,
             duration=duration,

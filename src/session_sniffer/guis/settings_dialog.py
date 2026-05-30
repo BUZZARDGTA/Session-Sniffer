@@ -45,6 +45,7 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
+    LOOKY_INFO_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
@@ -66,6 +67,7 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import PacketCapture
 
 _NONE_PLACEHOLDER = 'None'
+_DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
@@ -92,9 +94,12 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         root_layout = QVBoxLayout(self)
 
         self._tabs = QTabWidget()
-        for category in SETTING_CATEGORIES_ORDER:
+        self._looky_tab_index: int = -1
+        for idx, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             self._tabs.addTab(tab_widget, category)
+            if category == 'Looky System':
+                self._looky_tab_index = idx
         root_layout.addWidget(self._tabs)
 
         button_row = QHBoxLayout()
@@ -172,6 +177,8 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             outer_layout.addWidget(self._build_web_server_help_group())
         elif category == 'Discord':
             outer_layout.addWidget(self._build_discord_info_group())
+        elif category == 'Looky System':
+            outer_layout.addWidget(self._build_looky_info_group())
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
@@ -235,13 +242,38 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
 
         info_label = QLabel(
             'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
-            f'<a href="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+            f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
         )
         info_label.setWordWrap(True)
         info_label.setTextFormat(Qt.TextFormat.RichText)
         info_label.setOpenExternalLinks(True)
         info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
+        info_label.linkHovered.connect(info_label.setToolTip)
+        layout.addWidget(info_label)
+
+        return group_box
+
+    def _build_looky_info_group(self) -> QGroupBox:
+        """Build an informational banner for the Looky API key setting."""
+        group_box = QGroupBox('\U0001f6b9 Looky System — GTA IP Lookup')
+        layout = QVBoxLayout(group_box)
+
+        info_label = QLabel(
+            '<b>Looky System is a paid API.</b><br><br>'
+            'To obtain an API key, purchase access through the '
+            '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">'
+            "Looky System's Discord server</a> or visit "
+            '<a href="https://looky-gta.cc" title="https://looky-gta.cc" style="color: #a78bfa; text-decoration: underline;">https://looky-gta.cc</a>.<br><br>'
+            'Once you have your key, paste it in the <b>Looky API Key</b> field below.<br><br>'
+            'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br>',
+        )
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
+        info_label.setOpenExternalLinks(True)
+        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        info_label.setStyleSheet(LOOKY_INFO_LABEL_STYLESHEET)
+        info_label.linkHovered.connect(info_label.setToolTip)
         layout.addWidget(info_label)
 
         return group_box
@@ -321,6 +353,8 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 widget.setVisible(has_preset)
             if label:
                 label.setVisible(has_preset)
+        if self._looky_tab_index != -1:
+            self._tabs.setTabVisible(self._looky_tab_index, gta5_only)
 
     def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
@@ -619,7 +653,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
                 except ParenthesisMismatchError:
                     errors.append(f'{meta.display_label}: filter expression has unbalanced parentheses.')
 
-            elif key == 'discord_presence_title' and isinstance(value, str) and len(value) == 1:
+            elif key == 'discord_presence_title' and isinstance(value, str) and 0 < len(value) < _DISCORD_PRESENCE_TITLE_MIN_LEN:
                 errors.append('Presence Title must be either empty (to disable) or at least 2 characters long.')
 
         if values.get('discord_webhook_enabled'):
