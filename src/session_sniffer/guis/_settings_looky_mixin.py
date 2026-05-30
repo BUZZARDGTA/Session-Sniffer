@@ -234,13 +234,12 @@ class SettingsDialogLookyMixin(QDialog):  # pylint: disable=too-few-public-metho
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
         """Detect Ctrl+V on the API key field and trigger immediate verification."""
         api_key_widget = self._widgets.get('looky_api_key')
-        if a0 is api_key_widget and a1 is not None and a1.type() == QEvent.Type.KeyPress:
-            if cast('QKeyEvent', a1).matches(QKeySequence.StandardKey.Paste):
-                clipboard = QGuiApplication.clipboard()
-                clipboard_text = clipboard.text() if clipboard is not None else ''
-                if any(c.isspace() for c in clipboard_text.strip()):
-                    return True
-                QTimer.singleShot(0, self._on_looky_api_key_pasted)
+        if a0 is api_key_widget and a1 is not None and a1.type() == QEvent.Type.KeyPress and cast('QKeyEvent', a1).matches(QKeySequence.StandardKey.Paste):
+            clipboard = QGuiApplication.clipboard()
+            clipboard_text = clipboard.text() if clipboard is not None else ''
+            if any(c.isspace() for c in clipboard_text.strip()):
+                return True
+            QTimer.singleShot(0, self._on_looky_api_key_pasted)
         return super().eventFilter(a0, a1)
 
     def _on_looky_api_key_pasted(self) -> None:
