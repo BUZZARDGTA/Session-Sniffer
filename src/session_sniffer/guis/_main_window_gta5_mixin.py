@@ -7,7 +7,7 @@ from threading import Event
 from typing import TYPE_CHECKING, cast
 
 import requests
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout
 
 from session_sniffer import msgbox
@@ -17,6 +17,7 @@ from session_sniffer.error_messages import (
     format_gta5_solo_session_process_not_running_message,
     format_gta5_solo_session_suspend_failed_message,
 )
+from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.stylesheets import CRAWLER_TARGET_INFO_LABEL_STYLESHEET
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky import (
@@ -125,7 +126,7 @@ class _CrawlerProgressDialog(QDialog):
         self._close_btn.setEnabled(False)
 
 
-class _CrawlerWorker(QThread):
+class _CrawlerWorker(CrashingQThread):
     """Background thread that fetches a Looky RID, sends a crawler instruction, and tracks it to completion."""
 
     result_ready: pyqtSignal = pyqtSignal(str, bool)  # message, is_warning
@@ -167,7 +168,7 @@ class _CrawlerWorker(QThread):
         self.result_ready.emit('Crawler completed successfully.', False)  # noqa: FBT003
 
 
-class _PlayerCrawlerWorker(QThread):
+class _PlayerCrawlerWorker(CrashingQThread):
     """Background thread that sends per-RID crawler instructions and tracks them to completion via SSE."""
 
     result_ready: pyqtSignal = pyqtSignal(str, bool)  # message, is_warning
