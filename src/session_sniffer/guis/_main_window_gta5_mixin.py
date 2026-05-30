@@ -433,11 +433,16 @@ class GTA5Mixin(QMainWindow):
         self._refresh_runtime_capability_windows()
 
     def _sync_looky_submenu(self) -> None:
-        """Enable or disable the Looky submenu based on whether an API key is configured."""
+        """Show/hide and enable/disable the Looky submenu based on current settings."""
+        is_enabled = Settings.looky_enabled
         has_key = bool(Settings.looky_api_key)
+        looky_action = cast('QAction', self._looky_submenu.menuAction())
+        looky_action.setVisible(is_enabled)
+        if not is_enabled:
+            return
         self._looky_submenu.setEnabled(has_key)
-        cast('QAction', self._looky_submenu.menuAction()).setToolTip(
-            'Looky API key is not configured — set one in Settings → Looky → Authentication.'
+        looky_action.setToolTip(
+            'Looky API key is not configured — set one in Settings → Looky System → Authentication.'
             if not has_key
             else 'Looky tools for the current GTA5 session',
         )
@@ -445,8 +450,8 @@ class GTA5Mixin(QMainWindow):
     def request_crawler_in_my_session(self) -> None:
         """Request the Looky crawler to join the current session."""
         api_key = Settings.looky_api_key
-        if not api_key:
-            QMessageBox.warning(self, TITLE, 'No Looky API key is configured.\n\nSet one in Settings → Looky → Authentication.')
+        if not api_key or not Settings.looky_enabled:
+            QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings → Looky System → Authentication.')
             return
 
         if self._crawler_progress_dialog is not None:
@@ -510,7 +515,7 @@ class GTA5Mixin(QMainWindow):
     def _retry_crawler_in_session(self) -> None:
         """Retry the Looky crawler session request from within the progress dialog."""
         api_key = Settings.looky_api_key
-        if not api_key or self._crawler_progress_dialog is None or self._crawler_worker is not None:
+        if not api_key or not Settings.looky_enabled or self._crawler_progress_dialog is None or self._crawler_worker is not None:
             return
         self._crawler_progress_dialog.reset()
         self._crawler_worker = _CrawlerWorker(api_key)
@@ -523,8 +528,8 @@ class GTA5Mixin(QMainWindow):
     def request_crawler_for_player(self, player: Player) -> None:
         """Request the Looky crawler for a specific player's Rockstar IDs."""
         api_key = Settings.looky_api_key
-        if not api_key:
-            QMessageBox.warning(self, TITLE, 'No Looky API key is configured.\n\nSet one in Settings \u2192 Looky \u2192 Authentication.')
+        if not api_key or not Settings.looky_enabled:
+            QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings \u2192 Looky System \u2192 Authentication.')
             return
 
         if self._crawler_progress_dialog is not None:
@@ -577,7 +582,9 @@ class GTA5Mixin(QMainWindow):
     def _retry_player_crawler(self) -> None:
         """Retry the per-player Looky crawler request from within the progress dialog."""
         api_key = Settings.looky_api_key
-        if (not api_key or self._crawler_progress_dialog is None
+        if not api_key or not Settings.looky_enabled:
+            return
+        if (self._crawler_progress_dialog is None
                 or not self._player_crawler_rockstarids or not self._player_crawler_names
                 or self._player_crawler_worker is not None):
             return

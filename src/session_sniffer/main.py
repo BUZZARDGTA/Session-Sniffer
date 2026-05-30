@@ -57,7 +57,7 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.utils import get_screen_size
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
-from session_sniffer.logging_setup import get_logger, setup_logging
+from session_sniffer.logging_setup import get_logger, register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
@@ -136,6 +136,8 @@ def main() -> None:
 
     splash.update_status('Applying custom settings from Settings.ini')
     splash.run_with_spinner(Settings.load_from_settings_file, SETTINGS_PATH)
+    register_secret_provider(lambda: Settings.looky_api_key)
+    register_secret_provider(lambda: Settings.webserver_password)
     Settings.rebuild_blocked_ip_ranges()
     CaptureStats.resize_history_deques(Settings.gui_rate_graph_max_history)
 

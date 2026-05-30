@@ -1,7 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
 from PyQt6.QtCore import QRegularExpression, Qt
-from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtGui import QAction, QIcon, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
@@ -37,7 +38,11 @@ def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
 
 
 def create_text_widget(meta: SettingMeta) -> QLineEdit:
-    """Create a line-edit widget for a string/IPv4/MAC setting."""
+    """Create a line-edit widget for a string/IPv4/MAC setting.
+
+    For secret fields (`meta.secret=True`) a reveal toggle action is embedded
+    as a trailing icon inside the `QLineEdit` itself.
+    """
     le = QLineEdit()
     if meta.setting_type == SettingType.IPV4:
         le.setPlaceholderText('e.g. 192.168.1.100')
@@ -69,12 +74,29 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             widget.setCursorPosition(new_pos)
 
         le.textEdited.connect(_auto_format_mac)
-    if meta.secret:
-        le.setEchoMode(QLineEdit.EchoMode.Password)
     if meta.max_length is not None:
         le.setMaxLength(meta.max_length)
     if meta.tooltip:
         le.setToolTip(meta.tooltip)
+    if meta.secret:
+        le.setEchoMode(QLineEdit.EchoMode.Password)
+        _icons_dir = RESOURCES_DIR_PATH / 'icons'
+        icon_show = QIcon(str(_icons_dir / 'eye_show.svg'))
+        icon_hide = QIcon(str(_icons_dir / 'eye_hide.svg'))
+        reveal_action = le.addAction(icon_hide, QLineEdit.ActionPosition.TrailingPosition)
+        if reveal_action is None:
+            msg = 'QLineEdit.addAction returned None'
+            raise RuntimeError(msg)
+        _act: QAction = reveal_action
+        _act.setCheckable(True)
+        _act.setToolTip('Show')
+
+        def _toggle_echo(checked: bool, _le: QLineEdit = le, _show: QIcon = icon_show, _hide: QIcon = icon_hide, _a: QAction = _act) -> None:  # noqa: FBT001
+            _le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
+            _a.setIcon(_show if checked else _hide)
+            _a.setToolTip('Hide' if checked else 'Show')
+
+        _act.toggled.connect(_toggle_echo)
     return le
 
 

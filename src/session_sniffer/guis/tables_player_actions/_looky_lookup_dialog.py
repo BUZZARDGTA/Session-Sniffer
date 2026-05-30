@@ -46,7 +46,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         api_key = Settings.looky_api_key
-        if not api_key:
+        if not api_key or not Settings.looky_enabled:
             no_key_label = QLabel('No Looky API key configured.\nSet one in Settings → Session → Looky → Looky API Key.')
             no_key_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_key_label.setWordWrap(True)

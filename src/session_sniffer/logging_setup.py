@@ -17,7 +17,7 @@ from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH, ERR
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ['get_logger', 'setup_logging']
+__all__ = ['get_logger', 'register_secret_provider', 'setup_logging']
 
 # --- Handler names for idempotency ---
 _CONSOLE_HANDLER_NAME = 'console_handler'
@@ -63,15 +63,14 @@ def _max_level_filter(max_level: int) -> Callable[[logging.LogRecord], bool]:
 class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
     """Redact sensitive setting values (API keys, passwords) from all log records.
 
-    Replaces the current values of `Settings.looky_api_key` and
-    `Settings.webserver_password` with `<redacted>` in every formatted
-    log message before it reaches any handler.
+    Reads secrets dynamically from registered provider callables so that
+    `logging_setup` never imports `settings.settings` (which would create a
+    cyclic import). Providers are registered via `register_secret_provider()`.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Scrub known secret values from the log record message in-place."""
-        from session_sniffer.settings.settings import Settings  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        secrets = [v for v in (Settings.looky_api_key, Settings.webserver_password) if v]
+        secrets = [v for fn in _secret_providers if (v := fn())]
         if not secrets:
             return True
         msg = record.getMessage()
@@ -83,6 +82,15 @@ class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-met
 
 
 _REDACT_FILTER_NAME = 'secret_redact_filter'
+
+# Callables registered by the application layer to supply secret values at
+# emit time.  Populated via `register_secret_provider()` after Settings load.
+_secret_providers: list[Callable[[], str | None]] = []
+
+
+def register_secret_provider(fn: Callable[[], str | None]) -> None:
+    """Register a callable that returns a secret string (or `None`) to redact from logs."""
+    _secret_providers.append(fn)
 
 
 class _StderrToLogger:

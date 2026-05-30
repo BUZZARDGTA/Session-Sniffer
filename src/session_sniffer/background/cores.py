@@ -285,7 +285,7 @@ def looky_core() -> None:
                 return
 
             api_key = Settings.looky_api_key
-            if not api_key or not Settings.looky_auto_resolve:
+            if not api_key or not Settings.looky_enabled or not Settings.looky_auto_resolve:
                 gui_closed__event.wait(5)
                 continue
 

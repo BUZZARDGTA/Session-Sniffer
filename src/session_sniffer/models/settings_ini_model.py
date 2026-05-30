@@ -123,6 +123,7 @@ class SettingsIniModel(BaseModel):
     WEBSERVER_USERNAME: str | None
     WEBSERVER_PASSWORD: str | None
     UPDATER_CHANNEL: str | None
+    LOOKY_ENABLED: bool
     LOOKY_API_KEY: str | None
     LOOKY_AUTO_RESOLVE: bool
     LOOKY_GAME_VERSION: str
@@ -151,6 +152,7 @@ class SettingsIniModel(BaseModel):
         'GUI_SESSION_HOST_DETECTION',
         'GUI_SESSIONS_LOGGING',
         'LOOKY_AUTO_RESOLVE',
+        'LOOKY_ENABLED',
         'SHOW_DISCORD_POPUP',
     })
 

@@ -336,23 +336,30 @@ class TableContextMenuMixin(QTableView):
                         handler=lambda: show_seen_stats(self, player_obj),
                     )
 
-                    if Settings.looky_api_key:
-                        looky_menu = add_menu(context_menu, '\U0001F441 Looky')
-                        add_action(
-                            looky_menu,
-                            '🔎 Looky Lookup',
-                            tooltip='Query the Looky API to find GTA players associated with this IP.',
-                            handler=lambda: show_looky_lookup(self, player_obj),
+                    if Settings.looky_enabled:
+                        has_key = bool(Settings.looky_api_key)
+                        looky_menu = add_menu(
+                            context_menu,
+                            '\U0001F441 Looky',
+                            tooltip=None if has_key else 'Looky API key is not configured — set one in Settings → Looky System → Authentication.',
                         )
-
-                        # --- Request Crawler (single IP, GTA5 legacy only) ---
-                        if Settings.capture_game_preset == 'GTA5' and not find_running_gta5_path().is_enhanced:
+                        looky_menu.setEnabled(has_key)
+                        if has_key:
                             add_action(
                                 looky_menu,
-                                '🤖 Request Crawler',
-                                tooltip="Call the crawler bot into the session to resolve this player's username.",
-                                handler=lambda: cast('MainWindow', self.window()).request_crawler_for_player(player_obj),
+                                '🔎 Looky Lookup',
+                                tooltip='Query the Looky API to find GTA players associated with this IP.',
+                                handler=lambda: show_looky_lookup(self, player_obj),
                             )
+
+                            # --- Request Crawler (single IP, GTA5 legacy only) ---
+                            if Settings.capture_game_preset == 'GTA5' and not find_running_gta5_path().is_enhanced:
+                                add_action(
+                                    looky_menu,
+                                    '🤖 Request Crawler',
+                                    tooltip="Call the crawler bot into the session to resolve this player's username.",
+                                    handler=lambda: cast('MainWindow', self.window()).request_crawler_for_player(player_obj),
+                                )
 
                     ping_menu = add_menu(context_menu, '📡 Ping')
                     add_action(

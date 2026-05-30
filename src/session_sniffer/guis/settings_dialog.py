@@ -72,6 +72,17 @@ _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 SettingValue = bool | str | int | float | tuple[str, ...] | None
 
 
+def _get_line_edit(widget: QWidget) -> QLineEdit:
+    """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
+    if isinstance(widget, QLineEdit):
+        return widget
+    child = widget.findChild(QLineEdit)
+    if child is None:
+        msg = f'No QLineEdit child found in {widget!r}'
+        raise RuntimeError(msg)
+    return child
+
+
 class SettingsDialog(UnsavedChangesMixin, QDialog):
     """Modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
 
@@ -260,7 +271,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
         layout = QVBoxLayout(group_box)
 
         info_label = QLabel(
-            '<b>Looky System is a paid API.</b><br><br>'
+            '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
             'To obtain an API key, purchase access through the '
             '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">'
             "Looky System's Discord server</a> or visit "
@@ -310,8 +321,6 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
         widget = self._create_widget(key, meta)
-        if key == 'webserver_password' and isinstance(widget, QLineEdit):
-            widget.setEchoMode(QLineEdit.EchoMode.Password)
         self._widgets[key] = widget
 
         # COLUMN_TUPLE and IP_RANGE_TUPLE widgets carry their label as the QGroupBox title — add
@@ -543,7 +552,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             cast('QCheckBox', widget).setChecked(bool(value))
 
         elif meta.setting_type in (SettingType.STRING, SettingType.IPV4, SettingType.MAC_ADDRESS):
-            cast('QLineEdit', widget).setText('' if value is None else str(value))
+            _get_line_edit(widget).setText('' if value is None else str(value))
 
         elif meta.setting_type == SettingType.FLOAT:
             cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
@@ -597,7 +606,7 @@ class SettingsDialog(UnsavedChangesMixin, QDialog):
             case SettingType.BOOLEAN:
                 value = cast('QCheckBox', widget).isChecked()
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                text = cast('QLineEdit', widget).text().strip()
+                text = _get_line_edit(widget).text().strip()
                 value = text or None
             case SettingType.FLOAT:
                 value = cast('QDoubleSpinBox', widget).value()

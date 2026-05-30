@@ -567,6 +567,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Release channel to check for updates.',
         allowed_values=('Stable', 'Pre-release'),
     ),
+    'looky_enabled': SettingMeta(
+        category='Looky System',
+        group='General',
+        display_label='Enable Looky System',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky API calls.',
+    ),
     'looky_api_key': SettingMeta(
         category='Looky System',
         group='Authentication',
@@ -670,6 +677,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'webserver_username': None,
     'webserver_password': None,
     'updater_channel': 'Stable',
+    'looky_enabled': True,
     'looky_api_key': None,
     'looky_auto_resolve': True,
     'looky_game_version': 'Both',
