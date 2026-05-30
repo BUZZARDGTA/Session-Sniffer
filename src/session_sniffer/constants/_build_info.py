@@ -33,7 +33,7 @@ def _compute_os_info() -> str:
 
 RELEASE_TAG = '-'
 RELEASE_DATE = '-'
-COMMIT_HASH = '-'
+COMMIT_SHA = '-'
 COMMIT_DATE = '-'
 
 PYQT_VERSION = _read_pyqt_version()

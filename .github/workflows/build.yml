@@ -36,12 +36,12 @@ jobs:
 
       - name: Bake build metadata
         env:
-          COMMIT_HASH: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_DATE: ${{ github.event.release.published_at }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:COMMIT_DATE = (git show -s --format=%cI $env:COMMIT_HASH).Trim()
+          $env:COMMIT_DATE = (git show -s --format=%cI $env:COMMIT_SHA).Trim()
 
           python -c @'
           import os
@@ -68,7 +68,7 @@ jobs:
               '"""Build-time metadata frozen by the CI workflow."""\n'
               f'RELEASE_TAG: str = {os.environ["RELEASE_TAG"]!r}\n'
               f'RELEASE_DATE: str = {os.environ["RELEASE_DATE"]!r}\n'
-              f'COMMIT_HASH: str = {os.environ["COMMIT_HASH"]!r}\n'
+              f'COMMIT_SHA: str = {os.environ["COMMIT_SHA"]!r}\n'
               f'COMMIT_DATE: str = {os.environ["COMMIT_DATE"]!r}\n'
               f'PYQT_VERSION: str = {pyqt_version!r}\n'
               f'OS_INFO: str = {os_info!r}\n',
@@ -89,7 +89,7 @@ jobs:
             }
           }
 
-          foreach ($required in @('RELEASE_TAG', 'RELEASE_DATE', 'COMMIT_HASH', 'COMMIT_DATE', 'PYQT_VERSION', 'OS_INFO')) {
+          foreach ($required in @('RELEASE_TAG', 'RELEASE_DATE', 'COMMIT_SHA', 'COMMIT_DATE', 'PYQT_VERSION', 'OS_INFO')) {
             if ($content -notmatch "$required`: str =") {
               throw "Build metadata is missing $required."
             }
