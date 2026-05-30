@@ -45,8 +45,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
-        api_key = Settings.looky_api_key
-        if not api_key or not Settings.looky_enabled:
+        if not Settings.looky_api_key or not Settings.looky_enabled:
             no_key_label = QLabel('No Looky API key configured.\nSet one in Settings → Looky System → Authentication.')
             no_key_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_key_label.setWordWrap(True)
@@ -56,7 +55,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             return
 
         try:
-            results = lookup_ip(player.ip, api_key, Settings.looky_game_version.lower())
+            results = lookup_ip(player.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else '?'
             error_label = QLabel(f'Looky API error: HTTP {status}\n{exc}')

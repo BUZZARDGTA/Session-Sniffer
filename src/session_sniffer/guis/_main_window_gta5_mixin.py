@@ -449,8 +449,7 @@ class GTA5Mixin(QMainWindow):
 
     def request_crawler_in_my_session(self) -> None:
         """Request the Looky crawler to join the current session."""
-        api_key = Settings.looky_api_key
-        if not api_key or not Settings.looky_enabled:
+        if not Settings.looky_api_key or not Settings.looky_enabled:
             QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings → Looky System → Authentication.')
             return
 
@@ -468,7 +467,7 @@ class GTA5Mixin(QMainWindow):
         self._crawler_progress_dialog.try_again_btn.clicked.connect(self._retry_crawler_in_session)
         self._crawler_progress_dialog.finished.connect(self._on_crawler_dialog_closed)
         self._crawler_progress_dialog.show()
-        self._crawler_worker = _CrawlerWorker(api_key)
+        self._crawler_worker = _CrawlerWorker(Settings.looky_api_key)
         self._crawler_worker.result_ready.connect(self._on_crawler_result)
         self._crawler_worker.status_update.connect(self._on_crawler_status_update)
         self._crawler_worker.finished.connect(self._crawler_worker.deleteLater)
@@ -514,11 +513,10 @@ class GTA5Mixin(QMainWindow):
 
     def _retry_crawler_in_session(self) -> None:
         """Retry the Looky crawler session request from within the progress dialog."""
-        api_key = Settings.looky_api_key
-        if not api_key or not Settings.looky_enabled or self._crawler_progress_dialog is None or self._crawler_worker is not None:
+        if not Settings.looky_api_key or not Settings.looky_enabled or self._crawler_progress_dialog is None or self._crawler_worker is not None:
             return
         self._crawler_progress_dialog.reset()
-        self._crawler_worker = _CrawlerWorker(api_key)
+        self._crawler_worker = _CrawlerWorker(Settings.looky_api_key)
         self._crawler_worker.result_ready.connect(self._on_crawler_result)
         self._crawler_worker.status_update.connect(self._on_crawler_status_update)
         self._crawler_worker.finished.connect(self._crawler_worker.deleteLater)
@@ -527,8 +525,7 @@ class GTA5Mixin(QMainWindow):
 
     def request_crawler_for_player(self, player: Player) -> None:
         """Request the Looky crawler for a specific player's Rockstar IDs."""
-        api_key = Settings.looky_api_key
-        if not api_key or not Settings.looky_enabled:
+        if not Settings.looky_api_key or not Settings.looky_enabled:
             QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings \u2192 Looky System \u2192 Authentication.')
             return
 
@@ -562,7 +559,7 @@ class GTA5Mixin(QMainWindow):
         self._crawler_progress_dialog.try_again_btn.clicked.connect(self._retry_player_crawler)
         self._crawler_progress_dialog.finished.connect(self._on_crawler_dialog_closed)
         self._crawler_progress_dialog.show()
-        self._player_crawler_worker = _PlayerCrawlerWorker(self._player_crawler_rockstarids, self._player_crawler_names, api_key)
+        self._player_crawler_worker = _PlayerCrawlerWorker(self._player_crawler_rockstarids, self._player_crawler_names, Settings.looky_api_key)
         self._player_crawler_worker.result_ready.connect(self._on_player_crawler_result)
         self._player_crawler_worker.status_update.connect(self._crawler_progress_dialog.append_step)
         self._player_crawler_worker.separator_update.connect(self._crawler_progress_dialog.append_separator)
@@ -581,15 +578,14 @@ class GTA5Mixin(QMainWindow):
 
     def _retry_player_crawler(self) -> None:
         """Retry the per-player Looky crawler request from within the progress dialog."""
-        api_key = Settings.looky_api_key
-        if not api_key or not Settings.looky_enabled:
+        if not Settings.looky_api_key or not Settings.looky_enabled:
             return
         if (self._crawler_progress_dialog is None
                 or not self._player_crawler_rockstarids or not self._player_crawler_names
                 or self._player_crawler_worker is not None):
             return
         self._crawler_progress_dialog.reset()
-        self._player_crawler_worker = _PlayerCrawlerWorker(self._player_crawler_rockstarids, self._player_crawler_names, api_key)
+        self._player_crawler_worker = _PlayerCrawlerWorker(self._player_crawler_rockstarids, self._player_crawler_names, Settings.looky_api_key)
         self._player_crawler_worker.result_ready.connect(self._on_player_crawler_result)
         self._player_crawler_worker.status_update.connect(self._crawler_progress_dialog.append_step)
         self._player_crawler_worker.separator_update.connect(self._crawler_progress_dialog.append_separator)
