@@ -340,7 +340,7 @@ class TableContextMenuMixin(QTableView):
                         has_key = bool(Settings.looky_api_key)
                         looky_menu = add_menu(
                             context_menu,
-                            '\U0001F441 Looky',
+                            '\U0001F441 Looky System',
                             tooltip=None if has_key else 'Looky API key is not configured — set one in Settings → Looky System → Authentication.',
                         )
                         looky_menu.setEnabled(has_key)

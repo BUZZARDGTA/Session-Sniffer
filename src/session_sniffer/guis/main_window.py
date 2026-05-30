@@ -261,7 +261,7 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         gta5_menu.addSeparator()
 
-        looky_submenu = gta5_menu.addMenu('\U0001F441 Looky')
+        looky_submenu = gta5_menu.addMenu('\U0001F441 Looky System')
         if looky_submenu is None:
             msg = 'Failed to create Looky submenu'
             raise RuntimeError(msg)
