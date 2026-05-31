@@ -215,6 +215,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "$DOWNLOAD_URL" ]]; then
+            echo 'Download URL is empty.' >&2
+            exit 1
+          fi
+
           python '.github/workflows/scripts/update_release_versions.py' \
             "$RELEASE_TAG" \
             "${prerelease_arg[@]}" \
