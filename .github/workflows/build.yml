@@ -125,7 +125,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         working-directory: .github/workflows
-        run: .venv/Scripts/pyinstaller 'Session_Sniffer.spec'
+        run: .venv/Scripts/python -m PyInstaller 'Session_Sniffer.spec'
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
