@@ -220,6 +220,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "$SHA256" ]]; then
+            echo 'SHA-256 is empty.' >&2
+            exit 1
+          fi
+
           python '.github/workflows/scripts/update_release_versions.py' \
             "$RELEASE_TAG" \
             "${prerelease_arg[@]}" \
