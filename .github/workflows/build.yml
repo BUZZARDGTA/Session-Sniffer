@@ -156,10 +156,10 @@ jobs:
 
           gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
-            --jq ".assets[] | select(.name == \"$ASSET_NAME\") | .browser_download_url")
+            --jq ".assets | map(select(.name == \"$ASSET_NAME\")) | if length == 1 then .[0].browser_download_url else empty end")
 
           if [[ -z "$download_url" ]]; then
-            echo "Failed to resolve $ASSET_NAME download URL." >&2
+            echo "Failed to resolve unique $ASSET_NAME download URL." >&2
             exit 1
           fi
 
