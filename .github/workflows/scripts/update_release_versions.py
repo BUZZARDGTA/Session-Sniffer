@@ -5,7 +5,6 @@ from pathlib import Path
 
 from packaging.version import Version
 
-
 SHA256_HEX_LENGTH = 64
 
 
@@ -22,7 +21,7 @@ def validate_sha256(value: str) -> str:
     return value
 
 
-def validate_release_type(tag: str, version: Version, prerelease: bool) -> None:
+def validate_release_type(tag: str, version: Version, *, prerelease: bool) -> None:
     """Validate that the GitHub release type matches the parsed version."""
     if version.is_prerelease and not prerelease:
         error_msg = f'Release tag "{tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
@@ -45,7 +44,7 @@ def main() -> None:
     args = parser.parse_args()
 
     version = Version(args.tag)
-    validate_release_type(args.tag, version, args.prerelease)
+    validate_release_type(args.tag, version, prerelease=args.prerelease)
 
     json_path = get_repo_root() / 'release_versions.json'
 
