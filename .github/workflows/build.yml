@@ -150,6 +150,11 @@ jobs:
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
             --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
 
+          if [[ -z "$download_url" ]]; then
+            echo 'Failed to resolve Session_Sniffer.exe download URL.' >&2
+            exit 1
+          fi
+
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
 
