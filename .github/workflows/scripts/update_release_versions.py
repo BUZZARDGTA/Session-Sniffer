@@ -22,6 +22,17 @@ def validate_sha256(value: str) -> str:
     return value
 
 
+def validate_release_type(tag: str, version: Version, prerelease: bool) -> None:
+    """Validate that the GitHub release type matches the parsed version."""
+    if version.is_prerelease and not prerelease:
+        error_msg = f'Release tag "{tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
+        raise ValueError(error_msg)
+
+    if prerelease and not version.is_prerelease:
+        error_msg = f'Release tag "{tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
+        raise ValueError(error_msg)
+
+
 def main() -> None:
     """Update `release_versions.json` using the provided tag."""
     parser = argparse.ArgumentParser(description='Update "release_versions.json" with updated version info.')
@@ -34,13 +45,7 @@ def main() -> None:
     args = parser.parse_args()
 
     version = Version(args.tag)
-    if version.is_prerelease and not args.prerelease:
-        error_msg = f'Release tag "{args.tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
-        raise ValueError(error_msg)
-
-    if args.prerelease and not version.is_prerelease:
-        error_msg = f'Release tag "{args.tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
-        raise ValueError(error_msg)
+    validate_release_type(args.tag, version, args.prerelease)
 
     json_path = get_repo_root() / 'release_versions.json'
 
