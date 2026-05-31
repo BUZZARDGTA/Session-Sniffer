@@ -261,6 +261,13 @@ jobs:
 
           rm -rf .github
 
+          unexpected_changes=$(git status --porcelain --untracked-files=all -- ':!release_versions.json')
+          if [[ -n "$unexpected_changes" ]]; then
+            echo 'Unexpected files changed while updating release_versions.json:' >&2
+            echo "$unexpected_changes" >&2
+            exit 1
+          fi
+
       - name: Commit and push release version data
         run: |
           set -euo pipefail
