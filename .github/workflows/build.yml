@@ -153,6 +153,10 @@ jobs:
           fi
 
           sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
+          if [[ -z "$sha256" ]]; then
+            echo "Failed to calculate SHA-256 for $exe_path." >&2
+            exit 1
+          fi
 
           gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
