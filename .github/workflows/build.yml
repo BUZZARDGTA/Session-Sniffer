@@ -15,6 +15,9 @@ concurrency:
   group: release-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
+env:
+  ASSET_NAME: Session_Sniffer.exe
+
 jobs:
   build:
     runs-on: windows-latest
@@ -116,8 +119,8 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: Session_Sniffer.exe
-          path: .github/workflows/dist/Session_Sniffer.exe
+          name: ${{ env.ASSET_NAME }}
+          path: .github/workflows/dist/${{ env.ASSET_NAME }}
           if-no-files-found: error
 
   upload-release-artifact:
@@ -131,7 +134,7 @@ jobs:
       - name: Download workflow artifact
         uses: actions/download-artifact@v8.0.1
         with:
-          name: Session_Sniffer.exe
+          name: ${{ env.ASSET_NAME }}
           path: artifacts
 
       - name: Upload asset and compute release info
@@ -140,7 +143,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          ASSET_NAME: Session_Sniffer.exe
         run: |
           set -euo pipefail
 
