@@ -128,10 +128,11 @@ jobs:
         run: .venv/Scripts/python -m PyInstaller 'Session_Sniffer.spec'
 
       - name: Verify built executable
+        working-directory: .github/workflows
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not (Test-Path ".github/workflows/dist/${{ env.ASSET_NAME }}")) {
-            throw "Built executable is missing: .github/workflows/dist/${{ env.ASSET_NAME }}"
+          if (-not (Test-Path "dist/${{ env.ASSET_NAME }}")) {
+            throw "Built executable is missing: dist/${{ env.ASSET_NAME }}"
           }
 
       - name: Upload workflow artifact
