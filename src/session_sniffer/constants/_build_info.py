@@ -22,7 +22,7 @@ def _read_pyqt_version() -> str:
                 if specifier.operator == '==':
                     return specifier.version
 
-    return '-'
+    raise RuntimeError('PyQt6 dependency is missing from pyproject.toml.')
 
 
 def _compute_os_info() -> str:
