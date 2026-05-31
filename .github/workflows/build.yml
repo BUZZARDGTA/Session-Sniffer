@@ -39,6 +39,16 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      - name: Create virtual environment
+        working-directory: .github/workflows
+        run: python -m venv --upgrade-deps '.venv'
+
+      - name: Install build dependencies
+        working-directory: .github/workflows
+        run: |
+          .venv/Scripts/python -m pip install '../..'
+          .venv/Scripts/python -m pip install pyinstaller
+
       - name: Bake build metadata
         env:
           COMMIT_SHA: ${{ github.sha }}
@@ -48,23 +58,29 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $env:COMMIT_DATE = (git show -s --format=%cI $env:COMMIT_SHA).Trim()
 
-          python -c @'
+          .github/workflows/.venv/Scripts/python -c @'
           import os
           import platform
           import tomllib
           from pathlib import Path
 
-          pyproject_data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          from packaging.requirements import Requirement
+
+          pyproject_path = Path('pyproject.toml')
+          pyproject_data = tomllib.loads(pyproject_path.read_text(encoding='utf-8'))
           dependencies = pyproject_data['project']['dependencies']
 
           pyqt_version = None
           for dependency in dependencies:
-              name, _, version = dependency.partition('==')
-              if name.strip().lower() == 'pyqt6' and version:
-                  pyqt_version = version.split(';', 1)[0].strip()
+              requirement = Requirement(dependency)
+              if requirement.name.lower() == 'pyqt6':
+                  for specifier in requirement.specifier:
+                      if specifier.operator == '==':
+                          pyqt_version = specifier.version
+                          break
                   break
           if pyqt_version is None:
-              raise RuntimeError('PyQt6 dependency is missing from pyproject.toml.')
+              raise RuntimeError(f'PyQt6 dependency is missing from {pyproject_path}.')
 
           machine = platform.machine()
           arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
@@ -102,21 +118,11 @@ jobs:
             }
           }
 
-          python -m py_compile 'src/session_sniffer/constants/_build_info.py'
-
-      - name: Create virtual environment
-        working-directory: .github/workflows
-        run: python -m venv --upgrade-deps '.venv'
-
-      - name: Install build dependencies
-        working-directory: .github/workflows
-        run: |
-          .venv\Scripts\python -m pip install '..\..'
-          .venv\Scripts\python -m pip install pyinstaller
+          .github/workflows/.venv/Scripts/python -m py_compile 'src/session_sniffer/constants/_build_info.py'
 
       - name: Build executable with PyInstaller
         working-directory: .github/workflows
-        run: .venv\Scripts\pyinstaller 'Session_Sniffer.spec'
+        run: .venv/Scripts/pyinstaller 'Session_Sniffer.spec'
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
