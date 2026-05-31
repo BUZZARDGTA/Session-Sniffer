@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 SHA256_HEX_LENGTH = 64
 LOWERCASE_HEX_DIGITS = frozenset('0123456789abcdef')
@@ -50,7 +50,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    version = Version(args.tag)
+    try:
+        version = Version(args.tag)
+    except InvalidVersion:
+        parser.error(f'Release tag must be a valid version: {args.tag!r}.')
+
     validate_release_type(parser, args.tag, version, prerelease=args.prerelease)
 
     json_path = get_repo_root() / 'release_versions.json'
