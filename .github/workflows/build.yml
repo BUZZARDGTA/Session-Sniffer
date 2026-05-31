@@ -140,18 +140,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ASSET_NAME: Session_Sniffer.exe
         run: |
           set -euo pipefail
 
-          exe_path='artifacts/Session_Sniffer.exe'
+          exe_path="artifacts/$ASSET_NAME"
           sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
 
           gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
-            --jq '.assets[] | select(.name == "Session_Sniffer.exe") | .browser_download_url')
+            --jq ".assets[] | select(.name == \"$ASSET_NAME\") | .browser_download_url")
 
           if [[ -z "$download_url" ]]; then
-            echo 'Failed to resolve Session_Sniffer.exe download URL.' >&2
+            echo "Failed to resolve $ASSET_NAME download URL." >&2
             exit 1
           fi
 
