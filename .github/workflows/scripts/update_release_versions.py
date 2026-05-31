@@ -6,9 +6,20 @@ from pathlib import Path
 from packaging.version import Version
 
 
+SHA256_HEX_LENGTH = 64
+
+
 def get_repo_root() -> Path:
     """Return the repository root directory for this workspace."""
     return Path(__file__).resolve().parents[3]
+
+
+def validate_sha256(value: str) -> str:
+    """Return the SHA-256 value if it is valid lowercase hexadecimal."""
+    if len(value) != SHA256_HEX_LENGTH or not all(char in '0123456789abcdef' for char in value):
+        error_msg = 'SHA-256 must be exactly 64 lowercase hexadecimal characters.'
+        raise argparse.ArgumentTypeError(error_msg)
+    return value
 
 
 def main() -> None:
@@ -18,7 +29,7 @@ def main() -> None:
     parser.add_argument('--prerelease', action='store_true', help='Mark the release as a prerelease')
     parser.add_argument('--release-url', required=True, help='The URL of the GitHub release page (e.g., https://github.com/owner/repo/releases/tag/1.0.0)')
     parser.add_argument('--download-url', required=True, help='The direct download URL for the release executable')
-    parser.add_argument('--sha256', required=True, help='The SHA-256 hash of the release executable (lowercase hex)')
+    parser.add_argument('--sha256', required=True, type=validate_sha256, help='The SHA-256 hash of the release executable (lowercase hex)')
 
     args = parser.parse_args()
 
