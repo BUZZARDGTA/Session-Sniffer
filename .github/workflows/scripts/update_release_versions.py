@@ -54,6 +54,9 @@ def main() -> None:
         raise FileNotFoundError(error_msg)
 
     data = json.loads(json_path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        error_msg = f'File: "{json_path.absolute()}" must contain a JSON object.'
+        raise TypeError(error_msg)
 
     target_key = 'latest_prerelease' if args.prerelease else 'latest_stable'
 
