@@ -34,6 +34,14 @@ def main() -> None:
     args = parser.parse_args()
 
     version = Version(args.tag)
+    if version.is_prerelease and not args.prerelease:
+        error_msg = f'Release tag "{args.tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
+        raise ValueError(error_msg)
+
+    if args.prerelease and not version.is_prerelease:
+        error_msg = f'Release tag "{args.tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
+        raise ValueError(error_msg)
+
     json_path = get_repo_root() / 'release_versions.json'
 
     if not json_path.exists():
