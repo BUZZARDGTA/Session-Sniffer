@@ -34,6 +34,7 @@ jobs:
           python-version: '3.14'
           architecture: x64
           cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Bake build metadata
         env:
@@ -173,6 +174,7 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install updater dependency
         run: python -m pip install packaging
