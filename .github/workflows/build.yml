@@ -57,6 +57,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:COMMIT_DATE = (git show -s --format=%cI $env:COMMIT_SHA).Trim()
+          if (-not $env:COMMIT_DATE) {
+            throw "Failed to resolve commit date for $env:COMMIT_SHA."
+          }
 
           .github/workflows/.venv/Scripts/python -c @'
           import os
