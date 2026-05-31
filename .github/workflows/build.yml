@@ -195,6 +195,9 @@ jobs:
       - name: Install updater dependency
         run: python -m pip install packaging
 
+      - name: Verify updater script
+        run: python -m py_compile '.github/workflows/scripts/update_release_versions.py'
+
       - name: Update release_versions.json
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
