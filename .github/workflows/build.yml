@@ -215,6 +215,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "$RELEASE_URL" ]]; then
+            echo 'Release URL is empty.' >&2
+            exit 1
+          fi
+
           if [[ -z "$DOWNLOAD_URL" ]]; then
             echo 'Download URL is empty.' >&2
             exit 1
