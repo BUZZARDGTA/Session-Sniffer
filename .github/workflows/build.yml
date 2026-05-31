@@ -252,6 +252,11 @@ jobs:
             exit 1
           fi
 
+          if [[ ! -f release_versions.json ]]; then
+            echo 'release_versions.json is missing from the version branch.' >&2
+            exit 1
+          fi
+
           python '.github/workflows/scripts/update_release_versions.py' \
             "$RELEASE_TAG" \
             "${prerelease_arg[@]}" \
