@@ -6,6 +6,7 @@ from pathlib import Path
 from packaging.version import Version
 
 SHA256_HEX_LENGTH = 64
+LOWERCASE_HEX_DIGITS = frozenset('0123456789abcdef')
 
 
 def get_repo_root() -> Path:
@@ -15,7 +16,7 @@ def get_repo_root() -> Path:
 
 def validate_sha256(value: str) -> str:
     """Return the SHA-256 value if it is valid lowercase hexadecimal."""
-    if len(value) != SHA256_HEX_LENGTH or not all(char in '0123456789abcdef' for char in value):
+    if len(value) != SHA256_HEX_LENGTH or not all(char in LOWERCASE_HEX_DIGITS for char in value):
         error_msg = 'SHA-256 must be exactly 64 lowercase hexadecimal characters.'
         raise argparse.ArgumentTypeError(error_msg)
     return value
