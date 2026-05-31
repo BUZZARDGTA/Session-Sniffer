@@ -200,6 +200,8 @@ jobs:
             --download-url "$DOWNLOAD_URL" \
             --sha256 "$SHA256"
 
+          rm -rf .github
+
       - name: Commit and push release version data
         run: |
           set -euo pipefail
