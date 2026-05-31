@@ -9,11 +9,10 @@ import platform
 
 from packaging.requirements import Requirement
 
-from session_sniffer.constants.local import PYPROJECT_DATA
+from session_sniffer.constants.local import PYPROJECT_DATA, PYPROJECT_PATH
 
 
 def _read_pyqt_version() -> str:
-
     for dependency in PYPROJECT_DATA['project']['dependencies']:
         requirement = Requirement(dependency)
 
@@ -22,7 +21,8 @@ def _read_pyqt_version() -> str:
                 if specifier.operator == '==':
                     return specifier.version
 
-    raise RuntimeError('PyQt6 dependency is missing from pyproject.toml.')
+    msg = f'PyQt6 dependency is missing from {PYPROJECT_PATH}.'
+    raise RuntimeError(msg)
 
 
 def _compute_os_info() -> str:
