@@ -145,6 +145,11 @@ jobs:
           set -euo pipefail
 
           exe_path="artifacts/$ASSET_NAME"
+          if [[ ! -f "$exe_path" ]]; then
+            echo "Expected release asset is missing: $exe_path"
+            exit 1
+          fi
+
           sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
 
           gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
