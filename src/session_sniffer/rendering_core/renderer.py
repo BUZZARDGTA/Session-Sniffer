@@ -322,7 +322,7 @@ def rendering_core(
             'disconnected': {player.ip: _player_to_json_dict(player) for player in session_disconnected},
         }
         json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
-        json_path.write_text(json.dumps(json_snapshot, ensure_ascii=False), encoding='utf-8')
+        json_path.write_text(json.dumps(json_snapshot, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 
     def process_gui_session_tables_rendering() -> SessionTableSnapshot:
         return build_session_table_snapshot(
