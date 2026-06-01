@@ -1,5 +1,7 @@
 """Live PPS + BPS split graph window for the entire session."""
 
+from typing import override
+
 import numpy as np
 
 from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, DualRateGraphBase
@@ -19,10 +21,12 @@ class SessionRateGraphWindow(DualRateGraphBase):
 
     # Auto-scaling hooks — override to track visible maximum ————————————————
 
+    @override
     def _on_pps_rendered(self, pps_data: np.ndarray) -> None:
         pps_visible_max = float(np.max(pps_data[-VISIBLE_WINDOW:]))
         self._pps_widget.setYRange(0, max(pps_visible_max * 1.2, 10))
 
+    @override
     def _on_bps_rendered(self, bps_data: np.ndarray) -> None:
         bps_visible_max = float(np.max(bps_data[-VISIBLE_WINDOW:]))
         self._bps_widget.setYRange(0, max(bps_visible_max * 1.2, 1))

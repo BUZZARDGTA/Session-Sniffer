@@ -3,6 +3,8 @@
 This module contains custom exception classes for packet capture operations.
 """
 
+from typing import override
+
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 
 
@@ -28,6 +30,7 @@ class MalformedPacketError(CaptureError):
         self.value = value
         super().__init__()
 
+    @override
     def __str__(self) -> str:
         """Return a user-friendly reason for the malformed packet."""
         try:

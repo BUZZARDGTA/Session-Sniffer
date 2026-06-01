@@ -1,5 +1,7 @@
 """Background QThread that polls rendering snapshots and emits GUI update payloads."""
 
+from typing import override
+
 from PyQt6.QtCore import pyqtSignal
 
 from session_sniffer.background.tasks import gui_closed__event
@@ -47,6 +49,7 @@ class GUIWorkerThread(CrashingQThread):
 
     update_signal = pyqtSignal(GUIUpdatePayload)
 
+    @override
     def _run(self) -> None:
         """Continuously emit GUI payloads while the app is running."""
         last_seen_version = 0

@@ -4,7 +4,7 @@ This module provides helper functions to interact with GUI elements.
 """
 
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QByteArray, QPoint, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
@@ -39,7 +39,8 @@ SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '�
 class PersistentMenu(QMenu):
     """QMenu that stays open when a checkable action is clicked."""
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
         """Prevent auto-closing when a checkable action is triggered."""
         if a0 is None:
             super().mouseReleaseEvent(a0)
@@ -169,6 +170,7 @@ class NumericTableWidgetItem(QTableWidgetItem):
         except ValueError:
             return None
 
+    @override
     def __lt__(self, other: QTableWidgetItem) -> bool:
         """Compare numerically using UserRole data if available, falling back to text then string comparison."""
         self_val = self.numeric_value()

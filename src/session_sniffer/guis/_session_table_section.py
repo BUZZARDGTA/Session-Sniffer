@@ -1,5 +1,5 @@
 """Session status bar and collapsible session table section widgets."""
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QByteArray, QEvent, QObject, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QPainter, QPixmap, QShortcut
@@ -488,7 +488,8 @@ class SessionTableSection(QWidget):
         section = self
 
         class _SpinboxInputGuard(QObject):
-            def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
+            @override
+            def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
                 """Track input method to distinguish keyboard edits from wheel/spin changes."""
                 _ = a0
                 if a1 is None:

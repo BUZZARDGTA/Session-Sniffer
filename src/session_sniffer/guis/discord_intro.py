@@ -1,7 +1,7 @@
 """Discord intro popup dialog and clickable label widgets."""
 
 import webbrowser
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, pyqtSignal
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
@@ -25,7 +25,8 @@ class ClickableLabel(QLabel):
 
     clicked = pyqtSignal()
 
-    def mousePressEvent(self, ev: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
         """Emit `clicked` when left mouse button is pressed."""
         if ev is not None and ev.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
@@ -139,7 +140,8 @@ class DiscordIntro(QDialog):
         # Initialize variables to track mouse position
         self._drag_pos: QPoint | None = None
 
-    def mousePressEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
         """Begin drag when clicking the dialog background."""
         if (
             a0 is not None
@@ -152,7 +154,8 @@ class DiscordIntro(QDialog):
 
         super().mousePressEvent(a0)
 
-    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
         """Move the dialog while dragging."""
         if (
             a0 is not None
@@ -164,7 +167,8 @@ class DiscordIntro(QDialog):
 
         super().mouseMoveEvent(a0)
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
         """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 

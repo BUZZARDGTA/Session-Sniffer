@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime as datetime_type
 from threading import Event
-from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple, Self
+from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple, Self, override
 
 from PyQt6.QtGui import QIcon, QImage, QPixmap
 
@@ -557,6 +557,7 @@ class PlayerIPAPI:  # pylint: disable=too-many-public-methods
             return self._values[name]
         raise AttributeError(name)
 
+    @override
     def __setattr__(self, name: str, value: object) -> None:
         """Provide backward-compatible dotted attribute assignment for IP-API fields."""
         if name in {'is_initialized', '_values'}:
@@ -737,6 +738,7 @@ class PlayerPing:
             return self._values[name]
         raise AttributeError(name)
 
+    @override
     def __setattr__(self, name: str, value: object) -> None:
         """Provide backward-compatible dotted attribute assignment for ping fields."""
         if name in {'is_initialized', '_values'}:
@@ -895,6 +897,7 @@ class Player:
             return getattr(self._optional, name)
         raise AttributeError(name)
 
+    @override
     def __setattr__(self, name: str, value: object) -> None:
         """Provide backward-compatible assignment for grouped state fields."""
         if name in {'ip', '_lifecycle', '_traffic', '_lookup', '_optional'}:

@@ -1,6 +1,6 @@
 """Most Seen Players leaderboard window."""
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, override
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
@@ -132,18 +132,21 @@ class _LeaderboardTableModel(QAbstractTableModel):
             10: self._display_hosting,
         }
 
-    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
         """Return the number of leaderboard entries."""
         if parent is None:
             parent = QModelIndex()
         return len(self._entries)
 
-    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def columnCount(self, parent: QModelIndex | None = None) -> int:
         """Return the number of columns."""
         if parent is None:
             parent = QModelIndex()
         return len(_HEADERS)
 
+    @override
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return cell data for the given index and role."""
         if not index.isValid():
@@ -172,7 +175,8 @@ class _LeaderboardTableModel(QAbstractTableModel):
 
         return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and col == _COL_COUNTRY else None
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:  # noqa: N802
+    @override
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return column header labels."""
         if role != Qt.ItemDataRole.DisplayRole or orientation != Qt.Orientation.Horizontal:
             return None
@@ -297,7 +301,8 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         }
         return text in _targets.get(self._search_column, '').lower()
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
+    @override
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         """Reject rows where the session count is zero or they don't match the search text."""
         _ = source_parent
         model = self.sourceModel()
@@ -310,7 +315,8 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
             return self._entry_matches_search(entry, self._search_text)
         return True
 
-    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # noqa: N802
+    @override
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
         """Sort integers numerically instead of lexicographically."""
         model = self.sourceModel()
         if model is None:

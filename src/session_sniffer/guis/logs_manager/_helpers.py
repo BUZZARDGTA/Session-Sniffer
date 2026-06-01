@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFont, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
@@ -112,7 +112,8 @@ class LogLevelHighlighter(QSyntaxHighlighter):
         fmt_critical.setBackground(QColor(80, 20, 20))
         self._formats.append(('CRITICAL', fmt_critical))
 
-    def highlightBlock(self, text: str | None) -> None:  # noqa: N802
+    @override
+    def highlightBlock(self, text: str | None) -> None:
         """Apply log-level coloring to a single text block."""
         if text is None:
             return
@@ -146,7 +147,8 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         self._date_cutoff = cutoff
         self.invalidateFilter()
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
+    @override
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         """Determine whether a source row passes the current text and date filters."""
         _ = source_parent
         source_model = self.sourceModel()

@@ -1,5 +1,7 @@
 """Shared base mixin for player-info dialogs (group boxes, form rows, layout helpers)."""
 
+from typing import override
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent, QFont
 from PyQt6.QtWidgets import (
@@ -105,6 +107,7 @@ class PlayerInfoDialogMixin(QDialog):
         outer_layout.addWidget(header)
         return header
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the close event."""
         super().closeEvent(a0)

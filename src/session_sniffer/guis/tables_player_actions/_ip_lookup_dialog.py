@@ -1,6 +1,6 @@
 """IPLookupDetailsDialog and show_detailed_ip_lookup helper."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
@@ -160,7 +160,8 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
             if value_widget.text() != text:
                 value_widget.setText(text)
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Stop the refresh timer when the dialog is closed."""
         self._timer.stop()
         super().closeEvent(a0)

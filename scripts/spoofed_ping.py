@@ -10,7 +10,7 @@ import sys
 import time
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
-from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast
+from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast, override
 
 import requests
 from pydantic import BaseModel, ValidationError, field_validator
@@ -145,6 +145,7 @@ class Colors(enum.StrEnum):
     RED = 'c50f1f'
     RED_LIGHT = 'e74856'
 
+    @override
     def __str__(self) -> str:
         """Automatically returns the color with a '#' prefix."""
         return f'#{self.value}'

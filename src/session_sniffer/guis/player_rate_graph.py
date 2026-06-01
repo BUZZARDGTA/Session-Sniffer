@@ -1,6 +1,6 @@
 ﻿"""Live PPS + BPS split graph window for an individual player."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 import pyqtgraph as pg  # pyright: ignore[reportMissingTypeStubs]
@@ -12,8 +12,6 @@ from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
 
 if TYPE_CHECKING:
-    import xml.etree.ElementTree as ET
-
     from PyQt6.QtWidgets import QVBoxLayout
     from pyqtgraph.GraphicsScene.mouseEvents import MouseDragEvent  # pyright: ignore[reportMissingTypeStubs]
 
@@ -364,6 +362,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     # Configuration hooks — called from _DualRateGraphBase._setup_dual_graph_widgets
     # ——————————————————————————————————————————————————————————————————————————————
 
+    @override
     def _configure_pps_widget(self) -> None:
         self._pps_widget.setYRange(0, 100)
         self._pps_widget.setLimits(yMin=0, yMax=1_000, xMax=0, xMin=-self._max_history)
@@ -374,6 +373,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         )
         self._pps_widget.addItem(self._pps_threshold_line)
 
+    @override
     def _configure_bps_widget(self) -> None:
         self._bps_widget.setYRange(0, 50)
         self._bps_threshold_line = pg.InfiniteLine(
@@ -434,29 +434,23 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             self._bps_avg_line.setPos(self._bps_sum / n)
 
 
-class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]
+class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]    # pylint: disable=abstract-method
     """Axis that displays tick labels as positive integers."""
 
-    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:  # noqa: ARG002, N802
+    @override
+    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:  # type: ignore[misc]
         """Override to show absolute tick values."""
         return [str(abs(int(v))) for v in values]
 
-    def generateSvg(self, nodes: dict[str, ET.Element]) -> tuple[ET.Element, list[ET.Element]] | None:  # noqa: N802
-        """Delegate SVG generation to the parent class."""
-        return super().generateSvg(nodes)  # type: ignore[no-any-return]
 
-
-class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]
+class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]  # pylint: disable=abstract-method
     """ViewBox that changes cursor shape during vertical drag."""
 
-    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:  # noqa: N802
+    @override
+    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:  # type: ignore[misc]
         """Override to show a vertical resize cursor while dragging."""
         if hasattr(ev, 'isStart') and ev.isStart():
             self.setCursor(Qt.CursorShape.SizeVerCursor)
         elif hasattr(ev, 'isFinish') and ev.isFinish():
             self.setCursor(Qt.CursorShape.ArrowCursor)
         super().mouseDragEvent(ev, axis=axis)
-
-    def generateSvg(self, nodes: dict[str, ET.Element]) -> tuple[ET.Element, list[ET.Element]] | None:  # noqa: N802
-        """Delegate SVG generation to the parent class."""
-        return super().generateSvg(nodes)  # type: ignore[no-any-return]

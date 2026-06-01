@@ -1,5 +1,7 @@
 """Live BPS graph window for the current capture session."""
 
+from typing import override
+
 from session_sniffer.guis.player_rate_graph import SingleRateGraphBase
 
 _FLOOR_KBS = 1.0
@@ -17,6 +19,7 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
     AVG_PEN = '#0097a7'
     Y_FLOOR = _FLOOR_KBS
 
+    @override
     def _transform_sample(self, sample: float) -> float:
         """Convert bytes per second into KB/s for display."""
         return float(sample) / _BYTES_TO_KBS

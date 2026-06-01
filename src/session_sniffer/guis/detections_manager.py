@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -612,7 +612,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             values['gta5_relay_msgbox'] = self.gta5_relay_msgbox_checkbox.isChecked()
         return values
 
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:  # noqa: N802
+    @override
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
         """Consume Enter/Return when the combo rules list has focus to prevent triggering the default button."""
         if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._combo_rules_list.hasFocus():
             return
@@ -622,10 +623,12 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         """Return True if any widget value differs from the state when the dialog was opened."""
         return self._read_all_widget_values() != self._snapshot
 
+    @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are unsaved changes that should be saved before closing."""
         return self._has_unsaved_changes()
 
+    @override
     def _save_on_close(self) -> bool:
         """Save and apply protections; always succeeds."""
         self._save_and_apply()

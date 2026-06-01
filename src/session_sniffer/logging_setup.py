@@ -10,7 +10,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from threading import RLock, local
-from typing import TYPE_CHECKING, Self, TextIO, cast
+from typing import TYPE_CHECKING, Self, TextIO, cast, override
 
 from rich.logging import RichHandler
 
@@ -117,6 +117,7 @@ def _redact_args(args: tuple[object, ...] | Mapping[str, object], secrets: tuple
 class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
     """Scrub known secret values from log records before handlers emit them."""
 
+    @override
     def filter(self, record: logging.LogRecord) -> bool:
         """Redact record message fields in-place and keep the record."""
         secrets = _get_secret_values()
@@ -139,6 +140,7 @@ _SECRET_REDACT_FILTER = _SecretRedactFilter()
 class _RedactingFormatter(logging.Formatter):
     """Formatter that redacts the final formatted line, including exception text."""
 
+    @override
     def format(self, record: logging.LogRecord) -> str:
         """Format a record and redact any secrets that appeared during formatting."""
         formatted = super().format(record)

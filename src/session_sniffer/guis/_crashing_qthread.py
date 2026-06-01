@@ -5,6 +5,8 @@ preventing `threading.excepthook` from firing. This base class overrides `run()`
 a try/except wrapper that delegates to `_run()`, which subclasses implement instead.
 """
 
+from typing import override
+
 from PyQt6.QtCore import QThread
 
 from session_sniffer.core import terminate_on_uncaught_exception
@@ -18,6 +20,7 @@ class CrashingQThread(QThread):
     the same crash path triggered by `_handle_thread_exception` for plain `threading.Thread` exceptions.
     """
 
+    @override
     def run(self) -> None:
         """Run the thread, forwarding unhandled exceptions to `terminate_on_uncaught_exception`."""
         try:

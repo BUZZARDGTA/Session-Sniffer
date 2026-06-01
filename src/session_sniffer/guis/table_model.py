@@ -4,7 +4,7 @@ import ipaddress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from operator import attrgetter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import (
     QAbstractTableModel,
@@ -180,18 +180,21 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     # Qt model methods (overrides)
     # --------------------------------------------------------------------------
 
-    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
         """Return number of rows in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._data)
 
-    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def columnCount(self, parent: QModelIndex | None = None) -> int:
         """Return number of columns in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._headers)
 
+    @override
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:
         """Override data method to customize data retrieval and alignment."""
         if not index.isValid():
@@ -240,7 +243,8 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         return output
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:  # noqa: N802
+    @override
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:
         """Return header display text and tooltips for the table model."""
         if orientation == Qt.Orientation.Horizontal:
             if role == Qt.ItemDataRole.DisplayRole:
@@ -252,6 +256,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         return None
 
+    @override
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         """Return Qt flags controlling whether the item is enabled/selectable."""
         if not index.isValid():
@@ -259,6 +264,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
+    @override
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
         """Sort the table by a specific column.
 

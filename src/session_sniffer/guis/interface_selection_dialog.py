@@ -7,7 +7,7 @@ enabled/disabled adapters appear and disappear in real time.
 """
 from dataclasses import dataclass, field
 from threading import Thread
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QItemSelectionModel, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QCursor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
@@ -154,15 +154,18 @@ class _FilterControls:
 class SafeQTableWidget(QTableWidget):
     """A subclass of QTableWidget that ensures the selection model is of the correct type."""
 
-    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
+    @override
+    def selectionModel(self) -> QItemSelectionModel:
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
-    def verticalHeader(self) -> QHeaderView:  # noqa: N802
+    @override
+    def verticalHeader(self) -> QHeaderView:
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
+    @override
+    def horizontalHeader(self) -> QHeaderView:
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
@@ -813,7 +816,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.selectRow(row)
         self.select_interface()
 
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:  # noqa: N802
+    @override
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
         """Trigger interface selection when Enter/Return is pressed with a row selected."""
         if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.table.currentRow() != -1:
             self.select_interface()

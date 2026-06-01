@@ -1,6 +1,6 @@
 """Looky System UI mixin and verify worker for `SettingsDialog`."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 import pydantic
 import requests
@@ -47,6 +47,7 @@ class _LookyVerifyWorker(CrashingQThread):
         super().__init__()
         self._api_key = api_key
 
+    @override
     def _run(self) -> None:
         """Call `looky_verify_token` and emit the result or error signal."""
         try:
@@ -230,7 +231,8 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_verify_status_label.setVisible(True)
         self._looky_card_forms_container.setVisible(False)
 
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
+    @override
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         """Detect Ctrl+V on the API key field and trigger immediate verification."""
         api_key_widget = self._widgets.get('looky_api_key')
         if a0 is api_key_widget and a1 is not None and a1.type() == QEvent.Type.KeyPress and cast('QKeyEvent', a1).matches(QKeySequence.StandardKey.Paste):

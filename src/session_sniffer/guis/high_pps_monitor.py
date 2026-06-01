@@ -3,7 +3,7 @@
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, Qt, QTimer
 from PyQt6.QtGui import QAction
@@ -143,18 +143,21 @@ class _HighRateTableModel(QAbstractTableModel):
 
     # Qt overrides -----------------------------------------------------------
 
-    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
         """Return the number of visible high-rate players."""
         if parent is None:
             parent = QModelIndex()
         return len(self._visible)
 
-    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802
+    @override
+    def columnCount(self, parent: QModelIndex | None = None) -> int:
         """Return the number of columns."""
         if parent is None:
             parent = QModelIndex()
         return len(self._HEADERS)
 
+    @override
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return cell data for the given index."""
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
@@ -171,7 +174,8 @@ class _HighRateTableModel(QAbstractTableModel):
             return ', '.join(player.usernames) if player.usernames else '—'
         return player.current_pps_duration if col == self.COL_DURATION else player.total_pps_duration
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:  # noqa: N802
+    @override
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return column header labels and tooltips."""
         if orientation != Qt.Orientation.Horizontal:
             return None

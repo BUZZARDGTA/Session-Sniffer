@@ -1,6 +1,6 @@
 """Session table view for connected and disconnected players tables."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
 from PyQt6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
@@ -117,31 +117,38 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
 
-    def setModel(self, model: QAbstractItemModel | None) -> None:  # noqa: N802
+    @override
+    def setModel(self, model: QAbstractItemModel | None) -> None:
         """Override the setModel method to ensure the model is of type SessionTableModel."""
         super().setModel(ensure_instance(model, SessionTableModel))
 
+    @override
     def model(self) -> SessionTableModel:
         """Override the model method to ensure it returns a SessionTableModel."""
         return ensure_instance(super().model(), SessionTableModel)
 
-    def selectionModel(self) -> QItemSelectionModel:  # noqa: N802
+    @override
+    def selectionModel(self) -> QItemSelectionModel:
         """Override the selectionModel method to ensure it returns a QItemSelectionModel."""
         return ensure_instance(super().selectionModel(), QItemSelectionModel)
 
+    @override
     def viewport(self) -> QWidget:
         """Override the viewport method to ensure it returns a QWidget."""
         return ensure_instance(super().viewport(), QWidget)
 
-    def verticalHeader(self) -> QHeaderView:  # noqa: N802
+    @override
+    def verticalHeader(self) -> QHeaderView:
         """Override the verticalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().verticalHeader(), QHeaderView)
 
-    def horizontalHeader(self) -> QHeaderView:  # noqa: N802
+    @override
+    def horizontalHeader(self) -> QHeaderView:
         """Override the horizontalHeader method to ensure it returns a QHeaderView."""
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
-    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:  # noqa: A002, N802
+    @override
+    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:
         """Show country flag tooltips on hover and forward other events."""
         if isinstance(object, QObject) and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
@@ -156,7 +163,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         return super().eventFilter(object, event)
 
-    def keyPressEvent(self, e: QKeyEvent | None) -> None:  # noqa: N802
+    @override
+    def keyPressEvent(self, e: QKeyEvent | None) -> None:
         """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
 
         Fall back to default behavior for other key presses.
@@ -171,7 +179,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Fall back to default behavior
         super().keyPressEvent(e)
 
-    def mousePressEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
         """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
 
         Fall back to default behavior for non-cell areas.
@@ -209,7 +218,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Fall back to default behavior
         super().mousePressEvent(e)
 
-    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
         if e is not None:
             index = self.indexAt(e.pos())  # Get the index under the cursor
@@ -227,7 +237,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         super().mouseMoveEvent(e)
 
-    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:
         """Reset dragging state when the mouse button is released."""
         if e is not None and e.button() == Qt.MouseButton.LeftButton:
             self._drag_selecting = False
@@ -334,6 +345,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self._saved_selection.clear()
 
+    @override
     def handle_menu_hovered(self, action: QAction) -> None:
         """Propagate QAction tooltip text to its parent menu."""
         # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
@@ -524,6 +536,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         else:
             QToolTip.hideText()
 
+    @override
     def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
         # Access the system clipboard from the centralized app instance
@@ -550,6 +563,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Set the formatted text in the system clipboard
         clipboard.setText(clipboard_content)
 
+    @override
     def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
         """Remove multiple players from the table by calling the appropriate `MainWindow` method.
 
@@ -640,26 +654,32 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
 
+    @override
     def select_all_cells(self) -> None:
         """Select all cells in the table."""
         self._select_all_cells_helper(select=True)
 
+    @override
     def unselect_all_cells(self) -> None:
         """Unselect all cells in the table."""
         self._select_all_cells_helper(select=False)
 
+    @override
     def select_row_cells(self, row: int) -> None:
         """Select all cells in the specified row."""
         self._select_row_cells_helper(row, select=True)
 
+    @override
     def unselect_row_cells(self, row: int) -> None:
         """Unselect all cells in the specified row."""
         self._select_row_cells_helper(row, select=False)
 
+    @override
     def select_column_cells(self, column: int) -> None:
         """Select all cells in the specified column."""
         self._select_column_cells_helper(column, select=True)
 
+    @override
     def unselect_column_cells(self, column: int) -> None:
         """Unselect all cells in the specified column."""
         self._select_column_cells_helper(column, select=False)

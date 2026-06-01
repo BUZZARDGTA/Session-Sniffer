@@ -1,7 +1,7 @@
 """Qt dialog for downloading a Session Sniffer update with a live progress bar."""
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import requests
 from PyQt6.QtCore import pyqtSignal
@@ -32,6 +32,7 @@ class _DownloadWorker(CrashingQThread):
         """Signal the download thread to abort."""
         self._cancel_event.set()
 
+    @override
     def _run(self) -> None:
         """Stream download, emitting progress updates until complete or cancelled."""
         try:
@@ -132,7 +133,8 @@ class UpdateDownloadDialog(QDialog):
             self._dest_path.unlink(missing_ok=True)
         self.reject()
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Cancel the download if the dialog is closed via the window chrome."""
         self._worker.cancel()
         self._worker.wait()

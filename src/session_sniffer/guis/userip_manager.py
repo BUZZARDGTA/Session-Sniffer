@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from pathlib import Path
+from typing import override
 
 from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QStandardItem, QStandardItemModel
@@ -343,11 +344,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         """Recompute the aggregate dirty flag from the tracked sources."""
         self._dirty = self._entries_dirty or self._settings_dirty
 
+    @override
     def _mark_entries_dirty(self) -> None:
         """Mark entry edits as dirty and refresh the aggregate state."""
         self._entries_dirty = True
         self._sync_dirty_state()
 
+    @override
     def _mark_settings_dirty(self) -> None:
         """Re-evaluate settings dirtiness against the loaded snapshot."""
         self._settings_dirty = self.read_settings_from_widgets() != self._settings_snapshot
@@ -377,6 +380,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         elif self._current_path is not None and self._current_path.is_file():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._current_path)))
 
+    @override
     def _load_database(self, path: Path) -> None:
         """Parse the INI file and populate the entries table model and settings panel."""
         self._model.removeRows(0, self._model.rowCount())
@@ -409,6 +413,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             status += f' ({duplicate_count} duplicate{"s" if duplicate_count != 1 else ""} found)'
         self._set_status(status)
 
+    @override
     def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None:
         """Add a single row to the entries model."""
         index_item = QStandardItem(str(index))
@@ -549,6 +554,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     # Add / delete entries
     # ------------------------------------------------------------------
 
+    @override
     def _add_entry(self) -> None:
         """Open the IP Range Builder dialog and insert the result as a new entry."""
         if self._current_path is None:
@@ -585,6 +591,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         source_row = self._proxy.mapToSource(selected_rows[0]).row()
         self._edit_entry_ip(source_row)
 
+    @override
     def _edit_entry_ip(self, source_row: int) -> None:
         """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
         if self._current_path is None:
@@ -615,6 +622,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._mark_entries_dirty()
         self._highlight_duplicates()
 
+    @override
     def _insert_entry_at(self, source_row: int) -> None:
         """Insert a blank row at a specific position in the source model."""
         if self._current_path is None:
@@ -636,6 +644,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.edit(proxy_index)
 
+    @override
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
         """Move selected rows up (direction=-1) or down (direction=+1) in the source model."""
         selection = self._entries_table.selectionModel()
@@ -872,6 +881,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     # Duplicate highlighting
     # ------------------------------------------------------------------
 
+    @override
     def _highlight_duplicates(self) -> int:
         """Scan all rows for exact (username, ip) duplicates and highlight them.
 
@@ -918,6 +928,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     # Helpers
     # ------------------------------------------------------------------
 
+    @override
     def _get_row_entry_value(self, row: int) -> str:
         """Return the effective IP or Range value from a row (whichever is non-empty)."""
         ip_item = self._model.item(row, IP_COLUMN)
@@ -927,10 +938,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         range_item = self._model.item(row, RANGE_COLUMN)
         return range_item.text().strip() if range_item else ''
 
+    @override
     def _set_status(self, text: str) -> None:
         """Update the status label at the bottom of the right panel."""
         self._status_label.setText(text)
 
+    @override
     def _update_entry_counts(self) -> None:
         """Update the status label with visible/total entry counts."""
         total = self._model.rowCount()
@@ -940,6 +953,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             parts.append(f'{visible} visible')
         self._status_label.setText('  |  '.join(parts))
 
+    @override
     def _update_file_info(self, path: Path | None) -> None:
         """Update the file metadata label for the given database file."""
         if path is None or not path.is_file():
@@ -950,6 +964,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
         self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}')
 
+    @override
     def _refresh_stats(self) -> None:
         """Scan all UserIP databases and update the stats summary label."""
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
@@ -980,10 +995,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         ]
         self._stats_label.setText('\n'.join(parts))
 
+    @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are dirty (unsaved) changes."""
         return self._dirty
 
+    @override
     def _save_on_close(self) -> bool:
         """Save the database; return `True` if the save succeeded (no longer dirty)."""
         self._save_database()

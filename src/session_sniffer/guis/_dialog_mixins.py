@@ -1,6 +1,6 @@
 """Shared dialog mixins and helpers for unsaved-changes close handling and tabbed button rows."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QPushButton
 
@@ -27,7 +27,8 @@ class UnsavedChangesMixin(QDialog):
         """Perform the save action on close. Return `True` if save succeeded and the dialog may close."""
         raise NotImplementedError
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Prompt to save if there are unsaved changes before closing."""
         if not self._has_unsaved_changes_for_close():
             if a0 is not None:

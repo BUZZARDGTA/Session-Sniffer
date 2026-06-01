@@ -3,7 +3,7 @@
 import ipaddress
 import re
 from ipaddress import IPv4Address
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QEvent, QModelIndex, QObject, QRegularExpression, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QRegularExpressionValidator, QStandardItem, QStandardItemModel
@@ -162,7 +162,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
         except ValueError:
             return tuple(b for c in value.encode() for b in (c,))
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N802
+    @override
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         """Filter rows by Username, IP, and Database columns only (skip the Index column)."""
         model = self.sourceModel()
         if model is None:
@@ -177,7 +178,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 return True
         return False
 
-    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # noqa: N802
+    @override
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
         """Compare two indexes, sorting IPs numerically and using IP as a tiebreaker."""
         model = self.sourceModel()
         if model is not None:
@@ -218,7 +220,8 @@ class ElidedTooltipFilter(QObject):
             return self._view.header()
         return getattr(self._view, 'horizontalHeader', lambda: None)()
 
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
+    @override
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         """Show tooltip for elided cells, hide otherwise."""
         if a1 is not None and a1.type() == QEvent.Type.ToolTip and isinstance(a1, QHelpEvent):
             index = self._view.indexAt(a1.pos())

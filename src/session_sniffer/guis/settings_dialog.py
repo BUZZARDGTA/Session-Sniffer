@@ -3,7 +3,7 @@
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
@@ -838,10 +838,12 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 return True
         return False
 
+    @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are unsaved changes that should be saved before closing."""
         return self._has_unsaved_changes()
 
+    @override
     def _save_on_close(self) -> bool:
         """Save settings; return `True` if save succeeded."""
         self._save_settings()
