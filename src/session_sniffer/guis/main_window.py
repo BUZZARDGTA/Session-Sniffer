@@ -628,7 +628,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:  # noqa: N802
+    @override
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         """Filter events to detect window movement."""
         if a0 == self and a1 is not None:
             event_type = a1.type()
@@ -681,7 +682,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             return
         status_bar.setEnabled(True)
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:  # noqa: N802
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         gui_closed__event.set()
         if self.capture.is_running():
