@@ -28,6 +28,7 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
+    is_terminal_failure_instruction_status,
     send_crawler_instruction,
     send_crawlme_instruction,
     watch_instruction_status,
@@ -156,14 +157,21 @@ class _CrawlerWorker(CrashingQThread):
             return
 
         seen_status_texts: set[str] = set()
+        terminal_failure_message: str | None = None
         try:
             for status, result in watch_instruction_status(tracking_id, self._api_key):
                 status_text = result or status
                 if status_text not in seen_status_texts:
                     self.status_update.emit(status_text)
                     seen_status_texts.add(status_text)
+                if is_terminal_failure_instruction_status(status):
+                    terminal_failure_message = result or f'Crawler ended with status: {status}'
         except requests.RequestException as exc:
             self.result_ready.emit(f'Lost connection while tracking crawler:\n\n{exc}', True)  # noqa: FBT003
+            return
+
+        if terminal_failure_message is not None:
+            self.result_ready.emit(f'Crawler failed:\n\n{terminal_failure_message}', True)  # noqa: FBT003
             return
 
         for player in PlayersRegistry.get_default_sorted_players():
@@ -216,16 +224,24 @@ class _PlayerCrawlerWorker(CrashingQThread):
                 continue
 
             seen_status_texts: set[str] = set()
+            terminal_failure_message: str | None = None
             try:
                 for status, result in watch_instruction_status(tracking_id, self._api_key):
                     status_text = result or status
                     if status_text not in seen_status_texts:
                         self.status_update.emit(status_text)
                         seen_status_texts.add(status_text)
-                any_succeeded = True
+                    if is_terminal_failure_instruction_status(status):
+                        terminal_failure_message = result or f'Crawler ended with status: {status}'
             except requests.RequestException as exc:
                 self.result_ready.emit(f'Lost connection while tracking crawler:\n\n{exc}', True)  # noqa: FBT003
                 return
+
+            if terminal_failure_message is not None:
+                errors.append(f'RID {rid}: {terminal_failure_message}')
+                continue
+
+            any_succeeded = True
 
         if not any_succeeded:
             self.result_ready.emit('Crawler request failed:\n\n' + '\n'.join(errors), True)  # noqa: FBT003
@@ -477,6 +493,7 @@ class GTA5Mixin(QMainWindow):
         self._crawler_worker.result_ready.connect(self._on_crawler_result)
         self._crawler_worker.status_update.connect(self._on_crawler_status_update)
         self._crawler_worker.finished.connect(self._crawler_worker.deleteLater)
+        self._crawler_worker.finished.connect(self._on_crawler_finished)
         self._crawler_worker.start()
 
     def _on_crawler_status_update(self, status_text: str) -> None:

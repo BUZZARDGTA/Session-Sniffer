@@ -28,6 +28,9 @@ LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
 
+_TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'canceled'})
+_TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'canceled'})
+
 
 def extract_rate_limit_message(exc: requests.HTTPError) -> str:
     """Return the API error message from a 429 `HTTPError` response, falling back to `'Too Many Requests'`."""
@@ -37,6 +40,16 @@ def extract_rate_limit_message(exc: requests.HTTPError) -> str:
         return str(exc.response.json().get('message', 'Too Many Requests'))
     except requests.JSONDecodeError:
         return 'Too Many Requests'
+
+
+def is_terminal_instruction_status(status: str) -> bool:
+    """Return `True` if the instruction status marks the end of tracking."""
+    return status.strip().lower() in _TERMINAL_INSTRUCTION_STATUSES
+
+
+def is_terminal_failure_instruction_status(status: str) -> bool:
+    """Return `True` if the instruction status is a terminal failure."""
+    return status.strip().lower() in _TERMINAL_FAILURE_INSTRUCTION_STATUSES
 
 
 def extract_rate_limit_wait_seconds(exc: requests.HTTPError, default: int = 60) -> int:
@@ -235,14 +248,14 @@ def watch_instruction_status(
     api_key: str,
     max_reconnects: int = 10,
 ) -> Generator[tuple[str, str | None]]:
-    """Stream SSE status updates for a Looky instruction until it completes.
+    """Stream SSE status updates for a Looky instruction until a terminal status arrives.
 
     Yields `(status, result)` tuples parsed from `status_update` events.
-    Stops after the first `'completed'` status.
+    Stops after the first terminal status (`completed` or `canceled`).
 
     Servers commonly close SSE streams after a short idle window and expect clients
     to reconnect. This function transparently reconnects to the same `tracking_id`
-    URL up to `max_reconnects` times whenever the stream ends before `'completed'`
+    URL up to `max_reconnects` times whenever the stream ends before a terminal status
     is received (including `ChunkedEncodingError`).
 
     Args:
@@ -282,7 +295,7 @@ def watch_instruction_status(
                     status: str = data.get('status', '')
                     result: str | None = data.get('result')
                     yield status, result
-                    if status == 'completed':
+                    if is_terminal_instruction_status(status):
                         completed = True
                         break
         except requests.HTTPError:
@@ -295,5 +308,5 @@ def watch_instruction_status(
         if completed:
             return
         if attempt >= max_reconnects:
-            msg = f'SSE stream for instruction {tracking_id!r} ended without a completed event after {max_reconnects} reconnect attempts'
+            msg = f'SSE stream for instruction {tracking_id!r} ended without a terminal status after {max_reconnects} reconnect attempts'
             raise requests.ConnectionError(msg)
