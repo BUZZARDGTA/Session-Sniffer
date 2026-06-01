@@ -332,6 +332,27 @@ def read_preserved_sections(path: Path) -> tuple[list[str], list[str]]:
     return header_lines, settings_lines
 
 
+def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -> None:
+    """Remove specific (username, ip) pairs from a database file in-place."""
+    new_lines: list[str] = []
+    in_userip_section = False
+    for raw_line in db_path.read_text('utf-8').splitlines():
+        stripped = raw_line.strip()
+        is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
+        if is_header:
+            continue
+        if in_userip_section and to_remove:
+            m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+            if m:
+                u = m.group('username').strip()
+                i = m.group('ip').strip()
+                if u and i and (u, i) in to_remove:
+                    to_remove.discard((u, i))
+                    continue
+        new_lines.append(raw_line)
+    db_path.write_text('\n'.join(new_lines), encoding='utf-8')
+
+
 class RenameUsernameDialog(QDialog):
     """Compact dialog for picking an existing username to rename entries to."""
 

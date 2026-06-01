@@ -37,19 +37,17 @@ from session_sniffer.guis.userip_manager_helpers import (
     INDEX_COLUMN,
     IP_COLUMN,
     RANGE_COLUMN,
-    RE_USERIP_INI_PARSER_PATTERN,
-    SECTION_USERIP,
     SETTINGS_DEFAULTS,
     SETTINGS_KEYS_ORDER,
     USERNAME_COLUMN,
     ElidedTooltipFilter,
     EntriesSortProxy,
     IPRangeBuilderDialog,
-    handle_ini_section_header,
     human_readable_size,
     iter_userip_entries,
     parse_settings_from_lines,
     read_preserved_sections,
+    rewrite_db_without_entries,
 )
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
@@ -758,32 +756,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
                 ip = self._get_row_entry_value(row)
                 if username and ip:
                     to_remove.add((username, ip))
-            self._rewrite_db_without_entries(db_path, to_remove)
+            rewrite_db_without_entries(db_path, to_remove)
 
         for row in source_rows:
             self._model.removeRow(row)
         self._update_entry_counts()
         self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"} from database files.')
-
-    def _rewrite_db_without_entries(self, db_path: Path, to_remove: set[tuple[str, str]]) -> None:
-        """Remove specific (username, ip) pairs from a database file in-place."""
-        new_lines: list[str] = []
-        in_userip_section = False
-        for raw_line in db_path.read_text('utf-8').splitlines():
-            stripped = raw_line.strip()
-            is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
-            if is_header:
-                continue
-            if in_userip_section and to_remove:
-                m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-                if m:
-                    u = m.group('username').strip()
-                    i = m.group('ip').strip()
-                    if u and i and (u, i) in to_remove:
-                        to_remove.discard((u, i))
-                        continue
-            new_lines.append(raw_line)
-        db_path.write_text('\n'.join(new_lines), encoding='utf-8')
 
     # ------------------------------------------------------------------
     # Save
