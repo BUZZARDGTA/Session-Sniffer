@@ -11,6 +11,7 @@ from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
+from session_sniffer.guis.looky_text import is_looky_usable, resolve_looky_menu_tooltip
 from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
     copy_player_info_for_discord,
@@ -94,6 +95,9 @@ class TableContextMenuMixin(QTableView):
 
             if tooltip:
                 menu.setToolTip(tooltip)
+                menu_action = menu.menuAction()
+                if menu_action is not None:
+                    menu_action.setToolTip(tooltip)
 
             return menu
 
@@ -338,13 +342,15 @@ class TableContextMenuMixin(QTableView):
 
                     if Settings.looky_enabled:
                         has_key = bool(Settings.looky_api_key)
+                        has_api_access = Settings.looky_api_access
+                        looky_is_usable = is_looky_usable(has_key=has_key, has_api_access=has_api_access)
                         looky_menu = add_menu(
                             context_menu,
                             '\U0001F441 Looky System',
-                            tooltip=None if has_key else 'Looky API key is not configured — set one in Settings → Looky System → Authentication.',
+                            tooltip=resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access),
                         )
-                        looky_menu.setEnabled(has_key)
-                        if has_key:
+                        looky_menu.setEnabled(looky_is_usable)
+                        if looky_is_usable:
                             add_action(
                                 looky_menu,
                                 '🔎 Looky Lookup',

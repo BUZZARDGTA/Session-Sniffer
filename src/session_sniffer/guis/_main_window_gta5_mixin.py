@@ -18,6 +18,11 @@ from session_sniffer.error_messages import (
     format_gta5_solo_session_suspend_failed_message,
 )
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.looky_text import (
+    LOOKY_NO_API_ACCESS_WARNING,
+    LOOKY_NO_KEY_OR_DISABLED_WARNING,
+    resolve_looky_menu_tooltip,
+)
 from session_sniffer.guis.stylesheets import CRAWLER_TARGET_INFO_LABEL_STYLESHEET
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky import (
@@ -437,24 +442,21 @@ class GTA5Mixin(QMainWindow):
         """Show/hide and enable/disable the Looky submenu based on current settings."""
         is_enabled = Settings.looky_enabled
         has_key = bool(Settings.looky_api_key)
+        has_api_access = Settings.looky_api_access
         looky_action = cast('QAction', self._looky_submenu.menuAction())
         looky_action.setVisible(is_enabled)
         if not is_enabled:
             return
-        self._looky_submenu.setEnabled(has_key)
-        looky_action.setToolTip(
-            'Looky API key is not configured — set one in Settings → Looky System → Authentication.'
-            if not has_key
-            else 'Looky tools for the current GTA5 session',
-        )
+        self._looky_submenu.setEnabled(has_key and has_api_access)
+        looky_action.setToolTip(resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access))
 
     def request_crawler_in_my_session(self) -> None:
         """Request the Looky crawler to join the current session."""
         if not Settings.looky_api_key or not Settings.looky_enabled:
-            QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings → Looky System → Authentication.')
+            QMessageBox.warning(self, TITLE, LOOKY_NO_KEY_OR_DISABLED_WARNING)
             return
         if not Settings.looky_api_access:
-            QMessageBox.warning(self, TITLE, 'Your Looky account does not have API access.')
+            QMessageBox.warning(self, TITLE, LOOKY_NO_API_ACCESS_WARNING)
             return
         if self._crawler_progress_dialog is not None:
             QMessageBox.information(self, TITLE, 'A crawler request is already in progress.')
@@ -529,11 +531,11 @@ class GTA5Mixin(QMainWindow):
     def request_crawler_for_player(self, player: Player) -> None:
         """Request the Looky crawler for a specific player's Rockstar IDs."""
         if not Settings.looky_api_key or not Settings.looky_enabled:
-            QMessageBox.warning(self, TITLE, 'No Looky API key is configured or Looky is disabled.\n\nSet one in Settings \u2192 Looky System \u2192 Authentication.')
+            QMessageBox.warning(self, TITLE, LOOKY_NO_KEY_OR_DISABLED_WARNING)
             return
 
         if not Settings.looky_api_access:
-            QMessageBox.warning(self, TITLE, 'Your Looky account does not have API access.')
+            QMessageBox.warning(self, TITLE, LOOKY_NO_API_ACCESS_WARNING)
             return
 
         if self._crawler_progress_dialog is not None:

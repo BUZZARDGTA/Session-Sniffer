@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.looky_text import LOOKY_NO_API_ACCESS_WARNING, LOOKY_NO_KEY_CONFIGURED_LABEL
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
 from session_sniffer.networking.looky import lookup_ip
@@ -46,7 +47,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         if not Settings.looky_api_key or not Settings.looky_enabled:
-            no_key_label = QLabel('No Looky API key configured.\nSet one in Settings → Looky System → Authentication.')
+            no_key_label = QLabel(LOOKY_NO_KEY_CONFIGURED_LABEL)
             no_key_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_key_label.setWordWrap(True)
             scroll_layout.addWidget(no_key_label)
@@ -55,7 +56,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             return
 
         if not Settings.looky_api_access:
-            no_access_label = QLabel('Your Looky account does not have API access.')
+            no_access_label = QLabel(LOOKY_NO_API_ACCESS_WARNING)
             no_access_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             no_access_label.setWordWrap(True)
             scroll_layout.addWidget(no_access_label)

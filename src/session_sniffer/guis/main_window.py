@@ -22,6 +22,7 @@ from session_sniffer.core import terminate_script
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
+from session_sniffer.guis.looky_text import LOOKY_MENU_TOOLTIP_READY
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
@@ -266,7 +267,7 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             msg = 'Failed to create Looky submenu'
             raise RuntimeError(msg)
         looky_submenu.setToolTipsVisible(True)
-        cast('QAction', looky_submenu.menuAction()).setToolTip('Looky tools for the current GTA5 session')
+        cast('QAction', looky_submenu.menuAction()).setToolTip(LOOKY_MENU_TOOLTIP_READY)
         self._looky_submenu = looky_submenu
 
         looky_crawler_session_action = QAction('🤖 Request Crawler in My Session', self)
@@ -792,6 +793,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
             self._sync_gta5_process_button()
+
+        self._sync_looky_submenu()
 
         if self._capture_statistics_window is not None:
             self._capture_statistics_window.refresh()

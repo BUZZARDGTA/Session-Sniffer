@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
 from session_sniffer.core import ScriptControl
+from session_sniffer.guis.looky_text import LOOKY_INVALID_KEY_LOG_WARNING, LOOKY_TOKEN_VERIFICATION_HTTP_WARNING_TEMPLATE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
@@ -280,6 +281,7 @@ def looky_core() -> None:
     """
     _batch_size = 32
     _verified_api_key: str | None = None
+    _failed_verification_api_key: str | None = None
 
     while not gui_closed__event.is_set():
         if ScriptControl.has_crashed():
@@ -293,6 +295,15 @@ def looky_core() -> None:
             gui_closed__event.wait(5)
             continue
 
+        if Settings.looky_api_key == _failed_verification_api_key:
+            Settings.looky_api_access = False
+            Settings.looky_user_data = None
+            gui_closed__event.wait(30)
+            continue
+
+        if _failed_verification_api_key is not None and Settings.looky_api_key != _failed_verification_api_key:
+            _failed_verification_api_key = None
+
         if Settings.looky_api_key != _verified_api_key:
             try:
                 response = looky_verify_token(Settings.looky_api_key)
@@ -300,10 +311,19 @@ def looky_core() -> None:
                 Settings.looky_user_data = response
                 if Settings.looky_api_access:
                     _verified_api_key = Settings.looky_api_key
+                    _failed_verification_api_key = None
             except requests.HTTPError as exc:
                 status = exc.response.status_code if exc.response is not None else '?'
                 reason = exc.response.reason if exc.response is not None else 'Unknown'
-                logger.warning('[Looky System] Token verification failed: HTTP %s %s', status, reason)
+                if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
+                    logger.warning(LOOKY_INVALID_KEY_LOG_WARNING)
+                else:
+                    logger.warning(LOOKY_TOKEN_VERIFICATION_HTTP_WARNING_TEMPLATE, status, reason)
+                Settings.looky_api_access = False
+                Settings.looky_user_data = None
+
+                if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
+                    _failed_verification_api_key = Settings.looky_api_key
             except requests.RequestException as exc:
                 logger.warning('[Looky System] Token verification failed: %s', exc)
                 Settings.looky_api_access = False
