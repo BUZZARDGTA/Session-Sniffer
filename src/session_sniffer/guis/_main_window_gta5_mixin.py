@@ -21,7 +21,7 @@ from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import (
     LOOKY_NO_API_ACCESS_WARNING,
     LOOKY_NO_KEY_OR_DISABLED_WARNING,
-    resolve_looky_menu_tooltip,
+    resolve_looky_menu_state,
 )
 from session_sniffer.guis.stylesheets import CRAWLER_TARGET_INFO_LABEL_STYLESHEET
 from session_sniffer.logging_setup import get_logger
@@ -440,16 +440,16 @@ class GTA5Mixin(QMainWindow):
 
     def _sync_looky_submenu(self) -> None:
         """Show/hide and enable/disable the Looky submenu based on current settings."""
-        is_enabled = Settings.looky_enabled and CaptureState.gta5_is_running
-        has_key = bool(Settings.looky_api_key)
-        has_api_access = Settings.looky_api_access
+        is_visible, is_enabled, tooltip = resolve_looky_menu_state(
+            looky_enabled=Settings.looky_enabled,
+            gta5_is_running=CaptureState.gta5_is_running,
+            has_key=bool(Settings.looky_api_key),
+            has_api_access=Settings.looky_api_access,
+        )
         looky_action = cast('QAction', self._looky_submenu.menuAction())
-        looky_action.setVisible(is_enabled)
-        if not is_enabled:
-            looky_action.setToolTip('Looky is available only while GTA V is running.')
-            return
-        self._looky_submenu.setEnabled(has_key and has_api_access)
-        looky_action.setToolTip(resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access))
+        looky_action.setVisible(is_visible)
+        self._looky_submenu.setEnabled(is_enabled)
+        looky_action.setToolTip(tooltip)
 
     def request_crawler_in_my_session(self) -> None:
         """Request the Looky crawler to join the current session."""

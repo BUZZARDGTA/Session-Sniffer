@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.looky_text import is_looky_usable, resolve_looky_menu_tooltip
+from session_sniffer.guis.looky_text import resolve_looky_menu_state
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
@@ -341,16 +341,20 @@ class TableContextMenuMixin(QTableView):
                     )
 
                     if Settings.looky_enabled:
-                        has_key = bool(Settings.looky_api_key)
-                        has_api_access = Settings.looky_api_access
-                        looky_is_usable = is_looky_usable(has_key=has_key, has_api_access=has_api_access)
+                        is_visible, is_enabled, tooltip = resolve_looky_menu_state(
+                            looky_enabled=Settings.looky_enabled,
+                            gta5_is_running=CaptureState.gta5_is_running,
+                            has_key=bool(Settings.looky_api_key),
+                            has_api_access=Settings.looky_api_access,
+                        )
                         looky_menu = add_menu(
                             context_menu,
                             '\U0001F441 Looky System',
-                            tooltip=resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access),
+                            tooltip=tooltip,
                         )
-                        looky_menu.setEnabled(looky_is_usable)
-                        if looky_is_usable:
+                        looky_menu.setVisible(is_visible)
+                        looky_menu.setEnabled(is_enabled)
+                        if is_enabled:
                             add_action(
                                 looky_menu,
                                 '🔎 Looky Lookup',
