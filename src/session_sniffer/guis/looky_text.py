@@ -30,6 +30,12 @@ def resolve_looky_menu_state(*, looky_enabled: bool, gta5_is_running: bool, has_
     if not is_visible:
         return is_visible, is_enabled, resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access)
 
+    if not has_key:
+        return is_visible, is_enabled, LOOKY_MENU_TOOLTIP_NO_KEY
+
+    if not has_api_access:
+        return is_visible, is_enabled, LOOKY_MENU_TOOLTIP_INVALID_OR_NO_ACCESS
+
     if not gta5_is_running:
         return is_visible, is_enabled, LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING
 
