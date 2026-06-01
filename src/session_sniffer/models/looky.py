@@ -1,4 +1,4 @@
-"""Pydantic model for Looky GTA IP-to-player lookup API response."""
+"""Pydantic model for the Looky IP-to-player lookup API response."""
 
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class LookyPlayer(BaseModel):
-    """A single GTA player entry returned by the Looky API for a given IP."""
+    """A single player entry returned by the Looky API for a given IP."""
 
     rockstarid: int
     name: str

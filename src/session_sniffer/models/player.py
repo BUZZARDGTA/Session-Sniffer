@@ -779,7 +779,7 @@ class PlayerModMenus:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerLooky:
-    """Store Looky GTA IP-to-player lookup state for a player."""
+    """Store Looky IP-to-player lookup state for a player."""
 
     is_initialized: bool = False
     needs_refresh: bool = False

@@ -84,7 +84,7 @@ class SettingsDialogLookyMixin(QDialog):
     _verify_debounce: QTimer
 
     def _build_looky_info_group(self) -> QGroupBox:
-        """Build an informational banner for the Looky API key setting."""
+        """Build an informational banner for the Looky System API key setting."""
         group_box = QGroupBox('\U0001f6b9 Looky System — GTA IP Lookup')
         layout = QVBoxLayout(group_box)
 
@@ -93,7 +93,7 @@ class SettingsDialogLookyMixin(QDialog):
             'To obtain an API key, purchase access through their official '
             '<a href="https://discord.gg/XqggW7QpFg" title="https://discord.gg/XqggW7QpFg" style="color: #a78bfa; text-decoration: underline;">Discord server</a> or visit '
             f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
-            'Once you have your key, paste it in the <b>Looky API Key</b> field below.<br><br>'
+            'Once you have your key, paste it in the <b>Looky System API Key</b> field below.<br><br>'
             'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br>',
         )
         info_label.setWordWrap(True)

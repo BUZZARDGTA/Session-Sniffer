@@ -107,7 +107,7 @@ However, it does allow for manual assignment using [UserIP INI databases Configu
 - _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)_
 
 \*_As of v1.5.0, username detection for GTA Online (PC) is supported via [**Looky System**](https://looky-gta.cc/) — a paid third-party IP-to-player lookup service.  
-Configure your Looky API key under **Settings → Looky System** to enable it._*
+Configure your Looky System API key under **Settings → Looky System** to enable it._*
 
 ---
 

@@ -1,4 +1,4 @@
-"""Looky GTA IP-to-player lookup API client."""
+"""Looky System IP-to-player lookup API client."""
 
 import json
 import re
@@ -135,7 +135,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
 
 
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:
-    """Query the Looky API for GTA players associated with `ip`.
+    """Query the Looky API for players associated with `ip`.
 
     Args:
         ip: The IPv4 address to look up.
@@ -158,7 +158,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
 
 
 def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
-    """Query the Looky batch endpoint for GTA players associated with multiple IPs in one request.
+    """Query the Looky batch endpoint for players associated with multiple IPs in one request.
 
     Args:
         ips: List of IPv4 addresses to look up (max 32 per call).

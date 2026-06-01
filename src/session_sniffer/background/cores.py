@@ -274,7 +274,7 @@ def pinger_core() -> None:
 
 
 def looky_core() -> None:
-    """Resolve GTA player names via the Looky API in the background.
+    """Resolve player names via the Looky API in the background.
 
     Sends batched requests of up to 32 IPs at a time.  Skips all work when no
     API key is configured.

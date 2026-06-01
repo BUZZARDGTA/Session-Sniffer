@@ -18,7 +18,7 @@ _RETRY_STRATEGY = Retry(
     allowed_methods=['GET', 'POST'],
 )
 _ADAPTER = HTTPAdapter(max_retries=_RETRY_STRATEGY)
-# Looky makes up to 8 concurrent background requests plus additional manual GUI lookups;
+# Looky System makes up to 8 concurrent background requests plus additional manual GUI lookups;
 # a dedicated adapter with a larger pool prevents urllib3 connection pool overflow warnings.
 _LOOKY_ADAPTER = HTTPAdapter(max_retries=_RETRY_STRATEGY, pool_maxsize=16)
 
