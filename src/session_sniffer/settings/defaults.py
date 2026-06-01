@@ -575,6 +575,21 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky API calls.',
     ),
+    'looky_auto_resolve': SettingMeta(
+        category='Looky System',
+        group='General',
+        display_label='Auto-resolve Usernames',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Continuously resolve GTA player usernames via Looky in the background and display them in the Usernames column.',
+    ),
+    'looky_game_version': SettingMeta(
+        category='Looky System',
+        group='General',
+        display_label='Game Version',
+        setting_type=SettingType.ENUM,
+        tooltip='GTA version filter applied to all Looky API queries. Affects both background auto-resolve and manual Looky Lookup.',
+        allowed_values=('Both', 'Legacy', 'Enhanced'),
+    ),
     'looky_api_key': SettingMeta(
         category='Looky System',
         group='Authentication',
@@ -583,21 +598,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Your Looky Bearer token. Required for all Looky features — auto-resolve, manual lookups, and crawler requests.',
         validator_pattern=r'[A-Za-z0-9._\-]',
         secret=True,
-    ),
-    'looky_auto_resolve': SettingMeta(
-        category='Looky System',
-        group='Auto-Resolve',
-        display_label='Auto-resolve Usernames',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Continuously resolve GTA player usernames via Looky in the background and display them in the Usernames column.',
-    ),
-    'looky_game_version': SettingMeta(
-        category='Looky System',
-        group='Auto-Resolve',
-        display_label='Game Version',
-        setting_type=SettingType.ENUM,
-        tooltip='GTA version filter applied to all Looky API queries. Affects both background auto-resolve and manual Looky Lookup.',
-        allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
 }
 
@@ -680,7 +680,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'webserver_password': None,
     'updater_channel': 'Stable',
     'looky_enabled': True,
-    'looky_api_key': None,
     'looky_auto_resolve': True,
     'looky_game_version': 'Both',
+    'looky_api_key': None,
 }

@@ -124,9 +124,9 @@ class SettingsIniModel(BaseModel):
     WEBSERVER_PASSWORD: str | None
     UPDATER_CHANNEL: str | None
     LOOKY_ENABLED: bool
-    LOOKY_API_KEY: str | None
     LOOKY_AUTO_RESOLVE: bool
     LOOKY_GAME_VERSION: str
+    LOOKY_API_KEY: str | None
 
     # --- Internal context helpers ---
 

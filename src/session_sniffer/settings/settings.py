@@ -97,9 +97,9 @@ class Settings:
     webserver_password: str | None = SETTING_DEFAULTS['webserver_password']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
     looky_enabled: bool = SETTING_DEFAULTS['looky_enabled']
-    looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
     looky_auto_resolve: bool = SETTING_DEFAULTS['looky_auto_resolve']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
+    looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
     looky_api_access: bool = False  # Runtime-only: True after token verification confirms API access.
     looky_user_data: LookyVerifyResponse | None = None  # Runtime-only: populated after token verification.
 
@@ -159,9 +159,9 @@ class Settings:
         'WEBSERVER_PASSWORD',
         'UPDATER_CHANNEL',
         'LOOKY_ENABLED',
-        'LOOKY_API_KEY',
         'LOOKY_AUTO_RESOLVE',
         'LOOKY_GAME_VERSION',
+        'LOOKY_API_KEY',
     )
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)
