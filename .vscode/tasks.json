@@ -53,10 +53,10 @@
             }
         },
         {
-            "label": "🔄 Check Dependencies",
+            "label": "🔄 Check Project Dependencies",
             "type": "shell",
             "command": "powershell.exe",
-            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/check_dependencies.ps1"],
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/check_project_dependencies.ps1"],
             "group": "build",
             "presentation": {
                 "echo": true,
