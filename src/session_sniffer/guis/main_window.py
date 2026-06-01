@@ -172,6 +172,7 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             else:
                 self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
                 self._gta5_status_label.setToolTip('GTA V process detection state')
+            self._sync_looky_submenu()
 
         gta5_menu.aboutToShow.connect(_update_gta5_status_display)
         gta5_menu.addSeparator()

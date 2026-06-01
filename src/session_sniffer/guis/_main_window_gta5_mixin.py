@@ -440,12 +440,13 @@ class GTA5Mixin(QMainWindow):
 
     def _sync_looky_submenu(self) -> None:
         """Show/hide and enable/disable the Looky submenu based on current settings."""
-        is_enabled = Settings.looky_enabled
+        is_enabled = Settings.looky_enabled and CaptureState.gta5_is_running
         has_key = bool(Settings.looky_api_key)
         has_api_access = Settings.looky_api_access
         looky_action = cast('QAction', self._looky_submenu.menuAction())
         looky_action.setVisible(is_enabled)
         if not is_enabled:
+            looky_action.setToolTip('Looky is available only while GTA V is running.')
             return
         self._looky_submenu.setEnabled(has_key and has_api_access)
         looky_action.setToolTip(resolve_looky_menu_tooltip(has_key=has_key, has_api_access=has_api_access))
