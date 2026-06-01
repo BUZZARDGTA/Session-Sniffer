@@ -226,16 +226,21 @@ def apply_always_on_top(window: QWidget, checked: bool) -> None:  # noqa: FBT001
     window.show()
 
 
-def set_dialog_window_flags(dialog: QDialog) -> None:
-    """Apply the standard non-modal resizable window flags to *dialog*."""
+def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> None:
+    """Apply the standard non-modal resizable window flags to *dialog*.
+
+    Use *keep_on_top* for transient notification dialogs that must stay above other windows.
+    """
     dialog.setWindowModality(Qt.WindowModality.NonModal)
-    dialog.setWindowFlags(
+    window_flags = (
         Qt.WindowType.Window
-        | Qt.WindowType.WindowStaysOnTopHint
         | Qt.WindowType.WindowCloseButtonHint
         | Qt.WindowType.WindowMinimizeButtonHint
-        | Qt.WindowType.WindowMaximizeButtonHint,
+        | Qt.WindowType.WindowMaximizeButtonHint
     )
+    if keep_on_top:
+        window_flags |= Qt.WindowType.WindowStaysOnTopHint
+    dialog.setWindowFlags(window_flags)
 
 
 def setup_table_view_headers(table: QTableView) -> QHeaderView:

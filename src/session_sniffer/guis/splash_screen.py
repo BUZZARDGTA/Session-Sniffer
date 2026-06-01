@@ -38,8 +38,7 @@ class SplashScreen(QWidget):
         super().__init__()
         self.setWindowTitle(TITLE)
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint,
+            Qt.WindowType.FramelessWindowHint,
         )
         self.setFixedSize(560, 340)
         self.setStyleSheet(SPLASH_SCREEN_STYLESHEET)
@@ -167,6 +166,7 @@ class SplashScreen(QWidget):
         self.close()
 
     def lower_to_back(self) -> None:
-        """Remove the always-on-top hint so other windows (e.g. dialogs) can appear above the splash."""
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-        self.show()
+        """Ensure the splash is not marked always-on-top before continuing startup."""
+        if self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+            self.show()

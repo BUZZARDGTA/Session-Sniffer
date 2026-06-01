@@ -84,7 +84,7 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
 
 
 class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
-    """Modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
+    """Non-modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture) -> None:
         """Build the tabbed settings dialog from setting metadata."""

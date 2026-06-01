@@ -26,7 +26,7 @@ from session_sniffer.guis.utils import set_dialog_window_flags
 
 
 class LogsManager(QDialog):
-    """Modal dialog for viewing, searching, filtering, and managing application log files."""
+    """Non-modal dialog for viewing, searching, filtering, and managing application log files."""
 
     def __init__(self, parent: QWidget | None) -> None:
         """Build the Logs Manager dialog with tabs for each log file type."""

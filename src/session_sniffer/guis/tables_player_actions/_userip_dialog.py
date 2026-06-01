@@ -25,7 +25,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
     def __init__(self, parent: QWidget | None, player: Player) -> None:
         """Snapshot player data at detection time and build the dialog UI."""
         super().__init__(parent)
-        set_dialog_window_flags(self)
+        set_dialog_window_flags(self, keep_on_top=True)
 
         self.setWindowTitle(f'{TITLE} - UserIP Detected ({format_player_display(player.ip, player.usernames)})')
         self._apply_standard_dialog_size()

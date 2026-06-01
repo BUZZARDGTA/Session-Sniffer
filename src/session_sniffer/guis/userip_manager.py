@@ -58,7 +58,7 @@ from session_sniffer.text_utils import pluralize
 
 
 class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
-    """Modal dialog for managing UserIP database files and their entries."""
+    """Non-modal dialog for managing UserIP database files and their entries."""
 
     def __init__(self, parent: QWidget | None) -> None:
         """Build the UserIP Databases Manager dialog."""
