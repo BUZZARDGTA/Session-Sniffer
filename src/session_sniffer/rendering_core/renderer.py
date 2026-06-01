@@ -10,8 +10,6 @@ from threading import Thread
 from typing import TYPE_CHECKING
 
 import geoip2.errors
-from prettytable import PrettyTable, TableStyle
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
@@ -63,7 +61,6 @@ from session_sniffer.text_utils import format_triple_quoted_text, pluralize
 from session_sniffer.utils import dedup_preserve_order, get_session_log_path
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
     from pathlib import Path
 
     from session_sniffer.capture.packet_capture import CaptureHolder
@@ -198,202 +195,126 @@ def rendering_core(
         return asn
 
     def process_session_logging() -> None:
+        # JSON session snapshots are the canonical persisted format.
+        SESSIONS_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
+
         def format_player_logging_datetime(datetime_object: datetime) -> str:
             return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
 
-        def add_sort_arrow_char_to_sorted_logging_table_column(column_names: Sequence[str], sorted_column: str, sort_order: Qt.SortOrder) -> list[str]:
-            arrow = ' \u2193' if sort_order == Qt.SortOrder.DescendingOrder else ' \u2191'  # Down arrow for descending, up arrow for ascending
-            return [
-                column + arrow if column == sorted_column else column
-                for column in column_names
-            ]
+        def _format_lookup_text(value: object) -> str:
+            return str(value)
 
-        def calculate_table_padding(connected_players: list[Player], disconnected_players: list[Player]) -> tuple[int, int, int, int]:
-            """Calculate optimal padding for table columns based on player data."""
-            table_country_column_length_threshold = 27
-            table_continent_column_length_threshold = 13
+        def _player_columns(player: Player) -> dict[str, object]:
+            mobile_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.mobile
+            vpn_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.proxy
+            hosting_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.hosting
 
-            connected_country_padding = 0
-            connected_continent_padding = 0
-            disconnected_country_padding = 0
-            disconnected_continent_padding = 0
+            return {
+                'Usernames': format_player_usernames(player),
+                'First Seen': format_player_logging_datetime(player.datetime.first_seen),
+                'Last Rejoin': format_player_logging_datetime(player.datetime.last_rejoin),
+                'Last Seen': format_player_logging_datetime(player.datetime.last_seen),
+                'T. Session Time': format_elapsed_time(player.datetime.get_total_session_time()),
+                'Session Time': format_elapsed_time(player.datetime.get_session_time()),
+                'Rejoins': player.rejoins,
+                'T. Packets': player.packets.total_exchanged,
+                'Packets': player.packets.exchanged,
+                'T. Packets Received': player.packets.total_received,
+                'Packets Received': player.packets.received,
+                'T. Packets Sent': player.packets.total_sent,
+                'Packets Sent': player.packets.sent,
+                'PPS': player.packets.pps.calculated_rate,
+                'PPM': player.packets.ppm.calculated_rate,
+                'T. Bandwidth': PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged),
+                'Bandwidth': PlayerBandwidth.format_bytes(player.bandwidth.exchanged),
+                'T. Download': PlayerBandwidth.format_bytes(player.bandwidth.total_download),
+                'Download': PlayerBandwidth.format_bytes(player.bandwidth.download),
+                'T. Upload': PlayerBandwidth.format_bytes(player.bandwidth.total_upload),
+                'Upload': PlayerBandwidth.format_bytes(player.bandwidth.upload),
+                'BPS': PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate),
+                'BPM': PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate),
+                'IP Address': format_player_ip(player.ip),
+                'Hostname': player.reverse_dns.hostname,
+                'Last Port': player.ports.last,
+                'Middle Ports': format_player_middle_ports(player),
+                'First Port': player.ports.first,
+                'Continent': _format_lookup_text(player.iplookup.ipapi.continent),
+                'Country': _format_lookup_text(player.iplookup.geolite2.country),
+                'Region': _format_lookup_text(player.iplookup.ipapi.region),
+                'R. Code': _format_lookup_text(player.iplookup.ipapi.region_code),
+                'City': _format_lookup_text(player.iplookup.geolite2.city),
+                'District': _format_lookup_text(player.iplookup.ipapi.district),
+                'ZIP Code': _format_lookup_text(player.iplookup.ipapi.zip_code),
+                'Lat': _format_lookup_text(player.iplookup.ipapi.lat),
+                'Lon': _format_lookup_text(player.iplookup.ipapi.lon),
+                'Time Zone': _format_lookup_text(player.iplookup.ipapi.time_zone),
+                'Offset': _format_lookup_text(player.iplookup.ipapi.offset),
+                'Currency': _format_lookup_text(player.iplookup.ipapi.currency),
+                'Organization': _format_lookup_text(player.iplookup.ipapi.org),
+                'ISP': _format_lookup_text(player.iplookup.ipapi.isp),
+                'ASN / ISP': _format_lookup_text(player.iplookup.geolite2.asn),
+                'AS': _format_lookup_text(player.iplookup.ipapi.asn),
+                'ASN': _format_lookup_text(player.iplookup.ipapi.as_name),
+                'Mobile': mobile_value,
+                'VPN': vpn_value,
+                'Hosting': hosting_value,
+                'Pinging': player.ping.is_pinging if player.ping.is_initialized else None,
+            }
 
-            # Calculate optimal padding for connected players
-            for player in connected_players:
-                country_len = len(player.iplookup.geolite2.country)
-                continent_len = len(player.iplookup.ipapi.continent)
-
-                # Only include in padding calculation if within threshold
-                if country_len <= table_country_column_length_threshold:
-                    connected_country_padding = max(connected_country_padding, country_len)
-                if continent_len <= table_continent_column_length_threshold:
-                    connected_continent_padding = max(connected_continent_padding, continent_len)
-
-            # Calculate optimal padding for disconnected players
-            for player in disconnected_players:
-                country_len = len(player.iplookup.geolite2.country)
-                continent_len = len(player.iplookup.ipapi.continent)
-
-                # Only include in padding calculation if within threshold
-                if country_len <= table_country_column_length_threshold:
-                    disconnected_country_padding = max(disconnected_country_padding, country_len)
-                if continent_len <= table_continent_column_length_threshold:
-                    disconnected_continent_padding = max(disconnected_continent_padding, continent_len)
-
-            return connected_country_padding, connected_continent_padding, disconnected_country_padding, disconnected_continent_padding
-
-        logging_connected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
-            logging_connected_players_table__column_names, 'Last Rejoin', Qt.SortOrder.DescendingOrder,
-        )
-        logging_disconnected_players__column_names__with_down_arrow = add_sort_arrow_char_to_sorted_logging_table_column(
-            logging_disconnected_players_table__column_names, 'Last Seen', Qt.SortOrder.AscendingOrder,
-        )
-
-        # Calculate optimal padding for both connected and disconnected players
-        (session_connected__padding_country_name,
-         session_connected__padding_continent_name,
-         session_disconnected__padding_country_name,
-         session_disconnected__padding_continent_name) = calculate_table_padding(session_connected, session_disconnected)
-
-        logging_connected_players_table = PrettyTable()
-        logging_connected_players_table.set_style(TableStyle.SINGLE_BORDER)
-        logging_connected_players_table.title = f'Player{pluralize(len(session_connected))} connected in your session ({len(session_connected)}):'
-        logging_connected_players_table.field_names = logging_connected_players__column_names__with_down_arrow
-        for field_name in logging_connected_players__column_names__with_down_arrow:
-            logging_connected_players_table.align[field_name] = 'l'
-        for player in session_connected:
-            connected_row_texts: list[str] = []
-            connected_row_texts.append(format_player_usernames(player))
-            connected_row_texts.append(format_player_logging_datetime(player.datetime.first_seen))
-            connected_row_texts.append(format_player_logging_datetime(player.datetime.last_rejoin))
-            connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-            connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
-            connected_row_texts.append(f'{player.rejoins}')
-            connected_row_texts.append(f'{player.packets.total_exchanged}')
-            connected_row_texts.append(f'{player.packets.exchanged}')
-            connected_row_texts.append(f'{player.packets.total_received}')
-            connected_row_texts.append(f'{player.packets.received}')
-            connected_row_texts.append(f'{player.packets.total_sent}')
-            connected_row_texts.append(f'{player.packets.sent}')
-            connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
-            connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
-            connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
-            connected_row_texts.append(format_player_ip(player.ip))
-            connected_row_texts.append(player.reverse_dns.hostname)
-            connected_row_texts.append(f'{player.ports.last}')
-            connected_row_texts.append(format_player_middle_ports(player))
-            connected_row_texts.append(f'{player.ports.first}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_connected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
-            connected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_connected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
-            connected_row_texts.append(f'{player.iplookup.ipapi.region}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-            connected_row_texts.append(player.iplookup.geolite2.city)
-            connected_row_texts.append(f'{player.iplookup.ipapi.district}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.org}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-            connected_row_texts.append(player.iplookup.geolite2.asn)
-            connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-            connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
-            connected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
-            logging_connected_players_table.add_row(connected_row_texts)
-
-        logging_disconnected_players_table = PrettyTable()
-        logging_disconnected_players_table.set_style(TableStyle.SINGLE_BORDER)
-        logging_disconnected_players_table.title = f"Player{pluralize(len(session_disconnected))} who've left your session ({len(session_disconnected)}):"
-        logging_disconnected_players_table.field_names = logging_disconnected_players__column_names__with_down_arrow
-        for field_name in logging_disconnected_players__column_names__with_down_arrow:
-            logging_disconnected_players_table.align[field_name] = 'l'
-        for player in session_disconnected:
-            disconnected_row_texts: list[str] = []
-            disconnected_row_texts.append(format_player_usernames(player))
-            disconnected_row_texts.append(format_player_logging_datetime(player.datetime.first_seen))
-            disconnected_row_texts.append(format_player_logging_datetime(player.datetime.last_rejoin))
-            disconnected_row_texts.append(format_player_logging_datetime(player.datetime.last_seen))
-            disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-            disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
-            disconnected_row_texts.append(f'{player.rejoins}')
-            disconnected_row_texts.append(f'{player.packets.total_exchanged}')
-            disconnected_row_texts.append(f'{player.packets.exchanged}')
-            disconnected_row_texts.append(f'{player.packets.total_received}')
-            disconnected_row_texts.append(f'{player.packets.received}')
-            disconnected_row_texts.append(f'{player.packets.total_sent}')
-            disconnected_row_texts.append(f'{player.packets.sent}')
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-            disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-            disconnected_row_texts.append(format_player_ip(player.ip))
-            disconnected_row_texts.append(player.reverse_dns.hostname)
-            disconnected_row_texts.append(f'{player.ports.last}')
-            disconnected_row_texts.append(format_player_middle_ports(player))
-            disconnected_row_texts.append(f'{player.ports.first}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.continent:<{session_disconnected__padding_continent_name}} ({player.iplookup.ipapi.continent_code})')
-            disconnected_row_texts.append(f'{player.iplookup.geolite2.country:<{session_disconnected__padding_country_name}} ({player.iplookup.geolite2.country_code})')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-            disconnected_row_texts.append(player.iplookup.geolite2.city)
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-            disconnected_row_texts.append(player.iplookup.geolite2.asn)
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
-            disconnected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
-            logging_disconnected_players_table.add_row(disconnected_row_texts)
-
-        # Check if the directories exist, if not create them
-        SESSIONS_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-        SESSIONS_LOGGING_PATH.write_text(
-            logging_connected_players_table.get_string() + '\n' + logging_disconnected_players_table.get_string(),
-            encoding='utf-8',
-        )
-
-        # Write structured JSON sibling for programmatic analysis (e.g. Seen Stats)
         def _player_to_json_dict(player: Player) -> dict[str, object]:
+            columns = _player_columns(player)
             return {
                 'Usernames': player.usernames,
                 'First Seen': player.datetime.first_seen.isoformat(),
                 'Last Rejoin': player.datetime.last_rejoin.isoformat(),
                 'Last Seen': player.datetime.last_seen.isoformat(),
+                'T. Session Time': player.datetime.get_total_session_time().total_seconds(),
+                'Session Time': player.datetime.get_session_time().total_seconds(),
                 'Rejoins': player.rejoins,
-                'Packets': player.packets.total_exchanged,
+                'T. Packets': player.packets.total_exchanged,
+                'Packets': player.packets.exchanged,
+                'T. Packets Received': player.packets.total_received,
+                'Packets Received': player.packets.received,
+                'T. Packets Sent': player.packets.total_sent,
+                'Packets Sent': player.packets.sent,
+                'PPS': player.packets.pps.calculated_rate,
+                'PPM': player.packets.ppm.calculated_rate,
+                'T. Bandwidth': player.bandwidth.total_exchanged,
+                'Bandwidth': player.bandwidth.exchanged,
+                'T. Download': player.bandwidth.total_download,
+                'Download': player.bandwidth.download,
+                'T. Upload': player.bandwidth.total_upload,
+                'Upload': player.bandwidth.upload,
+                'BPS': player.bandwidth.bps.calculated_rate,
+                'BPM': player.bandwidth.bpm.calculated_rate,
+                'IP Address': format_player_ip(player.ip),
+                'Hostname': player.reverse_dns.hostname,
+                'Last Port': player.ports.last,
+                'Middle Ports': format_player_middle_ports(player),
+                'First Port': player.ports.first,
+                'Continent': player.iplookup.ipapi.continent,
                 'Country': player.iplookup.geolite2.country,
                 'Country Code': player.iplookup.geolite2.country_code,
+                'Region': player.iplookup.ipapi.region,
+                'R. Code': player.iplookup.ipapi.region_code,
                 'City': player.iplookup.geolite2.city,
+                'District': player.iplookup.ipapi.district,
+                'ZIP Code': player.iplookup.ipapi.zip_code,
+                'Lat': player.iplookup.ipapi.lat,
+                'Lon': player.iplookup.ipapi.lon,
+                'Time Zone': player.iplookup.ipapi.time_zone,
+                'Offset': player.iplookup.ipapi.offset,
+                'Currency': player.iplookup.ipapi.currency,
+                'Organization': player.iplookup.ipapi.org,
                 'ISP': player.iplookup.ipapi.isp,
-                'ASN': player.iplookup.geolite2.asn,
-                'Hostname': player.reverse_dns.hostname,
+                'ASN / ISP': player.iplookup.geolite2.asn,
+                'AS': player.iplookup.ipapi.asn,
+                'ASN': player.iplookup.ipapi.as_name,
                 'Mobile': player.iplookup.ipapi.mobile,
                 'VPN': player.iplookup.ipapi.proxy,
                 'Hosting': player.iplookup.ipapi.hosting,
+                'Pinging': player.ping.is_pinging,
+                'columns': columns,
             }
 
         json_snapshot: dict[str, dict[str, dict[str, object]]] = {
@@ -423,8 +344,6 @@ def rendering_core(
             discord_rpc_manager=discord_rpc_manager,
         )
 
-    logging_connected_players_table__column_names = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
-    logging_disconnected_players_table__column_names = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
     last_userip_parse_time = None
     last_session_logging_processing_time = None
     last_modmenu_refresh_time: float | None = None

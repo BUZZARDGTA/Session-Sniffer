@@ -16,14 +16,13 @@ from session_sniffer.guis.stylesheets import (
     SPLASH_SUBTITLE_READY_STYLESHEET,
     SPLASH_TITLE_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.utils import SPINNER_FRAMES
 
 _P = ParamSpec('_P')
 _T = TypeVar('_T')
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-_SPINNER_FRAMES = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 _SPINNER_COLOR = '#5599dd'
 _CHECK_ICON = '✓'
 _CHECK_COLOR = '#44cc66'
@@ -113,8 +112,8 @@ class SplashScreen(QWidget):
         """Advance the spinner animation on the current line."""
         if self._current_message is None:
             return
-        self._spinner_index = (self._spinner_index + 1) % len(_SPINNER_FRAMES)
-        frame = _SPINNER_FRAMES[self._spinner_index]
+        self._spinner_index = (self._spinner_index + 1) % len(SPINNER_FRAMES)
+        frame = SPINNER_FRAMES[self._spinner_index]
         self._replace_last_line(self._build_line_html(frame, _SPINNER_COLOR, self._current_message))
 
     def update_status(self, message: str) -> None:
@@ -123,7 +122,7 @@ class SplashScreen(QWidget):
 
         self._current_message = message
         self._spinner_index = 0
-        self._log_area.append(self._build_line_html(_SPINNER_FRAMES[0], _SPINNER_COLOR, message))
+        self._log_area.append(self._build_line_html(SPINNER_FRAMES[0], _SPINNER_COLOR, message))
         self._spinner_timer.start()
 
         scrollbar = self._log_area.verticalScrollBar()

@@ -9,11 +9,13 @@ This module contains pydantic models for validating JSON responses from various 
 from .github_release import GithubReleaseAsset, GithubReleaseResponse
 from .github_versions import GithubVersionsResponse, VersionInfo
 from .ip_api import IpApiResponse
+from .sessions_log import SessionLogFile
 
 __all__ = [
     'GithubReleaseAsset',
     'GithubReleaseResponse',
     'GithubVersionsResponse',
     'IpApiResponse',
+    'SessionLogFile',
     'VersionInfo',
 ]

@@ -49,15 +49,15 @@ _MODES = (_MODE_DAYS, _MODE_SESSIONS)
 _HEADERS = ('Rank', 'Usernames', 'IP Address', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
 
 _SEARCH_COL_ALL = 'All Columns'
-_SEARCH_COL_IP = 'IP Address'
 _SEARCH_COL_USERNAMES = 'Usernames'
+_SEARCH_COL_IP = 'IP Address'
 _SEARCH_COL_COUNTRY = 'Country'
 _SEARCH_COL_ISP = 'ISP'
 
 _SEARCH_COLUMNS = (
     _SEARCH_COL_ALL,
-    _SEARCH_COL_IP,
     _SEARCH_COL_USERNAMES,
+    _SEARCH_COL_IP,
     _SEARCH_COL_COUNTRY,
     _SEARCH_COL_ISP,
 )
@@ -540,15 +540,15 @@ class PlayerLeaderboardWindow(QWidget):
 
         menu = QMenu(self)
 
-        copy_ip_action = QAction(f'Copy IP:  {entry.ip}', self)
-        copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
-        menu.addAction(copy_ip_action)
-
         usernames_text = ', '.join(entry.usernames)
         copy_usernames_action = QAction(f'Copy Usernames:  {usernames_text}' if usernames_text else 'Copy Usernames (none)', self)
         copy_usernames_action.setEnabled(bool(entry.usernames))
         copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
         menu.addAction(copy_usernames_action)
+
+        copy_ip_action = QAction(f'Copy IP:  {entry.ip}', self)
+        copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
+        menu.addAction(copy_ip_action)
 
         menu.addSeparator()
 

@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import CONNECTED_RATE_STAT_COLUMNS, DATETIME_TRACKING_COLUMNS, SESSION_TRACKING_COLUMNS
+from session_sniffer.constants.standalone import SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
@@ -42,24 +42,6 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-
-_NON_SEARCHABLE_COLUMNS: frozenset[str] = frozenset({
-    # Boolean columns
-    'Mobile',
-    'VPN',
-    'Hosting',
-    'Pinging',
-    # Datetime columns
-    *DATETIME_TRACKING_COLUMNS,
-    # Elapsed time + rejoin-count columns
-    *SESSION_TRACKING_COLUMNS,
-    # Numeric stat columns (connected-table superset includes PPS/PPM/BPS/BPM)
-    *CONNECTED_RATE_STAT_COLUMNS,
-    # Geographic numeric columns
-    'Lat',
-    'Lon',
-    'Offset',
-})
 
 _PLAYER_ICON_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
@@ -202,7 +184,7 @@ class SessionTableSection(QWidget):
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
         for col_idx, col_name in enumerate(column_names):
-            if col_name not in _NON_SEARCHABLE_COLUMNS:
+            if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
                 self._search_combo.addItem(col_name)
                 self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
         self._search_combo.setToolTip(
@@ -379,7 +361,7 @@ class SessionTableSection(QWidget):
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
         for col_idx, col_name in enumerate(column_names):
-            if col_name not in _NON_SEARCHABLE_COLUMNS:
+            if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
                 self._search_combo.addItem(col_name)
                 self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
         restored_index = self._search_combo.findText(current_text)

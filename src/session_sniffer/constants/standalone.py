@@ -50,6 +50,20 @@ SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 
 # Timestamp columns that appear in both connected and disconnected rows.
 DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')
 
+# Columns omitted from chooser drop-downs because they are either fixed or not useful to search directly.
+SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset({
+    *DATETIME_TRACKING_COLUMNS,
+    *SESSION_TRACKING_COLUMNS,
+    *CONNECTED_RATE_STAT_COLUMNS,
+    'Mobile',
+    'VPN',
+    'Hosting',
+    'Pinging',
+    'Lat',
+    'Lon',
+    'Offset',
+})
+
 # Packet size bounds used by preset capture filters.
 GTA5_PACKET_SIZE_MIN: int = 59
 GTA5_PACKET_SIZE_MAX: int = 1032

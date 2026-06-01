@@ -33,6 +33,8 @@ from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionE
 if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
 
+SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
+
 
 class PersistentMenu(QMenu):
     """QMenu that stays open when a checkable action is clicked."""

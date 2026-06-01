@@ -14,7 +14,7 @@ LOOKY_NO_KEY_OR_DISABLED_WARNING = (
 LOOKY_NO_API_ACCESS_WARNING = 'Your Looky account does not have API access.'
 LOOKY_NO_KEY_CONFIGURED_LABEL = f'No Looky API key configured.\nSet one in {LOOKY_SETTINGS_AUTH_PATH}.'
 LOOKY_INVALID_KEY_LOG_WARNING = '[Looky System] Unable to connect to Looky: your API key appears to be invalid. Please update it in Settings.'
-LOOKY_TOKEN_VERIFICATION_HTTP_WARNING_TEMPLATE = '[Looky System] Token verification failed: HTTP %s %s'
+LOOKY_VERIFICATION_HTTP_WARNING_TEMPLATE = '[Looky System] Token verification failed: HTTP %s %s'
 
 
 def is_looky_usable(*, has_key: bool, has_api_access: bool) -> bool:

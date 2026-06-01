@@ -22,11 +22,11 @@ from session_sniffer.core import terminate_script
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
-from session_sniffer.guis.looky_text import LOOKY_MENU_TOOLTIP_READY
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
+from session_sniffer.guis.looky_text import LOOKY_MENU_TOOLTIP_READY
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.session_host_history_window import populate_host_history_submenu
 from session_sniffer.guis.settings_dialog import SettingsDialog

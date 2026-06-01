@@ -8,10 +8,10 @@ from PyQt6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
+from session_sniffer.guis.looky_text import is_looky_usable, resolve_looky_menu_tooltip
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
-from session_sniffer.guis.looky_text import is_looky_usable, resolve_looky_menu_tooltip
 from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
     copy_player_info_for_discord,

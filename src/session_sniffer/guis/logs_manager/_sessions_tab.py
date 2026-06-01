@@ -1,11 +1,20 @@
 """Sessions logging tab — folder tree + file viewer."""
+import queue
 import shutil
+import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
-from PyQt6.QtCore import QModelIndex, Qt, QUrl
+from prettytable import PrettyTable, TableStyle
+from pydantic import ValidationError
+from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -18,7 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS, TITLE
 from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
     create_log_viewer,
@@ -30,10 +39,51 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
+from session_sniffer.guis.utils import SPINNER_FRAMES
+from session_sniffer.models import SessionLogFile
+from session_sniffer.settings import Settings
+
+_SEARCH_ALL = 'All Searchable Columns'
+_SEARCH_COL_USERNAMES = 'Usernames'
+_SEARCH_COL_IP = 'IP Address'
+_SEARCH_COL_HOSTNAME = 'Hostname'
+_SEARCH_COL_COUNTRY = 'Country'
+_SEARCH_COL_CITY = 'City'
+_SEARCH_COL_ISP = 'ISP'
+_SEARCH_COL_ASN = 'ASN'
+_SEARCH_COL_LAST_PORT = 'Last Port'
+_SEARCH_COL_MIDDLE_PORTS = 'Middle Ports'
+_SEARCH_COL_FIRST_PORT = 'First Port'
+_SINGLE_FILE_VIEWER_PLACEHOLDER = 'Select a session JSON file from the tree to view its contents.'
+_GLOBAL_SEARCH_VIEWER_PLACEHOLDER = 'Press Enter to search across all session JSON files.'
+
+
+def _build_searchable_columns() -> tuple[str, ...]:
+    columns: list[str] = []
+    seen: set[str] = set()
+
+    for source_columns in (Settings.GUI_ALL_CONNECTED_COLUMNS, Settings.GUI_ALL_DISCONNECTED_COLUMNS):
+        for column in source_columns:
+            if column in SEARCHABLE_COLUMN_EXCLUSIONS or column in seen:
+                continue
+            seen.add(column)
+            columns.append(column)
+
+    return (_SEARCH_ALL, *columns)
+
+
+_SEARCHABLE_COLUMNS: tuple[str, ...] = _build_searchable_columns()
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionTableRenderConfig:
+    title: str
+    sort_column: str
+    descending: bool
 
 
 class SessionsLogTab(QWidget):
-    """Browse and view session log files in a YYYY/MM/DD folder hierarchy."""
+    """Browse and view session JSON files in a YYYY/MM/DD folder hierarchy."""
 
     def __init__(self, sessions_dir: Path, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -41,6 +91,11 @@ class SessionsLogTab(QWidget):
         self._current_file: Path | None = None
         self._selected_path: Path | None = None
         self._global_search_active = False
+        self._current_rendered_text = ''
+        self._global_search_generation = 0
+        self._global_search_thread: threading.Thread | None = None
+        self._global_search_results_queue: queue.SimpleQueue[tuple[int, list[str], int, int]] = queue.SimpleQueue()
+        self._loading_spinner_index = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -51,13 +106,24 @@ class SessionsLogTab(QWidget):
         self._search_input = create_search_input(top_bar, 'Search in displayed file ...', self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
 
+        self._search_column_combo = QComboBox()
+        self._search_column_combo.addItems(_SEARCHABLE_COLUMNS)
+        self._search_column_combo.setToolTip('Select which session fields to search')
+        self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
+        top_bar.addWidget(QLabel('Column:'))
+        top_bar.addWidget(self._search_column_combo)
+
         self._global_search_checkbox = QCheckBox('Search All Files')
-        self._global_search_checkbox.setToolTip('Search across all session log files (read-only)')
+        self._global_search_checkbox.setToolTip('Search across all session JSON files (read-only)')
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         top_bar.addWidget(self._global_search_checkbox)
 
         self._match_label = QLabel('')
         top_bar.addWidget(self._match_label)
+
+        self._loading_label = QLabel('')
+        self._loading_label.setVisible(False)
+        top_bar.addWidget(self._loading_label)
 
         self._file_info_label = QLabel('')
         top_bar.addWidget(self._file_info_label)
@@ -70,9 +136,14 @@ class SessionsLogTab(QWidget):
         # Left: file tree
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
 
+        self._tree_container = QWidget()
+        tree_container_layout = QVBoxLayout(self._tree_container)
+        tree_container_layout.setContentsMargins(0, 0, 0, 0)
+        tree_container_layout.setSpacing(0)
+
         self._fs_model = QFileSystemModel()
         self._fs_model.setRootPath(str(self._sessions_dir))
-        self._fs_model.setNameFilters(['*.log'])
+        self._fs_model.setNameFilters(['*.json'])
         self._fs_model.setNameFilterDisables(False)
 
         self._tree = QTreeView()
@@ -82,19 +153,32 @@ class SessionsLogTab(QWidget):
         for col in (1, 2, 3):
             self._tree.setColumnHidden(col, True)  # noqa: FBT003
         self._tree.clicked.connect(self._on_tree_clicked)
+        self._tree.activated.connect(self._on_tree_activated)
+        selection_model = self._tree.selectionModel()
+        if selection_model is not None:
+            selection_model.currentChanged.connect(self._on_tree_current_changed)
         self._tree.setMinimumWidth(200)
 
-        splitter.addWidget(self._tree)
+        tree_container_layout.addWidget(self._tree)
+        splitter.addWidget(self._tree_container)
 
         # Right: text viewer
         self._viewer = create_log_viewer()
-        self._viewer.setPlaceholderText('Select a session log file from the tree to view its contents.')
+        self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
 
         splitter.addWidget(self._viewer)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
 
         layout.addWidget(splitter, stretch=1)
+
+        self._search_spinner_timer = QTimer(self)
+        self._search_spinner_timer.setInterval(80)
+        self._search_spinner_timer.timeout.connect(self._animate_search_spinner)
+
+        self._search_poll_timer = QTimer(self)
+        self._search_poll_timer.setInterval(40)
+        self._search_poll_timer.timeout.connect(self._poll_global_search_result)
 
         # --- Directory metadata ---
         self._metadata_label = setup_metadata_label(layout)
@@ -134,12 +218,12 @@ class SessionsLogTab(QWidget):
             return
         total_size = 0
         file_count = 0
-        for f in self._sessions_dir.rglob('*.log'):
+        for f in self._sessions_dir.rglob('*.json'):
             if f.is_file():
                 total_size += f.stat().st_size
                 file_count += 1
         self._metadata_label.setText(
-            f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} log file(s)',
+            f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
         )
 
     # ------------------------------------------------------------------
@@ -147,23 +231,35 @@ class SessionsLogTab(QWidget):
     # ------------------------------------------------------------------
 
     def _on_tree_clicked(self, index: QModelIndex) -> None:
+        self._handle_tree_selection(index)
+
+    def _on_tree_activated(self, index: QModelIndex) -> None:
+        self._handle_tree_selection(index)
+
+    def _on_tree_current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        self._handle_tree_selection(current)
+
+    def _handle_tree_selection(self, index: QModelIndex) -> None:
+        if not index.isValid():
+            return
         selected = Path(self._fs_model.filePath(index))
         self._selected_path = selected
         if selected.is_file():
             self._load_file(selected)
             self._delete_button.setText('🗑️ Delete File')
-            self._delete_button.setToolTip('Delete the currently selected session log file')
+            self._delete_button.setToolTip('Delete the currently selected session JSON file')
         elif selected.is_dir():
             self._current_file = None
+            self._current_rendered_text = ''
             self._viewer.setPlainText('')
             total_size = 0
             file_count = 0
-            for f in selected.rglob('*.log'):
+            for f in selected.rglob('*.json'):
                 if f.is_file():
                     total_size += f.stat().st_size
                     file_count += 1
             self._file_info_label.setText(
-                f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} log file(s)',
+                f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
             )
             self._match_label.setText('')
             self._viewer.setExtraSelections([])
@@ -172,11 +268,12 @@ class SessionsLogTab(QWidget):
 
     def _load_file(self, file_path: Path) -> None:
         self._current_file = file_path
-        text = file_path.read_text(encoding='utf-8', errors='replace')
+        text = self._render_session_file(file_path)
+        self._current_rendered_text = text
         self._viewer.setPlainText(text)
         line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
         self._file_info_label.setText(
-            f'{file_path.name}  |  {human_readable_size(int(file_path.stat().st_size))}  |  {line_count:,} lines',
+            f'{file_path.name}  |  {human_readable_size(int(file_path.stat().st_size))}  |  {line_count:,} rendered lines',
         )
 
         if self._search_input.text():
@@ -186,9 +283,18 @@ class SessionsLogTab(QWidget):
     # Search
     # ------------------------------------------------------------------
 
+    def _on_search_column_changed(self, _value: str) -> None:
+        self._on_search_changed(self._search_input.text())
+
     def _on_search_changed(self, text: str) -> None:
         if self._global_search_active:
             # Global search is expensive; only triggered on Enter, not per-keystroke.
+            return
+
+        selected_column = self._search_column_combo.currentText()
+        if text and self._current_file is not None and not self._file_has_search_match(self._current_file, text, selected_column):
+            self._viewer.setExtraSelections([])
+            self._match_label.setText('No matches')
             return
 
         document = prepare_search(text, self._match_label, self._viewer)
@@ -221,7 +327,7 @@ class SessionsLogTab(QWidget):
     def _on_search_return_pressed(self) -> None:
         """Run global search on Enter. Activates global mode if not already active."""
         if self._global_search_active:
-            self._run_global_search(self._search_input.text())
+            self._start_global_search(self._search_input.text())
         else:
             self._global_search_checkbox.setChecked(True)
 
@@ -229,12 +335,18 @@ class SessionsLogTab(QWidget):
         """Switch between single-file view mode and global search mode."""
         if checked:
             self._global_search_active = True
-            self._search_input.setPlaceholderText('Search across all session log files (press Enter) ...')
+            self._clear_tree_selection()
+            self._tree_container.setVisible(False)
+            self._search_input.setPlaceholderText('Search across all session JSON files (press Enter) ...')
+            self._viewer.setPlaceholderText(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(False)
-            self._run_global_search(self._search_input.text())
+            self._start_global_search(self._search_input.text())
         else:
             self._global_search_active = False
+            self._stop_loading_animation()
+            self._tree_container.setVisible(True)
             self._search_input.setPlaceholderText('Search in displayed file ...')
+            self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(True)
             self._viewer.setExtraSelections([])
             if self._current_file is not None:
@@ -243,56 +355,352 @@ class SessionsLogTab(QWidget):
                 self._viewer.setPlainText('')
                 self._match_label.setText('')
                 self._file_info_label.setText('')
+                self._current_rendered_text = ''
 
-    def _run_global_search(self, text: str) -> None:
-        """Scan all session log files for lines matching *text* and display results in the viewer."""
+    def _clear_tree_selection(self) -> None:
+        selection_model = self._tree.selectionModel()
+        if selection_model is not None:
+            selection_model.clearSelection()
+            selection_model.setCurrentIndex(QModelIndex(), QItemSelectionModel.SelectionFlag.Clear)
+        self._tree.setCurrentIndex(QModelIndex())
+        self._selected_path = None
+        self._current_file = None
+        self._current_rendered_text = ''
+        self._file_info_label.setText('')
+        self._match_label.setText('')
+        self._viewer.setPlainText('')
+
+    def _start_global_search(self, text: str) -> None:
+        """Clear the display and start an animated background search across all JSON files."""
         self._viewer.setExtraSelections([])
+        self._current_rendered_text = ''
+        self._selected_path = None
+        self._current_file = None
+        self._file_info_label.setText('')
+        self._match_label.setText('')
+        self._viewer.setPlainText('')
 
         if not text:
-            self._viewer.setPlainText('')
-            self._match_label.setText('')
-            self._file_info_label.setText('')
+            self._loading_label.setVisible(False)
+            self._search_spinner_timer.stop()
+            self._search_poll_timer.stop()
             return
 
+        self._global_search_generation += 1
+        generation = self._global_search_generation
+        selected_column = self._search_column_combo.currentText()
+
+        self._loading_spinner_index = 0
+        self._loading_label.setText(self._build_loading_text())
+        self._loading_label.setVisible(True)
+        self._search_spinner_timer.start()
+        self._search_poll_timer.start()
+
+        def worker() -> None:
+            result_lines: list[str] | None = None
+            total_matches = 0
+            files_with_matches = 0
+            try:
+                result_lines, total_matches, files_with_matches = self._build_global_search_result(text, selected_column)
+            finally:
+                if result_lines is None:
+                    result_lines = ['Global search failed unexpectedly. Please try again.']
+            self._global_search_results_queue.put((generation, result_lines, total_matches, files_with_matches))
+
+        self._global_search_thread = threading.Thread(target=worker, name=f'SessionsGlobalSearch-{generation}', daemon=True)
+        self._global_search_thread.start()
+
+    def _build_global_search_result(self, text: str, selected_column: str) -> tuple[list[str], int, int]:
+        """Build the rendered output for a global JSON session search."""
         if not self._sessions_dir.exists():
-            self._viewer.setPlainText('[Sessions directory not found]')
-            self._match_label.setText('No matches')
-            return
+            return ['[Sessions directory not found]'], 0, 0
 
         search_lower = text.lower()
         result_lines: list[str] = []
+        file_blocks: list[tuple[Path, int, list[tuple[int, str, list[str] | None]], list[str]]] = []
+        parsed_table_rows_by_length: dict[int, list[list[str]]] = {}
         total_matches = 0
         files_with_matches = 0
 
-        for log_path in sorted(self._sessions_dir.rglob('*.log')):
-            if not log_path.is_file():
+        for file_index, json_path in enumerate(sorted(self._sessions_dir.rglob('*.json')), start=1):
+            if not json_path.is_file():
                 continue
-            lines = log_path.read_text(encoding='utf-8', errors='replace').splitlines()
 
-            relative = log_path.relative_to(self._sessions_dir)
-            file_matches = 0
+            # Yield periodically so the GUI thread keeps animating the spinner on heavy searches.
+            if not file_index % 3:
+                time.sleep(0)
+
+            structured_matches = self._collect_structured_search_matches(json_path, search_lower, selected_column)
+            if not structured_matches:
+                continue
+
+            lines = self._render_session_file(json_path).splitlines()
+            line_number_width = len(str(len(lines)))
+
+            relative = json_path.relative_to(self._sessions_dir)
+            line_matches: list[tuple[int, str, list[str] | None]] = []
             for line_num, line in enumerate(lines, start=1):
+                if not line_num % 400:
+                    time.sleep(0)
                 if search_lower in line.lower():
-                    if not file_matches:
-                        if result_lines:
-                            result_lines.append('')
-                        result_lines.append(f'── {relative} ──')
-                    result_lines.append(f'  {line_num}: {line}')
-                    file_matches += 1
+                    parsed_cells = self._try_parse_prettytable_row(line)
+                    if parsed_cells is not None:
+                        row_length = len(parsed_cells)
+                        parsed_table_rows_by_length.setdefault(row_length, []).append(parsed_cells)
+                    line_matches.append((line_num, line, parsed_cells))
                     total_matches += 1
 
-            if file_matches:
+            if line_matches:
                 files_with_matches += 1
+                file_blocks.append((relative, line_number_width, line_matches, []))
+            else:
+                # Fallback when rendered-line matching is sparse but structured field match exists.
+                files_with_matches += 1
+                total_matches += len(structured_matches)
+                file_blocks.append((relative, line_number_width, [], structured_matches))
 
-        if result_lines:
-            self._viewer.setPlainText('\n'.join(result_lines))
-        else:
-            self._viewer.setPlainText(f'No matches found for "{text}" in any session log file.')
+        column_widths_by_length: dict[int, list[int]] = {}
+        for row_length, rows in parsed_table_rows_by_length.items():
+            column_widths: list[int] = []
+            for cells in rows:
+                for idx, cell in enumerate(cells):
+                    if idx >= len(column_widths):
+                        column_widths.append(len(cell))
+                    else:
+                        column_widths[idx] = max(column_widths[idx], len(cell))
+            column_widths_by_length[row_length] = column_widths
 
+        for relative, line_number_width, line_matches, structured_matches in file_blocks:
+            if result_lines:
+                result_lines.append('')
+            result_lines.append(f'── {relative} ──')
+            if line_matches:
+                result_lines.extend(
+                    self._render_aligned_line_matches(
+                        line_matches=line_matches,
+                        line_number_width=line_number_width,
+                        column_widths_by_length=column_widths_by_length,
+                    ),
+                )
+            else:
+                result_lines.extend(structured_matches)
+
+        if not result_lines:
+            result_lines = [f'No matches found for "{text}" in any session JSON file.']
+
+        return result_lines, total_matches, files_with_matches
+
+    def _poll_global_search_result(self) -> None:
+        latest_result: tuple[int, list[str], int, int] | None = None
+        while True:
+            try:
+                queued = self._global_search_results_queue.get_nowait()
+            except queue.Empty:
+                break
+            if queued[0] == self._global_search_generation:
+                latest_result = queued
+
+        if latest_result is None:
+            if self._global_search_thread is not None and self._global_search_thread.is_alive():
+                return
+            if self._loading_label.isVisible() and self._global_search_thread is not None:
+                self._stop_loading_animation()
+                self._match_label.setText('Search failed')
+                if not self._viewer.toPlainText():
+                    self._viewer.setPlainText('Global search did not return results. Please try again.')
+            return
+
+        generation, result_lines, total_matches, files_with_matches = latest_result
+
+        if generation != self._global_search_generation:
+            return
+
+        self._stop_loading_animation()
+        self._viewer.setPlainText('\n'.join(result_lines))
         self._match_label.setText(f'{total_matches} match(es)' if total_matches else 'No matches')
         self._file_info_label.setText(
             f'Global search  |  {files_with_matches} file(s) matched' if total_matches else '',
         )
+
+    def _build_loading_text(self) -> str:
+        return f'{SPINNER_FRAMES[self._loading_spinner_index]} Searching...'
+
+    def _animate_search_spinner(self) -> None:
+        if not self._loading_label.isVisible():
+            return
+        self._loading_spinner_index = (self._loading_spinner_index + 1) % len(SPINNER_FRAMES)
+        self._loading_label.setText(self._build_loading_text())
+
+    def _stop_loading_animation(self) -> None:
+        self._search_spinner_timer.stop()
+        self._search_poll_timer.stop()
+        self._loading_label.setVisible(False)
+
+    @staticmethod
+    def _normalize_search_value(value: object) -> str:
+        if isinstance(value, list):
+            values = cast('list[object]', value)
+            return ', '.join(str(v) for v in values)
+        if value is None:
+            return ''
+        return str(value)
+
+    @staticmethod
+    def _try_parse_prettytable_row(line: str) -> list[str] | None:
+        stripped = line.strip()
+        if not stripped.startswith('│') or not stripped.endswith('│'):
+            return None
+        raw_cells = stripped.split('│')[1:-1]
+        if not raw_cells:
+            return None
+        return [cell.strip() for cell in raw_cells]
+
+    @staticmethod
+    def _format_prettytable_row(cells: list[str], column_widths: list[int]) -> str:
+        padded = [cell.ljust(column_widths[idx]) if idx < len(column_widths) else cell for idx, cell in enumerate(cells)]
+        return f"│ {' │ '.join(padded)} │"
+
+    @staticmethod
+    def _build_effective_column_widths(base_widths: list[int], header_cells: list[str]) -> list[int]:
+        effective_widths = list(base_widths)
+        for idx, header_cell in enumerate(header_cells):
+            header_len = len(header_cell)
+            if idx >= len(effective_widths):
+                effective_widths.append(header_len)
+            else:
+                effective_widths[idx] = max(effective_widths[idx], header_len)
+        return effective_widths
+
+    @staticmethod
+    def _format_prettytable_separator(column_widths: list[int], num_columns: int) -> str:
+        if num_columns <= 0:
+            return ''
+        widths = [column_widths[idx] if idx < len(column_widths) else 0 for idx in range(num_columns)]
+        return f"├─{'─┼─'.join('─' * width for width in widths)}─┤"
+
+    @staticmethod
+    def _column_headers_for_row_length(row_length: int) -> list[str] | None:
+        connected_columns = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
+        disconnected_columns = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
+
+        if row_length == len(connected_columns):
+            return connected_columns
+        if row_length == len(disconnected_columns):
+            return disconnected_columns
+        return None
+
+    def _render_aligned_line_matches(
+        self,
+        *,
+        line_matches: list[tuple[int, str, list[str] | None]],
+        line_number_width: int,
+        column_widths_by_length: dict[int, list[int]],
+    ) -> list[str]:
+        rendered_lines: list[str] = []
+        active_row_length = -1
+        active_column_widths: list[int] = []
+        has_rendered_schema_header = False
+
+        for line_num, line, parsed_cells in line_matches:
+            rendered_line = line
+            if parsed_cells is not None:
+                row_length = len(parsed_cells)
+                if row_length != active_row_length:
+                    if has_rendered_schema_header:
+                        rendered_lines.append('')
+                    active_row_length = row_length
+                    active_column_widths = list(column_widths_by_length.get(row_length, []))
+                    header_cells = self._column_headers_for_row_length(row_length)
+                    if header_cells is not None:
+                        schema_label = self._schema_label_for_row_length(row_length)
+                        if schema_label:
+                            rendered_lines.append(f'  {" " * line_number_width}  ── {schema_label} ──')
+                        active_column_widths = self._build_effective_column_widths(active_column_widths, header_cells)
+                        header_row = self._format_prettytable_row(header_cells, active_column_widths)
+                        separator_row = self._format_prettytable_separator(active_column_widths, len(header_cells))
+                        rendered_lines.append(f'  {" " * line_number_width}  {header_row}')
+                        rendered_lines.append(f'  {" " * line_number_width}  {separator_row}')
+                        has_rendered_schema_header = True
+                rendered_line = self._format_prettytable_row(parsed_cells, active_column_widths)
+            rendered_lines.append(f'  {line_num:>{line_number_width}}: {rendered_line}')
+
+        return rendered_lines
+
+    @staticmethod
+    def _schema_label_for_row_length(row_length: int) -> str | None:
+        if row_length == len(Settings.GUI_ALL_CONNECTED_COLUMNS):
+            return 'Connected Columns'
+        if row_length == len(Settings.GUI_ALL_DISCONNECTED_COLUMNS):
+            return 'Disconnected Columns'
+        return None
+
+    @classmethod
+    def _build_player_search_fields(cls, ip: str, info: dict[str, Any]) -> dict[str, str]:
+        return {
+            _SEARCH_COL_USERNAMES: cls._normalize_search_value(info.get('Usernames')),
+            _SEARCH_COL_IP: ip,
+            _SEARCH_COL_HOSTNAME: cls._normalize_search_value(info.get('Hostname')),
+            _SEARCH_COL_COUNTRY: cls._normalize_search_value(info.get('Country')),
+            _SEARCH_COL_CITY: cls._normalize_search_value(info.get('City')),
+            _SEARCH_COL_ISP: cls._normalize_search_value(info.get('ISP')),
+            _SEARCH_COL_ASN: cls._normalize_search_value(info.get('ASN')),
+            _SEARCH_COL_LAST_PORT: cls._normalize_search_value(info.get('Last Port')),
+            _SEARCH_COL_MIDDLE_PORTS: cls._normalize_search_value(info.get('Middle Ports')),
+            _SEARCH_COL_FIRST_PORT: cls._normalize_search_value(info.get('First Port')),
+        }
+
+    @classmethod
+    def _iter_json_text_values(cls, value: object) -> list[str]:
+        if isinstance(value, dict):
+            mapping = cast('dict[object, object]', value)
+            texts: list[str] = []
+            for item in mapping.values():
+                texts.extend(cls._iter_json_text_values(item))
+            return texts
+        if isinstance(value, list):
+            values = cast('list[object]', value)
+            texts = []
+            for item in values:
+                texts.extend(cls._iter_json_text_values(item))
+            return texts
+        if value is None:
+            return []
+        return [str(value)]
+
+    @staticmethod
+    def _load_session_log_file(file_path: Path) -> SessionLogFile:
+        return SessionLogFile.model_validate_json(file_path.read_text(encoding='utf-8', errors='replace'))
+
+    def _collect_structured_search_matches(self, file_path: Path, search_lower: str, selected_column: str) -> list[str]:
+        try:
+            session_log = self._load_session_log_file(file_path)
+        except (OSError, ValidationError):
+            return []
+
+        matches: list[str] = []
+        connected = session_log.connected
+        disconnected = session_log.disconnected
+
+        for section_name, players in (('connected', connected), ('disconnected', disconnected)):
+            for ip, info in players.items():
+                fields = self._build_player_search_fields(ip, info)
+                if selected_column == _SEARCH_ALL:
+                    matched_columns = []
+                    all_text = ' '.join(self._iter_json_text_values(info))
+                    if search_lower in all_text.lower():
+                        matched_columns = list(fields)
+                else:
+                    selected_value = fields.get(selected_column, '')
+                    matched_columns = [selected_column] if search_lower in selected_value.lower() else []
+
+                if matched_columns:
+                    preview = ', '.join(f'{column}: {fields[column]}' for column in matched_columns)
+                    matches.append(f'  [{section_name}] {ip}  |  {preview}')
+
+        return matches
+
+    def _file_has_search_match(self, file_path: Path, text: str, selected_column: str) -> bool:
+        return bool(self._collect_structured_search_matches(file_path, text.lower(), selected_column))
 
     # ------------------------------------------------------------------
     # Actions
@@ -311,8 +719,117 @@ class SessionsLogTab(QWidget):
         )
         if not path:
             return
-        Path(path).write_text(self._viewer.toPlainText(), encoding='utf-8')
+        Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
         QMessageBox.information(self, TITLE, f'Saved to {path}')
+
+    # ------------------------------------------------------------------
+    # Session rendering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _format_session_datetime(value: object) -> str:
+        if not isinstance(value, str) or not value:
+            return 'N/A'
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+        return parsed.strftime('%H:%M:%S.%f')[:-3]
+
+    @staticmethod
+    def _format_bool(value: object) -> str:
+        if isinstance(value, bool):
+            return 'Yes' if value else 'No'
+        return '...'
+
+    @staticmethod
+    def _format_table_value(value: object) -> str:
+        if value is None:
+            return 'N/A'
+        if isinstance(value, bool):
+            return 'Yes' if value else 'No'
+        if isinstance(value, list):
+            items = cast('list[object]', value)
+            return ', '.join(str(item) for item in items)
+        return str(value)
+
+    @staticmethod
+    def _get_column_snapshot(player_info: dict[str, Any]) -> dict[str, Any]:
+        columns_raw = player_info.get('columns')
+        if isinstance(columns_raw, dict):
+            return cast('dict[str, Any]', columns_raw)
+        return player_info
+
+    @classmethod
+    def _build_session_table(
+        cls,
+        *,
+        players: dict[str, dict[str, Any]],
+        column_names: tuple[str, ...],
+        config: _SessionTableRenderConfig,
+    ) -> PrettyTable:
+        table = PrettyTable()
+        table.set_style(TableStyle.SINGLE_BORDER)
+        table.title = config.title
+        table.field_names = [
+            f'{column} \u2193' if column == config.sort_column and config.descending else f'{column} \u2191' if column == config.sort_column else column
+            for column in column_names
+        ]
+        for field_name in table.field_names:
+            table.align[field_name] = 'l'
+
+        sorted_players = sorted(
+            players.items(),
+            key=lambda item: cls._get_column_snapshot(item[1]).get(config.sort_column, ''),
+            reverse=config.descending,
+        )
+        for ip, info in sorted_players:
+            columns = cls._get_column_snapshot(info)
+            row = [
+                cls._format_session_datetime(columns.get(column_name, info.get(column_name, 'N/A')))
+                if column_name in DATETIME_TRACKING_COLUMNS
+                else cls._format_table_value(columns.get(column_name, info.get(column_name, 'N/A')))
+                if column_name != 'IP Address'
+                else cls._format_table_value(ip)
+                for column_name in column_names
+            ]
+            table.add_row(row)
+
+        return table
+
+    @classmethod
+    def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> PrettyTable:
+        return cls._build_session_table(
+            players=players,
+            column_names=Settings.GUI_ALL_CONNECTED_COLUMNS,
+            config=_SessionTableRenderConfig(
+                title=f'Players connected in your session ({len(players)}):',
+                sort_column='Last Rejoin',
+                descending=True,
+            ),
+        )
+
+    @classmethod
+    def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> PrettyTable:
+        return cls._build_session_table(
+            players=players,
+            column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS,
+            config=_SessionTableRenderConfig(
+                title=f"Players who've left your session ({len(players)}):",
+                sort_column='Last Seen',
+                descending=False,
+            ),
+        )
+
+    def _render_session_file(self, file_path: Path) -> str:
+        try:
+            session_log = self._load_session_log_file(file_path)
+        except (OSError, ValidationError) as exc:
+            return f'[Failed to parse JSON session file: {file_path.name}]\n{exc}'
+
+        connected_table = self._build_connected_table(session_log.connected)
+        disconnected_table = self._build_disconnected_table(session_log.disconnected)
+        return f'{connected_table.get_string()}\n{disconnected_table.get_string()}'
 
     def _delete_selected(self) -> None:
         target = self._selected_path
@@ -338,6 +855,7 @@ class SessionsLogTab(QWidget):
         self._file_info_label.setText('')
         self._current_file = None
         self._selected_path = None
+        self._current_rendered_text = ''
         self.update_dir_metadata()
 
     def _open_location(self) -> None:

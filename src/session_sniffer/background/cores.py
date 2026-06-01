@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
 from session_sniffer.core import ScriptControl
-from session_sniffer.guis.looky_text import LOOKY_INVALID_KEY_LOG_WARNING, LOOKY_TOKEN_VERIFICATION_HTTP_WARNING_TEMPLATE
+from session_sniffer.guis.looky_text import LOOKY_INVALID_KEY_LOG_WARNING, LOOKY_VERIFICATION_HTTP_WARNING_TEMPLATE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
@@ -318,7 +318,7 @@ def looky_core() -> None:
                 if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
                     logger.warning(LOOKY_INVALID_KEY_LOG_WARNING)
                 else:
-                    logger.warning(LOOKY_TOKEN_VERIFICATION_HTTP_WARNING_TEMPLATE, status, reason)
+                    logger.warning(LOOKY_VERIFICATION_HTTP_WARNING_TEMPLATE, status, reason)
                 Settings.looky_api_access = False
                 Settings.looky_user_data = None
 
