@@ -46,13 +46,8 @@ def format_elapsed_time(duration: timedelta) -> str:
 
 
 def format_player_usernames(player: Player) -> str:
-    """Format player usernames as comma-separated string, including resolved Looky names."""
-    names: list[str] = list(player.usernames)
-    if player.looky.is_initialized:
-        for name in player.looky.names:
-            if name not in names:
-                names.append(name)
-    return ', '.join(names) if names else ''
+    """Format player usernames as a comma-separated string."""
+    return ', '.join(player.usernames) if player.usernames else ''
 
 
 def format_player_ip(player_ip: str) -> str:

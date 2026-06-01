@@ -387,7 +387,7 @@ def looky_core() -> None:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
                         players = results.get(ip, [])
-                        matched_player.looky.names = [p.name for p in players]
+                        matched_player.looky.usernames = [p.name for p in players]
                         matched_player.looky.rockstarids = [p.rockstarid for p in players]
                         matched_player.looky.needs_refresh = False
                         matched_player.looky.is_initialized = True

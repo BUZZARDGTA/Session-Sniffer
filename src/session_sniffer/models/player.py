@@ -783,7 +783,7 @@ class PlayerLooky:
 
     is_initialized: bool = False
     needs_refresh: bool = False
-    names: list[str] = dataclasses.field(default_factory=list[str])
+    usernames: list[str] = dataclasses.field(default_factory=list[str])
     rockstarids: list[int] = dataclasses.field(default_factory=list[int])
 
 
