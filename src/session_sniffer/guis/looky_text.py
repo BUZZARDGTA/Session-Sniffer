@@ -19,12 +19,12 @@ LOOKY_VERIFICATION_HTTP_WARNING_TEMPLATE = '[Looky System] Token verification fa
 
 
 def is_looky_usable(*, has_key: bool, has_api_access: bool) -> bool:
-    """Return whether Looky actions should be enabled."""
+    """Return whether Looky System actions should be enabled."""
     return has_key and has_api_access
 
 
 def resolve_looky_menu_state(*, looky_enabled: bool, gta5_is_running: bool, has_key: bool, has_api_access: bool) -> tuple[bool, bool, str]:
-    """Return the visible, enabled, and tooltip state for Looky menus."""
+    """Return the visible, enabled, and tooltip state for Looky System menus."""
     is_visible = looky_enabled
     is_enabled = is_visible and gta5_is_running and is_looky_usable(has_key=has_key, has_api_access=has_api_access)
     if not is_visible:
@@ -43,7 +43,7 @@ def resolve_looky_menu_state(*, looky_enabled: bool, gta5_is_running: bool, has_
 
 
 def resolve_looky_menu_tooltip(*, has_key: bool, has_api_access: bool) -> str:
-    """Return the most helpful tooltip for the current Looky menu state."""
+    """Return the most helpful tooltip for the current Looky System menu state."""
     if not has_key:
         return LOOKY_MENU_TOOLTIP_NO_KEY
 
