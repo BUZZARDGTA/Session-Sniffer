@@ -22,6 +22,7 @@ from session_sniffer.guis.looky_text import (
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
+    LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
@@ -61,7 +62,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     layout.addWidget(status_label)
 
     try_again_btn = QPushButton('Try Again')
-    try_again_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+    try_again_btn.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
     try_again_btn.hide()
     layout.addWidget(try_again_btn)
 

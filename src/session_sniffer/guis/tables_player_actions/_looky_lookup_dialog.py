@@ -8,6 +8,7 @@ import requests
 from pydantic import ValidationError
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
+    QDialogButtonBox,
     QMessageBox,
     QVBoxLayout,
     QWidget,
@@ -15,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
+from session_sniffer.guis.stylesheets import LOOKY_ACTION_BUTTON_STYLESHEET, LOOKY_CRAWLER_HEADER_STYLESHEET
 from session_sniffer.guis.tables_player_actions._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import set_dialog_window_flags
@@ -87,14 +89,14 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         self._add_header_label(
             outer_layout,
             f'🔎  Lookup \u2014 {player.ip}',
-            '#6b21a8',
-            '#7c3aed',
-        )
+            '#1c0a38',
+            '#2e1065',
+        ).setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
         for entry in results:
-            group, form = self._make_group(f'\U0001f3ae  {entry.name}', accent='#6b21a8')
+            group, form = self._make_group(f'\U0001f3ae  {entry.name}', accent='#4c1d95')
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))
             self._add_row(form, 'Username', entry.name)
             self._add_row(form, 'Last Seen', entry.lastSeen.strftime('%Y-%m-%d %H:%M:%S UTC'))
@@ -106,7 +108,13 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             scroll_layout.addWidget(group)
 
         scroll_layout.addStretch(1)
-        self._add_close_button_box(outer_layout)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
+        button_box.rejected.connect(self.reject)
+        button_box.accepted.connect(self.accept)
+        close_btn = button_box.button(QDialogButtonBox.StandardButton.Close)
+        if close_btn is not None:
+            close_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+        outer_layout.addWidget(button_box)
 
 
 def show_looky_lookup(parent: QWidget, player: Player) -> None:

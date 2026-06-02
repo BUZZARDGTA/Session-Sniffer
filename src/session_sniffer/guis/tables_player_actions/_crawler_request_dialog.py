@@ -22,8 +22,12 @@ from PyQt6.QtWidgets import (
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
 from session_sniffer.guis.stylesheets import (
+    LOOKY_ACTION_BUTTON_STYLESHEET,
+    LOOKY_BODY_LABEL_STYLESHEET,
     LOOKY_CRAWLER_HEADER_STYLESHEET,
     LOOKY_CRAWLER_LOG_STYLESHEET,
+    LOOKY_LIST_WIDGET_STYLESHEET,
+    LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
 )
 from session_sniffer.guis.tables_player_actions._looky_helpers import (
     build_looky_progress_widgets,
@@ -125,19 +129,27 @@ class _RIDPickerDialog(QDialog):
 
     def __init__(self, parent: QWidget, entries: list[tuple[str, int]]) -> None:
         super().__init__(parent)
+        set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(420)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
+
+        header = QLabel('\U0001f3ae  Select Rockstar ID')
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+        layout.addWidget(header)
 
         label = QLabel('Multiple Rockstar IDs found for this player.\n\nSelect one to request the crawler:')
         label.setWordWrap(True)
+        label.setStyleSheet(LOOKY_BODY_LABEL_STYLESHEET)
         layout.addWidget(label)
 
         self._list = QListWidget()
+        self._list.setStyleSheet(LOOKY_LIST_WIDGET_STYLESHEET)
         for name, rid in entries:
             item = QListWidgetItem(f'{name} (RID: {rid})')
             item.setData(Qt.ItemDataRole.UserRole, rid)
@@ -149,6 +161,12 @@ class _RIDPickerDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
+        ok_btn = button_box.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn is not None:
+            ok_btn.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
+        cancel_btn = button_box.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn is not None:
+            cancel_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         layout.addWidget(button_box)
 
     def selected_rid(self) -> int | None:
