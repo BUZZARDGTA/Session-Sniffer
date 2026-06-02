@@ -4,7 +4,7 @@ import dataclasses
 import time
 from dataclasses import dataclass
 from datetime import datetime as datetime_type
-from threading import Event
+from threading import Event, Lock
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple, Self, override
 
 from PyQt6.QtGui import QIcon, QImage, QPixmap
@@ -783,8 +783,10 @@ class PlayerLooky:
 
     is_initialized: bool = False
     needs_refresh: bool = False
+    last_fetched_at: float = 0.0
     usernames: list[str] = dataclasses.field(default_factory=list[str])
     rockstarids: list[int] = dataclasses.field(default_factory=list[int])
+    lock: Lock = dataclasses.field(default_factory=Lock)
 
 
 @dataclass(slots=True)

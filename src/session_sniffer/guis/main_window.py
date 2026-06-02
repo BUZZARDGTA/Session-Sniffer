@@ -1,7 +1,7 @@
 """Main window implementation for Session Sniffer."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QFont
@@ -21,12 +21,12 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
+from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
-from session_sniffer.guis.looky_text import LOOKY_MENU_TOOLTIP_READY
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.session_host_history_window import populate_host_history_submenu
 from session_sniffer.guis.settings_dialog import SettingsDialog
@@ -62,7 +62,7 @@ class _WindowState:
     min_accepted_snapshot_version: int
 
 
-class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
+class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
     _actions: _MenuActions
@@ -172,7 +172,6 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             else:
                 self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
                 self._gta5_status_label.setToolTip('GTA V process detection state')
-            self._sync_looky_submenu()
 
         gta5_menu.aboutToShow.connect(_update_gta5_status_display)
         gta5_menu.addSeparator()
@@ -182,6 +181,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         player_resolver_action.triggered.connect(self._open_player_resolver)
         gta5_menu.addAction(player_resolver_action)
         self._player_resolver_action = player_resolver_action
+
+        self._build_looky_submenu(gta5_menu)
 
         gta5_menu.addSeparator()
 
@@ -261,33 +262,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_process_suspended = False
         self._gta5_process_detected = False
 
-        gta5_menu.addSeparator()
-
-        looky_submenu = gta5_menu.addMenu('\U0001F441 Looky System')
-        if looky_submenu is None:
-            msg = 'Failed to create Looky submenu'
-            raise RuntimeError(msg)
-        looky_submenu.setToolTipsVisible(True)
-        cast('QAction', looky_submenu.menuAction()).setToolTip(LOOKY_MENU_TOOLTIP_READY)
-        self._looky_submenu = looky_submenu
-
-        looky_crawler_session_action = QAction('🤖 Request Crawler in My Session', self)
-        looky_crawler_session_action.setToolTip(
-            'Request the Looky crawler bot to join your session.\n'
-            'The bot will resolve all player usernames in your session to the Looky database.\n'
-            'Once completed, all players are automatically re-queried via Looky to pick up resolved or updated usernames.',
-        )
-        looky_crawler_session_action.triggered.connect(self.request_crawler_in_my_session)
-        looky_submenu.addAction(looky_crawler_session_action)
-        self._looky_crawler_session_action = looky_crawler_session_action
-        self._crawler_worker = None
-        self._crawler_progress_dialog = None
-        self._player_crawler_worker = None
-        self._player_crawler_rockstarids: list[int] | None = None
-
         if Settings.capture_game_preset == 'GTA5':
             self._sync_gta5_process_button()
-            self._sync_looky_submenu()
             if CaptureState.gta5_is_running:
                 gta5 = find_running_gta5_path()
                 version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
@@ -295,6 +271,7 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
                 self._gta5_status_label.setToolTip(str(gta5.path) if gta5.is_running else 'GTA5 process detection state')
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
+            self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
 
         # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
@@ -795,9 +772,8 @@ class MainWindow(GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
                 self._gta5_status_label.setToolTip('GTA V process detection state')
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
+            self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
             self._sync_gta5_process_button()
-
-        self._sync_looky_submenu()
 
         if self._capture_statistics_window is not None:
             self._capture_statistics_window.refresh()

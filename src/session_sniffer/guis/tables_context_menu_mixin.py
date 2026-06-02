@@ -7,8 +7,8 @@ from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.looky_text import resolve_looky_menu_state
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
@@ -17,6 +17,7 @@ from session_sniffer.guis.tables_player_actions import (
     copy_player_info_for_discord,
     copy_players_info_for_discord,
     ping_ip,
+    show_crawler_request,
     show_detailed_ip_lookup,
     show_looky_lookup,
     show_seen_stats,
@@ -39,7 +40,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.utils import find_running_gta5_path, run_cmd_script
+from session_sniffer.utils import run_cmd_script
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -146,98 +147,272 @@ class TableContextMenuMixin(QTableView):
         context_menu.setToolTipsVisible(True)
         context_menu.hovered.connect(self.handle_menu_hovered)
 
-        # Resolve a single selected player early so Copy for Discord can sit near Copy Selection
-        _early_player: Player | None = None
-        if len(selected_indexes) == 1:
-            _early_ip_idx = selected_model.index(selected_indexes[0].row(), selected_model.ip_column_index)
-            _early_ip = selected_model.get_display_text(_early_ip_idx)
-            if _early_ip:
-                _early_player = PlayersRegistry.get_player_by_ip(_early_ip)
-
-        # Add "Copy Selection" action
-        add_action(
-            context_menu,
-            '📋 Copy Selection',
-            shortcut='Ctrl+C',
-            tooltip='Copy selected cells to your clipboard.',
-            handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
-        )
-        if _early_player is not None:
-            _discord_player = _early_player
-            add_action(
-                context_menu,
-                '📋 Copy for Discord',
-                tooltip='Copy a detailed player info report formatted for Discord to the clipboard.',
-                handler=lambda: copy_player_info_for_discord(_discord_player),
-            )
-        elif len(selected_indexes) > 1:
-            _early_seen_rows: set[int] = set()
-            _early_all_ips: list[str] = []
-            for _early_idx in selected_indexes:
-                _early_row = _early_idx.row()
-                if _early_row in _early_seen_rows:
+        def get_selected_ips(indexes: list[QModelIndex]) -> list[str]:
+            seen_rows: set[int] = set()
+            ips: list[str] = []
+            for selected_index in indexes:
+                if selected_index.row() in seen_rows:
                     continue
-                _early_seen_rows.add(_early_row)
-                _early_ip_idx = selected_model.index(_early_row, selected_model.ip_column_index)
-                _early_disp_ip = selected_model.get_display_text(_early_ip_idx)
-                if _early_disp_ip and _early_disp_ip not in _early_all_ips:
-                    _early_all_ips.append(_early_disp_ip)
-            _early_matched = [_ep for _eip in _early_all_ips if (_ep := PlayersRegistry.get_player_by_ip(_eip)) is not None]
-            if _early_matched:
-                _discord_players = _early_matched
+                seen_rows.add(selected_index.row())
+                ip_index = selected_model.index(selected_index.row(), selected_model.ip_column_index)
+                displayed_ip = selected_model.get_display_text(ip_index)
+                if displayed_ip and displayed_ip not in ips:
+                    ips.append(displayed_ip)
+            return ips
+
+        def get_matched_players(ips: list[str]) -> list[Player]:
+            return [player for ip in ips if (player := PlayersRegistry.get_player_by_ip(ip)) is not None]
+
+        def remove_blocked_players_from_tables() -> None:
+            main_window = cast('MainWindow', self.window())
+            for player in PlayersRegistry.get_default_sorted_players():
+                if check_ip_against_ranges(player.ip, Settings.blocked_ip_ranges):
+                    if player.left_event.is_set():
+                        main_window.remove_player_from_disconnected(player.ip)
+                    else:
+                        main_window.remove_player_from_connected(player.ip)
+
+        def add_copy_for_discord_action(players: list[Player]) -> None:
+            if not players:
+                return
+
+            if len(selected_indexes) == 1 and len(players) == 1:
                 add_action(
                     context_menu,
                     '📋 Copy for Discord',
-                    tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
-                    handler=lambda: copy_players_info_for_discord(_discord_players),
+                    tooltip='Copy a detailed player info report formatted for Discord to the clipboard.',
+                    handler=lambda: copy_player_info_for_discord(players[0]),
                 )
-        context_menu.addSeparator()
+                return
 
-        # Add "Remove Player" action for any selection (resolve IPs from selected rows)
-        if selected_indexes:
-            ips_to_remove: set[str] = set()
-            seen_rows: set[int] = set()
-            for idx in selected_indexes:
-                row = idx.row()
-                if row not in seen_rows:
-                    seen_rows.add(row)
-                    ip_idx = selected_model.index(row, selected_model.ip_column_index)
-                    displayed_ip = selected_model.get_display_text(ip_idx)
-                    if displayed_ip:
-                        ips_to_remove.add(displayed_ip)
+            add_action(
+                context_menu,
+                '📋 Copy for Discord',
+                tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
+                handler=lambda: copy_players_info_for_discord(players),
+            )
 
-            if ips_to_remove:
-                # Use singular or plural label based on count
-                if len(ips_to_remove) == 1:
-                    label = '🗑️ Remove Player'
-                    tooltip = 'Remove this player from the table and registry.'
-                else:
-                    label = f'🗑️ Remove {len(ips_to_remove)} Players'
-                    tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
+        def add_remove_players_action(ips: list[str]) -> None:
+            if not ips:
+                return
 
-                def create_remove_handler(ip_list: set[str]) -> Callable[[], None]:
-                    return lambda: self.remove_players_by_ip_from_table(ip_list)
+            ips_to_remove = set(ips)
+            if len(ips_to_remove) == 1:
+                label = '🗑️ Remove Player'
+                tooltip = 'Remove this player from the table and registry.'
+            else:
+                label = f'🗑️ Remove {len(ips_to_remove)} Players'
+                tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
+
+            add_action(
+                context_menu,
+                label,
+                tooltip=tooltip,
+                handler=lambda: self.remove_players_by_ip_from_table(ips_to_remove),
+            )
+
+        def add_exclude_ips_action(ips: list[str]) -> None:
+            if not ips:
+                return
+
+            if len(ips) == 1:
+                def _do_block_single_ip() -> None:
+                    if block_ip_as_range(self, ips[0]) is None:
+                        return
+                    remove_blocked_players_from_tables()
 
                 add_action(
                     context_menu,
-                    label,
-                    tooltip=tooltip,
-                    handler=create_remove_handler(ips_to_remove),
+                    '🚫 Exclude IP / Range',
+                    tooltip='Exclude this IP or a range/subnet from appearing in the session. Persisted to settings.',
+                    handler=_do_block_single_ip,
                 )
-        context_menu.addSeparator()
+                return
 
-        # "Select" submenu
-        select_menu = add_menu(context_menu, '☑️ Select')
-        add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
-        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
-        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
+            def _do_block_multi_ips() -> None:
+                for ip in ips:
+                    block_ip_as_range(self, ip)
+                if not Settings.blocked_ip_ranges:
+                    return
+                remove_blocked_players_from_tables()
 
-        # "Unselect" submenu
-        unselect_menu = add_menu(context_menu, '⬜ Unselect')
-        add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
-        add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self.unselect_row_cells(index.row()))
-        add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self.unselect_column_cells(index.column()))
-        context_menu.addSeparator()
+            add_action(
+                context_menu,
+                f'🚫 Exclude {len(ips)} IPs / Ranges',
+                tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
+                handler=_do_block_multi_ips,
+            )
+
+        def add_ip_lookup_action(players: list[Player]) -> None:
+            if not players:
+                return
+
+            if len(players) == 1:
+                add_action(
+                    context_menu,
+                    '🔎 IP Lookup Details',
+                    tooltip='Displays a notification with a detailed IP lookup report for selected player.',
+                    handler=lambda: show_detailed_ip_lookup(self, players[0]),
+                )
+                return
+
+            def _show_all_lookups() -> None:
+                for player in players:
+                    show_detailed_ip_lookup(self, player)
+
+            add_action(
+                context_menu,
+                '🔎 IP Lookup Details',
+                tooltip='Displays a detailed IP lookup report for each selected player.',
+                handler=_show_all_lookups,
+            )
+
+        def add_rate_graph_action(ips: list[str]) -> None:
+            if not ips or not self.is_connected_table or self.open_rate_graph_callback is None:
+                return
+
+            rate_graph_callback = self.open_rate_graph_callback
+
+            if len(ips) == 1:
+                add_action(
+                    context_menu,
+                    '📈 Rate Graph',
+                    tooltip='Open a live PPS/BPS graph for this player.',
+                    handler=lambda: rate_graph_callback(ips[0]),
+                )
+                return
+
+            def _open_multi_graphs() -> None:
+                for ip in ips:
+                    rate_graph_callback(ip)
+
+            add_action(
+                context_menu,
+                '📈 Rate Graph',
+                tooltip='Open a live PPS/BPS graph for each selected player.',
+                handler=_open_multi_graphs,
+            )
+
+        def add_seen_stats_action(players: list[Player]) -> None:
+            if not players:
+                return
+
+            if len(players) == 1:
+                add_action(
+                    context_menu,
+                    '📅 Seen Stats',
+                    tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
+                    handler=lambda: show_seen_stats(self, players[0]),
+                )
+                return
+
+            def _show_all_seen_stats() -> None:
+                for player in players:
+                    show_seen_stats(self, player)
+
+            add_action(
+                context_menu,
+                '📅 Seen Stats',
+                tooltip='Shows session appearance stats for each selected player.',
+                handler=_show_all_seen_stats,
+            )
+
+        def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
+            if not players:
+                return
+
+            looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
+
+            def _open_looky_website() -> None:
+                QDesktopServices.openUrl(QUrl(LOOKY_BASE_HOST))
+
+            add_action(
+                looky_menu,
+                '\ud83c\udf10 Open Website',
+                tooltip='Open the Looky System website in your default browser.',
+                handler=_open_looky_website,
+            )
+
+            looky_menu.addSeparator()
+
+            if len(players) == 1:
+                add_action(
+                    looky_menu,
+                    '🔎 Looky Lookup',
+                    tooltip='Query the Looky System API to find players associated with this IP.',
+                    handler=lambda: show_looky_lookup(self, players[0]),
+                )
+                if not (players[0].looky.is_initialized and not players[0].looky.rockstarids):
+                    add_action(
+                        looky_menu,
+                        '🤖 Request Crawler',
+                        tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
+                        handler=lambda: show_crawler_request(self, players[0]),
+                    )
+                return
+
+            def _show_looky_lookup_for_all() -> None:
+                for player in players:
+                    show_looky_lookup(self, player)
+
+            add_action(
+                looky_menu,
+                '🔎 Looky Lookup (All Selected)',
+                tooltip='Query the Looky System API for each selected player IP.',
+                handler=_show_looky_lookup_for_all,
+            )
+
+        def add_ping_menu(ips: list[str]) -> None:
+            if not ips:
+                return
+
+            ping_menu = add_menu(context_menu, '📡 Ping')
+
+            if len(ips) == 1:
+                add_action(
+                    ping_menu,
+                    '🏓 Normal',
+                    tooltip='Checks if selected IP address responds to pings.',
+                    handler=lambda: ping_ip(ips[0]),
+                )
+                add_action(
+                    ping_menu,
+                    '🔌 TCP Port (paping.exe)',
+                    tooltip='Checks if selected IP address responds to TCP pings on a given port.',
+                    handler=lambda: tcp_port_ping(self, ips[0]),
+                )
+                return
+
+            def _ping_all() -> None:
+                for ip in ips:
+                    ping_ip(ip)
+
+            def _tcp_ping_all_one_port() -> None:
+                tcp_port_ping_multi(self, ips)
+
+            def _tcp_ping_all_diff_ports() -> None:
+                for ip in ips:
+                    tcp_port_ping(self, ip)
+
+            add_action(
+                ping_menu,
+                '🏓 Normal',
+                tooltip='Checks if selected IP addresses respond to pings.',
+                handler=_ping_all,
+            )
+            tcp_menu = add_menu(ping_menu, '🔌 TCP Port (paping.exe)')
+            add_action(
+                tcp_menu,
+                '🔌 One Port for All',
+                tooltip='Ask for a port once, then TCP ping all selected IPs on that port.',
+                handler=_tcp_ping_all_one_port,
+            )
+            add_action(
+                tcp_menu,
+                '🔌 Individual Port per IP',
+                tooltip='Ask for a separate port for each selected IP.',
+                handler=_tcp_ping_all_diff_ports,
+            )
 
         def get_script_candidates(directory: Path) -> list[Path]:
             allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
@@ -271,358 +446,205 @@ class TableContextMenuMixin(QTableView):
                 menu.addSeparator()
             add_scripts_to_menu(menu, user, ips, per_ip=per_ip)
 
-        # Process if one cell is selected
-        if len(selected_indexes) == 1:
-            # Resolve the IP address from the selected row regardless of which column was clicked
-            ip_index = selected_model.index(selected_indexes[0].row(), selected_model.ip_column_index)
-            displayed_ip = selected_model.get_display_text(ip_index)
-            if displayed_ip:
-                userip_database_filepaths = UserIPDatabases.get_userip_database_filepaths()
-                matched_player = PlayersRegistry.get_player_by_ip(displayed_ip)
-                if matched_player is not None:
-                    # Create local copies to use in lambdas
-                    ip_address = displayed_ip
-                    player_obj = matched_player
+        def add_user_scripts_menu(ips: list[str]) -> None:
+            scripts_menu = add_menu(context_menu, '📜 User Scripts')
+            builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
+            user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
-                    # --- Clear Session Host (single IP, GTA5 only) ---
-                    if (
-                        Settings.capture_game_preset == 'GTA5'
-                        and SessionHost.player is not None
-                        and SessionHost.player.ip == ip_address
-                    ):
-                        add_action(
-                            context_menu,
-                            '❌ Clear Session Host',
-                            tooltip='Manually clear this player as the detected session host.',
-                            handler=SessionHost.clear_session_host_data,
-                        )
+            if len(ips) == 1:
+                _populate_scripts_menu(scripts_menu, builtin_scripts, user_scripts, ips)
+                return
 
-                    # --- Block IP (single IP) ---
-                    def _do_block_single_ip() -> None:
-                        entry = block_ip_as_range(self, ip_address)
-                        if entry is None:
-                            return
-                        _main_window = cast('MainWindow', self.window())
-                        for _player in PlayersRegistry.get_default_sorted_players():
-                            if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
-                                if _player.left_event.is_set():
-                                    _main_window.remove_player_from_disconnected(_player.ip)
-                                else:
-                                    _main_window.remove_player_from_connected(_player.ip)
+            if builtin_scripts or user_scripts:
+                all_at_once_menu = add_menu(scripts_menu, '📜 All IPs as Args', 'Pass all selected IPs as arguments to the script in one call.')
+                _populate_scripts_menu(all_at_once_menu, builtin_scripts, user_scripts, ips)
 
-                    add_action(
-                        context_menu,
-                        '🚫 Exclude IP / Range',
-                        tooltip='Exclude this IP or a range/subnet from appearing in the session. Persisted to settings.',
-                        handler=_do_block_single_ip,
-                    )
+                per_ip_menu = add_menu(scripts_menu, '📜 One Process per IP', 'Spawn a separate script process for each selected IP.')
+                _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ips, per_ip=True)
 
-                    add_action(
-                        context_menu,
-                        '🔎 IP Lookup Details',
-                        tooltip='Displays a notification with a detailed IP lookup report for selected player.',
-                        handler=lambda: show_detailed_ip_lookup(self, player_obj),
-                    )
+        def add_detections_menu(players: list[Player]) -> None:
+            if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+                return
+            if not players:
+                return
 
-                    if self.is_connected_table and self.open_rate_graph_callback is not None:
-                        _rate_graph_cb = self.open_rate_graph_callback
-                        add_action(
-                            context_menu,
-                            '📈 Rate Graph',
-                            tooltip='Open a live PPS/BPS graph for this player.',
-                            handler=lambda: _rate_graph_cb(ip_address),
-                        )
+            detections_menu = add_menu(context_menu, '🚨 Detections')
+            if len(players) == 1:
+                build_detections_menu(detections_menu, add_action, players[0], self)
+                return
+            build_detections_menu_multi(detections_menu, add_action, players, self)
 
-                    add_action(
-                        context_menu,
-                        '📅 Seen Stats',
-                        tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
-                        handler=lambda: show_seen_stats(self, player_obj),
-                    )
+        def add_userip_single_menu(ip_address: str, player_obj: Player) -> None:
+            userip_menu = add_menu(context_menu, '🗂️ UserIP')
 
-                    if Settings.looky_enabled:
-                        is_visible, is_enabled, tooltip = resolve_looky_menu_state(
-                            looky_enabled=Settings.looky_enabled,
-                            gta5_is_running=CaptureState.gta5_is_running,
-                            has_key=bool(Settings.looky_api_key),
-                            has_api_access=Settings.looky_api_access,
-                        )
-                        looky_menu = add_menu(
-                            context_menu,
-                            '\U0001F441 Looky System',
-                            tooltip=tooltip,
-                        )
-                        looky_menu.setVisible(is_visible)
-                        looky_menu.setEnabled(is_enabled)
-                        if is_enabled:
-                            add_action(
-                                looky_menu,
-                                '🔎 Looky Lookup',
-                                tooltip='Query the Looky API to find GTA players associated with this IP.',
-                                handler=lambda: show_looky_lookup(self, player_obj),
-                            )
-
-                            # --- Request Crawler (single IP, GTA5 legacy only) ---
-                            if Settings.capture_game_preset == 'GTA5' and not find_running_gta5_path().is_enhanced:
-                                add_action(
-                                    looky_menu,
-                                    '🤖 Request Crawler',
-                                    tooltip="Call the crawler bot into the session to resolve this player's username.",
-                                    handler=lambda: cast('MainWindow', self.window()).request_crawler_for_player(player_obj),
-                                )
-
-                    ping_menu = add_menu(context_menu, '📡 Ping')
-                    add_action(
-                        ping_menu,
-                        '🏓 Normal',
-                        tooltip='Checks if selected IP address responds to pings.',
-                        handler=lambda: ping_ip(ip_address),
-                    )
-                    add_action(
-                        ping_menu,
-                        '🔌 TCP Port (paping.exe)',
-                        tooltip='Checks if selected IP address responds to TCP pings on a given port.',
-                        handler=lambda: tcp_port_ping(self, ip_address),
-                    )
-
-                    # --- Detections submenu (single IP) ---
-                    if Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                        detections_menu = add_menu(context_menu, '🚨 Detections')
-                        build_detections_menu(detections_menu, add_action, player_obj, self)
-
-                    scripts_menu = add_menu(context_menu, '📜 User Scripts')
-                    _single_ip = [ip_address]
-                    builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
-                    user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
-                    _populate_scripts_menu(scripts_menu, builtin_scripts, user_scripts, _single_ip)
-
-                    userip_menu = add_menu(context_menu, '🗂️ UserIP')
-
-                    if matched_player.userip is None:
-                        add_userip_menu = add_menu(userip_menu, '📥 Add', 'Add selected IP address to UserIP database.')
-                        populate_db_menu(
-                            add_userip_menu,
-                            userip_database_filepaths,
-                            tooltip='Add selected IP address to this UserIP database.',
-                            handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
-                        )
-                        add_range_userip_menu = add_menu(userip_menu, '📥 Add as Range', 'Add selected IP as a range entry to a UserIP database.')
-                        populate_db_menu(
-                            add_range_userip_menu,
-                            userip_database_filepaths,
-                            tooltip='Add selected IP as a range to this UserIP database.',
-                            handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path),
-                        )
-                    else:
-                        userip = matched_player.userip
-
-                        def _open_userip_database() -> None:
-                            QDesktopServices.openUrl(QUrl.fromLocalFile(str(userip.database_path)))
-
-                        add_action(
-                            userip_menu,
-                            '📂 Open Database',
-                            tooltip="Open this player's UserIP database file in the default text editor.",
-                            handler=_open_userip_database,
-                        )
-                        userip_menu.addSeparator()
-                        add_action(
-                            userip_menu,
-                            '📥 Add Username',
-                            tooltip='Add an additional username for this IP address in its UserIP database.',
-                            handler=lambda: userip_add_username(self, ip_address, player_obj),
-                        )
-                        add_action(
-                            userip_menu,
-                            '✏️ Rename',
-                            tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
-                            handler=lambda: userip_rename(self, ip_address, player_obj),
-                        )
-                        if userip.usernames and len(userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
-                            add_action(
-                                userip_menu,
-                                '❌ Remove Username',
-                                tooltip='Remove selected usernames for this IP address while keeping others.',
-                                handler=lambda: userip_remove_username(self, ip_address, player_obj),
-                            )
-                        move_userip_menu = add_menu(userip_menu, '📦 Move', 'Move selected IP address to another database.')
-                        populate_db_menu(
-                            move_userip_menu,
-                            userip_database_filepaths,
-                            tooltip='Move selected IP address to this UserIP database.',
-                            handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
-                            disabled_path=userip.database_path,
-                        )
-                        add_action(
-                            userip_menu,
-                            '🗑️ Delete',
-                            tooltip='Delete selected IP address from UserIP databases.',
-                            handler=lambda: userip_delete(self, [ip_address]),
-                        )
-
-        # Check if multiple cells are selected in the same column
-        elif len(selected_indexes) > 1:
-            # Resolve unique IPs from all selected rows
-            seen_multi_rows: set[int] = set()
-            all_ips: list[str] = []
-            for idx in selected_indexes:
-                row = idx.row()
-                if row in seen_multi_rows:
-                    continue
-                seen_multi_rows.add(row)
-                ip_idx = selected_model.index(row, selected_model.ip_column_index)
-                displayed_ip = selected_model.get_display_text(ip_idx)
-                if displayed_ip and displayed_ip not in all_ips:
-                    all_ips.append(displayed_ip)
-
-            if all_ips:
-                matched_players = [p for ip in all_ips if (p := PlayersRegistry.get_player_by_ip(ip)) is not None]
-
-                # --- Block IPs (multi-IP) ---
-                _block_ips = list(all_ips)
-
-                def _do_block_multi_ips() -> None:
-                    for _ip in _block_ips:
-                        block_ip_as_range(self, _ip)
-                    if not Settings.blocked_ip_ranges:
-                        return
-                    _main_window = cast('MainWindow', self.window())
-                    for _player in PlayersRegistry.get_default_sorted_players():
-                        if check_ip_against_ranges(_player.ip, Settings.blocked_ip_ranges):
-                            if _player.left_event.is_set():
-                                _main_window.remove_player_from_disconnected(_player.ip)
-                            else:
-                                _main_window.remove_player_from_connected(_player.ip)
-
-                add_action(
-                    context_menu,
-                    f'🚫 Exclude {len(_block_ips)} IPs / Ranges',
-                    tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
-                    handler=_do_block_multi_ips,
+            if player_obj.userip is None:
+                database_paths = UserIPDatabases.get_userip_database_filepaths()
+                add_userip_menu = add_menu(userip_menu, '📥 Add', 'Add selected IP address to UserIP database.')
+                populate_db_menu(
+                    add_userip_menu,
+                    database_paths,
+                    tooltip='Add selected IP address to this UserIP database.',
+                    handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
                 )
-
-                # --- IP Lookup Details / Seen Stats (multi-IP) ---
-                def _show_all_lookups() -> None:
-                    for _p in matched_players:
-                        show_detailed_ip_lookup(self, _p)
-
-                def _show_all_seen_stats() -> None:
-                    for _p in matched_players:
-                        show_seen_stats(self, _p)
-
-                if matched_players:
-                    add_action(context_menu, '🔎 IP Lookup Details', tooltip='Displays a detailed IP lookup report for each selected player.', handler=_show_all_lookups)
-
-                # --- Rate Graph (multi-IP, connected table only) ---
-                if self.is_connected_table and self.open_rate_graph_callback is not None:
-                    _multi_ips = list(all_ips)
-                    _rate_graph_cb = self.open_rate_graph_callback
-
-                    def _open_multi_graphs() -> None:
-                        for _ip in _multi_ips:
-                            _rate_graph_cb(_ip)
-
-                    add_action(
-                        context_menu,
-                        '📈 Rate Graph',
-                        tooltip='Open a live PPS/BPS graph for each selected player.',
-                        handler=_open_multi_graphs,
-                    )
-
-                if matched_players:
-                    add_action(context_menu, '📅 Seen Stats', tooltip='Shows session appearance stats for each selected player.', handler=_show_all_seen_stats)
-
-                # --- Ping submenu (multi-IP) ---
-                ping_menu = add_menu(context_menu, '📡 Ping')
-                _ping_ips = list(all_ips)
-
-                def _ping_all() -> None:
-                    for _ip in _ping_ips:
-                        ping_ip(_ip)
-
-                def _tcp_ping_all_one_port() -> None:
-                    tcp_port_ping_multi(self, _ping_ips)
-
-                def _tcp_ping_all_diff_ports() -> None:
-                    for _ip in _ping_ips:
-                        tcp_port_ping(self, _ip)
-
-                add_action(
-                    ping_menu,
-                    '🏓 Normal',
-                    tooltip='Checks if selected IP addresses respond to pings.',
-                    handler=_ping_all,
+                add_range_userip_menu = add_menu(userip_menu, '📥 Add as Range', 'Add selected IP as a range entry to a UserIP database.')
+                populate_db_menu(
+                    add_range_userip_menu,
+                    database_paths,
+                    tooltip='Add selected IP as a range to this UserIP database.',
+                    handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path),
                 )
-                tcp_menu = add_menu(ping_menu, '🔌 TCP Port (paping.exe)')
+                return
+
+            def _open_userip_database() -> None:
+                if player_obj.userip is None:
+                    return
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(player_obj.userip.database_path)))
+
+            add_action(
+                userip_menu,
+                '📂 Open Database',
+                tooltip="Open this player's UserIP database file in the default text editor.",
+                handler=_open_userip_database,
+            )
+            userip_menu.addSeparator()
+            add_action(
+                userip_menu,
+                '📥 Add Username',
+                tooltip='Add an additional username for this IP address in its UserIP database.',
+                handler=lambda: userip_add_username(self, ip_address, player_obj),
+            )
+            add_action(
+                userip_menu,
+                '✏️ Rename',
+                tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
+                handler=lambda: userip_rename(self, ip_address, player_obj),
+            )
+            if player_obj.userip.usernames and len(player_obj.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
                 add_action(
-                    tcp_menu,
-                    '🔌 One Port for All',
-                    tooltip='Ask for a port once, then TCP ping all selected IPs on that port.',
-                    handler=_tcp_ping_all_one_port,
+                    userip_menu,
+                    '❌ Remove Username',
+                    tooltip='Remove selected usernames for this IP address while keeping others.',
+                    handler=lambda: userip_remove_username(self, ip_address, player_obj),
                 )
-                add_action(
-                    tcp_menu,
-                    '🔌 Individual Port per IP',
-                    tooltip='Ask for a separate port for each selected IP.',
-                    handler=_tcp_ping_all_diff_ports,
+            move_userip_menu = add_menu(userip_menu, '📦 Move', 'Move selected IP address to another database.')
+            populate_db_menu(
+                move_userip_menu,
+                UserIPDatabases.get_userip_database_filepaths(),
+                tooltip='Move selected IP address to this UserIP database.',
+                handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
+                disabled_path=player_obj.userip.database_path,
+            )
+            add_action(
+                userip_menu,
+                '🗑️ Delete',
+                tooltip='Delete selected IP address from UserIP databases.',
+                handler=lambda: userip_delete(self, [ip_address]),
+            )
+
+        def add_userip_multi_menu(ips: list[str], players: list[Player]) -> None:
+            if all(not UserIPDatabases.is_known_ip(ip) for ip in ips):
+                userip_menu = add_menu(context_menu, '🗂️ UserIP')
+                add_userip_menu = add_menu(userip_menu, '📥 Add Selected')
+                populate_db_menu(
+                    add_userip_menu,
+                    UserIPDatabases.get_userip_database_filepaths(),
+                    tooltip='Add selected IP addresses to this UserIP database.',
+                    handler_factory=lambda db_path: lambda: userip_add(self, ips, db_path),
                 )
+                return
 
-                # --- Detections submenu (multi-IP) ---
-                if matched_players and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                    detections_menu = add_menu(context_menu, '🚨 Detections')
-                    build_detections_menu_multi(detections_menu, add_action, matched_players, self)
+            if all(UserIPDatabases.is_known_ip(ip) for ip in ips):
+                userip_menu = add_menu(context_menu, '🗂️ UserIP')
 
-                # --- User Scripts submenu (multi-IP) ---
-                multi_scripts_menu = add_menu(context_menu, '📜 User Scripts')
-
-                _script_ips = list(all_ips)
-                multi_builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
-                multi_user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
-
-                all_scripts = multi_builtin_scripts + multi_user_scripts
-                if all_scripts:
-                    all_at_once_menu = add_menu(multi_scripts_menu, '📜 All IPs as Args', 'Pass all selected IPs as arguments to the script in one call.')
-                    _populate_scripts_menu(all_at_once_menu, multi_builtin_scripts, multi_user_scripts, _script_ips)
-
-                    per_ip_menu = add_menu(multi_scripts_menu, '📜 One Process per IP', 'Spawn a separate script process for each selected IP.')
-                    _populate_scripts_menu(per_ip_menu, multi_builtin_scripts, multi_user_scripts, _script_ips, per_ip=True)
-
-                if all(not UserIPDatabases.is_known_ip(ip) for ip in all_ips):
-                    userip_menu = add_menu(context_menu, '🗂️ UserIP')
-
-                    add_userip_menu = add_menu(userip_menu, '📥 Add Selected')
-                    populate_db_menu(
-                        add_userip_menu,
-                        UserIPDatabases.get_userip_database_filepaths(),
-                        tooltip='Add selected IP addresses to this UserIP database.',
-                        handler_factory=lambda db_path: lambda: userip_add(self, all_ips, db_path),
-                    )
-                elif all(UserIPDatabases.is_known_ip(ip) for ip in all_ips):
-                    userip_menu = add_menu(context_menu, '🗂️ UserIP')
-
-                    _rename_players = [p for p in matched_players if p.userip is not None]
-                    if _rename_players:
-                        add_action(
-                            userip_menu,
-                            '✏️ Rename Selected',
-                            tooltip='Rename the username for each selected IP address in its UserIP database.',
-                            handler=lambda: userip_rename_multi(self, _rename_players),
-                        )
-
-                    move_userip_menu = add_menu(userip_menu, '📦 Move Selected')
-                    populate_db_menu(
-                        move_userip_menu,
-                        UserIPDatabases.get_userip_database_filepaths(),
-                        tooltip='Move selected IP addresses to this UserIP database.',
-                        handler_factory=lambda db_path: lambda: userip_move(self, all_ips, db_path),
-                    )
-
+                rename_players = [player for player in players if player.userip is not None]
+                if rename_players:
                     add_action(
                         userip_menu,
-                        '🗑️ Delete Selected',
-                        tooltip='Delete selected IP addresses from UserIP databases.',
-                        handler=lambda: userip_delete(self, all_ips),
+                        '✏️ Rename Selected',
+                        tooltip='Rename the username for each selected IP address in its UserIP database.',
+                        handler=lambda: userip_rename_multi(self, rename_players),
                     )
 
-        # Execute the context menu at the right-click position
+                move_userip_menu = add_menu(userip_menu, '📦 Move Selected')
+                populate_db_menu(
+                    move_userip_menu,
+                    UserIPDatabases.get_userip_database_filepaths(),
+                    tooltip='Move selected IP addresses to this UserIP database.',
+                    handler_factory=lambda db_path: lambda: userip_move(self, ips, db_path),
+                )
+
+                add_action(
+                    userip_menu,
+                    '🗑️ Delete Selected',
+                    tooltip='Delete selected IP addresses from UserIP databases.',
+                    handler=lambda: userip_delete(self, ips),
+                )
+
+        selected_ips = get_selected_ips(selected_indexes)
+        selected_players = get_matched_players(selected_ips)
+        selected_cell_count = len(selected_indexes)
+
+        def add_shared_selected_players_actions(ips: list[str], players: list[Player]) -> None:
+            add_exclude_ips_action(ips)
+            add_ip_lookup_action(players)
+            add_rate_graph_action(ips)
+            add_seen_stats_action(players)
+            add_looky_system_menu(context_menu, players)
+            add_ping_menu(ips)
+            add_detections_menu(players)
+            add_user_scripts_menu(ips)
+
+        def add_clear_session_host_action(ip_address: str) -> None:
+            if (
+                Settings.capture_game_preset != 'GTA5'
+                or SessionHost.player is None
+                or SessionHost.player.ip != ip_address
+            ):
+                return
+
+            add_action(
+                context_menu,
+                '❌ Clear Session Host',
+                tooltip='Manually clear this player as the detected session host.',
+                handler=SessionHost.clear_session_host_data,
+            )
+
+        add_action(
+            context_menu,
+            '📋 Copy Selection',
+            shortcut='Ctrl+C',
+            tooltip='Copy selected cells to your clipboard.',
+            handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
+        )
+        add_copy_for_discord_action(selected_players)
+        context_menu.addSeparator()
+
+        add_remove_players_action(selected_ips)
+        context_menu.addSeparator()
+
+        select_menu = add_menu(context_menu, '☑️ Select')
+        add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
+        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
+        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
+
+        unselect_menu = add_menu(context_menu, '⬜ Unselect')
+        add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
+        add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self.unselect_row_cells(index.row()))
+        add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self.unselect_column_cells(index.column()))
+        context_menu.addSeparator()
+
+        is_single_player_selection = selected_cell_count == 1 and len(selected_ips) == 1 and len(selected_players) == 1
+        is_multi_selection_with_ips = selected_cell_count > 1 and bool(selected_ips)
+
+        if is_single_player_selection:
+            add_clear_session_host_action(selected_ips[0])
+
+        if is_single_player_selection or is_multi_selection_with_ips:
+            add_shared_selected_players_actions(selected_ips, selected_players)
+
+        if is_single_player_selection:
+            add_userip_single_menu(selected_ips[0], selected_players[0])
+        elif is_multi_selection_with_ips:
+            add_userip_multi_menu(selected_ips, selected_players)
+
         context_menu.popup(self.mapToGlobal(pos))

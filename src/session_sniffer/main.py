@@ -111,7 +111,6 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Show splash screen for startup progress
     splash = SplashScreen()
     splash.show()
     # Own all msgboxes shown during splash so they appear above it without being globally topmost
@@ -127,7 +126,6 @@ def main() -> None:
                 outdated_packages=outdated_packages,
             )
 
-            # Show message box
             msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
             msgbox_title = TITLE
             errorlevel = msgbox.show(msgbox_title, msgbox_message, msgbox_style)
@@ -164,7 +162,6 @@ def main() -> None:
     splash.update_status('Network interface selection')
     splash.run_with_spinner(populate_network_interfaces_info, mac_lookup)
 
-    # Get list of Interface objects that are available via scapy/pcap
     available_interfaces: list[Interface] = []
     capture_interfaces = splash.run_with_spinner(get_filtered_scapy_interfaces)
 

@@ -9,6 +9,10 @@ from session_sniffer.guis.tables_player_actions._actions import (
     tcp_port_ping,
     tcp_port_ping_multi,
 )
+from session_sniffer.guis.tables_player_actions._crawler_request_dialog import (
+    show_crawler_request,
+    show_crawlme_request,
+)
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationDialog,
     DetectionNotificationInfo,
@@ -48,6 +52,8 @@ __all__ = [
     'copy_player_info_for_discord',
     'copy_players_info_for_discord',
     'ping_ip',
+    'show_crawler_request',
+    'show_crawlme_request',
     'show_detailed_ip_lookup',
     'show_detection_notification_dialog',
     'show_looky_lookup',

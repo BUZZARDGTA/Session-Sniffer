@@ -41,17 +41,14 @@ def ensure_npcap_installed() -> None:
     if is_npcap_installed():
         return
 
-    # Open the official download page immediately
     open_npcap_download_page()
 
-    # Show initial notification
     msgbox.show(
         title=TITLE,
         text=format_triple_quoted_text(format_npcap_required_message()),
         style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
     )
 
-    # Keep checking until Npcap is installed
     while not is_npcap_installed():
         result = msgbox.show(
             title=TITLE,

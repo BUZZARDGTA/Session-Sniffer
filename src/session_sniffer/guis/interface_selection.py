@@ -40,14 +40,12 @@ def show_interface_selection_dialog(
     """
     hide_inactive_default, hide_neighbours_default, arp_spoofing_default = filter_defaults
     saved_interface_name, saved_ip_address, saved_mac_address = saved_selection
-    # Create and show the interface selection dialog
     dialog = InterfaceSelectionDialog(
         screen_size,
         interfaces,
         filter_defaults,
         mac_lookup=mac_lookup,
     )
-    # Restore the previously saved interface selection
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
 
     if dialog.exec() == QDialog.DialogCode.Accepted:  # Blocks until the dialog is accepted or rejected

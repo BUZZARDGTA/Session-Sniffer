@@ -456,19 +456,15 @@ def resolve_lnk(shortcut_path: Path) -> Path:
 
 def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     """Executes a script with the given arguments in a new CMD terminal window."""
-    # Build the base command
     full_command = [str(CMD_EXE), '/K']
 
-    # Check if the script is a Windows shortcut
     if script.suffix.casefold() == '.lnk':
         script = resolve_lnk(script)
 
-    # Add the script to the command
     if script.suffix.casefold() == '.py':
         full_command.append('py')
     full_command.append(str(script))
 
-    # Add the rest of the arguments
     if args is not None:
         full_command.extend(args)
 
@@ -477,10 +473,8 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
 
 def run_cmd_command(command: str, args: list[str] | None = None) -> None:
     """Executes a command with the given arguments in a new CMD terminal window."""
-    # Build the base command
     full_command = [str(CMD_EXE), '/K', command]
 
-    # Add the rest of the arguments
     if args is not None:
         full_command.extend(args)
 

@@ -41,6 +41,7 @@ from session_sniffer.constants.standalone import (
     GITHUB_REPO_URL,
     GITHUB_WIKI_TIPS_URL,
     GITHUB_WIKI_URL,
+    LOOKY_BASE_HOST,
     TITLE,
 )
 from session_sniffer.settings import Settings
@@ -52,6 +53,10 @@ if TYPE_CHECKING:
 
 class FilesMixin(QMainWindow):
     """File, folder, and URL open helpers mixin for `MainWindow`."""
+
+    def _open_looky_website(self) -> None:
+        """Open the Looky System website in the default browser."""
+        webbrowser.open(LOOKY_BASE_HOST)
 
     def _open_project_repo(self) -> None:
         """Open the GitHub repository in the default browser."""

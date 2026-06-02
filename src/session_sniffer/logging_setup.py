@@ -9,7 +9,7 @@ import atexit
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
-from threading import RLock, local
+from threading import Event, RLock, local
 from typing import TYPE_CHECKING, Self, TextIO, cast, override
 
 from rich.logging import RichHandler
@@ -35,7 +35,7 @@ _DEBUG_LOG_BACKUP_COUNT = 5
 _setup_lock = RLock()
 _secret_provider_lock = RLock()
 _stderr_reentry_state = local()
-_atexit_registered = False
+_atexit_registered = Event()
 
 # --- Suppress noisy third-party retry spam ---
 _SUPPRESSED_URLLIB3_SUBSTRINGS = (
@@ -284,12 +284,10 @@ def _configure_common_filters(handler: logging.Handler) -> None:
 
 def _register_shutdown_once() -> None:
     """Register logging shutdown exactly once for this module."""
-    global _atexit_registered  # noqa: PLW0603
-
-    if _atexit_registered:
+    if _atexit_registered.is_set():
         return
     atexit.register(logging.shutdown)
-    _atexit_registered = True
+    _atexit_registered.set()
 
 
 def setup_logging(
