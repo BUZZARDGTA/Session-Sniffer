@@ -84,28 +84,6 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError, default: int = 60) 
     return default
 
 
-# Static device fingerprint sent with instruction requests.
-# The Looky System web app collects a browser fingerprint; we provide a fixed
-# minimal value so the header is present and well-formed.
-_DEVICE_FINGERPRINT: str = json.dumps({
-    'visitorId': 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
-    'confidence': 0.6,
-    'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0',
-    'language': 'en-US',
-    'languages': ['en-US', 'en'],
-    'platform': 'Win32',
-    'hardwareConcurrency': 4,
-    'vendor': '',
-    'screen': {'width': 1920, 'height': 1080, 'availWidth': 1920, 'availHeight': 1080, 'colorDepth': 24, 'pixelRatio': 1},
-    'storage': {'localStorage': True, 'sessionStorage': True, 'indexedDB': True, 'cookies': True},
-    'touch': {'maxTouchPoints': 0, 'touchEvent': False, 'pointerEnabled': False},
-    'timezone': 'UTC',
-    'timezoneOffset': 0,
-    'canvasHash': '0',
-    'audioHash': '0',
-    'battery': {'charging': False},
-})
-
 
 def verify_token(api_key: str) -> LookyVerifyResponse:
     """Verify a Looky System API key via `GET /api/whoami`.
@@ -206,7 +184,6 @@ def send_crawlme_instruction(api_key: str) -> str:
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
-        'x-device-fingerprint': _DEVICE_FINGERPRINT,
     }
     response = session.post(LOOKY_CRAWLME_URL, headers=headers, timeout=10)
     response.raise_for_status()
@@ -231,7 +208,6 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
     headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
-        'x-device-fingerprint': _DEVICE_FINGERPRINT,
     }
     response = session.post(
         LOOKY_INSTRUCTION_URL,
