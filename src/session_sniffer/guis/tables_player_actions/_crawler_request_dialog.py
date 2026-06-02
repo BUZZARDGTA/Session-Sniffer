@@ -95,6 +95,7 @@ class _CrawlerWatchWorker(CrashingQThread):
     def _run(self) -> None:
         """Stream SSE status events until the instruction completes or fails."""
         last_status = ''
+        failure_msg: str | None = None
         try:
             for status, result in watch_instruction_status(self._tracking_id, self._api_key):
                 last_status = status
@@ -103,19 +104,19 @@ class _CrawlerWatchWorker(CrashingQThread):
             if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 msg = extract_rate_limit_message(exc)
                 wait = extract_rate_limit_wait_seconds(exc)
-                self.request_failed.emit(f'Rate limited during status stream: {msg}. Try again in {wait}s.')
+                failure_msg = f'Rate limited during status stream: {msg}. Try again in {wait}s.'
             else:
                 code = exc.response.status_code if exc.response is not None else '?'
-                self.request_failed.emit(f'API error while watching status: HTTP {code}')
-            return
+                failure_msg = f'API error while watching status: HTTP {code}'
         except requests.RequestException as exc:
-            self.request_failed.emit(f'Connection error while watching status: {exc}')
-            return
+            failure_msg = f'Connection error while watching status: {exc}'
 
+        if failure_msg is not None:
+            self.request_failed.emit(failure_msg)
+            return
         if is_terminal_failure_instruction_status(last_status):
             self.request_failed.emit(f'Instruction ended with status: {last_status}')
             return
-
         self.request_completed.emit()
 
 

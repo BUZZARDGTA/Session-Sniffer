@@ -1,8 +1,11 @@
 """Pydantic model for the Looky System IP-to-player lookup API response."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+LookyInstructionStatus = Literal['queued', 'running', 'completed', 'failed', 'canceled', 'unknown']
 
 
 class LookyPlayer(BaseModel):
@@ -51,3 +54,16 @@ class LookyVerifyResponse(BaseModel):
     success: bool
     message: str | None = None
     userData: LookyUserData  # noqa: N815
+
+
+class LookyInstructionStatusEventData(BaseModel):
+    """Payload of a Looky System `status_update` SSE event."""
+
+    status: LookyInstructionStatus
+    result: str | None = None
+
+
+class LookyInstructionStatusEvent(BaseModel):
+    """Top-level shape of a Looky System SSE `status_update` event JSON line."""
+
+    data: LookyInstructionStatusEventData

@@ -1,16 +1,23 @@
 """Looky System IP-to-player lookup API client."""
 
-import json
 import re
 import time
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.models.looky_system import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse, LookyWhoAmI
+from session_sniffer.models.looky_system import (
+    LookyInstructionStatus,
+    LookyInstructionStatusEvent,
+    LookyIpBatchResult,
+    LookyPlayer,
+    LookyUserData,
+    LookyVerifyResponse,
+    LookyWhoAmI,
+)
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
@@ -27,8 +34,6 @@ LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
-
-LookyInstructionStatus = Literal['queued', 'running', 'completed', 'failed', 'canceled', 'unknown']
 
 _TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'failed', 'canceled'})
 _TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'failed', 'canceled'})
@@ -238,12 +243,14 @@ def watch_instruction_status(
     Raises:
         requests.HTTPError: On a non-2xx response.
         requests.RequestException: On connection/timeout errors after exhausting reconnects.
+        pydantic.ValidationError: If an SSE event JSON does not match the expected shape.
     """
     url = f'{LOOKY_SSE_URL}/{tracking_id}'
     for attempt in range(max_reconnects + 1):
         if attempt > 0:
             time.sleep(2)
         completed = False
+        logger.debug('SSE %s attempt %d/%d', tracking_id, attempt + 1, max_reconnects + 1)
         try:
             with session.get(
                 url,
@@ -259,23 +266,18 @@ def watch_instruction_status(
                     line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
                     if not line.startswith('data: '):
                         continue
-                    try:
-                        event = json.loads(line[6:])
-                    except json.JSONDecodeError:
-                        continue
-                    data = event.get('data', {})
-                    status: LookyInstructionStatus = data.get('status', 'unknown')
-                    result: str | None = data.get('result')
-                    yield status, result
-                    if is_terminal_instruction_status(status):
+                    event = LookyInstructionStatusEvent.model_validate_json(line[6:])
+                    logger.debug('SSE %s event status=%r result=%r', tracking_id, event.data.status, event.data.result)
+                    yield event.data.status, event.data.result
+                    if is_terminal_instruction_status(event.data.status):
                         completed = True
                         break
         except requests.HTTPError:
             raise
-        except requests.RequestException:
+        except requests.RequestException as exc:
             if attempt >= max_reconnects:
                 raise
-            logger.debug('SSE stream disconnected for instruction %r; reconnecting (attempt %d/%d)', tracking_id, attempt + 1, max_reconnects)
+            logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, exc, attempt + 1, max_reconnects)
             continue
         if completed:
             return
