@@ -487,16 +487,16 @@ class DetectionsManagerTabsMixin(QDialog):
         desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
         group_layout.addWidget(desc_label)
 
-        # -- Action section container (hideable when protection is not supported) --
-        action_section = QWidget()
-        action_section_layout = QVBoxLayout(action_section)
-        action_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{protection_type}_action_section', action_section)
+        # -- Protection section container (hideable when protection is not supported) --
+        protection_section = QWidget()
+        protection_section_layout = QVBoxLayout(protection_section)
+        protection_section_layout.setContentsMargins(0, 0, 0, 0)
+        setattr(self, f'{protection_type}_protection_section', protection_section)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
         protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        action_section_layout.addWidget(protection_separator)
+        protection_section_layout.addWidget(protection_separator)
 
         # Suspend duration
         duration_layout = QHBoxLayout()
@@ -525,12 +525,12 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_spin)
 
         duration_layout.addStretch()
-        action_section_layout.addLayout(duration_layout)
+        protection_section_layout.addLayout(duration_layout)
 
         # Notification controls
         self._create_notification_controls(group_layout, protection_type)
 
-        group_layout.addWidget(action_section)
+        group_layout.addWidget(protection_section)
 
         group.setLayout(group_layout)
         return group
@@ -573,16 +573,16 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addLayout(buttons_layout)
         group_layout.addLayout(list_layout)
 
-        # -- Action section container (hideable when protection is not supported) --
-        action_section = QWidget()
-        action_section_layout = QVBoxLayout(action_section)
-        action_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{blocklist_type}_action_section', action_section)
+        # -- Protection section container (hideable when protection is not supported) --
+        protection_section = QWidget()
+        protection_section_layout = QVBoxLayout(protection_section)
+        protection_section_layout.setContentsMargins(0, 0, 0, 0)
+        setattr(self, f'{blocklist_type}_protection_section', protection_section)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
         protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        action_section_layout.addWidget(protection_separator)
+        protection_section_layout.addWidget(protection_separator)
 
         # Suspend duration
         duration_layout = QHBoxLayout()
@@ -611,12 +611,12 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_spin)
 
         duration_layout.addStretch()
-        action_section_layout.addLayout(duration_layout)
+        protection_section_layout.addLayout(duration_layout)
 
         # Notification controls
         self._create_notification_controls(group_layout, blocklist_type)
 
-        group_layout.addWidget(action_section)
+        group_layout.addWidget(protection_section)
 
         group.setLayout(group_layout)
         return group

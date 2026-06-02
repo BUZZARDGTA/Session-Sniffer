@@ -105,7 +105,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self.player_leave_msgbox_checkbox: QCheckBox
         # -- GTA5 Relays (GTA5 preset only) --
         self._relay_filter_warning: QWidget
-        self.gta5_relay_action_section: QWidget
+        self.gta5_relay_protection_section: QWidget
         self.gta5_relay_packet_threshold_spin: QSpinBox
         self.gta5_relay_duration_combo: QComboBox
         self.gta5_relay_duration_spin: QSpinBox
@@ -183,18 +183,18 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
     def _apply_protection_restrictions(self) -> None:
         """Hide all protection action widgets when protection is not supported (non-GTA5 preset or neighbour interface)."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
-            if not hasattr(self, f'{prefix}_action_section'):
+            if not hasattr(self, f'{prefix}_protection_section'):
                 continue
-            action_section: QWidget = getattr(self, f'{prefix}_action_section')
-            action_section.setVisible(False)
+            protection_section: QWidget = getattr(self, f'{prefix}_protection_section')
+            protection_section.setVisible(False)
 
     def _remove_protection_restrictions(self) -> None:
         """Show all protection action widgets when protection is supported."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
-            if not hasattr(self, f'{prefix}_action_section'):
+            if not hasattr(self, f'{prefix}_protection_section'):
                 continue
-            action_section: QWidget = getattr(self, f'{prefix}_action_section')
-            action_section.setVisible(True)
+            protection_section: QWidget = getattr(self, f'{prefix}_protection_section')
+            protection_section.setVisible(True)
 
     # ------------------------------------------------------------------
     # Settings load / save
