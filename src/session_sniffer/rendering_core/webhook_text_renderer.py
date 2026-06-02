@@ -130,11 +130,11 @@ def build_webhook_mobile_text(players: list[Player], columns: tuple[str, ...]) -
         if promote_header:
             header_value = format_player_usernames(player)
             if header_value:
-                lines.append(f'**#{index} \u2014 {player.ip}** (`{header_value}`)')
+                lines.append(f'**#{index} — {player.ip}** (`{header_value}`)')
             else:
-                lines.append(f'**#{index} \u2014 {player.ip}**')
+                lines.append(f'**#{index} — {player.ip}**')
         else:
-            lines.append(f'**#{index} \u2014 {player.ip}**')
+            lines.append(f'**#{index} — {player.ip}**')
 
         for column_name in body_columns:
             value = format_player_column_value(player, column_name, now)

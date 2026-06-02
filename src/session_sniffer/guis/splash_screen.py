@@ -53,7 +53,7 @@ class SplashScreen(QWidget):
         title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
-        self._subtitle = QLabel('Initializing sniffing engine\u2009\u2026')
+        self._subtitle = QLabel('Initializing sniffing engine…')
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._subtitle.setFont(QFont('Segoe UI', 10))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)

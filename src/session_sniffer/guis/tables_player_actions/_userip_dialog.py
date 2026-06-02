@@ -34,7 +34,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'\U0001f514  UserIP Detected \u2014 {format_player_display(player.ip, player.usernames)}', '#c53030', '#dd6b20')
+        self._add_header_label(outer_layout, f'\U0001f514  UserIP Detected — {format_player_display(player.ip, player.usernames)}', '#c53030', '#dd6b20')
 
         scroll_layout = self._init_scroll_area(outer_layout)
 

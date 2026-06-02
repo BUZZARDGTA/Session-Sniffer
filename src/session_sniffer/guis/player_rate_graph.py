@@ -356,7 +356,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._initial_pps_threshold = initial_pps_threshold
         self._initial_bps_threshold = initial_bps_threshold
 
-        self.setWindowTitle(f'Rate Graph \u2014 {ip}')
+        self.setWindowTitle(f'Rate Graph — {ip}')
         self._finish_graph_init(always_on_top=always_on_top)
 
     # Configuration hooks — called from _DualRateGraphBase._setup_dual_graph_widgets
@@ -387,7 +387,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def update_usernames(self, usernames: list[str]) -> None:
         """Update the window title to reflect current usernames."""
-        self.setWindowTitle(f'Rate Graph \u2014 {format_player_display(self.ip, usernames)}')
+        self.setWindowTitle(f'Rate Graph — {format_player_display(self.ip, usernames)}')
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""

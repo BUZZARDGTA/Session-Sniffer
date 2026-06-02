@@ -208,7 +208,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         search_bar.addWidget(QLabel('Search:'))
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Filter entries by username or IP ...')
+        self._search_input.setPlaceholderText('Filter entries by username or IP…')
         self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
         apply_search_icon(self._search_input)
@@ -281,7 +281,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._edit_ip_button = QPushButton('\U0001f527 Edit IP/Range\u2026')
+        self._edit_ip_button = QPushButton('\U0001f527 Edit IP/Range…')
         self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
         self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)

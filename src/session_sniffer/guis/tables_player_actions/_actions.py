@@ -35,7 +35,7 @@ PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
 def build_discord_player_report(player: Player) -> str:
     """Build a Discord-formatted player info report string."""
     lines: list[str] = []
-    lines.append(f'## \U0001f4ca Player Report \u2014 `{player.ip}`')
+    lines.append(f'## \U0001f4ca Player Report — `{player.ip}`')
     lines.append('')
 
     # Player Info

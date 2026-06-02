@@ -61,13 +61,13 @@ class PersistentMenu(QMenu):
 SUSPEND_TOOLTIP_DISABLED = 'Protection is disabled — no process will be suspended when this detection triggers.'
 SUSPEND_TOOLTIP_AUTO = (
     'Resume when the hostile player fully disconnects.\n'
-    '\u2022 Robustness: High \u2013 game stays frozen until the threat is gone.\n'
-    '\u2022 Freeze time: Moderate \u2013 depends on how long the player stays.'
+    '• Robustness: High - game stays frozen until the threat is gone.\n'
+    '• Freeze time: Moderate - depends on how long the player stays.'
 )
 SUSPEND_TOOLTIP_MANUAL = (
     'Suspend for a fixed number of seconds without smart resume behavior.\n'
-    '\u2022 Robustness: High \u2013 no idle detection.\n'
-    '\u2022 Freeze time: Fixed \u2013 exactly the duration you set.'
+    '• Robustness: High - no idle detection.\n'
+    '• Freeze time: Fixed - exactly the duration you set.'
 )
 
 

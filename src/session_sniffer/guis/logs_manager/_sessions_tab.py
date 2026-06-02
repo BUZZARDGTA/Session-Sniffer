@@ -103,7 +103,7 @@ class SessionsLogTab(QWidget):
         # --- Top bar ---
         top_bar = QHBoxLayout()
 
-        self._search_input = create_search_input(top_bar, 'Search in displayed file ...', self._on_search_changed)
+        self._search_input = create_search_input(top_bar, 'Search in displayed file…', self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
 
         self._search_column_combo = QComboBox()
@@ -337,7 +337,7 @@ class SessionsLogTab(QWidget):
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
-            self._search_input.setPlaceholderText('Search across all session JSON files (press Enter) ...')
+            self._search_input.setPlaceholderText('Search across all session JSON files (press Enter)…')
             self._viewer.setPlaceholderText(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(False)
             self._start_global_search(self._search_input.text())
@@ -345,7 +345,7 @@ class SessionsLogTab(QWidget):
             self._global_search_active = False
             self._stop_loading_animation()
             self._tree_container.setVisible(True)
-            self._search_input.setPlaceholderText('Search in displayed file ...')
+            self._search_input.setPlaceholderText('Search in displayed file…')
             self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(True)
             self._viewer.setExtraSelections([])

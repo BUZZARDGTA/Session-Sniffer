@@ -51,7 +51,7 @@ class DetectionNotificationDialog(PlayerInfoDialogMixin):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'{info.emoji}  {info.display_title} \u2014 {format_player_display(player.ip, player.usernames)}', '#744210', '#975a16')
+        self._add_header_label(outer_layout, f'{info.emoji}  {info.display_title} — {format_player_display(player.ip, player.usernames)}', '#744210', '#975a16')
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
@@ -161,7 +161,7 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'{info.emoji}  {info.title} \u2014 {format_player_display(player.ip, player.usernames)}', color_start, color_stop)
+        self._add_header_label(outer_layout, f'{info.emoji}  {info.title} — {format_player_display(player.ip, player.usernames)}', color_start, color_stop)
 
         if not info.data_ready:
             warn_label = QLabel('\u26a0\ufe0f  Some data may still be loading and missing from this notification')

@@ -369,7 +369,7 @@ class RenameUsernameDialog(QDialog):
         layout.addWidget(QLabel(f'Current:  <b>{current_username}</b>'))
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText('Filter usernames ...')
+        self._search.setPlaceholderText('Filter usernames…')
         apply_search_icon(self._search)
         layout.addWidget(self._search)
 
@@ -432,7 +432,7 @@ class RemoveUsernameDialog(QDialog):
         layout.addWidget(QLabel('Select usernames to remove:'))
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText('Filter usernames ...')
+        self._search.setPlaceholderText('Filter usernames…')
         apply_search_icon(self._search)
         layout.addWidget(self._search)
 
@@ -738,7 +738,7 @@ class IPRangeBuilderDialog(QDialog):
             return
         count = int(end) - int(start) + 1
         self._set_preview(
-            f'Range: {start} \u2013 {end}\n'
+            f'Range: {start} - {end}\n'
             f'Covers {count:,} address{"es" if count != 1 else ""}',
             valid=True,
         )
@@ -762,7 +762,7 @@ class IPRangeBuilderDialog(QDialog):
         usable = max(0, host_count - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else host_count
         self._set_preview(
             f'Network: {network.network_address}/{prefix}\n'
-            f'Range: {network.network_address} \u2013 {network.broadcast_address}\n'
+            f'Range: {network.network_address} - {network.broadcast_address}\n'
             f'Addresses: {host_count:,} total, {usable:,} usable',
             valid=True,
         )

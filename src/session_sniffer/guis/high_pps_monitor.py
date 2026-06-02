@@ -299,7 +299,7 @@ class HighRateMonitorWidget(QWidget):
         self._pps_threshold_input.setSuffix(' PPS threshold')
         self._pps_threshold_input.setToolTip(
             'Packets Per Second threshold.\n\n'
-            f'Range: {PPS_THRESHOLD_MIN}\u2013{PPS_THRESHOLD_MAX} PPS.\n'
+            f'Range: {PPS_THRESHOLD_MIN}-{PPS_THRESHOLD_MAX} PPS.\n'
             'A player must send/receive at least this many packets per second '
             'to be considered high-rate. Lower = more sensitive, higher = fewer false positives.\n\n'
             'Tip: Moving players generate more packets than stationary ones.',
@@ -319,9 +319,9 @@ class HighRateMonitorWidget(QWidget):
         self._bps_threshold_input.setSingleStep(5)
         self._bps_threshold_input.setToolTip(
             'Bytes Per Second (bandwidth) threshold, displayed in KB/s.\n\n'
-            f'Range: {BPS_THRESHOLD_MIN_KBS}\u2013{BPS_THRESHOLD_MAX_KBS} KB/s.\n'
+            f'Range: {BPS_THRESHOLD_MIN_KBS}-{BPS_THRESHOLD_MAX_KBS} KB/s.\n'
             'A player must transfer at least this much data per second '
-            'to be considered high-rate. Works together with the PPS threshold \u2014 '
+            'to be considered high-rate. Works together with the PPS threshold — '
             'both must be exceeded simultaneously.\n\n'
             'Tip: Moving players generate more bandwidth than stationary ones.',
         )
@@ -340,7 +340,7 @@ class HighRateMonitorWidget(QWidget):
         self._duration_input.setToolTip(
             'How many consecutive seconds a player must stay above both thresholds '
             'before being flagged as high-rate.\n\n'
-            f'Range: {DURATION_THRESHOLD_MIN_SECS}\u2013{DURATION_THRESHOLD_MAX_SECS} seconds.\n'
+            f'Range: {DURATION_THRESHOLD_MIN_SECS}-{DURATION_THRESHOLD_MAX_SECS} seconds.\n'
             'Higher values reduce false positives from short traffic bursts. '
             'Lower values detect spikes faster but may flag normal activity.',
         )

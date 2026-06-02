@@ -341,7 +341,7 @@ _STATS_PERIODS: tuple[tuple[str, str, str], ...] = (
 def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = None) -> QDialog:
     """Build and return a dialog showing Unique Days and Sessions side-by-side for each time period."""
     dialog = QDialog(parent)
-    dialog.setWindowTitle(f'Seen Stats \u2014 {format_player_display(entry.ip, entry.usernames)}')
+    dialog.setWindowTitle(f'Seen Stats — {format_player_display(entry.ip, entry.usernames)}')
     dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
 
     table = QTableWidget(len(_STATS_PERIODS), 3, dialog)

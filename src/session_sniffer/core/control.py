@@ -109,7 +109,7 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
     """Handle Ctrl+C by terminating the script if not already crashing."""
     if not ScriptControl.has_crashed():
         # Block CTRL+C if script is already crashing under control
-        logger.info('Ctrl+C pressed. Exiting script ...')
+        logger.info('Ctrl+C pressed. Exiting script...')
         terminate_script('SIGINT')
 
 

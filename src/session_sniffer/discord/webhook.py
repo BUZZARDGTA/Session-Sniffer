@@ -162,7 +162,7 @@ def _build_message_content(
     monospace at the full message width (used by Desktop format).
     """
     unix_ts = int(timestamp.timestamp())
-    header = f'**{title}** \u2014 updated <t:{unix_ts}:R>'
+    header = f'**{title}** — updated <t:{unix_ts}:R>'
 
     if not table_text:
         return f'{header}\n_{empty_label}_'
@@ -170,7 +170,7 @@ def _build_message_content(
     truncated, removed = _truncate_table(table_text, max_rows)
     parts = [header, f'```\n{truncated}\n```']
     if removed:
-        parts.append(f'_\u2026 and {removed} more {"player" if removed == 1 else "players"} not shown_')
+        parts.append(f'_… and {removed} more {"player" if removed == 1 else "players"} not shown_')
     return '\n'.join(parts)
 
 
@@ -229,7 +229,7 @@ def _build_multi_embed_payload(
         parts = ['\n\n'.join(current_blocks)]
         remaining = total_removed + extra_removed
         if is_last and remaining:
-            parts.append(f'_\u2026 and {remaining} more {"player" if remaining == 1 else "players"} not shown_')
+            parts.append(f'_… and {remaining} more {"player" if remaining == 1 else "players"} not shown_')
         description = '\n\n'.join(parts)
         total_chars_used += len(embed_title) + len(description)
         embeds.append(_make_embed(embed_title, description))
@@ -482,11 +482,11 @@ class DiscordWebhookSender:
         for kind, table_text, count, label in kinds:
             title = f'{label} ({count})'
             if not payload.capture_running:
-                title += ' \u2014 capture stopped'
+                title += ' — capture stopped'
             if not payload.capture_running:
                 empty_label = 'Capture stopped'
             elif count > 0:
-                empty_label = 'All columns disabled \u2014 enable at least one column in webhook settings'
+                empty_label = 'All columns disabled — enable at least one column in webhook settings'
             else:
                 empty_label = 'No players'
 

@@ -155,19 +155,19 @@ class PlayerIdentifierWidget(QWidget):
         self._zscore_table.setHorizontalHeaderItem(3, _bps_header)
         _zscore_header = QTableWidgetItem('Z-Score')
         _zscore_header.setToolTip(
-            'How far this IP\u2019s current traffic deviates from its baseline.\n\n'
-            'Green  (< 3.0)                \u2014 normal\n'
-            'Yellow (\u2265 3.0)                \u2014 slightly elevated\n'
-            'Orange (\u2265 spike threshold)    \u2014 in spike zone (resolve confirmation)\n'
-            'Red    (\u2265 contam. threshold)  \u2014 baseline abort zone',
+            "How far this IP's current traffic deviates from its baseline.\n\n"
+            'Green  (< 3.0)                — normal\n'
+            'Yellow (\u2265 3.0)                — slightly elevated\n'
+            'Orange (\u2265 spike threshold)    — in spike zone (resolve confirmation)\n'
+            'Red    (\u2265 contam. threshold)  — baseline abort zone',
         )
         self._zscore_table.setHorizontalHeaderItem(4, _zscore_header)
         _streak_header = QTableWidgetItem('Streak')
         _streak_header.setToolTip(
             'Consecutive seconds above the relevant threshold.\n\n'
-            'Baseline/Ready phase: contamination streak \u2014 aborts when it reaches\n'
+            'Baseline/Ready phase: contamination streak — aborts when it reaches\n'
             'the contamination duration (see \u2699 Parameters).\n\n'
-            'Resolving phase: spike streak \u2014 confirms the IP as a match when\n'
+            'Resolving phase: spike streak — confirms the IP as a match when\n'
             'it reaches the spike duration (see \u2699 Parameters).',
         )
         self._zscore_table.setHorizontalHeaderItem(5, _streak_header)
@@ -217,7 +217,7 @@ class PlayerIdentifierWidget(QWidget):
             'When your game loads that player, it sends more data to/from their IP, '
             'causing a spike compared to the baseline.\n\n'
             f'An IP must spike for {self._spike_sustained_secs} consecutive seconds to be confirmed.\n\n'
-            'Tip: Detection works best when the target player is moving \u2014 '
+            'Tip: Detection works best when the target player is moving — '
             'a moving player generates significantly more traffic than a stationary one.',
         )
         self._resolve_btn.setFixedWidth(BUTTON_WIDTH)
@@ -400,12 +400,12 @@ class PlayerIdentifierWidget(QWidget):
 
         n_ips = len(self._baseline_ips)
         self._instructions.setText(
-            f'Recording baseline for <b>{n_ips}</b> IP{pluralize(n_ips)}\u2026<br><br>'
+            f'Recording baseline for <b>{n_ips}</b> IP{pluralize(n_ips)}…<br><br>'
             'Stay still while the baseline records. It will auto-lock once traffic is stable '
             f'(or after {self._baseline_max_seconds}s).<br>'
             'Do <b>NOT</b> move or interact with anyone while recording.',
         )
-        self._stability_bar.setFormat('Collecting\u2026')
+        self._stability_bar.setFormat('Collecting…')
         self._stability_bar.setValue(0)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         self._stability_label.setVisible(True)
@@ -451,7 +451,7 @@ class PlayerIdentifierWidget(QWidget):
             '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
         )
         self._result_label.setText('')
-        self._stability_bar.setFormat('Resolving\u2026')
+        self._stability_bar.setFormat('Resolving…')
         self._stability_bar.setValue(0)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         # Timer is already running from baseline/READY phase; no restart needed
@@ -470,7 +470,7 @@ class PlayerIdentifierWidget(QWidget):
         self._resolve_btn.setEnabled(False)
         self._reset_btn.setEnabled(False)
         self._set_idle_instructions()
-        self._stability_label.setText('Stability: \u2014')
+        self._stability_label.setText('Stability: —')
         self._stability_label.setVisible(False)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Waiting...')
@@ -494,11 +494,11 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setFormat('Aborted')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted \u2014 not enough players remaining</span>',
+            'Stability: <span style="color:red;">Aborted — not enough players remaining</span>',
         )
         self._instructions.setText(
             f'<b style="color:#e74c3c;">Aborted:</b> fewer than {MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
-            'Players disconnected while the scan was running. Click <b>Reset</b> and try again\u2026',
+            'Players disconnected while the scan was running. Click <b>Reset</b> and try again…',
         )
 
     def _abort_contaminated(self, ip: str, zscore: float) -> None:
@@ -512,7 +512,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setFormat('Contaminated')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted \u2014 baseline contaminated</span>',
+            'Stability: <span style="color:red;">Aborted — baseline contaminated</span>',
         )
         self._instructions.setText(
             f'<b style="color:#e74c3c;">Baseline contaminated!</b> IP <b>{ip}</b> showed a dramatic traffic spike '
@@ -533,7 +533,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setFormat('Aborted')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
         self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted \u2014 session conditions changed</span>',
+            'Stability: <span style="color:red;">Aborted — session conditions changed</span>',
         )
         self._instructions.setText(
             '<b style="color:#e74c3c;">Baseline invalidated:</b> overall session traffic shifted too dramatically '
@@ -659,7 +659,7 @@ class PlayerIdentifierWidget(QWidget):
                 label = f'Stability: <span style="color:orange;">Looks stable, need {remaining}s more data</span>'
             else:
                 style = 'QProgressBar::chunk { background-color: #e74c3c; }'
-                label = 'Stability: <span style="color:red;">Unstable \u2014 stay still</span>'
+                label = 'Stability: <span style="color:red;">Unstable — stay still</span>'
         elif converged:
             pct = 100
             style = 'QProgressBar::chunk { background-color: #27ae60; }'
@@ -668,11 +668,11 @@ class PlayerIdentifierWidget(QWidget):
             ratio = (effective_yellow - avg_shift) / (effective_yellow - effective_green)
             pct = int(60 + ratio * 39)
             style = 'QProgressBar::chunk { background-color: #f39c12; }'
-            label = 'Stability: <span style="color:yellow;">Almost stable\u2026 keep waiting</span>'
+            label = 'Stability: <span style="color:yellow;">Almost stable… keep waiting</span>'
         else:
             pct = max(int((1.0 - min(avg_shift, 1.0)) * 60), 5)
             style = 'QProgressBar::chunk { background-color: #e74c3c; }'
-            label = 'Stability: <span style="color:red;">Unstable \u2014 stay still</span>'
+            label = 'Stability: <span style="color:red;">Unstable — stay still</span>'
 
         self._update_stability(pct, style, label)
         n_ips = len(self._baselines)
@@ -682,7 +682,7 @@ class PlayerIdentifierWidget(QWidget):
         table_rows = sorted(
             [
                 (
-                    player_by_ip[ip].usernames[0] if player_by_ip[ip].usernames else '\u2014',
+                    player_by_ip[ip].usernames[0] if player_by_ip[ip].usernames else '—',
                     ip,
                     player_by_ip[ip].packets.pps.calculated_rate,
                     player_by_ip[ip].bandwidth.bps.calculated_rate,
@@ -723,7 +723,7 @@ class PlayerIdentifierWidget(QWidget):
         table_rows = sorted(
             [
                 (
-                    player_by_ip[ip].usernames[0] if player_by_ip[ip].usernames else '\u2014',
+                    player_by_ip[ip].usernames[0] if player_by_ip[ip].usernames else '—',
                     ip,
                     player_by_ip[ip].packets.pps.calculated_rate,
                     player_by_ip[ip].bandwidth.bps.calculated_rate,
@@ -799,7 +799,7 @@ class PlayerIdentifierWidget(QWidget):
         else:
             n_ips = len(self._baselines)
             result_text = (
-                f'Watching {n_ips} baselined IP{pluralize(n_ips)} for traffic spikes\u2026<br>'
+                f'Watching {n_ips} baselined IP{pluralize(n_ips)} for traffic spikes…<br>'
                 '<small>Walk toward the target player. No unusual traffic detected yet.</small>'
             )
         self._update_result_label(result_text)
@@ -818,7 +818,7 @@ class PlayerIdentifierWidget(QWidget):
                 player.bandwidth.bps.calculated_rate,
             )
             table_rows.append((
-                player.usernames[0] if player.usernames else '\u2014',
+                player.usernames[0] if player.usernames else '—',
                 player.ip,
                 player.packets.pps.calculated_rate,
                 player.bandwidth.bps.calculated_rate,
@@ -837,8 +837,8 @@ class PlayerIdentifierWidget(QWidget):
         n = len(resolved)
         lines: list[str] = [f'\U0001f3af {n} match{pluralize(n, plural="es")} found (ranked by confidence):']
         for rank, entry in enumerate(resolved, 1):
-            name_part = f' \u2014 <b>{entry.username}</b>' if entry.username else ''
-            lines.append(f'#{rank} \u2014 <b>{entry.ip}</b>{name_part} \u2014 {entry.confidence:.0f}% \u2014 {entry.reason}')
+            name_part = f' — <b>{entry.username}</b>' if entry.username else ''
+            lines.append(f'#{rank} — <b>{entry.ip}</b>{name_part} — {entry.confidence:.0f}% — {entry.reason}')
         lines.append('')
         lines.append(f'The IP{pluralize(n)} ha{pluralize(n, singular="s", plural="ve")} been highlighted in the connected players table.')
 
@@ -902,7 +902,7 @@ class PlayerIdentifierWidget(QWidget):
             zscore_item = QTableWidgetItem(f'{zscore:.1f}')
             zscore_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            streak_text = f'{streak}/{self._spike_sustained_secs}' if streak > 0 else '\u2014'
+            streak_text = f'{streak}/{self._spike_sustained_secs}' if streak > 0 else '—'
             streak_item = QTableWidgetItem(streak_text)
             streak_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 

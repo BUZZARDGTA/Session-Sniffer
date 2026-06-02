@@ -268,7 +268,7 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
         else:
             latency_color = ThresholdColors.HEALTHY
     restart_color: ThresholdColors = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
-    latency_text = f'{round(display_latency_ms, 1)}ms' if has_latency else '\u2014 ms'
+    latency_text = f'{round(display_latency_ms, 1)}ms' if has_latency else '— ms'
 
     restarts_display = (
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'

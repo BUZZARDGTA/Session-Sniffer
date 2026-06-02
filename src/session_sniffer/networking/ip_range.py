@@ -146,7 +146,7 @@ def describe_range(r: IPRange) -> str:
     """Return a human-readable description of an `IPRange` for preview/tooltip use."""
     if r.start is not None and r.end is not None and r.network is None:
         count = int(r.end) - int(r.start) + 1
-        return f'Range: {r.start} \u2013 {r.end}  ({count:,} addresses)'
+        return f'Range: {r.start} - {r.end}  ({count:,} addresses)'
 
     if r.network is not None:
         if r.network.prefixlen == _IPV4_SINGLE_HOST_PREFIX:
@@ -155,7 +155,7 @@ def describe_range(r: IPRange) -> str:
         usable = max(0, host_count - 2) if r.network.prefixlen < _IPV4_MIN_USABLE_PREFIX and r.network.version == _IPV4_VERSION else host_count
         return (
             f'Network: {r.network.network_address}/{r.network.prefixlen}\n'
-            f'Range: {r.network.network_address} \u2013 {r.network.broadcast_address}\n'
+            f'Range: {r.network.network_address} - {r.network.broadcast_address}\n'
             f'Addresses: {host_count:,} total, {usable:,} usable\n'
             f'Netmask: {r.network.netmask}'
         )

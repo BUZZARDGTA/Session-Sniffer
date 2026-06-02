@@ -81,7 +81,7 @@ class CsvLogTab(QWidget):
         # --- Top bar: search + column filter + date filter + refresh + count ---
         top_bar = QHBoxLayout()
 
-        self._search_input = create_search_input(top_bar, 'Filter entries ...', self._on_search_changed)
+        self._search_input = create_search_input(top_bar, 'Filter entries…', self._on_search_changed)
 
         top_bar.addWidget(QLabel('Column:'))
         self._column_combo = QComboBox()

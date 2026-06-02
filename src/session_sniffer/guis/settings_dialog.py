@@ -132,7 +132,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('\U0001f504 Reset all\u2026')
+        reset_button = QPushButton('\U0001f504 Reset all…')
         reset_button.setToolTip('Reset all settings across every tab to their default values (review before saving)')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Validate and save all settings to Settings.ini')
@@ -395,7 +395,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             url_line.setPlaceholderText('https://discord.com/api/webhooks/<id>/<token>')
             url_line.setToolTip(
                 url_meta.tooltip
-                or 'Discord channel webhook URL. Treat this like a password \u2014 anyone with it can post to the channel.',
+                or 'Discord channel webhook URL. Treat this like a password — anyone with it can post to the channel.',
             )
             self._widgets['discord_webhook_url'] = url_line
 
@@ -455,7 +455,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         # Footer note about automod / Wick.
         note = QLabel(
             '\u26a0 If your server runs Wick or another automod with a "wall of text" filter, '
-            'whitelist this webhook (or its channel) to prevent the messages \u2014 and the webhook itself \u2014 from being deleted.',
+            'whitelist this webhook (or its channel) to prevent the messages — and the webhook itself — from being deleted.',
         )
         note.setWordWrap(True)
         note.setStyleSheet(WEBHOOK_NOTE_LABEL_STYLESHEET)

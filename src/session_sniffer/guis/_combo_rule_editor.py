@@ -116,7 +116,7 @@ class CountrySelectionDialog(QDialog):
         self._combo.setCurrentIndex(-1)
         line_edit = self._combo.lineEdit()
         if line_edit is not None:
-            line_edit.setPlaceholderText('e.g. Switzerland, US, Russia ...')
+            line_edit.setPlaceholderText('e.g. Switzerland, US, Russia…')
 
         proxy = QSortFilterProxyModel(self._combo)
         proxy.setSourceModel(model)

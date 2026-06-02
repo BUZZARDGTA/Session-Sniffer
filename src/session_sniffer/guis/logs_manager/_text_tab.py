@@ -51,7 +51,7 @@ class TextLogTab(QWidget):
 
         top_bar.addWidget(QLabel('Search:'))
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Search in log ...')
+        self._search_input.setPlaceholderText('Search in log…')
         self._search_input.returnPressed.connect(self._find_next)
         self._search_input.textChanged.connect(self._on_search_changed)
         top_bar.addWidget(self._search_input, stretch=1)
@@ -138,7 +138,7 @@ class TextLogTab(QWidget):
             old_scroll = scrollbar.value() if scrollbar else 0
             old_max = scrollbar.maximum() if scrollbar else 0
 
-            prefix = f'[... truncated \u2014 showing last {human_readable_size(LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)} ...]\n\n' if truncated else ''
+            prefix = f'[…truncated — showing last {human_readable_size(LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)}…]\n\n' if truncated else ''
             self._viewer.setPlainText(prefix + text)
 
             if scrollbar is not None:

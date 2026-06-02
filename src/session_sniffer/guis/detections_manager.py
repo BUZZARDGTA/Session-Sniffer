@@ -149,7 +149,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         export_button.clicked.connect(self._export_protections)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('\U0001f504 Reset all\u2026')
+        reset_button = QPushButton('\U0001f504 Reset all…')
         reset_button.setToolTip('Reset all protection settings to defaults')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Save all protection settings')

@@ -166,10 +166,10 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         # Latency stats group
         self._latency_group = QGroupBox('Packet Latency (last 60s)')
         latency_form = QFormLayout(self._latency_group)
-        self._lbl_latest = QLabel('\u2014 ms')
-        self._lbl_avg = QLabel('\u2014 ms')
-        self._lbl_min = QLabel('\u2014 ms')
-        self._lbl_max = QLabel('\u2014 ms')
+        self._lbl_latest = QLabel('— ms')
+        self._lbl_avg = QLabel('— ms')
+        self._lbl_min = QLabel('— ms')
+        self._lbl_max = QLabel('— ms')
         latency_form.addRow('Latest:', self._lbl_latest)
         latency_form.addRow('Average:', self._lbl_avg)
         latency_form.addRow('Min:', self._lbl_min)
@@ -390,7 +390,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         if self._last_latency_ts > 0 and time.monotonic() - self._last_latency_ts < VISIBLE_WINDOW:
             self._lbl_latest.setText(f'{self._last_latency_ms:.2f} ms')
         else:
-            self._lbl_latest.setText('\u2014 ms')
+            self._lbl_latest.setText('— ms')
         if nonzero.size > 0:
             self._lbl_avg.setText(f'{float(np.mean(nonzero)):.2f} ms')
             self._lbl_min.setText(f'{float(np.min(nonzero)):.2f} ms')

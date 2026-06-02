@@ -67,7 +67,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
         self._header_label = self._add_header_label(
             outer_layout,
-            f'\U0001f50e  IP Lookup Details \u2014 {format_player_display(player.ip, player.usernames)}',
+            f'\U0001f50e  IP Lookup Details — {format_player_display(player.ip, player.usernames)}',
             '#2b6cb0',
             '#4c51bf',
         )
@@ -154,7 +154,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         new_title = f'{TITLE} - IP Lookup Details ({display})'
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
-            self._header_label.setText(f'\U0001f50e  IP Lookup Details \u2014 {display}')
+            self._header_label.setText(f'\U0001f50e  IP Lookup Details — {display}')
         for value_widget, provider in self._rows:
             text = provider(player)
             if value_widget.text() != text:

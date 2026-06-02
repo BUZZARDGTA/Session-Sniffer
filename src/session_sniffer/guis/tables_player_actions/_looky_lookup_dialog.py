@@ -88,7 +88,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         self._add_header_label(
             outer_layout,
-            f'🔎  Lookup \u2014 {player.ip}',
+            f'🔎  Lookup — {player.ip}',
             '#1c0a38',
             '#2e1065',
         ).setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
