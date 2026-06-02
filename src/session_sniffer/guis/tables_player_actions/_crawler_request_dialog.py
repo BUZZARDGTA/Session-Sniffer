@@ -138,12 +138,12 @@ class _RIDPickerDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        header = QLabel('\U0001f3ae  Select Rockstar ID')
+        header = QLabel('🤖  Crawler Request — Select Rockstar ID')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
         layout.addWidget(header)
 
-        label = QLabel('Multiple Rockstar IDs found for this player.\n\nSelect one to request the crawler:')
+        label = QLabel('Multiple RIDs found for this player.\n\nSelect one to request the crawler:')
         label.setWordWrap(True)
         label.setStyleSheet(LOOKY_BODY_LABEL_STYLESHEET)
         layout.addWidget(label)
