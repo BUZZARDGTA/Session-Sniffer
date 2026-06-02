@@ -592,6 +592,7 @@ class TableContextMenuMixin(QTableView):
             add_ip_lookup_action(players)
             add_rate_graph_action(ips)
             add_seen_stats_action(players)
+            context_menu.addSeparator()
             add_looky_system_menu(context_menu, players)
             add_ping_menu(ips)
             add_detections_menu(players)
