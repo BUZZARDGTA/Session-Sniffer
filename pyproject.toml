@@ -97,7 +97,6 @@ max-line-length = 176
 [tool.pylint."messages control"]
 disable = [
     "consider-using-with",
-    "fixme",
     "global-statement",
     "locally-disabled",
     "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
