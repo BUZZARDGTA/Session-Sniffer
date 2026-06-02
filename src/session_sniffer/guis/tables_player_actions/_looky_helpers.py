@@ -60,7 +60,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     status_label.hide()
     layout.addWidget(status_label)
 
-    try_again_btn = QPushButton('\U0001f504 Try Again')
+    try_again_btn = QPushButton('Try Again')
     try_again_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     try_again_btn.hide()
     layout.addWidget(try_again_btn)
