@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
 
@@ -195,7 +195,7 @@ jobs:
     name: Update version branch
     steps:
       - name: Checkout version branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           ref: version
 
