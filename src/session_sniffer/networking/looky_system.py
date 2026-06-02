@@ -92,7 +92,6 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError, default: int = 60) 
     return default
 
 
-
 def verify_token(api_key: str) -> LookyVerifyResponse:
     """Verify a Looky System API key via `GET /api/whoami`.
 
