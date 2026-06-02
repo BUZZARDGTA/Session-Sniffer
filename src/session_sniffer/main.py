@@ -512,27 +512,37 @@ def main() -> None:
 
     def _on_ip_changed_poll() -> None:
         """Poll for capture interface IP changes and silently restart the capture."""
-        if gui_closed__event.is_set() or _ip_changed_queue.empty():
+        if gui_closed__event.is_set():
             return
-        new_ip = _ip_changed_queue.get_nowait()
+
+        try:
+            new_ip = _ip_changed_queue.get_nowait()
+        except queue.Empty:
+            return
+
         current_config = capture_holder.config
         if current_config.interface.ip_address == new_ip:
             return  # Race: IP was already updated (e.g. manual interface switch ran concurrently)
+
         was_running = capture_holder.is_running()
         if was_running:
             capture_holder.stop()
+
         new_capture_filter, new_display_filter_fn = build_capture_filters(
             capture_ip_address=new_ip,
             broadcast_support=current_config.broadcast_support,
             multicast_support=current_config.multicast_support,
         )
+
         Settings.capture_ip_address = new_ip
         Settings.rewrite_settings_file()
+
         new_selected_interface = SelectedInterfaceRow(
             interface=current_config.interface.interface,
             ip_address=new_ip,
             is_neighbour=current_config.interface.is_neighbour,
         )
+
         new_capture = PacketCapture(
             CaptureConfig(
                 interface=new_selected_interface,
@@ -544,6 +554,7 @@ def main() -> None:
                 on_capture_lost=_adapter_lost_event.set,
             ),
         )
+
         new_capture.start()
         CaptureStats.capture_started_at = time.monotonic()
         capture_holder.set(new_capture)
