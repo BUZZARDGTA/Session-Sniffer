@@ -34,6 +34,12 @@ def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[st
         return
     if isinstance(exc, asyncio.CancelledError):
         return
+    # Benign transport-level disconnects reported by the Windows proactor during
+    # connection teardown (e.g. WinError 10054 from `_call_connection_lost`).
+    # These are logged by asyncio itself, not raised by our code, so don't crash.
+    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+        logger.debug('Ignored benign asyncio transport error: %s: %s', type(exc).__name__, exc)
+        return
     terminate_script(
         'THREAD_RAISED',
         f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
