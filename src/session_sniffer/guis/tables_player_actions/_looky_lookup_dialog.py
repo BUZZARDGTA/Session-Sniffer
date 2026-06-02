@@ -6,20 +6,16 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QDialog,
-    QLabel,
+    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
-from session_sniffer.guis.tables_player_actions._looky_helpers import (
-    build_looky_progress_widgets,
-    check_looky_prerequisites,
-)
+from session_sniffer.guis.tables_player_actions._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.looky import (
@@ -114,73 +110,35 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
 
 def show_looky_lookup(parent: QWidget, player: Player) -> None:
-    """Validate and fetch Looky IP lookup results for *player*; show a progress dialog, then open the results."""
+    """Validate and fetch Looky IP lookup results for *player*; open a results dialog or show an error."""
     api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 
-    dialog = QDialog(parent)
-    set_dialog_window_flags(dialog)
-    dialog.setWindowTitle(LOOKY_TITLE)
-    dialog.setMinimumSize(400, 160)
+    worker = _LookyFetchWorker(player.ip, api_key)
 
-    layout = QVBoxLayout(dialog)
-    layout.setContentsMargins(12, 12, 12, 12)
-    layout.setSpacing(8)
+    def _on_fetch_succeeded() -> None:
+        with player.looky.lock:
+            player.looky.usernames = [p.name for p in worker.results]
+            player.looky.rockstarids = [p.rockstarid for p in worker.results]
+            player.looky.needs_refresh = False
+            player.looky.last_fetched_at = time.monotonic()
+            player.looky.is_initialized = True
 
-    header = QLabel(f'🔎  Looky Lookup \u2014 {player.ip}')
-    header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    header.setStyleSheet('font-size: 14px; font-weight: 600; padding: 4px;')
-    layout.addWidget(header)
+        if not worker.results:
+            QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')
+            return
 
-    widgets = build_looky_progress_widgets(layout, dialog)
+        LookyLookupDialog(parent, player, worker.results).show()
 
     def _on_fetch_not_found() -> None:
-        widgets.progress_bar.hide()
-        widgets.status_label.setText(
-            f'<span style="color: #60a5fa; font-weight: 600;">\u2139 No results found</span>'
-            f"<br><span>We couldn't find any players matching &quot;{player.ip}&quot;</span>",
-        )
-        widgets.status_label.show()
+        QMessageBox.information(parent, LOOKY_TITLE, f'No results found\n\nWe couldn\'t find any players matching "{player.ip}"')
 
     def _on_fetch_failed(msg: str) -> None:
-        widgets.progress_bar.hide()
-        widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {msg}</span>')
-        widgets.status_label.show()
-        widgets.try_again_btn.show()
+        QMessageBox.warning(parent, LOOKY_TITLE, f'Failed: {msg}')
 
-    def _do_fetch() -> None:
-        worker = _LookyFetchWorker(player.ip, api_key)
-
-        def _on_fetch_succeeded() -> None:
-            with player.looky.lock:
-                player.looky.usernames = [p.name for p in worker.results]
-                player.looky.rockstarids = [p.rockstarid for p in worker.results]
-                player.looky.needs_refresh = False
-                player.looky.last_fetched_at = time.monotonic()
-                player.looky.is_initialized = True
-
-            if not worker.results:
-                widgets.progress_bar.hide()
-                widgets.status_label.setText('<span style="color: #60a5fa; font-weight: 600;">\u2139 No players found for this IP on Looky System.</span>')
-                widgets.status_label.show()
-                return
-
-            dialog.accept()
-            LookyLookupDialog(parent, player, worker.results).show()
-
-        worker.fetch_succeeded.connect(_on_fetch_succeeded)
-        worker.fetch_not_found.connect(_on_fetch_not_found)
-        worker.fetch_failed.connect(_on_fetch_failed)
-        worker.setParent(dialog)
-        worker.start()
-
-    def _on_try_again() -> None:
-        widgets.status_label.hide()
-        widgets.try_again_btn.hide()
-        widgets.progress_bar.show()
-        _do_fetch()
-
-    widgets.try_again_btn.clicked.connect(_on_try_again)
-    _do_fetch()
-    dialog.show()
+    worker.fetch_succeeded.connect(_on_fetch_succeeded)
+    worker.fetch_not_found.connect(_on_fetch_not_found)
+    worker.fetch_failed.connect(_on_fetch_failed)
+    worker.setParent(parent)
+    worker.start()
