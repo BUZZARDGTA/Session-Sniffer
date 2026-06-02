@@ -36,7 +36,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename_multi,
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.registry import PlayersRegistry, SessionHost, is_third_party_server_ip
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
@@ -319,6 +319,9 @@ class TableContextMenuMixin(QTableView):
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
             if not players:
+                return
+
+            if all(is_third_party_server_ip(p.ip) for p in players):
                 return
 
             looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
