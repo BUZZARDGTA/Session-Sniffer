@@ -32,6 +32,14 @@ _TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'canceled'})
 _TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'canceled'})
 
 
+def _auth_headers(api_key: str) -> dict[str, str]:
+    return {'Authorization': f'Bearer {api_key}'}
+
+
+def _json_auth_headers(api_key: str) -> dict[str, str]:
+    return {**_auth_headers(api_key), 'Content-Type': 'application/json'}
+
+
 def extract_rate_limit_message(exc: requests.HTTPError) -> str:
     """Return the API error message from a 429 `HTTPError` response, falling back to `'Too Many Requests'`."""
     if exc.response is None:
@@ -101,7 +109,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
     """
     response = session.get(
         LOOKY_WHOAMI_URL,
-        headers={'Authorization': f'Bearer {api_key}'},
+        headers=_auth_headers(api_key),
         timeout=10,
     )
     response.raise_for_status()
@@ -129,8 +137,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
         pydantic.ValidationError: If the response JSON shape is unexpected.
     """
     url = f'{LOOKY_BASE_URL}/{ip}'
-    headers = {'Authorization': f'Bearer {api_key}'}
-    response = session.get(url, headers=headers, params={'version': version}, timeout=10)
+    response = session.get(url, headers=_auth_headers(api_key), params={'version': version}, timeout=10)
     response.raise_for_status()
     return _RESPONSE_ADAPTER.validate_json(response.content)
 
@@ -152,13 +159,9 @@ def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict
         requests.RequestException: On connection/timeout errors.
         pydantic.ValidationError: If the response JSON shape is unexpected.
     """
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
     response = session.post(
         LOOKY_BATCH_URL,
-        headers=headers,
+        headers=_json_auth_headers(api_key),
         json={'ips': ips, 'version': version},
         timeout=10,
     )
@@ -181,11 +184,7 @@ def send_crawlme_instruction(api_key: str) -> str:
         requests.RequestException: On connection/timeout errors.
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
-    response = session.post(LOOKY_CRAWLME_URL, headers=headers, timeout=10)
+    response = session.post(LOOKY_CRAWLME_URL, headers=_json_auth_headers(api_key), timeout=10)
     response.raise_for_status()
     return str(response.json()['trackingId'])
 
@@ -205,13 +204,9 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
         requests.RequestException: On connection/timeout errors.
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-    }
     response = session.post(
         LOOKY_INSTRUCTION_URL,
-        headers=headers,
+        headers=_json_auth_headers(api_key),
         json={'type': 'join', 'rid': rid},
         timeout=10,
     )
