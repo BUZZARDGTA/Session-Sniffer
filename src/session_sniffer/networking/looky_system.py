@@ -3,7 +3,7 @@
 import json
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import requests
 from pydantic import TypeAdapter
@@ -28,8 +28,10 @@ LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
 
-_TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'canceled'})
-_TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'canceled'})
+LookyInstructionStatus = Literal['queued', 'running', 'completed', 'failed', 'canceled', 'unknown']
+
+_TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'failed', 'canceled'})
+_TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'failed', 'canceled'})
 
 
 def _auth_headers(api_key: str) -> dict[str, str]:
@@ -217,11 +219,11 @@ def watch_instruction_status(
     tracking_id: str,
     api_key: str,
     max_reconnects: int = 10,
-) -> Generator[tuple[str, str | None]]:
+) -> Generator[tuple[LookyInstructionStatus, str | None]]:
     """Stream SSE status updates for a Looky System instruction until a terminal status arrives.
 
     Yields `(status, result)` tuples parsed from `status_update` events.
-    Stops after the first terminal status (`completed` or `canceled`).
+    Stops after the first terminal status (`completed`, `failed`, or `canceled`).
 
     Servers commonly close SSE streams after a short idle window and expect clients
     to reconnect. This function transparently reconnects to the same `tracking_id`
@@ -262,7 +264,7 @@ def watch_instruction_status(
                     except json.JSONDecodeError:
                         continue
                     data = event.get('data', {})
-                    status: str = data.get('status', '')
+                    status: LookyInstructionStatus = data.get('status', 'unknown')
                     result: str | None = data.get('result')
                     yield status, result
                     if is_terminal_instruction_status(status):

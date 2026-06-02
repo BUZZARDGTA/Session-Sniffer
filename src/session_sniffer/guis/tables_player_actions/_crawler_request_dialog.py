@@ -113,7 +113,7 @@ class _CrawlerWatchWorker(CrashingQThread):
             return
 
         if is_terminal_failure_instruction_status(last_status):
-            self.request_failed.emit(f'Instruction canceled (status: {last_status})')
+            self.request_failed.emit(f'Instruction ended with status: {last_status}')
             return
 
         self.request_completed.emit()
