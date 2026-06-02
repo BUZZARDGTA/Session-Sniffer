@@ -9,7 +9,9 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-            "justMyCode": true,
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "subProcess": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src"
             }
