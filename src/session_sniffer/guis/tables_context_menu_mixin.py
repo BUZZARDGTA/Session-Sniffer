@@ -321,7 +321,7 @@ class TableContextMenuMixin(QTableView):
             if not players:
                 return
 
-            if all(is_third_party_server_ip(p.ip) for p in players):
+            if any(is_third_party_server_ip(p.ip) for p in players):
                 return
 
             looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
