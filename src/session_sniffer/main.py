@@ -512,12 +512,9 @@ def main() -> None:
 
     def _on_ip_changed_poll() -> None:
         """Poll for capture interface IP changes and silently restart the capture."""
-        if gui_closed__event.is_set():
+        if gui_closed__event.is_set() or _ip_changed_queue.empty():
             return
-        try:
-            new_ip = _ip_changed_queue.get_nowait()
-        except queue.Empty:
-            return
+        new_ip = _ip_changed_queue.get_nowait()
         current_config = capture_holder.config
         if current_config.interface.ip_address == new_ip:
             return  # Race: IP was already updated (e.g. manual interface switch ran concurrently)
