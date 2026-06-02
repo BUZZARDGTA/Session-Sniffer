@@ -232,6 +232,7 @@ def _build_crawler_request_dialog(
         widgets.progress_bar.hide()
         widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">✓ Completed</span>')
         widgets.status_label.show()
+        log.setPlaceholderText('')
         if on_completed is not None:
             on_completed()
 
@@ -240,9 +241,11 @@ def _build_crawler_request_dialog(
         widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {msg}</span>')
         widgets.status_label.show()
         widgets.try_again_btn.show()
+        log.setPlaceholderText('')
 
     def _on_try_again() -> None:
         log.clear()
+        log.setPlaceholderText('Waiting for response...')
         widgets.progress_bar.show()
         widgets.status_label.hide()
         widgets.try_again_btn.hide()
@@ -253,6 +256,7 @@ def _build_crawler_request_dialog(
             widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {msg}</span>')
             widgets.status_label.show()
             widgets.try_again_btn.show()
+            log.setPlaceholderText('')
 
         def _on_retry_send_succeeded(new_tracking_id: str) -> None:
             watch_worker = _CrawlerWatchWorker(new_tracking_id, watch_config.api_key)
