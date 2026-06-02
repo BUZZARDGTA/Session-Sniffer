@@ -779,7 +779,7 @@ class PlayerModMenus:
 
 @dataclass(kw_only=True, slots=True)
 class PlayerLooky:
-    """Store Looky IP-to-player lookup state for a player."""
+    """Store Looky System IP-to-player lookup state for a player."""
 
     is_initialized: bool = False
     needs_refresh: bool = False
@@ -829,7 +829,7 @@ class _PlayerOptionalState:
     userip: UserIP | None = None
     userip_detection: PlayerUserIPDetection | None = None
     mod_menus: PlayerModMenus | None = None
-    looky: PlayerLooky = dataclasses.field(default_factory=PlayerLooky)
+    looky_system: PlayerLooky = dataclasses.field(default_factory=PlayerLooky)
 
 
 class PacketInfo(NamedTuple):
@@ -859,7 +859,7 @@ class Player:
     userip: UserIP | None
     userip_detection: PlayerUserIPDetection | None
     mod_menus: PlayerModMenus | None
-    looky: PlayerLooky
+    looky_system: PlayerLooky
 
     _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({
         'left_event', 'rejoins', 'protection_checked', 'relay_monitor_started',
@@ -867,7 +867,7 @@ class Player:
     })
     _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
     _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
-    _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus', 'looky'})
+    _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus', 'looky_system'})
 
     def __init__(self, *, ip: str, packet: PacketInfo) -> None:
         """Initialize a `Player` from the first observed packet.

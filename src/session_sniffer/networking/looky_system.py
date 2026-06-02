@@ -10,7 +10,7 @@ from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.models.looky import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse, LookyWhoAmI
+from session_sniffer.models.looky_system import LookyIpBatchResult, LookyPlayer, LookyUserData, LookyVerifyResponse, LookyWhoAmI
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
@@ -85,7 +85,7 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError, default: int = 60) 
 
 
 # Static device fingerprint sent with instruction requests.
-# The Looky web app collects a browser fingerprint; we provide a fixed
+# The Looky System web app collects a browser fingerprint; we provide a fixed
 # minimal value so the header is present and well-formed.
 _DEVICE_FINGERPRINT: str = json.dumps({
     'visitorId': 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
@@ -108,10 +108,10 @@ _DEVICE_FINGERPRINT: str = json.dumps({
 
 
 def verify_token(api_key: str) -> LookyVerifyResponse:
-    """Verify a Looky API key via `GET /api/whoami`.
+    """Verify a Looky System API key via `GET /api/whoami`.
 
     Args:
-        api_key: Looky Bearer API key.
+        api_key: Looky System Bearer API key.
 
     Returns:
         `LookyVerifyResponse` with `userData` populated from the API response.
@@ -135,11 +135,11 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
 
 
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:
-    """Query the Looky API for players associated with `ip`.
+    """Query the Looky System API for players associated with `ip`.
 
     Args:
         ip: The IPv4 address to look up.
-        api_key: Looky Bearer API key.
+        api_key: Looky System Bearer API key.
         version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
 
     Returns:
@@ -158,11 +158,11 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
 
 
 def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
-    """Query the Looky batch endpoint for players associated with multiple IPs in one request.
+    """Query the Looky System batch endpoint for players associated with multiple IPs in one request.
 
     Args:
         ips: List of IPv4 addresses to look up (max 32 per call).
-        api_key: Looky Bearer API key.
+        api_key: Looky System Bearer API key.
         version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
 
     Returns:
@@ -190,10 +190,10 @@ def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict
 
 
 def send_crawlme_instruction(api_key: str) -> str:
-    """POST a crawlme instruction to the Looky API to request the crawler for the current session.
+    """POST a crawlme instruction to the Looky System API to request the crawler for the current session.
 
     Args:
-        api_key: Looky Bearer API key.
+        api_key: Looky System Bearer API key.
 
     Returns:
         The instruction tracking ID (UUID string) for polling status via `watch_instruction_status`.
@@ -214,11 +214,11 @@ def send_crawlme_instruction(api_key: str) -> str:
 
 
 def send_crawler_instruction(rid: int, api_key: str) -> str:
-    """POST a join instruction to the Looky API to call the crawler bot for `rid`.
+    """POST a join instruction to the Looky System API to call the crawler bot for `rid`.
 
     Args:
         rid: The Rockstar player ID to request the crawler for.
-        api_key: Looky Bearer API key.
+        api_key: Looky System Bearer API key.
 
     Returns:
         The instruction tracking ID (UUID string) for polling status via `watch_instruction_status`.
@@ -248,7 +248,7 @@ def watch_instruction_status(
     api_key: str,
     max_reconnects: int = 10,
 ) -> Generator[tuple[str, str | None]]:
-    """Stream SSE status updates for a Looky instruction until a terminal status arrives.
+    """Stream SSE status updates for a Looky System instruction until a terminal status arrives.
 
     Yields `(status, result)` tuples parsed from `status_update` events.
     Stops after the first terminal status (`completed` or `canceled`).
@@ -260,7 +260,7 @@ def watch_instruction_status(
 
     Args:
         tracking_id: The instruction tracking ID returned by `send_crawler_instruction`.
-        api_key: Looky Bearer API key (sent as the `token` query parameter).
+        api_key: Looky System Bearer API key (sent as the `token` query parameter).
         max_reconnects: Maximum reconnection attempts before raising.
 
     Raises:

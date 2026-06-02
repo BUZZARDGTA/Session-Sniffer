@@ -20,6 +20,11 @@ from session_sniffer.guis.looky_text import (
     LOOKY_WARNING_API_KEY_MISSING,
     LOOKY_WARNING_DISABLED,
 )
+from session_sniffer.guis.stylesheets import (
+    LOOKY_ACTION_BUTTON_STYLESHEET,
+    LOOKY_PROGRESS_BAR_STYLESHEET,
+    LOOKY_STATUS_LABEL_STYLESHEET,
+)
 from session_sniffer.settings.settings import Settings
 
 
@@ -43,21 +48,28 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     progress_bar = QProgressBar()
     progress_bar.setRange(0, 0)
     progress_bar.setTextVisible(False)
+    progress_bar.setFixedHeight(14)
+    progress_bar.setStyleSheet(LOOKY_PROGRESS_BAR_STYLESHEET)
     layout.addWidget(progress_bar)
 
     status_label = QLabel()
     status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     status_label.setTextFormat(Qt.TextFormat.RichText)
     status_label.setWordWrap(True)
+    status_label.setStyleSheet(LOOKY_STATUS_LABEL_STYLESHEET)
     status_label.hide()
     layout.addWidget(status_label)
 
     try_again_btn = QPushButton('\U0001f504 Try Again')
+    try_again_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     try_again_btn.hide()
     layout.addWidget(try_again_btn)
 
     button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
     button_box.rejected.connect(dialog.reject)
+    close_btn = button_box.button(QDialogButtonBox.StandardButton.Close)
+    if close_btn is not None:
+        close_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     layout.addWidget(button_box)
 
     return LookyProgressWidgets(progress_bar, status_label, try_again_btn)

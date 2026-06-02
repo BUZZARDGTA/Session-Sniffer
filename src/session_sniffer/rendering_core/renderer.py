@@ -467,7 +467,7 @@ def rendering_core(
             player.usernames = dedup_preserve_order(
                 player.userip.usernames if player.userip else [],
                 player.mod_menus.usernames if player.mod_menus else [],
-                player.looky.usernames if player.looky.is_initialized else [],
+                player.looky_system.usernames if player.looky_system.is_initialized else [],
             )
 
             if player.country_flag is None:

@@ -18,7 +18,7 @@ from session_sniffer.guis.looky_text import LOOKY_TITLE
 from session_sniffer.guis.tables_player_actions._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import set_dialog_window_flags
-from session_sniffer.networking.looky import (
+from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
     lookup_ip,
@@ -26,12 +26,12 @@ from session_sniffer.networking.looky import (
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
-    from session_sniffer.models.looky import LookyPlayer
+    from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
 
 
 class _LookyFetchWorker(CrashingQThread):
-    """Background thread that fetches Looky IP lookup results for a given IP address."""
+    """Background thread that fetches Looky System IP lookup results for a given IP address."""
 
     fetch_succeeded: pyqtSignal = pyqtSignal()
     fetch_not_found: pyqtSignal = pyqtSignal()
@@ -45,7 +45,7 @@ class _LookyFetchWorker(CrashingQThread):
 
     @override
     def _run(self) -> None:
-        """Fetch Looky lookup results and emit the appropriate outcome signal."""
+        """Fetch Looky System lookup results and emit the appropriate outcome signal."""
         try:
             results = lookup_ip(self._ip, self._api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as exc:
@@ -57,7 +57,7 @@ class _LookyFetchWorker(CrashingQThread):
                 self.fetch_failed.emit(f'Rate limited: {msg}. Try again in {wait}s.')
             else:
                 code = exc.response.status_code if exc.response is not None else '?'
-                self.fetch_failed.emit(f'Looky API error: HTTP {code}')
+                self.fetch_failed.emit(f'Looky System API error: HTTP {code}')
             return
         except requests.RequestException as exc:
             self.fetch_failed.emit(f'Looky System request failed: {exc}')
@@ -86,7 +86,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         self._add_header_label(
             outer_layout,
-            f'🔎  Looky Lookup \u2014 {player.ip}',
+            f'🔎  Looky System Lookup \u2014 {player.ip}',
             '#6b21a8',
             '#7c3aed',
         )
@@ -110,7 +110,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
 
 def show_looky_lookup(parent: QWidget, player: Player) -> None:
-    """Validate and fetch Looky IP lookup results for *player*; open a results dialog or show an error."""
+    """Validate and fetch Looky System IP lookup results for *player*; open a results dialog or show an error."""
     api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
@@ -118,12 +118,12 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
     worker = _LookyFetchWorker(player.ip, api_key)
 
     def _on_fetch_succeeded() -> None:
-        with player.looky.lock:
-            player.looky.usernames = [p.name for p in worker.results]
-            player.looky.rockstarids = [p.rockstarid for p in worker.results]
-            player.looky.needs_refresh = False
-            player.looky.last_fetched_at = time.monotonic()
-            player.looky.is_initialized = True
+        with player.looky_system.lock:
+            player.looky_system.usernames = [p.name for p in worker.results]
+            player.looky_system.rockstarids = [p.rockstarid for p in worker.results]
+            player.looky_system.needs_refresh = False
+            player.looky_system.last_fetched_at = time.monotonic()
+            player.looky_system.is_initialized = True
 
         if not worker.results:
             QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')

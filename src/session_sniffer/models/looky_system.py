@@ -1,4 +1,4 @@
-"""Pydantic model for the Looky IP-to-player lookup API response."""
+"""Pydantic model for the Looky System IP-to-player lookup API response."""
 
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class LookyPlayer(BaseModel):
-    """A single player entry returned by the Looky API for a given IP."""
+    """A single player entry returned by the Looky System API for a given IP."""
 
     rockstarid: int
     name: str
@@ -19,7 +19,7 @@ class LookyPlayer(BaseModel):
 
 
 class LookyIpBatchResult(BaseModel):
-    """One entry in a Looky `/api/search/ip-batch` response, mapping an IP to its player list."""
+    """One entry in a Looky System `/api/search/ip-batch` response, mapping an IP to its player list."""
 
     ip: str
     players: list[LookyPlayer]
@@ -37,7 +37,7 @@ class LookyWhoAmI(BaseModel):
 
 
 class LookyUserData(BaseModel):
-    """User account data derived from a successful Looky API key verification."""
+    """User account data derived from a successful Looky System API key verification."""
 
     username: str
     apiAccess: bool  # noqa: N815
@@ -46,7 +46,7 @@ class LookyUserData(BaseModel):
 
 
 class LookyVerifyResponse(BaseModel):
-    """Result of verifying a Looky API key via `GET /api/whoami`."""
+    """Result of verifying a Looky System API key via `GET /api/whoami`."""
 
     success: bool
     message: str | None = None

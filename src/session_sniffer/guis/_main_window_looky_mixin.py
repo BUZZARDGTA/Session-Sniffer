@@ -58,7 +58,7 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
         self._looky_crawler_join_own_session_action = looky_crawler_join_own_session_action
 
         looky_rescan_all_action = QAction('🔄 Rescan All Players', self)
-        looky_rescan_all_action.setToolTip('Immediately refresh Looky system data for all players without waiting for the next automatic update.')
+        looky_rescan_all_action.setToolTip('Immediately refresh Looky System data for all players without waiting for the next automatic update.')
         looky_rescan_all_action.triggered.connect(self._rescan_all_looky_players)
         looky_submenu.addAction(looky_rescan_all_action)
         self._looky_rescan_all_action = looky_rescan_all_action
@@ -66,7 +66,7 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
         looky_submenu.aboutToShow.connect(self._update_looky_actions)
 
     def _update_looky_actions(self) -> None:
-        """Update enabled state and tooltips for Looky submenu actions based on current settings."""
+        """Update enabled state and tooltips for Looky System submenu actions based on current settings."""
         if not Settings.looky_enabled:
             self._looky_crawler_join_own_session_action.setEnabled(False)
             self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
@@ -94,24 +94,24 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
             self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
         else:
             self._looky_rescan_all_action.setEnabled(True)
-            self._looky_rescan_all_action.setToolTip('Immediately refresh Looky system data for all players without waiting for the next automatic update.')
+            self._looky_rescan_all_action.setToolTip('Immediately refresh Looky System data for all players without waiting for the next automatic update.')
 
     def _request_crawler_own_session(self) -> None:
-        """Request the Looky crawler bot to join the current session."""
+        """Request the Looky System crawler bot to join the current session."""
         show_crawlme_request(self)
 
     def _rescan_all_looky_players(self) -> None:
-        """Reset the Looky fetch timestamp for every player so `looky_core` re-fetches them immediately."""
+        """Reset the Looky System fetch timestamp for every player so `looky_core` re-fetches them immediately."""
         players = PlayersRegistry.get_default_sorted_players()
         count = 0
         for player in players:
-            if player.looky.is_initialized:
-                with player.looky.lock:
-                    player.looky.last_fetched_at = 0.0
+            if player.looky_system.is_initialized:
+                with player.looky_system.lock:
+                    player.looky_system.last_fetched_at = 0.0
                 count += 1
 
         if not count:
-            QMessageBox.information(self, LOOKY_TITLE, 'No Looky players to rescan.\nNo players have been fetched yet.')
+            QMessageBox.information(self, LOOKY_TITLE, 'No Looky System players to rescan.\nNo players have been fetched yet.')
         else:
             noun = 'player' if count == 1 else 'players'
-            QMessageBox.information(self, LOOKY_TITLE, f'{count} {noun} queued for Looky rescan.\nResults will update automatically.')
+            QMessageBox.information(self, LOOKY_TITLE, f'{count} {noun} queued for Looky System rescan.\nResults will update automatically.')

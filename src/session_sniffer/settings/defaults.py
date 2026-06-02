@@ -573,7 +573,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='General',
         display_label='Enable Looky System',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky API calls.',
+        tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky System API calls.',
     ),
     'looky_auto_resolve': SettingMeta(
         category='Looky System',
@@ -587,7 +587,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='General',
         display_label='Game Version',
         setting_type=SettingType.ENUM,
-        tooltip='Version filter applied to all Looky System API queries. Affects both background auto-resolve and manual Looky Lookup.',
+        tooltip='Version filter applied to all Looky System API queries. Affects both background auto-resolve and manual Looky System Lookup.',
         allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
     'looky_api_key': SettingMeta(

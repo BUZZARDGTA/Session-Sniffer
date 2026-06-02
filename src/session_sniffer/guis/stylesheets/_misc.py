@@ -116,3 +116,72 @@ SPLASH_LOG_AREA_STYLESHEET = (
     '  padding: 8px;'
     '}'
 )
+
+# =============================================================================
+# LOOKY SYSTEM ACCOUNT CARD STYLES
+# =============================================================================
+
+LOOKY_CARD_LABEL_STYLESHEET = 'color: #9ca3af; font-size: 10pt;'
+
+LOOKY_CARD_VALUE_STYLESHEET = 'color: #d4c8f0; font-size: 10pt;'
+
+# =============================================================================
+# LOOKY SYSTEM CRAWLER DIALOG STYLES
+# =============================================================================
+
+LOOKY_CRAWLER_HEADER_STYLESHEET = (
+    'font-size: 15px;'
+    'font-weight: 700;'
+    'padding: 10px 14px;'
+    'color: #d8b4fe;'
+    'background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+    '    stop:0 #1c0a38, stop:0.5 #2e1065, stop:1 #1c0a38);'
+    'border: 1px solid #4c1d95;'
+    'border-radius: 8px;'
+)
+
+LOOKY_CRAWLER_LOG_STYLESHEET = (
+    'QPlainTextEdit {'
+    '    background-color: #0e0a1c;'
+    '    color: #c4b5fd;'
+    '    border: 1px solid #2d1b6e;'
+    '    border-radius: 6px;'
+    '    font-family: Consolas, "Courier New", monospace;'
+    '    font-size: 12px;'
+    '    padding: 4px;'
+    '    selection-background-color: #4c1d95;'
+    '}'
+)
+
+LOOKY_PROGRESS_BAR_STYLESHEET = (
+    'QProgressBar {'
+    '    background-color: #1a1325;'
+    '    border: 1px solid #3b2060;'
+    '    border-radius: 7px;'
+    '}'
+    'QProgressBar::chunk {'
+    '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+    '        stop:0 #6d28d9, stop:0.5 #a855f7, stop:1 #ec4899);'
+    '    border-radius: 7px;'
+    '}'
+)
+
+LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 13px; padding: 4px;'
+
+LOOKY_ACTION_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background-color: #1e1030;'
+    '    color: #c084fc;'
+    '    border: 1px solid #5b21b6;'
+    '    border-radius: 6px;'
+    '    padding: 5px 16px;'
+    '    font-weight: 600;'
+    '}'
+    'QPushButton:hover {'
+    '    background-color: #2d1858;'
+    '    border-color: #7c3aed;'
+    '}'
+    'QPushButton:pressed {'
+    '    background-color: #4c1d95;'
+    '}'
+)

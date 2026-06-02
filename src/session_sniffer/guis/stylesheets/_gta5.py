@@ -1,4 +1,4 @@
-"""GTA5 suspend button and Looky crawler progress dialog QSS."""
+"""GTA5 suspend button and Looky System crawler progress dialog QSS."""
 
 # =============================================================================
 # GTA5 MANUAL SUSPEND BUTTON STYLES

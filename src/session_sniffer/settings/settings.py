@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from session_sniffer.models.looky import LookyVerifyResponse
+    from session_sniffer.models.looky_system import LookyVerifyResponse
 
 logger = get_logger(__name__)
 

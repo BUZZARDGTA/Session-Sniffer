@@ -21,12 +21,16 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
+from session_sniffer.guis.stylesheets import (
+    LOOKY_CRAWLER_HEADER_STYLESHEET,
+    LOOKY_CRAWLER_LOG_STYLESHEET,
+)
 from session_sniffer.guis.tables_player_actions._looky_helpers import (
     build_looky_progress_widgets,
     check_looky_prerequisites,
 )
 from session_sniffer.guis.utils import set_dialog_window_flags
-from session_sniffer.networking.looky import (
+from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
     is_terminal_failure_instruction_status,
@@ -177,11 +181,11 @@ def _build_crawler_request_dialog(
     send_fn: Callable[[], str],
     on_completed: Callable[[], None] | None = None,
 ) -> QDialog:
-    """Build and wire a non-modal dialog that shows live SSE status updates for a Looky crawler request."""
+    """Build and wire a non-modal dialog that shows live SSE status updates for a Looky System crawler request."""
     dialog = QDialog(parent)
     set_dialog_window_flags(dialog)
     dialog.setWindowTitle(LOOKY_TITLE)
-    dialog.setMinimumSize(480, 340)
+    dialog.setMinimumSize(500, 360)
 
     layout = QVBoxLayout(dialog)
     layout.setContentsMargins(12, 12, 12, 12)
@@ -189,12 +193,13 @@ def _build_crawler_request_dialog(
 
     header = QLabel(f'🤖  Crawler Request — {display_name}')
     header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    header.setStyleSheet('font-size: 14px; font-weight: 600; padding: 4px;')
+    header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
     layout.addWidget(header)
 
     log = QPlainTextEdit()
     log.setReadOnly(True)
     log.setPlaceholderText('Waiting for response...')
+    log.setStyleSheet(LOOKY_CRAWLER_LOG_STYLESHEET)
     layout.addWidget(log)
 
     widgets = build_looky_progress_widgets(layout, dialog)
@@ -272,12 +277,12 @@ def _start_crawler_send(parent: QWidget, display_name: str, send_fn: Callable[[]
 
 
 def show_crawler_request(parent: QWidget, player: Player) -> None:
-    """Validate and start a Looky crawler instruction for `player`; open a crawler request dialog on success."""
+    """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
     api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 
-    if not player.looky.rockstarids:
+    if not player.looky_system.rockstarids:
         QMessageBox.warning(
             parent,
             LOOKY_TITLE,
@@ -285,10 +290,10 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
         )
         return
 
-    entries = list(zip(player.looky.usernames, player.looky.rockstarids, strict=False))
+    entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
     rid = (
-        player.looky.rockstarids[0]
-        if len(player.looky.rockstarids) == 1
+        player.looky_system.rockstarids[0]
+        if len(player.looky_system.rockstarids) == 1
         else _RIDPickerDialog.pick_rid(parent, entries)
     )
     if rid is None:
@@ -297,8 +302,8 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
     display_name = next((name for name, r in entries if r == rid), player.ip)
 
     def _on_crawl_completed() -> None:
-        with player.looky.lock:
-            player.looky.needs_refresh = True
+        with player.looky_system.lock:
+            player.looky_system.needs_refresh = True
 
     _start_crawler_send(
         parent,
@@ -310,15 +315,15 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
 
 
 def show_crawlme_request(parent: QWidget) -> None:
-    """Validate and start a Looky crawlme instruction; open a crawler request dialog on success."""
+    """Validate and start a Looky System crawlme instruction; open a crawler request dialog on success."""
     api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 
     def _on_crawl_completed() -> None:
         for p in PlayersRegistry.get_default_sorted_players():
-            if p.looky.is_initialized:
-                with p.looky.lock:
-                    p.looky.needs_refresh = True
+            if p.looky_system.is_initialized:
+                with p.looky_system.lock:
+                    p.looky_system.needs_refresh = True
 
     _start_crawler_send(parent, 'My Session', lambda: send_crawlme_instruction(api_key), api_key, on_completed=_on_crawl_completed)

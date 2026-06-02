@@ -16,9 +16,9 @@ from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.looky import extract_rate_limit_wait_seconds
-from session_sniffer.networking.looky import lookup_ip_batch as looky_lookup_ip_batch
-from session_sniffer.networking.looky import verify_token as looky_verify_token
+from session_sniffer.networking.looky_system import extract_rate_limit_wait_seconds
+from session_sniffer.networking.looky_system import lookup_ip_batch as looky_lookup_ip_batch
+from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry, is_third_party_server_ip
 from session_sniffer.settings import Settings
@@ -277,7 +277,7 @@ _LOOKY_REFRESH_INTERVAL = 60.0
 
 
 def looky_core() -> None:
-    """Resolve player names via the Looky API in the background.
+    """Resolve player names via the Looky System API in the background.
 
     Sends batched requests of up to 32 IPs at a time.  Skips all work when no
     API key is configured.
@@ -344,9 +344,9 @@ def looky_core() -> None:
             for player in PlayersRegistry.get_default_sorted_players()
             if not is_third_party_server_ip(player.ip)
             and (
-                not player.looky.is_initialized
-                or player.looky.needs_refresh
-                or (time.monotonic() - player.looky.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
+                not player.looky_system.is_initialized
+                or player.looky_system.needs_refresh
+                or (time.monotonic() - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
             )
         ]
 
@@ -377,10 +377,10 @@ def looky_core() -> None:
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
-                        with matched_player.looky.lock:
-                            matched_player.looky.needs_refresh = False
-                            matched_player.looky.last_fetched_at = time.monotonic()
-                            matched_player.looky.is_initialized = True
+                        with matched_player.looky_system.lock:
+                            matched_player.looky_system.needs_refresh = False
+                            matched_player.looky_system.last_fetched_at = time.monotonic()
+                            matched_player.looky_system.is_initialized = True
             except requests.RequestException as exc:
                 logger.warning('[Looky System] Request error for batch %s: %s', batch, exc)
                 # Not marked as initialized — will be retried on the next pass.
@@ -389,21 +389,21 @@ def looky_core() -> None:
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
-                        with matched_player.looky.lock:
-                            matched_player.looky.needs_refresh = False
-                            matched_player.looky.last_fetched_at = time.monotonic()
-                            matched_player.looky.is_initialized = True
+                        with matched_player.looky_system.lock:
+                            matched_player.looky_system.needs_refresh = False
+                            matched_player.looky_system.last_fetched_at = time.monotonic()
+                            matched_player.looky_system.is_initialized = True
             else:
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
                         players = results.get(ip, [])
-                        with matched_player.looky.lock:
-                            matched_player.looky.usernames = [p.name for p in players]
-                            matched_player.looky.rockstarids = [p.rockstarid for p in players]
-                            matched_player.looky.needs_refresh = False
-                            matched_player.looky.last_fetched_at = time.monotonic()
-                            matched_player.looky.is_initialized = True
+                        with matched_player.looky_system.lock:
+                            matched_player.looky_system.usernames = [p.name for p in players]
+                            matched_player.looky_system.rockstarids = [p.rockstarid for p in players]
+                            matched_player.looky_system.needs_refresh = False
+                            matched_player.looky_system.last_fetched_at = time.monotonic()
+                            matched_player.looky_system.is_initialized = True
                 resolved_any = True
 
         if not resolved_any and not rate_limited:

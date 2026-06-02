@@ -20,14 +20,19 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.stylesheets import LOOKY_ACCOUNT_CARD_STYLESHEET, LOOKY_INFO_LABEL_STYLESHEET
-from session_sniffer.networking.looky import verify_token as looky_verify_token
+from session_sniffer.guis.stylesheets import (
+    LOOKY_ACCOUNT_CARD_STYLESHEET,
+    LOOKY_CARD_LABEL_STYLESHEET,
+    LOOKY_CARD_VALUE_STYLESHEET,
+    LOOKY_INFO_LABEL_STYLESHEET,
+)
+from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QKeyEvent
 
-    from session_sniffer.models.looky import LookyVerifyResponse
+    from session_sniffer.models.looky_system import LookyVerifyResponse
 
 
 def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
@@ -38,7 +43,7 @@ def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: F
 
 
 class _LookyVerifyWorker(CrashingQThread):
-    """Background thread that verifies a Looky API key via `/api/whoami`."""
+    """Background thread that verifies a Looky System API key via `/api/whoami`."""
 
     verified: pyqtSignal = pyqtSignal(object)  # LookyVerifyResponse
     failed: pyqtSignal = pyqtSignal(str)        # error message
@@ -69,7 +74,7 @@ class SettingsDialogLookyMixin(QDialog):
         `_widgets`, `_last_verified_key`, `_verify_worker`, `_verify_debounce`
     """
 
-    # -- Attribute stubs (Looky widgets, set during _build_tab) --
+    # -- Attribute stubs (Looky System widgets, set during _build_tab) --
     _looky_account_card: QFrame
     _looky_account_info_group: QGroupBox
     _looky_card_form_left: QFormLayout
@@ -119,7 +124,7 @@ class SettingsDialogLookyMixin(QDialog):
         card_layout.setSpacing(6)
 
         self._looky_verify_status_label = QLabel()
-        self._looky_verify_status_label.setStyleSheet('color: #9ca3af; font-size: 10pt;')
+        self._looky_verify_status_label.setStyleSheet(LOOKY_CARD_LABEL_STYLESHEET)
         self._looky_verify_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._looky_verify_status_label.setVisible(False)
         card_layout.addWidget(self._looky_verify_status_label)
@@ -156,14 +161,14 @@ class SettingsDialogLookyMixin(QDialog):
     def _make_card_label(self, text: str) -> QLabel:
         """Return a right-aligned label styled for the account card."""
         lbl = QLabel(text + ':')
-        lbl.setStyleSheet('color: #9ca3af; font-size: 10pt;')
+        lbl.setStyleSheet(LOOKY_CARD_LABEL_STYLESHEET)
         return lbl
 
     def _make_card_value(self, html: str) -> QLabel:
         """Return a value label with rich-text support for the account card."""
         lbl = QLabel(html)
         lbl.setTextFormat(Qt.TextFormat.RichText)
-        lbl.setStyleSheet('color: #d4c8f0; font-size: 10pt;')
+        lbl.setStyleSheet(LOOKY_CARD_VALUE_STYLESHEET)
         lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         return lbl
 
