@@ -245,4 +245,4 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
         finally:
             semaphore.release()  # Release slot after request
 
-    raise AllEndpointsExhaustedError
+    raise AllEndpointsExhaustedError()
