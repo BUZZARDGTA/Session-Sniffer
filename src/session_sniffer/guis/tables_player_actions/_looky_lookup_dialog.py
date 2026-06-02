@@ -86,7 +86,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         self._add_header_label(
             outer_layout,
-            f'🔎  Looky System Lookup \u2014 {player.ip}',
+            f'🔎  Lookup \u2014 {player.ip}',
             '#6b21a8',
             '#7c3aed',
         )

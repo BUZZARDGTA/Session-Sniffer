@@ -341,7 +341,7 @@ class TableContextMenuMixin(QTableView):
             if len(players) == 1:
                 add_action(
                     looky_menu,
-                    '🔎 Looky System Lookup',
+                    '🔎 Lookup',
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
@@ -360,7 +360,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 looky_menu,
-                '🔎 Looky System Lookup (All Selected)',
+                '🔎 Lookup (All Selected)',
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
             )
