@@ -345,7 +345,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
-                if not (players[0].looky_system.is_initialized and not players[0].looky_system.rockstarids):
+                if not CaptureState.gta5_is_enhanced and not (players[0].looky_system.is_initialized and not players[0].looky_system.rockstarids):
                     add_action(
                         looky_menu,
                         '🤖 Request Crawler',

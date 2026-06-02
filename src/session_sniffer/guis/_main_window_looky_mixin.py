@@ -67,6 +67,9 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
 
     def _update_looky_actions(self) -> None:
         """Update enabled state and tooltips for Looky System submenu actions based on current settings."""
+        # The crawler is only available for GTA V Legacy, so hide it entirely when enhanced is running.
+        self._looky_crawler_join_own_session_action.setVisible(not CaptureState.gta5_is_enhanced)
+
         if not Settings.looky_enabled:
             self._looky_crawler_join_own_session_action.setEnabled(False)
             self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)

@@ -649,8 +649,11 @@ def main() -> None:
     def _gta5_process_monitor() -> None:
         """Background thread: poll for GTA5 process presence and update `CaptureState.gta5_is_running`."""
         while not gui_closed__event.is_set():
-            is_running = Settings.capture_game_preset == 'GTA5' and find_running_gta5_path().is_running
-            CaptureState.update_gta5_status(is_running=is_running)
+            if Settings.capture_game_preset == 'GTA5':
+                gta5 = find_running_gta5_path()
+                CaptureState.update_gta5_status(is_running=gta5.is_running, is_enhanced=gta5.is_enhanced, is_legacy=gta5.is_legacy)
+            else:
+                CaptureState.update_gta5_status(is_running=False, is_enhanced=False, is_legacy=False)
             gui_closed__event.wait(5.0)
 
     Thread(

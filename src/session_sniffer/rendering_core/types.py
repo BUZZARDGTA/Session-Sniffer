@@ -103,6 +103,8 @@ class CaptureState:
     interface_ip: ClassVar[str] = ''
     discord_rpc_connected: ClassVar[bool] = False
     gta5_is_running: ClassVar[bool] = False
+    gta5_is_enhanced: ClassVar[bool] = False
+    gta5_is_legacy: ClassVar[bool] = False
     gta5_just_started: ClassVar[bool] = False
 
     @classmethod
@@ -113,11 +115,13 @@ class CaptureState:
         cls.interface_ip = ip
 
     @classmethod
-    def update_gta5_status(cls, *, is_running: bool) -> None:
+    def update_gta5_status(cls, *, is_running: bool, is_enhanced: bool, is_legacy: bool) -> None:
         """Update GTA5 running state and set `gta5_just_started` on the first detected launch."""
         if is_running and not cls.gta5_is_running:
             cls.gta5_just_started = True
         cls.gta5_is_running = is_running
+        cls.gta5_is_enhanced = is_enhanced
+        cls.gta5_is_legacy = is_legacy
 
 
 class CaptureStats:
