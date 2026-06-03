@@ -16,7 +16,7 @@ from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.looky_system import extract_rate_limit_wait_seconds
+from session_sniffer.networking.looky_system import LookyState, extract_rate_limit_wait_seconds
 from session_sniffer.networking.looky_system import lookup_ip_batch as looky_lookup_ip_batch
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
@@ -293,14 +293,12 @@ def looky_core() -> None:
         if not Settings.looky_api_key or not Settings.looky_enabled:
             if _verified_api_key is not None:
                 _verified_api_key = None
-                Settings.looky_api_access = False
-                Settings.looky_user_data = None
+                LookyState.reset()
             gui_closed__event.wait(5)
             continue
 
         if Settings.looky_api_key == _failed_verification_api_key:
-            Settings.looky_api_access = False
-            Settings.looky_user_data = None
+            LookyState.reset()
             gui_closed__event.wait(30)
             continue
 
@@ -310,9 +308,8 @@ def looky_core() -> None:
         if Settings.looky_api_key != _verified_api_key:
             try:
                 response = looky_verify_token(Settings.looky_api_key)
-                Settings.looky_api_access = response.userData.apiAccess
-                Settings.looky_user_data = response
-                if Settings.looky_api_access:
+                LookyState.set(response)
+                if LookyState.api_access:
                     _verified_api_key = Settings.looky_api_key
                     _failed_verification_api_key = None
             except requests.HTTPError as exc:
@@ -322,18 +319,16 @@ def looky_core() -> None:
                     logger.warning(LOOKY_LOG_API_KEY_INVALID)
                 else:
                     logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
-                Settings.looky_api_access = False
-                Settings.looky_user_data = None
+                LookyState.reset()
 
                 if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
                     _failed_verification_api_key = Settings.looky_api_key
             except requests.RequestException as exc:
                 logger.warning('[Looky System] Token verification failed: %s', exc)
-                Settings.looky_api_access = False
-                Settings.looky_user_data = None
+                LookyState.reset()
 
-        if not Settings.looky_auto_resolve or not Settings.looky_api_access:
-            if not Settings.looky_api_access:
+        if not Settings.looky_auto_resolve or not LookyState.api_access:
+            if not LookyState.api_access:
                 gui_closed__event.wait(30)
             else:
                 gui_closed__event.wait(5)

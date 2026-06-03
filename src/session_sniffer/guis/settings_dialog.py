@@ -51,6 +51,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.interface import AllInterfaces
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
@@ -101,7 +102,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             key: getattr(Settings, key) for key in SETTING_METADATA
         }
         self._saved: bool = False
-        self._last_verified_key: str = Settings.looky_api_key or '' if Settings.looky_user_data is not None else ''
+        self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
         self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
         self._verify_debounce.setSingleShot(True)

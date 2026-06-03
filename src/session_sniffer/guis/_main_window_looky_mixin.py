@@ -13,6 +13,7 @@ from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -76,7 +77,7 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
         elif not Settings.looky_api_key:
             self._looky_crawler_join_own_session_action.setEnabled(False)
             self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-        elif not Settings.looky_api_access:
+        elif not LookyState.api_access:
             self._looky_crawler_join_own_session_action.setEnabled(False)
             self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
         elif not CaptureState.gta5_is_running:
@@ -92,7 +93,7 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
         elif not Settings.looky_api_key:
             self._looky_rescan_all_action.setEnabled(False)
             self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-        elif not Settings.looky_api_access:
+        elif not LookyState.api_access:
             self._looky_rescan_all_action.setEnabled(False)
             self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
         else:

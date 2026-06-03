@@ -26,8 +26,8 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_CARD_VALUE_STYLESHEET,
     LOOKY_INFO_LABEL_STYLESHEET,
 )
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
-from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QKeyEvent
@@ -153,8 +153,8 @@ class SettingsDialogLookyMixin(QDialog):
 
         outer.addWidget(self._looky_account_card)
 
-        if Settings.looky_user_data is not None:
-            self._populate_looky_account_card(Settings.looky_user_data)
+        if LookyState.user_data is not None:
+            self._populate_looky_account_card(LookyState.user_data)
 
         return group_box
 

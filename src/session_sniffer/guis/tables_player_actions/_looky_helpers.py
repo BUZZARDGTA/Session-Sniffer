@@ -26,6 +26,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.settings.settings import Settings
 
 
@@ -95,7 +96,7 @@ def check_looky_prerequisites(parent: QWidget) -> str | None:
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_DISABLED)
         return None
 
-    if not Settings.looky_api_access:
+    if not LookyState.api_access:
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_ACCESS_MISSING)
         return None
 

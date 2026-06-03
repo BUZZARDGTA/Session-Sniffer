@@ -39,6 +39,29 @@ _TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'failed', 'canceled'})
 _TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'failed', 'canceled'})
 
 
+class LookyState:
+    """Runtime-only Looky System state derived from token verification.
+
+    Not persisted to `Settings.ini` — populated by the `looky_core` background thread
+    and read by the GUI to gate Looky-related actions.
+    """
+
+    api_access: bool = False
+    user_data: LookyVerifyResponse | None = None
+
+    @classmethod
+    def reset(cls) -> None:
+        """Clear verified state (used when no/invalid API key, on errors, or when Looky is disabled)."""
+        cls.api_access = False
+        cls.user_data = None
+
+    @classmethod
+    def set(cls, response: LookyVerifyResponse) -> None:
+        """Apply a successful token-verification response."""
+        cls.api_access = response.userData.apiAccess
+        cls.user_data = response
+
+
 def _auth_headers(api_key: str) -> dict[str, str]:
     return {'Authorization': f'Bearer {api_key}'}
 
