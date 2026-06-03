@@ -169,6 +169,11 @@ def clear_detection_voice_notifications() -> None:
     _voice_notification_queue.remove_matching(lambda p: 'detection' in Path(p).parts)
 
 
+def _tts_voice_name(voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:  # noqa: FBT001
+    """Map a voice-notification setting to its TTS folder name (`Liam` for Male, `Jane` otherwise)."""
+    return 'Liam' if voice_setting == 'Male' else 'Jane'
+
+
 def _check_userip_usernames(player: Player) -> bool:
     """Check if player has usernames in userip data."""
     return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
@@ -344,8 +349,7 @@ def handle_detection_notification(
 
             # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
             if voice_setting:
-                tts_voice_name = 'Liam' if voice_setting == 'Male' else 'Jane'
-                tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'event' / f'{notification_type}.wav'
+                tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting) / 'event' / f'{notification_type}.wav'
                 _voice_notification_queue.put(str(tts_candidate_path))
 
             data_ready = wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=3.0)
@@ -407,8 +411,7 @@ def handle_detection_notification(
 
                 # Voice notification
                 if rule.voice_notifications:
-                    tts_voice_name = 'Liam' if rule.voice_notifications == 'Male' else 'Jane'
-                    tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'detection' / 'combo_rule_detected.wav'
+                    tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
                     _voice_notification_queue.put(str(tts_candidate_path))
 
                 # Logging
@@ -491,8 +494,7 @@ def process_userip_task(
             )
 
     if player.userip.settings.voice_notifications:
-        tts_voice_name = 'Liam' if player.userip.settings.voice_notifications == 'Male' else 'Jane'
-        tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'userip' / f'{connection_type}.wav'
+        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(player.userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
     if connection_type == 'connected':
@@ -605,8 +607,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
     if GUIProtectionSettings.gta5_relay_voice_notifications:
-        tts_voice_name = 'Liam' if GUIProtectionSettings.gta5_relay_voice_notifications == 'Male' else 'Jane'
-        tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'detection' / 'gta5_relay_detected.wav'
+        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(GUIProtectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
     if GUIProtectionSettings.gta5_relay_logging:
@@ -677,8 +678,7 @@ def check_global_protections(player: Player) -> None:
     ) -> None:
         """Handle voice, logging, and message box for a detection."""
         if settings.voice:
-            tts_voice_name = 'Liam' if settings.voice == 'Male' else 'Jane'
-            tts_candidate_path = TTS_DIR_PATH / tts_voice_name / 'detection' / f'{settings.tts_filename}.wav'
+            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
             _voice_notification_queue.put(str(tts_candidate_path))
 
         if settings.log:
