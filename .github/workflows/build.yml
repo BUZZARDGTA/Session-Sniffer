@@ -202,7 +202,8 @@ jobs:
       - name: Checkout updater from main
         run: |
           git fetch origin main
-          git checkout origin/main -- .github/workflows/scripts/update_release_versions.py
+          mkdir -p .github/workflows/scripts
+          git show origin/main:.github/workflows/scripts/update_release_versions.py > .github/workflows/scripts/update_release_versions.py
 
       - name: Setup Python
         uses: actions/setup-python@v6.2.0
