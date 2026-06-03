@@ -15,16 +15,12 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.networking.manuf_lookup import MacLookup
-
 
 def show_interface_selection_dialog(
     screen_size: tuple[int, int],
     interfaces: list[Interface],
     filter_defaults: tuple[bool, bool, bool],
     saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
-    *,
-    mac_lookup: MacLookup | None = None,
 ) -> tuple[SelectedInterfaceRow | None, bool, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
@@ -33,7 +29,6 @@ def show_interface_selection_dialog(
         interfaces: Available Interface objects to display.
         filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
         saved_selection: Previously saved (interface_name, ip_address, mac_address).
-        mac_lookup: Optional MacLookup instance for live refresh.
 
     Returns:
         Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_neighbours_enabled, remember_interface_enabled).
@@ -44,7 +39,6 @@ def show_interface_selection_dialog(
         screen_size,
         interfaces,
         filter_defaults,
-        mac_lookup=mac_lookup,
     )
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
 
@@ -65,7 +59,6 @@ def select_interface(
     *,
     force_dialog: bool = False,
     before_dialog: Callable[[], None] | None = None,
-    mac_lookup: MacLookup | None = None,
 ) -> SelectedInterfaceRow | None:
     """Select the best matching interface based on current settings.
 
@@ -77,7 +70,6 @@ def select_interface(
         screen_size: Screen dimensions as (width, height) in pixels.
         force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
         before_dialog: Optional callback invoked once, right before the dialog is shown (skipped on auto-select).
-        mac_lookup: Optional MacLookup instance for live refresh in the dialog.
 
     Returns:
         A SelectedInterfaceRow referencing the live Interface, or None if cancelled.
@@ -190,7 +182,6 @@ def select_interface(
         interfaces,
         (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
-        mac_lookup=mac_lookup,
     )
 
     if selected_interface is None:

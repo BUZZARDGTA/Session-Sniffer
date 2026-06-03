@@ -36,7 +36,6 @@ from session_sniffer.guis.stylesheets import (
     interface_checkbox_stylesheet,
     interface_header_label_stylesheet,
     interface_instruction_label_stylesheet,
-    interface_refresh_arp_button_disabled_style,
     interface_refresh_arp_button_enabled_style,
     interface_select_button_disabled_style,
     interface_select_button_enabled_style,
@@ -49,8 +48,6 @@ from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from PyQt6.QtGui import QKeyEvent
-
-    from session_sniffer.networking.manuf_lookup import MacLookup
 
 logger = get_logger(__name__)
 
@@ -173,9 +170,8 @@ class SafeQTableWidget(QTableWidget):
 class InterfaceSelectionDialog(QDialog):
     """Display a dialog to select the capture network interface.
 
-    When *mac_lookup* is supplied the dialog polls
-    the OS every few seconds so that plugged/unplugged or
-    enabled/disabled adapters appear and disappear in real time.
+    The dialog polls the OS every few seconds so that plugged/unplugged
+    or enabled/disabled adapters appear and disappear in real time.
     """
 
     _REFRESH_INTERVAL_MS = 3_000
@@ -189,8 +185,6 @@ class InterfaceSelectionDialog(QDialog):
         screen_size: tuple[int, int],
         interfaces: list[Interface],
         filter_defaults: tuple[bool, bool, bool],
-        *,
-        mac_lookup: MacLookup | None = None,
     ) -> None:
         """Initialize the interface selection dialog.
 
@@ -198,7 +192,6 @@ class InterfaceSelectionDialog(QDialog):
             screen_size: Screen dimensions as (width, height) in pixels.
             interfaces: Available Interface objects to display.
             filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
-            mac_lookup: Optional MacLookup instance for live refresh.
         """
         super().__init__()
 
@@ -291,10 +284,8 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setSpacing(_s(28))
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
-        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if mac_lookup is not None else '')
-        arp_style = interface_refresh_arp_button_enabled_style(self._ui_scale) if mac_lookup is not None else interface_refresh_arp_button_disabled_style(self._ui_scale)
-        refresh_arp_button.setStyleSheet(arp_style)
-        refresh_arp_button.setEnabled(mac_lookup is not None)
+        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
+        refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(_s(44))
         refresh_arp_button.setMinimumWidth(_s(190))
@@ -470,9 +461,6 @@ class InterfaceSelectionDialog(QDialog):
         # Connect double-click signal to select interface (simulates Start button)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
 
-        # Live refresh: periodically re-query the OS for adapter changes
-        self._mac_lookup = mac_lookup
-
         # Apply initial constraints
         self.enforce_spoofing_constraints()
 
@@ -481,12 +469,10 @@ class InterfaceSelectionDialog(QDialog):
         self.activateWindow()
 
         # Live refresh: periodically re-query the OS for adapter changes
-        self._refresh_timer: QTimer | None = None
-        if mac_lookup is not None:
-            self._refresh_timer = QTimer(self)
-            self._refresh_timer.setInterval(self._REFRESH_INTERVAL_MS)
-            self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
-            self._refresh_timer.start()
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(self._REFRESH_INTERVAL_MS)
+        self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
+        self._refresh_timer.start()
 
         # Wire ARP-refresh worker bridges (queued by default since worker lives in another thread).
         self._arp_refresh_progress_signal.connect(self._on_arp_refresh_progress)
@@ -519,8 +505,6 @@ class InterfaceSelectionDialog(QDialog):
         responsive, then triggers a live interface refresh on completion.
         """
         if self._arp_refresh_in_progress:
-            return
-        if self._mac_lookup is None:
             return
 
         self._arp_refresh_in_progress = True
@@ -567,7 +551,7 @@ class InterfaceSelectionDialog(QDialog):
         button = self._controls.refresh_arp_button
         button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
-        button.setEnabled(self._mac_lookup is not None)
+        button.setEnabled(True)
         button.setIcon(self._refresh_arp_icon)
         self._live_refresh_interfaces()
 
@@ -577,9 +561,6 @@ class InterfaceSelectionDialog(QDialog):
         Preserves the user's current selection by matching on
         (interface_name, ip_address, is_neighbour).
         """
-        if self._mac_lookup is None:
-            return
-
         # Snapshot the current selection identity before refresh
         selected_key: tuple[str, str, bool] | None = None
         current_row = self.table.currentRow()
@@ -587,7 +568,7 @@ class InterfaceSelectionDialog(QDialog):
             iface, ip, is_neighbour = self._data.interface_rows[current_row]
             selected_key = (iface.identity.name, ip, is_neighbour)
 
-        new_interfaces = refresh_available_interfaces(self._mac_lookup)
+        new_interfaces = refresh_available_interfaces()
         self._data.all_interfaces = new_interfaces
         self.apply_filters()
 
@@ -802,13 +783,11 @@ class InterfaceSelectionDialog(QDialog):
         # If neighbours are hidden -> uncheck spoofing (mutual exclusion; neither checkbox is disabled)
         if hide_neighbours:
             self._controls.arp_spoofing_checkbox.setChecked(False)
-        # Refresh ARP is only useful when neighbours are visible and mac_lookup is available
-        arp_enabled = not hide_neighbours and self._mac_lookup is not None
+        # Refresh ARP is only useful when neighbours are visible
+        arp_enabled = not hide_neighbours
         self._controls.refresh_arp_button.setEnabled(arp_enabled)
         self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
-        self._controls.refresh_arp_button.setStyleSheet(
-            interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled else interface_refresh_arp_button_disabled_style(self._ui_scale),
-        )
+        self._controls.refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
         """Handle double-click on table cell - simulates clicking the Start button."""

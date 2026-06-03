@@ -2,8 +2,9 @@
 
 import subprocess
 import time
+from dataclasses import dataclass
 from threading import Event, Thread
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer import msgbox
 from session_sniffer.background import gui_closed__event
@@ -22,42 +23,57 @@ logger = get_logger(__name__)
 ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 
-class ArpSpoofingController:
-    """Owns the lifecycle of a single ARP spoofing thread + arpspoof.exe process.
+@dataclass(frozen=True, slots=True)
+class _ArpControllerConfig:
+    """App-wide wiring for `ArpSpoofingController`."""
 
-    There is at most one ARP thread alive at any time. `start()` launches it,
-    `stop()` signals the thread to exit and joins it (which also terminates
-    `arpspoof.exe`). Safe to call `stop()` when nothing is running.
+    capture_holder: CaptureHolder
+    on_failed: Callable[[], None]
+
+
+class ArpSpoofingController:
+    """App-wide owner of the single ARP spoofing thread + arpspoof.exe process.
+
+    Class-level service: there is at most one ARP thread alive at any time.
+    Call `configure()` once at startup, then `start()` / `stop()` as needed.
+    Safe to call `stop()` when nothing is running.
     """
 
-    def __init__(self, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
-        """Initialize the controller with the capture holder and a failure callback."""
-        self._capture_holder = capture_holder
-        self._on_failed = on_failed
-        self._stop_event = Event()
-        self._thread: Thread | None = None
+    _config: ClassVar[_ArpControllerConfig | None] = None
+    _stop_event: ClassVar[Event] = Event()
+    _thread: ClassVar[Thread | None] = None
 
-    def start(self, interface: SelectedInterfaceRow) -> None:
+    @classmethod
+    def configure(cls, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
+        """Wire the controller to the app-wide capture holder and failure callback."""
+        cls._config = _ArpControllerConfig(capture_holder=capture_holder, on_failed=on_failed)
+
+    @classmethod
+    def start(cls, interface: SelectedInterfaceRow) -> None:
         """Start ARP spoofing on `interface`. Caller must ensure no thread is currently active."""
-        if self._thread is not None:
+        if cls._config is None:
+            msg = 'ArpSpoofingController.start() called before configure()'
+            raise RuntimeError(msg)
+        if cls._thread is not None:
             msg = 'ArpSpoofingController.start() called while a previous thread is still alive'
             raise RuntimeError(msg)
-        self._stop_event.clear()
-        self._thread = Thread(
+        cls._stop_event.clear()
+        cls._thread = Thread(
             target=arp_spoofing_task,
             name='ARPSpoofingTask',
-            args=(interface, self._capture_holder, self._stop_event, self._on_failed),
+            args=(interface, cls._config.capture_holder, cls._stop_event, cls._config.on_failed),
             daemon=True,
         )
-        self._thread.start()
+        cls._thread.start()
 
-    def stop(self) -> None:
+    @classmethod
+    def stop(cls) -> None:
         """Signal the running thread to exit and wait for it (and `arpspoof.exe`) to die."""
-        if self._thread is None:
+        if cls._thread is None:
             return
-        self._stop_event.set()
-        self._thread.join()
-        self._thread = None
+        cls._stop_event.set()
+        cls._thread.join()
+        cls._thread = None
 
 
 def arp_spoofing_task(

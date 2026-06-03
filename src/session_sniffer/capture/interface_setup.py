@@ -1,7 +1,5 @@
 """Network interface population, scapy interface discovery, and interface refresh logic."""
 
-from typing import TYPE_CHECKING
-
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import (
@@ -15,10 +13,8 @@ from session_sniffer.networking.interface import (
     InterfaceTraffic,
     NeighbourEntry,
 )
+from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.utils import is_valid_private_ipv4
-
-if TYPE_CHECKING:
-    from session_sniffer.networking.manuf_lookup import MacLookup
 
 EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
     'Adapter for loopback traffic capture',
@@ -26,7 +22,7 @@ EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
 }
 
 
-def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
+def populate_network_interfaces_info() -> None:
     """Populate the AllInterfaces collection with network interface details."""
     adapters = list(get_adapters_info())
 
@@ -54,7 +50,7 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
                 description=adapter.identity.description,
                 mac_address=adapter.identity.mac_address,
                 device_name=None,
-                vendor_name=mac_lookup.get_mac_address_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
+                vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
                 adapter_guid=adapter_guid,
             ),
             traffic=InterfaceTraffic(
@@ -79,7 +75,7 @@ def populate_network_interfaces_info(mac_lookup: MacLookup) -> None:
             ):
                 continue
 
-            vendor_name = mac_lookup.get_mac_address_vendor_name(neighbor_mac)
+            vendor_name = MacLookup.get_vendor_name(neighbor_mac)
             interface.add_neighbour_entry(NeighbourEntry(
                 ip_address=neighbor_ip,
                 mac_address=neighbor_mac,
@@ -114,20 +110,17 @@ def get_filtered_scapy_interfaces() -> list[tuple[str, str]]:
     return result
 
 
-def refresh_available_interfaces(mac_lookup: MacLookup) -> list[Interface]:
+def refresh_available_interfaces() -> list[Interface]:
     """Re-query the OS for network adapters and return capture-capable interfaces.
 
     Clears the AllInterfaces registry, re-populates it from the Windows API,
     then matches against scapy-discoverable interfaces and populates device names.
 
-    Args:
-        mac_lookup: MAC vendor lookup instance.
-
     Returns:
         The updated list of capture-capable Interface objects.
     """
     AllInterfaces.clear()
-    populate_network_interfaces_info(mac_lookup)
+    populate_network_interfaces_info()
 
     available: list[Interface] = []
     for device_name, friendly_name in get_filtered_scapy_interfaces():

@@ -165,23 +165,6 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
     )
 
 
-def interface_refresh_arp_button_disabled_style(scale: float) -> str:
-    """Return the QSS for the Refresh ARP button in its disabled state at the given UI `scale`."""
-    font_size = max(1, round(16 * scale))
-    padding_v = max(1, round(6 * scale))
-    padding_h = max(1, round(14 * scale))
-    return (
-        'QPushButton {'
-        f' font-size: {font_size}pt;'
-        ' background-color: #555555;'
-        ' color: #aaaaaa;'
-        ' border: 2px solid #3a3a3a;'
-        ' border-radius: 10px;'
-        f' padding: {padding_v}px {padding_h}px;'
-        '}'
-    )
-
-
 def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float) -> str:
     """Build a QSS that renders a horizontal grey gradient progress fill inside the Refresh ARP button."""
     _fill_light = '#e6e6e6'

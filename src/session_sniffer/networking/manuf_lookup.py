@@ -3,7 +3,7 @@
 Includes functions to fetch, parse, and search the database, with support for longest-prefix matching.
 """
 import re
-from typing import NamedTuple
+from typing import ClassVar, NamedTuple
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.networking.exceptions import (
@@ -110,27 +110,27 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
 
 
 class MacLookup:
-    """Look up MAC address vendor information using the local manuf database."""
+    """App-wide MAC address vendor lookup backed by the Wireshark manuf database.
 
-    def __init__(self, *, load_on_init: bool = False) -> None:
-        """Initialize the MacLookup instance.
+    The parsed database is held in a single class-level cache. Call `load()` once
+    at startup; afterwards `lookup()` and `get_vendor_name()` are safe to call
+    from any thread (the database is read-only after load).
+    """
 
-        Args:
-            load_on_init: If `True`, fetch and load the manuf database immediately.
-        """
-        self.manuf_database: ManufDatabaseType | None = None
-        if load_on_init:
-            self._refresh_manuf_database()
+    _database: ClassVar[ManufDatabaseType | None] = None
 
-    def _refresh_manuf_database(self) -> None:
-        """Parse and load the manuf database."""
-        self.manuf_database = _parse_and_load_manuf_database()
+    @classmethod
+    def load(cls) -> None:
+        """Parse and cache the manuf database. Idempotent."""
+        if cls._database is None:
+            cls._database = _parse_and_load_manuf_database()
 
-    def _find_best_match(self, mac_address: str) -> ManufEntry | None:
+    @classmethod
+    def _find_best_match(cls, mac_address: str) -> ManufEntry | None:
         """Find the best matching `ManufEntry` for the given MAC address, with support for longest-prefix matching."""
-        if self.manuf_database is None:
-            self._refresh_manuf_database()
-        if self.manuf_database is None:
+        if cls._database is None:
+            cls.load()
+        if cls._database is None:
             return None
 
         mac_int = _mac_str_to_int(mac_address)
@@ -138,7 +138,7 @@ class MacLookup:
         best_entry: ManufEntry | None = None
         best_prefix_length_bits = -1
 
-        for manuf_entries in self.manuf_database.values():
+        for manuf_entries in cls._database.values():
             for manuf in manuf_entries:
                 if (
                     _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits)
@@ -149,7 +149,8 @@ class MacLookup:
 
         return best_entry
 
-    def lookup(self, mac_address: str) -> ManufEntry | None:
+    @classmethod
+    def lookup(cls, mac_address: str) -> ManufEntry | None:
         """Lookup the MAC address in the manuf database.
 
         Args:
@@ -159,12 +160,12 @@ class MacLookup:
             The best matching entry, or `None` if no match is found.
         """
         is_mac_address(mac_address, raise_exception=True)
+        return cls._find_best_match(mac_address)
 
-        return self._find_best_match(mac_address)
-
-    def get_mac_address_vendor_name(self, mac_address: str) -> str | None:
+    @classmethod
+    def get_vendor_name(cls, mac_address: str) -> str | None:
         """Return the vendor name for a given MAC address, if available."""
-        entry = self.lookup(mac_address)
+        entry = cls.lookup(mac_address)
         if entry is None:
             return None
         return entry.full_vendor_name or None

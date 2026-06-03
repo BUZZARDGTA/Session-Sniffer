@@ -158,10 +158,10 @@ def main() -> None:
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = splash.run_with_spinner(update_and_initialize_geolite2_readers)
 
     splash.update_status('Initializing MAC lookup')
-    mac_lookup = splash.run_with_spinner(MacLookup, load_on_init=True)
+    splash.run_with_spinner(MacLookup.load)
 
     splash.update_status('Network interface selection')
-    splash.run_with_spinner(populate_network_interfaces_info, mac_lookup)
+    splash.run_with_spinner(populate_network_interfaces_info)
 
     available_interfaces: list[Interface] = []
     capture_interfaces = splash.run_with_spinner(get_filtered_scapy_interfaces)
@@ -188,7 +188,6 @@ def main() -> None:
     selected_interface = select_interface(
         available_interfaces, screen_size,
         before_dialog=splash.lower_to_back,
-        mac_lookup=mac_lookup,
     )
     if selected_interface is None:
         sys.exit(0)
@@ -368,9 +367,9 @@ def main() -> None:
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     _arp_failed_event = Event()
-    arp_controller = ArpSpoofingController(capture_holder, on_failed=_arp_failed_event.set)
+    ArpSpoofingController.configure(capture_holder, on_failed=_arp_failed_event.set)
     if Settings.capture_arp_spoofing:
-        arp_controller.start(selected_interface)
+        ArpSpoofingController.start(selected_interface)
 
     # Initialize GUI first - now it has all the data it needs
     def _switch_interface() -> None:
@@ -394,7 +393,6 @@ def main() -> None:
             new_available_interfaces,
             screen_size,
             force_dialog=True,
-            mac_lookup=mac_lookup,
         )
 
         if new_interface is None:
@@ -403,7 +401,7 @@ def main() -> None:
 
         # Stop ARP spoofing before touching capture state: otherwise the old ARP thread
         # observes the new capture starting and spawns arpspoof.exe on the OLD interface.
-        arp_controller.stop()
+        ArpSpoofingController.stop()
 
         was_running = capture_holder.is_running()
         if was_running:
@@ -458,7 +456,7 @@ def main() -> None:
         capture_holder.set(new_capture)
 
         if Settings.capture_arp_spoofing:
-            arp_controller.start(new_interface)
+            ArpSpoofingController.start(new_interface)
 
         window.on_interface_switched()
         window.set_interface_switching_mode(switching=False)
