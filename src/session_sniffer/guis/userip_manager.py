@@ -216,6 +216,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         self._global_search_checkbox = QCheckBox('Search All Databases')
         self._global_search_checkbox.setToolTip('Search across all UserIP database files (read-only)')
+        self._global_search_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         search_bar.addWidget(self._global_search_checkbox)
 

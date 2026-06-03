@@ -115,6 +115,7 @@ class SessionsLogTab(QWidget):
 
         self._global_search_checkbox = QCheckBox('Search All Files')
         self._global_search_checkbox.setToolTip('Search across all session JSON files (read-only)')
+        self._global_search_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         top_bar.addWidget(self._global_search_checkbox)
 

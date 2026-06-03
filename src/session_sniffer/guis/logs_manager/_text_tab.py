@@ -1,7 +1,7 @@
 """Plain-text log tab — for warnings.log and errors.log."""
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -76,6 +76,7 @@ class TextLogTab(QWidget):
 
         self._auto_refresh_check = QCheckBox('Auto-refresh')
         self._auto_refresh_check.setToolTip('Automatically reload the log every 2 seconds')
+        self._auto_refresh_check.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._auto_refresh_check.toggled.connect(self._on_auto_refresh_toggled)
         top_bar.addWidget(self._auto_refresh_check)
 

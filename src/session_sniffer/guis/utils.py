@@ -211,6 +211,7 @@ class ToggleAlwaysOnTopMixin(QWidget):
         checkbox = QCheckBox('Always on Top')
         checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
         checkbox.setChecked(always_on_top)
+        checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(checkbox)
 

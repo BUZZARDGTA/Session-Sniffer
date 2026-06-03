@@ -52,6 +52,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         always_on_top_checkbox = QCheckBox('Always on Top')
         always_on_top_checkbox.setToolTip('Keep this window above all other windows.')
         always_on_top_checkbox.setChecked(Settings.gui_rate_graph_always_on_top)
+        always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(always_on_top_checkbox, alignment=Qt.AlignmentFlag.AlignHCenter)
 

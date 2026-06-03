@@ -175,6 +175,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         latency_form.addRow('Min:', self._lbl_min)
         latency_form.addRow('Max:', self._lbl_max)
         self._chk_all_time = QCheckBox('All time')
+        self._chk_all_time.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._chk_all_time.toggled.connect(self._on_all_time_toggled)
         latency_form.addRow(self._chk_all_time)
         left_col_b.addWidget(self._latency_group)
