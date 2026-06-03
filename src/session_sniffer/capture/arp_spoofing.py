@@ -45,7 +45,7 @@ class ArpSpoofingController:
         self._stop_event.clear()
         self._thread = Thread(
             target=arp_spoofing_task,
-            name=f'ARPSpoofingTask-{interface.ip_address}',
+            name='ARPSpoofingTask',
             args=(interface, self._capture_holder, self._stop_event, self._on_failed),
             daemon=True,
         )
