@@ -134,6 +134,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
+        capture_menu.addSeparator()
+
         change_interface_action = QAction('🔄 Change Interface', self)
         change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
         change_interface_action.triggered.connect(on_change_interface)
