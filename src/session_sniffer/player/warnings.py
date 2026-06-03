@@ -1,6 +1,5 @@
 """Detection warning tracking systems and GUI detection settings."""
 
-from dataclasses import dataclass
 from threading import Lock
 from typing import ClassVar
 
@@ -105,17 +104,3 @@ class VPNWarnings(_DetectionWarnings):
 
 class HostingWarnings(_DetectionWarnings):
     """Track which IPs have triggered the hosting detection warning."""
-
-
-@dataclass(slots=True)
-class _GUIDetectionSettings:
-    """Runtime GUI detection settings that persist during application execution but are not saved to settings file."""
-    mobile_detection_enabled: bool = False
-    vpn_detection_enabled: bool = False
-    hosting_detection_enabled: bool = False
-    player_join_notifications_enabled: bool = False
-    player_rejoin_notifications_enabled: bool = False
-    player_leave_notifications_enabled: bool = False
-
-
-GUI_DETECTION_SETTINGS = _GUIDetectionSettings()
