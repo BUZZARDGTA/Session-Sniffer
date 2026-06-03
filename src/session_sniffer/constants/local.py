@@ -14,7 +14,7 @@ PYPROJECT_PATH: Path = resource_path(Path('pyproject.toml'))
 RESOURCES_DIR_PATH: Path = resource_path(Path('resources'))
 IMAGES_DIR_PATH: Path = RESOURCES_DIR_PATH / 'images'
 BUILTIN_SCRIPTS_DIR_PATH: Path = resource_path(Path('scripts'))
-TTS_DIR_PATH: Path = RESOURCES_DIR_PATH / 'TTS'
+TTS_DIR_PATH: Path = RESOURCES_DIR_PATH / 'tts'
 
 
 PYPROJECT_DATA: dict[str, Any] = tomllib.loads(PYPROJECT_PATH.read_text(encoding='utf-8'))
