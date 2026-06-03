@@ -560,7 +560,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         return
 
     # Poll until the packet threshold is exceeded AND PPS has been continuously
-    # above 0 for at least 8 seconds (any 0-PPS sample resets the streak).
+    # above 0 for at least `_GTA5_RELAY_PPS_NONZERO_STREAK_SECS` (any 0-PPS sample resets the streak).
     # A 0-PPS relay is not actively sending packets and must be a false positive.
     _pps_nonzero_since: float | None = None
     while not player.left_event.is_set() and not gui_closed__event.is_set():
