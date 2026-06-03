@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from threading import Event, Lock, Thread
+from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict
 
 from session_sniffer import msgbox
@@ -51,6 +52,35 @@ class _DetectionSettings(NamedTuple):
 
 
 gui_closed__event = Event()
+
+
+_GTA5_PROCESS_MONITOR_THREAD_NAME = 'GTA5ProcessMonitor'
+_GTA5_PROCESS_MONITOR_POLL_SECONDS = 5.0
+
+
+def _gta5_process_monitor() -> None:
+    """Poll for GTA5 process presence and update `CaptureState.gta5_is_running`.
+
+    Exits as soon as the GTA5 game preset is no longer active, so the thread does
+    not linger when the user switches presets.
+    """
+    while not gui_closed__event.is_set():
+        if not Settings.is_gta5_preset():
+            CaptureState.update_gta5_status(is_running=False, is_enhanced=False, is_legacy=False, path=None)
+            return
+        gta5 = find_running_gta5_path()
+        CaptureState.update_gta5_status(is_running=gta5.is_running, is_enhanced=gta5.is_enhanced, is_legacy=gta5.is_legacy, path=gta5.path)
+        gui_closed__event.wait(_GTA5_PROCESS_MONITOR_POLL_SECONDS)
+
+
+def ensure_gta5_process_monitor_running() -> None:
+    """Start the GTA5 process monitor thread if the GTA5 preset is active and it is not already running."""
+    if not Settings.is_gta5_preset():
+        return
+    for thread in enumerate_threads():
+        if thread.name == _GTA5_PROCESS_MONITOR_THREAD_NAME and thread.is_alive():
+            return
+    Thread(target=_gta5_process_monitor, name=_GTA5_PROCESS_MONITOR_THREAD_NAME, daemon=True).start()
 
 
 def _on_pool_task_done(future: Future[None]) -> None:
@@ -337,11 +367,11 @@ def handle_detection_notification(
             duration: int | Literal['Auto'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
-            if enabled and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                gta5 = find_running_gta5_path()
-                if gta5.path is not None:
+            if enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
+                gta5_path = CaptureState.gta5_path
+                if gta5_path is not None:
                     ProcessSuspendManager.request_suspend(
-                        process_path=gta5.path,
+                        process_path=gta5_path,
                         reason_key=f'event:{notification_type}:{player.ip}',
                         left_event=player.left_event,
                         duration=duration,
@@ -399,11 +429,11 @@ def handle_detection_notification(
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
                 # Protection action
-                if rule.protection_enabled and Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface:
-                    gta5 = find_running_gta5_path()
-                    if gta5.path is not None:
+                if rule.protection_enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
+                    gta5_path = CaptureState.gta5_path
+                    if gta5_path is not None:
                         ProcessSuspendManager.request_suspend(
-                            process_path=gta5.path,
+                            process_path=gta5_path,
                             reason_key=f'combo:{rule.name}:{player.ip}',
                             left_event=player.left_event,
                             duration=rule.duration,
@@ -480,14 +510,14 @@ def process_userip_task(
     if (
         connection_type == 'connected'
         and player.userip.settings.protection.enabled
-        and Settings.capture_game_preset == 'GTA5'
-        and not CaptureState.is_neighbour_interface
+        and Settings.is_gta5_preset()
+        and CaptureState.is_local_capture()
     ):
-        gta5 = find_running_gta5_path()
-        if gta5.path is not None:
+        gta5_path = CaptureState.gta5_path
+        if gta5_path is not None:
             suspend_mode = player.userip.settings.protection.suspend_process_mode
             ProcessSuspendManager.request_suspend(
-                process_path=gta5.path,
+                process_path=gta5_path,
                 reason_key=f'userip:{player.ip}',
                 left_event=player.left_event,
                 duration=suspend_mode,
@@ -561,7 +591,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     Args:
         player: The player object to monitor.
     """
-    if Settings.capture_game_preset != 'GTA5':
+    if not Settings.is_gta5_preset():
         return
 
     if not is_gta5_relay_ip(player.ip):
@@ -594,11 +624,11 @@ def monitor_gta5_relay_task(player: Player) -> None:
     ):
         return
 
-    if GUIProtectionSettings.gta5_relay_enabled and not CaptureState.is_neighbour_interface:
-        gta5 = find_running_gta5_path()
-        if gta5.path is not None:
+    if GUIProtectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
+        gta5_path = CaptureState.gta5_path
+        if gta5_path is not None:
             ProcessSuspendManager.request_suspend(
-                process_path=gta5.path,
+                process_path=gta5_path,
                 reason_key=f'gta5_relay:{player.ip}',
                 left_event=player.left_event,
                 duration=GUIProtectionSettings.gta5_relay_duration,
@@ -657,13 +687,13 @@ def check_global_protections(player: Player) -> None:
         protection_name: str,
     ) -> None:
         """Execute a protection action (Suspend)."""
-        if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
             return
-        gta5 = find_running_gta5_path()
-        if gta5.path is None:
+        gta5_path = CaptureState.gta5_path
+        if gta5_path is None:
             return
         ProcessSuspendManager.request_suspend(
-            process_path=gta5.path,
+            process_path=gta5_path,
             reason_key=f'global:{protection_name}:{player.ip}',
             left_event=player.left_event,
             duration=duration,

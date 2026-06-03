@@ -149,7 +149,7 @@ def build_capture_filters(
     python_excluded_protocols: list[str] = []
 
     if Settings.capture_game_preset and Settings.capture_filter_preset_packet_size:
-        if Settings.capture_game_preset == 'GTA5':
+        if Settings.is_gta5_preset():
             capture_filter.append(f'(len >= {GTA5_PACKET_SIZE_MIN} and len <= {GTA5_PACKET_SIZE_MAX})')
         elif Settings.capture_game_preset == 'Minecraft':
             capture_filter.append(f'(len >= {MINECRAFT_PACKET_SIZE_MIN} and len <= {MINECRAFT_PACKET_SIZE_MAX})')

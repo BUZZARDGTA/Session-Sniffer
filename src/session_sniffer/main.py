@@ -18,12 +18,13 @@ from PyQt6.QtWidgets import QMessageBox
 
 from session_sniffer import msgbox
 from session_sniffer.background import (
+    ensure_gta5_process_monitor_running,
+    ensure_looky_core_running,
     gui_closed__event,
     handle_detection_notification,
     hostname_core,
     iplookup_core,
     is_gta5_relay_ip,
-    looky_core,
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
@@ -72,7 +73,7 @@ from session_sniffer.rendering_core.renderer import rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import find_running_gta5_path, is_pyinstaller_compiled
+from session_sniffer.utils import is_pyinstaller_compiled
 from session_sniffer.webserver import start_webserver_from_settings
 
 # Production-friendly logging: file handlers only (no console output)
@@ -192,7 +193,12 @@ def main() -> None:
     if selected_interface is None:
         sys.exit(0)
 
-    CaptureState.is_neighbour_interface = selected_interface.is_neighbour
+    CaptureState.apply_interface_names(
+        is_neighbour=selected_interface.is_neighbour,
+        name=selected_interface.name,
+        ip=selected_interface.ip_address,
+        interface_type=selected_interface.interface.interface_type,
+    )
 
     splash.update_status('Establishing connection')
     need_rewrite_settings = False
@@ -246,7 +252,7 @@ def main() -> None:
             return  # Skip processing this packet
 
         if Settings.capture_game_preset and Settings.capture_filter_preset_packet_size:
-            if Settings.capture_game_preset == 'GTA5':
+            if Settings.is_gta5_preset():
                 _preset_min, _preset_max = GTA5_PACKET_SIZE_MIN, GTA5_PACKET_SIZE_MAX
             else:  # Minecraft
                 _preset_min, _preset_max = MINECRAFT_PACKET_SIZE_MIN, MINECRAFT_PACKET_SIZE_MAX
@@ -318,7 +324,7 @@ def main() -> None:
 
         if not matched_player.relay_monitor_started:
             matched_player.relay_monitor_started = True
-            if Settings.capture_game_preset == 'GTA5' and CaptureState.gta5_is_running and is_gta5_relay_ip(matched_player.ip):
+            if Settings.is_gta5_preset() and CaptureState.gta5_is_running and is_gta5_relay_ip(matched_player.ip):
                 Thread(
                     target=monitor_gta5_relay_task,
                     name=f'GTA5RelayMonitor-{matched_player.ip}',
@@ -360,8 +366,6 @@ def main() -> None:
     splash.run_with_spinner(capture.start)
     CaptureStats.capture_started_at = time.monotonic()
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
-    CaptureState.interface_name = selected_interface.name
-    CaptureState.interface_ip = selected_interface.ip_address
 
     _arp_failed_event = Event()
     arp_stop_event = Event()
@@ -425,7 +429,12 @@ def main() -> None:
             new_broadcast, new_multicast = _future.result()
         new_vpn_mode = not (new_broadcast and new_multicast)
 
-        CaptureState.apply_interface_names(is_neighbour=new_interface.is_neighbour, name=new_interface.name, ip=new_interface.ip_address)
+        CaptureState.apply_interface_names(
+            is_neighbour=new_interface.is_neighbour,
+            name=new_interface.name,
+            ip=new_interface.ip_address,
+            interface_type=new_interface.interface.interface_type,
+        )
         Settings.capture_interface_name = new_interface.name
         Settings.capture_mac_address = new_interface.mac_address
         Settings.capture_ip_address = new_interface.ip_address
@@ -646,21 +655,7 @@ def main() -> None:
         daemon=True,
     ).start()
 
-    def _gta5_process_monitor() -> None:
-        """Background thread: poll for GTA5 process presence and update `CaptureState.gta5_is_running`."""
-        while not gui_closed__event.is_set():
-            if Settings.capture_game_preset == 'GTA5':
-                gta5 = find_running_gta5_path()
-                CaptureState.update_gta5_status(is_running=gta5.is_running, is_enhanced=gta5.is_enhanced, is_legacy=gta5.is_legacy)
-            else:
-                CaptureState.update_gta5_status(is_running=False, is_enhanced=False, is_legacy=False)
-            gui_closed__event.wait(5.0)
-
-    Thread(
-        target=_gta5_process_monitor,
-        name='GTA5ProcessMonitor',
-        daemon=True,
-    ).start()
+    ensure_gta5_process_monitor_running()
 
     splash.finish_loading()
 
@@ -718,8 +713,7 @@ def main() -> None:
     pinger_core__thread = Thread(target=pinger_core, name='pinger_core', daemon=True)
     pinger_core__thread.start()
 
-    looky_core__thread = Thread(target=looky_core, name='looky_core', daemon=True)
-    looky_core__thread.start()
+    ensure_looky_core_running()
 
     if Settings.show_discord_popup:
         # Delay the popup opening by 3 seconds

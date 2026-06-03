@@ -234,7 +234,7 @@ class SettingsPanelMixin(QDialog):
     @staticmethod
     def _is_protection_supported() -> bool:
         """Return whether UserIP protection actions are currently supported."""
-        return Settings.capture_game_preset == 'GTA5' and not CaptureState.is_neighbour_interface
+        return Settings.is_gta5_preset() and CaptureState.is_local_capture()
 
     def _refresh_protection_visibility(self) -> None:
         """Refresh protection section visibility for current runtime capture mode."""

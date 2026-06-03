@@ -7,8 +7,12 @@ from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from PyQt6.QtGui import QColor
 
+from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
+from session_sniffer.settings import Settings
+
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
+    from pathlib import Path
 
     import geoip2.database
 
@@ -101,27 +105,46 @@ class CaptureState:
     is_neighbour_interface: ClassVar[bool] = False
     interface_name: ClassVar[str] = ''
     interface_ip: ClassVar[str] = ''
+    interface_type: ClassVar[str] = ''
     discord_rpc_connected: ClassVar[bool] = False
     gta5_is_running: ClassVar[bool] = False
     gta5_is_enhanced: ClassVar[bool] = False
     gta5_is_legacy: ClassVar[bool] = False
     gta5_just_started: ClassVar[bool] = False
+    gta5_path: ClassVar[Path | None] = None
 
     @classmethod
-    def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str) -> None:
-        """Set the three interface-identity fields atomically."""
+    def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str, interface_type: str) -> None:
+        """Set the four interface-identity fields atomically."""
         cls.is_neighbour_interface = is_neighbour
         cls.interface_name = name
         cls.interface_ip = ip
+        cls.interface_type = interface_type
 
     @classmethod
-    def update_gta5_status(cls, *, is_running: bool, is_enhanced: bool, is_legacy: bool) -> None:
+    def is_local_capture(cls) -> bool:
+        """Return `True` when the capture targets traffic from this machine.
+
+        Local capture allows GTA5 process control and other local-process actions.
+        Returns `False` when ARP spoofing is enabled, a neighbour adapter is selected,
+        or the interface is a bridged/sharing adapter (each of which captures another
+        machine's traffic). `Shared` is treated as local — it captures this host's traffic.
+        """
+        return not (
+            Settings.capture_arp_spoofing
+            or cls.is_neighbour_interface
+            or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING)
+        )
+
+    @classmethod
+    def update_gta5_status(cls, *, is_running: bool, is_enhanced: bool, is_legacy: bool, path: Path | None) -> None:
         """Update GTA5 running state and set `gta5_just_started` on the first detected launch."""
         if is_running and not cls.gta5_is_running:
             cls.gta5_just_started = True
         cls.gta5_is_running = is_running
         cls.gta5_is_enhanced = is_enhanced
         cls.gta5_is_legacy = is_legacy
+        cls.gta5_path = path
 
 
 class CaptureStats:

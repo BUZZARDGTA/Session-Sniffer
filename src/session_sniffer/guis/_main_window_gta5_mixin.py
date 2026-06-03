@@ -16,7 +16,6 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import SessionHost
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -27,6 +26,11 @@ if TYPE_CHECKING:
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 
 logger = get_logger(__name__)
+
+GTA5_SOLO_TOOLTIP = (
+    'Suspend GTA5 for ~8 seconds then auto-resume.\n'
+    'This forces the game to spawn you alone in a public session.'
+)
 
 
 class GTA5Mixin(QMainWindow):
@@ -42,6 +46,10 @@ class GTA5Mixin(QMainWindow):
     # -- Attribute stubs for type checkers --
     _gta5_menu: QMenu
     _gta5_process_submenu: QMenu
+    _gta5_status_widget_action: QAction
+    _gta5_menu_status_separator: QAction
+    _gta5_menu_process_separator: QAction
+    _looky_submenu: QMenu
     _gta5_suspend_resume_action: QAction
     _gta5_solo_menu_action: QAction
     _manual_gta5_suspend_active: bool
@@ -53,11 +61,11 @@ class GTA5Mixin(QMainWindow):
 
     def _gta5_has_any_process_path(self) -> bool:
         """Return `True` if GTA5 is currently running."""
-        return find_running_gta5_path().is_running
+        return CaptureState.gta5_is_running
 
     def _get_gta5_process_path(self) -> Path | None:
         """Return the path to the running GTA5 executable, or `None` if not running."""
-        return find_running_gta5_path().path
+        return CaptureState.gta5_path
 
     def _gta5_process_is_running(self) -> bool:
         """Return `True` if GTA5 is currently running."""
@@ -131,7 +139,7 @@ class GTA5Mixin(QMainWindow):
         self._manual_gta5_suspend_active = ProcessSuspendManager.has_reason('manual:toolbar')
         self._gta5_solo_active = ProcessSuspendManager.has_reason('solo:toolbar')
 
-        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
+        can_act = self._gta5_has_any_process_path() and CaptureState.is_local_capture()
         self._gta5_process_detected = can_act and self._gta5_process_is_running()
 
         process_path = self._get_gta5_process_path()
@@ -144,7 +152,7 @@ class GTA5Mixin(QMainWindow):
     def _sync_gta5_process_button(self) -> None:
         """Update the GTA5 Process submenu title and menu-item enabled states."""
         self._refresh_gta5_process_state()
-        can_act = self._gta5_has_any_process_path() and not CaptureState.is_neighbour_interface
+        can_act = self._gta5_has_any_process_path() and CaptureState.is_local_capture()
         self._gta5_process_submenu.setEnabled(can_act)
         if not can_act:
             if self._manual_gta5_suspend_active:
@@ -159,8 +167,8 @@ class GTA5Mixin(QMainWindow):
             self._gta5_suspend_resume_action.setEnabled(False)
             self._gta5_solo_menu_action.setEnabled(False)
             self._gta5_suspend_resume_action.setToolTip(
-                'ARP spoofing mode — process control not available.'
-                if CaptureState.is_neighbour_interface
+                'External capture mode — process control not available.'
+                if not CaptureState.is_local_capture()
                 else 'GTA5 is not currently running — launch GTA5 to enable process control.',
             )
         elif self._manual_gta5_suspend_active:
@@ -190,10 +198,7 @@ class GTA5Mixin(QMainWindow):
                 self._gta5_suspend_resume_action.setEnabled(True)
                 self._gta5_solo_menu_action.setEnabled(True)
                 self._gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — click again to resume')
-                self._gta5_solo_menu_action.setToolTip(
-                    'Suspend GTA5 for ~8 seconds then auto-resume.\n'
-                    'This forces the game to spawn you alone in a public session.',
-                )
+                self._gta5_solo_menu_action.setToolTip(GTA5_SOLO_TOOLTIP)
             else:
                 self._gta5_suspend_resume_action.setEnabled(False)
                 self._gta5_solo_menu_action.setEnabled(False)
@@ -209,11 +214,23 @@ class GTA5Mixin(QMainWindow):
             self._detections_manager_window.refresh_protection_availability()
 
     def _update_gta5_toolbar_visibility(self) -> None:
-        """Show or hide the GTA5 menu based on current preset."""
-        gta5_preset = Settings.capture_game_preset == 'GTA5'
+        """Show or hide the GTA5 menu (and process-bound items inside it) based on preset and capture mode."""
+        gta5_preset = Settings.is_gta5_preset()
         SessionHost.clear_session_host_data()
         gta5_menu_action = self._gta5_menu.menuAction()
         if gta5_menu_action is not None:
             gta5_menu_action.setVisible(gta5_preset)
+
+        # Hide local-process-bound items when capturing traffic from another machine.
+        local_only_visible = gta5_preset and CaptureState.is_local_capture()
+        self._gta5_status_widget_action.setVisible(local_only_visible)
+        self._gta5_menu_status_separator.setVisible(local_only_visible)
+        looky_action = self._looky_submenu.menuAction()
+        if looky_action is not None:
+            looky_action.setVisible(local_only_visible)
+        self._gta5_menu_process_separator.setVisible(local_only_visible)
+        process_action = self._gta5_process_submenu.menuAction()
+        if process_action is not None:
+            process_action.setVisible(local_only_visible)
 
         self._refresh_runtime_capability_windows()

@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.background import ensure_gta5_process_monitor_running, ensure_looky_core_running
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
@@ -731,6 +732,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         Settings.rewrite_settings_file()
         Settings.rebuild_blocked_ip_ranges()
+
+        ensure_gta5_process_monitor_running()
+        ensure_looky_core_running()
 
         capture_settings_changed = any(
             new_values[key] != self._old_values.get(key)

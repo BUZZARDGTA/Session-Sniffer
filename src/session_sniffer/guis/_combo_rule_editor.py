@@ -292,7 +292,7 @@ class ComboRuleEditorDialog(QDialog):
             )
 
         action_layout.addWidget(protection_section)
-        if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
             protection_section.setVisible(False)
 
         action_group.setLayout(action_layout)

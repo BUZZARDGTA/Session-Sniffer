@@ -345,6 +345,11 @@ class Settings:
             yield setting_name, getattr(cls, setting_name.lower())
 
     @classmethod
+    def is_gta5_preset(cls) -> bool:
+        """Return `True` when the active capture game preset is GTA5."""
+        return cls.capture_game_preset == 'GTA5'
+
+    @classmethod
     def get_settings_length(cls) -> int:
         """Get the total number of settings."""
         return len(cls.ALL_SETTINGS)

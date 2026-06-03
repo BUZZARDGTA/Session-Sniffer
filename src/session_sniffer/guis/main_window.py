@@ -20,7 +20,7 @@ from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
-from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin
+from session_sniffer.guis._main_window_gta5_mixin import GTA5_SOLO_TOOLTIP, GTA5Mixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
@@ -38,7 +38,6 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
-from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -150,7 +149,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if gta5_menu_action is None:
             msg = 'Failed to get GTA5 menu action'
             raise RuntimeError(msg)
-        gta5_menu_action.setVisible(Settings.capture_game_preset == 'GTA5')
+        gta5_menu_action.setVisible(Settings.is_gta5_preset())
         self._gta5_menu = gta5_menu
 
         gta5_status_label = QLabel()
@@ -162,19 +161,10 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_status_widget_action.setDefaultWidget(gta5_status_label)
         gta5_menu.addAction(gta5_status_widget_action)
         self._gta5_status_label = gta5_status_label
+        self._gta5_status_widget_action = gta5_status_widget_action
 
-        def _update_gta5_status_display() -> None:
-            gta5 = find_running_gta5_path()
-            if gta5.is_running:
-                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
-                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5.path))
-            else:
-                self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
-                self._gta5_status_label.setToolTip('GTA V process detection state')
-
-        gta5_menu.aboutToShow.connect(_update_gta5_status_display)
-        gta5_menu.addSeparator()
+        gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
+        self._gta5_menu_status_separator = cast('QAction', gta5_menu.addSeparator())
 
         player_resolver_action = QAction('🔍 Player Resolver', self)
         player_resolver_action.setToolTip('High Rate Monitor and Player Identifier tools')
@@ -230,7 +220,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         host_history_submenu.setToolTipsVisible(True)
         host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, self._highlight_ips))
 
-        gta5_menu.addSeparator()
+        self._gta5_menu_process_separator = cast('QAction', gta5_menu.addSeparator())
 
         gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
         if gta5_process_submenu is None:
@@ -241,10 +231,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_process_submenu = gta5_process_submenu
 
         gta5_menu_solo_action = QAction('🎯 Solo Public Session (~8s)', self)
-        gta5_menu_solo_action.setToolTip(
-            'Suspend GTA5 for ~8 seconds then auto-resume.\n'
-            'This forces the game to spawn you alone in a public session.',
-        )
+        gta5_menu_solo_action.setToolTip(GTA5_SOLO_TOOLTIP)
         gta5_menu_solo_action.triggered.connect(self.gta5_solo_session)
         gta5_process_submenu.addAction(gta5_menu_solo_action)
 
@@ -255,23 +242,24 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_suspend_resume_action.triggered.connect(self.toggle_manual_gta5_suspend)
         gta5_process_submenu.addAction(gta5_suspend_resume_action)
 
+        gta5_process_submenu.aboutToShow.connect(self._sync_gta5_process_button)
+
         self._gta5_solo_menu_action = gta5_menu_solo_action
         self._gta5_suspend_resume_action = gta5_suspend_resume_action
         self._manual_gta5_suspend_active = False
         self._gta5_solo_active = False
         self._gta5_process_suspended = False
         self._gta5_process_detected = False
+        self._last_gta5_status_key: tuple[bool, bool, bool] = (False, False, False)
 
-        if Settings.capture_game_preset == 'GTA5':
+        if Settings.is_gta5_preset():
             self._sync_gta5_process_button()
-            if CaptureState.gta5_is_running:
-                gta5 = find_running_gta5_path()
-                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
-                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5.path) if gta5.is_running else 'GTA5 process detection state')
+            self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
             self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
+
+        self._update_gta5_toolbar_visibility()
 
         # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
@@ -761,15 +749,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             page=payload.disconnected_page,
         )
 
-        if self._session_host_submenu.isEnabled() != CaptureState.gta5_is_running:
-            if CaptureState.gta5_is_running:
-                gta5 = find_running_gta5_path()
-                version = 'GTA V Enhanced' if gta5.is_enhanced else 'GTA V Legacy'
-                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-                self._gta5_status_label.setToolTip(str(gta5.path) if gta5.is_running else 'GTA V process detection state')
-            else:
-                self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
-                self._gta5_status_label.setToolTip('GTA V process detection state')
+        status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy)
+        if status_key != self._last_gta5_status_key:
+            self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
             self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
@@ -777,6 +759,17 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         if self._capture_statistics_window is not None:
             self._capture_statistics_window.refresh()
+
+    def _update_gta5_status_label(self) -> None:
+        """Refresh the GTA5 status label and tooltip from cached `CaptureState` values."""
+        if CaptureState.gta5_is_running:
+            version = 'GTA V Enhanced' if CaptureState.gta5_is_enhanced else 'GTA V Legacy'
+            self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+            self._gta5_status_label.setToolTip(str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state')
+        else:
+            self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+            self._gta5_status_label.setToolTip('GTA V process detection state')
+        self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy)
 
     @staticmethod
     def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:

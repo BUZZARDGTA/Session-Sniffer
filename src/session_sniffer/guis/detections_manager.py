@@ -1,4 +1,4 @@
-﻿"""Detections Manager dialog for configuring advanced per-detection protection rules."""
+"""Detections Manager dialog for configuring advanced per-detection protection rules."""
 
 import json
 from pathlib import Path
@@ -130,7 +130,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self._tabs.addTab(self.create_network_based_tab(), '\U0001f310 Network-Based')
         self._tabs.addTab(self.create_geo_based_tab(), '\U0001f30d Geography-Based')
         self._tabs.addTab(self.create_combo_rules_tab(), '\U0001f517 Combo Rules')
-        if Settings.capture_game_preset == 'GTA5':
+        if Settings.is_gta5_preset():
             self._tabs.addTab(self.create_gta5_relays_tab(), '\U0001f3ae GTA5 Relays')
         layout.addWidget(self._tabs)
 
@@ -175,7 +175,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
     def refresh_protection_availability(self) -> None:
         """Refresh protection action visibility based on current runtime support."""
-        if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
             self._apply_protection_restrictions()
         else:
             self._remove_protection_restrictions()

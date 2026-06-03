@@ -9,6 +9,12 @@ from PyQt6.QtWidgets import QMenu, QTableView
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.error_messages import ensure_instance
+from session_sniffer.guis.looky_text import (
+    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
+    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
+    LOOKY_MENU_TOOLTIP_DISABLED,
+    LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING,
+)
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
@@ -36,6 +42,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename_multi,
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.player.registry import PlayersRegistry, SessionHost, is_third_party_server_ip
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
@@ -318,11 +325,26 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if not players:
+            if (
+                not Settings.is_gta5_preset()
+                or not players
+                or any(is_third_party_server_ip(p.ip) for p in players)
+            ):
                 return
 
-            if any(is_third_party_server_ip(p.ip) for p in players):
-                return
+            def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
+                if not Settings.looky_enabled:
+                    action.setEnabled(False)
+                    action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+                elif not Settings.looky_api_key:
+                    action.setEnabled(False)
+                    action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
+                elif not LookyState.api_access:
+                    action.setEnabled(False)
+                    action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
+                elif require_gta5_running and not CaptureState.gta5_is_running:
+                    action.setEnabled(False)
+                    action.setToolTip(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
 
             looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
 
@@ -339,31 +361,34 @@ class TableContextMenuMixin(QTableView):
             looky_menu.addSeparator()
 
             if len(players) == 1:
-                add_action(
+                lookup_action = add_action(
                     looky_menu,
                     '🔎 Lookup',
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
-                if not CaptureState.gta5_is_enhanced and not (players[0].looky_system.is_initialized and not players[0].looky_system.rockstarids):
-                    add_action(
+                _apply_looky_gating(lookup_action, require_gta5_running=False)
+                if not CaptureState.gta5_is_enhanced and players[0].looky_system.rockstarids:
+                    crawler_action = add_action(
                         looky_menu,
                         '🤖 Request Crawler',
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
                     )
+                    _apply_looky_gating(crawler_action, require_gta5_running=True)
                 return
 
             def _show_looky_lookup_for_all() -> None:
                 for player in players:
                     show_looky_lookup(self, player)
 
-            add_action(
+            lookup_all_action = add_action(
                 looky_menu,
                 '🔎 Lookup (All Selected)',
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
             )
+            _apply_looky_gating(lookup_all_action, require_gta5_running=False)
 
         def add_ping_menu(ips: list[str]) -> None:
             if not ips:
@@ -466,7 +491,7 @@ class TableContextMenuMixin(QTableView):
                 _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ips, per_ip=True)
 
         def add_detections_menu(players: list[Player]) -> None:
-            if Settings.capture_game_preset != 'GTA5' or CaptureState.is_neighbour_interface:
+            if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
                 return
             if not players:
                 return
@@ -600,7 +625,7 @@ class TableContextMenuMixin(QTableView):
 
         def add_clear_session_host_action(ip_address: str) -> None:
             if (
-                Settings.capture_game_preset != 'GTA5'
+                not Settings.is_gta5_preset()
                 or SessionHost.player is None
                 or SessionHost.player.ip != ip_address
             ):

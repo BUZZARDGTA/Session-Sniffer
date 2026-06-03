@@ -487,7 +487,7 @@ def rendering_core(
                 player.iplookup.geolite2.asn = get_asn_info(player.ip)
                 player.iplookup.geolite2.is_initialized = True
 
-        if Settings.capture_game_preset == 'GTA5':
+        if Settings.is_gta5_preset():
             if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
                 if (
                     SessionHost.player

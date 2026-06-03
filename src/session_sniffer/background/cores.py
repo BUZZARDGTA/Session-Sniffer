@@ -3,6 +3,8 @@
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from http import HTTPStatus
+from threading import Thread
+from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, TypeVar, cast
 
 import requests
@@ -274,6 +276,7 @@ def pinger_core() -> None:
 
 
 _LOOKY_REFRESH_INTERVAL = 60.0
+_LOOKY_CORE_THREAD_NAME = 'looky_core'
 
 
 def looky_core() -> None:
@@ -290,10 +293,12 @@ def looky_core() -> None:
         if ScriptControl.has_crashed():
             return
 
-        if not Settings.looky_api_key or not Settings.looky_enabled:
+        if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_preset():
             if _verified_api_key is not None:
                 _verified_api_key = None
                 LookyState.reset()
+            if not Settings.is_gta5_preset():
+                return
             gui_closed__event.wait(5)
             continue
 
@@ -405,3 +410,13 @@ def looky_core() -> None:
             gui_closed__event.wait(1)
         else:
             gui_closed__event.wait(0.1)
+
+
+def ensure_looky_core_running() -> None:
+    """Start the `looky_core` thread if the GTA5 preset is active and it is not already running."""
+    if not Settings.is_gta5_preset():
+        return
+    for thread in enumerate_threads():
+        if thread.name == _LOOKY_CORE_THREAD_NAME and thread.is_alive():
+            return
+    Thread(target=looky_core, name=_LOOKY_CORE_THREAD_NAME, daemon=True).start()
