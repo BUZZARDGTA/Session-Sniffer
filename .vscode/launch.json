@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-            "justMyCode": false,
+            "justMyCode": true,
             "stopOnEntry": false,
             "subProcess": true,
             "env": {
