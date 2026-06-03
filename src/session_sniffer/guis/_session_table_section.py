@@ -1,8 +1,8 @@
 """Session status bar and collapsible session table section widgets."""
 from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import QByteArray, QEvent, QObject, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QKeySequence, QPainter, QPixmap, QShortcut
+from PyQt6.QtCore import QEvent, QObject, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -35,7 +35,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
-from session_sniffer.guis.utils import apply_search_icon
+from session_sniffer.guis.utils import apply_search_icon, make_padded_icon
 from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
 
@@ -43,16 +43,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-_PLAYER_ICON_SVG = (
-    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
-    b'<circle cx="10" cy="5.5" r="3" fill="white" opacity="0.9"/>'
-    b'<path d="M3.5 18 Q3.5 12 10 12 Q16.5 12 16.5 18" fill="white" opacity="0.9"/>'
-    b'</svg>'
-)
+_PLAYER_ICON_PATH = (RESOURCES_DIR_PATH / 'icons' / 'player.svg').as_posix()
 
 
-def _svg_to_pixmap(svg_bytes: bytes, size: int) -> QPixmap:
-    renderer = QSvgRenderer(QByteArray(svg_bytes))
+def _svg_file_to_pixmap(svg_path: str, size: int) -> QPixmap:
+    renderer = QSvgRenderer(svg_path)
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
@@ -155,7 +150,7 @@ class SessionTableSection(QWidget):
         icon_label = QLabel()
         icon_label.setFixedSize(40, 34)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setPixmap(_svg_to_pixmap(_PLAYER_ICON_SVG, 24))
+        icon_label.setPixmap(_svg_file_to_pixmap(_PLAYER_ICON_PATH, 24))
 
         self._header_label = QLabel(self._header_label_text())
         self._header_label.setObjectName('sectionTitle')
@@ -167,7 +162,8 @@ class SessionTableSection(QWidget):
         clear_button.clicked.connect(clear_slot)
 
         collapse_button = QToolButton()
-        collapse_button.setText('▼')
+        collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'collapse_table.svg').as_posix()))
+        collapse_button.setIconSize(QSize(16, 16))
         collapse_button.setToolTip(collapse_tooltip)
         collapse_button.clicked.connect(self.minimize)
 
@@ -289,7 +285,10 @@ class SessionTableSection(QWidget):
         search_shortcut.activated.connect(self._search_bar.setFocus)
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
-        self.expand_button = QPushButton(f'▲  Show {self._section_name} Players (0)')
+        self.expand_button = QPushButton(f'Show {self._section_name} Players (0)')
+        _expand_icon = QIcon((RESOURCES_DIR_PATH / 'icons' / 'expand_table.svg').as_posix())
+        self.expand_button.setIcon(make_padded_icon(_expand_icon, (16, 16), 8))
+        self.expand_button.setIconSize(QSize(16 + 8, 16))
         self.expand_button.setToolTip(expand_tooltip)
         self.expand_button.setStyleSheet(expand_button_stylesheet)
         self.expand_button.setVisible(False)
@@ -325,7 +324,7 @@ class SessionTableSection(QWidget):
         """Collapse section to just an expand button."""
         self.setVisible(False)
         self.expand_button.setText(
-            f'▲  Show {self._section_name} Players ({max(self.last_count, 0)})',
+            f'Show {self._section_name} Players ({max(self.last_count, 0)})',
         )
         self.expand_button.setVisible(True)
         self.section_toggled.emit()
@@ -336,7 +335,7 @@ class SessionTableSection(QWidget):
         self._update_header_label()
         if not self.is_expanded:
             self.expand_button.setText(
-                f'▲  Show {self._section_name} Players ({count})',
+                f'Show {self._section_name} Players ({count})',
             )
 
     def clear_table(self) -> None:

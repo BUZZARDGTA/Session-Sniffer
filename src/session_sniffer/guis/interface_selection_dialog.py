@@ -9,8 +9,9 @@ from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QItemSelectionModel, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QCursor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
+from PyQt6.QtCore import QItemSelectionModel, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QCursor, QFont, QIcon, QPainter, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -27,6 +28,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.stylesheets import (
     INTERFACE_BOTTOM_CONTAINER_STYLESHEET,
@@ -41,7 +43,7 @@ from session_sniffer.guis.stylesheets import (
     interface_select_button_enabled_style,
     interface_table_stylesheet,
 )
-from session_sniffer.guis.utils import compute_ui_scale, resize_window_for_screen
+from session_sniffer.guis.utils import compute_ui_scale, make_padded_icon, resize_window_for_screen
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
@@ -50,6 +52,19 @@ if TYPE_CHECKING:
     from PyQt6.QtGui import QKeyEvent
 
 logger = get_logger(__name__)
+
+
+def _render_svg_pixmap(filename: str, width: int, height: int) -> QPixmap:
+    """Render an SVG icon from `resources/icons/` to a transparent QPixmap."""
+    renderer = QSvgRenderer(str(RESOURCES_DIR_PATH / 'icons' / filename))
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(painter, QRectF(0, 0, width, height))
+    painter.end()
+    return pixmap
 
 
 def _calculate_interface_score(
@@ -289,21 +304,15 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(_s(58))
         refresh_arp_button.setMinimumWidth(_s(280))
-        refresh_arp_icon_pixmap = QPixmap(_s(36), _s(28))
-        refresh_arp_icon_pixmap.fill(Qt.GlobalColor.transparent)
-        refresh_arp_icon_painter = QPainter(refresh_arp_icon_pixmap)
-        refresh_arp_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        refresh_arp_icon_painter.scale(_scale, _scale)
-        refresh_arp_icon_painter.setPen(QPen(QColor('#e8f0f8'), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        refresh_arp_icon_painter.setBrush(Qt.BrushStyle.NoBrush)
-        refresh_arp_icon_painter.drawArc(QRectF(5.0, 5.0, 18.0, 18.0), 40 * 16, -150 * 16)
-        refresh_arp_icon_painter.drawArc(QRectF(5.0, 5.0, 18.0, 18.0), 220 * 16, -150 * 16)
-        refresh_arp_icon_painter.drawPolyline(QPolygonF([QPointF(12.4, 25.7), QPointF(10.9, 22.5), QPointF(14.1, 21.0)]))
-        refresh_arp_icon_painter.drawPolyline(QPolygonF([QPointF(15.6, 2.3), QPointF(17.1, 5.5), QPointF(13.9, 7.0)]))
-        refresh_arp_icon_painter.end()
-        self._refresh_arp_icon = QIcon(refresh_arp_icon_pixmap)
+        _refresh_pad = _s(10)
+        _refresh_w, _refresh_h = _s(36), _s(28)
+        self._refresh_arp_icon = make_padded_icon(
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')),
+            (_refresh_w, _refresh_h),
+            _refresh_pad,
+        )
         refresh_arp_button.setIcon(self._refresh_arp_icon)
-        refresh_arp_button.setIconSize(QSize(_s(36), _s(28)))
+        refresh_arp_button.setIconSize(QSize(_refresh_w + _refresh_pad, _refresh_h))
 
         # Rich-text overlay shown only during a refresh; lets us style the
         # percentage line and the IP/count line independently inside the button.
@@ -409,21 +418,8 @@ class InterfaceSelectionDialog(QDialog):
         # Action row: info text left, Start button right
         action_layout = QHBoxLayout()
         action_layout.addSpacing(_s(50))
-        info_icon_pixmap = QPixmap(_s(32), _s(32))
-        info_icon_pixmap.fill(Qt.GlobalColor.transparent)
-        info_icon_painter = QPainter(info_icon_pixmap)
-        info_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        info_icon_painter.scale(_scale, _scale)
-        info_icon_painter.setBrush(QBrush(QColor('#1a2535')))
-        info_icon_painter.setPen(QPen(QColor('#2570CB'), 2.0))
-        info_icon_painter.drawEllipse(QRectF(1.5, 1.5, 29.0, 29.0))
-        info_icon_painter.setPen(Qt.PenStyle.NoPen)
-        info_icon_painter.setBrush(QBrush(QColor('#2570CB')))
-        info_icon_painter.drawEllipse(QRectF(14.5, 7.5, 3.0, 3.0))
-        info_icon_painter.drawRoundedRect(QRectF(14.5, 13.5, 3.0, 13.0), 1.5, 1.5)
-        info_icon_painter.end()
         info_icon_label = QLabel()
-        info_icon_label.setPixmap(info_icon_pixmap)
+        info_icon_label.setPixmap(_render_svg_pixmap('info.svg', _s(32), _s(32)))
         info_icon_label.setFixedSize(_s(36), _s(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')
@@ -437,17 +433,14 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(_s(330), _s(56))
-        select_icon_pixmap = QPixmap(_s(46), _s(28))
-        select_icon_pixmap.fill(Qt.GlobalColor.transparent)
-        select_icon_painter = QPainter(select_icon_pixmap)
-        select_icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        select_icon_painter.scale(_scale, _scale)
-        select_icon_painter.setPen(Qt.PenStyle.NoPen)
-        select_icon_painter.setBrush(QBrush(QColor('#ffffff')))
-        select_icon_painter.drawPolygon(QPolygonF([QPointF(4.0, 2.0), QPointF(4.0, 26.0), QPointF(24.0, 14.0)]))
-        select_icon_painter.end()
-        select_button.setIcon(QIcon(select_icon_pixmap))
-        select_button.setIconSize(QSize(_s(46), _s(28)))
+        _play_pad = _s(10)
+        _play_w, _play_h = _s(46), _s(28)
+        select_button.setIcon(make_padded_icon(
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
+            (_play_w, _play_h),
+            _play_pad,
+        ))
+        select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(

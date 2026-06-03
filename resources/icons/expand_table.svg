@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="5 5 14 14" role="img" aria-label="Collapse table">
+  <g fill="none" stroke="#EAF3FF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 18.5h12" opacity="0.95"/>
+    <path d="M8 13.75 12 10l4 3.75"/>
+    <path d="M8 9.75 12 6l4 3.75" opacity="0.9"/>
+  </g>
+</svg>

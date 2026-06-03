@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="5 5 14 14" role="img" aria-label="Expand table">
+  <g fill="none" stroke="#EAF3FF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 5.5h12" opacity="0.95"/>
+    <path d="M8 10.25 12 14l4-3.75"/>
+    <path d="M8 14.25 12 18l4-3.75" opacity="0.9"/>
+  </g>
+</svg>

@@ -372,3 +372,18 @@ def apply_search_icon(line_edit: QLineEdit) -> None:
 
     action.triggered.connect(line_edit.clear)
     line_edit.textChanged.connect(_update)
+
+
+def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: int) -> QIcon:
+    """Return a QIcon with `right_padding` transparent pixels appended to the right of *source*.
+
+    Used to add space between a button's icon and its text label, since
+    PyQt6 no longer exposes `PM_ButtonIconSpacing`.
+    """
+    width, height = icon_size
+    pixmap = QPixmap(width + right_padding, height)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    source.paint(painter, 0, 0, width, height)
+    painter.end()
+    return QIcon(pixmap)

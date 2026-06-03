@@ -162,6 +162,61 @@ UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = (
     'border: none;'
 )
 
+UPDATE_DOWNLOAD_VERSION_CARD_CURRENT_STYLESHEET = (
+    'QFrame#updateDownloadVersionCardCurrent {'
+    '  background: rgba(20, 28, 40, 0.55);'
+    '  border: 1px solid #2f3e52;'
+    '  border-radius: 10px;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET = (
+    'QFrame#updateDownloadVersionCardNew {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '      stop:0 rgba(95, 180, 245, 0.18), stop:1 rgba(31, 108, 200, 0.08));'
+    '  border: 1px solid #4aa3ee;'
+    '  border-radius: 10px;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = (
+    'color: #7a8a9c;'
+    'background: transparent;'
+    'letter-spacing: 1.5px;'
+    'font-weight: 700;'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = (
+    'color: #5fb4f5;'
+    'background: transparent;'
+    'letter-spacing: 1.5px;'
+    'font-weight: 700;'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = (
+    'color: #c4ced9;'
+    'background: transparent;'
+    'font-weight: 700;'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = (
+    'color: #f0f4fa;'
+    'background: transparent;'
+    'font-weight: 700;'
+)
+
+UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = (
+    'color: #6f7e91;'
+    'background: transparent;'
+    'font-family: Consolas, "Courier New", monospace;'
+)
+
+UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = (
+    'color: #4aa3ee;'
+    'background: transparent;'
+    'font-weight: 800;'
+)
+
 UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = (
     'color: #a0b0c4;'
     'background: transparent;'
