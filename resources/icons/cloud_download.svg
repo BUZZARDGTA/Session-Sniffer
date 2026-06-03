@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -4 76 52" role="img" aria-label="Cloud download">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-50%" width="180%" height="220%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.20  0 0 0 0 0.58  0 0 0 0 1.00  0 0 0 .55 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="cloudStroke" x1="10" y1="8" x2="52" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b9d9ff"/>
+      <stop offset="0.48" stop-color="#7ebcff"/>
+      <stop offset="1" stop-color="#49a8ff"/>
+    </linearGradient>
+    <linearGradient id="arrowStroke" x1="32" y1="17" x2="32" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#8ec6ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Subtle shadow used by Qt SVG renderer too; icon remains readable even if filters are ignored. -->
+  <g filter="url(#softGlow)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19.3 36.5H16.7C10.8 36.5 6 32.15 6 26.8c0-4.92 4.13-9.08 9.55-9.62C17.35 10.88 23.18 6.5 30 6.5c7.3 0 13.35 4.92 14.75 11.45C52.08 18.37 58 23.4 58 29.55c0 3.88-2.5 6.95-6.08 6.95h-7.16"
+          stroke="#162132" stroke-width="7.2" opacity="0.42"/>
+    <path d="M19.3 36.5H16.7C10.8 36.5 6 32.15 6 26.8c0-4.92 4.13-9.08 9.55-9.62C17.35 10.88 23.18 6.5 30 6.5c7.3 0 13.35 4.92 14.75 11.45C52.08 18.37 58 23.4 58 29.55c0 3.88-2.5 6.95-6.08 6.95h-7.16"
+          stroke="url(#cloudStroke)" stroke-width="4.8"/>
+
+    <path d="M32 17.5v18.2" stroke="#132031" stroke-width="8" opacity="0.34"/>
+    <path d="M23.8 27.9 32 36.1l8.2-8.2" stroke="#132031" stroke-width="8" opacity="0.34"/>
+    <path d="M32 17.5v18.2" stroke="url(#arrowStroke)" stroke-width="5.4"/>
+    <path d="M23.8 27.9 32 36.1l8.2-8.2" stroke="url(#arrowStroke)" stroke-width="5.4"/>
+  </g>
+</svg>

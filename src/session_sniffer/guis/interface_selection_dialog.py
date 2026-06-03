@@ -177,7 +177,7 @@ class InterfaceSelectionDialog(QDialog):
     _REFRESH_INTERVAL_MS = 3_000
 
     # Bridges background ARP-refresh worker -> GUI thread (queued connection).
-    _arp_refresh_progress_signal = pyqtSignal(int, int)
+    _arp_refresh_progress_signal = pyqtSignal(int, int, str)
     _arp_refresh_done_signal = pyqtSignal()
 
     def __init__(
@@ -287,8 +287,8 @@ class InterfaceSelectionDialog(QDialog):
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
         refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
-        refresh_arp_button.setMinimumHeight(_s(44))
-        refresh_arp_button.setMinimumWidth(_s(190))
+        refresh_arp_button.setMinimumHeight(_s(58))
+        refresh_arp_button.setMinimumWidth(_s(280))
         refresh_arp_icon_pixmap = QPixmap(_s(36), _s(28))
         refresh_arp_icon_pixmap.fill(Qt.GlobalColor.transparent)
         refresh_arp_icon_painter = QPainter(refresh_arp_icon_pixmap)
@@ -304,6 +304,20 @@ class InterfaceSelectionDialog(QDialog):
         self._refresh_arp_icon = QIcon(refresh_arp_icon_pixmap)
         refresh_arp_button.setIcon(self._refresh_arp_icon)
         refresh_arp_button.setIconSize(QSize(_s(36), _s(28)))
+
+        # Rich-text overlay shown only during a refresh; lets us style the
+        # percentage line and the IP/count line independently inside the button.
+        refresh_arp_overlay = QLabel(refresh_arp_button)
+        refresh_arp_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        refresh_arp_overlay.setTextFormat(Qt.TextFormat.RichText)
+        refresh_arp_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, on=True)
+        refresh_arp_overlay.setStyleSheet('background: transparent;')
+        refresh_arp_overlay_layout = QVBoxLayout(refresh_arp_button)
+        refresh_arp_overlay_layout.setContentsMargins(0, 0, 0, 0)
+        refresh_arp_overlay_layout.addWidget(refresh_arp_overlay)
+        refresh_arp_overlay.hide()
+        self._refresh_arp_overlay = refresh_arp_overlay
+
         options_layout.addWidget(refresh_arp_button)
 
         remember_interface_checkbox = QCheckBox('Remember Interface')
@@ -357,8 +371,10 @@ class InterfaceSelectionDialog(QDialog):
 
         # Tracks whether an ARP refresh worker is currently running.
         self._arp_refresh_in_progress: bool = False
-        # Updated from worker threads with (completed, total) ping counts. (0, 0) means flushing / no ping work yet.
+        # Updated from worker threads with (completed, total) ping counts. (0, 0) means no ping work yet.
         self._arp_refresh_progress: tuple[int, int] = (0, 0)
+        # Most recently completed ping target, shown under the Refresh button.
+        self._arp_refresh_last_ip: str = ''
         # GUI-thread animation state for the in-button progress indicator.
         self._arp_refresh_sweep_phase: int = 0
         self._arp_refresh_progress_timer: QTimer | None = None
@@ -486,20 +502,54 @@ class InterfaceSelectionDialog(QDialog):
         button = self._controls.refresh_arp_button
         completed, total = self._arp_refresh_progress
 
+        # Always animate the dot trail so the button feels alive even after
+        # the determinate fill takes over. Pad to a fixed width so the label
+        # length stays constant and the centered text doesn't jitter.
+        sweep_period = 40  # ticks per full back-and-forth cycle
+        self._arp_refresh_sweep_phase = (self._arp_refresh_sweep_phase + 1) % sweep_period
+        dot_count = 1 + (self._arp_refresh_sweep_phase // 5) % 3
+        dots = ('.' * dot_count).ljust(3).replace(' ', '\u00a0')
+
+        font_pt_main = max(1, round(14 * self._ui_scale))
+        font_pt_sub = max(1, round(9 * self._ui_scale))
+
         if total <= 0:
-            # Flush phase or no subnets to ping: indeterminate sweep.
-            sweep_period = 20  # ticks per full sweep
-            self._arp_refresh_sweep_phase = (self._arp_refresh_sweep_phase + 1) % sweep_period
-            fraction = self._arp_refresh_sweep_phase / (sweep_period - 1)
-            button.setText('0%')
+            # No progress yet: indeterminate ping-pong sweep until first ping completes.
+            half = sweep_period // 2
+            phase = self._arp_refresh_sweep_phase
+            fraction = phase / (half - 1) if phase < half else (sweep_period - 1 - phase) / (half - 1)
+            main_text = f'Pinging{dots}'
+            sub_text = 'Resolving subnets\u2026'
         else:
             fraction = completed / total
-            button.setText(f'{int(fraction * 100)}%')
+            last_ip = self._arp_refresh_last_ip
+            pct = f'{int(fraction * 100):>3}'.replace(' ', '\u00a0')
+            main_text = f'Pinging\u00a0{pct}%\u00a0{dots}'
+            # Pad IP to 15 chars (max IPv4 length) and counters to total's width
+            # so the centered sub-line never jitters as values change. Spaces
+            # are emitted as &nbsp; because Qt rich text collapses runs of
+            # regular whitespace.
+            total_width = len(f'{total:,}')
+            counters = f'{completed:,}'.rjust(total_width).replace(' ', '\u00a0')
+            ip_text = (last_ip if last_ip else '').ljust(15).replace(' ', '\u00a0')
+            sub_text = f'{ip_text}\u00a0\u00a0\u00a0({counters} / {total:,})'
 
+        button.setText('')
+        main_style = (
+            f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
+        )
+        sub_style = (
+            f'color:#ffd166; font-family:Consolas,monospace; '
+            f'font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
+        )
+        self._refresh_arp_overlay.setText(
+            f'<div style="{main_style}">{main_text}</div>'
+            f'<div style="{sub_style}">{sub_text}</div>',
+        )
         button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction))
 
     def _on_refresh_arp_clicked(self) -> None:
-        """Flush the Windows ARP cache and ping the local subnet to rediscover devices.
+        """Ping the local subnet via ICMP to repopulate the ARP neighbour cache.
 
         Runs the ARP refresh on a background daemon thread so the GUI remains
         responsive, then triggers a live interface refresh on completion.
@@ -512,10 +562,12 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_original_text = button.text()
         button.setEnabled(False)
         button.setIcon(QIcon())
+        self._refresh_arp_overlay.show()
 
         # Reset progress state and start the GUI-side animation timer.
         self._arp_refresh_progress = (0, 0)
         self._arp_refresh_sweep_phase = 0
+        self._arp_refresh_last_ip = ''
         self._refresh_arp_progress_tick()
         if self._arp_refresh_progress_timer is None:
             self._arp_refresh_progress_timer = QTimer(self)
@@ -527,9 +579,9 @@ class InterfaceSelectionDialog(QDialog):
         progress_signal = self._arp_refresh_progress_signal
         done_signal = self._arp_refresh_done_signal
 
-        def on_progress(completed: int, total: int) -> None:
+        def on_progress(completed: int, total: int, ip: str) -> None:
             # Called from worker threads; emit queued signal to marshal onto GUI thread.
-            progress_signal.emit(completed, total)
+            progress_signal.emit(completed, total, ip)
 
         def worker() -> None:
             try:
@@ -539,9 +591,11 @@ class InterfaceSelectionDialog(QDialog):
 
         Thread(target=worker, name='ARPRefresh-worker', daemon=True).start()
 
-    def _on_arp_refresh_progress(self, completed: int, total: int) -> None:
+    def _on_arp_refresh_progress(self, completed: int, total: int, ip: str) -> None:
         """GUI-thread slot: store the latest worker-reported ping progress."""
         self._arp_refresh_progress = (completed, total)
+        if ip:
+            self._arp_refresh_last_ip = ip
 
     def _on_refresh_arp_finished(self) -> None:
         """Restore the Refresh ARP button and trigger an immediate live refresh."""
@@ -549,6 +603,8 @@ class InterfaceSelectionDialog(QDialog):
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         button = self._controls.refresh_arp_button
+        self._refresh_arp_overlay.hide()
+        self._refresh_arp_overlay.clear()
         button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
         button.setEnabled(True)

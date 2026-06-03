@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.networking.interface import Interface
 
-    ProgressCallback = Callable[[int, int], None]
+    ProgressCallback = Callable[[int, int, str], None]
 
 logger = get_logger(__name__)
 
@@ -91,22 +91,23 @@ def wake_subnet_devices(
     if not target_ips:
         logger.info('ARP refresh: no private IPv4 subnets to probe.')
         if progress_callback is not None:
-            progress_callback(0, 0)
+            progress_callback(0, 0, '')
         return
 
     logger.debug('ARP refresh: pinging %d hosts to repopulate ARP cache.', total)
     completed = 0
     completed_lock = Lock()
     with ThreadPoolExecutor(max_workers=_PING_FANOUT_WORKERS, thread_name_prefix='ARPRefreshPing') as executor:
-        futures = [executor.submit(_ping_host, ip) for ip in target_ips]
-        for future in as_completed(futures):
+        future_to_ip = {executor.submit(_ping_host, ip): ip for ip in target_ips}
+        for future in as_completed(future_to_ip):
             future.result()
             if progress_callback is None:
                 continue
+            ip = future_to_ip[future]
             with completed_lock:
                 completed += 1
                 current = completed
-            progress_callback(current, total)
+            progress_callback(current, total, ip)
 
 
 def refresh_arp_table(

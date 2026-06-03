@@ -52,6 +52,18 @@ def check_for_updates(*, updater_channel: str | None) -> tuple[UpdateCheckOutcom
     Returns a tuple of (outcome, pending_download) where `pending_download` is a
     callable that must be invoked on the main Qt thread if not None.
     """
+    # === TEMP UI TEST: force the update download dialog to appear on next launch ===
+    outcome, versions = _fetch_versions_with_retries()
+    if outcome is UpdateCheckOutcome.PROCEED and versions is not None:
+        candidate_info = versions.latest_stable
+        version_str = format_project_version(Version(candidate_info.version))
+        pending = functools.partial(_download_and_apply, candidate_info, version_str)
+        return (UpdateCheckOutcome.PROCEED, pending)
+    if outcome is UpdateCheckOutcome.ABORT:
+        return (outcome, None)
+    return (UpdateCheckOutcome.IGNORE, None)
+    # === END TEMP UI TEST ===
+
     outcome, versions = _fetch_versions_with_retries()
 
     if outcome is UpdateCheckOutcome.PROCEED and versions is not None:
@@ -228,6 +240,10 @@ def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
         version_label=version_str,
     )
     dialog.exec()
+    # === TEMP UI TEST: skip hash verification + exe replacement; just clean up ===
+    _remove_file_if_possible(dest)
+    return
+    # === END TEMP UI TEST ===
     if not dialog.success:
         _remove_file_if_possible(dest)
         return

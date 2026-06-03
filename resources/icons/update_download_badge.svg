@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Download update badge">
+  <defs>
+    <radialGradient id="bgFill" cx="35%" cy="28%" r="80%">
+      <stop offset="0" stop-color="#1a4f86"/>
+      <stop offset="0.55" stop-color="#123c69"/>
+      <stop offset="1" stop-color="#0a2746"/>
+    </radialGradient>
+    <linearGradient id="ringStroke" x1="18" y1="14" x2="78" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#66c8ff"/>
+      <stop offset="0.55" stop-color="#2c9dff"/>
+      <stop offset="1" stop-color="#1872d9"/>
+    </linearGradient>
+    <linearGradient id="symbolFill" x1="48" y1="25" x2="48" y2="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dcebff"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#041221" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- subtle outer halo -->
+  <circle cx="48" cy="48" r="31.5" fill="none" stroke="#1f89ff" stroke-opacity="0.14" stroke-width="4"/>
+
+  <!-- main badge -->
+  <circle cx="48" cy="48" r="28" fill="url(#bgFill)" stroke="url(#ringStroke)" stroke-width="2" filter="url(#softShadow)"/>
+
+  <!-- download symbol, intentionally smaller and calmer -->
+  <g fill="none" stroke="url(#symbolFill)" stroke-linecap="round" stroke-linejoin="round" filter="url(#softShadow)">
+    <path d="M48 30.5v17" stroke-width="4.8"/>
+    <path d="M40.5 40.5 48 47.8l7.5-7.3" stroke-width="4.8"/>
+    <path d="M37.5 52.5v8.5c0 1.9 1.6 3.5 3.5 3.5h14c1.9 0 3.5-1.6 3.5-3.5v-8.5" stroke-width="4.2"/>
+  </g>
+</svg>

@@ -166,28 +166,36 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
 
 
 def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float) -> str:
-    """Build a QSS that renders a horizontal grey gradient progress fill inside the Refresh ARP button."""
-    _fill_light = '#e6e6e6'
-    _fill_dark = '#9a9a9a'
-    _track_light = '#4a4a4a'
-    _track_dark = '#2e2e2e'
-    _dark_text_threshold = 0.45
+    """Build a QSS that renders a horizontal blue gradient progress fill inside the Refresh ARP button.
+
+    Designed to match the dialog's deep-blue palette (Start button `#175BB0`,
+    button base `#21334C`). The fill animates a bright accent gradient over a
+    darker track to read clearly against the dialog's bottom container.
+    """
+    _fill_left = '#1e5a9c'
+    _fill_mid = '#3d7fc4'
+    _fill_right = '#5599dd'
+    _track_dark = '#0f1a28'
+    _track_light = '#1a2738'
     clamped = max(0.0, min(1.0, fraction))
     next_stop = min(1.0, clamped + 0.0001)
-    text_color = '#1a1a1a' if clamped >= _dark_text_threshold else '#f0f0f0'
-    font_size = round(12 * ui_scale)
+    font_size = max(1, round(14 * ui_scale))
+    padding_v = max(1, round(6 * ui_scale))
+    padding_h = max(1, round(14 * ui_scale))
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
         ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-        f' stop:0 {_fill_light},'
-        f' stop:{clamped:.4f} {_fill_dark},'
-        f' stop:{next_stop:.4f} {_track_light},'
-        f' stop:1 {_track_dark});'
-        f' color: {text_color};'
-        ' font-weight: bold;'
-        ' border: 1px solid #1a1a1a;'
+        f' stop:0 {_fill_left},'
+        f' stop:{clamped * 0.5:.4f} {_fill_mid},'
+        f' stop:{clamped:.4f} {_fill_right},'
+        f' stop:{next_stop:.4f} {_track_dark},'
+        f' stop:1 {_track_light});'
+        ' color: #ffffff;'
+        ' font-weight: 700;'
+        ' letter-spacing: 1px;'
+        ' border: 2px solid #2a5888;'
         ' border-radius: 10px;'
-        ' padding: 4px 12px;'
+        f' padding: {padding_v}px {padding_h}px;'
         ' }'
     )

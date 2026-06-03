@@ -118,6 +118,118 @@ SPLASH_LOG_AREA_STYLESHEET = (
 )
 
 # =============================================================================
+# UPDATE DOWNLOAD DIALOG STYLES
+# =============================================================================
+
+UPDATE_DOWNLOAD_DIALOG_STYLESHEET = (
+    'QDialog {'
+    '  background-color: transparent;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_FRAME_STYLESHEET = (
+    'QFrame#updateDownloadFrame {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '      stop:0 #232f3e, stop:1 #18212c);'
+    '  border: 1px solid #3a4a5c;'
+    '  border-radius: 14px;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_APP_TITLE_STYLESHEET = (
+    'color: #8aa0b8;'
+    'background: transparent;'
+    'letter-spacing: 3px;'
+    'font-weight: 600;'
+)
+
+UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = (
+    'color: #f0f4fa;'
+    'background: transparent;'
+    'letter-spacing: 0.5px;'
+)
+
+UPDATE_DOWNLOAD_VERSION_LABEL_STYLESHEET = (
+    'color: #5fb4f5;'
+    'background: transparent;'
+    'font-weight: 600;'
+)
+
+UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = (
+    'background: rgba(255, 255, 255, 0.07);'
+    'min-height: 1px;'
+    'max-height: 1px;'
+    'border: none;'
+)
+
+UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = (
+    'color: #a0b0c4;'
+    'background: transparent;'
+)
+
+UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = (
+    'QFrame#updateDownloadSizePill {'
+    '  background: rgba(20, 28, 40, 0.65);'
+    '  border: 1px solid #2f3e52;'
+    '  border-radius: 12px;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = (
+    'color: #c8d4e4;'
+    'background: transparent;'
+    'font-family: Consolas, "Courier New", monospace;'
+    'font-weight: 600;'
+)
+
+UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = (
+    'QProgressBar {'
+    '  background-color: #0f1620;'
+    '  border: 1px solid #2a3544;'
+    '  border-radius: 10px;'
+    '  text-align: center;'
+    '  color: #f0f4fa;'
+    '  font-weight: 700;'
+    '  font-size: 11pt;'
+    '  min-height: 26px;'
+    '}'
+    'QProgressBar::chunk {'
+    '  background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+    '      stop:0 #1f6cc8, stop:0.5 #4aa3ee, stop:1 #7fc8ff);'
+    '  border-radius: 8px;'
+    '  margin: 2px;'
+    '}'
+)
+
+UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '      stop:0 #4a2030, stop:1 #2a1018);'
+    '  color: #f0d8dd;'
+    '  border: 1px solid #7a3040;'
+    '  border-radius: 8px;'
+    '  padding: 7px 22px;'
+    '  font-weight: 700;'
+    '  font-size: 10pt;'
+    '  letter-spacing: 0.5px;'
+    '  min-width: 80px;'
+    '}'
+    'QPushButton:hover {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '      stop:0 #6a2838, stop:1 #3a1820);'
+    '  border: 1px solid #b04050;'
+    '  color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '      stop:0 #2a1018, stop:1 #4a2030);'
+    '  border: 1px solid #5a2030;'
+    '  padding-top: 8px;'
+    '  padding-bottom: 6px;'
+    '}'
+)
+
+# =============================================================================
 # LOOKY SYSTEM ACCOUNT CARD STYLES
 # =============================================================================
 
