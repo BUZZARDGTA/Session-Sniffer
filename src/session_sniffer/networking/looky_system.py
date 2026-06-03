@@ -2,7 +2,7 @@
 
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import requests
 from pydantic import TypeAdapter
@@ -46,8 +46,8 @@ class LookyState:
     and read by the GUI to gate Looky-related actions.
     """
 
-    api_access: bool = False
-    user_data: LookyVerifyResponse | None = None
+    api_access: ClassVar[bool] = False
+    user_data: ClassVar[LookyVerifyResponse | None] = None
 
     @classmethod
     def reset(cls) -> None:
