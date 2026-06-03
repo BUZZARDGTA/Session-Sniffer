@@ -322,6 +322,7 @@ class InterfaceSelectionDialog(QDialog):
         remember_interface_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('remember_interface_checkbox', _scale),
         )
+        remember_interface_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         options_layout.addWidget(remember_interface_checkbox)
 
         hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
@@ -331,6 +332,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('hide_inactive_checkbox', _scale),
         )
+        hide_inactive_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
 
@@ -341,6 +343,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('hide_neighbours_checkbox', _scale),
         )
+        hide_neighbours_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         options_layout.addWidget(hide_neighbours_checkbox)
@@ -352,6 +355,7 @@ class InterfaceSelectionDialog(QDialog):
         arp_spoofing_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('arp_spoofing_checkbox', _scale),
         )
+        arp_spoofing_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
         arp_spoofing_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(arp_spoofing_checkbox)
