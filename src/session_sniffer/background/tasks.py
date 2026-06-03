@@ -27,6 +27,7 @@ from session_sniffer.guis.tables_player_actions import (
     show_userip_detected_dialog,
 )
 from session_sniffer.guis.utils import find_main_window
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
@@ -38,6 +39,8 @@ from session_sniffer.utils import find_running_gta5_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = get_logger(__name__)
 
 
 class _DetectionSettings(NamedTuple):
@@ -81,7 +84,10 @@ class _DeduplicatedQueue:
     def put(self, item: str) -> None:
         """Enqueue *item* unless it is already present or the queue is full."""
         with self._lock:
-            if item in self._set or len(self._deque) >= self._maxsize:
+            if item in self._set:
+                return
+            if len(self._deque) >= self._maxsize:
+                logger.debug('Voice queue full (%d items); dropping %s', self._maxsize, item)
                 return
             self._deque.append(item)
             self._set.add(item)
