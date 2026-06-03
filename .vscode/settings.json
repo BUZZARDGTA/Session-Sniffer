@@ -14,10 +14,8 @@
         "**/dist": true,
         "bin": true,
         "COPYING": true,
-        "images": true,
         "resources": true,
-        "Session_Sniffer.exe": true,
-        "TTS": true
+        "Session_Sniffer.exe": true
     },
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,

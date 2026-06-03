@@ -8,10 +8,8 @@ a = Analysis(
     datas=[
         ('..\\..\\pyproject.toml', '.'),
         ('..\\..\\bin', 'bin'),
-        ('..\\..\\images', 'images'),
         ('..\\..\\resources', 'resources'),
         ('..\\..\\scripts', 'scripts'),
-        ('..\\..\\TTS', 'TTS'),
         ('..\\..\\src\\session_sniffer\\webserver\\static', 'session_sniffer\\webserver\\static'),
     ],
     hiddenimports=[],
