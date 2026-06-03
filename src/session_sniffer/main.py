@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 
 import colorama
 from PyQt6.QtCore import QTimer
@@ -31,7 +31,7 @@ from session_sniffer.background import (
     process_userip_task,
     submit_global_protections_check,
 )
-from session_sniffer.capture.arp_spoofing import arp_spoofing_task
+from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info
 from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
@@ -368,24 +368,12 @@ def main() -> None:
     CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     _arp_failed_event = Event()
-    arp_stop_event = Event()
+    arp_controller = ArpSpoofingController(capture_holder, on_failed=_arp_failed_event.set)
     if Settings.capture_arp_spoofing:
-        Thread(
-            target=arp_spoofing_task,
-            name=f'ARPSpoofingTask-{selected_interface.ip_address}',
-            args=(
-                selected_interface,
-                capture_holder,
-                arp_stop_event,
-                _arp_failed_event.set,
-            ),
-            daemon=True,
-        ).start()
+        arp_controller.start(selected_interface)
 
     # Initialize GUI first - now it has all the data it needs
     def _switch_interface() -> None:
-        nonlocal arp_stop_event
-
         # Lock the button immediately to prevent double-clicks
         window.set_change_interface_button_enabled(enabled=False)
 
@@ -410,11 +398,13 @@ def main() -> None:
         )
 
         if new_interface is None:
-            # User cancelled — just re-enable the button, everything else is untouched
             window.set_change_interface_button_enabled(enabled=True)
             return
 
-        # User confirmed a new interface — now stop capture and lock the full UI
+        # Stop ARP spoofing before touching capture state: otherwise the old ARP thread
+        # observes the new capture starting and spawns arpspoof.exe on the OLD interface.
+        arp_controller.stop()
+
         was_running = capture_holder.is_running()
         if was_running:
             capture_holder.stop()
@@ -467,31 +457,32 @@ def main() -> None:
         CaptureStats.capture_started_at = time.monotonic()
         capture_holder.set(new_capture)
 
-        # Stop old ARP spoofing thread and start a new one if needed
-        arp_stop_event.set()
-        arp_stop_event = Event()
         if Settings.capture_arp_spoofing:
-            Thread(
-                target=arp_spoofing_task,
-                name=f'ARPSpoofingTask-{new_interface.ip_address}',
-                args=(new_interface, capture_holder, arp_stop_event, _arp_failed_event.set),
-                daemon=True,
-            ).start()
+            arp_controller.start(new_interface)
 
         window.on_interface_switched()
         window.set_interface_switching_mode(switching=False)
 
     window = MainWindow(screen_size, capture_holder, on_change_interface=_switch_interface)
 
+    # Re-entry guard: adapter-lost and ARP-failed pollers can both fire while the interface
+    # dialog is already open; non-blocking acquire skips the second caller cleanly.
+    _capture_lost_lock = Lock()
+
     def _handle_capture_lost(*, stop_capture: bool, warning_message: str | None) -> None:
         """Shared handler for any event that requires stopping capture and re-selecting an interface."""
-        if stop_capture:
-            capture_holder.stop()
-        window.on_interface_switched()
-        window.set_capture_toggle_enabled(enabled=False)
-        if warning_message is not None:
-            QMessageBox.warning(window, 'Capture Interrupted', warning_message)
-        _switch_interface()
+        if not _capture_lost_lock.acquire(blocking=False):
+            return
+        try:
+            if stop_capture and capture_holder.is_running():
+                capture_holder.stop()
+            window.on_interface_switched()
+            window.set_capture_toggle_enabled(enabled=False)
+            if warning_message is not None:
+                QMessageBox.warning(window, 'Capture Interrupted', warning_message)
+            _switch_interface()
+        finally:
+            _capture_lost_lock.release()
 
     def _on_adapter_lost_poll() -> None:
         """Poll for unexpected capture exits and re-show the interface selection dialog."""

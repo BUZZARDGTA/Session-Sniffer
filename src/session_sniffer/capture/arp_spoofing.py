@@ -22,6 +22,44 @@ logger = get_logger(__name__)
 ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
 
 
+class ArpSpoofingController:
+    """Owns the lifecycle of a single ARP spoofing thread + arpspoof.exe process.
+
+    There is at most one ARP thread alive at any time. `start()` launches it,
+    `stop()` signals the thread to exit and joins it (which also terminates
+    `arpspoof.exe`). Safe to call `stop()` when nothing is running.
+    """
+
+    def __init__(self, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
+        """Initialize the controller with the capture holder and a failure callback."""
+        self._capture_holder = capture_holder
+        self._on_failed = on_failed
+        self._stop_event = Event()
+        self._thread: Thread | None = None
+
+    def start(self, interface: SelectedInterfaceRow) -> None:
+        """Start ARP spoofing on `interface`. Caller must ensure no thread is currently active."""
+        if self._thread is not None:
+            msg = 'ArpSpoofingController.start() called while a previous thread is still alive'
+            raise RuntimeError(msg)
+        self._stop_event.clear()
+        self._thread = Thread(
+            target=arp_spoofing_task,
+            name=f'ARPSpoofingTask-{interface.ip_address}',
+            args=(interface, self._capture_holder, self._stop_event, self._on_failed),
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Signal the running thread to exit and wait for it (and `arpspoof.exe`) to die."""
+        if self._thread is None:
+            return
+        self._stop_event.set()
+        self._thread.join()
+        self._thread = None
+
+
 def arp_spoofing_task(
     selected_interface: SelectedInterfaceRow,
     capture_holder: CaptureHolder,
