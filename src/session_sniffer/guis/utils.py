@@ -6,7 +6,7 @@ This module provides helper functions to interact with GUI elements.
 
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QByteArray, QPoint, Qt
+from PyQt6.QtCore import QByteArray, QPoint, QRectF, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 
 from .app import app
@@ -387,3 +388,27 @@ def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: i
     source.paint(painter, 0, 0, width, height)
     painter.end()
     return QIcon(pixmap)
+
+
+def render_svg_pixmap_from_resource(filename: str, width: int, height: int) -> QPixmap:
+    """Render an SVG icon from `resources/icons/` to a transparent QPixmap with smooth scaling."""
+    renderer = QSvgRenderer(str(RESOURCES_DIR_PATH / 'icons' / filename))
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(painter, QRectF(0, 0, width, height))
+    painter.end()
+    return pixmap
+
+
+def center_window_on_screen(window: QWidget) -> None:
+    """Center *window* on its current screen (or the primary screen as fallback)."""
+    screen = window.screen() or QApplication.primaryScreen()
+    if screen is None:
+        return
+    geo = screen.availableGeometry()
+    x = geo.x() + (geo.width() - window.width()) // 2
+    y = geo.y() + (geo.height() - window.height()) // 2
+    window.move(x, y)

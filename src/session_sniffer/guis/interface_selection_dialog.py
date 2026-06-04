@@ -9,9 +9,8 @@ from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QItemSelectionModel, QRectF, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QIcon, QPainter, QPixmap
-from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QCursor, QFont, QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -43,7 +42,7 @@ from session_sniffer.guis.stylesheets import (
     interface_select_button_enabled_style,
     interface_table_stylesheet,
 )
-from session_sniffer.guis.utils import compute_ui_scale, make_padded_icon, resize_window_for_screen
+from session_sniffer.guis.utils import compute_ui_scale, make_padded_icon, render_svg_pixmap_from_resource, resize_window_for_screen
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
@@ -52,19 +51,6 @@ if TYPE_CHECKING:
     from PyQt6.QtGui import QKeyEvent
 
 logger = get_logger(__name__)
-
-
-def _render_svg_pixmap(filename: str, width: int, height: int) -> QPixmap:
-    """Render an SVG icon from `resources/icons/` to a transparent QPixmap."""
-    renderer = QSvgRenderer(str(RESOURCES_DIR_PATH / 'icons' / filename))
-    pixmap = QPixmap(width, height)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-    renderer.render(painter, QRectF(0, 0, width, height))
-    painter.end()
-    return pixmap
 
 
 def _calculate_interface_score(
@@ -419,7 +405,7 @@ class InterfaceSelectionDialog(QDialog):
         action_layout = QHBoxLayout()
         action_layout.addSpacing(_s(50))
         info_icon_label = QLabel()
-        info_icon_label.setPixmap(_render_svg_pixmap('info.svg', _s(32), _s(32)))
+        info_icon_label.setPixmap(render_svg_pixmap_from_resource('info.svg', _s(32), _s(32)))
         info_icon_label.setFixedSize(_s(36), _s(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')

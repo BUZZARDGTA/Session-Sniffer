@@ -6,11 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 import requests
-from PyQt6.QtCore import QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
-from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
-    QApplication,
     QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -22,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import CURRENT_VERSION, RESOURCES_DIR_PATH
+from session_sniffer.constants.local import CURRENT_VERSION
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
@@ -43,6 +41,7 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET,
 )
+from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
@@ -418,17 +417,7 @@ class UpdateDownloadDialog(QDialog):
     @staticmethod
     def _svg_label(filename: str, width: int, height: int) -> QLabel:
         """Render an SVG file to a transparent QLabel pixmap, preserving aspect ratio."""
-        renderer = QSvgRenderer(str(RESOURCES_DIR_PATH / 'icons' / filename))
-        pixmap = QPixmap(width, height)
-        pixmap.fill(QColor(0, 0, 0, 0))
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-        # QSvgRenderer.render(painter, target) preserves aspect ratio (xMidYMid meet).
-        renderer.render(painter, QRectF(0, 0, width, height))
-
-        painter.end()
+        pixmap = render_svg_pixmap_from_resource(filename, width, height)
 
         label = QLabel()
         label.setPixmap(pixmap)
@@ -439,12 +428,7 @@ class UpdateDownloadDialog(QDialog):
 
     def _center_on_screen(self) -> None:
         """Center the dialog on its screen."""
-        screen = self.screen() or QApplication.primaryScreen()
-        if screen is not None:
-            geo = screen.availableGeometry()
-            x = geo.x() + (geo.width() - self.width()) // 2
-            y = geo.y() + (geo.height() - self.height()) // 2
-            self.move(x, y)
+        center_window_on_screen(self)
 
     @override
     def mousePressEvent(self, a0: QMouseEvent | None) -> None:

@@ -16,7 +16,7 @@ from session_sniffer.guis.stylesheets import (
     SPLASH_SUBTITLE_READY_STYLESHEET,
     SPLASH_TITLE_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SPINNER_FRAMES
+from session_sniffer.guis.utils import SPINNER_FRAMES, center_window_on_screen
 
 _P = ParamSpec('_P')
 _T = TypeVar('_T')
@@ -78,12 +78,7 @@ class SplashScreen(QWidget):
 
     def _center_on_screen(self) -> None:
         """Center the splash window on the primary screen."""
-        screen = self.screen()
-        if screen is not None:
-            geo = screen.availableGeometry()
-            x = geo.x() + (geo.width() - self.width()) // 2
-            y = geo.y() + (geo.height() - self.height()) // 2
-            self.move(x, y)
+        center_window_on_screen(self)
 
     @staticmethod
     def _build_line_html(icon: str, icon_color: str, text: str) -> str:
