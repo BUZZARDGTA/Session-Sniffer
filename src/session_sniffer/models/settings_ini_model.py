@@ -93,6 +93,7 @@ class SettingsIniModel(BaseModel):
     GUI_COLUMNS_DATETIME_SHOW_DATE: bool
     GUI_COLUMNS_DATETIME_SHOW_TIME: bool
     GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME: bool
+    GUI_COLUMNS_TIMEZONE_DISPLAY: str
     GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2: bool
     GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2: bool
     GUI_CONNECTED_TABLE_ROWS_PER_PAGE: int
@@ -669,6 +670,23 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, ('Desktop', 'Mobile'))
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
+    @field_validator('GUI_COLUMNS_TIMEZONE_DISPLAY', mode='before')
+    @classmethod
+    def _parse_timezone_display(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(
+                    value, ('Timezone', 'Timezone + Local Time', 'Local Time'),
+                )
             except NoMatchFoundError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return cast('str', cls._get_default_for_field(info))

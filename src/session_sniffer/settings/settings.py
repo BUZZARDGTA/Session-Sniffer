@@ -68,6 +68,7 @@ class Settings:
     gui_columns_datetime_show_date: bool = SETTING_DEFAULTS['gui_columns_datetime_show_date']
     gui_columns_datetime_show_time: bool = SETTING_DEFAULTS['gui_columns_datetime_show_time']
     gui_columns_datetime_show_elapsed_time: bool = SETTING_DEFAULTS['gui_columns_datetime_show_elapsed_time']
+    gui_columns_timezone_display: str = SETTING_DEFAULTS['gui_columns_timezone_display']
     gui_columns_geo_country_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_country_append_alpha2']
     gui_columns_geo_continent_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_continent_append_alpha2']
     gui_connected_table_rows_per_page: int = SETTING_DEFAULTS['gui_connected_table_rows_per_page']
@@ -128,6 +129,7 @@ class Settings:
         'GUI_COLUMNS_DATETIME_SHOW_DATE',
         'GUI_COLUMNS_DATETIME_SHOW_TIME',
         'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
+        'GUI_COLUMNS_TIMEZONE_DISPLAY',
         'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
         'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
         'GUI_CONNECTED_TABLE_ROWS_PER_PAGE',

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PyQt6.QtGui import QColor
 from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
@@ -88,6 +89,22 @@ def _format_player_gui_datetime(datetime_object: datetime) -> str:
         formatted_datetime += f' ({formatted_elapsed})'
 
     return formatted_datetime
+
+
+def _format_player_time_zone(time_zone_value: object) -> str:
+    """Format the Time Zone cell according to the configured display mode."""
+    tz_text = str(time_zone_value)
+    mode = Settings.gui_columns_timezone_display
+    if mode == 'Timezone' or tz_text in {'', '...'}:
+        return tz_text
+    try:
+        tz = ZoneInfo(tz_text)
+    except (ZoneInfoNotFoundError, ValueError):
+        return tz_text
+    local_time = datetime.now(tz=tz).strftime('%H:%M')
+    if mode == 'Local Time':
+        return local_time
+    return f'{tz_text} · {local_time}'
 
 
 def _get_rate_gradient_color(default_color: QColor, rate: int, threshold: int, *, is_first_calculation: bool = False) -> QColor:
@@ -248,7 +265,7 @@ def build_session_table_snapshot(
         if 'Lon' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in connected_shown_columns:
-            connected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+            connected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
         if 'Offset' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in connected_shown_columns:
@@ -355,7 +372,7 @@ def build_session_table_snapshot(
         if 'Lon' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in disconnected_shown_columns:
-            disconnected_row_texts.append(f'{player.iplookup.ipapi.time_zone}')
+            disconnected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
         if 'Offset' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in disconnected_shown_columns:

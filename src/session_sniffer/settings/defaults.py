@@ -353,6 +353,21 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Display elapsed time in datetime columns.',
     ),
+    'gui_columns_timezone_display': SettingMeta(
+        category='Columns',
+        group='Datetime',
+        display_label='Timezone Column Display',
+        setting_type=SettingType.ENUM,
+        tooltip=(
+            "Controls what is shown in the Time Zone column. 'Timezone' shows only the timezone name, "
+            "'Timezone + Local Time' appends the player's current local time, 'Local Time' shows only the local time."
+        ),
+        allowed_values=(
+            'Timezone',
+            'Timezone + Local Time',
+            'Local Time',
+        ),
+    ),
     'gui_columns_geo_country_append_alpha2': SettingMeta(
         category='Columns',
         group='Geo',
@@ -649,6 +664,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_columns_datetime_show_date': False,
     'gui_columns_datetime_show_time': False,
     'gui_columns_datetime_show_elapsed_time': True,
+    'gui_columns_timezone_display': 'Timezone',
     'gui_columns_geo_country_append_alpha2': True,
     'gui_columns_geo_continent_append_alpha2': True,
     'gui_connected_table_rows_per_page': 0,
