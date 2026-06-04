@@ -7,7 +7,7 @@ import winsound
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
-from ipaddress import IPv4Address, IPv4Network
+from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Event, Lock, Thread
 from threading import enumerate as enumerate_threads
@@ -562,16 +562,12 @@ def process_userip_task(
 
 
 _GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
-_GTAV_TAKETWO_INTERACTIVE_NETWORKS: tuple[IPv4Network, ...] = tuple(
-    IPv4Network(cidr, strict=False)
-    for cidr in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.ip_ranges
-)
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
     """Return True if *ip* belongs to the GTAV Take-Two relay IP ranges."""
     addr = IPv4Address(ip)
-    return any(addr in network for network in _GTAV_TAKETWO_INTERACTIVE_NETWORKS)
+    return any(addr in network for network in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.ip_networks)
 
 
 def monitor_gta5_relay_task(player: Player) -> None:

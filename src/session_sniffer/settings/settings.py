@@ -445,7 +445,7 @@ class Settings:
                     toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
                     webhook_all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
                     webhook_all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
-                    all_third_party_servers=cls.ALL_THIRD_PARTY_SERVERS,
+                    all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
                     max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
                     min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
                 ),

@@ -3,13 +3,12 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from heapq import nsmallest
-from ipaddress import IPv4Address, IPv4Network
 from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.constants.external import LOCAL_TZ
-from session_sniffer.constants.third_party_servers import ThirdPartyServers
+from session_sniffer.constants.third_party_servers import is_third_party_server_ip
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
 
@@ -26,17 +25,6 @@ SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS = 200
 SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS = 600
 SESSION_HOST_SEARCH_TIMEOUT_SECONDS = 30
 SESSION_HOST_STARTUP_WINDOW_SECONDS = 1.0
-
-_ALL_THIRD_PARTY_NETWORKS: tuple[IPv4Network, ...] = tuple(
-    IPv4Network(cidr, strict=False)
-    for server in ThirdPartyServers
-    for cidr in server.ip_ranges
-)
-
-
-def is_third_party_server_ip(ip: str) -> bool:
-    """Return True if `ip` matches any known third-party server CIDR range."""
-    return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_NETWORKS)
 
 
 @dataclass(slots=True)

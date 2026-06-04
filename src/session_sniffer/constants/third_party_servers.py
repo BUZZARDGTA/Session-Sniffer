@@ -1,10 +1,30 @@
 """Third-party server IP ranges for traffic filtering."""
 
 import enum
+import ipaddress
+from functools import cached_property
+from ipaddress import IPv4Address
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+type CidrRange = str
+type IpNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
 class ThirdPartyServers(enum.Enum):
     """Define IP ranges to treat as third-party server traffic."""
+
+    def __new__(cls, display_name: str, ip_ranges: tuple[CidrRange, ...]) -> Self:
+        """Create an enum member with a display label and CIDR ranges."""
+        member = object.__new__(cls)
+        member._value_ = ip_ranges
+        member.display_name = display_name
+        return member
+
+    display_name: str
+    value: tuple[CidrRange, ...]
 
     PC_DISCORD = 'Discord', (
         '66.22.196.0/22', '66.22.200.0/21', '66.22.208.0/20', '66.22.224.0/20', '66.22.240.0/21', '66.22.248.0/24',
@@ -32,16 +52,44 @@ class ThirdPartyServers(enum.Enum):
     GTAV_XBOXONE_MICROSOFT = 'Microsoft (GTA V Xbox One)', ('40.74.0.0/18', '52.159.128.0/17', '52.160.0.0/16')
     MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT = 'Microsoft (Minecraft Bedrock)', ('168.61.142.128/25', '168.61.143.0/24', '168.61.144.0/20', '168.61.160.0/19')
 
-    def __init__(self, display_name: str, ip_ranges: tuple[str, ...]) -> None:
-        """Store the user-facing server label and CIDR ranges for this member."""
-        self.display_name = display_name
-        self.ip_ranges = ip_ranges
+    @property
+    def ip_ranges(self) -> tuple[CidrRange, ...]:
+        """Return this server group's CIDR ranges as strings."""
+        return self.value
+
+    @cached_property
+    def ip_networks(self) -> tuple[IpNetwork, ...]:
+        """Return this server group's CIDR ranges as parsed ipaddress networks."""
+        return tuple(
+            ipaddress.ip_network(ip_range)
+            for ip_range in self.ip_ranges
+        )
 
     @classmethod
-    def get_ip_ranges_for(cls, server_names: tuple[str, ...]) -> list[str]:
-        """Return a flat list of IP ranges for the specified server names only."""
+    def get_ip_ranges_for(cls, server_names: Iterable[str]) -> list[CidrRange]:
+        """Return a flat list of CIDR range strings for the specified server names."""
         names_set = set(server_names)
-        return [ip_range for server in cls if server.name in names_set for ip_range in server.ip_ranges]
+        return [
+            ip_range
+            for server in cls
+            if server.name in names_set
+            for ip_range in server.ip_ranges
+        ]
 
 
-ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(member.name for member in ThirdPartyServers)
+ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(
+    server.name
+    for server in ThirdPartyServers
+)
+
+
+_ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
+    network
+    for server in ThirdPartyServers
+    for network in server.ip_networks
+)
+
+
+def is_third_party_server_ip(ip: str) -> bool:
+    """Return True if `ip` matches any known third-party server CIDR range."""
+    return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_SERVER_NETWORKS)

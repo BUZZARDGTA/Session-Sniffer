@@ -16,6 +16,7 @@ from session_sniffer.background.tasks import gui_closed__event, handle_detection
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
+from session_sniffer.constants.third_party_servers import is_third_party_server_ip
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
@@ -30,7 +31,6 @@ from session_sniffer.player.registry import (
     SESSION_HOST_STARTUP_WINDOW_SECONDS,
     PlayersRegistry,
     SessionHost,
-    is_third_party_server_ip,
 )
 from session_sniffer.player.userip import UserIPDatabases, UserIPSettings
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
