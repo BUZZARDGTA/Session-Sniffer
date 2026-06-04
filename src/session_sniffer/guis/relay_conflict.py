@@ -14,7 +14,7 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
     """Ask to disable GTA5 relay protection when the Take-Two relay IPs are filtered."""
     if not (
         Settings.is_gta5_preset()
-        and 'GTAV_TAKETWO' in Settings.capture_block_third_party_servers
+        and 'GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers
         and GUIProtectionSettings.gta5_relay_enabled
     ):
         return False

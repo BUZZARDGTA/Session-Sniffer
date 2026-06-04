@@ -562,16 +562,16 @@ def process_userip_task(
 
 
 _GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
-_GTAV_TAKETWO_NETWORKS: tuple[IPv4Network, ...] = tuple(
+_GTAV_TAKETWO_INTERACTIVE_NETWORKS: tuple[IPv4Network, ...] = tuple(
     IPv4Network(cidr, strict=False)
-    for cidr in ThirdPartyServers.GTAV_TAKETWO.value
+    for cidr in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.value
 )
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
     """Return True if *ip* belongs to the GTAV Take-Two relay IP ranges."""
     addr = IPv4Address(ip)
-    return any(addr in network for network in _GTAV_TAKETWO_NETWORKS)
+    return any(addr in network for network in _GTAV_TAKETWO_INTERACTIVE_NETWORKS)
 
 
 def monitor_gta5_relay_task(player: Player) -> None:

@@ -194,7 +194,7 @@ class DetectionsManagerTabsMixin(QDialog):
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
 
-        # Warning banner: shown when GTAV_TAKETWO ranges are in the capture block list,
+        # Warning banner: shown when GTAV_TAKETWO_INTERACTIVE ranges are in the capture block list,
         # which prevents relay IPs from ever reaching the capture engine.
         filter_warning = QWidget()
         filter_warning.setStyleSheet(RELAY_FILTER_WARNING_STYLESHEET)
@@ -215,12 +215,12 @@ class DetectionsManagerTabsMixin(QDialog):
         warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
         fix_button = QPushButton('Fix It')
-        fix_button.setToolTip("Remove 'Take-Two (GTA V)' from the blocked servers list and save the setting")
+        fix_button.setToolTip("Remove 'Take-Two Interactive (GTA V)' from the blocked servers list and save the setting")
         fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        fix_button.clicked.connect(self._remove_gtav_taketwo_from_blocked_servers)
+        fix_button.clicked.connect(self._remove_gtav_taketwo_interactive_from_blocked_servers)
         filter_warning_layout.addWidget(fix_button)
         self._relay_filter_warning = filter_warning
-        filter_warning.setVisible('GTAV_TAKETWO' in Settings.capture_block_third_party_servers)
+        filter_warning.setVisible('GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
         layout.addWidget(filter_warning)
 
         desc = QLabel(
@@ -339,7 +339,7 @@ class DetectionsManagerTabsMixin(QDialog):
         """Warn the user when enabling relay detection while relay IPs are still being filtered."""
         if text == 'Disabled':
             return
-        if 'GTAV_TAKETWO' not in Settings.capture_block_third_party_servers:
+        if 'GTAV_TAKETWO_INTERACTIVE' not in Settings.capture_block_third_party_servers:
             return
         result = QMessageBox.question(
             self,
@@ -348,24 +348,24 @@ class DetectionsManagerTabsMixin(QDialog):
             '(<i>Block Third-Party Servers</i> setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
             'so this protection will never trigger while that filter is active.\n\n'
-            "Would you like to automatically remove 'Take-Two (GTA V)' from the blocked servers list?",
+            "Would you like to automatically remove 'Take-Two Interactive (GTA V)' from the blocked servers list?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if result == QMessageBox.StandardButton.Yes:
-            self._remove_gtav_taketwo_from_blocked_servers()
+            self._remove_gtav_taketwo_interactive_from_blocked_servers()
 
-    def _remove_gtav_taketwo_from_blocked_servers(self) -> None:
-        """Remove GTAV_TAKETWO from the blocked third-party servers list and persist the setting."""
+    def _remove_gtav_taketwo_interactive_from_blocked_servers(self) -> None:
+        """Remove GTAV_TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
         Settings.capture_block_third_party_servers = tuple(
-            s for s in Settings.capture_block_third_party_servers if s != 'GTAV_TAKETWO'
+            s for s in Settings.capture_block_third_party_servers if s != 'GTAV_TAKETWO_INTERACTIVE'
         )
         Settings.rewrite_settings_file()
         self._relay_filter_warning.setVisible(False)
         QMessageBox.information(
             self,
             TITLE,
-            "'Take-Two (GTA V)' has been removed from the blocked servers list and the setting has been saved.\n\n"
+            "'Take-Two Interactive (GTA V)' has been removed from the blocked servers list and the setting has been saved.\n\n"
             'Please restart the capture for the change to take effect.',
         )
 
