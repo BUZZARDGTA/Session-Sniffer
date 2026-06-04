@@ -304,9 +304,7 @@ class UpdateDownloadDialog(QDialog):
     def _is_generated_build_metadata(path: Path) -> bool:
         """Return whether a path is generated Python packaging/cache metadata."""
         return any(
-            part == '__pycache__'
-            or part.endswith('.egg-info')
-            or part.endswith('.dist-info')
+            part == '__pycache__' or part.endswith(('.egg-info', '.dist-info'))
             for part in path.parts
         )
 

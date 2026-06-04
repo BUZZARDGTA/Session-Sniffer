@@ -524,7 +524,7 @@ class InterfaceSelectionDialog(QDialog):
             # regular whitespace.
             total_width = len(f'{total:,}')
             counters = f'{completed:,}'.rjust(total_width).replace(' ', '\u00a0')
-            ip_text = (last_ip if last_ip else '').ljust(15).replace(' ', '\u00a0')
+            ip_text = (last_ip or '').ljust(15).replace(' ', '\u00a0')
             sub_text = f'{ip_text}\u00a0\u00a0\u00a0({counters} / {total:,})'
 
         button.setText('')
