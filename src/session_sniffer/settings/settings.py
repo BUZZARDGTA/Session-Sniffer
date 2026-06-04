@@ -16,11 +16,11 @@ from session_sniffer.constants.standalone import (
     SESSION_TRACKING_COLUMNS,
     TITLE,
 )
-from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.settings_ini_model import SettingsIniModel, SettingsValidationConfig
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
+from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.text_utils import format_triple_quoted_text

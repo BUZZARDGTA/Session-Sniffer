@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
-from session_sniffer.constants.third_party_servers import is_third_party_server_ip
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
@@ -44,6 +43,7 @@ from session_sniffer.guis.tables_userip_mixin import (
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.looky_system import LookyState
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState

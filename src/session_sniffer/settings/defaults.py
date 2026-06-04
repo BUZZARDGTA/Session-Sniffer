@@ -19,7 +19,7 @@ from session_sniffer.constants.standalone import (
     WEBSERVER_DEFAULT_HOST,
     WEBSERVER_DEFAULT_PORT,
 )
-from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES, ThirdPartyServers
+from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES, ThirdPartyServers
 
 
 class SettingType(Enum):

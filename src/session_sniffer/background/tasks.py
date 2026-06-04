@@ -17,7 +17,6 @@ from session_sniffer import msgbox
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
-from session_sniffer.constants.third_party_servers import ThirdPartyServers
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.tables_player_actions import (
@@ -30,6 +29,7 @@ from session_sniffer.guis.tables_player_actions import (
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
+from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.protections import GUIProtectionSettings
 from session_sniffer.player.registry import PlayersRegistry

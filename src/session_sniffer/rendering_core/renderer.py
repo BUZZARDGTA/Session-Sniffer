@@ -16,13 +16,13 @@ from session_sniffer.background.tasks import gui_closed__event, handle_detection
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
-from session_sniffer.constants.third_party_servers import is_third_party_server_ip
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import (
     MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
     MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,

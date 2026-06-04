@@ -15,7 +15,7 @@ from session_sniffer.constants.standalone import (
     SSDPP_PORT,
     UAUDP_PORT,
 )
-from session_sniffer.constants.third_party_servers import ThirdPartyServers
+from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:

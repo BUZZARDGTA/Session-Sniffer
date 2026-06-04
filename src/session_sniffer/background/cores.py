@@ -11,7 +11,6 @@ import requests
 from pydantic import ValidationError
 
 from session_sniffer.background.tasks import gui_closed__event
-from session_sniffer.constants.third_party_servers import is_third_party_server_ip
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
 from session_sniffer.logging_setup import get_logger
@@ -23,6 +22,7 @@ from session_sniffer.networking.looky_system import LookyState, extract_rate_lim
 from session_sniffer.networking.looky_system import lookup_ip_batch as looky_lookup_ip_batch
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
 
