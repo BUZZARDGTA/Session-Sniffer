@@ -42,12 +42,6 @@ def format_mac_address(mac_address: str, /, separator: str = ':') -> str:
     return separator.join(sanitized_mac[i:i + 2] for i in range(0, len(sanitized_mac), 2))
 
 
-def get_mac_oui(mac_address: str, /, separator: str = '') -> str:
-    """Extract the OUI (first three hexadecimal pairs) from a MAC address and formats it with the specified separator."""
-    sanitized_mac = sanitize_mac_address(mac_address)
-    return separator.join(sanitized_mac[i:i + 2] for i in range(0, 6, 2))
-
-
 def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> bool:
     """Check if the given IPv4 address is valid.
 
