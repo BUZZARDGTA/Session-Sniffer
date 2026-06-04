@@ -405,7 +405,6 @@ def handle_detection_notification(
 
             # Message box popup
             if msgbox_setting:
-                _p = player
                 _info = PlayerDetectionInfo(
                     emoji=config['emoji'],
                     title=config['title'],
@@ -415,7 +414,7 @@ def handle_detection_notification(
                 )
 
                 def _show_detection_dialog() -> None:
-                    show_player_detection_dialog(find_main_window(), _p, _info)
+                    show_player_detection_dialog(find_main_window(), player, _info)
 
                 gui_dispatcher.invoke(_show_detection_dialog)
 
@@ -553,10 +552,8 @@ def process_userip_task(
         if player.userip.settings.notifications:
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
-            _p = player
-
             def _show_userip_dialog() -> None:
-                show_userip_detected_dialog(find_main_window(), _p)
+                show_userip_detected_dialog(find_main_window(), player)
 
             gui_dispatcher.invoke(_show_userip_dialog)
 
