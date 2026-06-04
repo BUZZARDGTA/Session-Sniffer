@@ -671,7 +671,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_disconnected_table_rows_per_page': 0,
     'gui_disconnected_players_timer': 10,
     'discord_presence': True,
-    'discord_presence_title': "Sniffin' my babies IPs",
+    'discord_presence_title': 'Sniffing session traffic',
     'show_discord_popup': True,
     'discord_webhook_enabled': False,
     'discord_webhook_url': None,
