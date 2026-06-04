@@ -564,7 +564,7 @@ def process_userip_task(
 _GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
 _GTAV_TAKETWO_INTERACTIVE_NETWORKS: tuple[IPv4Network, ...] = tuple(
     IPv4Network(cidr, strict=False)
-    for cidr in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.value
+    for cidr in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.ip_ranges
 )
 
 

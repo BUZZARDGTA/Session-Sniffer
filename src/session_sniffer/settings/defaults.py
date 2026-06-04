@@ -19,7 +19,7 @@ from session_sniffer.constants.standalone import (
     WEBSERVER_DEFAULT_HOST,
     WEBSERVER_DEFAULT_PORT,
 )
-from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES, THIRD_PARTY_SERVER_DISPLAY_NAMES
+from session_sniffer.constants.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES, ThirdPartyServers
 
 
 class SettingType(Enum):
@@ -166,7 +166,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Select which third-party server IP ranges to exclude from capture.',
         requires_capture_restart=True,
         allowed_columns_attr='ALL_THIRD_PARTY_SERVERS',
-        display_labels=THIRD_PARTY_SERVER_DISPLAY_NAMES,
+        display_labels={server.name: server.display_name for server in ThirdPartyServers},
     ),
     'capture_blocked_ips': SettingMeta(
         category='Capture',

@@ -30,7 +30,7 @@ SESSION_HOST_STARTUP_WINDOW_SECONDS = 1.0
 _ALL_THIRD_PARTY_NETWORKS: tuple[IPv4Network, ...] = tuple(
     IPv4Network(cidr, strict=False)
     for server in ThirdPartyServers
-    for cidr in server.value
+    for cidr in server.ip_ranges
 )
 
 

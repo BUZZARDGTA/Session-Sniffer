@@ -6,60 +6,42 @@ import enum
 class ThirdPartyServers(enum.Enum):
     """Define IP ranges to treat as third-party server traffic."""
 
-    PC_DISCORD = (
+    PC_DISCORD = 'Discord', (
         '66.22.196.0/22', '66.22.200.0/21', '66.22.208.0/20', '66.22.224.0/20', '66.22.240.0/21', '66.22.248.0/24',
         '104.29.128.0/18', '34.1.224.0/20', '35.214.219.48/28', '35.214.128.0/18',
     )
-    PC_VALVE = ('103.10.124.0/23', '103.28.54.0/23', '146.66.152.0/21', '155.133.224.0/19', '162.254.192.0/21', '185.25.180.0/22', '205.196.6.0/24')  # Valve = Steam
-    PC_GOOGLE = ('34.0.0.0/9', '34.128.0.0/10', '35.184.0.0/13', '35.192.0.0/11', '35.224.0.0/12', '35.240.0.0/13')
-    PC_MULTICAST = ('224.0.0.0/4',)
-    PC_ANDROID_OMETV_OVH = (
+    PC_VALVE = 'Valve (Steam)', ('103.10.124.0/23', '103.28.54.0/23', '146.66.152.0/21', '155.133.224.0/19', '162.254.192.0/21', '185.25.180.0/22', '205.196.6.0/24')
+    PC_GOOGLE = 'Google', ('34.0.0.0/9', '34.128.0.0/10', '35.184.0.0/13', '35.192.0.0/11', '35.224.0.0/12', '35.240.0.0/13')
+    PC_MULTICAST = 'Multicast', ('224.0.0.0/4',)
+    PC_SERVERS_COM = 'Servers.com', ('173.237.26.0/24',)
+    PC_OTHERS = 'Others', ('113.117.15.193/32',)
+    PC_RUSTDESK = 'RustDesk', ('209.250.240.0/20',)
+    PS_SONY_INTERACTIVE = 'Sony Interactive (PS)', ('100.42.96.0/20', '104.142.128.0/17')
+    PS_AMAZON = 'Amazon (PS)', ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
+    MICROSOFT = 'Microsoft', ('20.0.0.0/8', '52.139.128.0/18', '52.132.0.0/14', '52.136.0.0/13', '52.144.0.0/12', '52.160.0.0/11', '52.192.0.0/10')
+    OMETV_OVH = 'OmeTV / OVH', (
         '15.204.0.0/16', '15.235.208.0/20', '37.59.0.0/16', '46.105.0.0/16', '51.68.32.0/20', '51.89.0.0/16', '54.36.0.0/14', '57.128.0.0/14',
         '135.125.0.0/16', '135.148.136.0/23', '135.148.150.0/23', '141.94.0.0/15', '146.59.0.0/16', '148.113.0.0/16', '162.19.0.0/16',
     )
-    PC_OMETV_GOOGLE = ('74.125.0.0/16',)
-    PC_SERVERS_COM = ('173.237.26.0/24',)
-    PC_OTHERS = ('113.117.15.193/32',)
-    MICROSOFT = ('20.0.0.0/8', '52.139.128.0/18', '52.132.0.0/14', '52.136.0.0/13', '52.144.0.0/12', '52.160.0.0/11', '52.192.0.0/10')
-    PC_RUSTDESK = ('209.250.240.0/20',)
-    PS_SONY_INTERACTIVE = ('100.42.96.0/20', '104.142.128.0/17')
-    PS_AMAZON = ('34.192.0.0/10', '44.192.0.0/10', '52.0.0.0/10', '52.64.0.0/12', '52.80.0.0/13', '52.88.0.0/14')
-    GTAV_TAKETWO_INTERACTIVE = ('104.255.104.0/22', '185.56.64.0/22', '192.81.240.0/21')
-    GTAV_PC_UK_MINISTRY_OF_DEFENCE = ('25.0.0.0/8',)
-    GTAV_PC_US_DEPARTMENT_OF_DEFENSE = ('21.0.0.0/8', '22.0.0.0/8', '26.0.0.0/8')
-    GTAV_PC_BATTLEYE = ('51.89.97.102/32', '51.89.99.255/32')
-    GTAV_PS5_TELLAS_GREECE = ('176.58.224.0/22',)
-    GTAV_XBOXONE_MICROSOFT = ('40.74.0.0/18', '52.159.128.0/17', '52.160.0.0/16')
-    MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT = ('168.61.142.128/25', '168.61.143.0/24', '168.61.144.0/20', '168.61.160.0/19')
+    OMETV_GOOGLE = 'OmeTV Google', ('74.125.0.0/16',)
+    GTAV_TAKETWO_INTERACTIVE = 'Take-Two Interactive (GTA V)', ('104.255.104.0/22', '185.56.64.0/22', '192.81.240.0/21')
+    GTAV_PC_UK_MINISTRY_OF_DEFENCE = 'UK Ministry of Defence (GTA V PC)', ('25.0.0.0/8',)
+    GTAV_PC_US_DEPARTMENT_OF_DEFENSE = 'US Department of Defense (GTA V PC)', ('21.0.0.0/8', '22.0.0.0/8', '26.0.0.0/8')
+    GTAV_PC_BATTLEYE = 'BattlEye (GTA V PC)', ('51.89.97.102/32', '51.89.99.255/32')
+    GTAV_PS5_TELLAS_GREECE = 'Tellas Greece (GTA V PS5)', ('176.58.224.0/22',)
+    GTAV_XBOXONE_MICROSOFT = 'Microsoft (GTA V Xbox One)', ('40.74.0.0/18', '52.159.128.0/17', '52.160.0.0/16')
+    MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT = 'Microsoft (Minecraft Bedrock)', ('168.61.142.128/25', '168.61.143.0/24', '168.61.144.0/20', '168.61.160.0/19')
+
+    def __init__(self, display_name: str, ip_ranges: tuple[str, ...]) -> None:
+        """Store the user-facing server label and CIDR ranges for this member."""
+        self.display_name = display_name
+        self.ip_ranges = ip_ranges
 
     @classmethod
     def get_ip_ranges_for(cls, server_names: tuple[str, ...]) -> list[str]:
         """Return a flat list of IP ranges for the specified server names only."""
         names_set = set(server_names)
-        return [ip_range for server in cls if server.name in names_set for ip_range in server.value]
+        return [ip_range for server in cls if server.name in names_set for ip_range in server.ip_ranges]
 
-
-THIRD_PARTY_SERVER_DISPLAY_NAMES: dict[str, str] = {
-    'PC_DISCORD': 'Discord',
-    'PC_VALVE': 'Valve (Steam)',
-    'PC_GOOGLE': 'Google',
-    'PC_MULTICAST': 'Multicast',
-    'PC_ANDROID_OMETV_OVH': 'Android OmeTV / OVH',
-    'PC_OMETV_GOOGLE': 'OmeTV Google',
-    'PC_SERVERS_COM': 'Servers.com',
-    'PC_OTHERS': 'Others',
-    'PC_MICROSOFT': 'Microsoft',
-    'PC_RUSTDESK': 'RustDesk',
-    'PS_SONY_INTERACTIVE': 'Sony Interactive (PS)',
-    'PS_AMAZON': 'Amazon (PS)',
-    'GTAV_TAKETWO_INTERACTIVE': 'Take-Two Interactive (GTA V)',
-    'GTAV_PC_MICROSOFT': 'Microsoft (GTA V PC)',
-    'GTAV_PC_UK_MINISTRY_OF_DEFENCE': 'UK Ministry of Defence (GTA V PC)',
-    'GTAV_PC_US_DEPARTMENT_OF_DEFENSE': 'US Department of Defense (GTA V PC)',
-    'GTAV_PC_BATTLEYE': 'BattlEye (GTA V PC)',
-    'GTAV_PS5_TELLAS_GREECE': 'Tellas Greece (GTA V PS5)',
-    'GTAV_XBOXONE_MICROSOFT': 'Microsoft (GTA V Xbox One)',
-    'MINECRAFTBEDROCKEDITION_PC_PS4_MICROSOFT': 'Microsoft (Minecraft Bedrock)',
-}
 
 ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(member.name for member in ThirdPartyServers)
