@@ -37,6 +37,7 @@ from session_sniffer.guis.stylesheets import (
     interface_checkbox_stylesheet,
     interface_header_label_stylesheet,
     interface_instruction_label_stylesheet,
+    interface_refresh_arp_button_disabled_style,
     interface_refresh_arp_button_enabled_style,
     interface_select_button_disabled_style,
     interface_select_button_enabled_style,
@@ -451,7 +452,6 @@ class InterfaceSelectionDialog(QDialog):
         # Connect selection change signal to enable/disable Select button
         selection_model = self.table.selectionModel()
         selection_model.selectionChanged.connect(self.update_select_button_state)
-        selection_model.selectionChanged.connect(self.enforce_spoofing_constraints)
 
         # Connect double-click signal to select interface (simulates Start button)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
@@ -480,6 +480,7 @@ class InterfaceSelectionDialog(QDialog):
         """GUI-thread tick: render current ARP-refresh progress on the button."""
         button = self._controls.refresh_arp_button
         completed, total = self._arp_refresh_progress
+        hide_neighbours = self._controls.hide_neighbours_checkbox.isChecked()
 
         # Always animate the dot trail so the button feels alive even after
         # the determinate fill takes over. Pad to a fixed width so the label
@@ -525,7 +526,7 @@ class InterfaceSelectionDialog(QDialog):
             f'<div style="{main_style}">{main_text}</div>'
             f'<div style="{sub_style}">{sub_text}</div>',
         )
-        button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction))
+        button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction, dimmed=hide_neighbours))
 
     def _on_refresh_arp_clicked(self) -> None:
         """Ping the local subnet via ICMP to repopulate the ARP neighbour cache.
@@ -584,10 +585,9 @@ class InterfaceSelectionDialog(QDialog):
         button = self._controls.refresh_arp_button
         self._refresh_arp_overlay.hide()
         self._refresh_arp_overlay.clear()
-        button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
-        button.setEnabled(True)
         button.setIcon(self._refresh_arp_icon)
+        self.enforce_spoofing_constraints()
         self._live_refresh_interfaces()
 
     def _live_refresh_interfaces(self) -> None:
@@ -805,11 +805,7 @@ class InterfaceSelectionDialog(QDialog):
     def _on_arp_spoofing_changed(self) -> None:
         """Mutual-exclusion handler: checking ARP Spoofing automatically unchecks Hide Neighbours."""
         if self._controls.arp_spoofing_checkbox.isChecked():
-            # Block signals to prevent hide_neighbours.stateChanged from triggering apply_filters
-            # before enforce_spoofing_constraints has a chance to run with the correct state.
-            self._controls.hide_neighbours_checkbox.blockSignals(True)  # noqa: FBT003
             self._controls.hide_neighbours_checkbox.setChecked(False)
-            self._controls.hide_neighbours_checkbox.blockSignals(False)  # noqa: FBT003
         self.enforce_spoofing_constraints()
 
     def enforce_spoofing_constraints(self) -> None:
@@ -818,11 +814,15 @@ class InterfaceSelectionDialog(QDialog):
         # If neighbours are hidden -> uncheck spoofing (mutual exclusion; neither checkbox is disabled)
         if hide_neighbours:
             self._controls.arp_spoofing_checkbox.setChecked(False)
-        # Refresh ARP is only useful when neighbours are visible
-        arp_enabled = not hide_neighbours
-        self._controls.refresh_arp_button.setEnabled(arp_enabled)
-        self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
-        self._controls.refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
+        # While a refresh is running the tick manages button appearance; only update it when idle.
+        if not self._arp_refresh_in_progress:
+            arp_enabled = not hide_neighbours
+            self._controls.refresh_arp_button.setEnabled(arp_enabled)
+            self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
+            self._controls.refresh_arp_button.setStyleSheet(
+                interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled
+                else interface_refresh_arp_button_disabled_style(self._ui_scale),
+            )
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
         """Handle double-click on table cell - simulates clicking the Start button."""

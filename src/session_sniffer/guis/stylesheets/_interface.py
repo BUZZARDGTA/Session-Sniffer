@@ -165,18 +165,43 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
     )
 
 
-def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float) -> str:
-    """Build a QSS that renders a horizontal blue gradient progress fill inside the Refresh ARP button.
+def interface_refresh_arp_button_disabled_style(scale: float) -> str:
+    """Return the QSS for the Refresh ARP button in its disabled (greyed-out) state at the given UI `scale`."""
+    font_size = max(1, round(16 * scale))
+    padding_v = max(1, round(6 * scale))
+    padding_h = max(1, round(14 * scale))
+    return (
+        'QPushButton {'
+        f' font-size: {font_size}pt;'
+        ' background-color: #555555;'
+        ' color: #aaaaaa;'
+        ' border: 2px solid #3a3a3a;'
+        ' border-radius: 10px;'
+        f' padding: {padding_v}px {padding_h}px;'
+        '}'
+    )
+
+
+def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float, *, dimmed: bool = False) -> str:
+    """Build a QSS that renders a horizontal gradient progress fill inside the Refresh ARP button.
 
     Designed to match the dialog's deep-blue palette (Start button `#175BB0`,
     button base `#21334C`). The fill animates a bright accent gradient over a
     darker track to read clearly against the dialog's bottom container.
+    When `dimmed` is True, grey colors are used to signal the button will be disabled on completion.
     """
-    _fill_left = '#1e5a9c'
-    _fill_mid = '#3d7fc4'
-    _fill_right = '#5599dd'
-    _track_dark = '#0f1a28'
-    _track_light = '#1a2738'
+    if dimmed:
+        _fill_left = '#4a4a4a'
+        _fill_mid = '#666666'
+        _fill_right = '#7a7a7a'
+        _track_dark = '#1e1e1e'
+        _track_light = '#2e2e2e'
+    else:
+        _fill_left = '#1e5a9c'
+        _fill_mid = '#3d7fc4'
+        _fill_right = '#5599dd'
+        _track_dark = '#0f1a28'
+        _track_light = '#1a2738'
     clamped = max(0.0, min(1.0, fraction))
     next_stop = min(1.0, clamped + 0.0001)
     font_size = max(1, round(14 * ui_scale))
