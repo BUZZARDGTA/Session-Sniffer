@@ -64,6 +64,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         capture_config_group = QGroupBox('Capture Config')
         capture_config_form = QFormLayout(capture_config_group)
         self._lbl_interface = QLabel('—')
+        self._lbl_interface_type = QLabel('—')
         self._lbl_ip = QLabel('—')
         self._lbl_arp = QLabel('—')
         self._lbl_vpn = QLabel('—')
@@ -71,7 +72,8 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_discord = QLabel('—')
         capture_config_form.addRow('Interface:', self._lbl_interface)
         capture_config_form.addRow('IP:', self._lbl_ip)
-        capture_config_form.addRow('ARP:', self._lbl_arp)
+        capture_config_form.addRow('Type:', self._lbl_interface_type)
+        capture_config_form.addRow('ARP Spoofing:', self._lbl_arp)
         capture_config_form.addRow('VPN Mode:', self._lbl_vpn)
         capture_config_form.addRow('Game Preset:', self._lbl_preset)
         capture_config_form.addRow('Discord RPC:', self._lbl_discord)
@@ -293,8 +295,9 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_cpu.setText(f'{CaptureStats.app_cpu_percent:.1f}%')
         self._lbl_ram.setText(f'{int(CaptureStats.app_memory_mb)} MB')
 
-        arp_label = ('Enabled (Spoofing)' if Settings.capture_arp_spoofing else 'Enabled') if CaptureState.is_neighbour_interface else 'Disabled'
+        arp_label = ('Enabled' if Settings.capture_arp_spoofing else 'Disabled') if CaptureState.is_neighbour_interface else 'Disabled'
         self._lbl_interface.setText(CaptureState.interface_name or '—')
+        self._lbl_interface_type.setText(CaptureState.interface_type or '—')
         self._lbl_ip.setText(CaptureState.interface_ip or '—')
         self._lbl_arp.setText(arp_label)
         self._lbl_vpn.setText('Enabled' if CaptureState.vpn_mode_enabled else 'Disabled')
