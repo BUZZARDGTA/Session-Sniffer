@@ -131,7 +131,7 @@ class _RIDPickerDialog(QDialog):
         super().__init__(parent)
         set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumWidth(420)
 
         layout = QVBoxLayout(self)

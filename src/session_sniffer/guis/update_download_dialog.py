@@ -125,7 +125,7 @@ class UpdateDownloadDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
         self.setFixedSize(620, 460)
-        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setStyleSheet(UPDATE_DOWNLOAD_DIALOG_STYLESHEET)
 
         outer = QVBoxLayout(self)

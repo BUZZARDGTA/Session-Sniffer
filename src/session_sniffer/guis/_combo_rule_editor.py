@@ -84,6 +84,7 @@ class CountrySelectionDialog(QDialog):
 
     def __init__(self, parent: QWidget, existing_countries: set[str]) -> None:
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Select Country')
         self.setMinimumWidth(420)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -177,6 +178,7 @@ class ComboRuleEditorDialog(QDialog):
 
     def __init__(self, parent: QWidget, rule: ComboRule | None = None) -> None:
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Edit Combo Rule' if rule else 'New Combo Rule')
         self.setMinimumWidth(600)
         self.setMinimumHeight(500)

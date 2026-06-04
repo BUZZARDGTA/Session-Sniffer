@@ -359,6 +359,7 @@ class RenameUsernameDialog(QDialog):
     def __init__(self, parent: QWidget | None, usernames: list[str], current_username: str) -> None:
         """Build the rename username picker dialog."""
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'Rename Username - {TITLE}')
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
         self.setMinimumSize(320, 400)
@@ -419,6 +420,7 @@ class RemoveUsernameDialog(QDialog):
     def __init__(self, parent: QWidget | None, usernames: list[str], ip_address: str) -> None:
         """Build the remove username picker dialog."""
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'Remove Username - {TITLE}')
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
         self.setMinimumSize(320, 400)
@@ -521,6 +523,7 @@ class IPRangeBuilderDialog(QDialog):
     def __init__(self, parent: QWidget | None, initial_ip: str | None = None, initial_entry: str | None = None) -> None:
         """Build the IP Range Builder dialog."""
         super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'IP Range Builder - {TITLE}')
         self.setMinimumWidth(520)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)

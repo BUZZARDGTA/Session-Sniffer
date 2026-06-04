@@ -196,6 +196,7 @@ class InterfaceSelectionDialog(QDialog):
             filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
         """
         super().__init__()
+        self.setWindowModality(Qt.WindowModality.WindowModal)
 
         hide_inactive_default, hide_neighbours_default, arp_spoofing_default = filter_defaults
 

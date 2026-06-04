@@ -64,8 +64,8 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         capture_config_group = QGroupBox('Capture Config')
         capture_config_form = QFormLayout(capture_config_group)
         self._lbl_interface = QLabel('—')
-        self._lbl_interface_type = QLabel('—')
         self._lbl_ip = QLabel('—')
+        self._lbl_interface_type = QLabel('—')
         self._lbl_arp = QLabel('—')
         self._lbl_vpn = QLabel('—')
         self._lbl_preset = QLabel('—')
@@ -297,8 +297,8 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
 
         arp_label = ('Enabled' if Settings.capture_arp_spoofing else 'Disabled') if CaptureState.is_neighbour_interface else 'Disabled'
         self._lbl_interface.setText(CaptureState.interface_name or '—')
-        self._lbl_interface_type.setText(CaptureState.interface_type or '—')
         self._lbl_ip.setText(CaptureState.interface_ip or '—')
+        self._lbl_interface_type.setText(CaptureState.interface_type or '—')
         self._lbl_arp.setText(arp_label)
         self._lbl_vpn.setText('Enabled' if CaptureState.vpn_mode_enabled else 'Disabled')
         self._lbl_preset.setText(str(Settings.capture_game_preset) if Settings.capture_game_preset else '—')

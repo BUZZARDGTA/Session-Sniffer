@@ -42,8 +42,8 @@ class DiscordIntro(QDialog):
 
         window_title = '🏆 Join our Discord Community! 🤝'
 
-        # Ensure the dialog is modal, blocking interaction with the main window
-        self.setModal(True)
+        # Window-modal so other top-level tool windows remain interactive while the popup is open.
+        self.setWindowModality(Qt.WindowModality.WindowModal)
 
         # Set up the window
         self.setWindowTitle(window_title)
