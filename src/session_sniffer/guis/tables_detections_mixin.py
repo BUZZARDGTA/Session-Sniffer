@@ -54,14 +54,14 @@ def build_detections_menu(
             add_action(
                 menu,
                 f'\u2705 Remove Country ({country_name})',
-                tooltip=f'Remove {country_name} from the country block list.',
+                tooltip=f'Remove {country_name} from the country detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.country_detection_list, country_name, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add Country ({country_name})',
-                tooltip=f'Add {country_name} to the country block list.',
+                tooltip=f'Add {country_name} to the country detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.country_detection_list, country_name, add=True),
             )
 
@@ -72,14 +72,14 @@ def build_detections_menu(
             add_action(
                 menu,
                 f'\u2705 Remove ISP ({isp})',
-                tooltip=f'Remove ISP "{isp}" from the ISP block list.',
+                tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.isp_detection_list, isp, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add ISP ({isp})',
-                tooltip=f'Add ISP "{isp}" to the ISP block list.',
+                tooltip=f'Add ISP "{isp}" to the ISP detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.isp_detection_list, isp, add=True),
             )
 
@@ -91,14 +91,14 @@ def build_detections_menu(
             add_action(
                 menu,
                 f'\u2705 Remove ASN ({asn_value})',
-                tooltip=f'Remove ASN "{asn_value}" from the ASN block list.',
+                tooltip=f'Remove ASN "{asn_value}" from the ASN detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add ASN ({asn_value})',
-                tooltip=f'Add ASN "{asn_value}" to the ASN block list.',
+                tooltip=f'Add ASN "{asn_value}" to the ASN detection list.',
                 handler=lambda: _toggle_protection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=True),
             )
 
@@ -151,8 +151,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_countries)} Country/Countries to Block List',
-            tooltip=f'Add {", ".join(new_countries)} to the country block list.',
+            f'Add {len(new_countries)} Country/Countries to Detection List',
+            tooltip=f'Add {", ".join(new_countries)} to the country detection list.',
             handler=_add_countries,
         )
     if existing_countries:
@@ -164,8 +164,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_countries)} Country/Countries from Block List',
-            tooltip=f'Remove {", ".join(existing_countries)} from the country block list.',
+            f'\u2705 Remove {len(existing_countries)} Country/Countries from Detection List',
+            tooltip=f'Remove {", ".join(existing_countries)} from the country detection list.',
             handler=_remove_countries,
         )
 
@@ -185,8 +185,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_isps)} ISP(s) to Block List',
-            tooltip=f'Add {", ".join(new_isps)} to the ISP block list.',
+            f'Add {len(new_isps)} ISP(s) to Detection List',
+            tooltip=f'Add {", ".join(new_isps)} to the ISP detection list.',
             handler=_add_isps,
         )
     if existing_isps:
@@ -198,8 +198,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_isps)} ISP(s) from Block List',
-            tooltip=f'Remove {", ".join(existing_isps)} from the ISP block list.',
+            f'\u2705 Remove {len(existing_isps)} ISP(s) from Detection List',
+            tooltip=f'Remove {", ".join(existing_isps)} from the ISP detection list.',
             handler=_remove_isps,
         )
 
@@ -217,8 +217,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_asns)} ASN(s) to Block List',
-            tooltip=f'Add {", ".join(new_asns)} to the ASN block list.',
+            f'Add {len(new_asns)} ASN(s) to Detection List',
+            tooltip=f'Add {", ".join(new_asns)} to the ASN detection list.',
             handler=_add_asns,
         )
     if existing_asns:
@@ -230,8 +230,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_asns)} ASN(s) from Block List',
-            tooltip=f'Remove {", ".join(existing_asns)} from the ASN block list.',
+            f'\u2705 Remove {len(existing_asns)} ASN(s) from Detection List',
+            tooltip=f'Remove {", ".join(existing_asns)} from the ASN detection list.',
             handler=_remove_asns,
         )
 

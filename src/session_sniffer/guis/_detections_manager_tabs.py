@@ -163,21 +163,21 @@ class DetectionsManagerTabsMixin(QDialog):
 
         country_group = self._create_detection_group(
             '\U0001f30d Country Detection',
-            'Block or restrict players from specific countries',
+            'Detect players from specific countries.','
             'country',
         )
         scroll_layout.addWidget(country_group)
 
         isp_group = self._create_detection_group(
             '\U0001f310 ISP/Company Detection',
-            'Block specific ISPs or companies by name (e.g., Vodafone, Orange, Cloudflare)',
+            'Detect players from specific ISPs or companies by name (e.g., Vodafone, Orange, Cloudflare).',
             'isp',
         )
         scroll_layout.addWidget(isp_group)
 
         asn_group = self._create_detection_group(
             '\U0001f522 ASN Number Detection',
-            'Block specific ASN numbers (e.g., AS15169, AS13335, or just 15169, 13335)',
+            'Detect players from specific ASN numbers (e.g., AS15169, AS13335, or just 15169, 13335).',
             'asn',
         )
         scroll_layout.addWidget(asn_group)
@@ -206,8 +206,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
             '<b>Relay IPs are currently filtered out of the capture.</b><br>'
-            "The 'Take-Two (GTA V)' IP ranges (<code>104.255.104.0/22</code>, <code>185.56.64.0/22</code>, "
-            '<code>192.81.240.0/21</code>) are listed under <i>Block Third-Party Servers</i> in Settings. '
+            "The 'Take-Two (GTA V)' IP ranges are listed under <i>Block Third-Party Servers</i> in Settings. "
             'These IPs are dropped before the capture engine sees them, so relay detection will never trigger. '
             'Remove that entry from the blocked servers list to enable relay detection.',
         )
