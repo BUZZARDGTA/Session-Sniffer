@@ -163,7 +163,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
         country_group = self._create_detection_group(
             '\U0001f30d Country Detection',
-            'Detect players from specific countries.','
+            'Detect players from specific countries.',
             'country',
         )
         scroll_layout.addWidget(country_group)
