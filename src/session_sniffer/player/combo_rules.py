@@ -119,7 +119,7 @@ def _match_exact_lookup(value: str, *candidates: object) -> bool:
 
 
 def _match_isp_condition(value: str, player: Player) -> bool:
-    """Match ISP condition using the same logic as the existing ISP blocklist."""
+    """Match ISP condition using the same logic as the existing ISP detection."""
     value_upper = value.upper().strip()
 
     if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A'):

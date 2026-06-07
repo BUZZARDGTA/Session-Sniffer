@@ -161,22 +161,22 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
 
-        country_group = self._create_blocklist_group(
-            '\U0001f30d Country Blocklist',
+        country_group = self._create_detection_group(
+            '\U0001f30d Country Detection',
             'Block or restrict players from specific countries',
             'country',
         )
         scroll_layout.addWidget(country_group)
 
-        isp_group = self._create_blocklist_group(
-            '\U0001f310 ISP/Company Blocklist',
+        isp_group = self._create_detection_group(
+            '\U0001f310 ISP/Company Detection',
             'Block specific ISPs or companies by name (e.g., Vodafone, Orange, Cloudflare)',
             'isp',
         )
         scroll_layout.addWidget(isp_group)
 
-        asn_group = self._create_blocklist_group(
-            '\U0001f522 ASN Number Blocklist',
+        asn_group = self._create_detection_group(
+            '\U0001f522 ASN Number Detection',
             'Block specific ASN numbers (e.g., AS15169, AS13335, or just 15169, 13335)',
             'asn',
         )
@@ -535,8 +535,8 @@ class DetectionsManagerTabsMixin(QDialog):
         group.setLayout(group_layout)
         return group
 
-    def _create_blocklist_group(self, title: str, description: str, blocklist_type: str) -> QGroupBox:
-        """Create a blocklist group with enable, list, action, process path, and notification settings."""
+    def _create_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
+        """Create a detection group with enable, list, action, process path, and notification settings."""
         group = QGroupBox(title)
         group.setStyleSheet(GROUPBOX_STYLE)
         group_layout = QVBoxLayout()
@@ -551,17 +551,17 @@ class DetectionsManagerTabsMixin(QDialog):
 
         list_widget = QListWidget()
         list_widget.setStyleSheet(LIST_WIDGET_STYLE)
-        setattr(self, f'{blocklist_type}_list', list_widget)
+        setattr(self, f'{detection_type}_list', list_widget)
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
         add_button = QPushButton('\u2795 Add')
-        add_callback = getattr(self, f'_add_{blocklist_type}')
+        add_callback = getattr(self, f'_add_{detection_type}')
         add_button.clicked.connect(add_callback)
         buttons_layout.addWidget(add_button)
 
         remove_button = QPushButton('\u2796 Remove')
-        remove_callback = getattr(self, f'_remove_{blocklist_type}')
+        remove_callback = getattr(self, f'_remove_{detection_type}')
         remove_button.clicked.connect(remove_callback)
         buttons_layout.addWidget(remove_button)
 
@@ -577,7 +577,7 @@ class DetectionsManagerTabsMixin(QDialog):
         protection_section = QWidget()
         protection_section_layout = QVBoxLayout(protection_section)
         protection_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{blocklist_type}_protection_section', protection_section)
+        setattr(self, f'{detection_type}_protection_section', protection_section)
 
         protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
         protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
@@ -594,7 +594,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        setattr(self, f'{blocklist_type}_duration_combo', duration_combo)
+        setattr(self, f'{detection_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
         duration_spin = QSpinBox()
@@ -607,14 +607,14 @@ class DetectionsManagerTabsMixin(QDialog):
             duration_spin.setVisible(text == 'Manual')
 
         duration_combo.currentTextChanged.connect(_on_duration_text_changed)
-        setattr(self, f'{blocklist_type}_duration_spin', duration_spin)
+        setattr(self, f'{detection_type}_duration_spin', duration_spin)
         duration_layout.addWidget(duration_spin)
 
         duration_layout.addStretch()
         protection_section_layout.addLayout(duration_layout)
 
         # Notification controls
-        self._create_notification_controls(group_layout, blocklist_type)
+        self._create_notification_controls(group_layout, detection_type)
 
         group_layout.addWidget(protection_section)
 

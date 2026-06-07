@@ -31,7 +31,7 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.player.combo_rules import ComboRulesManager
-from session_sniffer.player.protections import GUIProtectionSettings
+from session_sniffer.player.protections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, gui_dispatcher
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -335,7 +335,7 @@ def handle_detection_notification(
 ) -> None:
     """Handle voice notifications, logging, message box popups, and protection actions for player connection events.
 
-    This function now reads all settings from GUIProtectionSettings and is used only for
+    This function now reads all settings from GUIDetectionSettings and is used only for
     player_joined_session, player_rejoined_session, and player_left_session events.
     VPN/hosting/mobile notifications are handled by check_global_protections.
 
@@ -349,10 +349,10 @@ def handle_detection_notification(
         config = _NOTIFICATION_CONFIGS[notification_type]
         prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
 
-        enabled: bool = getattr(GUIProtectionSettings, f'{prefix}_enabled')
-        voice_setting: Literal['Male', 'Female'] | bool = getattr(GUIProtectionSettings, f'{prefix}_voice_notifications')
-        logging_setting: bool = getattr(GUIProtectionSettings, f'{prefix}_logging')
-        msgbox_setting: bool = getattr(GUIProtectionSettings, f'{prefix}_message_box')
+        enabled: bool = getattr(GUIDetectionSettings, f'{prefix}_enabled')
+        voice_setting: Literal['Male', 'Female'] | bool = getattr(GUIDetectionSettings, f'{prefix}_voice_notifications')
+        logging_setting: bool = getattr(GUIDetectionSettings, f'{prefix}_logging')
+        msgbox_setting: bool = getattr(GUIDetectionSettings, f'{prefix}_message_box')
 
         # Check if there are combo rules with event conditions that might need evaluation
         has_event_combo_rules = any(rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
@@ -364,7 +364,7 @@ def handle_detection_notification(
         data_ready = False
 
         if standalone_active:
-            duration: int | Literal['Auto'] = getattr(GUIProtectionSettings, f'{prefix}_duration')
+            duration: int | Literal['Auto'] = getattr(GUIDetectionSettings, f'{prefix}_duration')
 
             # Execute protection action (only when enabled and protection is supported)
             if enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
@@ -576,7 +576,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     - GTA5 relay protection is enabled and a process path is configured.
 
     The monitor polls the player's packet count until it reaches the
-    configurable `GUIProtectionSettings.gta5_relay_packet_threshold` while
+    configurable `GUIDetectionSettings.gta5_relay_packet_threshold` while
     the player is still connected.
     The suspension respects the configured duration mode and triggers
     voice/logging/message-box notifications identical to other protections.
@@ -603,7 +603,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
             _pps_nonzero_since = None  # reset streak on any 0-PPS sample
 
         if (
-            player.packets.exchanged >= GUIProtectionSettings.gta5_relay_packet_threshold
+            player.packets.exchanged >= GUIDetectionSettings.gta5_relay_packet_threshold
             and _pps_nonzero_since is not None
             and (time.monotonic() - _pps_nonzero_since) >= _GTA5_RELAY_PPS_NONZERO_STREAK_SECS
         ):
@@ -617,23 +617,23 @@ def monitor_gta5_relay_task(player: Player) -> None:
     ):
         return
 
-    if GUIProtectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
+    if GUIDetectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
         gta5_path = CaptureState.gta5_path
         if gta5_path is not None:
             ProcessSuspendManager.request_suspend(
                 process_path=gta5_path,
                 reason_key=f'gta5_relay:{player.ip}',
                 left_event=player.left_event,
-                duration=GUIProtectionSettings.gta5_relay_duration,
+                duration=GUIDetectionSettings.gta5_relay_duration,
             )
 
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
-    if GUIProtectionSettings.gta5_relay_voice_notifications:
-        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(GUIProtectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
+    if GUIDetectionSettings.gta5_relay_voice_notifications:
+        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
-    if GUIProtectionSettings.gta5_relay_logging:
+    if GUIDetectionSettings.gta5_relay_logging:
         with _protection_logging_file_write_lock:
             now = datetime.now(tz=LOCAL_TZ)
             PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -651,7 +651,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
                     player.iplookup.geolite2.country,
                 ])
 
-    if GUIProtectionSettings.gta5_relay_message_box:
+    if GUIDetectionSettings.gta5_relay_message_box:
         _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
         def _show_relay_notif() -> None:
@@ -738,9 +738,9 @@ def check_global_protections(player: Player) -> None:
 
     # Mobile Connection Detection
     if player.iplookup.ipapi.mobile:
-        if GUIProtectionSettings.mobile_suspend_enabled:
+        if GUIDetectionSettings.mobile_suspend_enabled:
             execute_protection_action(
-                GUIProtectionSettings.mobile_suspend_duration,
+                GUIDetectionSettings.mobile_suspend_duration,
                 'MobileProtection',
             )
         handle_detection_notifications(
@@ -749,17 +749,17 @@ def check_global_protections(player: Player) -> None:
             display_title='Mobile Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIProtectionSettings.mobile_voice_notifications,
-                log=GUIProtectionSettings.mobile_logging,
-                msgbox=GUIProtectionSettings.mobile_message_box,
+                voice=GUIDetectionSettings.mobile_voice_notifications,
+                log=GUIDetectionSettings.mobile_logging,
+                msgbox=GUIDetectionSettings.mobile_message_box,
                 tts_filename='mobile_connection_detected',
             ),
         )
     # VPN/Proxy/Tor Detection
     if player.iplookup.ipapi.proxy:
-        if GUIProtectionSettings.vpn_suspend_enabled:
+        if GUIDetectionSettings.vpn_suspend_enabled:
             execute_protection_action(
-                GUIProtectionSettings.vpn_suspend_duration,
+                GUIDetectionSettings.vpn_suspend_duration,
                 'VPNProtection',
             )
         handle_detection_notifications(
@@ -768,18 +768,18 @@ def check_global_protections(player: Player) -> None:
             display_title='VPN/Proxy/Tor Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIProtectionSettings.vpn_voice_notifications,
-                log=GUIProtectionSettings.vpn_logging,
-                msgbox=GUIProtectionSettings.vpn_message_box,
+                voice=GUIDetectionSettings.vpn_voice_notifications,
+                log=GUIDetectionSettings.vpn_logging,
+                msgbox=GUIDetectionSettings.vpn_message_box,
                 tts_filename='vpn_connection_detected',
             ),
         )
 
     # Hosting/Data Center Detection
     if player.iplookup.ipapi.hosting:
-        if GUIProtectionSettings.hosting_suspend_enabled:
+        if GUIDetectionSettings.hosting_suspend_enabled:
             execute_protection_action(
-                GUIProtectionSettings.hosting_suspend_duration,
+                GUIDetectionSettings.hosting_suspend_duration,
                 'HostingProtection',
             )
         handle_detection_notifications(
@@ -788,16 +788,16 @@ def check_global_protections(player: Player) -> None:
             display_title='Hosting/Data Center Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIProtectionSettings.hosting_voice_notifications,
-                log=GUIProtectionSettings.hosting_logging,
-                msgbox=GUIProtectionSettings.hosting_message_box,
+                voice=GUIDetectionSettings.hosting_voice_notifications,
+                log=GUIDetectionSettings.hosting_logging,
+                msgbox=GUIDetectionSettings.hosting_message_box,
                 tts_filename='hosting_connection_detected',
             ),
         )
 
-    # Country Blocklist Detection
-    if GUIProtectionSettings.country_block_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIProtectionSettings.country_block_list:
-        if GUIProtectionSettings.country_block_enabled:
+    # Country Detection
+    if GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list:
+        if GUIDetectionSettings.country_suspend_enabled:
             execute_protection_action(
                 'Auto',
                 'CountryBlockProtection',
@@ -808,17 +808,17 @@ def check_global_protections(player: Player) -> None:
             display_title='Blocked Country Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIProtectionSettings.country_voice_notifications,
-                log=GUIProtectionSettings.country_logging,
-                msgbox=GUIProtectionSettings.country_message_box,
+                voice=GUIDetectionSettings.country_voice_notifications,
+                log=GUIDetectionSettings.country_logging,
+                msgbox=GUIDetectionSettings.country_message_box,
                 tts_filename='country_detected',
             ),
         )
 
-    # ISP Blocklist Protection
-    if GUIProtectionSettings.isp_block_list:
+    # ISP Detection
+    if GUIDetectionSettings.isp_detection_list:
         matched_isp = None
-        for block_entry in GUIProtectionSettings.isp_block_list:
+        for block_entry in GUIDetectionSettings.isp_detection_list:
             block_entry_upper = block_entry.upper().strip()
 
             as_name_clean = (
@@ -835,7 +835,7 @@ def check_global_protections(player: Player) -> None:
                 break
 
         if matched_isp:
-            if GUIProtectionSettings.isp_block_enabled:
+            if GUIDetectionSettings.isp_suspend_enabled:
                 execute_protection_action(
                     'Auto',
                     'ISPBlockProtection',
@@ -846,15 +846,15 @@ def check_global_protections(player: Player) -> None:
                 display_title='Blocked ISP Detected',
                 extra_detection_fields=[('Matched Entry', matched_isp)],
                 settings=_DetectionSettings(
-                    voice=GUIProtectionSettings.isp_voice_notifications,
-                    log=GUIProtectionSettings.isp_logging,
-                    msgbox=GUIProtectionSettings.isp_message_box,
+                    voice=GUIDetectionSettings.isp_voice_notifications,
+                    log=GUIDetectionSettings.isp_logging,
+                    msgbox=GUIDetectionSettings.isp_message_box,
                     tts_filename='isp_detected',
                 ),
             )
 
-    # ASN Blocklist Protection
-    if GUIProtectionSettings.asn_block_list:
+    # ASN Detection
+    if GUIDetectionSettings.asn_detection_list:
         asns_to_check: list[str] = []
         if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A'):
             asns_to_check.append(player.iplookup.ipapi.asn)
@@ -863,7 +863,7 @@ def check_global_protections(player: Player) -> None:
 
         if asns_to_check:
             matched_asn = None
-            for block_entry in GUIProtectionSettings.asn_block_list:
+            for block_entry in GUIDetectionSettings.asn_detection_list:
                 block_entry_upper = block_entry.upper().strip()
                 normalized_asn = block_entry_upper if block_entry_upper.startswith('AS') else f'AS{block_entry_upper}'
                 for asn in asns_to_check:
@@ -874,7 +874,7 @@ def check_global_protections(player: Player) -> None:
                     break
 
             if matched_asn:
-                if GUIProtectionSettings.asn_block_enabled:
+                if GUIDetectionSettings.asn_suspend_enabled:
                     execute_protection_action(
                         'Auto',
                         'ASNBlockProtection',
@@ -890,9 +890,9 @@ def check_global_protections(player: Player) -> None:
                     display_title='Blocked ASN Detected',
                     extra_detection_fields=[('ASN', asn_display)],
                     settings=_DetectionSettings(
-                        voice=GUIProtectionSettings.asn_voice_notifications,
-                        log=GUIProtectionSettings.asn_logging,
-                        msgbox=GUIProtectionSettings.asn_message_box,
+                        voice=GUIDetectionSettings.asn_voice_notifications,
+                        log=GUIDetectionSettings.asn_logging,
+                        msgbox=GUIDetectionSettings.asn_message_box,
                         tts_filename='asn_detected',
                     ),
                 )

@@ -66,7 +66,7 @@ from session_sniffer.networking.interface import AllInterfaces, Interface, Selec
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.player.combo_rules import ComboRulesManager
-from session_sniffer.player.protections import GUIProtectionSettings
+from session_sniffer.player.protections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.renderer import rendering_core
@@ -140,7 +140,7 @@ def main() -> None:
     Settings.rebuild_blocked_ip_ranges()
     CaptureStats.resize_history_deques(Settings.gui_rate_graph_max_history)
 
-    splash.run_with_spinner(GUIProtectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
+    splash.run_with_spinner(GUIDetectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
 
     splash.update_status('Checking for updates')

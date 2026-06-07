@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-class GUIProtectionSettings:
+class GUIDetectionSettings:
     """Runtime GUI protection settings that persist during application execution and can be saved to protections.json."""
 
     # Mobile-based protection
@@ -36,25 +36,25 @@ class GUIProtectionSettings:
     hosting_message_box: ClassVar[bool] = False
 
     # Country-based protection
-    country_block_enabled: ClassVar[bool] = False
-    country_block_list: ClassVar[list[str]] = []
-    country_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
+    country_suspend_enabled: ClassVar[bool] = False
+    country_detection_list: ClassVar[list[str]] = []
+    country_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     country_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     country_logging: ClassVar[bool] = False
     country_message_box: ClassVar[bool] = False
 
     # ISP-based protection
-    isp_block_enabled: ClassVar[bool] = False
-    isp_block_list: ClassVar[list[str]] = []
-    isp_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
+    isp_suspend_enabled: ClassVar[bool] = False
+    isp_detection_list: ClassVar[list[str]] = []
+    isp_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     isp_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     isp_logging: ClassVar[bool] = False
     isp_message_box: ClassVar[bool] = False
 
     # ASN-based protection
-    asn_block_enabled: ClassVar[bool] = False
-    asn_block_list: ClassVar[list[str]] = []
-    asn_block_duration: ClassVar[int | Literal['Auto']] = 'Auto'
+    asn_suspend_enabled: ClassVar[bool] = False
+    asn_detection_list: ClassVar[list[str]] = []
+    asn_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     asn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     asn_logging: ClassVar[bool] = False
     asn_message_box: ClassVar[bool] = False
@@ -128,17 +128,17 @@ class GUIProtectionSettings:
 
         # Country
         country = cls._export_common_fields('country')
-        country['list'] = cls.country_block_list
+        country['list'] = cls.country_detection_list
         export_data['country'] = country
 
         # ISP
         isp = cls._export_common_fields('isp')
-        isp['list'] = cls.isp_block_list
+        isp['list'] = cls.isp_detection_list
         export_data['isp'] = isp
 
         # ASN
         asn = cls._export_common_fields('asn')
-        asn['list'] = cls.asn_block_list
+        asn['list'] = cls.asn_detection_list
         export_data['asn'] = asn
 
         # Player Join
@@ -190,15 +190,15 @@ class GUIProtectionSettings:
 
         if 'country' in data_dict:
             cls._import_common_fields('country', data_dict['country'])
-            cls.country_block_list = cast('list[str]', data_dict['country'].get('list', []))
+            cls.country_detection_list = cast('list[str]', data_dict['country'].get('list', []))
 
         if 'isp' in data_dict:
             cls._import_common_fields('isp', data_dict['isp'])
-            cls.isp_block_list = cast('list[str]', data_dict['isp'].get('list', []))
+            cls.isp_detection_list = cast('list[str]', data_dict['isp'].get('list', []))
 
         if 'asn' in data_dict:
             cls._import_common_fields('asn', data_dict['asn'])
-            cls.asn_block_list = cast('list[str]', data_dict['asn'].get('list', []))
+            cls.asn_detection_list = cast('list[str]', data_dict['asn'].get('list', []))
 
     @classmethod
     def save_to_settings(cls) -> None:

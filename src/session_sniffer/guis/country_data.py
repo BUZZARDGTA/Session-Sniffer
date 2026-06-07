@@ -1,4 +1,4 @@
-"""Country name and ISO 3166-1 alpha-2 code mappings for the country blocklist UI."""
+"""Country name and ISO 3166-1 alpha-2 code mappings for the country detection UI."""
 
 COUNTRY_NAMES: dict[str, str] = {
     'AD': 'Andorra',

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.player.protections import GUIProtectionSettings
+from session_sniffer.player.protections import GUIDetectionSettings
 from session_sniffer.settings import Settings
 
 
@@ -15,7 +15,7 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
     if not (
         Settings.is_gta5_preset()
         and 'GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers
-        and GUIProtectionSettings.gta5_relay_enabled
+        and GUIDetectionSettings.gta5_relay_enabled
     ):
         return False
 
@@ -44,6 +44,6 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
     if result != QMessageBox.StandardButton.Yes:
         return False
 
-    GUIProtectionSettings.gta5_relay_enabled = False
-    GUIProtectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
+    GUIDetectionSettings.gta5_relay_enabled = False
+    GUIDetectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
     return True
