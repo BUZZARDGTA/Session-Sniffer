@@ -20,7 +20,7 @@ dependencies = [
     "pypresence==4.6.1",
     "PyQt6==6.8.1",
     "pyqtgraph==0.14.0",
-    "pywin32==311; platform_system == 'Windows'",
+    "pywin32==312; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
     "requests==2.34.2",
     "rich==15.0.0",
