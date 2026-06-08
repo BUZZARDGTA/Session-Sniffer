@@ -135,8 +135,6 @@ class ProcessSuspendManager:
                 return
 
             cls._state = _ProcessState(pid=pid, process_path=process_path, suspended=True)
-            if reason_key in cls._state.reasons:
-                logger.warning('Overwriting suspend reason: %s', reason_key)
             cls._state.reasons[reason_key] = reason
 
         # Start the monitor outside the lock (Thread.start is safe).
@@ -150,7 +148,10 @@ class ProcessSuspendManager:
     def has_reason(cls, reason_key: str) -> bool:
         """Return `True` if the GTA5 process has an active reason with this exact key."""
         with cls._lock:
-            return cls._state is not None and reason_key in cls._state.reasons
+            state = cls._state
+            if state is None:
+                return False
+            return reason_key in state.reasons
 
     @staticmethod
     def is_process_suspended(process_path: Path) -> bool:
