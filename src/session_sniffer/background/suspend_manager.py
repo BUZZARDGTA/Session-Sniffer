@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_MONITOR_POLL_INTERVAL = 0.2  # seconds between monitor checks
+_MONITOR_POLL_INTERVAL = 1.0  # seconds between monitor checks
 
 
 @dataclass(slots=True)
