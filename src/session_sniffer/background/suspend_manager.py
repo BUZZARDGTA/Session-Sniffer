@@ -274,16 +274,22 @@ class ProcessSuspendManager:
             if cls._shutdown_event.is_set():
                 break
 
+            should_resume = False
+            pid = None
+
             with cls._lock:
                 if cls._state is None:
                     return
 
                 # --- Permanent resume: all reasons satisfied ---
                 if not cls._state.reasons or cls._all_reasons_satisfied(cls._state):
-                    if cls._state.suspended:
-                        cls._try_resume_pid(cls._state.pid)
+                    should_resume = cls._state.suspended
+                    pid = cls._state.pid
                     cls._state = None
-                    return
+
+            if should_resume and pid is not None:
+                cls._try_resume_pid(pid)
+                return
 
         # Shutdown was requested — the shutdown() method already resumes everything,
         # so the monitor simply exits.
