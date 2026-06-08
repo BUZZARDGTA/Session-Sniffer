@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player
-from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
+from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,7 +60,7 @@ class ComboRule:
             'enabled': self.enabled,
             'conditions': self.conditions,
             'protection_enabled': self.protection_enabled,
-            'duration': format_duration_setting(self.duration),
+            'duration': format_suspend_duration_setting(self.duration),
             'voice_notifications': str(self.voice_notifications) if self.voice_notifications else 'False',
             'logging': self.logging,
             'message_box': self.message_box,
@@ -98,7 +98,7 @@ class ComboRule:
             enabled=bool(data.get('enabled', True)),
             conditions=conditions,
             protection_enabled=bool(data.get('protection_enabled', False)),
-            duration=parse_duration_setting(str(data.get('duration', 'Auto'))),
+            duration=parse_suspend_duration_setting(str(data.get('duration', 'Auto'))),
             voice_notifications=parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
             logging=bool(data.get('logging', False)),
             message_box=bool(data.get('message_box', False)),

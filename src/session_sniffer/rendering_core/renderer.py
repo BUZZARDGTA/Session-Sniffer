@@ -418,7 +418,7 @@ def rendering_core(
                 and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer
             ):
                 player.mark_as_left()
-                player.protection_checked = False
+                player.detection_checked = False
                 player.relay_monitor_started = False
                 players_to_disconnect.append(idx)
                 session_disconnected.append(player)

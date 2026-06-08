@@ -795,7 +795,7 @@ class _PlayerLifecycleState:
 
     left_event: Event = dataclasses.field(default_factory=Event)
     rejoins: int = 0
-    protection_checked: bool = False
+    detection_checked: bool = False
     relay_monitor_started: bool = False
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
     userip_check_version: int = -1
@@ -847,7 +847,7 @@ class Player:
     ip: str
     left_event: Event
     usernames: list[str]
-    protection_checked: bool
+    detection_checked: bool
     relay_monitor_started: bool
     packets: PlayerPackets
     bandwidth: PlayerBandwidth
@@ -862,7 +862,7 @@ class Player:
     looky_system: PlayerLooky
 
     _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({
-        'left_event', 'rejoins', 'protection_checked', 'relay_monitor_started',
+        'left_event', 'rejoins', 'detection_checked', 'relay_monitor_started',
         'usernames', 'userip_check_version', 'userip_check_positive',
     })
     _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
@@ -961,7 +961,7 @@ class Player:
         """Handle a player rejoin by resetting current-session counters."""
         self.left_event.clear()
         self.rejoins += 1
-        self.protection_checked = False
+        self.detection_checked = False
         self.relay_monitor_started = False
 
         self.datetime.accumulate_session_to_total()

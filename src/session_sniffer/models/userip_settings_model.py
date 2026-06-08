@@ -12,7 +12,7 @@ from typing import Literal, Self, cast
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 from PyQt6.QtGui import QColor
 
-from session_sniffer.text_utils import parse_duration_setting
+from session_sniffer.text_utils import parse_suspend_duration_setting
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, NoMatchFoundError
 
@@ -142,7 +142,7 @@ class UserIPSettingsModel(BaseModel):
             msg = f'suspend process mode must be >= 0, got {value}'
             raise ValueError(msg)
         if isinstance(value, str):
-            parsed = parse_duration_setting(value)
+            parsed = parse_suspend_duration_setting(value)
             if isinstance(parsed, int) or parsed == 'Auto':
                 return parsed
             msg = f'invalid suspend process mode: {value!r}'

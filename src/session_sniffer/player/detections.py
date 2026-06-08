@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from session_sniffer.constants.local import DETECTIONS_JSON_PATH
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
+from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -105,7 +105,7 @@ class GUIDetectionSettings:
         voice = getattr(cls, f'{prefix}_voice_notifications', False)
         return {
             'enabled': enabled,
-            'duration': format_duration_setting(duration),
+            'duration': format_suspend_duration_setting(duration),
             'voice_notifications': str(voice) if voice else 'False',
             'logging': getattr(cls, f'{prefix}_logging', False),
             'message_box': getattr(cls, f'{prefix}_message_box', False),
@@ -164,7 +164,7 @@ class GUIDetectionSettings:
         setattr(cls, enabled_attr, section.get('enabled', False))
 
         duration_attr = f'{prefix}_duration' if hasattr(cls, f'{prefix}_duration') else f'{prefix}_suspend_duration'
-        setattr(cls, duration_attr, parse_duration_setting(str(section.get('duration', 'Auto'))))
+        setattr(cls, duration_attr, parse_suspend_duration_setting(str(section.get('duration', 'Auto'))))
 
         voice_str = str(section.get('voice_notifications', 'False'))
         setattr(cls, f'{prefix}_voice_notifications', parse_voice_notifications(voice_str))

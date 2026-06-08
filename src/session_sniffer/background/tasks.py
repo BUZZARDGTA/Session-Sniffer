@@ -578,8 +578,6 @@ def monitor_gta5_relay_task(player: Player) -> None:
     The monitor polls the player's packet count until it reaches the
     configurable `GUIDetectionSettings.gta5_relay_packet_threshold` while
     the player is still connected.
-    The suspension respects the configured duration mode and triggers
-    voice/logging/message-box notifications identical to other protections.
 
     Args:
         player: The player object to monitor.

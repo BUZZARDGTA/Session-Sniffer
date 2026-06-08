@@ -317,8 +317,8 @@ def main() -> None:
                 sent_by_local_host=sent_by_local_host,
             )
 
-        if not matched_player.protection_checked:
-            matched_player.protection_checked = True
+        if not matched_player.detection_checked:
+            matched_player.detection_checked = True
             submit_global_detections_check(matched_player)
 
         if not matched_player.relay_monitor_started:
@@ -664,7 +664,7 @@ def main() -> None:
     QTimer.singleShot(1500, _reveal_main_window)
 
     def _check_startup_relay_conflict() -> None:
-        """Warn at startup when relay protection is enabled but relay IPs are being filtered out."""
+        """Warn at startup when relay detection is enabled but relay IPs are being filtered out."""
         prompt_to_disable_gta5_relay_if_filtered(window, context='startup')
 
     QTimer.singleShot(2000, _check_startup_relay_conflict)
