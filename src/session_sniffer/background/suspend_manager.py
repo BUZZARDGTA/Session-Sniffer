@@ -117,6 +117,8 @@ class ProcessSuspendManager:
         with cls._lock:
             if cls._state is not None:
                 # Already tracking — add / update the reason.
+                if reason_key in cls._state.reasons:
+                    logger.warning('Overwriting suspend reason: %s', reason_key)
                 cls._state.reasons[reason_key] = reason
                 if not cls._state.suspended and cls._try_suspend_pid(cls._state.pid, f'new reason added: {reason_key}'):
                     cls._state.suspended = True
@@ -132,6 +134,8 @@ class ProcessSuspendManager:
                 return
 
             cls._state = _ProcessState(pid=pid, suspended=True)
+            if reason_key in cls._state.reasons:
+                logger.warning('Overwriting suspend reason: %s', reason_key)
             cls._state.reasons[reason_key] = reason
 
         # Start the monitor outside the lock (Thread.start is safe).
