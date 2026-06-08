@@ -49,6 +49,7 @@ class _ProcessState:
     """Tracking state for the GTA5 process being suspended."""
 
     pid: int
+    process_path: Path
     suspended: bool = False
     reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
@@ -133,7 +134,7 @@ class ProcessSuspendManager:
             if not cls._try_suspend_pid(pid, f'first reason: {reason_key}'):
                 return
 
-            cls._state = _ProcessState(pid=pid, suspended=True)
+            cls._state = _ProcessState(pid=pid, process_path=process_path, suspended=True)
             if reason_key in cls._state.reasons:
                 logger.warning('Overwriting suspend reason: %s', reason_key)
             cls._state.reasons[reason_key] = reason
@@ -283,6 +284,17 @@ class ProcessSuspendManager:
 
             with cls._lock:
                 if cls._state is None:
+                    return
+
+                # --- Stale PID check: process restarted under a new PID ---
+                current_pid = get_pid_by_path(cls._state.process_path)
+                if current_pid != cls._state.pid:
+                    logger.warning(
+                        'PID changed (%s -> %s). Resetting suspend state.',
+                        cls._state.pid,
+                        current_pid,
+                    )
+                    cls._state = None
                     return
 
                 # --- Permanent resume: all reasons satisfied ---
