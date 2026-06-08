@@ -1,9 +1,9 @@
-"""Global protection settings singleton and persistence."""
+"""Global detection settings singleton and persistence."""
 
 import json
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
-from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
+from session_sniffer.constants.local import DETECTIONS_JSON_PATH
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.text_utils import format_duration_setting, parse_duration_setting, parse_voice_notifications
 
@@ -12,30 +12,30 @@ if TYPE_CHECKING:
 
 
 class GUIDetectionSettings:
-    """Runtime GUI protection settings that persist during application execution and can be saved to protections.json."""
+    """Runtime GUI detection settings that persist during application execution and can be saved to detections.json."""
 
-    # Mobile-based protection
+    # Mobile-based detection
     mobile_suspend_enabled: ClassVar[bool] = False
     mobile_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     mobile_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     mobile_logging: ClassVar[bool] = False
     mobile_message_box: ClassVar[bool] = False
 
-    # VPN-based protection
+    # VPN-based detection
     vpn_suspend_enabled: ClassVar[bool] = False
     vpn_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     vpn_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     vpn_logging: ClassVar[bool] = False
     vpn_message_box: ClassVar[bool] = False
 
-    # Hosting-based protection
+    # Hosting-based detection
     hosting_suspend_enabled: ClassVar[bool] = False
     hosting_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     hosting_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     hosting_logging: ClassVar[bool] = False
     hosting_message_box: ClassVar[bool] = False
 
-    # Country-based protection
+    # Country-based detection
     country_suspend_enabled: ClassVar[bool] = False
     country_detection_list: ClassVar[list[str]] = []
     country_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
@@ -43,7 +43,7 @@ class GUIDetectionSettings:
     country_logging: ClassVar[bool] = False
     country_message_box: ClassVar[bool] = False
 
-    # ISP-based protection
+    # ISP-based detection
     isp_suspend_enabled: ClassVar[bool] = False
     isp_detection_list: ClassVar[list[str]] = []
     isp_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
@@ -51,7 +51,7 @@ class GUIDetectionSettings:
     isp_logging: ClassVar[bool] = False
     isp_message_box: ClassVar[bool] = False
 
-    # ASN-based protection
+    # ASN-based detection
     asn_suspend_enabled: ClassVar[bool] = False
     asn_detection_list: ClassVar[list[str]] = []
     asn_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
@@ -59,28 +59,28 @@ class GUIDetectionSettings:
     asn_logging: ClassVar[bool] = False
     asn_message_box: ClassVar[bool] = False
 
-    # Player join protection
+    # Player join detection
     player_join_enabled: ClassVar[bool] = False
     player_join_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_join_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_join_logging: ClassVar[bool] = False
     player_join_message_box: ClassVar[bool] = False
 
-    # Player rejoin protection
+    # Player rejoin detection
     player_rejoin_enabled: ClassVar[bool] = False
     player_rejoin_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_rejoin_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_rejoin_logging: ClassVar[bool] = False
     player_rejoin_message_box: ClassVar[bool] = False
 
-    # Player leave protection
+    # Player leave detection
     player_leave_enabled: ClassVar[bool] = False
     player_leave_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     player_leave_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     player_leave_logging: ClassVar[bool] = False
     player_leave_message_box: ClassVar[bool] = False
 
-    # GTA5 relay protection (GTA5 preset only)
+    # GTA5 relay detection (GTA5 preset only)
     gta5_relay_enabled: ClassVar[bool] = False
     gta5_relay_packet_threshold: ClassVar[int] = 40
     gta5_relay_duration: ClassVar[int | Literal['Auto']] = 'Auto'
@@ -90,13 +90,13 @@ class GUIDetectionSettings:
 
     @classmethod
     def load_from_file_or_defaults(cls, file_path: Path) -> None:
-        """Load protection settings from JSON if the file exists, otherwise keep class defaults."""
+        """Load detection settings from JSON if the file exists, otherwise keep class defaults."""
         if file_path.is_file():
             cls.import_from_file(file_path)
 
     @classmethod
     def _export_common_fields(cls, prefix: str) -> dict[str, object]:
-        """Build the common export fields for a protection type."""
+        """Build the common export fields for a detection type."""
         enabled = getattr(cls, f'{prefix}_enabled', getattr(cls, f'{prefix}_suspend_enabled', False))
         duration = cast(
             'int | Literal["Auto"]',
@@ -113,7 +113,7 @@ class GUIDetectionSettings:
 
     @classmethod
     def export_to_file(cls, file_path: Path) -> None:
-        """Export protection settings to a JSON file."""
+        """Export detection settings to a JSON file."""
         export_data: dict[str, dict[str, object]] = {}
 
         # Mobile
@@ -159,7 +159,7 @@ class GUIDetectionSettings:
 
     @classmethod
     def _import_common_fields(cls, prefix: str, section: dict[str, object]) -> None:
-        """Apply common import fields from a JSON section to a protection type."""
+        """Apply common import fields from a JSON section to a detection type."""
         enabled_attr = f'{prefix}_enabled' if hasattr(cls, f'{prefix}_enabled') else f'{prefix}_suspend_enabled'
         setattr(cls, enabled_attr, section.get('enabled', False))
 
@@ -173,7 +173,7 @@ class GUIDetectionSettings:
 
     @classmethod
     def import_from_file(cls, file_path: Path) -> None:
-        """Import protection settings from a JSON file."""
+        """Import detection settings from a JSON file."""
         data: object = json.loads(file_path.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
             raise TypeError(format_type_error(data, dict))
@@ -202,5 +202,5 @@ class GUIDetectionSettings:
 
     @classmethod
     def save_to_settings(cls) -> None:
-        """Persist current protection settings to the default protections JSON file."""
-        cls.export_to_file(PROTECTIONS_JSON_PATH)
+        """Persist current detection settings to the default detections JSON file."""
+        cls.export_to_file(DETECTIONS_JSON_PATH)

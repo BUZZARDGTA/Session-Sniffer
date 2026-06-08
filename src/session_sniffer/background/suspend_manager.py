@@ -1,12 +1,13 @@
-﻿"""Centralized process suspend manager for all protection types.
+﻿"""Centralized reason-based GTA5 process suspend/resume manager.
 
-All code paths that need to suspend a process (global protections, UserIP protections,
-event protections) register "reasons" through this single manager.
+Shared by all code paths that need to suspend the GTA5 process: global detections
+(VPN, mobile, hosting, country, ISP, ASN, relay, combo rules), player-event detections
+(join, rejoin, leave), UserIP protections, and manual toolbar suspension.
 
 Guarantees:
-- Only ONE `psutil.Process.suspend()` / `.resume()` per process, regardless of
-  how many protections fire simultaneously.
-- One monitor thread per process that polls all active reasons.
+- Only ONE `psutil.Process.suspend()` / `.resume()` call, regardless of
+  how many detections or protections fire simultaneously.
+- One monitor thread that polls all active reasons.
 - Process resumes only when ALL reasons are satisfied:
   every hostile player has left AND every per-reason minimum duration has elapsed.
 - Player rejoins are handled automatically (`left_event.clear()` keeps suspension alive).
@@ -45,22 +46,21 @@ class _SuspendReason:
 
 @dataclass(slots=True)
 class _ProcessState:
-    """Tracking state for a single suspended process."""
+    """Tracking state for the GTA5 process being suspended."""
 
-    path_key: str
     pid: int
     suspended: bool = False
     reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
 
 class ProcessSuspendManager:
-    """Singleton manager for process suspension across all protection types.
+    """Singleton manager for GTA5 process suspension.
 
-    Instead of each protection type spawning its own suspend / resume threads,
-    all protections register "reasons" with this manager.  The manager:
+    Instead of each detection or protection type spawning its own suspend / resume threads,
+    all detections and protections register "reasons" with this manager.  The manager:
 
     1. Suspends the process **once** when the first reason is added.
-    2. Runs **one** monitor thread per process.
+    2. Runs **one** monitor thread.
     3. Resumes the process when **all** reasons are satisfied:
        - `left_event` is set (the hostile player left), **and**
        - `min_duration` seconds have elapsed since the reason was added.
@@ -69,7 +69,7 @@ class ProcessSuspendManager:
      5. Resumes everything on :meth:`shutdown`.
     """
 
-    _states: ClassVar[dict[str, _ProcessState]] = {}
+    _state: ClassVar[_ProcessState | None] = None
     _lock: ClassVar[Lock] = Lock()
     _shutdown_event: ClassVar[Event] = Event()
 
@@ -102,8 +102,6 @@ class ProcessSuspendManager:
         if cls._shutdown_event.is_set():
             return
 
-        path_key = str(process_path.resolve()).lower()
-
         manual = duration == 'Manual'
         require_left_event = isinstance(duration, str)
         min_dur = 0.0 if isinstance(duration, str) else max(0.0, float(duration))
@@ -117,16 +115,14 @@ class ProcessSuspendManager:
         )
 
         with cls._lock:
-            state = cls._states.get(path_key)
-
-            if state is not None:
+            if cls._state is not None:
                 # Already tracking — add / update the reason.
-                state.reasons[reason_key] = reason
-                if not state.suspended and cls._try_suspend_pid(state.pid, f'new reason added: {reason_key}'):
-                    state.suspended = True
+                cls._state.reasons[reason_key] = reason
+                if not cls._state.suspended and cls._try_suspend_pid(cls._state.pid, f'new reason added: {reason_key}'):
+                    cls._state.suspended = True
                 return
 
-            # --- First time for this process ---
+            # --- First time ---
             pid = get_pid_by_path(process_path)
             if pid is None:
                 logger.warning('Cannot suspend %s: process not running', process_path.name)
@@ -135,23 +131,21 @@ class ProcessSuspendManager:
             if not cls._try_suspend_pid(pid, f'first reason: {reason_key}'):
                 return
 
-            state = _ProcessState(path_key=path_key, pid=pid, suspended=True)
-            state.reasons[reason_key] = reason
-            cls._states[path_key] = state
+            cls._state = _ProcessState(pid=pid, suspended=True)
+            cls._state.reasons[reason_key] = reason
 
         # Start the monitor outside the lock (Thread.start is safe).
         Thread(
             target=cls._monitor,
             name=f'SuspendMonitor-{process_path.stem}',
-            args=(path_key,),
             daemon=True,
         ).start()
 
     @classmethod
     def has_reason(cls, reason_key: str) -> bool:
-        """Return `True` if any tracked process has an active reason with this exact key."""
+        """Return `True` if the GTA5 process has an active reason with this exact key."""
         with cls._lock:
-            return any(reason_key in state.reasons for state in cls._states.values())
+            return cls._state is not None and reason_key in cls._state.reasons
 
     @staticmethod
     def is_process_suspended(process_path: Path) -> bool:
@@ -176,48 +170,45 @@ class ProcessSuspendManager:
 
     @classmethod
     def release_reason_global(cls, reason_key: str) -> None:
-        """Remove *reason_key* from every tracked process.
+        """Remove *reason_key* from the GTA5 process suspend reasons.
 
-        The monitor thread for each affected process will resume it once all
-        remaining reasons are satisfied.
+        The monitor thread will resume the process once all remaining reasons are satisfied.
         """
         with cls._lock:
-            for state in cls._states.values():
-                state.reasons.pop(reason_key, None)
+            if cls._state is not None:
+                cls._state.reasons.pop(reason_key, None)
 
     @classmethod
     def release_reasons_for_ip(cls, ip: str) -> None:
-        """Remove all protection reasons associated with *ip* from every tracked process.
+        """Remove all suspend reasons associated with *ip*.
 
         All player-specific reason keys end with `:{ip}` (e.g. `global:vpn:1.2.3.4`,
         `userip:1.2.3.4`, `combo:RuleName:1.2.3.4`).  This is called whenever a
         player is forcibly removed from the registry so that the GTA5 process is
         no longer kept suspended on their behalf.
 
-        The monitor thread for each affected process will resume it once all
-        remaining reasons are satisfied.
+        The monitor thread will resume the process once all remaining reasons are satisfied.
         """
         suffix = f':{ip}'
         with cls._lock:
-            for state in cls._states.values():
-                keys_to_remove = [k for k in state.reasons if k.endswith(suffix)]
+            if cls._state is not None:
+                keys_to_remove = [k for k in cls._state.reasons if k.endswith(suffix)]
                 for k in keys_to_remove:
-                    del state.reasons[k]
+                    del cls._state.reasons[k]
 
     @classmethod
     def shutdown(cls) -> None:
-        """Resume every suspended process and stop all monitor threads.
+        """Resume the GTA5 process if suspended and stop the monitor thread.
 
         Safe to call more than once.
         """
         cls._shutdown_event.set()
 
         with cls._lock:
-            for state in cls._states.values():
-                if state.suspended:
-                    cls._try_resume_pid(state.pid)
-                    state.suspended = False
-            cls._states.clear()
+            if cls._state is not None and cls._state.suspended:
+                cls._try_resume_pid(cls._state.pid)
+                cls._state.suspended = False
+            cls._state = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -276,24 +267,22 @@ class ProcessSuspendManager:
         return all(cls._reason_is_satisfied(r, now) for r in state.reasons.values())
 
     @classmethod
-    def _monitor(cls, path_key: str) -> None:
-        """Poll reasons until all are satisfied, then resume the process."""
+    def _monitor(cls) -> None:
+        """Poll reasons until all are satisfied, then resume the GTA5 process."""
         while not cls._shutdown_event.is_set():
             cls._shutdown_event.wait(_MONITOR_POLL_INTERVAL)
             if cls._shutdown_event.is_set():
                 break
 
             with cls._lock:
-                state = cls._states.get(path_key)
-                if state is None:
+                if cls._state is None:
                     return
 
                 # --- Permanent resume: all reasons satisfied ---
-                if not state.reasons or cls._all_reasons_satisfied(state):
-                    if state.suspended:
-                        cls._try_resume_pid(state.pid)
-                    state.suspended = False
-                    cls._states.pop(path_key, None)
+                if not cls._state.reasons or cls._all_reasons_satisfied(cls._state):
+                    if cls._state.suspended:
+                        cls._try_resume_pid(cls._state.pid)
+                    cls._state = None
                     return
 
         # Shutdown was requested — the shutdown() method already resumes everything,

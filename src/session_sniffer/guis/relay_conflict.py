@@ -1,17 +1,17 @@
-"""Dialogs for resolving incompatible GTA5 relay protection settings."""
+"""Dialogs for resolving incompatible GTA5 relay detection settings."""
 
 from typing import Literal
 
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
-from session_sniffer.constants.local import PROTECTIONS_JSON_PATH
+from session_sniffer.constants.local import DETECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.player.protections import GUIDetectionSettings
+from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.settings import Settings
 
 
 def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context: Literal['settings', 'startup']) -> bool:
-    """Ask to disable GTA5 relay protection when the Take-Two relay IPs are filtered."""
+    """Ask to disable GTA5 relay detection when the Take-Two relay IPs are filtered."""
     if not (
         Settings.is_gta5_preset()
         and 'GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers
@@ -21,13 +21,13 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
 
     if context == 'settings':
         detail = (
-            'GTA5 relay protection is currently enabled, but the capture filter will now '
+            'GTA5 relay detection is currently enabled, but the capture filter will now '
             "block the 'Take-Two (GTA V)' IP ranges."
         )
     else:
         detail = (
             'Conflicting settings detected:\n\n'
-            'GTA5 relay protection is enabled, but the capture filter is blocking '
+            'GTA5 relay detection is enabled, but the capture filter is blocking '
             "the 'Take-Two (GTA V)' IP ranges."
         )
 
@@ -35,9 +35,9 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
         parent,
         TITLE,
         f'\u26a0\ufe0f {detail}\n\n'
-        'Relay IPs will be dropped before the capture engine sees them, so relay protection '
+        'Relay IPs will be dropped before the capture engine sees them, so relay detection '
         'will never trigger.\n\n'
-        'Would you like to automatically disable GTA5 relay protection?',
+        'Would you like to automatically disable GTA5 relay detection?',
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         QMessageBox.StandardButton.Yes,
     )
@@ -45,5 +45,5 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
         return False
 
     GUIDetectionSettings.gta5_relay_enabled = False
-    GUIDetectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
+    GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
     return True

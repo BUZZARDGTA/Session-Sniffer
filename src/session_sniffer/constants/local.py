@@ -39,7 +39,7 @@ SESSIONS_LOGGING_DIR_PATH: Path = LOGGING_DIR_PATH / 'Sessions'
 
 # Roaming (syncable): settings, user databases, user scripts
 COMBO_RULES_PATH: Path = APP_DIR_ROAMING / 'combo_rules.json'
-PROTECTIONS_JSON_PATH: Path = APP_DIR_ROAMING / 'protections.json'
+DETECTIONS_JSON_PATH: Path = APP_DIR_ROAMING / 'detections.json'
 SETTINGS_PATH: Path = APP_DIR_ROAMING / 'Settings.ini'
 USERIP_DATABASES_DIR_PATH: Path = APP_DIR_ROAMING / 'UserIP Databases'
 USER_SCRIPTS_DIR_PATH: Path = APP_DIR_ROAMING / 'scripts'

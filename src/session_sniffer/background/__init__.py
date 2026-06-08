@@ -4,7 +4,7 @@ from session_sniffer.background.cores import ensure_looky_core_running, hostname
 from session_sniffer.background.suspend_manager import ProcessSuspendManager
 from session_sniffer.background.tasks import (
     NotificationConfig,
-    check_global_protections,
+    check_global_detections,
     clear_detection_voice_notifications,
     clear_voice_notification_queue,
     ensure_gta5_process_monitor_running,
@@ -14,14 +14,14 @@ from session_sniffer.background.tasks import (
     monitor_gta5_relay_task,
     player_rates_core,
     process_userip_task,
-    submit_global_protections_check,
+    submit_global_detections_check,
     wait_for_player_data_ready,
 )
 
 __all__ = [
     'NotificationConfig',
     'ProcessSuspendManager',
-    'check_global_protections',
+    'check_global_detections',
     'clear_detection_voice_notifications',
     'clear_voice_notification_queue',
     'ensure_gta5_process_monitor_running',
@@ -35,6 +35,6 @@ __all__ = [
     'pinger_core',
     'player_rates_core',
     'process_userip_task',
-    'submit_global_protections_check',
+    'submit_global_detections_check',
     'wait_for_player_data_ready',
 ]

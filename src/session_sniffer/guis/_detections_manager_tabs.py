@@ -69,7 +69,7 @@ class DetectionsManagerTabsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def create_player_events_tab(self) -> QWidget:
-        """Create the player events tab with full protection groups for join/rejoin/leave."""
+        """Create the player events tab with detection groups for join/rejoin/leave."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
@@ -81,23 +81,23 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
 
-        join_group = self._create_protection_group(
+        join_group = self._create_detection_group(
             '\u2795 Player Join',
-            'Configure actions and notifications when a player joins your session',
+            'Triggers when a new player joins your session.',
             'player_join',
         )
         scroll_layout.addWidget(join_group)
 
-        rejoin_group = self._create_protection_group(
+        rejoin_group = self._create_detection_group(
             '\U0001f504 Player Rejoin',
-            'Configure actions and notifications when a player rejoins your session after disconnecting',
+            'Triggers when a player rejoins your session after disconnecting.',
             'player_rejoin',
         )
         scroll_layout.addWidget(rejoin_group)
 
-        leave_group = self._create_protection_group(
+        leave_group = self._create_detection_group(
             '\u274c Player Leave',
-            'Configure actions and notifications when a player leaves your session',
+            'Triggers when a player leaves your session.',
             'player_leave',
         )
         scroll_layout.addWidget(leave_group)
@@ -109,7 +109,7 @@ class DetectionsManagerTabsMixin(QDialog):
         return widget
 
     def create_network_based_tab(self) -> QWidget:
-        """Create the network-based protections tab (VPN, Hosting, Mobile, IP Range)."""
+        """Create the network-based detections tab (VPN, Hosting, Mobile, IP Range)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
@@ -121,23 +121,23 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
 
-        mobile_group = self._create_protection_group(
+        mobile_group = self._create_detection_group(
             '\U0001f4f1 Mobile Connection',
-            'Protect against mobile/cellular connections',
+            'Triggers when a player is on a mobile or cellular connection.',
             'mobile',
         )
         scroll_layout.addWidget(mobile_group)
 
-        vpn_group = self._create_protection_group(
+        vpn_group = self._create_detection_group(
             '\U0001f512 VPN/Proxy/Tor',
-            'Protect against connections from VPN, proxy, or Tor exit nodes',
+            'Triggers when a player is using a VPN, proxy, or Tor exit node.',
             'vpn',
         )
         scroll_layout.addWidget(vpn_group)
 
-        hosting_group = self._create_protection_group(
+        hosting_group = self._create_detection_group(
             '\U0001f3e2 Hosting/Data Center',
-            'Protect against connections from hosting providers and data centers',
+            'Triggers when a player connects from a hosting provider or data center.',
             'hosting',
         )
         scroll_layout.addWidget(hosting_group)
@@ -149,7 +149,7 @@ class DetectionsManagerTabsMixin(QDialog):
         return widget
 
     def create_geo_based_tab(self) -> QWidget:
-        """Create the geography-based protections tab (Country, ISP, ASN)."""
+        """Create the geography-based detections tab (Country, ISP, ASN)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
@@ -161,23 +161,23 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
 
-        country_group = self._create_detection_group(
+        country_group = self._create_list_detection_group(
             '\U0001f30d Country Detection',
-            'Detect players from specific countries.',
+            "Triggers when a player's country is in the detection list.",
             'country',
         )
         scroll_layout.addWidget(country_group)
 
-        isp_group = self._create_detection_group(
+        isp_group = self._create_list_detection_group(
             '\U0001f310 ISP/Company Detection',
-            'Detect players from specific ISPs or companies by name (e.g., Vodafone, Orange, Cloudflare).',
+            "Triggers when a player's ISP or company is in the detection list (e.g., Vodafone, Orange, Cloudflare).",
             'isp',
         )
         scroll_layout.addWidget(isp_group)
 
-        asn_group = self._create_detection_group(
+        asn_group = self._create_list_detection_group(
             '\U0001f522 ASN Number Detection',
-            'Detect players from specific ASN numbers (e.g., AS15169, AS13335, or just 15169, 13335).',
+            "Triggers when a player's ASN is in the detection list (e.g., AS15169, AS13335, or just 15169, 13335).",
             'asn',
         )
         scroll_layout.addWidget(asn_group)
@@ -189,7 +189,7 @@ class DetectionsManagerTabsMixin(QDialog):
         return widget
 
     def create_gta5_relays_tab(self) -> QWidget:
-        """Create the GTA5 Relays protection tab (only shown with the GTA5 preset)."""
+        """Create the GTA5 Relays detection tab (only shown with the GTA5 preset)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
@@ -222,14 +222,6 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning.setVisible('GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
         layout.addWidget(filter_warning)
 
-        desc = QLabel(
-            'Configure actions and notifications when a Take-Two relay IP exceeds the '
-            'packet threshold while still connected.',
-        )
-        desc.setWordWrap(True)
-        desc.setStyleSheet(DESC_LABEL_STYLESHEET)
-        layout.addWidget(desc)
-
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -237,16 +229,16 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
 
-        relay_group = self._create_protection_group(
+        relay_group = self._create_detection_group(
             '\U0001f6e1 GTA5 Relay',
-            'Suspend GTA5 when a relay IP exceeds the packet threshold and is still connected',
+            'Triggers when a Take-Two relay IP exceeds the configured packet threshold.',
             'gta5_relay',
         )
         threshold_row = QWidget()
         threshold_layout = QHBoxLayout(threshold_row)
         threshold_layout.setContentsMargins(0, 0, 0, 0)
         _threshold_tooltip = (
-            'How many packets must be exchanged with a relay IP before the protection triggers.\n\n'
+            'How many packets must be exchanged with a relay IP before the detection triggers.\n\n'
             'Take-Two relay servers act as middlemen between you and other players — '
             'they route traffic through their own infrastructure.\n\n'
             'A lower value triggers faster but may react to brief or coincidental relay contact.\n'
@@ -346,7 +338,7 @@ class DetectionsManagerTabsMixin(QDialog):
             '\u26a0\ufe0f The Take-Two / GTA V relay IP ranges are currently being blocked by the capture filter '
             '(<i>Block Third-Party Servers</i> setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
-            'so this protection will never trigger while that filter is active.\n\n'
+            'so this detection will never trigger while that filter is active.\n\n'
             "Would you like to automatically remove 'Take-Two Interactive (GTA V)' from the blocked servers list?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
@@ -475,8 +467,8 @@ class DetectionsManagerTabsMixin(QDialog):
     # Group factories
     # ------------------------------------------------------------------
 
-    def _create_protection_group(self, title: str, description: str, protection_type: str) -> QGroupBox:
-        """Create a standard protection group with enable, action, process path, duration, and notification settings."""
+    def _create_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
+        """Create a detection group with duration and notification settings."""
         group = QGroupBox(title)
         group.setStyleSheet(GROUPBOX_STYLE)
         group_layout = QVBoxLayout()
@@ -486,16 +478,16 @@ class DetectionsManagerTabsMixin(QDialog):
         desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
         group_layout.addWidget(desc_label)
 
-        # -- Protection section container (hideable when protection is not supported) --
-        protection_section = QWidget()
-        protection_section_layout = QVBoxLayout(protection_section)
-        protection_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{protection_type}_protection_section', protection_section)
+        # -- Detection section container (hideable when detection is not supported) --
+        detection_section = QWidget()
+        detection_section_layout = QVBoxLayout(detection_section)
+        detection_section_layout.setContentsMargins(0, 0, 0, 0)
+        setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        protection_section_layout.addWidget(protection_separator)
+        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
+        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_section_layout.addWidget(detection_separator)
 
         # Suspend duration
         duration_layout = QHBoxLayout()
@@ -507,7 +499,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        setattr(self, f'{protection_type}_duration_combo', duration_combo)
+        setattr(self, f'{detection_type}_duration_combo', duration_combo)
         duration_layout.addWidget(duration_combo)
 
         duration_spin = QSpinBox()
@@ -520,21 +512,21 @@ class DetectionsManagerTabsMixin(QDialog):
             duration_spin.setVisible(text == 'Manual')
 
         duration_combo.currentTextChanged.connect(_on_duration_text_changed)
-        setattr(self, f'{protection_type}_duration_spin', duration_spin)
+        setattr(self, f'{detection_type}_duration_spin', duration_spin)
         duration_layout.addWidget(duration_spin)
 
         duration_layout.addStretch()
-        protection_section_layout.addLayout(duration_layout)
+        detection_section_layout.addLayout(duration_layout)
 
         # Notification controls
-        self._create_notification_controls(group_layout, protection_type)
+        self._create_notification_controls(group_layout, detection_type)
 
-        group_layout.addWidget(protection_section)
+        group_layout.addWidget(detection_section)
 
         group.setLayout(group_layout)
         return group
 
-    def _create_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
+    def _create_list_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
         """Create a detection group with enable, list, action, process path, and notification settings."""
         group = QGroupBox(title)
         group.setStyleSheet(GROUPBOX_STYLE)
@@ -572,16 +564,16 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addLayout(buttons_layout)
         group_layout.addLayout(list_layout)
 
-        # -- Protection section container (hideable when protection is not supported) --
-        protection_section = QWidget()
-        protection_section_layout = QVBoxLayout(protection_section)
-        protection_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{detection_type}_protection_section', protection_section)
+        # -- Detection section container (hideable when detection is not supported) --
+        detection_section = QWidget()
+        detection_section_layout = QVBoxLayout(detection_section)
+        detection_section_layout.setContentsMargins(0, 0, 0, 0)
+        setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        protection_section_layout.addWidget(protection_separator)
+        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
+        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_section_layout.addWidget(detection_separator)
 
         # Suspend duration
         duration_layout = QHBoxLayout()
@@ -610,12 +602,12 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_spin)
 
         duration_layout.addStretch()
-        protection_section_layout.addLayout(duration_layout)
+        detection_section_layout.addLayout(duration_layout)
 
         # Notification controls
         self._create_notification_controls(group_layout, detection_type)
 
-        group_layout.addWidget(protection_section)
+        group_layout.addWidget(detection_section)
 
         group.setLayout(group_layout)
         return group
@@ -640,7 +632,7 @@ class DetectionsManagerTabsMixin(QDialog):
         parent_layout.addLayout(voice_layout)
 
         msgbox_checkbox = QCheckBox('Show Message Box')
-        msgbox_checkbox.setToolTip('Show a message box popup when this protection triggers')
+        msgbox_checkbox.setToolTip('Show a message box popup when this detection triggers')
         setattr(self, f'{prefix}_msgbox_checkbox', msgbox_checkbox)
         parent_layout.addWidget(msgbox_checkbox)
 

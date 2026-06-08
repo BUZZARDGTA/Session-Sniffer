@@ -1,4 +1,4 @@
-﻿"""Combo protection rules — multi-condition AND rules with per-rule actions."""
+﻿"""Combo detection rules — multi-condition AND rules with per-rule actions."""
 
 import json
 from collections.abc import Callable
@@ -30,7 +30,7 @@ type ConditionMatcher = Callable[[ConditionValue, Player], bool]
 
 @dataclass(kw_only=True, slots=True)
 class ComboRule:
-    """A single combo protection rule with AND-combined conditions and per-rule action settings."""
+    """A single combo detection rule with AND-combined conditions and per-rule action settings."""
 
     name: str
     enabled: bool = True
@@ -259,7 +259,7 @@ def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> b
 
 @dataclass(kw_only=True, slots=True)
 class ComboRulesManager:
-    """Singleton manager for combo protection rules."""
+    """Singleton manager for combo detection rules."""
 
     rules: ClassVar[list[ComboRule]] = []
 
@@ -301,12 +301,12 @@ class ComboRulesManager:
 
     @classmethod
     def export_rules(cls) -> list[dict[str, object]]:
-        """Export rules as a list of dicts for inclusion in protection settings export."""
+        """Export rules as a list of dicts for inclusion in detection settings export."""
         return [rule.to_dict() for rule in cls.rules]
 
     @classmethod
     def import_rules(cls, rules_data: list[object]) -> None:
-        """Import rules from a list of dicts from protection settings import."""
+        """Import rules from a list of dicts from detection settings import."""
         cls.rules = []
 
         for entry in rules_data:

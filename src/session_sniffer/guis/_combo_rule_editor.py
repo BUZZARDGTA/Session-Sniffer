@@ -248,7 +248,7 @@ class ComboRuleEditorDialog(QDialog):
         action_layout.addLayout(voice_row)
 
         self._msgbox_checkbox = QCheckBox('Show Message Box')
-        self._msgbox_checkbox.setToolTip('Show a message box popup when this protection triggers')
+        self._msgbox_checkbox.setToolTip('Show a message box popup when this detection triggers')
         self._msgbox_checkbox.setChecked(rule.message_box if rule else False)
         action_layout.addWidget(self._msgbox_checkbox)
 
@@ -257,16 +257,16 @@ class ComboRuleEditorDialog(QDialog):
         self._logging_checkbox.setChecked(rule.logging if rule else False)
         action_layout.addWidget(self._logging_checkbox)
 
-        # Protection Settings
-        # -- Protection section (hidden when neighbour interface / protection not supported) --
-        protection_section = QWidget()
-        protection_section_layout = QVBoxLayout(protection_section)
-        protection_section_layout.setContentsMargins(0, 0, 0, 0)
+        # Detection Settings
+        # -- Detection section (hidden when neighbour interface / detection not supported) --
+        detection_section = QWidget()
+        detection_section_layout = QVBoxLayout(detection_section)
+        detection_section_layout.setContentsMargins(0, 0, 0, 0)
 
-        protection_separator = QLabel('\u2500\u2500\u2500 Protection Settings \u2500\u2500\u2500')
-        protection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        protection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        protection_section_layout.addWidget(protection_separator)
+        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
+        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_section_layout.addWidget(detection_separator)
 
         # Duration
         duration_row = QHBoxLayout()
@@ -285,7 +285,7 @@ class ComboRuleEditorDialog(QDialog):
         self._duration_combo.currentTextChanged.connect(self._on_duration_text_changed)
         duration_row.addWidget(self._duration_spin)
         duration_row.addStretch()
-        protection_section_layout.addLayout(duration_row)
+        detection_section_layout.addLayout(duration_row)
 
         if rule:
             set_duration_widgets_helper(
@@ -293,9 +293,9 @@ class ComboRuleEditorDialog(QDialog):
                 rule.duration if rule.protection_enabled else 'Disabled',
             )
 
-        action_layout.addWidget(protection_section)
+        action_layout.addWidget(detection_section)
         if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
-            protection_section.setVisible(False)
+            detection_section.setVisible(False)
 
         action_group.setLayout(action_layout)
         main_layout.addWidget(action_group)

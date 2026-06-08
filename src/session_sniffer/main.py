@@ -29,7 +29,7 @@ from session_sniffer.background import (
     pinger_core,
     player_rates_core,
     process_userip_task,
-    submit_global_protections_check,
+    submit_global_detections_check,
 )
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
@@ -38,7 +38,7 @@ from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder,
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
-from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import (
     GTA5_PACKET_SIZE_MAX,
     GTA5_PACKET_SIZE_MIN,
@@ -66,7 +66,7 @@ from session_sniffer.networking.interface import AllInterfaces, Interface, Selec
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.player.combo_rules import ComboRulesManager
-from session_sniffer.player.protections import GUIDetectionSettings
+from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.renderer import rendering_core
@@ -140,7 +140,7 @@ def main() -> None:
     Settings.rebuild_blocked_ip_ranges()
     CaptureStats.resize_history_deques(Settings.gui_rate_graph_max_history)
 
-    splash.run_with_spinner(GUIDetectionSettings.load_from_file_or_defaults, PROTECTIONS_JSON_PATH)
+    splash.run_with_spinner(GUIDetectionSettings.load_from_file_or_defaults, DETECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
 
     splash.update_status('Checking for updates')
@@ -319,7 +319,7 @@ def main() -> None:
 
         if not matched_player.protection_checked:
             matched_player.protection_checked = True
-            submit_global_protections_check(matched_player)
+            submit_global_detections_check(matched_player)
 
         if not matched_player.relay_monitor_started:
             matched_player.relay_monitor_started = True

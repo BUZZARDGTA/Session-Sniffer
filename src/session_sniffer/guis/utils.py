@@ -59,7 +59,7 @@ class PersistentMenu(QMenu):
 # userip_manager_settings_mixin so they stay in sync.
 # ---------------------------------------------------------------------------
 
-SUSPEND_TOOLTIP_DISABLED = 'Protection is disabled — no process will be suspended when this detection triggers.'
+SUSPEND_TOOLTIP_DISABLED = 'Suspension is disabled — no process will be suspended when this detection triggers.'
 SUSPEND_TOOLTIP_AUTO = (
     'Resume when the hostile player fully disconnects.\n'
     '• Robustness: High - game stays frozen until the threat is gone.\n'

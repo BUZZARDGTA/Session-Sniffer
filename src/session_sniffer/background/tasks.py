@@ -31,7 +31,7 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.player.combo_rules import ComboRulesManager
-from session_sniffer.player.protections import GUIDetectionSettings
+from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, gui_dispatcher
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -98,7 +98,7 @@ _VOICE_QUEUE_MAXSIZE = 10
 _INTER_SOUND_PAUSE_SECONDS = 0.5
 _MINUTE_INTERVAL_SECONDS = 60.0
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
-_protection_check_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='ProtectionCheck')
+_detection_check_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='DetectionCheck')
 
 
 class _DeduplicatedQueue:
@@ -333,11 +333,11 @@ def handle_detection_notification(
     player: Player,
     notification_type: NotificationType,
 ) -> None:
-    """Handle voice notifications, logging, message box popups, and protection actions for player connection events.
+    """Handle voice notifications, logging, message box popups, and suspension actions for player connection events.
 
     This function now reads all settings from GUIDetectionSettings and is used only for
     player_joined_session, player_rejoined_session, and player_left_session events.
-    VPN/hosting/mobile notifications are handled by check_global_protections.
+    VPN/hosting/mobile notifications are handled by check_global_detections.
 
     Args:
         player: The player object with detection data
@@ -345,7 +345,7 @@ def handle_detection_notification(
             `player_rejoined_session`, or `player_left_session`
     """
     def notification_thread() -> None:
-        """Thread function to handle voice, logging, message box, and protection actions."""
+        """Thread function to handle voice, logging, message box, and suspension actions."""
         config = _NOTIFICATION_CONFIGS[notification_type]
         prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
 
@@ -366,7 +366,7 @@ def handle_detection_notification(
         if standalone_active:
             duration: int | Literal['Auto'] = getattr(GUIDetectionSettings, f'{prefix}_duration')
 
-            # Execute protection action (only when enabled and protection is supported)
+            # Execute suspension action (only when enabled and suspension is supported)
             if enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
                 gta5_path = CaptureState.gta5_path
                 if gta5_path is not None:
@@ -427,7 +427,7 @@ def handle_detection_notification(
 
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
-                # Protection action
+                # Suspension action
                 if rule.protection_enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
                     gta5_path = CaptureState.gta5_path
                     if gta5_path is not None:
@@ -573,7 +573,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     Only active when:
     - The GTA5 game preset is selected.
     - The player IP belongs to the Take-Two / GTA5 relay CIDR ranges.
-    - GTA5 relay protection is enabled and a process path is configured.
+    - GTA5 relay detection is enabled and a process path is configured.
 
     The monitor polls the player's packet count until it reaches the
     configurable `GUIDetectionSettings.gta5_relay_packet_threshold` while
@@ -666,20 +666,20 @@ def monitor_gta5_relay_task(player: Player) -> None:
         gui_dispatcher.invoke(_show_relay_notif)
 
 
-def check_global_protections(player: Player) -> None:
-    """Check and apply global protection settings from Detections Manager.
+def check_global_detections(player: Player) -> None:
+    """Check and apply global detection settings from Detections Manager.
 
-    This function evaluates various protection rules configured in the Detections Manager
+    This function evaluates various detection rules configured in the Detections Manager
     and triggers appropriate actions when conditions are met.
 
     Args:
-        player: The player object to check protections against.
+        player: The player object to check detections against.
     """
-    def execute_protection_action(
+    def execute_suspension_action(
         duration: int | Literal['Auto'],
-        protection_name: str,
+        suspension_name: str,
     ) -> None:
-        """Execute a protection action (Suspend)."""
+        """Execute a suspension action."""
         if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
             return
         gta5_path = CaptureState.gta5_path
@@ -687,7 +687,7 @@ def check_global_protections(player: Player) -> None:
             return
         ProcessSuspendManager.request_suspend(
             process_path=gta5_path,
-            reason_key=f'global:{protection_name}:{player.ip}',
+            reason_key=f'global:{suspension_name}:{player.ip}',
             left_event=player.left_event,
             duration=duration,
         )
@@ -739,9 +739,9 @@ def check_global_protections(player: Player) -> None:
     # Mobile Connection Detection
     if player.iplookup.ipapi.mobile:
         if GUIDetectionSettings.mobile_suspend_enabled:
-            execute_protection_action(
+            execute_suspension_action(
                 GUIDetectionSettings.mobile_suspend_duration,
-                'MobileProtection',
+                'MobileDetection',
             )
         handle_detection_notifications(
             detection_title='MOBILE CONNECTION DETECTED!',
@@ -758,9 +758,9 @@ def check_global_protections(player: Player) -> None:
     # VPN/Proxy/Tor Detection
     if player.iplookup.ipapi.proxy:
         if GUIDetectionSettings.vpn_suspend_enabled:
-            execute_protection_action(
+            execute_suspension_action(
                 GUIDetectionSettings.vpn_suspend_duration,
-                'VPNProtection',
+                'VPNDetection',
             )
         handle_detection_notifications(
             detection_title='VPN/PROXY/TOR CONNECTION DETECTED!',
@@ -778,9 +778,9 @@ def check_global_protections(player: Player) -> None:
     # Hosting/Data Center Detection
     if player.iplookup.ipapi.hosting:
         if GUIDetectionSettings.hosting_suspend_enabled:
-            execute_protection_action(
+            execute_suspension_action(
                 GUIDetectionSettings.hosting_suspend_duration,
-                'HostingProtection',
+                'HostingDetection',
             )
         handle_detection_notifications(
             detection_title='HOSTING/DATA CENTER CONNECTION DETECTED!',
@@ -798,9 +798,9 @@ def check_global_protections(player: Player) -> None:
     # Country Detection
     if GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list:
         if GUIDetectionSettings.country_suspend_enabled:
-            execute_protection_action(
+            execute_suspension_action(
                 'Auto',
-                'CountryBlockProtection',
+                'CountryDetection',
             )
         handle_detection_notifications(
             detection_title='BLOCKED COUNTRY DETECTED!',
@@ -836,9 +836,9 @@ def check_global_protections(player: Player) -> None:
 
         if matched_isp:
             if GUIDetectionSettings.isp_suspend_enabled:
-                execute_protection_action(
+                execute_suspension_action(
                     'Auto',
-                    'ISPBlockProtection',
+                    'ISPDetection',
                 )
             handle_detection_notifications(
                 detection_title='BLOCKED ISP DETECTED!',
@@ -875,9 +875,9 @@ def check_global_protections(player: Player) -> None:
 
             if matched_asn:
                 if GUIDetectionSettings.asn_suspend_enabled:
-                    execute_protection_action(
+                    execute_suspension_action(
                         'Auto',
-                        'ASNBlockProtection',
+                        'ASNDetection',
                     )
                 asn_display = (
                     f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}'
@@ -901,7 +901,7 @@ def check_global_protections(player: Player) -> None:
     matched_combo_rules = ComboRulesManager.evaluate(player, event_type=None)
     for rule in matched_combo_rules:
         if rule.protection_enabled:
-            execute_protection_action(
+            execute_suspension_action(
                 rule.duration,
                 f'ComboRule:{rule.name}',
             )
@@ -922,9 +922,9 @@ def check_global_protections(player: Player) -> None:
         )
 
 
-def submit_global_protections_check(player: Player) -> None:
-    """Submit global protection checks to the background protection worker pool."""
-    _protection_check_pool.submit(check_global_protections, player).add_done_callback(_on_pool_task_done)
+def submit_global_detections_check(player: Player) -> None:
+    """Submit global detection checks to the background detection worker pool."""
+    _detection_check_pool.submit(check_global_detections, player).add_done_callback(_on_pool_task_done)
 
 
 def player_rates_core() -> None:

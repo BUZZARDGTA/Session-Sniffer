@@ -1,4 +1,4 @@
-"""Detections Manager dialog for configuring advanced per-detection protection rules."""
+"""Detections Manager dialog for configuring advanced per-detection rules."""
 
 import json
 from pathlib import Path
@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.background import clear_voice_notification_queue
-from session_sniffer.constants.local import COMBO_RULES_PATH, PROTECTIONS_JSON_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
@@ -30,7 +30,7 @@ from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_d
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
-from session_sniffer.player.protections import GUIDetectionSettings
+from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
@@ -105,7 +105,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self.player_leave_msgbox_checkbox: QCheckBox
         # -- GTA5 Relays (GTA5 preset only) --
         self._relay_filter_warning: QWidget
-        self.gta5_relay_protection_section: QWidget
+        self.gta5_relay_detection_section: QWidget
         self.gta5_relay_packet_threshold_spin: QSpinBox
         self.gta5_relay_duration_combo: QComboBox
         self.gta5_relay_duration_spin: QSpinBox
@@ -119,7 +119,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         layout.setSpacing(10)
 
         # Header
-        header = QLabel('\U0001f6e1\ufe0f Advanced Protection & Security Manager')
+        header = QLabel('\U0001f6e1\ufe0f Advanced Detection & Security Manager')
         header.setStyleSheet(DETECTIONS_MANAGER_HEADER_STYLESHEET)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -138,21 +138,21 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         button_row = QHBoxLayout()
 
         import_button = QPushButton('\U0001f4e5 Import')
-        import_button.setToolTip('Import protection settings from a JSON file')
+        import_button.setToolTip('Import detection settings from a JSON file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        import_button.clicked.connect(self._import_protections)
+        import_button.clicked.connect(self._import_detections)
         button_row.addWidget(import_button)
 
         export_button = QPushButton('\U0001f4e4 Export')
-        export_button.setToolTip('Export protection settings to a JSON file')
+        export_button.setToolTip('Export detection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        export_button.clicked.connect(self._export_protections)
+        export_button.clicked.connect(self._export_detections)
         button_row.addWidget(export_button)
 
         reset_button = QPushButton('\U0001f504 Reset all…')
-        reset_button.setToolTip('Reset all protection settings to defaults')
+        reset_button.setToolTip('Reset all detection settings to defaults')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
-        save_button.setToolTip('Save all protection settings')
+        save_button.setToolTip('Save all detection settings')
         save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
@@ -164,37 +164,37 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         layout.addLayout(button_row)
 
         self._load_current_settings()
-        self.refresh_protection_availability()
+        self.refresh_detection_availability()
         if hasattr(self, 'gta5_relay_duration_combo'):
             self.gta5_relay_duration_combo.currentTextChanged.connect(self._on_gta5_relay_suspend_mode_changed)
         self._snapshot = self._read_all_widget_values()
 
     # ------------------------------------------------------------------
-    # Protection support restrictions
+    # Detection support restrictions
     # ------------------------------------------------------------------
 
-    def refresh_protection_availability(self) -> None:
-        """Refresh protection action visibility based on current runtime support."""
+    def refresh_detection_availability(self) -> None:
+        """Refresh detection action visibility based on current runtime support."""
         if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
-            self._apply_protection_restrictions()
+            self._apply_detection_restrictions()
         else:
-            self._remove_protection_restrictions()
+            self._remove_detection_restrictions()
 
-    def _apply_protection_restrictions(self) -> None:
-        """Hide all protection action widgets when protection is not supported (non-GTA5 preset or neighbour interface)."""
+    def _apply_detection_restrictions(self) -> None:
+        """Hide all detection action widgets when detection is not supported (non-GTA5 preset or neighbour interface)."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
-            if not hasattr(self, f'{prefix}_protection_section'):
+            if not hasattr(self, f'{prefix}_detection_section'):
                 continue
-            protection_section: QWidget = getattr(self, f'{prefix}_protection_section')
-            protection_section.setVisible(False)
+            detection_section: QWidget = getattr(self, f'{prefix}_detection_section')
+            detection_section.setVisible(False)
 
-    def _remove_protection_restrictions(self) -> None:
-        """Show all protection action widgets when protection is supported."""
+    def _remove_detection_restrictions(self) -> None:
+        """Show all detection action widgets when detection is supported."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
-            if not hasattr(self, f'{prefix}_protection_section'):
+            if not hasattr(self, f'{prefix}_detection_section'):
                 continue
-            protection_section: QWidget = getattr(self, f'{prefix}_protection_section')
-            protection_section.setVisible(True)
+            detection_section: QWidget = getattr(self, f'{prefix}_detection_section')
+            detection_section.setVisible(True)
 
     # ------------------------------------------------------------------
     # Settings load / save
@@ -317,11 +317,11 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
     def _save_and_apply(self) -> None:
         """Read widgets, write GUIDetectionSettings, persist to Settings.ini, and close."""
-        # Clear voice queue if any protection was newly disabled
+        # Clear voice queue if any detection was newly disabled
         enabled_fields = [
             'mobile_suspend_enabled', 'vpn_suspend_enabled', 'hosting_suspend_enabled',
-            'country_block_enabled', 'isp_block_enabled',
-            'asn_block_enabled', 'player_join_enabled', 'player_rejoin_enabled', 'player_leave_enabled',
+            'country_suspend_enabled', 'isp_suspend_enabled',
+            'asn_suspend_enabled', 'player_join_enabled', 'player_rejoin_enabled', 'player_leave_enabled',
             'gta5_relay_enabled',
         ]
         checkbox_prefixes = [
@@ -338,22 +338,22 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         self._save_widgets_to_singleton()
 
-        GUIDetectionSettings.export_to_file(PROTECTIONS_JSON_PATH)
+        GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.accept()
 
-    def _export_protections(self) -> None:
-        """Export current protection settings (including combo rules) to a JSON file."""
+    def _export_detections(self) -> None:
+        """Export current detection settings (including combo rules) to a JSON file."""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            'Export Protection Settings',
-            'protections.json',
+            'Export Detection Settings',
+            'detections.json',
             'JSON Files (*.json);;All Files (*.*)',
         )
         if file_path:
             # Save current widget state to GUIDetectionSettings first
             self._save_widgets_to_singleton()
-            # Build combined export: standard protections + combo rules
+            # Build combined export: standard detections + combo rules
             target = Path(file_path)
             GUIDetectionSettings.export_to_file(target)
             data: object = json.loads(target.read_text(encoding='utf-8'))
@@ -363,13 +363,13 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             data_dict = cast('dict[str, object]', data)
             data_dict['combo_rules'] = [r.to_dict() for r in ComboRulesManager.rules]
             target.write_text(json.dumps(data_dict, indent=4), encoding='utf-8')
-            QMessageBox.information(self, TITLE, 'Protection settings exported successfully.')
+            QMessageBox.information(self, TITLE, 'Detection settings exported successfully.')
 
-    def _import_protections(self) -> None:
-        """Import protection settings (including combo rules) from a JSON file."""
+    def _import_detections(self) -> None:
+        """Import detection settings (including combo rules) from a JSON file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            'Import Protection Settings',
+            'Import Detection Settings',
             '',
             'JSON Files (*.json);;All Files (*.*)',
         )
@@ -391,10 +391,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
                 return
             self._load_current_settings()
-            QMessageBox.information(self, TITLE, 'Protection settings imported successfully.')
+            QMessageBox.information(self, TITLE, 'Detection settings imported successfully.')
 
     def _reset_tab_to_defaults(self, prefixes: tuple[str, ...]) -> None:
-        """Reset all protection widgets for the given *prefixes* to their default values without saving."""
+        """Reset all detection widgets for the given *prefixes* to their default values without saving."""
         for prefix in prefixes:
             self._set_duration_widgets(
                 getattr(self, f'{prefix}_duration_combo'),
@@ -410,7 +410,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 self.gta5_relay_packet_threshold_spin.setValue(40)
 
     def _reset_current_tab(self) -> None:
-        """Reset the current tab's protection widgets to their default values."""
+        """Reset the current tab's detection widgets to their default values."""
         index_to_prefixes: dict[int, tuple[str, ...]] = {
             0: ('player_join', 'player_rejoin', 'player_leave'),
             1: ('mobile', 'vpn', 'hosting'),
@@ -423,11 +423,11 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self._reset_tab_to_defaults(prefixes)
 
     def _reset_to_defaults(self) -> None:
-        """Reset all protection widget values to defaults after user confirmation."""
+        """Reset all detection widget values to defaults after user confirmation."""
         result = QMessageBox.question(
             self,
             TITLE,
-            'Reset all protection settings to defaults?\n\nThis will clear all current values in the editor.',
+            'Reset all detection settings to defaults?\n\nThis will clear all current values in the editor.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -630,7 +630,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
     @override
     def _save_on_close(self) -> bool:
-        """Save and apply protections; always succeeds."""
+        """Save and apply detection settings; always succeeds."""
         self._save_and_apply()
         return True
 

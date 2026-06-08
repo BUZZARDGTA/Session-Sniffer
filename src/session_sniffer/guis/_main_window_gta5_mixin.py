@@ -211,7 +211,7 @@ class GTA5Mixin(QMainWindow):
             self._userip_manager_window.refresh_runtime_capabilities()
 
         if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
-            self._detections_manager_window.refresh_protection_availability()
+            self._detections_manager_window.refresh_detection_availability()
 
     def _update_gta5_toolbar_visibility(self) -> None:
         """Show or hide the GTA5 menu (and process-bound items inside it) based on preset and capture mode."""

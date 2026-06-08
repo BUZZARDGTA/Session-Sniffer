@@ -4,7 +4,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from session_sniffer.guis.detections_manager import open_combo_rule_editor, open_combo_rule_editor_for_player
-from session_sniffer.player.protections import GUIDetectionSettings
+from session_sniffer.player.detections import GUIDetectionSettings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 _PLACEHOLDER = '...'
 
 
-def _toggle_protection_list(target_list: list[str], value: str, *, add: bool) -> None:
+def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> None:
     """Add or remove *value* from a GUIDetectionSettings list and persist."""
     if add:
         if value not in target_list:
@@ -55,14 +55,14 @@ def build_detections_menu(
                 menu,
                 f'\u2705 Remove Country ({country_name})',
                 tooltip=f'Remove {country_name} from the country detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.country_detection_list, country_name, add=False),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add Country ({country_name})',
                 tooltip=f'Add {country_name} to the country detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.country_detection_list, country_name, add=True),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=True),
             )
 
     # --- ISP ---
@@ -73,14 +73,14 @@ def build_detections_menu(
                 menu,
                 f'\u2705 Remove ISP ({isp})',
                 tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.isp_detection_list, isp, add=False),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, isp, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add ISP ({isp})',
                 tooltip=f'Add ISP "{isp}" to the ISP detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.isp_detection_list, isp, add=True),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, isp, add=True),
             )
 
     # --- ASN ---
@@ -92,14 +92,14 @@ def build_detections_menu(
                 menu,
                 f'\u2705 Remove ASN ({asn_value})',
                 tooltip=f'Remove ASN "{asn_value}" from the ASN detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=False),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=False),
             )
         else:
             add_action(
                 menu,
                 f'Add ASN ({asn_value})',
                 tooltip=f'Add ASN "{asn_value}" to the ASN detection list.',
-                handler=lambda: _toggle_protection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=True),
+                handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=True),
             )
 
     menu.addSeparator()
