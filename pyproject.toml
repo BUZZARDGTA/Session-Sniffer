@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.5.0rc.19+20260609.1500"
+version = "v1.5.0rc.19+20260609.2020"
 dependencies = [
     "aiohttp==3.14.1",
     "colorama==0.4.6",
