@@ -476,6 +476,12 @@ def rendering_core(
                 player.looky_system.usernames if player.looky_system.is_initialized else [],
             )
 
+            if not player.iplookup.geolite2.is_initialized:
+                player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
+                player.iplookup.geolite2.city = get_city_info(player.ip)
+                player.iplookup.geolite2.asn = get_asn_info(player.ip)
+                player.iplookup.geolite2.is_initialized = True
+
             if player.country_flag is None:
                 country_code_value = (
                     player.iplookup.geolite2.country_code
@@ -486,12 +492,6 @@ def rendering_core(
                 )
                 if country_code_value is not None:
                     player.country_flag = get_country_flag(country_code_value)
-
-            if not player.iplookup.geolite2.is_initialized:
-                player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
-                player.iplookup.geolite2.city = get_city_info(player.ip)
-                player.iplookup.geolite2.asn = get_asn_info(player.ip)
-                player.iplookup.geolite2.is_initialized = True
 
         if Settings.is_gta5_preset():
             if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
