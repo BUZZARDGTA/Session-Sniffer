@@ -244,12 +244,17 @@ class GTA5Status:
 
     Attributes:
         path: Resolved path to the running GTA5 executable, or `None` if not running.
+        pid: PID of the running GTA5 process, or `None` if not running.
+        is_suspended: `True` if the running GTA5 process is currently suspended at the
+            OS level (its threads are stopped), regardless of what suspended it.
         is_running: `True` if a GTA5 process was detected.
         is_enhanced: `True` if the running version is GTA V Enhanced (`GTA5_Enhanced.exe`).
         is_legacy: `True` if the running version is GTA V Legacy (`GTA5.exe`).
     """
 
     path: Path | None
+    pid: int | None = None
+    is_suspended: bool = False
     is_running: bool = field(init=False)
     is_enhanced: bool = field(init=False)
     is_legacy: bool = field(init=False)
@@ -262,7 +267,7 @@ class GTA5Status:
         object.__setattr__(self, 'is_legacy', stem == 'gta5')
 
 
-def find_running_gta5_path() -> GTA5Status:
+def find_running_gta5_path(trusted: GTA5Status | None = None) -> GTA5Status:
     """Return a `GTA5Status` snapshot for the currently running GTA5 process.
 
     Scans all running processes for `GTA5.exe` or `GTA5_Enhanced.exe`
@@ -271,20 +276,37 @@ def find_running_gta5_path() -> GTA5Status:
     a valid Authenticode signature to reject any impostor executable that
     merely reuses the GTA5 process name.
 
+    The Authenticode verification is the expensive part of this scan, so it is
+    skipped when `trusted` describes the same process the previous call already
+    validated (matched by PID): a live PID maps to one immutable executable for
+    its whole lifetime, so only the cheap per-call fields (PID presence and
+    suspended `status`) are refreshed. A new or changed PID falls through to a
+    full signature check, preserving impostor rejection whenever the process
+    actually changes.
+
+    Args:
+        trusted: The `GTA5Status` returned by the previous call, used to skip the
+            Authenticode check when the GTA5 process has not changed. Pass `None`
+            to force full signature verification.
+
     Returns:
         `GTA5Status` with `path` set to the resolved executable path when found,
         or `path=None` (and all boolean flags `False`) when neither version is running.
     """
-    for process in psutil.process_iter(['exe']):
+    for process in psutil.process_iter(['exe', 'pid', 'status']):
         process_exe: str | None = process.info.get('exe')
         if not process_exe:
             continue
         process_path = Path(process_exe)
         if process_path.stem.lower() not in _GTA5_PROCESS_NAMES:
             continue
+        process_pid: int | None = process.info.get('pid')
+        is_suspended = process.info.get('status') == psutil.STATUS_STOPPED
+        if trusted is not None and trusted.pid is not None and process_pid == trusted.pid:
+            return GTA5Status(path=trusted.path, pid=trusted.pid, is_suspended=is_suspended)
         resolved = process_path.resolve()
         if has_valid_authenticode_signature(resolved):
-            return GTA5Status(path=resolved)
+            return GTA5Status(path=resolved, pid=process_pid, is_suspended=is_suspended)
     return GTA5Status(path=None)
 
 

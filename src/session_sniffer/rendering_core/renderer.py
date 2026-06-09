@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import geoip2.errors
 from PyQt6.QtGui import QImage
 
+from session_sniffer.background.suspend_manager import GTASuspendManager
 from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
@@ -432,6 +433,11 @@ def rendering_core(
                     ).start()
 
                 handle_detection_notification(player, 'player_left_session')
+
+        # Nudge the GTA5 suspend monitor so reasons waiting on a player 'left' event
+        # resume the process immediately instead of waiting for the next poll cycle.
+        if players_to_disconnect and Settings.is_gta5_preset():
+            GTASuspendManager.wake()
 
         _active_threads = threading.active_count()
         if _active_threads > _THREAD_COUNT_WARN_THRESHOLD:

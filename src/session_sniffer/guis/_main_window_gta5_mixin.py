@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import QMainWindow, QMenu
 
 from session_sniffer import msgbox
-from session_sniffer.background.suspend_manager import ProcessSuspendManager
+from session_sniffer.background.suspend_manager import GTASuspendManager
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import (
     format_gta5_solo_session_process_not_running_message,
@@ -39,7 +39,7 @@ class GTA5Mixin(QMainWindow):
     Expects these attributes on the concrete class (set in `__init__`):
         `_gta5_menu`, `_gta5_process_submenu`, `_gta5_suspend_resume_action`,
         `_gta5_solo_menu_action`, `_manual_gta5_suspend_active`, `_gta5_solo_active`,
-        `_gta5_process_suspended`, `_gta5_process_detected`,
+        `_gta5_process_suspended`, `_gta5_externally_suspended`, `_gta5_process_detected`,
         `_detections_manager_window`, `_userip_manager_window`
     """
 
@@ -55,6 +55,7 @@ class GTA5Mixin(QMainWindow):
     _manual_gta5_suspend_active: bool
     _gta5_solo_active: bool
     _gta5_process_suspended: bool
+    _gta5_externally_suspended: bool
     _gta5_process_detected: bool
     _detections_manager_window: DetectionsManagerDialog | None
     _userip_manager_window: UserIPDatabasesManager | None
@@ -74,25 +75,30 @@ class GTA5Mixin(QMainWindow):
     def toggle_manual_gta5_suspend(self) -> None:
         """Toggle the manual GTA5 process suspend on or off.
 
-        When not suspended: registers a `'manual:toolbar'` reason in `ProcessSuspendManager`
+        When the process was left suspended outside this manager (e.g. by a prior
+        crashed session): resumes it so the toolbar can recover the orphaned process.
+        When not suspended: registers a `'manual:toolbar'` reason in `GTASuspendManager`
         with `'Manual'` duration so it never auto-clears.
         When already suspended: releases the `'manual:toolbar'` reason.
         Auto-protection reasons are unaffected and may also independently keep the process suspended.
         """
         self._sync_gta5_process_button()
+        if self._gta5_externally_suspended:
+            logger.info('Resuming GTA5 process that was left suspended outside this app')
+            GTASuspendManager.resume_os_suspended()
+            self._sync_gta5_process_button()
+            return
         if self._manual_gta5_suspend_active:
-            ProcessSuspendManager.release_reason_global('manual:toolbar')
+            GTASuspendManager.release_reason_global('manual:toolbar')
         else:
-            process_path = self._get_gta5_process_path()
-            if process_path is None:
+            if not self._gta5_process_is_running():
                 logger.warning('Manual GTA5 suspend: GTA5 process is not running')
                 return
-            if ProcessSuspendManager.is_process_suspended(process_path):
+            if GTASuspendManager.is_suspended():
                 logger.info('Manual GTA5 suspend: process is already suspended by another protection reason')
                 self._sync_gta5_process_button()
                 return
-            ProcessSuspendManager.request_suspend(
-                process_path=process_path,
+            GTASuspendManager.request_suspend(
                 reason_key='manual:toolbar',
                 left_event=Event(),
                 duration='Manual',
@@ -102,8 +108,7 @@ class GTA5Mixin(QMainWindow):
     def gta5_solo_session(self) -> None:
         """Suspend GTA5 for ~8 seconds then auto-resume, forcing a solo public session."""
         self._sync_gta5_process_button()
-        process_path = self._get_gta5_process_path()
-        if process_path is None:
+        if not self._gta5_process_is_running():
             logger.warning('GTA5 solo session: GTA5 process is not running')
             msgbox.show(
                 title=TITLE,
@@ -111,20 +116,23 @@ class GTA5Mixin(QMainWindow):
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
             )
             return
-        if ProcessSuspendManager.is_process_suspended(process_path):
+        if self._gta5_externally_suspended:
+            logger.info('GTA5 solo session: process is already suspended outside this app')
+            self._sync_gta5_process_button()
+            return
+        if GTASuspendManager.is_suspended():
             logger.info('GTA5 solo session: process is already suspended')
             self._sync_gta5_process_button()
             return
         already_left = Event()
         already_left.set()
-        ProcessSuspendManager.request_suspend(
-            process_path=process_path,
+        GTASuspendManager.request_suspend(
             reason_key='solo:toolbar',
             left_event=already_left,
             duration=8,
         )
-        if not ProcessSuspendManager.has_reason('solo:toolbar'):
-            logger.warning('GTA5 solo session: suspend failed for process %s', process_path)
+        if not GTASuspendManager.has_reason('solo:toolbar'):
+            logger.warning('GTA5 solo session: suspend failed')
             msgbox.show(
                 title=TITLE,
                 text=format_gta5_solo_session_suspend_failed_message(),
@@ -135,18 +143,26 @@ class GTA5Mixin(QMainWindow):
         self._sync_gta5_process_button()
 
     def _refresh_gta5_process_state(self) -> None:
-        """Refresh GTA5 process-control flags from live process and suspend-manager state."""
-        self._manual_gta5_suspend_active = ProcessSuspendManager.has_reason('manual:toolbar')
-        self._gta5_solo_active = ProcessSuspendManager.has_reason('solo:toolbar')
+        """Refresh GTA5 process-control flags from live process and suspend-manager state.
+
+        The external-suspend flag reads the OS-level suspended state cached by the GTA5
+        process monitor (the same scan that powers the status dot), so it stays current
+        without any extra per-call process scan.
+        """
+        self._manual_gta5_suspend_active = GTASuspendManager.has_reason('manual:toolbar')
+        self._gta5_solo_active = GTASuspendManager.has_reason('solo:toolbar')
 
         can_act = self._gta5_has_any_process_path() and CaptureState.is_local_capture()
         self._gta5_process_detected = can_act and self._gta5_process_is_running()
 
-        process_path = self._get_gta5_process_path()
         self._gta5_process_suspended = (
             can_act
-            and process_path is not None
-            and ProcessSuspendManager.is_process_suspended(process_path)
+            and GTASuspendManager.is_suspended()
+        )
+        self._gta5_externally_suspended = (
+            can_act
+            and not GTASuspendManager.is_suspended()
+            and CaptureState.gta5_is_suspended
         )
 
     def _sync_gta5_process_button(self) -> None:
@@ -156,12 +172,13 @@ class GTA5Mixin(QMainWindow):
         self._gta5_process_submenu.setEnabled(can_act)
         if not can_act:
             if self._manual_gta5_suspend_active:
-                ProcessSuspendManager.release_reason_global('manual:toolbar')
+                GTASuspendManager.release_reason_global('manual:toolbar')
                 self._manual_gta5_suspend_active = False
             if self._gta5_solo_active:
-                ProcessSuspendManager.release_reason_global('solo:toolbar')
+                GTASuspendManager.release_reason_global('solo:toolbar')
                 self._gta5_solo_active = False
             self._gta5_process_suspended = False
+            self._gta5_externally_suspended = False
             self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
             self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')
             self._gta5_suspend_resume_action.setEnabled(False)
@@ -191,6 +208,13 @@ class GTA5Mixin(QMainWindow):
                 'Process is currently suspended by active protection rules. It will resume automatically when those rules clear.',
             )
             self._gta5_solo_menu_action.setToolTip('Process is already suspended')
+        elif self._gta5_externally_suspended:
+            self._gta5_process_submenu.setTitle('⏸️ GTA5 Process (Suspended)')
+            self._gta5_suspend_resume_action.setText('▶️ Resume Process')
+            self._gta5_suspend_resume_action.setEnabled(True)
+            self._gta5_solo_menu_action.setEnabled(False)
+            self._gta5_suspend_resume_action.setToolTip('GTA5 was left suspended outside this app — click to resume it')
+            self._gta5_solo_menu_action.setToolTip('Process is currently suspended — resume it first')
         else:
             self._gta5_process_submenu.setTitle('🎮 GTA5 Process')
             self._gta5_suspend_resume_action.setText('⏸️ Suspend Process')

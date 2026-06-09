@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
     import geoip2.database
 
+    from session_sniffer.utils import GTA5Status
+
 _MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
 
 
@@ -112,6 +114,8 @@ class CaptureState:
     gta5_is_legacy: ClassVar[bool] = False
     gta5_just_started: ClassVar[bool] = False
     gta5_path: ClassVar[Path | None] = None
+    gta5_pid: ClassVar[int | None] = None
+    gta5_is_suspended: ClassVar[bool] = False
 
     @classmethod
     def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str, interface_type: str) -> None:
@@ -137,14 +141,16 @@ class CaptureState:
         )
 
     @classmethod
-    def update_gta5_status(cls, *, is_running: bool, is_enhanced: bool, is_legacy: bool, path: Path | None) -> None:
-        """Update GTA5 running state and set `gta5_just_started` on the first detected launch."""
-        if is_running and not cls.gta5_is_running:
+    def update_gta5_status(cls, status: GTA5Status) -> None:
+        """Update GTA5 running/suspended state and set `gta5_just_started` on the first detected launch."""
+        if status.is_running and not cls.gta5_is_running:
             cls.gta5_just_started = True
-        cls.gta5_is_running = is_running
-        cls.gta5_is_enhanced = is_enhanced
-        cls.gta5_is_legacy = is_legacy
-        cls.gta5_path = path
+        cls.gta5_is_running = status.is_running
+        cls.gta5_is_enhanced = status.is_enhanced
+        cls.gta5_is_legacy = status.is_legacy
+        cls.gta5_path = status.path
+        cls.gta5_pid = status.pid
+        cls.gta5_is_suspended = status.is_suspended
 
 
 class CaptureStats:

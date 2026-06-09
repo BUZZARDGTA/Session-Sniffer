@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.background import gui_closed__event
-from session_sniffer.background.suspend_manager import ProcessSuspendManager
+from session_sniffer.background.suspend_manager import GTASuspendManager
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
@@ -251,8 +251,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._manual_gta5_suspend_active = False
         self._gta5_solo_active = False
         self._gta5_process_suspended = False
+        self._gta5_externally_suspended = False
         self._gta5_process_detected = False
-        self._last_gta5_status_key: tuple[bool, bool, bool] = (False, False, False)
+        self._last_gta5_status_key: tuple[bool, bool, bool, bool] = (False, False, False, False)
 
         if Settings.is_gta5_preset():
             self._sync_gta5_process_button()
@@ -655,7 +656,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gui_closed__event.set()
         if self.capture.is_running():
             self.capture.stop()
-        ProcessSuspendManager.shutdown()
+        GTASuspendManager.shutdown()
         self._state.worker_thread.quit()
         self._state.worker_thread.wait()
         if a0 is not None:
@@ -751,7 +752,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             page=payload.disconnected_page,
         )
 
-        status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy)
+        status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)
         if status_key != self._last_gta5_status_key:
             self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
@@ -766,12 +767,17 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         """Refresh the GTA5 status label and tooltip from cached `CaptureState` values."""
         if CaptureState.gta5_is_running:
             version = 'GTA V Enhanced' if CaptureState.gta5_is_enhanced else 'GTA V Legacy'
-            self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
-            self._gta5_status_label.setToolTip(str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state')
+            path_tooltip = str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state'
+            if CaptureState.gta5_is_suspended:
+                self._gta5_status_label.setText(f'<span style="color: #FF9800;">●</span> {version} (Suspended)')
+                self._gta5_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
+            else:
+                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+                self._gta5_status_label.setToolTip(path_tooltip)
         else:
             self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
             self._gta5_status_label.setToolTip('GTA V process detection state')
-        self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy)
+        self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)
 
     @staticmethod
     def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:
@@ -908,7 +914,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         if connected_ips:
             for ip in connected_ips:
-                ProcessSuspendManager.release_reasons_for_ip(ip)
+                GTASuspendManager.release_reasons_for_ip(ip)
             MobileWarnings.remove_notified_ips_batch(connected_ips)
             VPNWarnings.remove_notified_ips_batch(connected_ips)
             HostingWarnings.remove_notified_ips_batch(connected_ips)
@@ -927,7 +933,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         if disconnected_ips:
             for ip in disconnected_ips:
-                ProcessSuspendManager.release_reasons_for_ip(ip)
+                GTASuspendManager.release_reasons_for_ip(ip)
             MobileWarnings.remove_notified_ips_batch(disconnected_ips)
             VPNWarnings.remove_notified_ips_batch(disconnected_ips)
             HostingWarnings.remove_notified_ips_batch(disconnected_ips)

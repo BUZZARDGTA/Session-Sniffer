@@ -1,110 +1,87 @@
-﻿"""Centralized reason-based GTA5 process suspend/resume manager.
+﻿"""Reason-based process suspension manager for the global GTA5 process.
 
-Shared by all code paths that need to suspend the GTA5 process: global detections
-(VPN, mobile, hosting, country, ISP, ASN, relay, combo rules), player-event detections
-(join, rejoin, leave), UserIP protections, and manual toolbar suspension.
-
-Guarantees:
-- Only ONE `psutil.Process.suspend()` / `.resume()` call, regardless of
-  how many detections or protections fire simultaneously.
-- One monitor thread that polls all active reasons.
-- Process resumes only when ALL reasons are satisfied:
-  every hostile player has left AND every per-reason minimum duration has elapsed.
-- Player rejoins are handled automatically (`left_event.clear()` keeps suspension alive).
-- Proper error handling for NoSuchProcess / AccessDenied / unexpected failures.
-- Clean shutdown: all suspended processes are resumed when the application exits.
+This module provides a singleton manager that controls suspension and resumption
+of the single, globally-resolved GTA5 process based on multiple concurrent
+"reasons" (e.g. detections, player events, manual overrides). It ensures the
+process is only suspended once and only resumed when all active reasons are resolved.
 """
-
 import time
 from dataclasses import dataclass, field
-from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, ClassVar, Literal
+from threading import Condition, Event, Thread
+from typing import ClassVar, Literal
 
 import psutil
 
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.utils import get_pid_by_path
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 logger = get_logger(__name__)
 
-_MONITOR_POLL_INTERVAL = 1.0  # seconds between monitor checks
+
+def _get_gta5_pid() -> int | None:
+    """Resolve the PID of the running GTA5 process, or `None` if it is not running.
+
+    Reuses the validated GTA5 executable path tracked by `CaptureState` (refreshed
+    periodically by the GTA5 process monitor) and maps it to a live PID.
+    """
+    gta5_path = CaptureState.gta5_path
+    if gta5_path is None:
+        return None
+    return get_pid_by_path(gta5_path)
 
 
 @dataclass(slots=True)
 class _SuspendReason:
-    """A single reason to keep a process suspended."""
-
     left_event: Event
     min_duration: float
     added_at: float
     manual: bool
-    require_left_event: bool
 
 
 @dataclass(slots=True)
 class _ProcessState:
-    """Tracking state for the GTA5 process being suspended."""
-
     pid: int
-    process_path: Path
     suspended: bool = False
     reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
 
-class ProcessSuspendManager:
-    """Singleton manager for GTA5 process suspension.
-
-    Instead of each detection or protection type spawning its own suspend / resume threads,
-    all detections and protections register "reasons" with this manager.  The manager:
-
-    1. Suspends the process **once** when the first reason is added.
-    2. Runs **one** monitor thread.
-    3. Resumes the process when **all** reasons are satisfied:
-       - `left_event` is set (the hostile player left), **and**
-       - `min_duration` seconds have elapsed since the reason was added.
-       - Reasons with `manual=True` are never auto-satisfied.
-     4. Handles errors (process died, access denied) gracefully.
-     5. Resumes everything on :meth:`shutdown`.
-    """
+class GTASuspendManager:
+    """Singleton suspend manager (thread-safe, reason-based)."""
 
     _state: ClassVar[_ProcessState | None] = None
-    _lock: ClassVar[Lock] = Lock()
+    _condition: ClassVar[Condition] = Condition()
     _shutdown_event: ClassVar[Event] = Event()
+    _monitor_thread: ClassVar[Thread | None] = None
 
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------
 
     @classmethod
     def request_suspend(
         cls,
-        process_path: Path,
         reason_key: str,
         left_event: Event,
         duration: int | Literal['Auto', 'Manual'],
     ) -> None:
-        """Register a suspend reason for *process_path*.
+        """Register a suspend reason for the global GTA5 process.
 
-        If the process is not yet suspended, it is suspended immediately
-        and a monitor thread is started.  If it is already suspended the
-        reason is added / updated and the existing monitor keeps running.
+        The process will be suspended on the first active reason and will remain
+        suspended until all registered reasons are resolved.
 
         Args:
-            process_path: Absolute path to the target executable.
-            reason_key:   Unique key for this reason (e.g. `"global:vpn:1.2.3.4"`).
-            left_event:   The player's `left_event`; set when the player disconnects.
-            duration:     `'Auto'` (resume when player leaves),
-                          `'Manual'` (never auto-resume),
-                          or a positive `int` (minimum seconds before resume).
+            reason_key: Unique identifier for this suspension reason.
+            left_event: Event that indicates when a player has left.
+            duration: Either:
+                - "Auto": resume after conditions are met
+                - "Manual": requires explicit removal
+                - int: minimum suspension duration in seconds
         """
         if cls._shutdown_event.is_set():
             return
 
         manual = duration == 'Manual'
-        require_left_event = isinstance(duration, str)
         min_dur = 0.0 if isinstance(duration, str) else max(0.0, float(duration))
 
         reason = _SuspendReason(
@@ -112,201 +89,269 @@ class ProcessSuspendManager:
             min_duration=min_dur,
             added_at=time.monotonic(),
             manual=manual,
-            require_left_event=require_left_event,
         )
 
-        with cls._lock:
+        with cls._condition:
+            # -------------------------
+            # existing state
+            # -------------------------
             if cls._state is not None:
-                # Already tracking — add / update the reason.
                 if reason_key in cls._state.reasons:
                     logger.warning('Overwriting suspend reason: %s', reason_key)
+
                 cls._state.reasons[reason_key] = reason
-                if not cls._state.suspended and cls._try_suspend_pid(cls._state.pid, f'new reason added: {reason_key}'):
+
+                if not cls._state.suspended:
+                    cls._try_suspend_pid(cls._state.pid, f'reason added: {reason_key}')
                     cls._state.suspended = True
+
+                cls._condition.notify_all()
+
+                cls._ensure_monitor_running_locked()
                 return
 
-            # --- First time ---
-            pid = get_pid_by_path(process_path)
+            # -------------------------
+            # first suspend
+            # -------------------------
+            pid = _get_gta5_pid()
             if pid is None:
-                logger.warning('Cannot suspend %s: process not running', process_path.name)
+                logger.debug('GTA5 process not running; suspend request ignored for reason: %s', reason_key)
                 return
 
             if not cls._try_suspend_pid(pid, f'first reason: {reason_key}'):
                 return
 
-            cls._state = _ProcessState(pid=pid, process_path=process_path, suspended=True)
+            cls._state = _ProcessState(pid=pid, suspended=True)
             cls._state.reasons[reason_key] = reason
 
-        # Start the monitor outside the lock (Thread.start is safe).
-        Thread(
-            target=cls._monitor,
-            name=f'SuspendMonitor-{process_path.stem}',
-            daemon=True,
-        ).start()
-
-    @classmethod
-    def has_reason(cls, reason_key: str) -> bool:
-        """Return `True` if the GTA5 process has an active reason with this exact key."""
-        with cls._lock:
-            state = cls._state
-            if state is None:
-                return False
-            return reason_key in state.reasons
-
-    @staticmethod
-    def is_process_suspended(process_path: Path) -> bool:
-        """Return `True` when the running process at *process_path* is currently suspended.
-
-        This queries the live process status from psutil so UI code can use the
-        actual runtime state as the source of truth.
-        """
-        pid = get_pid_by_path(process_path)
-        if pid is None:
-            return False
-        try:
-            return psutil.Process(pid).status() == psutil.STATUS_STOPPED
-        except psutil.NoSuchProcess:
-            return False
-        except psutil.AccessDenied:
-            logger.warning('Cannot read suspend status for PID %d: access denied', pid)
-            return False
-        except psutil.Error:
-            logger.exception('Unexpected error while reading suspend status for PID %d', pid)
-            return False
+            cls._ensure_monitor_running_locked()
+            cls._condition.notify_all()
 
     @classmethod
     def release_reason_global(cls, reason_key: str) -> None:
-        """Remove *reason_key* from the GTA5 process suspend reasons.
+        """Remove a suspend reason from the active process.
 
-        The monitor thread will resume the process once all remaining reasons are satisfied.
+        If the given reason key exists, it will be removed from the internal
+        reason registry. The monitor thread will automatically resume the process
+        once no active reasons remain.
+
+        Args:
+            reason_key: Unique identifier of the suspend reason to remove.
         """
-        with cls._lock:
-            if cls._state is not None:
+        with cls._condition:
+            if cls._state:
                 cls._state.reasons.pop(reason_key, None)
+            cls._condition.notify_all()
 
     @classmethod
     def release_reasons_for_ip(cls, ip: str) -> None:
-        """Remove all suspend reasons associated with *ip*.
+        """Remove every suspend reason associated with the given player IP.
 
-        All player-specific reason keys end with `:{ip}` (e.g. `global:vpn:1.2.3.4`,
-        `userip:1.2.3.4`, `combo:RuleName:1.2.3.4`).  This is called whenever a
-        player is forcibly removed from the registry so that the GTA5 process is
-        no longer kept suspended on their behalf.
+        Reason keys created for player-driven suspensions embed the player IP as
+        their final `:`-delimited segment (e.g. `userip:1.2.3.4`). All matching
+        reasons are removed; the monitor thread resumes the process automatically
+        once no active reasons remain.
 
-        The monitor thread will resume the process once all remaining reasons are satisfied.
+        Args:
+            ip: The player IP whose suspend reasons should be released.
         """
         suffix = f':{ip}'
-        with cls._lock:
-            if cls._state is not None:
-                keys_to_remove = [k for k in cls._state.reasons if k.endswith(suffix)]
-                for k in keys_to_remove:
-                    del cls._state.reasons[k]
+        with cls._condition:
+            if cls._state:
+                for reason_key in [key for key in cls._state.reasons if key.endswith(suffix)]:
+                    del cls._state.reasons[reason_key]
+            cls._condition.notify_all()
 
     @classmethod
     def shutdown(cls) -> None:
-        """Resume the GTA5 process if suspended and stop the monitor thread.
+        """Shutdown the suspend manager and restore process state.
 
-        Safe to call more than once.
+        This method signals the monitor thread to exit, resumes the target process
+        if it is currently suspended, and clears all internal state. It is safe to
+        call multiple times and is typically used during application shutdown.
+
+        The monitor thread will be joined briefly to ensure clean termination.
+
+        Returns:
+            None
         """
         cls._shutdown_event.set()
 
-        with cls._lock:
-            if cls._state is not None and cls._state.suspended:
+        with cls._condition:
+            if cls._state and cls._state.suspended:
                 cls._try_resume_pid(cls._state.pid)
-                cls._state.suspended = False
+
             cls._state = None
+            cls._condition.notify_all()
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+        thread = cls._monitor_thread
+        if thread:
+            thread.join(timeout=2.0)
 
-    @classmethod
-    def _try_suspend_pid(cls, pid: int, reason: str) -> bool:
-        """Suspend *pid*, returning `True` on success."""
-        try:
-            psutil.Process(pid).suspend()
-        except psutil.NoSuchProcess:
-            logger.warning('Cannot suspend PID %d: process exited before suspend', pid)
-            return False
-        except psutil.AccessDenied:
-            logger.warning('Cannot suspend PID %d: access denied — try running as administrator', pid)
-            return False
-        except psutil.Error:
-            logger.exception('Unexpected error while suspending PID %d', pid)
-            return False
-        logger.info('Suspended process PID %d — %s', pid, reason)
-        return True
+        cls._monitor_thread = None
 
     @classmethod
-    def _try_resume_pid(cls, pid: int) -> bool:
-        """Resume *pid*, returning `True` on success (or if process no longer exists)."""
-        try:
-            psutil.Process(pid).resume()
-        except psutil.NoSuchProcess:
-            logger.info('Process PID %d already exited — nothing to resume', pid)
-            return True
-        except psutil.AccessDenied:
-            logger.warning('Cannot resume PID %d: access denied', pid)
-            return False
-        except psutil.Error:
-            logger.exception('Unexpected error while resuming PID %d', pid)
-            return False
-        logger.info('Resumed process PID %d', pid)
-        return True
+    def is_suspended(cls) -> bool:
+        """Return whether the global GTA5 process is currently suspended by this manager."""
+        with cls._condition:
+            return (
+                cls._state is not None
+                and cls._state.suspended
+            )
 
     @classmethod
-    def _reason_is_satisfied(cls, reason: _SuspendReason, now: float) -> bool:
-        """Return `True` when a single reason allows permanent resume."""
-        if reason.manual:
-            return False
-        if reason.require_left_event and not reason.left_event.is_set():
-            return False
-        return now - reason.added_at >= reason.min_duration
+    def has_reason(cls, reason_key: str) -> bool:
+        """Check if a suspend reason is currently active."""
+        with cls._condition:
+            return (
+                cls._state is not None
+                and reason_key in cls._state.reasons
+            )
 
     @classmethod
-    def _all_reasons_satisfied(cls, state: _ProcessState) -> bool:
-        """Return `True` when every reason allows the process to resume permanently.
+    def wake(cls) -> None:
+        """Wake the suspend monitor so it re-evaluates its reasons immediately.
 
-        Must be called while holding `_lock`.
+        Notifies the monitor thread to re-check every reason without waiting for the
+        next poll cycle — useful right after a player's `left_event` is set so the
+        process resumes with zero added latency. This is a pure nudge: it never sets
+        any event nor mutates state, keeping callers fully decoupled from this manager.
         """
-        now = time.monotonic()
-        return all(cls._reason_is_satisfied(r, now) for r in state.reasons.values())
+        with cls._condition:
+            cls._condition.notify_all()
+
+    @classmethod
+    def resume_os_suspended(cls) -> bool:
+        """Resume the live GTA5 process when it was suspended outside this manager.
+
+        Recovers a process left stopped outside this manager's control (for example, by
+        a previously-crashed session) by issuing a single resume on the PID cached by the
+        GTA5 process monitor, so the OS thread suspend counts are not left unbalanced.
+        Does nothing and returns `False` when this manager owns an active suspend state,
+        since the monitor thread is responsible for resuming in that case.
+        """
+        with cls._condition:
+            if cls._state is not None:
+                return False
+            pid = CaptureState.gta5_pid
+            if pid is None:
+                return False
+            return cls._try_resume_pid(pid)
+
+    # ------------------------------------------------------------
+    # Monitor lifecycle
+    # ------------------------------------------------------------
+
+    @classmethod
+    def _ensure_monitor_running_locked(cls) -> None:
+        """Start monitor thread if not alive."""
+        thread = cls._monitor_thread
+
+        if thread is None or not thread.is_alive():
+            cls._monitor_thread = Thread(
+                target=cls._monitor,
+                name='SuspendMonitor-GTA5',
+                daemon=True,
+            )
+            cls._monitor_thread.start()
 
     @classmethod
     def _monitor(cls) -> None:
-        """Poll reasons until all are satisfied, then resume the GTA5 process."""
-        while not cls._shutdown_event.is_set():
-            cls._shutdown_event.wait(_MONITOR_POLL_INTERVAL)
-            if cls._shutdown_event.is_set():
-                break
+        try:
+            while True:
+                with cls._condition:
+                    if cls._shutdown_event.is_set() or cls._state is None:
+                        return
 
-            should_resume = False
-            pid = None
+                    state = cls._state
 
-            with cls._lock:
-                if cls._state is None:
-                    return
+                    # stale PID check (process exited -> None, or restarted -> new PID)
+                    pid = _get_gta5_pid()
+                    if pid != state.pid:
+                        logger.warning('GTA5 PID changed (%s -> %s); clearing suspend state', state.pid, pid)
+                        cls._state = None
+                        return
 
-                # --- Stale PID check: process restarted under a new PID ---
-                current_pid = get_pid_by_path(cls._state.process_path)
-                if current_pid != cls._state.pid:
-                    logger.warning(
-                        'PID changed (%s -> %s). Resetting suspend state.',
-                        cls._state.pid,
-                        current_pid,
-                    )
-                    cls._state = None
-                    return
+                    # all reasons satisfied
+                    now = time.monotonic()
+                    if all(cls._reason_ok(r, now) for r in state.reasons.values()):
+                        pid_to_resume = state.pid
+                        cls._state = None
+                    else:
+                        timeout = cls._next_timeout(state, now)
+                        cls._condition.wait(timeout=timeout)
+                        continue
 
-                # --- Permanent resume: all reasons satisfied ---
-                if not cls._state.reasons or cls._all_reasons_satisfied(cls._state):
-                    should_resume = cls._state.suspended
-                    pid = cls._state.pid
-                    cls._state = None
-
-            if should_resume and pid is not None:
-                cls._try_resume_pid(pid)
+                cls._try_resume_pid(pid_to_resume)
                 return
 
-        # Shutdown was requested — the shutdown() method already resumes everything,
-        # so the monitor simply exits.
+        finally:
+            # IMPORTANT: lifecycle reset
+            cls._monitor_thread = None
+
+    # ------------------------------------------------------------
+    # Logic helpers
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _reason_ok(reason: _SuspendReason, now: float) -> bool:
+        if reason.manual:
+            return False
+        return reason.left_event.is_set() and (now - reason.added_at) >= reason.min_duration
+
+    @staticmethod
+    def _next_timeout(state: _ProcessState, now: float) -> float:
+        earliest = None
+
+        for r in state.reasons.values():
+            if r.manual:
+                continue
+            remaining = r.min_duration - (now - r.added_at)
+            if remaining > 0:
+                earliest = remaining if earliest is None else min(earliest, remaining)
+
+        return max(0.01, earliest) if earliest is not None else 0.2
+
+    # ------------------------------------------------------------
+    # psutil wrappers
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _try_suspend_pid(pid: int, reason: str) -> bool:
+        try:
+            psutil.Process(pid).suspend()
+
+        except psutil.NoSuchProcess:
+            logger.warning('Suspend failed PID %d: process no longer exists', pid)
+            return False
+
+        except psutil.AccessDenied:
+            logger.warning('Suspend failed PID %d: access denied', pid)
+            return False
+
+        except psutil.Error as e:
+            logger.warning('Suspend failed PID %d: psutil error: %s', pid, e)
+            return False
+
+        logger.info('Suspended PID %d (%s)', pid, reason)
+        return True
+
+    @staticmethod
+    def _try_resume_pid(pid: int) -> bool:
+        try:
+            psutil.Process(pid).resume()
+
+        except psutil.NoSuchProcess:
+            logger.info('Resume skipped PID %d: process already exited', pid)
+            return True
+
+        except psutil.AccessDenied:
+            logger.warning('Resume failed PID %d: access denied', pid)
+            return False
+
+        except psutil.Error as e:
+            logger.warning('Resume failed PID %d: psutil error: %s', pid, e)
+            return False
+
+        logger.info('Resumed PID %d', pid)
+        return True
