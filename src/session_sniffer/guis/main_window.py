@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QAction, QCloseEvent, QFont
+from PyQt6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics
 from PyQt6.QtWidgets import (
     QFrame,
     QLabel,
@@ -164,6 +164,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_menu.addAction(gta5_status_widget_action)
         self._gta5_status_label = gta5_status_label
         self._gta5_status_widget_action = gta5_status_widget_action
+        # Size the menu to the initial status text; `_update_gta5_status_label` keeps the width in sync
+        # as the process state changes, so `Legacy` renders narrower than `Enhanced`.
+        self._resize_gta5_status_label('● GTA V not running')
 
         gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
         self._gta5_menu_status_separator = cast('QAction', gta5_menu.addSeparator())
@@ -763,20 +766,36 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if self._capture_statistics_window is not None:
             self._capture_statistics_window.refresh()
 
+    def _resize_gta5_status_label(self, visible_text: str) -> None:
+        """Resize the GTA5 status label to fit `visible_text` so the menu width tracks the active variant.
+
+        The menu adopts the label's minimum width, so `Legacy` renders narrower than `Enhanced`
+        instead of always reserving room for the widest variant.
+        """
+        status_font = QFont(self._gta5_status_label.font())
+        status_font.setPointSize(10)
+        # `+ 44` covers the `16 + 28` px horizontal padding from `GTA5_STATUS_LABEL_STYLESHEET`,
+        # plus `12` px slack for the rich-text dot glyph.
+        self._gta5_status_label.setMinimumWidth(QFontMetrics(status_font).horizontalAdvance(visible_text) + 44 + 12)
+
     def _update_gta5_status_label(self) -> None:
         """Refresh the GTA5 status label and tooltip from cached `CaptureState` values."""
         if CaptureState.gta5_is_running:
             version = 'GTA V Enhanced' if CaptureState.gta5_is_enhanced else 'GTA V Legacy'
             path_tooltip = str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state'
             if CaptureState.gta5_is_suspended:
-                self._gta5_status_label.setText(f'<span style="color: #FF9800;">●</span> {version} (Suspended)')
+                visible_text = f'{version} (Suspended)'
+                self._gta5_status_label.setText(f'<span style="color: #FF9800;">●</span> {visible_text}')
                 self._gta5_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
             else:
-                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {version}')
+                visible_text = version
+                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {visible_text}')
                 self._gta5_status_label.setToolTip(path_tooltip)
         else:
+            visible_text = 'GTA V not running'
             self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
             self._gta5_status_label.setToolTip('GTA V process detection state')
+        self._resize_gta5_status_label(f'● {visible_text}')
         self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)
 
     @staticmethod
