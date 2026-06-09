@@ -246,10 +246,16 @@ def build_session_table_snapshot(
             else:
                 connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
         if 'Country' in connected_shown_columns:
-            if Settings.gui_columns_geo_country_append_alpha2:
-                connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
+                _country_name = player.iplookup.geolite2.country
+                _country_code = player.iplookup.geolite2.country_code
             else:
-                connected_row_texts.append(player.iplookup.geolite2.country)
+                _country_name = player.iplookup.ipapi.country
+                _country_code = player.iplookup.ipapi.country_code
+            if Settings.gui_columns_geo_country_append_alpha2:
+                connected_row_texts.append(f'{_country_name} ({_country_code})')
+            else:
+                connected_row_texts.append(_country_name)
         if 'Region' in connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in connected_shown_columns:
@@ -353,10 +359,16 @@ def build_session_table_snapshot(
             else:
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
         if 'Country' in disconnected_shown_columns:
-            if Settings.gui_columns_geo_country_append_alpha2:
-                disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
+            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
+                _country_name = player.iplookup.geolite2.country
+                _country_code = player.iplookup.geolite2.country_code
             else:
-                disconnected_row_texts.append(player.iplookup.geolite2.country)
+                _country_name = player.iplookup.ipapi.country
+                _country_code = player.iplookup.ipapi.country_code
+            if Settings.gui_columns_geo_country_append_alpha2:
+                disconnected_row_texts.append(f'{_country_name} ({_country_code})')
+            else:
+                disconnected_row_texts.append(_country_name)
         if 'Region' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in disconnected_shown_columns:
