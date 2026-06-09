@@ -5,6 +5,7 @@ Detects the currently running GTA V process (Legacy `GTA5.exe` or Enhanced
 executables that merely reuse the process name, and exposes the result as an
 immutable `GTA5Status` snapshot.
 """
+
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,7 +17,10 @@ from session_sniffer.logging_setup import get_logger
 
 logger = get_logger(__name__)
 
-_GTA5_PROCESS_NAMES: frozenset[str] = frozenset({'gta5', 'gta5_enhanced'})
+_GTA5_PROCESS_NAMES: frozenset[str] = frozenset({
+    'gta5.exe',
+    'gta5_enhanced.exe',
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +47,7 @@ class GTA5Status:
     def __post_init__(self) -> None:
         """Derive `is_running`, `is_enhanced`, and `is_legacy` from `path`."""
         stem = self.path.stem.lower() if self.path is not None else ''
+
         object.__setattr__(self, 'is_running', self.path is not None)
         object.__setattr__(self, 'is_enhanced', stem == 'gta5_enhanced')
         object.__setattr__(self, 'is_legacy', stem == 'gta5')
@@ -84,7 +89,11 @@ def find_running_gta5_path(
         back as `cached_proc` on the next call, or is `None` when nothing was found.
     """
     # Fast path: re-poll only the previously validated PID instead of every process.
-    if cached_proc is not None and cached_status is not None and cached_status.path is not None:
+    if (
+        cached_proc is not None
+        and cached_status is not None
+        and cached_status.path is not None
+    ):
         with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             if cached_proc.is_running():
                 is_suspended = cached_proc.status() == psutil.STATUS_STOPPED
@@ -93,17 +102,29 @@ def find_running_gta5_path(
     # Slow path: PID unknown, gone, or reused — full scan with Authenticode verification.
     for process in psutil.process_iter(['exe', 'pid', 'status']):
         process_exe: str | None = process.info.get('exe')
+
         if not process_exe:
             continue
+
         process_path = Path(process_exe)
         if process_path.stem.lower() not in _GTA5_PROCESS_NAMES:
             continue
+
         resolved = process_path.resolve()
         process_pid: int | None = process.info.get('pid')
+
         if not has_valid_authenticode_signature(resolved):
             logger.debug('[GTA5Monitor] Authenticode signature invalid, ignoring impostor: "%s" (PID: %s)', resolved, process_pid)
             continue
         logger.debug('[GTA5Monitor] Authenticode signature verified: "%s" (PID: %s)', resolved, process_pid)
-        is_suspended = process.info.get('status') == psutil.STATUS_STOPPED
-        return GTA5Status(path=resolved, pid=process_pid, is_suspended=is_suspended), process
+
+        return (
+            GTA5Status(
+                path=resolved,
+                pid=process_pid,
+                is_suspended=process.info.get('status') == psutil.STATUS_STOPPED,
+            ),
+            process,
+        )
+
     return GTA5Status(path=None), None
