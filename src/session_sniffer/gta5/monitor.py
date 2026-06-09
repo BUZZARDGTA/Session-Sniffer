@@ -22,16 +22,16 @@ _GTA5_PROCESS_MONITOR_THREAD_NAME = 'GTA5ProcessMonitor'
 
 
 def _log_gta5_status_transition(previous: GTA5Status, current: GTA5Status) -> None:
-    """Debug-log the meaningful GTA5 state changes (detect/exit/PID change/suspend), never steady-state polls."""
+    """Info-log the meaningful GTA5 state changes (detect/exit/PID change/suspend), never steady-state polls."""
     if current.is_running != previous.is_running:
         if current.is_running:
-            logger.debug('[GTA5Monitor] GTA5 process detected: "%s" (PID: %s)', current.path, current.pid)
+            logger.info('[GTA5Monitor] GTA5 process detected: "%s" (PID: %s)', current.path, current.pid)
         else:
-            logger.debug('[GTA5Monitor] GTA5 process exited (was PID: %s)', previous.pid)
+            logger.info('[GTA5Monitor] GTA5 process exited (was PID: %s)', previous.pid)
     elif current.pid != previous.pid:
-        logger.debug('[GTA5Monitor] GTA5 process changed (PID: %s -> %s)', previous.pid, current.pid)
+        logger.info('[GTA5Monitor] GTA5 process changed (PID: %s -> %s)', previous.pid, current.pid)
     elif current.is_suspended != previous.is_suspended:
-        logger.debug('[GTA5Monitor] GTA5 process (PID: %s) %s', current.pid, 'suspended' if current.is_suspended else 'resumed')
+        logger.info('[GTA5Monitor] GTA5 process (PID: %s) %s', current.pid, 'suspended' if current.is_suspended else 'resumed')
 
 
 def _gta5_process_monitor() -> None:

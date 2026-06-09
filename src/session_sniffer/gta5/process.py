@@ -88,7 +88,7 @@ def find_running_gta5_path(
         when neither version is running. The returned process handle should be passed
         back as `cached_proc` on the next call, or is `None` when nothing was found.
     """
-    # Fast path: re-poll only the previously validated PID instead of every process.
+    # Fast path: re-query only the previously validated PID.
     if (
         cached_proc is not None
         and cached_status is not None
@@ -96,35 +96,49 @@ def find_running_gta5_path(
     ):
         with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             if cached_proc.is_running():
-                is_suspended = cached_proc.status() == psutil.STATUS_STOPPED
-                return GTA5Status(path=cached_status.path, pid=cached_proc.pid, is_suspended=is_suspended), cached_proc
+                return (
+                    GTA5Status(
+                        path=cached_status.path,
+                        pid=cached_proc.pid,
+                        is_suspended=cached_proc.status() == psutil.STATUS_STOPPED,
+                    ),
+                    cached_proc,
+                )
 
-    # Slow path: PID unknown, gone, or reused — full scan with Authenticode verification.
-    for process in psutil.process_iter(['exe', 'pid', 'status']):
-        process_exe: str | None = process.info.get('exe')
+    # Slow path: cheap scan by process name only.
+    for process in psutil.process_iter(['name']):
+        process_name: str | None = process.info.get('name')
 
-        if not process_exe:
+        if (
+            not process_name
+            or process_name.lower() not in _GTA5_PROCESS_NAMES
+        ):
             continue
 
-        process_path = Path(process_exe)
-        if process_path.stem.lower() not in _GTA5_PROCESS_NAMES:
+        try:
+            process_path = Path(process.exe())
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-        resolved = process_path.resolve()
-        process_pid: int | None = process.info.get('pid')
-
-        if not has_valid_authenticode_signature(resolved):
-            logger.debug('[GTA5Monitor] Authenticode signature invalid, ignoring impostor: "%s" (PID: %s)', resolved, process_pid)
+        if not has_valid_authenticode_signature(process_path):
+            logger.debug('[GTA5Monitor] Authenticode signature invalid, ignoring impostor: "%s" (PID: %s)', process_path, process.pid)
             continue
-        logger.debug('[GTA5Monitor] Authenticode signature verified: "%s" (PID: %s)', resolved, process_pid)
 
-        return (
-            GTA5Status(
-                path=resolved,
-                pid=process_pid,
-                is_suspended=process.info.get('status') == psutil.STATUS_STOPPED,
-            ),
-            process,
-        )
+        resolved_path = process_path.resolve()
 
-    return GTA5Status(path=None), None
+        logger.debug('[GTA5Monitor] Authenticode signature verified: "%s" (PID: %s)', resolved_path, process.pid)
+
+        with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
+            return (
+                GTA5Status(
+                    path=resolved_path,
+                    pid=process.pid,
+                    is_suspended=process.status() == psutil.STATUS_STOPPED,
+                ),
+                process,
+            )
+
+    return (
+        GTA5Status(path=None),
+        None,
+    )
