@@ -520,7 +520,7 @@ _MODE_SUBNET = 2
 class IPRangeBuilderDialog(QDialog):
     """User-friendly dialog for building IP range entries without needing to know CIDR notation."""
 
-    def __init__(self, parent: QWidget | None, initial_ip: str | None = None, initial_entry: str | None = None) -> None:
+    def __init__(self, parent: QWidget | None, initial_ip: str | None = None, initial_entry: str | None = None, *, allow_single_ip: bool = True) -> None:
         """Build the IP Range Builder dialog."""
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -629,8 +629,15 @@ class IPRangeBuilderDialog(QDialog):
         self._subnet_ip_input.textChanged.connect(self._update_preview)
         self._subnet_slider.valueChanged.connect(self._on_slider_changed)
 
-        # Start with single IP mode
-        self._radio_single.setChecked(True)
+        # Hide the single-IP option when the dialog is used for range-only operations
+        if not allow_single_ip:
+            self._radio_single.setVisible(False)
+
+        # Start with the default mode (single IP, or subnet when single is not allowed)
+        if allow_single_ip:
+            self._radio_single.setChecked(True)
+        else:
+            self._radio_subnet.setChecked(True)
         self._on_mode_changed()
 
         # Pre-fill fields when an initial IP is provided

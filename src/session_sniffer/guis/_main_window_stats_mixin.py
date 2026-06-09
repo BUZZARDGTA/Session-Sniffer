@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QItemSelection, QItemSelectionModel
 from PyQt6.QtWidgets import QMainWindow
 
-from session_sniffer.background.suspend_manager import GTASuspendManager
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
 from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow

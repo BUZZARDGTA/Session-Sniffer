@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import QMainWindow, QMenu
 
 from session_sniffer import msgbox
-from session_sniffer.background.suspend_manager import GTASuspendManager
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import (
     format_gta5_solo_session_process_not_running_message,
     format_gta5_solo_session_suspend_failed_message,
 )
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import SessionHost
 from session_sniffer.rendering_core.types import CaptureState
@@ -143,25 +143,24 @@ class GTA5Mixin(QMainWindow):
         self._sync_gta5_process_button()
 
     def _refresh_gta5_process_state(self) -> None:
-        """Refresh GTA5 process-control flags from live process and suspend-manager state.
+        """Refresh GTA5 process-control flags from the lock-free suspend snapshot and cached state.
 
-        The external-suspend flag reads the OS-level suspended state cached by the GTA5
-        process monitor (the same scan that powers the status dot), so it stays current
-        without any extra per-call process scan.
+        Every value read here comes from an atomic snapshot the background suspend threads
+        publish (the suspend/manual/solo flags) or from `CaptureState` ClassVars the GTA5
+        process monitor refreshes (running/suspended). The GUI thread therefore never
+        acquires the suspend-manager lock nor scans any process, adding zero latency.
         """
-        self._manual_gta5_suspend_active = GTASuspendManager.has_reason('manual:toolbar')
-        self._gta5_solo_active = GTASuspendManager.has_reason('solo:toolbar')
+        suspend_snapshot = GTASuspendManager.snapshot()
+        self._manual_gta5_suspend_active = suspend_snapshot.manual_active
+        self._gta5_solo_active = suspend_snapshot.solo_active
 
         can_act = self._gta5_has_any_process_path() and CaptureState.is_local_capture()
         self._gta5_process_detected = can_act and self._gta5_process_is_running()
 
-        self._gta5_process_suspended = (
-            can_act
-            and GTASuspendManager.is_suspended()
-        )
+        self._gta5_process_suspended = can_act and suspend_snapshot.is_suspended
         self._gta5_externally_suspended = (
             can_act
-            and not GTASuspendManager.is_suspended()
+            and not suspend_snapshot.is_suspended
             and CaptureState.gta5_is_suspended
         )
 

@@ -9,8 +9,8 @@ from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from session_sniffer import msgbox
-from session_sniffer.background.suspend_manager import GTASuspendManager
 from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import terminate_process_tree
 

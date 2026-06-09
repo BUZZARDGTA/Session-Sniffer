@@ -12,14 +12,15 @@ from typing import TYPE_CHECKING
 import geoip2.errors
 from PyQt6.QtGui import QImage
 
-from session_sniffer.background.suspend_manager import GTASuspendManager
-from session_sniffer.background.tasks import gui_closed__event, handle_detection_notification, process_userip_task
+from session_sniffer.background.events import gui_closed__event
+from session_sniffer.background.tasks import handle_detection_notification, process_userip_task
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus

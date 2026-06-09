@@ -61,7 +61,7 @@ def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path
 
 def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Path) -> None:
     """Add the selected IP address as a range entry to the chosen UserIP database."""
-    range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address)
+    range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
     if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
         return
 
@@ -88,6 +88,156 @@ def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Pat
     QMessageBox.information(
         parent, TITLE,
         f'Range "{range_input}" has been added with username "{username}" to UserIP database "{db_display}".',
+    )
+
+
+def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) -> None:
+    """Convert a single-IP UserIP entry into a range entry in place, keeping its username(s).
+
+    Useful when an IP that was tagged with a username later turns out to belong to a
+    VPN/subnet: instead of deleting the entry and re-adding it as a range, every exact
+    single-IP line matching `ip_address` is rewritten to the range built via the dialog.
+    """
+    if player.userip is None or not player.userip.usernames:
+        return
+
+    database_path = player.userip.database_path
+
+    range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
+    if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
+        return
+
+    range_input = range_dlg.result_entry()
+    if not range_input:
+        return
+
+    new_lines: list[str] = []
+    converted_count = 0
+    in_userip_section = False
+    for raw_line in database_path.read_text('utf-8').splitlines(keepends=True):
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            in_userip_section = line == '[UserIP]'
+            new_lines.append(raw_line)
+            continue
+        if in_userip_section:
+            match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+            if match:
+                username_raw = match.group('username')
+                ip_raw = match.group('ip')
+                if username_raw is not None and ip_raw is not None and ip_raw.strip() == ip_address:
+                    ending = raw_line[len(raw_line.rstrip()):]
+                    new_lines.append(f'{username_raw.strip()}={range_input}{ending}')
+                    converted_count += 1
+                    continue
+        new_lines.append(raw_line)
+
+    if not converted_count:
+        QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
+        return
+
+    write_lines_to_file(database_path, 'w', new_lines)
+
+    db_display = database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    entry_word = 'entry' if converted_count == 1 else 'entries'
+    QMessageBox.information(
+        parent, TITLE,
+        f'Converted {converted_count} {entry_word} for IP {ip_address} to range "{range_input}" '
+        f'in UserIP database "{db_display}".',
+    )
+
+
+def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
+    """Edit an existing range entry that covers `ip_address` in its UserIP database, keeping its username(s).
+
+    The player's matched range is located by scanning its database for range entries that contain
+    `ip_address`. When several distinct ranges cover the IP, the user picks which one to edit. Every
+    line whose value equals the chosen range is then rewritten to the new range built via the dialog.
+    """
+    if player.userip is None:
+        return
+
+    database_path = player.userip.database_path
+    content = database_path.read_text('utf-8')
+
+    # Collect the distinct range strings in this database that cover the player's IP.
+    matching_ranges: list[str] = []
+    in_userip_section = False
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            in_userip_section = line == '[UserIP]'
+            continue
+        if not in_userip_section:
+            continue
+        match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+        if match is None:
+            continue
+        ip_raw = match.group('ip')
+        if ip_raw is None:
+            continue
+        entry_ip = ip_raw.strip()
+        if entry_ip not in matching_ranges and _entry_ip_matches_any(entry_ip, [ip_address]):
+            matching_ranges.append(entry_ip)
+
+    if not matching_ranges:
+        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+        return
+
+    if len(matching_ranges) == 1:
+        old_range = matching_ranges[0]
+    else:
+        chosen, ok = QInputDialog.getItem(
+            parent, 'Edit Range',
+            f'Multiple ranges cover IP {ip_address}.\nSelect the range to edit:',
+            matching_ranges, 0, editable=False,
+        )
+        if not ok or not chosen:
+            return
+        old_range = chosen
+
+    # Single IP is allowed here so a range can be narrowed back down to one address.
+    range_dlg = IPRangeBuilderDialog(parent, initial_entry=old_range)
+    if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
+        return
+
+    new_range = range_dlg.result_entry()
+    if not new_range or new_range == old_range:
+        return
+
+    new_lines: list[str] = []
+    edited_count = 0
+    in_userip_section = False
+    for raw_line in content.splitlines(keepends=True):
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            in_userip_section = line == '[UserIP]'
+            new_lines.append(raw_line)
+            continue
+        if in_userip_section:
+            match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+            if match:
+                username_raw = match.group('username')
+                ip_raw = match.group('ip')
+                if username_raw is not None and ip_raw is not None and ip_raw.strip() == old_range:
+                    ending = raw_line[len(raw_line.rstrip()):]
+                    new_lines.append(f'{username_raw.strip()}={new_range}{ending}')
+                    edited_count += 1
+                    continue
+        new_lines.append(raw_line)
+
+    if not edited_count:
+        QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
+        return
+
+    write_lines_to_file(database_path, 'w', new_lines)
+
+    db_display = database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    entry_word = 'entry' if edited_count == 1 else 'entries'
+    QMessageBox.information(
+        parent, TITLE,
+        f'Updated {edited_count} {entry_word} from range "{old_range}" to "{new_range}" '
+        f'in UserIP database "{db_display}".',
     )
 
 

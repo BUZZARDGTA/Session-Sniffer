@@ -18,9 +18,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from session_sniffer import msgbox
 from session_sniffer.background import (
-    ensure_gta5_process_monitor_running,
     ensure_looky_core_running,
-    gui_closed__event,
     handle_detection_notification,
     hostname_core,
     iplookup_core,
@@ -31,6 +29,7 @@ from session_sniffer.background import (
     process_userip_task,
     submit_global_detections_check,
 )
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info
@@ -49,6 +48,7 @@ from session_sniffer.constants.standalone import (
 from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
+from session_sniffer.gta5.monitor import ensure_gta5_process_monitor_running
 from session_sniffer.guis.app import app
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError

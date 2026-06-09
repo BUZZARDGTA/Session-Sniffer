@@ -325,6 +325,15 @@ class UserIPDatabases:
         return None
 
     @classmethod
+    def get_matching_range_raws(cls, ip: str) -> list[str]:
+        """Return the raw strings of every range entry that covers `ip` (empty when none match)."""
+        try:
+            addr = IPv4Address(ip)
+        except ValueError:
+            return []
+        return [entry.ip_range.raw for entry in cls._range_entries if addr in entry.ip_range]
+
+    @classmethod
     def get_userip_database_filepaths(cls) -> list[Path]:
         """Return all enabled UserIP database file paths."""
         with cls._update_userip_database_lock:

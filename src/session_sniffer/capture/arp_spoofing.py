@@ -7,7 +7,7 @@ from threading import Event, Thread
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer import msgbox
-from session_sniffer.background import gui_closed__event
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.local import BIN_DIR_PATH
 from session_sniffer.error_messages import format_arp_spoofing_failed_message
 from session_sniffer.logging_setup import get_logger

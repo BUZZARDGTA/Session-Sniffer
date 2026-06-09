@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, TypeVar, cast
 import requests
 from pydantic import ValidationError
 
-from session_sniffer.background.tasks import gui_closed__event
+from session_sniffer import msgbox
+from session_sniffer.background.events import gui_closed__event
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
 from session_sniffer.logging_setup import get_logger
@@ -40,10 +42,29 @@ T = TypeVar('T')
 _IPAPI_MAX_REQUESTS = 15
 _IPAPI_MAX_THROTTLE_TIME = 60
 _IPAPI_MAX_BATCH_IPS = 100
+# Stop ip-api.com lookups after this many consecutive connection failures (e.g. a VPN/firewall silently blocking it).
+_IPAPI_MAX_CONSECUTIVE_FAILURES = 5
 _IPAPI_FIELDS = (
     'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
     'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 )
+
+
+def _notify_ipapi_unavailable(reason: str) -> None:
+    """Log and show a one-time user-facing warning that ip-api.com geolocation is unavailable this session.
+
+    `reason` is a single sentence explaining why ip-api.com cannot be used (e.g. an HTTPS redirect or a
+    blocked connection); it is embedded into both the log line and the user-facing message box.
+    """
+    logger.warning('[ip-api.com] %s IP geolocation via ip-api.com will be unavailable for this session.', reason)
+    msgbox.show(
+        TITLE,
+        'IP geolocation via ip-api.com is unavailable for this session.\n\n'
+        f'{reason}\n\n'
+        'Country, City, ISP, ASN and related ip-api.com fields will not be populated until the issue is '
+        'resolved and Session Sniffer is restarted.',
+        msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING,
+    )
 
 
 def iplookup_core() -> None:
@@ -55,6 +76,7 @@ def iplookup_core() -> None:
 
     requests_remaining = _IPAPI_MAX_REQUESTS
     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
+    consecutive_failures = 0
 
     while not gui_closed__event.is_set():
         if ScriptControl.has_crashed():
@@ -85,10 +107,36 @@ def iplookup_core() -> None:
             )
             response.raise_for_status()
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+            # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
+            # blocking the connection. Retry a few times in case it is a transient blip, but give up after
+            # too many consecutive failures so we surface a warning instead of hammering the network forever.
+            consecutive_failures += 1
+            if consecutive_failures >= _IPAPI_MAX_CONSECUTIVE_FAILURES:
+                _notify_ipapi_unavailable(
+                    f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts '
+                    '(a VPN, proxy, or firewall may be blocking the connection).',
+                )
+                return
             gui_closed__event.wait(1)
             continue
         except requests.exceptions.HTTPError as e:
             if isinstance(e.response, requests.Response):
+                # ip-api.com's free tier is HTTP-only. Some networks (notably VPNs/proxies) force our plain-HTTP
+                # request onto HTTPS, so ip-api.com answers with a 301 redirect to its HTTPS URL. `requests`
+                # follows that redirect and, per the HTTP spec, downgrades our POST to a GET — but the /batch
+                # endpoint only accepts POST, so the redirected request comes back as 405 Method Not Allowed.
+                # That 301-then-405 chain uniquely identifies this situation, so warn and stop this background
+                # thread gracefully; the rest of the sniffer keeps running normally.
+                if (
+                    e.response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
+                    and any(redirect.status_code == HTTPStatus.MOVED_PERMANENTLY for redirect in e.response.history)
+                ):
+                    _notify_ipapi_unavailable(
+                        'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), '
+                        'which the free ip-api.com service does not support.',
+                    )
+                    return
+
                 # Handle rate limiting.
                 if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                     requests_remaining = int(e.response.headers.get('X-Rl') or '0')
@@ -105,6 +153,9 @@ def iplookup_core() -> None:
                     continue
 
             raise  # Re-raise unexpected HTTP errors (4xx, etc.)
+
+        # A successful response means the network path to ip-api.com is working — reset the failure counter.
+        consecutive_failures = 0
 
         requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
         ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))

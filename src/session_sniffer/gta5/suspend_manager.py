@@ -14,21 +14,8 @@ import psutil
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.rendering_core.types import CaptureState
-from session_sniffer.utils import get_pid_by_path
 
 logger = get_logger(__name__)
-
-
-def _get_gta5_pid() -> int | None:
-    """Resolve the PID of the running GTA5 process, or `None` if it is not running.
-
-    Reuses the validated GTA5 executable path tracked by `CaptureState` (refreshed
-    periodically by the GTA5 process monitor) and maps it to a live PID.
-    """
-    gta5_path = CaptureState.gta5_path
-    if gta5_path is None:
-        return None
-    return get_pid_by_path(gta5_path)
 
 
 @dataclass(slots=True)
@@ -46,6 +33,20 @@ class _ProcessState:
     reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
 
+@dataclass(frozen=True, slots=True)
+class GTASuspendSnapshot:
+    """Immutable, lock-free view of the manager state for GUI reads.
+
+    Republished by the background suspend threads after every state change so the GUI
+    thread can read the suspend/manual/solo flags through a single atomic reference
+    read, never acquiring the manager lock.
+    """
+
+    is_suspended: bool = False
+    manual_active: bool = False
+    solo_active: bool = False
+
+
 class GTASuspendManager:
     """Singleton suspend manager (thread-safe, reason-based)."""
 
@@ -53,6 +54,7 @@ class GTASuspendManager:
     _condition: ClassVar[Condition] = Condition()
     _shutdown_event: ClassVar[Event] = Event()
     _monitor_thread: ClassVar[Thread | None] = None
+    _snapshot: ClassVar[GTASuspendSnapshot] = GTASuspendSnapshot()
 
     # ------------------------------------------------------------
     # Public API
@@ -105,6 +107,7 @@ class GTASuspendManager:
                     cls._try_suspend_pid(cls._state.pid, f'reason added: {reason_key}')
                     cls._state.suspended = True
 
+                cls._publish_snapshot_locked()
                 cls._condition.notify_all()
 
                 cls._ensure_monitor_running_locked()
@@ -113,7 +116,9 @@ class GTASuspendManager:
             # -------------------------
             # first suspend
             # -------------------------
-            pid = _get_gta5_pid()
+            # Reuse the PID cached by the GTA5 process monitor instead of rescanning
+            # every process; path and PID come from the same validated snapshot.
+            pid = CaptureState.gta5_pid
             if pid is None:
                 logger.debug('GTA5 process not running; suspend request ignored for reason: %s', reason_key)
                 return
@@ -124,6 +129,7 @@ class GTASuspendManager:
             cls._state = _ProcessState(pid=pid, suspended=True)
             cls._state.reasons[reason_key] = reason
 
+            cls._publish_snapshot_locked()
             cls._ensure_monitor_running_locked()
             cls._condition.notify_all()
 
@@ -141,6 +147,7 @@ class GTASuspendManager:
         with cls._condition:
             if cls._state:
                 cls._state.reasons.pop(reason_key, None)
+            cls._publish_snapshot_locked()
             cls._condition.notify_all()
 
     @classmethod
@@ -160,6 +167,7 @@ class GTASuspendManager:
             if cls._state:
                 for reason_key in [key for key in cls._state.reasons if key.endswith(suffix)]:
                     del cls._state.reasons[reason_key]
+            cls._publish_snapshot_locked()
             cls._condition.notify_all()
 
     @classmethod
@@ -182,6 +190,7 @@ class GTASuspendManager:
                 cls._try_resume_pid(cls._state.pid)
 
             cls._state = None
+            cls._publish_snapshot_locked()
             cls._condition.notify_all()
 
         thread = cls._monitor_thread
@@ -207,6 +216,16 @@ class GTASuspendManager:
                 cls._state is not None
                 and reason_key in cls._state.reasons
             )
+
+    @classmethod
+    def snapshot(cls) -> GTASuspendSnapshot:
+        """Return the latest published state snapshot without acquiring the lock.
+
+        Reads a single immutable reference (atomic under the GIL), letting the GUI
+        thread refresh its GTA5 menu flags with zero lock contention against the
+        background suspend and monitor threads.
+        """
+        return cls._snapshot
 
     @classmethod
     def wake(cls) -> None:
@@ -265,11 +284,14 @@ class GTASuspendManager:
 
                     state = cls._state
 
-                    # stale PID check (process exited -> None, or restarted -> new PID)
-                    pid = _get_gta5_pid()
+                    # Stale-PID check (process exited -> None, or restarted -> new PID).
+                    # Reads the PID cached by the GTA5 process monitor to avoid a full
+                    # `process_iter` scan on every monitor iteration while holding the lock.
+                    pid = CaptureState.gta5_pid
                     if pid != state.pid:
                         logger.warning('GTA5 PID changed (%s -> %s); clearing suspend state', state.pid, pid)
                         cls._state = None
+                        cls._publish_snapshot_locked()
                         return
 
                     # all reasons satisfied
@@ -277,6 +299,7 @@ class GTASuspendManager:
                     if all(cls._reason_ok(r, now) for r in state.reasons.values()):
                         pid_to_resume = state.pid
                         cls._state = None
+                        cls._publish_snapshot_locked()
                     else:
                         timeout = cls._next_timeout(state, now)
                         cls._condition.wait(timeout=timeout)
@@ -292,6 +315,23 @@ class GTASuspendManager:
     # ------------------------------------------------------------
     # Logic helpers
     # ------------------------------------------------------------
+
+    @classmethod
+    def _publish_snapshot_locked(cls) -> None:
+        """Rebuild the lock-free GUI snapshot from the current state.
+
+        Must be called while holding `_condition`. Rebinds `_snapshot` to a fresh
+        immutable object so lock-free GUI readers always observe a consistent view.
+        """
+        state = cls._state
+        if state is None:
+            cls._snapshot = GTASuspendSnapshot()
+            return
+        cls._snapshot = GTASuspendSnapshot(
+            is_suspended=state.suspended,
+            manual_active='manual:toolbar' in state.reasons,
+            solo_active='solo:toolbar' in state.reasons,
+        )
 
     @staticmethod
     def _reason_ok(reason: _SuspendReason, now: float) -> bool:

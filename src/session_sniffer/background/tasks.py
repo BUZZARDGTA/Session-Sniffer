@@ -10,15 +10,15 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Event, Lock, Thread
-from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict
 
 from session_sniffer import msgbox
-from session_sniffer.background.suspend_manager import GTASuspendManager
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.tables_player_actions import (
     DetectionNotificationInfo,
     PlayerDetectionInfo,
@@ -36,7 +36,6 @@ from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, gui_dispatcher
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
-from session_sniffer.utils import GTA5Status, find_running_gta5_path
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -49,43 +48,6 @@ class _DetectionSettings(NamedTuple):
     log: bool
     msgbox: bool
     tts_filename: str
-
-
-gui_closed__event = Event()
-
-
-_GTA5_PROCESS_MONITOR_THREAD_NAME = 'GTA5ProcessMonitor'
-_GTA5_PROCESS_MONITOR_POLL_SECONDS = 1.0
-
-
-def _gta5_process_monitor() -> None:
-    """Poll for GTA5 process presence and update `CaptureState.gta5_is_running`.
-
-    Polls once per second so process presence and the suspended state stay current,
-    reusing the previous snapshot to skip the expensive Authenticode signature check
-    whenever the GTA5 process has not changed.
-
-    Exits as soon as the GTA5 game preset is no longer active, so the thread does
-    not linger when the user switches presets.
-    """
-    last_status = GTA5Status(path=None)
-    while not gui_closed__event.is_set():
-        if not Settings.is_gta5_preset():
-            CaptureState.update_gta5_status(GTA5Status(path=None))
-            return
-        last_status = find_running_gta5_path(last_status)
-        CaptureState.update_gta5_status(last_status)
-        gui_closed__event.wait(_GTA5_PROCESS_MONITOR_POLL_SECONDS)
-
-
-def ensure_gta5_process_monitor_running() -> None:
-    """Start the GTA5 process monitor thread if the GTA5 preset is active and it is not already running."""
-    if not Settings.is_gta5_preset():
-        return
-    for thread in enumerate_threads():
-        if thread.name == _GTA5_PROCESS_MONITOR_THREAD_NAME and thread.is_alive():
-            return
-    Thread(target=_gta5_process_monitor, name=_GTA5_PROCESS_MONITOR_THREAD_NAME, daemon=True).start()
 
 
 def _on_pool_task_done(future: Future[None]) -> None:

@@ -35,7 +35,9 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_add,
     userip_add_as_range,
     userip_add_username,
+    userip_convert_to_range,
     userip_delete,
+    userip_edit_range,
     userip_move,
     userip_remove_username,
     userip_rename,
@@ -48,6 +50,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import run_cmd_script
 
 if TYPE_CHECKING:
@@ -58,6 +61,52 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
+
+
+def _classify_range_raw(raw: str) -> str:
+    """Return the concrete UserIP range type for a raw entry string.
+
+    Start-end notation (`1.2.3.10-1.2.3.20`) is an `IP range`; CIDR (`/`) and wildcard (`*`)
+    notations are a `subnet`. This mirrors the mode taxonomy used by `IPRangeBuilderDialog`.
+    """
+    if '-' in raw and '/' not in raw and '*' not in raw:
+        return 'IP range'
+    return 'subnet'
+
+
+def _classify_userip_entry(ip: str) -> str:
+    """Return the concrete entry label (`single IP`, `subnet`, `IP range`, or `range`) for one IP.
+
+    Exact members of `UserIPDatabases.ips_set` are a `single IP`. Otherwise the covering range
+    entries are classified; a uniform kind yields its specific label, while overlapping kinds of
+    different types fall back to the neutral `range`.
+    """
+    if ip in UserIPDatabases.ips_set:
+        return 'single IP'
+    labels = {_classify_range_raw(raw) for raw in UserIPDatabases.get_matching_range_raws(ip)}
+    return labels.pop() if len(labels) == 1 else 'range'
+
+
+def _describe_selected_userip_entries(ips: list[str]) -> str:
+    """Return wording like 'the selected subnet' or 'the 3 selected single IPs' for a UserIP selection.
+
+    Each IP is classified as an exact single-IP entry (a member of `UserIPDatabases.ips_set`) or a
+    range-covered entry, then the phrase is built with the matching noun and correct plurality. When
+    every entry is a range of the same concrete kind the specific noun (`subnet`/`IP range`) is used;
+    a selection mixing single IPs with ranges is described with the neutral noun `entries`.
+    """
+    total = len(ips)
+    single_count = sum(1 for ip in ips if ip in UserIPDatabases.ips_set)
+    range_count = total - single_count
+    if single_count and range_count:
+        noun = 'entries'
+    elif range_count:
+        labels = {_classify_userip_entry(ip) for ip in ips}
+        noun = f'{labels.pop()}{pluralize(total)}' if len(labels) == 1 else f'range{pluralize(total)}'
+    else:
+        noun = f'single IP{pluralize(total)}'
+    count = '' if total == 1 else f'{total} '
+    return f'the {count}selected {noun}'
 
 
 class TableContextMenuMixin(QTableView):
@@ -548,6 +597,21 @@ class TableContextMenuMixin(QTableView):
                 tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
                 handler=lambda: userip_rename(self, ip_address, player_obj),
             )
+            entry_desc = _classify_userip_entry(ip_address)
+            if entry_desc == 'single IP':
+                add_action(
+                    userip_menu,
+                    '🔁 Convert to Range',
+                    tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player_obj.userip.usernames))}.',
+                    handler=lambda: userip_convert_to_range(self, ip_address, player_obj),
+                )
+            else:
+                add_action(
+                    userip_menu,
+                    '📏 Edit Range',
+                    tooltip=f'Edit this {entry_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player_obj.userip.usernames))}.',
+                    handler=lambda: userip_edit_range(self, ip_address, player_obj),
+                )
             if player_obj.userip.usernames and len(player_obj.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
                 add_action(
                     userip_menu,
@@ -555,57 +619,60 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Remove selected usernames for this IP address while keeping others.',
                     handler=lambda: userip_remove_username(self, ip_address, player_obj),
                 )
-            move_userip_menu = add_menu(userip_menu, '📦 Move', 'Move selected IP address to another database.')
+            move_userip_menu = add_menu(userip_menu, '📦 Move', f'Move this {entry_desc} entry to another UserIP database.')
             populate_db_menu(
                 move_userip_menu,
                 UserIPDatabases.get_userip_database_filepaths(),
-                tooltip='Move selected IP address to this UserIP database.',
+                tooltip=f'Move this {entry_desc} entry to this UserIP database.',
                 handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
                 disabled_path=player_obj.userip.database_path,
             )
             add_action(
                 userip_menu,
                 '🗑️ Delete',
-                tooltip='Delete selected IP address from UserIP databases.',
+                tooltip=f'Delete this {entry_desc} entry from its UserIP database.',
                 handler=lambda: userip_delete(self, [ip_address]),
             )
 
         def add_userip_multi_menu(ips: list[str], players: list[Player]) -> None:
             if all(not UserIPDatabases.is_known_ip(ip) for ip in ips):
                 userip_menu = add_menu(context_menu, '🗂️ UserIP')
+                add_count = '' if len(ips) == 1 else f'{len(ips)} '
                 add_userip_menu = add_menu(userip_menu, '📥 Add Selected')
                 populate_db_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
-                    tooltip='Add selected IP addresses to this UserIP database.',
+                    tooltip=f'Add the {add_count}selected IP address{pluralize(len(ips), plural='es')} to this UserIP database.',
                     handler_factory=lambda db_path: lambda: userip_add(self, ips, db_path),
                 )
                 return
 
             if all(UserIPDatabases.is_known_ip(ip) for ip in ips):
                 userip_menu = add_menu(context_menu, '🗂️ UserIP')
+                entries_phrase = _describe_selected_userip_entries(ips)
 
                 rename_players = [player for player in players if player.userip is not None]
                 if rename_players:
+                    rename_phrase = _describe_selected_userip_entries([player.ip for player in rename_players])
                     add_action(
                         userip_menu,
                         '✏️ Rename Selected',
-                        tooltip='Rename the username for each selected IP address in its UserIP database.',
+                        tooltip=f'Rename the username for {rename_phrase} in its UserIP database.',
                         handler=lambda: userip_rename_multi(self, rename_players),
                     )
 
-                move_userip_menu = add_menu(userip_menu, '📦 Move Selected')
+                move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(
                     move_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
-                    tooltip='Move selected IP addresses to this UserIP database.',
+                    tooltip=f'Move {entries_phrase} to this UserIP database.',
                     handler_factory=lambda db_path: lambda: userip_move(self, ips, db_path),
                 )
 
                 add_action(
                     userip_menu,
                     '🗑️ Delete Selected',
-                    tooltip='Delete selected IP addresses from UserIP databases.',
+                    tooltip=f'Delete {entries_phrase} from the UserIP databases.',
                     handler=lambda: userip_delete(self, ips),
                 )
 

@@ -25,10 +25,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import ensure_gta5_process_monitor_running, ensure_looky_core_running
+from session_sniffer.background import ensure_looky_core_running
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
+from session_sniffer.gta5.monitor import ensure_gta5_process_monitor_running
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_widget_builders import (

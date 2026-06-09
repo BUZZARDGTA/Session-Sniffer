@@ -4,7 +4,7 @@ from typing import override
 
 from PyQt6.QtCore import pyqtSignal
 
-from session_sniffer.background.tasks import gui_closed__event
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.rendering_core.types import CellColor, GUIRenderingSnapshot, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState
 

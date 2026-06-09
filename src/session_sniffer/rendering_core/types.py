@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     import geoip2.database
 
-    from session_sniffer.utils import GTA5Status
+    from session_sniffer.gta5.process import GTA5Status
 
 _MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
 

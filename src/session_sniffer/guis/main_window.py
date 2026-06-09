@@ -15,10 +15,10 @@ from PyQt6.QtWidgets import (
     QWidgetAction,
 )
 
-from session_sniffer.background import gui_closed__event
-from session_sniffer.background.suspend_manager import GTASuspendManager
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_gta5_mixin import GTA5_SOLO_TOOLTIP, GTA5Mixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
