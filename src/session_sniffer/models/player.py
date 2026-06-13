@@ -117,16 +117,35 @@ class PlayerPackets:
     pps: PPS = dataclasses.field(default_factory=PPS)
     ppm: PPM = dataclasses.field(default_factory=PPM)
 
+    min_len: int = 0
+    max_len: int = 0
+    session_sum_len: int = 0
+
+    total_min_len: int = 0
+    total_max_len: int = 0
+    total_sum_len: int = 0
+
+    @property
+    def avg_len(self) -> float:
+        """Average packet length in current session."""
+        return self.session_sum_len / self.exchanged if self.exchanged > 0 else 0.0
+
+    @property
+    def total_avg_len(self) -> float:
+        """Average packet length across all sessions."""
+        return self.total_sum_len / self.total_exchanged if self.total_exchanged > 0 else 0.0
+
     @property
     def total_exchanged(self) -> int:
         """Total packets exchanged across all sessions."""
         return self.total_received + self.total_sent
 
     @classmethod
-    def from_packet_direction(cls, *, sent_by_local_host: bool) -> Self:
+    def from_packet_direction(cls, *, packet_length: int, sent_by_local_host: bool) -> Self:
         """Create `PlayerPackets` from initial packet direction.
 
         Args:
+            packet_length: The length of the initial packet in bytes
             sent_by_local_host: Whether the initial packet was sent by local host
 
         Returns:
@@ -143,6 +162,13 @@ class PlayerPackets:
 
                 pps=cls.PPS(accumulated_packets=1),
                 ppm=cls.PPM(accumulated_packets=1),
+
+                min_len=packet_length,
+                max_len=packet_length,
+                session_sum_len=packet_length,
+                total_min_len=packet_length,
+                total_max_len=packet_length,
+                total_sum_len=packet_length,
             )
         return cls(
             exchanged=1,
@@ -154,12 +180,20 @@ class PlayerPackets:
 
             pps=cls.PPS(accumulated_packets=1),
             ppm=cls.PPM(accumulated_packets=1),
+
+            min_len=packet_length,
+            max_len=packet_length,
+            session_sum_len=packet_length,
+            total_min_len=packet_length,
+            total_max_len=packet_length,
+            total_sum_len=packet_length,
         )
 
-    def increment(self, *, sent_by_local_host: bool) -> None:
+    def increment(self, *, packet_length: int, sent_by_local_host: bool) -> None:
         """Increment packet counts based on packet direction.
 
         Args:
+            packet_length: The length of the packet in bytes
             sent_by_local_host: Whether the packet was sent by local host
         """
         self.exchanged += 1
@@ -174,10 +208,19 @@ class PlayerPackets:
         self.pps.accumulated_packets += 1
         self.ppm.accumulated_packets += 1
 
-    def reset_current_session(self, *, sent_by_local_host: bool) -> None:
+        self.min_len = min(self.min_len, packet_length)
+        self.max_len = max(self.max_len, packet_length)
+        self.session_sum_len += packet_length
+
+        self.total_min_len = min(self.total_min_len, packet_length)
+        self.total_max_len = max(self.total_max_len, packet_length)
+        self.total_sum_len += packet_length
+
+    def reset_current_session(self, *, packet_length: int, sent_by_local_host: bool) -> None:
         """Reset current session packet counts (for rejoins).
 
         Args:
+            packet_length: The length of the rejoin packet in bytes
             sent_by_local_host: Whether the rejoin packet was sent by local host
         """
         self.exchanged = 1
@@ -195,6 +238,14 @@ class PlayerPackets:
         self.pps.accumulated_packets = 1
         self.ppm.reset()
         self.ppm.accumulated_packets = 1
+
+        self.min_len = packet_length
+        self.max_len = packet_length
+        self.session_sum_len = packet_length
+
+        self.total_min_len = min(self.total_min_len, packet_length)
+        self.total_max_len = max(self.total_max_len, packet_length)
+        self.total_sum_len += packet_length
 
 
 @dataclass(kw_only=True, slots=True)
@@ -880,7 +931,7 @@ class Player:
         self._lifecycle = _PlayerLifecycleState()
         self._traffic = _PlayerTrafficState(
             datetime=PlayerDateTime.from_packet_datetime(packet.datetime),
-            packets=PlayerPackets.from_packet_direction(sent_by_local_host=packet.sent_by_local_host),
+            packets=PlayerPackets.from_packet_direction(packet_length=packet.length, sent_by_local_host=packet.sent_by_local_host),
             bandwidth=PlayerBandwidth.from_packet_direction(packet_length=packet.length, sent_by_local_host=packet.sent_by_local_host),
             ports=PlayerPorts.from_packet_port(packet.port),
         )
@@ -942,7 +993,7 @@ class Player:
     def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
         self._traffic.datetime.last_seen = packet_datetime
-        self._traffic.packets.increment(sent_by_local_host=sent_by_local_host)
+        self._traffic.packets.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
         self._traffic.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
         if port != self._traffic.ports.last:
@@ -967,7 +1018,7 @@ class Player:
         self.datetime.accumulate_session_to_total()
         self.datetime.last_rejoin = packet_datetime
         self.datetime.last_seen = packet_datetime
-        self.packets.reset_current_session(sent_by_local_host=sent_by_local_host)
+        self.packets.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
         self.bandwidth.reset_current_session(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
         if Settings.gui_reset_ports_on_rejoins:

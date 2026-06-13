@@ -36,6 +36,12 @@ PACKET_STAT_COLUMNS: tuple[str, ...] = (
     'Packets Received',
     'T. Packets Sent',
     'Packets Sent',
+    'T. Min Packet Length',
+    'Min Packet Length',
+    'T. Avg Packet Length',
+    'Avg Packet Length',
+    'T. Max Packet Length',
+    'Max Packet Length',
 )
 
 # Bandwidth column names derived from the attribute map above.

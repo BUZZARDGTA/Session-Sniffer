@@ -179,6 +179,18 @@ def build_session_table_snapshot(
             connected_row_texts.append(f'{player.packets.total_sent}')
         if 'Packets Sent' in connected_shown_columns:
             connected_row_texts.append(f'{player.packets.sent}')
+        if 'T. Min Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.total_min_len}')
+        if 'Min Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.min_len}')
+        if 'T. Avg Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.total_avg_len:.1f}')
+        if 'Avg Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.avg_len:.1f}')
+        if 'T. Max Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.total_max_len}')
+        if 'Max Packet Length' in connected_shown_columns:
+            connected_row_texts.append(f'{player.packets.max_len}')
         if 'PPS' in connected_shown_columns:
             row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
                 foreground=_get_rate_gradient_color(
@@ -332,6 +344,18 @@ def build_session_table_snapshot(
             disconnected_row_texts.append(f'{player.packets.total_sent}')
         if 'Packets Sent' in disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.sent}')
+        if 'T. Min Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.total_min_len}')
+        if 'Min Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.min_len}')
+        if 'T. Avg Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.total_avg_len:.1f}')
+        if 'Avg Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.avg_len:.1f}')
+        if 'T. Max Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.total_max_len}')
+        if 'Max Packet Length' in disconnected_shown_columns:
+            disconnected_row_texts.append(f'{player.packets.max_len}')
         if 'T. Bandwidth' in disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
         if 'Bandwidth' in disconnected_shown_columns:
