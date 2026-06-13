@@ -24,11 +24,8 @@ class NamedRange:
         self.cidr = cidr
 
 
-# Shared dependencies to prevent duplicating CIDR entries across multiple game presets.
-class ServerDependencies(tuple[NamedRange, ...], enum.Enum):
+class ServerDependencies:
     """Shared dependencies to prevent duplicating CIDR entries across multiple game presets."""
-
-    __slots__ = ()
 
     AMAZON = (
         NamedRange('Amazon', '34.192.0.0/10'),
@@ -144,7 +141,7 @@ class ServerDependencies(tuple[NamedRange, ...], enum.Enum):
     )
 
     # https://www.gstatic.com/ipranges/cloud.json
-    GOOGLE_CLOUD = (
+    GOOGLE_CLOUD: tuple[NamedRange, ...] = (
         NamedRange('Google Cloud', '34.1.208.0/20'),
         NamedRange('Google Cloud', '34.35.0.0/16'),
         NamedRange('Google Cloud', '34.152.86.0/23'),
@@ -1121,7 +1118,7 @@ class ServerDependencies(tuple[NamedRange, ...], enum.Enum):
 class ThirdPartyServers(enum.Enum):
     """Define IP ranges to treat as third-party server traffic."""
 
-    def __new__(cls, display_name: str, ranges_and_deps: tuple[NamedRange | tuple[NamedRange, ...] | ServerDependencies, ...]) -> Self:
+    def __new__(cls, display_name: str, ranges_and_deps: tuple[NamedRange | tuple[NamedRange, ...], ...]) -> Self:
         """Create an enum member with a display label and named CIDR ranges/dependencies."""
         member = object.__new__(cls)
         flattened_ranges: list[NamedRange] = []
@@ -1137,7 +1134,7 @@ class ThirdPartyServers(enum.Enum):
 
     display_name: str
     named_ranges: tuple[NamedRange, ...]
-    value: tuple[NamedRange | tuple[NamedRange, ...] | ServerDependencies, ...]
+    value: tuple[NamedRange | tuple[NamedRange, ...], ...]
 
     PC_DISCORD = 'Discord', (
         NamedRange('Discord', '66.22.196.0/22'),
