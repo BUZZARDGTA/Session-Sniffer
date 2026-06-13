@@ -47,6 +47,12 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Packets Received': 'The number of packets received from the player during the current session.',
     'T. Packets Sent': 'The total number of packets sent to the player across all sessions.',
     'Packets Sent': 'The number of packets sent to the player during the current session.',
+    'T. Min Packet Length': 'The minimum packet length (in bytes) exchanged with the player across all sessions.',
+    'Min Packet Length': 'The minimum packet length (in bytes) exchanged with the player during the current session.',
+    'T. Avg Packet Length': 'The average packet length (in bytes) exchanged with the player across all sessions.',
+    'Avg Packet Length': 'The average packet length (in bytes) exchanged with the player during the current session.',
+    'T. Max Packet Length': 'The maximum packet length (in bytes) exchanged with the player across all sessions.',
+    'Max Packet Length': 'The maximum packet length (in bytes) exchanged with the player during the current session.',
     'PPS': 'The number of Packets exchanged (Received + Sent) with the player Per Second during the current session.',
     'PPM': 'The number of Packets exchanged (Received + Sent) with the player Per Minute during the current session.',
     'T. Bandwidth': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
@@ -349,6 +355,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             'Rejoins',
             'T. Packets', 'Packets', 'T. Packets Sent', 'Packets Sent', 'T. Packets Received', 'Packets Received', 'PPS', 'PPM',
             'Last Port', 'First Port',
+            'T. Min Packet Length', 'Min Packet Length',
+            'T. Avg Packet Length', 'Avg Packet Length',
+            'T. Max Packet Length', 'Max Packet Length',
         }:
             # Sort by integer/float value of the column value
             combined.sort(

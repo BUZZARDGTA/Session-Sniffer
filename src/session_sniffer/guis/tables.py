@@ -38,6 +38,9 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
         'T. Packets', 'Packets',
         'T. Packets Received', 'Packets Received',
         'T. Packets Sent', 'Packets Sent',
+        'T. Min Packet Length', 'Min Packet Length',
+        'T. Avg Packet Length', 'Avg Packet Length',
+        'T. Max Packet Length', 'Max Packet Length',
         'PPS', 'PPM',
     })),
     ('📶 Bandwidth', frozenset({

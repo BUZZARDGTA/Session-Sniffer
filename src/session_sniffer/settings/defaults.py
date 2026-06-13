@@ -645,6 +645,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_rate_graph_max_history': 3600,
     'gui_columns_connected_shown': (
         'Packets', 'PPS',
+        'Min Packet Length', 'Avg Packet Length', 'Max Packet Length',
         'Bandwidth',
         'BPS',
         'Hostname', 'Last Port',
@@ -655,6 +656,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_columns_disconnected_shown': (
         'T. Session Time', 'Session Time',
         'Packets',
+        'Min Packet Length', 'Avg Packet Length', 'Max Packet Length',
         'Bandwidth',
         'Hostname', 'Last Port',
         'Country', 'Region',
