@@ -139,7 +139,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
     response = session.get(
         LOOKY_WHOAMI_URL,
         headers=_auth_headers(api_key),
-        timeout=10,
+        timeout=(3.0, 10.0),
     )
     response.raise_for_status()
     whoami = LookyWhoAmI.model_validate(response.json())
@@ -166,7 +166,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
         pydantic.ValidationError: If the response JSON shape is unexpected.
     """
     url = f'{LOOKY_BASE_URL}/{ip}'
-    response = session.get(url, headers=_auth_headers(api_key), params={'version': version}, timeout=10)
+    response = session.get(url, headers=_auth_headers(api_key), params={'version': version}, timeout=(3.0, 10.0))
     response.raise_for_status()
     return _RESPONSE_ADAPTER.validate_json(response.content)
 
@@ -192,7 +192,7 @@ def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict
         LOOKY_BATCH_URL,
         headers=_json_auth_headers(api_key),
         json={'ips': ips, 'version': version},
-        timeout=10,
+        timeout=(3.0, 10.0),
     )
     response.raise_for_status()
     parsed = _BATCH_RESPONSE_ADAPTER.validate_json(response.content)
@@ -213,7 +213,7 @@ def send_crawlme_instruction(api_key: str) -> str:
         requests.RequestException: On connection/timeout errors.
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
-    response = session.post(LOOKY_CRAWLME_URL, headers=_json_auth_headers(api_key), timeout=10)
+    response = session.post(LOOKY_CRAWLME_URL, headers=_json_auth_headers(api_key), timeout=(3.0, 10.0))
     response.raise_for_status()
     return str(response.json()['trackingId'])
 
@@ -237,7 +237,7 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
         LOOKY_INSTRUCTION_URL,
         headers=_json_auth_headers(api_key),
         json={'type': 'join', 'rid': rid},
-        timeout=10,
+        timeout=(3.0, 10.0),
     )
     response.raise_for_status()
     return str(response.json()['trackingId'])
@@ -280,7 +280,7 @@ def watch_instruction_status(
                 headers={'Accept': 'text/event-stream'},
                 params={'token': api_key},
                 stream=True,
-                timeout=(10, 300),
+                timeout=(3.0, 300.0),
             ) as response:
                 response.raise_for_status()
                 for raw_line in response.iter_lines():

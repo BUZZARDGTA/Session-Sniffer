@@ -340,6 +340,7 @@ def looky_core() -> None:
     _batch_size = 32
     _verified_api_key: str | None = None
     _failed_verification_api_key: str | None = None
+    server_error_consecutive_failures = 0
 
     while not gui_closed__event.is_set():
         if ScriptControl.has_crashed():
@@ -408,10 +409,13 @@ def looky_core() -> None:
 
         resolved_any = False
         rate_limited = False
+        cooldown_active = False
 
         for batch_start in range(0, len(pending_ips), _batch_size):
             if gui_closed__event.is_set():
                 return
+            if batch_start > 0:
+                gui_closed__event.wait(0.5)
 
             batch = pending_ips[batch_start:batch_start + _batch_size]
             api_key = Settings.looky_api_key
@@ -425,6 +429,13 @@ def looky_core() -> None:
                     gui_closed__event.wait(wait_seconds)
                     rate_limited = True
                     break
+                if exc.response is not None and HTTPStatus(exc.response.status_code).is_server_error:
+                    server_error_consecutive_failures += 1
+                    cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+                    logger.warning('[Looky System] Server error for batch %s: %s. Entering %ss cooldown.', batch, exc, cooldown_duration)
+                    gui_closed__event.wait(cooldown_duration)
+                    cooldown_active = True
+                    break
                 logger.debug('[Looky System] HTTP error for batch %s: %s', batch, exc)
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
@@ -434,8 +445,12 @@ def looky_core() -> None:
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
             except requests.RequestException as exc:
-                logger.warning('[Looky System] Request error for batch %s: %s', batch, exc)
-                # Not marked as initialized — will be retried on the next pass.
+                server_error_consecutive_failures += 1
+                cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+                logger.warning('[Looky System] Request error for batch %s: %s. Entering %ss cooldown.', batch, exc, cooldown_duration)
+                gui_closed__event.wait(cooldown_duration)
+                cooldown_active = True
+                break
             except ValidationError as exc:
                 logger.warning('[Looky System] Validation error for batch %s: %s', batch, exc)
                 for ip in batch:
@@ -457,8 +472,9 @@ def looky_core() -> None:
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
                 resolved_any = True
+                server_error_consecutive_failures = 0
 
-        if not resolved_any and not rate_limited:
+        if not resolved_any and not rate_limited and not cooldown_active:
             gui_closed__event.wait(1)
         else:
             gui_closed__event.wait(0.1)
