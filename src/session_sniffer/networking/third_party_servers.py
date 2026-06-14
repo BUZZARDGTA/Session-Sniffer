@@ -1221,7 +1221,7 @@ class ThirdPartyServers(enum.Enum):
         NamedRange('Tencent Building, Kejizhongyi Avenue', '43.128.0.0/12'),
         NamedRange('Tencent Building, Kejizhongyi Avenue', '43.144.0.0/15'),
         NamedRange('Demonware Limited', '185.34.104.0/22'),
-        #NamedRange('Clouvider Limited', '5.180.208.67/32'),
+        # NamedRange('Clouvider Limited', '5.180.208.67/32'),
         ServerDependencies.VALVE,
         ServerDependencies.MICROSOFT,
         ServerDependencies.US_DEPARTMENT_OF_DEFENSE,
