@@ -354,8 +354,8 @@ class ComboRuleEditorDialog(QDialog):
                 events_layout = QHBoxLayout(events_widget)
                 events_layout.setContentsMargins(0, 0, 0, 0)
                 for display_name in self._EVENT_LABELS:
-                    cb = QCheckBox(display_name)
-                    events_layout.addWidget(cb)
+                    checkbox = QCheckBox(display_name)
+                    events_layout.addWidget(checkbox)
                 value_layout.addWidget(events_widget)
             elif key == 'country':
                 country_combo = QComboBox()
@@ -426,9 +426,9 @@ class ComboRuleEditorDialog(QDialog):
             elif preset_key == 'event' and isinstance(preset_value, list):
                 events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
                 if events_widget is not None:
-                    for cb in events_widget.findChildren(QCheckBox):
-                        event_key = self._EVENT_LABELS.get(cb.text(), '')
-                        cb.setChecked(event_key in preset_value)
+                    for checkbox in events_widget.findChildren(QCheckBox):
+                        event_key = self._EVENT_LABELS.get(checkbox.text(), '')
+                        checkbox.setChecked(event_key in preset_value)
             elif preset_key == 'country' and isinstance(preset_value, str):
                 country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
                 if country_combo_widget is not None:
@@ -499,9 +499,9 @@ class ComboRuleEditorDialog(QDialog):
         if events_widget is None:
             return []
         selected: list[str] = []
-        for cb in events_widget.findChildren(QCheckBox):
-            if cb.isChecked():
-                event_key = self._EVENT_LABELS.get(cb.text(), '')
+        for checkbox in events_widget.findChildren(QCheckBox):
+            if checkbox.isChecked():
+                event_key = self._EVENT_LABELS.get(checkbox.text(), '')
                 if event_key:
                     selected.append(event_key)
         return selected

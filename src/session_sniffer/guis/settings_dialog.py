@@ -466,8 +466,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         # Wire enable cascade.
         if enabled_meta is not None:
-            enabled_cb = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
-            enabled_cb.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))
+            enabled_checkbox = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
+            enabled_checkbox.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))
 
         return group_box
 
@@ -570,8 +570,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         elif meta.setting_type == SettingType.COLUMN_TUPLE:
             shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
             shown_set = set(shown)
-            for cb in widget.findChildren(QCheckBox):
-                cb.setChecked(cb.objectName() in shown_set)
+            for checkbox in widget.findChildren(QCheckBox):
+                checkbox.setChecked(checkbox.objectName() in shown_set)
 
         elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
             entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
@@ -633,10 +633,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         """Read checked column names from the column-tuple group box."""
         allowed_attr = meta.allowed_columns_attr or ''
         allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
-        checkboxes = {cb.objectName(): cb for cb in widget.findChildren(QCheckBox)}
+        checkboxes = {checkbox.objectName(): checkbox for checkbox in widget.findChildren(QCheckBox)}
         return tuple(
             col_name for col_name in allowed_columns
-            if (cb := checkboxes.get(col_name)) is not None and cb.isChecked()
+            if (checkbox := checkboxes.get(col_name)) is not None and checkbox.isChecked()
         )
 
     def _validate(self) -> tuple[list[str], dict[str, SettingValue]]:

@@ -33,10 +33,10 @@ RESTART_INDICATOR = ' \u27F3'
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
     """Create a checkbox widget for a boolean setting."""
-    cb = QCheckBox()
+    checkbox = QCheckBox()
     if meta.tooltip:
-        cb.setToolTip(meta.tooltip)
-    return cb
+        checkbox.setToolTip(meta.tooltip)
+    return checkbox
 
 
 def create_text_widget(meta: SettingMeta) -> QLineEdit:
@@ -197,9 +197,9 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     num_columns = 3
     for i, col_name in enumerate(allowed_columns):
         display_text = meta.display_labels.get(col_name, col_name) if meta.display_labels else col_name
-        cb = QCheckBox(display_text)
-        cb.setObjectName(col_name)
-        grid.addWidget(cb, i // num_columns, i % num_columns)
+        checkbox = QCheckBox(display_text)
+        checkbox.setObjectName(col_name)
+        grid.addWidget(checkbox, i // num_columns, i % num_columns)
 
     scroll.setWidget(inner)
 
@@ -290,12 +290,12 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
 
 def set_all_checkboxes(container: QWidget, *, checked: bool) -> None:
     """Set all QCheckBox children of `container` to `checked`."""
-    for cb in container.findChildren(QCheckBox):
-        cb.setChecked(checked)
+    for checkbox in container.findChildren(QCheckBox):
+        checkbox.setChecked(checked)
 
 
 def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
     """Check exactly the QCheckBox children whose objectName is in `selected`."""
     wanted = set(selected)
-    for cb in container.findChildren(QCheckBox):
-        cb.setChecked(cb.objectName() in wanted)
+    for checkbox in container.findChildren(QCheckBox):
+        checkbox.setChecked(checkbox.objectName() in wanted)

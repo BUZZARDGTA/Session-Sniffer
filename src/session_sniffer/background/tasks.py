@@ -433,12 +433,12 @@ def handle_detection_notification(
                     _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
                     def _make_event_combo_notif(t: str, e: list[tuple[str, str]], et: str) -> None:
-                        def _cb() -> None:
+                        def _callback() -> None:
                             show_detection_notification_dialog(
                                 find_main_window(), player,
                                 DetectionNotificationInfo(emoji='\U0001f517', display_title=t, extra_detection_fields=e, event_time=et),
                             )
-                        gui_dispatcher.invoke(_cb)
+                        gui_dispatcher.invoke(_callback)
 
                     _make_event_combo_notif(_display_title, _extra, _et)
 

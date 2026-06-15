@@ -119,8 +119,8 @@ def main() -> None:
 
     if not is_pyinstaller_compiled():
         splash.update_status('Checking Python package versions')
-        deps = splash.run_with_spinner(get_dependencies_from_pyproject)
-        outdated_packages = splash.run_with_spinner(check_packages_version, deps)
+        dependencies = splash.run_with_spinner(get_dependencies_from_pyproject)
+        outdated_packages = splash.run_with_spinner(check_packages_version, dependencies)
         if outdated_packages:
             msgbox_message = format_outdated_packages_message(
                 app_title=TITLE,
