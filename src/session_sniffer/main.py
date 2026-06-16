@@ -12,7 +12,6 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock, Thread
 
-import colorama
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QMessageBox
 
@@ -95,7 +94,6 @@ def main() -> None:
 
     hide_console_window()
 
-    colorama.init(autoreset=True)
     os.chdir(SCRIPT_DIR)
 
     if sys.platform != 'win32':
