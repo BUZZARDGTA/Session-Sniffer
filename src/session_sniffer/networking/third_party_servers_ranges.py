@@ -45,7 +45,7 @@ DISCORD_RANGES: tuple[NamedRange, ...] = create_ranges(
 
 FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_ranges(
     'FRIEND IT Ltd',
-    '193.169.173.0/24',
+    '193.169.172.0/23',
 )
 
 # https://www.gstatic.com/ipranges/goog.json
@@ -151,8 +151,7 @@ GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_ranges(
 
 LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_ranges(
     'Latitude.sh LTDA',
-    '189.1.164.0/24',
-    '189.1.172.0/24',
+    '189.1.160.0/20',
 )
 
 MICROSOFT_RANGES: tuple[NamedRange, ...] = create_ranges(
@@ -286,8 +285,7 @@ THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_ranges(
 
 TSEFLOW_RANGES: tuple[NamedRange, ...] = create_ranges(
     'TSeflow s.r.l.',
-    '95.141.36.0/24',
-    '95.141.40.0/24',
+    '95.141.32.0/20',
 )
 
 UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_ranges(
