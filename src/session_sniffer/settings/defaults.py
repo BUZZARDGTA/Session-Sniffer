@@ -141,7 +141,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_block_third_party_servers': SettingMeta(
         category='Capture',
         group='IP Filters',
-        display_label='Block Third-Party Servers',
+        display_label='Third-Party Providers',
         setting_type=SettingType.THIRD_PARTY_SERVERS_TUPLE,
         tooltip='Select which third-party server IP ranges to exclude from capture.',
         requires_capture_restart=True,
