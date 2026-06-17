@@ -350,7 +350,6 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     def _on_preset_changed(self, preset: str) -> None:
         """Show or hide preset-dependent rows depending on the active preset."""
         gta5_only = preset == 'GTA5'
-        has_preset = bool(preset) and preset != 'None'
         for key in ('gui_session_host_detection',):
             widget = self._widgets.get(key)
             label = self._labels.get(key)
@@ -359,13 +358,6 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 widget.setEnabled(gta5_only)
             if label:
                 label.setVisible(gta5_only)
-        for key in ('capture_filter_preset_packet_size',):
-            widget = self._widgets.get(key)
-            label = self._labels.get(key)
-            if widget:
-                widget.setVisible(has_preset)
-            if label:
-                label.setVisible(has_preset)
         if self._looky_tab_index != -1:
             self._tabs.setTabVisible(self._looky_tab_index, gta5_only)
 

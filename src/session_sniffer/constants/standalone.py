@@ -70,11 +70,6 @@ SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset({
     'Offset',
 })
 
-# Packet size bounds used by preset capture filters.
-GTA5_PACKET_SIZE_MIN: int = 59
-GTA5_PACKET_SIZE_MAX: int = 1032
-MINECRAFT_PACKET_SIZE_MIN: int = 49
-MINECRAFT_PACKET_SIZE_MAX: int = 1498
 
 # Port numbers used by protocol-specific capture filters.
 SSDPP_PORT: int = 1900

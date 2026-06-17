@@ -67,7 +67,6 @@ class SettingsIniModel(BaseModel):
     CAPTURE_ARP_SPOOFING: bool
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
     CAPTURE_GAME_PRESET: str | None
-    CAPTURE_FILTER_PRESET_PACKET_SIZE: bool
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
@@ -134,7 +133,6 @@ class SettingsIniModel(BaseModel):
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset({
         'CAPTURE_ARP_SPOOFING',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
-        'CAPTURE_FILTER_PRESET_PACKET_SIZE',
         'DISCORD_PRESENCE',
         'DISCORD_WEBHOOK_ENABLED',
         'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
@@ -334,7 +332,7 @@ class SettingsIniModel(BaseModel):
                 none_value, need_rewrite = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
                 try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('GTA5', 'Minecraft'))
+                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('GTA5',))
                 except NoMatchFoundError:
                     cls._set_flag(info, 'should_rewrite', value=True)
                     return cast('str | None', cls._get_default_for_field(info))

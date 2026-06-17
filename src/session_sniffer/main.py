@@ -37,13 +37,7 @@ from session_sniffer.capture.utils.check_capture_filters import check_broadcast_
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
-from session_sniffer.constants.standalone import (
-    GTA5_PACKET_SIZE_MAX,
-    GTA5_PACKET_SIZE_MIN,
-    MINECRAFT_PACKET_SIZE_MAX,
-    MINECRAFT_PACKET_SIZE_MIN,
-    TITLE,
-)
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
@@ -251,24 +245,6 @@ def main() -> None:
             capture_holder.request_restart()
             return  # Skip processing this packet
 
-        if Settings.capture_game_preset and Settings.capture_filter_preset_packet_size:
-            if Settings.is_gta5_preset():
-                _preset_min, _preset_max = GTA5_PACKET_SIZE_MIN, GTA5_PACKET_SIZE_MAX
-            else:  # Minecraft
-                _preset_min, _preset_max = MINECRAFT_PACKET_SIZE_MIN, MINECRAFT_PACKET_SIZE_MAX
-            if packet.length < _preset_min or packet.length > _preset_max:
-                logger.debug(
-                    '[%s preset] Filtered packet - size %d outside expected range [%d-%d]: %s:%d -> %s:%d',
-                    Settings.capture_game_preset,
-                    packet.length,
-                    _preset_min,
-                    _preset_max,
-                    packet.ip.src,
-                    packet.port.src,
-                    packet.ip.dst,
-                    packet.port.dst,
-                )
-                return
 
         if packet.ip.src == Settings.capture_ip_address:
             target_ip = packet.ip.dst

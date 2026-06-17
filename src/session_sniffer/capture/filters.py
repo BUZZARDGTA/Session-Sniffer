@@ -6,11 +6,7 @@ from scapy.layers.inet import UDP
 
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
-    GTA5_PACKET_SIZE_MAX,
-    GTA5_PACKET_SIZE_MIN,
     LLMNR_PORT,
-    MINECRAFT_PACKET_SIZE_MAX,
-    MINECRAFT_PACKET_SIZE_MIN,
     RAKNET_PORT,
     SSDPP_PORT,
     UAUDP_PORT,
@@ -148,11 +144,6 @@ def build_capture_filters(
     # Protocols that need Python-level payload inspection (strategy B)
     python_excluded_protocols: list[str] = []
 
-    if Settings.capture_game_preset and Settings.capture_filter_preset_packet_size:
-        if Settings.is_gta5_preset():
-            capture_filter.append(f'(len >= {GTA5_PACKET_SIZE_MIN} and len <= {GTA5_PACKET_SIZE_MAX})')
-        elif Settings.capture_game_preset == 'Minecraft':
-            capture_filter.append(f'(len >= {MINECRAFT_PACKET_SIZE_MIN} and len <= {MINECRAFT_PACKET_SIZE_MAX})')
 
     if Settings.capture_filter_block_rtcp:
         python_excluded_protocols.append('rtcp')

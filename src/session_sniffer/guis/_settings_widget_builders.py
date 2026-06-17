@@ -247,7 +247,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     layout.setSpacing(10)
 
     # Presets group box
-    presets_group = QGroupBox('Presets')
+    presets_group = QGroupBox('Third-Party Server Presets')
     presets_group.setToolTip('Select presets to automatically block their required IP ranges. You can check multiple presets.')
     presets_grid_container = QWidget()
     presets_grid = QGridLayout(presets_grid_container)
