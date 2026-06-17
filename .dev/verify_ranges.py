@@ -298,13 +298,13 @@ def normalize(t: str) -> str:
 # These will be explicitly treated as different/unrelated ISPs.
 KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
     'Microsoft Corporation': [
-        'dxc us latin america corporation',
         'digital highway corporation',
+        'dxc us latin america corporation',
         'shanghai blue cloud technology',
     ],
     'Demonware Limited': [
-        'orbit telekom sanayi',
         'datacamp limited',
+        'orbit telekom sanayi',
     ],
     'Take-Two Interactive Software, Inc.': [
         'frontier communications of america',
@@ -319,6 +319,7 @@ KNOWN_ALIASES: dict[str, list[str]] = {
     ],
     'The Constant Company, LLC': [
         'vultr holdings',
+        'vultr',
         'choopa',
     ],
     'OVH SAS': [
@@ -328,6 +329,32 @@ KNOWN_ALIASES: dict[str, list[str]] = {
     'Discord': [
         'i3d.net',
     ],
+}
+
+GENERIC_WORDS: set[str] = {
+    'association',
+    'avenue',
+    'building',
+    'communication',
+    'communications',
+    'company',
+    'corporation',
+    'group',
+    'hosting',
+    'inc',
+    'incorporated',
+    'interactive',
+    'limited',
+    'ltd',
+    'network',
+    'networks',
+    'services',
+    'software',
+    'solutions',
+    'technologies',
+    'technology',
+    'telecom',
+    'telecommunications',
 }
 
 
@@ -346,6 +373,11 @@ def owner_matches(expected: str, data: dict[str, Any]) -> bool:
             return True
 
     words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+    words -= GENERIC_WORDS
+    if not words:
+        # Fallback to original words if everything was generic
+        words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+
     return any(word in actual for word in words)
 
 
