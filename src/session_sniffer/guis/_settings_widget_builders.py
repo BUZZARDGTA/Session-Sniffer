@@ -264,7 +264,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'GTA V Xbox One',
         'Minecraft Bedrock',
         'OmeTV',
-        'Red Dead Redemption',
+        'Red Dead Redemption 2',
         'RustDesk',
         'Steam',
     ]
@@ -415,9 +415,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'GOOGLE_LLC',
             'OVH',
         },
-        'Red Dead Redemption': {
+        'Red Dead Redemption 2': {
             'MICROSOFT',
             'TAKETWO_INTERACTIVE',
+            'US_DEPARTMENT_OF_DEFENSE',
         },
         'RustDesk': {
             'RUSTDESK',
