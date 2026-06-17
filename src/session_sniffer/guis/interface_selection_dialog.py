@@ -1,4 +1,4 @@
-﻿"""GUI dialog for selecting network capture interfaces.
+"""GUI dialog for selecting network capture interfaces.
 
 This module provides the InterfaceSelectionDialog for displaying available
 network interfaces and allowing users to select one for packet capture.
@@ -858,4 +858,15 @@ class InterfaceSelectionDialog(QDialog):
             self.hide_inactive_enabled = self._controls.hide_inactive_checkbox.isChecked()
             self.hide_neighbours_enabled = self._controls.hide_neighbours_checkbox.isChecked()
             self.remember_interface_enabled = self._controls.remember_interface_checkbox.isChecked()
+            self._refresh_timer.stop()
+            if self._arp_refresh_progress_timer is not None:
+                self._arp_refresh_progress_timer.stop()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
+
+    @override
+    def reject(self) -> None:
+        """Stop timers and reject the dialog."""
+        self._refresh_timer.stop()
+        if self._arp_refresh_progress_timer is not None:
+            self._arp_refresh_progress_timer.stop()
+        super().reject()
