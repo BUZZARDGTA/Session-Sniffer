@@ -256,6 +256,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_names = [
         'Call of Duty: WWII',
+        'Chatspin',
         'Discord',
         'GTA V PC',
         'GTA V PlayStation',
@@ -371,6 +372,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'THE_CONSTANT_COMPANY',
             'TSEFLOW',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Chatspin': {
+            'GOOGLE_LLC',
         },
         'Discord': {
             'CLOUDFLARE',
