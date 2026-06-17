@@ -255,15 +255,15 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     presets_grid.setSpacing(2)
 
     preset_names = [
+        'Call of Duty: WWII',
+        'Discord',
         'GTA V PC',
         'GTA V PlayStation',
         'GTA V Xbox One',
         'Minecraft Bedrock',
         'OmeTV',
-        'Discord',
         'RustDesk',
         'Steam',
-        'Call of Duty: WWII',
     ]
 
     preset_checkboxes: dict[str, QCheckBox] = {}
