@@ -801,12 +801,14 @@ def render_samples(samples: list[str]) -> Columns:
     return Columns(texts, equal=True, expand=True)
 
 
-def check_range(
+def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     client: RateLimitClient | GeoLite2Client,
     owner: str,
     cidr: str,
     owner_networks: list[ipaddress.IPv4Network],
+    *,
     location: tuple[str, int | None] | None = None,
+    only_detections: bool = False,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
     file_path, lineno = location or ('', None)
@@ -995,20 +997,21 @@ def check_range(
             renderables.append(exp_r)
 
     # Print the master panel
-    title = f'[bold white]{owner}[/bold white]  •  [bold magenta]{net.with_prefixlen}[/bold magenta]  •  [dim]{net.network_address} → {net.broadcast_address}[/dim]  •  [bold white]{net.num_addresses:,} IPs[/bold white]'  # pylint: disable=line-too-long  # noqa: E501
-    if file_path and lineno:
-        rel_path = os.path.relpath(file_path).replace('\\', '/')
-        title += f'  •  [blue]{rel_path}:{lineno}[/blue]'
+    if not only_detections or not ok or expansion_found:
+        title = f'[bold white]{owner}[/bold white]  •  [bold magenta]{net.with_prefixlen}[/bold magenta]  •  [dim]{net.network_address} → {net.broadcast_address}[/dim]  •  [bold white]{net.num_addresses:,} IPs[/bold white]'  # pylint: disable=line-too-long  # noqa: E501
+        if file_path and lineno:
+            rel_path = os.path.relpath(file_path).replace('\\', '/')
+            title += f'  •  [blue]{rel_path}:{lineno}[/blue]'
 
-    console.print()
-    console.print(
-        Panel(
-            Group(*renderables),
-            title=title,
-            border_style='cyan',
-            box=box.ROUNDED,
-        ),
-    )
+        console.print()
+        console.print(
+            Panel(
+                Group(*renderables),
+                title=title,
+                border_style='cyan',
+                box=box.ROUNDED,
+                ),
+            )
 
     return ok
 
@@ -1016,7 +1019,9 @@ def check_range(
 def run_preflight_checks(
     ranges: list[tuple[str, str, int]],
     networks_by_owner: dict[str, list[ipaddress.IPv4Network]],
+    *,
     ranges_file: str = '',
+    only_detections: bool = False,
 ) -> None:
     """Run all pre-flight checks and display them in a neat panel."""
     table = Table(show_header=False, expand=True, box=None, padding=(0, 2))
@@ -1069,6 +1074,9 @@ def run_preflight_checks(
     else:
         table.add_row('Collapsible CIDRs', '[green]✓ No collapsible ranges found[/green]')
 
+    if only_detections and not (warnings or overlaps or collapses):
+        return
+
     renderables: list[Any] = [table]
     if collapse_suggestions:
         renderables.append(Text(''))
@@ -1098,6 +1106,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Verify IP ranges of third party servers.')
     parser.add_argument('ranges_file', help='Python file containing NamedRange definitions.')
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
+    parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
 
     parsed_args = parser.parse_args(args[1:])
 
@@ -1113,7 +1122,12 @@ def main() -> None:
     console.print(f'  [cyan]Loaded [bold white]{len(ranges)}[/bold white] ranges for processing.[/cyan]')
 
     # Run all pre-flight checks
-    run_preflight_checks(ranges, networks_by_owner, ranges_file=str(parsed_args.ranges_file))
+    run_preflight_checks(
+        ranges,
+        networks_by_owner,
+        ranges_file=str(parsed_args.ranges_file),
+        only_detections=parsed_args.only_detections,
+    )
 
     if parsed_args.geolite2:
         try:
@@ -1142,18 +1156,27 @@ def main() -> None:
     else:
         client = RateLimitClient(create_session())
 
-    console.print()  # Add a newline for visual separation before skipping/checking ranges
+    if not parsed_args.only_detections:
+        console.print()  # Add a newline for visual separation before skipping/checking ranges
 
     for owner, cidr, lineno in ranges:
         if 'google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower():
-            rel_path_clean = os.path.relpath(str(parsed_args.ranges_file)).replace('\\', '/')
-            link_suffix = f'  •  [blue]{rel_path_clean}:{lineno}[/blue]' if rel_path_clean else ''
-            console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr}[/magenta dim]{link_suffix}')
+            if not parsed_args.only_detections:
+                rel_path_clean = os.path.relpath(str(parsed_args.ranges_file)).replace('\\', '/')
+                link_suffix = f'  •  [blue]{rel_path_clean}:{lineno}[/blue]' if rel_path_clean else ''
+                console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr}[/magenta dim]{link_suffix}')
             continue
 
         owner_networks = networks_by_owner.get(owner, [])
         location = (str(parsed_args.ranges_file), lineno)
-        check_range(client, owner, cidr, owner_networks, location=location)
+        check_range(
+            client,
+            owner,
+            cidr,
+            owner_networks,
+            location=location,
+            only_detections=parsed_args.only_detections,
+        )
 
     if isinstance(client, GeoLite2Client):
         client.close()

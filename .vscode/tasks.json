@@ -203,7 +203,8 @@
             "args": [
                 "${workspaceFolder}/verify_ranges.py",
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
-                "${input:useGeoLite2}"
+                "${input:useGeoLite2}",
+                "${input:onlyDetections}"
             ],
             "options": {
                 "env": {
@@ -233,6 +234,22 @@
                 {
                     "label": "Yes (Use local GeoLite2)",
                     "value": "--geolite2"
+                }
+            ],
+            "default": ""
+        },
+        {
+            "id": "onlyDetections",
+            "type": "pickString",
+            "description": "Only show actual detections (mismatches, expansions, warnings)?",
+            "options": [
+                {
+                    "label": "No (Show everything)",
+                    "value": ""
+                },
+                {
+                    "label": "Yes (Only show detections)",
+                    "value": "--only-detections"
                 }
             ],
             "default": ""
