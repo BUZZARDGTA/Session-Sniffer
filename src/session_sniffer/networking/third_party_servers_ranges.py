@@ -27,6 +27,9 @@ BATTLEYE_RANGES: tuple[NamedRange, ...] = create_ranges(
 CLOUDFLARE_RANGES: tuple[NamedRange, ...] = create_ranges(
     'Cloudflare',
     '104.16.0.0/12',
+    '141.101.64.0/20',
+    '141.101.80.0/21',
+    '141.101.88.0/22',
 )
 
 DEMONWARE_RANGES: tuple[NamedRange, ...] = create_ranges(
