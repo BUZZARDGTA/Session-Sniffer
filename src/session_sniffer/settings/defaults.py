@@ -35,6 +35,7 @@ class SettingType(Enum):
     MAC_ADDRESS = auto()
     COLUMN_TUPLE = auto()
     IP_RANGE_TUPLE = auto()
+    THIRD_PARTY_SERVERS_TUPLE = auto()
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +163,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='Capture',
         group='IP Filters',
         display_label='Block Third-Party Servers',
-        setting_type=SettingType.COLUMN_TUPLE,
+        setting_type=SettingType.THIRD_PARTY_SERVERS_TUPLE,
         tooltip='Select which third-party server IP ranges to exclude from capture.',
         requires_capture_restart=True,
         allowed_columns_attr='ALL_THIRD_PARTY_SERVERS',
@@ -171,7 +172,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_blocked_ips': SettingMeta(
         category='Capture',
         group='IP Filters',
-        display_label='Blocked IPs / Ranges',
+        display_label='Custom Blocklist (IPs / Ranges)',
         setting_type=SettingType.IP_RANGE_TUPLE,
         tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
         requires_capture_restart=True,

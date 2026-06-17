@@ -520,9 +520,9 @@ _GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
-    """Return True if *ip* belongs to the GTAV Take-Two relay IP ranges."""
+    """Return True if *ip* belongs to the GTAV Take-Two Interactive relay IP ranges."""
     addr = IPv4Address(ip)
-    return any(addr in network for network in ThirdPartyServers.GTAV_TAKETWO_INTERACTIVE.ip_networks)
+    return any(addr in network for network in ThirdPartyServers.TAKETWO_INTERACTIVE.ip_networks)
 
 
 def monitor_gta5_relay_task(player: Player) -> None:
@@ -530,7 +530,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
     Only active when:
     - The GTA5 game preset is selected.
-    - The player IP belongs to the Take-Two / GTA5 relay CIDR ranges.
+    - The player IP belongs to the Take-Two Interactive / GTA5 relay CIDR ranges.
     - GTA5 relay detection is enabled and a process path is configured.
 
     The monitor polls the player's packet count until it reaches the

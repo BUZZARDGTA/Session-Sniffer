@@ -11,10 +11,10 @@ from session_sniffer.settings import Settings
 
 
 def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context: Literal['settings', 'startup']) -> bool:
-    """Ask to disable GTA5 relay detection when the Take-Two relay IPs are filtered."""
+    """Ask to disable GTA5 relay detection when the Take-Two Interactive relay IPs are filtered."""
     if not (
         Settings.is_gta5_preset()
-        and 'GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers
+        and 'TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers
         and GUIDetectionSettings.gta5_relay_enabled
     ):
         return False
@@ -22,13 +22,13 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
     if context == 'settings':
         detail = (
             'GTA5 relay detection is currently enabled, but the capture filter will now '
-            "block the 'Take-Two (GTA V)' IP ranges."
+            "block the 'Take-Two Interactive Software, Inc.' IP ranges."
         )
     else:
         detail = (
             'Conflicting settings detected:\n\n'
             'GTA5 relay detection is enabled, but the capture filter is blocking '
-            "the 'Take-Two (GTA V)' IP ranges."
+            "the 'Take-Two Interactive Software, Inc.' IP ranges."
         )
 
     result = QMessageBox.question(
