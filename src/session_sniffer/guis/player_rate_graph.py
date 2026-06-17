@@ -344,7 +344,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     _pps_threshold_line: pg.InfiniteLine
     _bps_threshold_line: pg.InfiniteLine
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self, *, ip: str, initial_pps_threshold: int, initial_bps_threshold: int,
         max_history: int = DEFAULT_MAX_HISTORY, always_on_top: bool = True,
     ) -> None:

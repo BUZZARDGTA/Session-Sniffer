@@ -245,7 +245,6 @@ def main() -> None:
             capture_holder.request_restart()
             return  # Skip processing this packet
 
-
         if packet.ip.src == Settings.capture_ip_address:
             target_ip = packet.ip.dst
             target_port = packet.port.dst

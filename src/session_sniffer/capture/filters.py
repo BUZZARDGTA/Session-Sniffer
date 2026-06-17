@@ -144,7 +144,6 @@ def build_capture_filters(
     # Protocols that need Python-level payload inspection (strategy B)
     python_excluded_protocols: list[str] = []
 
-
     if Settings.capture_filter_block_rtcp:
         python_excluded_protocols.append('rtcp')
     if Settings.capture_filter_block_dtls:
