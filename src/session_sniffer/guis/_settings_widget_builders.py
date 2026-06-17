@@ -255,6 +255,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     presets_grid.setSpacing(2)
 
     preset_names = [
+        'Azar',
         'Call of Duty: WWII',
         'Chatspin',
         'Discord',
@@ -363,6 +364,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     # Preset mappings
     presets_map: dict[str, set[str]] = {
+        'Azar': {
+            'CLOUDFLARE',
+        },
         'Call of Duty: WWII': {
             'DEMONWARE',
             'FRIEND_IT',
