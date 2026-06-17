@@ -159,6 +159,8 @@ LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_ranges(
 
 MICROSOFT_RANGES: tuple[NamedRange, ...] = create_ranges(
     'Microsoft Corporation',
+    '9.163.0.0/16',
+    '9.164.0.0/16',
     '20.0.0.0/9',
     '20.128.0.0/16',
     '20.135.0.0/16',
