@@ -232,6 +232,9 @@ def main() -> None:
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
+        if capture_holder.is_restart_requested():
+            return
+
         packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
         CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
         CaptureStats.total_packets_captured += 1

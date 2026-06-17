@@ -386,6 +386,10 @@ class PacketCapture:
             ):
                 raise CaptureExitError(sniffer.exception)
 
+    def is_restart_requested(self) -> bool:
+        """Return whether a restart of the packet capture has been requested."""
+        return self._state.restart_requested.is_set()
+
     def get_pcap_drop_count(self) -> int | None:
         """Return cumulative npcap drop count (`ps_drop` + `ps_ifdrop`) for the current capture session.
 
@@ -437,6 +441,10 @@ class CaptureHolder:
         """Return whether the active capture is running."""
         return self.get().is_running()
 
+    def is_restart_requested(self) -> bool:
+        """Return whether the active capture has a pending restart request."""
+        return self.get().is_restart_requested()
+
     def start(self) -> None:
         """Start the active capture."""
         self.get().start()
@@ -448,3 +456,4 @@ class CaptureHolder:
     def request_restart(self) -> None:
         """Request a restart of the active capture."""
         self.get().request_restart()
+
