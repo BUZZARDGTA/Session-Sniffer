@@ -1,13 +1,10 @@
 [build-system]
-requires = [
-    "setuptools>=69.0",
-    "wheel",
-]
+requires = ["setuptools>=69.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.5.0rc.19+20260617.1345"
+version = "v1.5.0rc.20+20260617.1354"
 dependencies = [
     "aiohttp==3.14.1",
     "dnspython==2.8.0",
@@ -32,9 +29,7 @@ dependencies = [
     "idna>=3.7",
 ]
 requires-python = ">=3.14,<3.15"
-authors = [
-    {name = "BUZZARDGTA"},
-]
+authors = [{ name = "BUZZARDGTA" }]
 description = "A packet sniffer (also known as an IP sniffer/puller) specifically designed for Peer-To-Peer (P2P) video games on PC and consoles (PlayStation and Xbox)."
 license = { file = "COPYING" }
 readme = "README.md"
@@ -81,11 +76,7 @@ warn_unused_ignores = false
 enable = "all"
 extension-pkg-allow-list = ["PyQt6", "pythoncom"]
 generated-members = ["pythoncom.*"]
-ignore = [
-    ".dev",
-    ".history",
-    ".venv",
-]
+ignore = [".dev", ".history", ".venv"]
 ignore-patterns = "^\\.#|.*\\.pyi"
 py-version = "3.14"
 recursive = true
@@ -98,14 +89,14 @@ disable = [
     "consider-using-with",
     "global-statement",
     "locally-disabled",
-    "no-name-in-module",  # TODO (BUZZARDGTA): unsupported in Python 3.14
+    "no-name-in-module",            # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
     "too-many-instance-attributes",
     "too-many-branches",
     "too-many-locals",
     "too-many-statements",
-    "used-before-assignment",  # TODO (BUZZARDGTA): unsupported in Python 3.14
+    "used-before-assignment",       # TODO (BUZZARDGTA): unsupported in Python 3.14
 ]
 
 [tool.pylint.basic]
@@ -157,10 +148,7 @@ venv = ".venv"
 [tool.ruff]
 target-version = "py314"
 line-length = 176
-exclude = [
-    ".history",
-    ".venv",
-]
+exclude = [".history", ".venv"]
 
 [tool.ruff.lint]
 ignore = [
@@ -181,9 +169,7 @@ select = ["ALL"]
 inline-quotes = "single"
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "session_sniffer",
-]
+known-first-party = ["session_sniffer"]
 section-order = [
     "future",
     "standard-library",
@@ -196,10 +182,7 @@ section-order = [
 convention = "google"
 
 [tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-base-classes = [
-    "pydantic.BaseModel",
-    "typing.NamedTuple",
-]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "typing.NamedTuple"]
 
 
 [tool.ty.environment]
@@ -207,22 +190,17 @@ python-platform = "win32"
 python-version = "3.14"
 
 [tool.ty.src]
-exclude = [
-    ".history",
-]
+exclude = [".history"]
 
 [tool.ty.rules]
 all = "error"
 
 [tool.ty.terminal]
-error-on-warning = true  # Error if ty emits any warning-level diagnostics.
+error-on-warning = true # Error if ty emits any warning-level diagnostics.
 
 
 [tool.vulture]
-exclude = [
-    ".history",
-    ".venv",
-]
+exclude = [".history", ".venv"]
 min_confidence = 61
 ignore_names = [
     "validate_nodes",
