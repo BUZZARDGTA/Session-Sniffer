@@ -841,6 +841,8 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     *,
     location: tuple[str, int | None] | None = None,
     only_detections: bool = False,
+    current_idx: int = 0,
+    total_count: int = 0,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
     file_path, lineno = location or ('', None)
@@ -850,7 +852,12 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         raise TypeError(msg)
 
     # Use console.status to show progress while not polluting the screen
-    with console.status(f'[bold cyan]Scanning [/bold cyan][bold magenta]{net.with_prefixlen}[/bold magenta][bold cyan]...[/bold cyan]') as status:
+    progress_prefix = ''
+    if total_count > 0 and current_idx > 0:
+        percent = int((current_idx / total_count) * 100)
+        progress_prefix = f'[cyan][{percent}%][/cyan] '
+
+    with console.status(f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold magenta]{net.with_prefixlen}[/bold magenta][bold cyan]...[/bold cyan]') as status:
         # -----------------------------
         # BUILD ONE SINGLE REQUEST SET
         # -----------------------------
@@ -1191,6 +1198,13 @@ def main() -> None:
     if not parsed_args.only_detections:
         console.print()  # Add a newline for visual separation before skipping/checking ranges
 
+    # Count total non-skipped ranges first
+    total_count = sum(
+        1 for owner, _, _ in ranges
+        if not ('google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower())
+    )
+
+    current_idx = 0
     for owner, cidr, lineno in ranges:
         if 'google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower():
             if not parsed_args.only_detections:
@@ -1199,6 +1213,7 @@ def main() -> None:
                 console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr}[/magenta dim]{link_suffix}')
             continue
 
+        current_idx += 1
         owner_networks = networks_by_owner.get(owner, [])
         location = (str(parsed_args.ranges_file), lineno)
         check_range(
@@ -1208,6 +1223,8 @@ def main() -> None:
             owner_networks,
             location=location,
             only_detections=parsed_args.only_detections,
+            current_idx=current_idx,
+            total_count=total_count,
         )
 
     if not parsed_args.only_detections:
