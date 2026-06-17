@@ -418,6 +418,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Red Dead Redemption 2': {
             'MICROSOFT',
             'TAKETWO_INTERACTIVE',
+            'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'RustDesk': {
