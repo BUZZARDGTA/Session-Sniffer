@@ -1178,6 +1178,10 @@ def main() -> None:
             only_detections=parsed_args.only_detections,
         )
 
+    if not parsed_args.only_detections:
+        console.print()
+    console.rule('[bold green]✓ Range Verification Complete[/bold green]')
+
     if isinstance(client, GeoLite2Client):
         client.close()
 
