@@ -857,7 +857,13 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         percent = int((current_idx / total_count) * 100)
         progress_prefix = f'[cyan][{percent}%][/cyan] '
 
-    with console.status(f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold magenta]{net.with_prefixlen}[/bold magenta][bold cyan]...[/bold cyan]') as status:
+    status_msg = (
+        f'{progress_prefix}[bold cyan]Scanning [/bold cyan]'
+        f'[bold white]{owner}[/bold white] '
+        f'[bold cyan]([/bold cyan][bold magenta]{net.with_prefixlen}[/bold magenta]'
+        f'[bold cyan])...[/bold cyan]'
+    )
+    with console.status(status_msg) as status:
         # -----------------------------
         # BUILD ONE SINGLE REQUEST SET
         # -----------------------------
