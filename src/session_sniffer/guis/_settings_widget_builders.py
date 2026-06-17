@@ -362,22 +362,37 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     # Preset mappings
     presets_map: dict[str, set[str]] = {
+        'Call of Duty: WWII': {
+            'DEMONWARE',
+            'FRIEND_IT',
+            'LATITUDE_SH',
+            'TENCENT',
+            'THE_CONSTANT_COMPANY',
+            'TSEFLOW',
+            'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Discord': {
+            'CLOUDFLARE',
+            'DISCORD',
+        },
         'GTA V PC': {
-            'TAKETWO_INTERACTIVE',
             'BATTLEYE',
+            'MICROSOFT',
+            'TAKETWO_INTERACTIVE',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'GTA V PlayStation': {
+            'MICROSOFT',
+            'PLAYSTATION_SONY',
             'TAKETWO_INTERACTIVE',
             'TELLAS_GREECE',
-            'PLAYSTATION_SONY',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'GTA V Xbox One': {
-            'TAKETWO_INTERACTIVE',
             'MICROSOFT',
+            'TAKETWO_INTERACTIVE',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
@@ -385,27 +400,14 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'MICROSOFT',
         },
         'OmeTV': {
-            'OVH',
             'GOOGLE_LLC',
-        },
-        'Discord': {
-            'DISCORD',
-            'CLOUDFLARE',
+            'OVH',
         },
         'RustDesk': {
             'RUSTDESK',
         },
         'Steam': {
             'VALVE',
-        },
-        'Call of Duty: WWII': {
-            'THE_CONSTANT_COMPANY',
-            'TENCENT',
-            'DEMONWARE',
-            'US_DEPARTMENT_OF_DEFENSE',
-            'TSEFLOW',
-            'LATITUDE_SH',
-            'FRIEND_IT',
         },
     }
 
