@@ -201,7 +201,7 @@
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/python.exe",
             "args": [
-                "${workspaceFolder}/verify_ranges.py",
+                "${workspaceFolder}/.dev/verify_ranges.py",
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
                 "${input:useGeoLite2}",
                 "${input:onlyDetections}"

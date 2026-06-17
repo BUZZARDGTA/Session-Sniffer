@@ -1132,7 +1132,7 @@ def main() -> None:
     if parsed_args.geolite2:
         try:
             # Add src/ folder to path if running verify_ranges.py directly so it can import session_sniffer
-            src_path = str(Path(__file__).resolve().parent / 'src')
+            src_path = str(Path(__file__).resolve().parent.parent / 'src')
             if src_path not in sys.path:
                 sys.path.insert(0, src_path)
             from session_sniffer.utils import get_app_dir  # pylint: disable=import-outside-toplevel  # noqa: PLC0415

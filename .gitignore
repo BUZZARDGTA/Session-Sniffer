@@ -213,5 +213,4 @@ __marimo__/
 .safety-project.ini
 
 # Project data directory
-/.dev/
 /Session_Sniffer.exe

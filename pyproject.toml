@@ -76,7 +76,7 @@ warn_unused_ignores = false
 enable = "all"
 extension-pkg-allow-list = ["PyQt6", "pythoncom"]
 generated-members = ["pythoncom.*"]
-ignore = [".dev", ".history", ".venv"]
+ignore = [".history", ".venv"]
 ignore-patterns = "^\\.#|.*\\.pyi"
 py-version = "3.14"
 recursive = true
@@ -164,6 +164,9 @@ ignore = [
     "TD005",   # missing-todo-description
 ]
 select = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+".dev/*" = ["INP001"]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"

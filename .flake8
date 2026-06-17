@@ -3,7 +3,6 @@ max-line-length = 176
 extend-ignore =
     F821
 extend-exclude =
-    .dev,
     .history,
     .venv,
 per-file-ignores =
