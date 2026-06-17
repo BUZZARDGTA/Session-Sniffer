@@ -456,4 +456,3 @@ class CaptureHolder:
     def request_restart(self) -> None:
         """Request a restart of the active capture."""
         self.get().request_restart()
-
