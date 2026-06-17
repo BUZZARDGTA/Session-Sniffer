@@ -488,7 +488,7 @@ def suggest_fix(
             table.add_column('IP Coverage', style='cyan')
 
             for network in matching_networks:
-                table.add_row(f"NamedRange('{owner}', '{network.with_prefixlen}'),", f'({network.network_address} - {network.broadcast_address})')
+                table.add_row(f"'{network.with_prefixlen}',", f'({network.network_address} - {network.broadcast_address})')
 
             total_first = matching_networks[0].network_address
             total_last = matching_networks[-1].broadcast_address
@@ -578,7 +578,7 @@ def suggest_fix(
         table.add_column('IP Coverage', style='cyan')
 
         for network in good_networks:
-            table.add_row(f"NamedRange('{owner}', '{network.with_prefixlen}'),", f'({network.network_address} - {network.broadcast_address})')
+            table.add_row(f"'{network.with_prefixlen}',", f'({network.network_address} - {network.broadcast_address})')
 
         total_first = good_networks[0].network_address
         total_last = good_networks[-1].broadcast_address
@@ -723,7 +723,7 @@ def suggest_expansion(
     table.add_column('IP Coverage', style='cyan')
 
     for network in expanded_networks:
-        table.add_row(f"NamedRange('{owner}', '{network.with_prefixlen}'),", f'({network.network_address} - {network.broadcast_address})')
+        table.add_row(f"'{network.with_prefixlen}',", f'({network.network_address} - {network.broadcast_address})')
 
     total_first = expanded_networks[0].network_address
     total_last = expanded_networks[-1].broadcast_address
@@ -1064,7 +1064,7 @@ def run_preflight_checks(
             owner_linenos = [lineno for o, _, lineno in ranges if o == owner]
             link_str = f'  •  [blue]{rel_path_clean}:{min(owner_linenos)}[/blue]' if (owner_linenos and rel_path_clean) else ''
 
-            owner_suggestions = [f"    NamedRange('{owner}', '{net.with_prefixlen}')," for net in collapsed]
+            owner_suggestions = [f"    '{net.with_prefixlen}'," for net in collapsed]
             collapse_suggestions.append(
                 f'[bold white]{owner}[/bold white] ({len(nets)} ranges → {len(collapsed)}){link_str}\n' + '\n'.join(owner_suggestions),
             )
