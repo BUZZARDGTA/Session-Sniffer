@@ -90,6 +90,7 @@ Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstrin
 - Using `assert` for runtime checks — always use `raise` with an appropriate exception (e.g., `raise RuntimeError(...)`, `raise ValueError(...)`) instead. `assert` is stripped by Python's optimizer (`-O`) and triggers Ruff S101.
 - Adding `try/except` blocks defensively "just to be safe". Only catch exceptions that are explicitly documented or known to be raised by the called code (e.g., library APIs, I/O, external processes). Never wrap normal internal logic in broad `except Exception` or speculative `except (ValueError, RuntimeError)` guards. The project owner prefers a crash with a clear traceback over silent swallowing of unexpected errors.
 - Creating shortcut/alias variables for attributes or functions that are only used inline. Never write `x = obj.attr` then use `x` — write `obj.attr` directly at every usage site. No exceptions.
+- Using aggressive abbreviations for variable names (e.g., `res`, `net`, `cidr`, `ips`, `ok`, `lineno`, `ttl`, `rl`). Always use full, descriptive variable names. Single-letter variables are strictly reserved: `i`, `j` for loop index variables, and `e` for exception handling.
 - Adding any form of backward compatibility: migration validators, alias fields, fallback key lookups, shim functions, or transitional code paths. See **No Backward Compatibility — Ever** above.
 
 ## Before Committing Changes
