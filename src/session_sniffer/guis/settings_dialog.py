@@ -43,6 +43,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_integer_widget,
     create_ip_range_tuple_widget,
     create_text_widget,
+    create_third_party_servers_split_widget,
 )
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.stylesheets import (
@@ -104,6 +105,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             key: getattr(Settings, key) for key in SETTING_METADATA
         }
         self._saved: bool = False
+        self._loading_settings: bool = False
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
         self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
@@ -151,6 +153,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         root_layout.addLayout(button_row)
 
         self._load_current_values()
+
         # Force the webhook enable cascade once even if the value matches the
         # default (in which case `setChecked` would not fire `toggled`).
         webhook_enabled_widget = self._widgets.get('discord_webhook_enabled')
@@ -324,9 +327,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         widget = self._create_widget(key, meta)
         self._widgets[key] = widget
 
-        # COLUMN_TUPLE and IP_RANGE_TUPLE widgets carry their label as the QGroupBox title — add
+        # COLUMN_TUPLE, IP_RANGE_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
         # as a full-width spanning row so the widget gets all available horizontal space.
-        if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.IP_RANGE_TUPLE):
+        if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.IP_RANGE_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
             form.addRow(widget)
             return
 
@@ -530,6 +533,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             SettingType.ENUM: partial(create_enum_widget, meta),
             SettingType.BOOL_OR_ENUM: partial(create_bool_or_enum_widget, meta),
             SettingType.COLUMN_TUPLE: partial(create_column_tuple_widget, key, meta),
+            SettingType.THIRD_PARTY_SERVERS_TUPLE: partial(create_third_party_servers_split_widget, key, meta),
             SettingType.IP_RANGE_TUPLE: partial(create_ip_range_tuple_widget, meta, self),
         }
         factory = dispatch.get(meta.setting_type)
@@ -541,9 +545,13 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
     def _load_current_values(self) -> None:
         """Populate every widget from the current in-memory Settings values."""
-        for key, widget in self._widgets.items():
-            value: SettingValue = getattr(Settings, key)
-            self._set_widget_value(key, widget, value)
+        self._loading_settings = True
+        try:
+            for key, widget in self._widgets.items():
+                value: SettingValue = getattr(Settings, key)
+                self._set_widget_value(key, widget, value)
+        finally:
+            self._loading_settings = False
 
     def _set_widget_value(self, key: str, widget: QWidget, value: SettingValue) -> None:
         """Push *value* into the appropriate *widget*."""
@@ -567,7 +575,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         elif meta.setting_type == SettingType.BOOL_OR_ENUM:
             self._set_bool_or_enum(widget, value)
 
-        elif meta.setting_type == SettingType.COLUMN_TUPLE:
+        elif meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
             shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
             shown_set = set(shown)
             for checkbox in widget.findChildren(QCheckBox):
@@ -619,7 +627,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             case SettingType.BOOL_OR_ENUM:
                 text = cast('QComboBox', widget).currentText()
                 value = False if text == 'Disabled' else text
-            case SettingType.COLUMN_TUPLE:
+            case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
                 value = self._read_column_tuple(meta, widget)
             case SettingType.IP_RANGE_TUPLE:
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)

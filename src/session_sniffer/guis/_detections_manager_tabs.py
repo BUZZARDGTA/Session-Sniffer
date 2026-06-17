@@ -194,7 +194,7 @@ class DetectionsManagerTabsMixin(QDialog):
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
 
-        # Warning banner: shown when GTAV_TAKETWO_INTERACTIVE ranges are in the capture block list,
+        # Warning banner: shown when TAKETWO_INTERACTIVE ranges are in the capture block list,
         # which prevents relay IPs from ever reaching the capture engine.
         filter_warning = QWidget()
         filter_warning.setStyleSheet(RELAY_FILTER_WARNING_STYLESHEET)
@@ -206,7 +206,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
             '<b>Relay IPs are currently filtered out of the capture.</b><br>'
-            "The 'Take-Two (GTA V)' IP ranges are listed under <i>Block Third-Party Servers</i> in Settings. "
+            "The 'Take-Two Interactive Software, Inc.' IP ranges are listed under <i>Block Third-Party Servers</i> in Settings. "
             'These IPs are dropped before the capture engine sees them, so relay detection will never trigger. '
             'Remove that entry from the blocked servers list to enable relay detection.',
         )
@@ -214,12 +214,12 @@ class DetectionsManagerTabsMixin(QDialog):
         warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
         fix_button = QPushButton('Fix It')
-        fix_button.setToolTip("Remove 'Take-Two Interactive (GTA V)' from the blocked servers list and save the setting")
+        fix_button.setToolTip("Remove 'Take-Two Interactive Software, Inc.' from the blocked servers list and save the setting")
         fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        fix_button.clicked.connect(self._remove_gtav_taketwo_interactive_from_blocked_servers)
+        fix_button.clicked.connect(self._remove_take_two_interactive_from_blocked_servers)
         filter_warning_layout.addWidget(fix_button)
         self._relay_filter_warning = filter_warning
-        filter_warning.setVisible('GTAV_TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
+        filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
         layout.addWidget(filter_warning)
 
         scroll = QScrollArea()
@@ -231,7 +231,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
         relay_group = self._create_detection_group(
             '\U0001f6e1 GTA5 Relay',
-            'Triggers when a Take-Two relay IP exceeds the configured packet threshold.',
+            'Triggers when a Take-Two Interactive relay IP exceeds the configured packet threshold.',
             'gta5_relay',
         )
         threshold_row = QWidget()
@@ -239,7 +239,7 @@ class DetectionsManagerTabsMixin(QDialog):
         threshold_layout.setContentsMargins(0, 0, 0, 0)
         _threshold_tooltip = (
             'How many packets must be exchanged with a relay IP before the detection triggers.\n\n'
-            'Take-Two relay servers act as middlemen between you and other players — '
+            'Take-Two Interactive relay servers act as middlemen between you and other players — '
             'they route traffic through their own infrastructure.\n\n'
             'A lower value triggers faster but may react to brief or coincidental relay contact.\n'
             'A higher value waits for sustained communication, reducing false positives '
@@ -330,33 +330,33 @@ class DetectionsManagerTabsMixin(QDialog):
         """Warn the user when enabling relay detection while relay IPs are still being filtered."""
         if text == 'Disabled':
             return
-        if 'GTAV_TAKETWO_INTERACTIVE' not in Settings.capture_block_third_party_servers:
+        if 'TAKETWO_INTERACTIVE' not in Settings.capture_block_third_party_servers:
             return
         result = QMessageBox.question(
             self,
             TITLE,
-            '\u26a0\ufe0f The Take-Two / GTA V relay IP ranges are currently being blocked by the capture filter '
+            '\u26a0\ufe0f The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
             '(<i>Block Third-Party Servers</i> setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
             'so this detection will never trigger while that filter is active.\n\n'
-            "Would you like to automatically remove 'Take-Two Interactive (GTA V)' from the blocked servers list?",
+            "Would you like to automatically remove 'Take-Two Interactive Software, Inc.' from the blocked servers list?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if result == QMessageBox.StandardButton.Yes:
-            self._remove_gtav_taketwo_interactive_from_blocked_servers()
+            self._remove_take_two_interactive_from_blocked_servers()
 
-    def _remove_gtav_taketwo_interactive_from_blocked_servers(self) -> None:
-        """Remove GTAV_TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
+    def _remove_take_two_interactive_from_blocked_servers(self) -> None:
+        """Remove TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
         Settings.capture_block_third_party_servers = tuple(
-            s for s in Settings.capture_block_third_party_servers if s != 'GTAV_TAKETWO_INTERACTIVE'
+            s for s in Settings.capture_block_third_party_servers if s != 'TAKETWO_INTERACTIVE'
         )
         Settings.rewrite_settings_file()
         self._relay_filter_warning.setVisible(False)
         QMessageBox.information(
             self,
             TITLE,
-            "'Take-Two Interactive (GTA V)' has been removed from the blocked servers list and the setting has been saved.\n\n"
+            "'Take-Two Interactive Software, Inc.' has been removed from the blocked servers list and the setting has been saved.\n\n"
             'Please restart the capture for the change to take effect.',
         )
 

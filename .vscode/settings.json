@@ -42,27 +42,38 @@
     "ruff.interpreter": [
         "${workspaceFolder}/.venv/Scripts/python.exe"
     ],
-
-   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
-   "terminal.integrated.profiles.windows": {
-       "PowerShell (.venv)": {
-           "source": "PowerShell",
-           "args": ["-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "& '${workspaceFolder}/.venv/Scripts/Activate.ps1'"]
-       }
-   },
-   "terminal.integrated.defaultProfile.windows": "PowerShell (.venv)",
-   "terminal.integrated.automationProfile.windows": {
-       "path": "powershell.exe",
-       "args": ["-ExecutionPolicy", "Bypass"]
-   },
-   "python.analysis.typeCheckingMode": "strict",
-   "python.analysis.extraPaths": ["src"],
-   "python.analysis.diagnosticSeverityOverrides": {
-       "reportUnknownVariableType": "warning",
-       "reportUnknownMemberType": "warning",
-       "reportUnknownArgumentType": "warning",
-       "reportUnknownLambdaType": "warning",
-       "reportUnknownParameterType": "warning",
-       "reportUnknownReturnType": "warning"
-   }
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell (.venv)": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "& '${workspaceFolder}/.venv/Scripts/Activate.ps1'"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell (.venv)",
+    "terminal.integrated.automationProfile.windows": {
+        "path": "powershell.exe",
+        "args": [
+            "-ExecutionPolicy",
+            "Bypass"
+        ]
+    },
+    "python.analysis.typeCheckingMode": "strict",
+    "python.analysis.extraPaths": [
+        "src"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportUnknownVariableType": "warning",
+        "reportUnknownMemberType": "warning",
+        "reportUnknownArgumentType": "warning",
+        "reportUnknownLambdaType": "warning",
+        "reportUnknownParameterType": "warning",
+        "reportUnknownReturnType": "warning"
+    },
+    "terminal.integrated.scrollback": 10000
 }

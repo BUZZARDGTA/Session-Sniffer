@@ -195,6 +195,47 @@
                 "panel": "shared",
                 "clear": true
             }
+        },
+        {
+            "label": "🌐 Verify IP Ranges",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "args": [
+                "${workspaceFolder}/verify_ranges.py",
+                "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
+                "${input:useGeoLite2}"
+            ],
+            "options": {
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/src"
+                }
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new",
+                "clear": true
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "useGeoLite2",
+            "type": "pickString",
+            "description": "Verify using local GeoLite2 instead of IP-API?",
+            "options": [
+                {
+                    "label": "No (Use IP-API)",
+                    "value": ""
+                },
+                {
+                    "label": "Yes (Use local GeoLite2)",
+                    "value": "--geolite2"
+                }
+            ],
+            "default": ""
         }
     ]
 }

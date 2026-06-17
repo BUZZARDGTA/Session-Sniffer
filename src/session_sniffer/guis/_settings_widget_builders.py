@@ -1,6 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
 import re
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QRegularExpression, Qt
 from PyQt6.QtGui import QAction, QIcon, QRegularExpressionValidator
@@ -27,6 +28,9 @@ from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 RESTART_INDICATOR = ' \u27F3'
 
@@ -228,6 +232,290 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     outer.addLayout(btn_row)
     outer.addWidget(scroll, 1)
     return group
+
+
+def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWidget:
+    """Create a widget with checkable presets and a single list of server checkboxes."""
+    allowed_attr = meta.allowed_columns_attr or ''
+    allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
+    default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
+    display_labels = meta.display_labels or {}
+
+    container = QWidget()
+    layout = QVBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(10)
+
+    # Presets group box
+    presets_group = QGroupBox('Presets')
+    presets_group.setToolTip('Select presets to automatically block their required IP ranges. You can check multiple presets.')
+    presets_grid_container = QWidget()
+    presets_grid = QGridLayout(presets_grid_container)
+    presets_grid.setContentsMargins(4, 4, 4, 4)
+    presets_grid.setSpacing(2)
+
+    preset_names = [
+        'GTA V PC',
+        'GTA V PlayStation',
+        'GTA V Xbox One',
+        'Minecraft Bedrock',
+        'OmeTV',
+        'Discord',
+        'RustDesk',
+        'Steam',
+        'Call of Duty: WWII',
+    ]
+
+    preset_checkboxes: dict[str, QCheckBox] = {}
+    presets_num_columns = 3
+    for i, pname in enumerate(preset_names):
+        cb = QCheckBox(pname)
+        cb.setObjectName(pname)
+        preset_checkboxes[pname] = cb
+        presets_grid.addWidget(cb, i // presets_num_columns, i % presets_num_columns)
+
+    preset_btn_select_all = QPushButton('Select All')
+    preset_btn_deselect_all = QPushButton('Deselect All')
+    preset_btn_reset = QPushButton('Reset')
+    preset_btn_reset.setToolTip('Reset to default presets')
+    for btn in (preset_btn_select_all, preset_btn_deselect_all, preset_btn_reset):
+        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    preset_btn_row = QHBoxLayout()
+    preset_btn_row.setContentsMargins(0, 0, 0, 0)
+    preset_btn_row.setSpacing(6)
+    preset_btn_row.addWidget(preset_btn_select_all)
+    preset_btn_row.addWidget(preset_btn_deselect_all)
+    preset_btn_row.addWidget(preset_btn_reset)
+    preset_btn_row.addStretch()
+
+    presets_scroll = QScrollArea()
+    presets_scroll.setWidgetResizable(True)
+    presets_scroll.setMaximumHeight(110)
+    presets_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    presets_scroll.setWidget(presets_grid_container)
+
+    presets_layout = QVBoxLayout(presets_group)
+    presets_layout.setSpacing(4)
+    presets_layout.addLayout(preset_btn_row)
+    presets_layout.addWidget(presets_scroll)
+
+    # Checklist container
+    title_checklist = meta.display_label
+    if meta.requires_capture_restart:
+        title_checklist += RESTART_INDICATOR
+
+    checklist_group = QGroupBox(title_checklist)
+    if meta.tooltip:
+        checklist_group.setToolTip(meta.tooltip)
+
+    grid_container = QWidget()
+    grid = QGridLayout(grid_container)
+    grid.setContentsMargins(4, 4, 4, 4)
+    grid.setSpacing(2)
+
+    checkboxes: dict[str, QCheckBox] = {}
+    num_columns = 3
+    for i, col_name in enumerate(allowed_columns):
+        display_text = display_labels.get(col_name, col_name)
+        checkbox = QCheckBox(display_text)
+        checkbox.setObjectName(col_name)
+        checkboxes[col_name] = checkbox
+        grid.addWidget(checkbox, i // num_columns, i % num_columns)
+
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setMaximumHeight(350)
+    scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    scroll.setWidget(grid_container)
+
+    btn_select_all = QPushButton('Select All')
+    btn_deselect_all = QPushButton('Deselect All')
+    btn_reset = QPushButton('Reset')
+    btn_reset.setToolTip('Reset to default selected options')
+    for btn in (btn_select_all, btn_deselect_all, btn_reset):
+        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    btn_select_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=True))
+    btn_deselect_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=False))
+    btn_reset.clicked.connect(lambda: set_checkboxes_to(grid_container, default_columns))
+
+    btn_row = QHBoxLayout()
+    btn_row.setContentsMargins(0, 0, 0, 0)
+    btn_row.setSpacing(6)
+    btn_row.addWidget(btn_select_all)
+    btn_row.addWidget(btn_deselect_all)
+    btn_row.addWidget(btn_reset)
+    btn_row.addStretch()
+
+    group_layout = QVBoxLayout(checklist_group)
+    group_layout.setSpacing(4)
+    group_layout.addLayout(btn_row)
+    group_layout.addWidget(scroll, 1)
+
+    layout.addWidget(presets_group)
+    layout.addWidget(checklist_group)
+
+    # Preset mappings
+    presets_map: dict[str, set[str]] = {
+        'GTA V PC': {
+            'TAKETWO_INTERACTIVE',
+            'BATTLEYE',
+            'UK_MINISTRY_OF_DEFENCE',
+            'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'GTA V PlayStation': {
+            'TAKETWO_INTERACTIVE',
+            'TELLAS_GREECE',
+            'PLAYSTATION_SONY',
+            'UK_MINISTRY_OF_DEFENCE',
+            'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'GTA V Xbox One': {
+            'TAKETWO_INTERACTIVE',
+            'MICROSOFT',
+            'UK_MINISTRY_OF_DEFENCE',
+            'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Minecraft Bedrock': {
+            'MICROSOFT',
+        },
+        'OmeTV': {
+            'OVH',
+            'GOOGLE_LLC',
+        },
+        'Discord': {
+            'DISCORD',
+            'CLOUDFLARE',
+        },
+        'RustDesk': {
+            'RUSTDESK',
+        },
+        'Steam': {
+            'VALVE',
+        },
+        'Call of Duty: WWII': {
+            'THE_CONSTANT_COMPANY',
+            'TENCENT',
+            'DEMONWARE',
+            'US_DEPARTMENT_OF_DEFENSE',
+            'TSEFLOW',
+            'LATITUDE_SH',
+            'FRIEND_IT',
+        },
+    }
+
+    is_updating = False
+
+    def update_presets_from_ranges() -> None:
+        nonlocal is_updating
+        if is_updating:
+            return
+        is_updating = True
+        try:
+            checked_ranges = {rname for rname, cb in checkboxes.items() if cb.isChecked()}
+            for pname, preset_set in presets_map.items():
+                is_active = preset_set.issubset(checked_ranges)
+                preset_checkboxes[pname].blockSignals(True)  # noqa: FBT003
+                preset_checkboxes[pname].setChecked(is_active)
+                preset_checkboxes[pname].blockSignals(False)  # noqa: FBT003
+        finally:
+            is_updating = False
+
+    def on_preset_clicked(pname: str, checked: bool) -> None:  # noqa: FBT001
+        nonlocal is_updating
+        if is_updating:
+            return
+        is_updating = True
+        try:
+            preset_set = presets_map[pname]
+            if checked:
+                for rname in preset_set:
+                    if rname in checkboxes:
+                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
+                        checkboxes[rname].setChecked(True)
+                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+            else:
+                other_required: set[str] = set()
+                for other_name, other_cb in preset_checkboxes.items():
+                    if other_name != pname and other_cb.isChecked():
+                        other_required.update(presets_map[other_name])
+                for rname in preset_set:
+                    if rname not in other_required and rname in checkboxes:
+                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
+                        checkboxes[rname].setChecked(False)
+                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+
+            checked_ranges = {rname for rname, cb in checkboxes.items() if cb.isChecked()}
+            for other_name, other_set in presets_map.items():
+                is_active = other_set.issubset(checked_ranges)
+                preset_checkboxes[other_name].blockSignals(True)  # noqa: FBT003
+                preset_checkboxes[other_name].setChecked(is_active)
+                preset_checkboxes[other_name].blockSignals(False)  # noqa: FBT003
+        finally:
+            is_updating = False
+
+    def make_handler(name: str) -> Callable[[bool], None]:
+        def handler(checked: bool) -> None:  # noqa: FBT001
+            on_preset_clicked(name, checked)
+        return handler
+
+    def select_all_presets() -> None:
+        nonlocal is_updating
+        is_updating = True
+        try:
+            for cb in preset_checkboxes.values():
+                cb.blockSignals(True)  # noqa: FBT003
+                cb.setChecked(True)
+                cb.blockSignals(False)  # noqa: FBT003
+            for preset_set in presets_map.values():
+                for rname in preset_set:
+                    if rname in checkboxes:
+                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
+                        checkboxes[rname].setChecked(True)
+                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+        finally:
+            is_updating = False
+        update_presets_from_ranges()
+
+    def deselect_all_presets() -> None:
+        nonlocal is_updating
+        is_updating = True
+        try:
+            for cb in preset_checkboxes.values():
+                cb.blockSignals(True)  # noqa: FBT003
+                cb.setChecked(False)
+                cb.blockSignals(False)  # noqa: FBT003
+            for preset_set in presets_map.values():
+                for rname in preset_set:
+                    if rname in checkboxes:
+                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
+                        checkboxes[rname].setChecked(False)
+                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+        finally:
+            is_updating = False
+        update_presets_from_ranges()
+
+    def reset_presets() -> None:
+        set_checkboxes_to(grid_container, default_columns)
+
+    preset_btn_select_all.clicked.connect(select_all_presets)
+    preset_btn_deselect_all.clicked.connect(deselect_all_presets)
+    preset_btn_reset.clicked.connect(reset_presets)
+
+    for pname, p_cb in preset_checkboxes.items():
+        p_cb.clicked.connect(make_handler(pname))
+
+    for cb in checkboxes.values():
+        cb.toggled.connect(update_presets_from_ranges)
+
+    update_presets_from_ranges()
+
+    return container
 
 
 def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
