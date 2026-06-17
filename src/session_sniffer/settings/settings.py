@@ -45,7 +45,6 @@ class Settings:
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     capture_game_preset: str | None = SETTING_DEFAULTS['capture_game_preset']
-    capture_filter_preset_packet_size: bool = SETTING_DEFAULTS['capture_filter_preset_packet_size']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_filter_block_rtcp: bool = SETTING_DEFAULTS['capture_filter_block_rtcp']
@@ -112,7 +111,6 @@ class Settings:
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_BLOCKED_IPS',
         'CAPTURE_GAME_PRESET',
-        'CAPTURE_FILTER_PRESET_PACKET_SIZE',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,

@@ -6,13 +6,9 @@ from typing import Any
 
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
-    GTA5_PACKET_SIZE_MAX,
-    GTA5_PACKET_SIZE_MIN,
     LLMNR_PORT,
     MAX_PORT,
     MIN_PORT,
-    MINECRAFT_PACKET_SIZE_MAX,
-    MINECRAFT_PACKET_SIZE_MIN,
     RAKNET_PORT,
     SSDPP_PORT,
     UAUDP_PORT,
@@ -110,33 +106,16 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_game_preset': SettingMeta(
         category='Capture',
         group='General',
-        display_label='Game Preset',
+        display_label='Session / Host Optimization Preset',
         setting_type=SettingType.ENUM,
-        tooltip='Predefined capture profile name.',
+        tooltip='Enables GTA5-specific features like Session Host Detection and specific relay IP monitoring.',
         requires_capture_restart=True,
         allowed_values=(
             'None',
             'GTA5',
-            'Minecraft',
         ),
     ),
-    'capture_filter_preset_packet_size': SettingMeta(
-        category='Capture',
-        group='General',
-        display_label='Preset Packet Size Filter',
-        setting_type=SettingType.BOOLEAN,
-        tooltip=(
-            'When a Game Preset is active, restrict capture to packets within the expected size range for that game.\n'
-            'This helps focus exclusively on P2P traffic by blocking packets outside these ranges.\n\n'
-            f'GTA5: {GTA5_PACKET_SIZE_MIN} - {GTA5_PACKET_SIZE_MAX} bytes\n'
-            f'Minecraft Bedrock: {MINECRAFT_PACKET_SIZE_MIN} - {MINECRAFT_PACKET_SIZE_MAX} bytes\n\n'
-            'Note: these ranges were designed for P2P sessions. If you are scanning game servers,\n'
-            'some of their packets may fall outside these bounds and get filtered out.\n'
-            'Disable this if you want the preset behaviour (e.g. third-party server blocks, host detection)\n'
-            'without the size-based packet filter.'
-        ),
-        requires_capture_restart=True,
-    ),
+
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         group='General',
@@ -625,7 +604,6 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_game_preset': None,
-    'capture_filter_preset_packet_size': True,
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),
