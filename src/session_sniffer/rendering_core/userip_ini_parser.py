@@ -210,8 +210,8 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
     ini_rewrites: dict[str, str] = {}
     try:
         validated, ini_rewrites = UserIPSettingsModel.validate_settings(raw_settings)
-    except ValidationError as exc:
-        first_error = exc.errors()[0]
+    except ValidationError as e:
+        first_error = e.errors()[0]
         corrupted_field = str(first_error['loc'][0]) if first_error['loc'] else 'UNKNOWN'
         old_value = raw_settings.get(corrupted_field, '')
         default_value = _USERIP_SETTING_DEFAULTS.get(corrupted_field, '')

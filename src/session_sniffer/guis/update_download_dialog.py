@@ -87,8 +87,8 @@ class _DownloadWorker(CrashingQThread):
                     done += len(chunk)
                     self.progress_signal.emit(done, total)
 
-        except requests.exceptions.RequestException as exc:
-            self.finished_signal.emit(False, str(exc))  # noqa: FBT003
+        except requests.exceptions.RequestException as e:
+            self.finished_signal.emit(False, str(e))  # noqa: FBT003
             return
 
         self.finished_signal.emit(True, '')  # noqa: FBT003

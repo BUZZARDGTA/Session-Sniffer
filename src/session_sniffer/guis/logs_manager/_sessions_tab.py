@@ -825,8 +825,8 @@ class SessionsLogTab(QWidget):
     def _render_session_file(self, file_path: Path) -> str:
         try:
             session_log = self._load_session_log_file(file_path)
-        except (OSError, ValidationError) as exc:
-            return f'[Failed to parse JSON session file: {file_path.name}]\n{exc}'
+        except (OSError, ValidationError) as e:
+            return f'[Failed to parse JSON session file: {file_path.name}]\n{e}'
 
         connected_table = self._build_connected_table(session_log.connected)
         disconnected_table = self._build_disconnected_table(session_log.disconnected)

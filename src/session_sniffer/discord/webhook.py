@@ -316,8 +316,8 @@ def send_test_message(url: str) -> tuple[bool, str]:
     }).encode('utf-8')
     try:
         status, _headers, response_body = _http_request(url, method='POST', body=payload)
-    except (http.client.HTTPException, OSError) as err:
-        return False, f'Network error: {err}'
+    except (http.client.HTTPException, OSError) as e:
+        return False, f'Network error: {e}'
 
     if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
         return True, 'Test message posted successfully.'
@@ -453,8 +453,8 @@ class DiscordWebhookSender:
 
             try:
                 self._dispatch(url, payload)
-            except (http.client.HTTPException, OSError) as err:
-                logger.warning('Discord webhook network error: %s', err)
+            except (http.client.HTTPException, OSError) as e:
+                logger.warning('Discord webhook network error: %s', e)
                 self.connection_status.clear()
 
     def _dispatch(self, url: str, payload: DiscordWebhookPayload) -> None:

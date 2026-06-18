@@ -169,8 +169,8 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
 
         try:
             payload = CheckPingResponse.model_validate(response.json())
-        except ValidationError as error:
-            exit_with_error(f'Invalid response from check-ping endpoint: {error}')
+        except ValidationError as e:
+            exit_with_error(f'Invalid response from check-ping endpoint: {e}')
 
         request_id = payload.request_id
         if request_id is None:
@@ -197,8 +197,8 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
 
         try:
             return validate_check_result_response(response.json())
-        except (TypeError, ValueError) as error:
-            exit_with_error(f'Invalid response from check-result endpoint: {error}')
+        except (TypeError, ValueError) as e:
+            exit_with_error(f'Invalid response from check-result endpoint: {e}')
 
     def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
         """Return the singular/plural suffix based on a count.

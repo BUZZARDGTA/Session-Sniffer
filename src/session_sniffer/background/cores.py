@@ -370,16 +370,16 @@ def looky_core() -> None:
                 if LookyState.api_access:
                     _verified_api_key = Settings.looky_api_key
                     _failed_verification_api_key = None
-            except requests.HTTPError as exc:
-                status = exc.response.status_code if exc.response is not None else '?'
-                reason = exc.response.reason if exc.response is not None else 'Unknown'
-                if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response is not None else '?'
+                reason = e.response.reason if e.response is not None else 'Unknown'
+                if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
                     logger.warning(LOOKY_LOG_API_KEY_INVALID)
                 else:
                     logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
                 LookyState.reset()
 
-                if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
+                if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
                     _failed_verification_api_key = Settings.looky_api_key
             except requests.RequestException as e:
                 logger.warning('[Looky System] Token verification failed: %s', e)
@@ -422,21 +422,21 @@ def looky_core() -> None:
 
             try:
                 results = looky_lookup_ip_batch(batch, api_key, Settings.looky_game_version.lower())
-            except requests.HTTPError as exc:
-                if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                    wait_seconds = extract_rate_limit_wait_seconds(exc)
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    wait_seconds = extract_rate_limit_wait_seconds(e)
                     logger.warning('[Looky System] Rate limited — waiting %s seconds', wait_seconds)
                     gui_closed__event.wait(wait_seconds)
                     rate_limited = True
                     break
-                if exc.response is not None and HTTPStatus(exc.response.status_code).is_server_error:
+                if e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
                     server_error_consecutive_failures += 1
                     cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                    logger.warning('[Looky System] Server error for batch %s: %s. Entering %ss cooldown.', batch, exc, cooldown_duration)
+                    logger.warning('[Looky System] Server error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
                     gui_closed__event.wait(cooldown_duration)
                     cooldown_active = True
                     break
-                logger.debug('[Looky System] HTTP error for batch %s: %s', batch, exc)
+                logger.debug('[Looky System] HTTP error for batch %s: %s', batch, e)
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:
@@ -451,8 +451,8 @@ def looky_core() -> None:
                 gui_closed__event.wait(cooldown_duration)
                 cooldown_active = True
                 break
-            except ValidationError as exc:
-                logger.warning('[Looky System] Validation error for batch %s: %s', batch, exc)
+            except ValidationError as e:
+                logger.warning('[Looky System] Validation error for batch %s: %s', batch, e)
                 for ip in batch:
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None:

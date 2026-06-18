@@ -270,8 +270,8 @@ class PacketCapture:
 
             try:
                 self._capture_and_process()
-            except CaptureExitError as exc:
-                logger.warning('Packet capture stopped unexpectedly: %s', exc)
+            except CaptureExitError as e:
+                logger.warning('Packet capture stopped unexpectedly: %s', e)
                 with self._state.control_lock:
                     self._state.running_event.clear()
                 if self.config.on_capture_lost is not None:
@@ -300,8 +300,8 @@ class PacketCapture:
                 packet = Packet.from_scapy(raw_pkt)
             except MissingRequiredPacketFieldError:
                 return
-            except MalformedPacketError as exc:
-                _log_malformed_packet_skip(str(exc), raw_pkt=raw_pkt)
+            except MalformedPacketError as e:
+                _log_malformed_packet_skip(str(e), raw_pkt=raw_pkt)
                 return
 
             if self.config.display_filter_fn is not None and not self.config.display_filter_fn(raw_pkt):
@@ -314,8 +314,8 @@ class PacketCapture:
                 iface=device_name,
                 filter=self.config.capture_filter or None,
             )
-        except OSError as exc:
-            raise CaptureExitError(exc) from exc
+        except OSError as e:
+            raise CaptureExitError(e) from e
 
         with self._state.control_lock:
             self._state.pcap_socket = listen_socket

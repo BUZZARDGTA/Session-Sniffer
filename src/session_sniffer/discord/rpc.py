@@ -135,8 +135,8 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 exceptions.DiscordError,
                 exceptions.ConnectionTimeout,
                 exceptions.InvalidPipe,
-            ) as exc:
-                logger.debug('Discord RPC connection failed: %s: %s', type(exc).__name__, exc)
+            ) as e:
+                logger.debug('Discord RPC connection failed: %s: %s', type(e).__name__, e)
                 continue
             else:
                 logger.debug('Discord RPC connected')
@@ -149,7 +149,7 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
                 start=START_TIME_INT,
                 buttons=DISCORD_RPC_BUTTONS,
             )
-        except (exceptions.PipeClosed, exceptions.ResponseTimeout) as exc:
-            logger.debug('Discord RPC pipe lost: %s: %s', type(exc).__name__, exc)
+        except (exceptions.PipeClosed, exceptions.ResponseTimeout) as e:
+            logger.debug('Discord RPC pipe lost: %s: %s', type(e).__name__, e)
             rpc.close()
             connection_status.clear()

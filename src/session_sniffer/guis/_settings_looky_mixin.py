@@ -58,13 +58,13 @@ class _LookyVerifyWorker(CrashingQThread):
         try:
             result = looky_verify_token(self._api_key)
             self.verified.emit(result)
-        except requests.HTTPError as exc:
-            status = exc.response.status_code if exc.response is not None else 'unknown'
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else 'unknown'
             self.failed.emit(f'Invalid API key (HTTP {status}).')
         except requests.RequestException as e:
             self.failed.emit(f'Connection error: {e}')
-        except pydantic.ValidationError as exc:
-            self.failed.emit(f'Unexpected response format: {exc}')
+        except pydantic.ValidationError as e:
+            self.failed.emit(f'Unexpected response format: {e}')
 
 
 class SettingsDialogLookyMixin(QDialog):

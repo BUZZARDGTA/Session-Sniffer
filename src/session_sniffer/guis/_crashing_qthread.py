@@ -27,8 +27,8 @@ class CrashingQThread(QThread):
             self._run()
         except SystemExit:
             return
-        except BaseException as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
-            terminate_on_uncaught_exception(exc)
+        except BaseException as e:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+            terminate_on_uncaught_exception(e)
 
     def _run(self) -> None:
         """Override in subclasses to define the thread's work."""

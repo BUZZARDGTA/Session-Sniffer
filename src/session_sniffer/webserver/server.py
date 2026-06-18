@@ -266,8 +266,8 @@ class WebServer:
             await self._runner.setup()
             site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
             await site.start()
-        except OSError as exc:
-            startup_state.error = exc
+        except OSError as e:
+            startup_state.error = e
             startup_state.ready.set()
             await self._runner.cleanup()
             return

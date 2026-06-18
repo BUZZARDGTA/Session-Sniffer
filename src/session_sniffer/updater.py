@@ -147,12 +147,12 @@ def _apply_update(new_exe: Path) -> None:
 
     try:
         old_exe.unlink(missing_ok=True)
-    except OSError as exc:
+    except OSError as e:
         _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to remove the stale backup executable before updating.\n\n{exc}',
+                f'Failed to remove the stale backup executable before updating.\n\n{e}',
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -160,12 +160,12 @@ def _apply_update(new_exe: Path) -> None:
 
     try:
         current_exe.rename(old_exe)
-    except OSError as exc:
+    except OSError as e:
         _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to rename the current executable before updating.\n\n{exc}',
+                f'Failed to rename the current executable before updating.\n\n{e}',
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -173,18 +173,18 @@ def _apply_update(new_exe: Path) -> None:
 
     try:
         shutil.copy2(new_exe, current_exe)
-    except OSError as exc:
+    except OSError as e:
         # Restore the original exe so the user can still run the app
         try:
             old_exe.rename(current_exe)
-        except OSError as restore_exc:
+        except OSError as restore_error:
             _remove_file_if_possible(new_exe)
             msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(
                     f'Failed to write the new executable, and failed to restore the previous version.'
-                    f'\n\nWrite error: {exc}'
-                    f'\n\nRestore error: {restore_exc}',
+                    f'\n\nWrite error: {e}'
+                    f'\n\nRestore error: {restore_error}',
                 ),
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
             )
@@ -193,7 +193,7 @@ def _apply_update(new_exe: Path) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to write the new executable. The previous version has been restored.\n\n{exc}',
+                f'Failed to write the new executable. The previous version has been restored.\n\n{e}',
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )

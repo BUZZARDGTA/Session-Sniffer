@@ -65,13 +65,13 @@ class _CrawlerSendWorker(CrashingQThread):
         """Invoke the send function and emit the result."""
         try:
             tracking_id = self._send_fn()
-        except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(exc)
-                wait = extract_rate_limit_wait_seconds(exc)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                msg = extract_rate_limit_message(e)
+                wait = extract_rate_limit_wait_seconds(e)
                 self.send_failed.emit(f'Rate limited: {msg}. Try again in {wait}s.')
             else:
-                code = exc.response.status_code if exc.response is not None else '?'
+                code = e.response.status_code if e.response is not None else '?'
                 self.send_failed.emit(f'API error: HTTP {code}')
             return
         except requests.RequestException as e:
@@ -104,13 +104,13 @@ class _CrawlerWatchWorker(CrashingQThread):
             for status, result in watch_instruction_status(self._tracking_id, self._api_key):
                 last_status = status
                 self.status_updated.emit(status, result)
-        except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(exc)
-                wait = extract_rate_limit_wait_seconds(exc)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                msg = extract_rate_limit_message(e)
+                wait = extract_rate_limit_wait_seconds(e)
                 failure_msg = f'Rate limited during status stream: {msg}. Try again in {wait}s.'
             else:
-                code = exc.response.status_code if exc.response is not None else '?'
+                code = e.response.status_code if e.response is not None else '?'
                 failure_msg = f'API error while watching status: HTTP {code}'
         except requests.RequestException as e:
             failure_msg = f'Connection error while watching status: {e}'

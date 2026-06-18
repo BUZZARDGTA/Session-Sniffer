@@ -50,22 +50,22 @@ class _LookyFetchWorker(CrashingQThread):
         """Fetch Looky System lookup results and emit the appropriate outcome signal."""
         try:
             results = lookup_ip(self._ip, self._api_key, Settings.looky_game_version.lower())
-        except requests.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == HTTPStatus.NOT_FOUND:
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 self.fetch_not_found.emit()
-            elif exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(exc)
-                wait = extract_rate_limit_wait_seconds(exc)
+            elif e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                msg = extract_rate_limit_message(e)
+                wait = extract_rate_limit_wait_seconds(e)
                 self.fetch_failed.emit(f'Rate limited: {msg}. Try again in {wait}s.')
             else:
-                code = exc.response.status_code if exc.response is not None else '?'
+                code = e.response.status_code if e.response is not None else '?'
                 self.fetch_failed.emit(f'Looky System API error: HTTP {code}')
             return
         except requests.RequestException as e:
             self.fetch_failed.emit(f'Looky System request failed: {e}')
             return
-        except ValidationError as exc:
-            self.fetch_failed.emit(f'Looky System response format unexpected: {exc}')
+        except ValidationError as e:
+            self.fetch_failed.emit(f'Looky System response format unexpected: {e}')
             return
         self.results = results
         self.fetch_succeeded.emit()
