@@ -314,20 +314,15 @@ KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
 # Custom aliases list: Map an expected owner to a list of exact ISP/Org strings that
 # SHOULD be considered a match (e.g., 'DoD Network Information Center' for 'US Department of Defense').
 KNOWN_ALIASES: dict[str, list[str]] = {
-    'US Department of Defense': [
-        'dod network information center',
-    ],
     'The Constant Company, LLC': [
-        'vultr holdings',
         'vultr',
         'choopa',
     ],
     'OVH SAS': [
-        'ovh sas',
         'ovh',
     ],
     'Discord': [
-        'i3d.net',
+        'i3d.net b.v',
     ],
 }
 
