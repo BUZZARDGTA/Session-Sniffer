@@ -4,6 +4,6 @@ extend-ignore =
     F821
 extend-exclude =
     .history,
-    .venv,
+    .venv
 per-file-ignores =
     src/session_sniffer/guis/tables.py:E301,E303
