@@ -61,8 +61,8 @@ class _LookyFetchWorker(CrashingQThread):
                 code = exc.response.status_code if exc.response is not None else '?'
                 self.fetch_failed.emit(f'Looky System API error: HTTP {code}')
             return
-        except requests.RequestException as exc:
-            self.fetch_failed.emit(f'Looky System request failed: {exc}')
+        except requests.RequestException as e:
+            self.fetch_failed.emit(f'Looky System request failed: {e}')
             return
         except ValidationError as exc:
             self.fetch_failed.emit(f'Looky System response format unexpected: {exc}')

@@ -61,8 +61,8 @@ class _LookyVerifyWorker(CrashingQThread):
         except requests.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else 'unknown'
             self.failed.emit(f'Invalid API key (HTTP {status}).')
-        except requests.RequestException as exc:
-            self.failed.emit(f'Connection error: {exc}')
+        except requests.RequestException as e:
+            self.failed.emit(f'Connection error: {e}')
         except pydantic.ValidationError as exc:
             self.failed.emit(f'Unexpected response format: {exc}')
 

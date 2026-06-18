@@ -381,8 +381,8 @@ def looky_core() -> None:
 
                 if exc.response is not None and exc.response.status_code == HTTPStatus.UNAUTHORIZED:
                     _failed_verification_api_key = Settings.looky_api_key
-            except requests.RequestException as exc:
-                logger.warning('[Looky System] Token verification failed: %s', exc)
+            except requests.RequestException as e:
+                logger.warning('[Looky System] Token verification failed: %s', e)
                 LookyState.reset()
 
         if not Settings.looky_auto_resolve or not LookyState.api_access:
@@ -444,10 +444,10 @@ def looky_core() -> None:
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
-            except requests.RequestException as exc:
+            except requests.RequestException as e:
                 server_error_consecutive_failures += 1
                 cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                logger.warning('[Looky System] Request error for batch %s: %s. Entering %ss cooldown.', batch, exc, cooldown_duration)
+                logger.warning('[Looky System] Request error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
                 gui_closed__event.wait(cooldown_duration)
                 cooldown_active = True
                 break

@@ -74,8 +74,8 @@ class _CrawlerSendWorker(CrashingQThread):
                 code = exc.response.status_code if exc.response is not None else '?'
                 self.send_failed.emit(f'API error: HTTP {code}')
             return
-        except requests.RequestException as exc:
-            self.send_failed.emit(f'Connection error: {exc}')
+        except requests.RequestException as e:
+            self.send_failed.emit(f'Connection error: {e}')
             return
         except KeyError:
             self.send_failed.emit('Unexpected API response: missing trackingId.')
@@ -112,8 +112,8 @@ class _CrawlerWatchWorker(CrashingQThread):
             else:
                 code = exc.response.status_code if exc.response is not None else '?'
                 failure_msg = f'API error while watching status: HTTP {code}'
-        except requests.RequestException as exc:
-            failure_msg = f'Connection error while watching status: {exc}'
+        except requests.RequestException as e:
+            failure_msg = f'Connection error while watching status: {e}'
 
         if failure_msg is not None:
             self.request_failed.emit(failure_msg)

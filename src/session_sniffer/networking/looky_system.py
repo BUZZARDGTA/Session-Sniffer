@@ -297,10 +297,10 @@ def watch_instruction_status(
                         break
         except requests.HTTPError:
             raise
-        except requests.RequestException as exc:
+        except requests.RequestException as e:
             if attempt >= max_reconnects:
                 raise
-            logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, exc, attempt + 1, max_reconnects)
+            logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, e, attempt + 1, max_reconnects)
             continue
         if completed:
             return
