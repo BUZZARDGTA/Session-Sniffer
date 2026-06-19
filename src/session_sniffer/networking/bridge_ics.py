@@ -30,7 +30,7 @@ _DEVICE_PREFIX = '\\Device\\'
 
 # INetSharingConfiguration::SharingConnectionType values.
 # https://learn.microsoft.com/en-us/windows/win32/api/netcon/ne-netcon-sharingconnectiontype
-_ICSSHARINGTYPE_PUBLIC = 0   # Adapter is the public (upstream) connection being shared.
+_ICSSHARINGTYPE_PUBLIC = 0  # Adapter is the public (upstream) connection being shared.
 _ICSSHARINGTYPE_PRIVATE = 1  # Adapter is the private (LAN) connection serving clients.
 
 
@@ -72,13 +72,13 @@ def _get_bridge_host_guid() -> str | None:
         return None
 
     with connections_key:
-        idx = 0
+        index = 0
         while True:
             try:
-                subkey_name = winreg.EnumKey(connections_key, idx)
+                subkey_name = winreg.EnumKey(connections_key, index)
             except OSError:
                 break
-            idx += 1
+            index += 1
 
             if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
                 continue
@@ -116,7 +116,7 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
 
         try:
             connections = manager.EnumEveryConnection
-        except (pythoncom.com_error, AttributeError):
+        except pythoncom.com_error, AttributeError:
             return result
 
         for connection in connections:
@@ -126,7 +126,7 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
                     continue
                 sharing_type = int(config.SharingConnectionType)
                 guid_raw = manager.NetConnectionProps(connection).Guid
-            except (pythoncom.com_error, AttributeError):
+            except pythoncom.com_error, AttributeError:
                 continue
 
             if not isinstance(guid_raw, str) or not guid_raw:

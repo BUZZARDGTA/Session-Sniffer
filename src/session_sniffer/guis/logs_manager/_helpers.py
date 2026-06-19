@@ -1,4 +1,5 @@
 """Shared constants and helper functions for the Logs Manager dialog."""
+
 import os
 import shutil
 import subprocess
@@ -89,6 +90,7 @@ def backup_file(file_path: Path) -> Path | None:
 # Log-level syntax highlighter for plain-text log viewers
 # ---------------------------------------------------------------------------
 
+
 class LogLevelHighlighter(QSyntaxHighlighter):
     """Highlight WARNING / ERROR / CRITICAL lines in a plain-text log."""
 
@@ -126,6 +128,7 @@ class LogLevelHighlighter(QSyntaxHighlighter):
 # ---------------------------------------------------------------------------
 # Multi-column filter proxy for CSV tables
 # ---------------------------------------------------------------------------
+
 
 class MultiColumnFilterProxy(QSortFilterProxyModel):
     """Proxy model that filters rows by text match across a specific column or all columns."""
@@ -176,15 +179,13 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
             item = model.item(source_row, self._filter_column)
             return item is not None and pattern.match(item.text()).hasMatch()
 
-        return any(
-            (item := model.item(source_row, col)) is not None and pattern.match(item.text()).hasMatch()
-            for col in range(model.columnCount())
-        )
+        return any((item := model.item(source_row, col)) is not None and pattern.match(item.text()).hasMatch() for col in range(model.columnCount()))
 
 
 # ---------------------------------------------------------------------------
 # Reusable widget / action helpers shared across log-tab types
 # ---------------------------------------------------------------------------
+
 
 def create_log_viewer() -> QPlainTextEdit:
     """Return a read-only, monospace QPlainTextEdit configured for log display."""
@@ -255,7 +256,8 @@ def purge_log_file(
         QMessageBox.information(parent, TITLE, f'{file_path.name} does not exist.')
         return None
     reply = QMessageBox.warning(
-        parent, TITLE,
+        parent,
+        TITLE,
         f'Purge ALL {item_label} from {file_path.name}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.',
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
     )

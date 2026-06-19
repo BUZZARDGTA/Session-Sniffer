@@ -32,7 +32,7 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-RESTART_INDICATOR = ' \u27F3'
+RESTART_INDICATOR = ' \u27f3'
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
@@ -63,7 +63,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             cursor = widget.cursorPosition()
             hex_before = sum(1 for c in text[:cursor] if c in '0123456789ABCDEFabcdef')
             hex_only = ''.join(c for c in text.upper() if c in '0123456789ABCDEF')[:12]
-            formatted = ':'.join(hex_only[i:i + 2] for i in range(0, len(hex_only), 2))
+            formatted = ':'.join(hex_only[i : i + 2] for i in range(0, len(hex_only), 2))
             if formatted == text:
                 return
             widget.blockSignals(True)  # noqa: FBT003
@@ -487,6 +487,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     def make_handler(name: str) -> Callable[[bool], None]:
         def handler(checked: bool) -> None:  # noqa: FBT001
             on_preset_clicked(name, checked)
+
         return handler
 
     def select_all_presets() -> None:

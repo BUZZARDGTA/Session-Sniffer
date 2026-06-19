@@ -3,6 +3,7 @@
 This module provides a utility function to check whether Npcap is installed on the system.
 Npcap is required for network packet capturing in Windows environments.
 """
+
 import subprocess
 import sys
 import webbrowser

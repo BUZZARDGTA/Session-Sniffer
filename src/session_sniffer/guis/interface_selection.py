@@ -4,6 +4,7 @@ Module-level orchestration functions that wrap `InterfaceSelectionDialog`:
 - `show_interface_selection_dialog`: creates and runs the dialog, returning results.
 - `select_interface`: auto-selects or falls back to the dialog based on current settings.
 """
+
 from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QDialog

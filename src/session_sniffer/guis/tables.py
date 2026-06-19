@@ -34,32 +34,78 @@ if TYPE_CHECKING:
 # First match wins; columns not matched fall under 'Other'.
 _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ('⏱ Session', frozenset({'T. Session Time', 'Session Time'})),
-    ('📦 Packets', frozenset({
-        'T. Packets', 'Packets',
-        'T. Packets Received', 'Packets Received',
-        'T. Packets Sent', 'Packets Sent',
-        'T. Min Packet Length', 'Min Packet Length',
-        'T. Avg Packet Length', 'Avg Packet Length',
-        'T. Max Packet Length', 'Max Packet Length',
-        'PPS', 'PPM',
-    })),
-    ('📶 Bandwidth', frozenset({
-        'T. Bandwidth', 'Bandwidth',
-        'T. Download', 'Download',
-        'T. Upload', 'Upload',
-        'BPS', 'BPM',
-    })),
-    ('🌐 Network', frozenset({
-        'Hostname', 'Last Port', 'Middle Ports', 'First Port',
-        'Mobile', 'VPN', 'Hosting', 'Pinging',
-    })),
-    ('📍 Location', frozenset({
-        'Continent', 'Country', 'Region', 'R. Code', 'City', 'District',
-        'ZIP Code', 'Lat', 'Lon', 'Time Zone', 'Offset', 'Currency',
-    })),
+    (
+        '📦 Packets',
+        frozenset(
+            {
+                'T. Packets',
+                'Packets',
+                'T. Packets Received',
+                'Packets Received',
+                'T. Packets Sent',
+                'Packets Sent',
+                'T. Min Packet Length',
+                'Min Packet Length',
+                'T. Avg Packet Length',
+                'Avg Packet Length',
+                'T. Max Packet Length',
+                'Max Packet Length',
+                'PPS',
+                'PPM',
+            },
+        ),
+    ),
+    (
+        '📶 Bandwidth',
+        frozenset(
+            {
+                'T. Bandwidth',
+                'Bandwidth',
+                'T. Download',
+                'Download',
+                'T. Upload',
+                'Upload',
+                'BPS',
+                'BPM',
+            },
+        ),
+    ),
+    (
+        '🌐 Network',
+        frozenset(
+            {
+                'Hostname',
+                'Last Port',
+                'Middle Ports',
+                'First Port',
+                'Mobile',
+                'VPN',
+                'Hosting',
+                'Pinging',
+            },
+        ),
+    ),
+    (
+        '📍 Location',
+        frozenset(
+            {
+                'Continent',
+                'Country',
+                'Region',
+                'R. Code',
+                'City',
+                'District',
+                'ZIP Code',
+                'Lat',
+                'Lon',
+                'Time Zone',
+                'Offset',
+                'Currency',
+            },
+        ),
+    ),
     ('🏢 Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
-
 
 
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
@@ -196,21 +242,13 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
                 if e.button() == Qt.MouseButton.LeftButton:
                     if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-                        selection_flag = (
-                            QItemSelectionModel.SelectionFlag.Deselect
-                            if selection_model.isSelected(index)
-                            else QItemSelectionModel.SelectionFlag.Select
-                        )
+                        selection_flag = QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select
                         self._drag_selecting = True
                         self._previous_cell = index
                     elif e.modifiers() == Qt.KeyboardModifier.NoModifier:
                         was_selection_index_selected = selection_model.isSelected(index)
                         selection_model.clearSelection()
-                        selection_flag = (
-                            QItemSelectionModel.SelectionFlag.Deselect
-                            if was_selection_index_selected
-                            else QItemSelectionModel.SelectionFlag.Select
-                        )
+                        selection_flag = QItemSelectionModel.SelectionFlag.Deselect if was_selection_index_selected else QItemSelectionModel.SelectionFlag.Select
 
                 elif e.button() == Qt.MouseButton.RightButton and not selection_model.isSelected(index):
                     selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
@@ -232,11 +270,10 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 if e.buttons() == Qt.MouseButton.LeftButton and e.modifiers() == Qt.KeyboardModifier.ControlModifier and self._drag_selecting and self._previous_cell != index:
                     self._previous_cell = index
 
-                    selection_model.select(index, (
-                        QItemSelectionModel.SelectionFlag.Deselect
-                        if selection_model.isSelected(index)
-                        else QItemSelectionModel.SelectionFlag.Select
-                    ))
+                    selection_model.select(
+                        index,
+                        (QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select),
+                    )
 
         super().mouseMoveEvent(e)
 
@@ -262,11 +299,42 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
 
             if header_label in {
-                'First Seen', 'Last Rejoin', 'Last Seen', 'T. Session Time', 'Session Time', 'Rejoins',
-                'T. Packets', 'Packets', 'T. Packets Received', 'Packets Received', 'T. Packets Sent', 'Packets Sent', 'PPS', 'PPM',
-                'Bandwidth', 'T. Bandwidth', 'Download', 'T. Download', 'Upload', 'T. Upload', 'BPS', 'BPM',
-                'IP Address', 'First Port', 'Last Port', 'Mobile', 'VPN', 'Hosting', 'Pinging',
-                'R. Code', 'ZIP Code', 'Lat', 'Lon', 'Offset', 'Currency', 'Time Zone',
+                'First Seen',
+                'Last Rejoin',
+                'Last Seen',
+                'T. Session Time',
+                'Session Time',
+                'Rejoins',
+                'T. Packets',
+                'Packets',
+                'T. Packets Received',
+                'Packets Received',
+                'T. Packets Sent',
+                'Packets Sent',
+                'PPS',
+                'PPM',
+                'Bandwidth',
+                'T. Bandwidth',
+                'Download',
+                'T. Download',
+                'Upload',
+                'T. Upload',
+                'BPS',
+                'BPM',
+                'IP Address',
+                'First Port',
+                'Last Port',
+                'Mobile',
+                'VPN',
+                'Hosting',
+                'Pinging',
+                'R. Code',
+                'ZIP Code',
+                'Lat',
+                'Lon',
+                'Offset',
+                'Currency',
+                'Time Zone',
             }:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
             else:
@@ -371,11 +439,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _show_header_context_menu(self, pos: QPoint) -> None:
         """Show a context menu on the column header with sizing and column-visibility actions."""
-        toggleable_columns = (
-            Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-            if self.is_connected_table
-            else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
-        )
+        toggleable_columns = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
 
         horizontal_header = self.horizontalHeader()
         clicked_column = horizontal_header.logicalIndexAt(pos)
@@ -427,9 +491,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         bucketed: dict[str, list[str]] = {label: [] for label, _ in _COLUMN_CATEGORY_GROUPS}
         bucketed['Other'] = []
         shown_columns = set(
-            Settings.gui_columns_connected_shown
-            if self.is_connected_table
-            else Settings.gui_columns_disconnected_shown,
+            Settings.gui_columns_connected_shown if self.is_connected_table else Settings.gui_columns_disconnected_shown,
         )
         for col in toggleable_columns:
             placed = False
@@ -528,11 +590,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
     def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
         """Show tooltip only if hovering exactly over the flag."""
         # TODO(BUZZARDGTA): Make the tooltip appear precisely when hovering over the flag, using the pixmap or QIcon object if possible.
-        cell_rect = self.visualRect(index)   # Get cell rectangle
+        cell_rect = self.visualRect(index)  # Get cell rectangle
         flag_x_start = cell_rect.left() + 4  # Assuming flag starts with a 4px horizontal padding
-        flag_x_end = flag_x_start + 14       # Assuming flag ends with a 14px horizontal padding
+        flag_x_end = flag_x_start + 14  # Assuming flag ends with a 14px horizontal padding
         flag_y_start = cell_rect.top() + 10  # Assuming flag starts with a 10px vertical padding
-        flag_y_end = flag_y_start + 10       # Assuming flag ends with a 10px vertical padding
+        flag_y_end = flag_y_start + 10  # Assuming flag ends with a 10px vertical padding
         # Check if the mouse is over the flag both horizontally and vertically
         if flag_x_start <= event.position().toPoint().x() <= flag_x_end and flag_y_start <= event.position().toPoint().y() <= flag_y_end:
             QToolTip.showText(event.globalPosition().toPoint(), player.iplookup.geolite2.country, self)
@@ -599,7 +661,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Get the top-left and bottom-right QModelIndex for the entire table
         top_left = selected_model.createIndex(0, 0)  # Top-left item (first row, first column)
         bottom_right = selected_model.createIndex(
-            selected_model.rowCount() - 1, selected_model.columnCount() - 1,
+            selected_model.rowCount() - 1,
+            selected_model.columnCount() - 1,
         )  # Bottom-right item (last row, last column)
 
         # Create a selection range from top-left to bottom-right

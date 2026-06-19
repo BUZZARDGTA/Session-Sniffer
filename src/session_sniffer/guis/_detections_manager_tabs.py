@@ -348,9 +348,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _remove_take_two_interactive_from_blocked_servers(self) -> None:
         """Remove TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
-        Settings.capture_block_third_party_servers = tuple(
-            s for s in Settings.capture_block_third_party_servers if s != 'TAKETWO_INTERACTIVE'
-        )
+        Settings.capture_block_third_party_servers = tuple(s for s in Settings.capture_block_third_party_servers if s != 'TAKETWO_INTERACTIVE')
         Settings.rewrite_settings_file()
         self._relay_filter_warning.setVisible(False)
         QMessageBox.information(
@@ -377,9 +375,7 @@ class DetectionsManagerTabsMixin(QDialog):
         """Reload the combo rules QListWidget from ComboRulesManager."""
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
-            conditions_summary = ', '.join(
-                f'{k}={v}' if not isinstance(v, bool) else k for k, v in rule.conditions.items()
-            )
+            conditions_summary = ', '.join(f'{k}={v}' if not isinstance(v, bool) else k for k, v in rule.conditions.items())
             status = '\u2705' if rule.enabled else '\u274c'
             item = QListWidgetItem(f'{status} {rule.name}  [{conditions_summary}]')
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
@@ -406,23 +402,23 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _edit_combo_rule(self) -> None:
         """Open editor dialog to edit the selected combo rule."""
-        idx = self._get_selected_combo_rule_index()
-        if idx is None:
+        index = self._get_selected_combo_rule_index()
+        if index is None:
             QMessageBox.information(self, TITLE, 'Select a rule to edit.')
             return
-        existing_rule = ComboRulesManager.rules[idx]
+        existing_rule = ComboRulesManager.rules[index]
         dialog = ComboRuleEditorDialog(self, rule=existing_rule)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            ComboRulesManager.rules[idx] = dialog.get_rule()
+            ComboRulesManager.rules[index] = dialog.get_rule()
             self.refresh_combo_rules_list()
 
     def _duplicate_combo_rule(self) -> None:
         """Duplicate the selected combo rule."""
-        idx = self._get_selected_combo_rule_index()
-        if idx is None:
+        index = self._get_selected_combo_rule_index()
+        if index is None:
             QMessageBox.information(self, TITLE, 'Select a rule to duplicate.')
             return
-        original = ComboRulesManager.rules[idx]
+        original = ComboRulesManager.rules[index]
         copy = ComboRule(
             name=f'{original.name} (Copy)',
             enabled=original.enabled,
@@ -438,17 +434,19 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _remove_combo_rule(self) -> None:
         """Remove the selected combo rule."""
-        idx = self._get_selected_combo_rule_index()
-        if idx is None:
+        index = self._get_selected_combo_rule_index()
+        if index is None:
             QMessageBox.information(self, TITLE, 'Select a rule to remove.')
             return
-        rule = ComboRulesManager.rules[idx]
+        rule = ComboRulesManager.rules[index]
         reply = QMessageBox.question(
-            self, TITLE, f'Remove rule "{rule.name}"?',
+            self,
+            TITLE,
+            f'Remove rule "{rule.name}"?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            del ComboRulesManager.rules[idx]
+            del ComboRulesManager.rules[index]
             self.refresh_combo_rules_list()
 
     def _clear_combo_rules(self) -> None:
@@ -456,7 +454,9 @@ class DetectionsManagerTabsMixin(QDialog):
         if not ComboRulesManager.rules:
             return
         reply = QMessageBox.question(
-            self, TITLE, 'Remove all combo rules?',
+            self,
+            TITLE,
+            'Remove all combo rules?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:

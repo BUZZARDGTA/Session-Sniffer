@@ -1,4 +1,4 @@
-﻿"""Live PPS + BPS split graph window for an individual player."""
+"""Live PPS + BPS split graph window for an individual player."""
 
 from typing import TYPE_CHECKING, Any, override
 
@@ -345,8 +345,13 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     _bps_threshold_line: pg.InfiniteLine
 
     def __init__(
-        self, *, ip: str, initial_pps_threshold: int, initial_bps_threshold: int,
-        max_history: int = DEFAULT_MAX_HISTORY, always_on_top: bool = True,
+        self,
+        *,
+        ip: str,
+        initial_pps_threshold: int,
+        initial_bps_threshold: int,
+        max_history: int = DEFAULT_MAX_HISTORY,
+        always_on_top: bool = True,
     ) -> None:
         """Initialize the split rate graph window for the given player IP."""
         super().__init__()
@@ -400,8 +405,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
         # Pad to at least VISIBLE_WINDOW, keep up to max_history
-        pps_trimmed = pps_history[-self._max_history:]
-        bps_trimmed = bps_history[-self._max_history:]
+        pps_trimmed = pps_history[-self._max_history :]
+        bps_trimmed = bps_history[-self._max_history :]
         pad_len = max(0, VISIBLE_WINDOW - len(pps_trimmed))
 
         n = pad_len + len(pps_trimmed)
@@ -438,7 +443,7 @@ class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]    # pylint: disable
     """Axis that displays tick labels as positive integers."""
 
     @override
-    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:  # type: ignore[misc]
+    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:
         """Override to show absolute tick values."""
         return [str(abs(int(v))) for v in values]
 
@@ -447,7 +452,7 @@ class DragCursorViewBox(pg.ViewBox):  # type: ignore[misc]  # pylint: disable=ab
     """ViewBox that changes cursor shape during vertical drag."""
 
     @override
-    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:  # type: ignore[misc]
+    def mouseDragEvent(self, ev: MouseDragEvent, axis: int | None = None) -> None:  # pyright: ignore[reportGeneralTypeIssues]
         """Override to show a vertical resize cursor while dragging."""
         if hasattr(ev, 'isStart') and ev.isStart():
             self.setCursor(Qt.CursorShape.SizeVerCursor)

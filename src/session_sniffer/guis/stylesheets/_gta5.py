@@ -79,10 +79,4 @@ QPushButton:pressed {
 # CRAWLER PROGRESS DIALOG STYLES
 # =============================================================================
 
-CRAWLER_TARGET_INFO_LABEL_STYLESHEET = (
-    'background-color: #1e1b2e;'
-    'color: #c4b5fd;'
-    'border: 1px solid #7c3aed;'
-    'border-radius: 4px;'
-    'padding: 6px 8px;'
-)
+CRAWLER_TARGET_INFO_LABEL_STYLESHEET = 'background-color: #1e1b2e;color: #c4b5fd;border: 1px solid #7c3aed;border-radius: 4px;padding: 6px 8px;'

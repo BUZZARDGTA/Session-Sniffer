@@ -54,9 +54,9 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         ports_str = ', '.join(map(str, reversed(player.ports.all))) if player.ports.all else 'N/A'
         if userip is not None:
             try:
-                relative_db = str(userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+                relative_db = str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
             except ValueError:
-                relative_db = str(userip.database_path)
+                relative_db = str(userip.db_path)
         else:
             relative_db = 'N/A'
         detection_type = detection.type if detection is not None else 'N/A'

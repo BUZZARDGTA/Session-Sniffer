@@ -389,6 +389,7 @@ class Settings:
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
         """Parse the settings INI file and report whether it should be rewritten."""
+
         def process_ini_line_output(line: str) -> str:
             return line.rstrip('\n')
 

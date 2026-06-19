@@ -54,6 +54,7 @@ def terminate_script(
     exception_info: ExceptionInfo | None = None,
 ) -> None:
     """Terminate the application and optionally display crash information."""
+
     def should_terminate_gracefully() -> bool:
         # TODO(BUZZARDGTA): Gracefully exit the script even when the `capture` module is running.
         return False
@@ -135,11 +136,7 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     exception_info = ExceptionInfo(args.exc_type, exc_value, args.exc_traceback)
     terminate_script(
         'THREAD_RAISED',
-        (
-            f'An unexpected (uncaught) error occurred.\n\n'
-            f'Please kindly report it to:\n'
-            f'{GITHUB_ISSUES_URL}'
-        ),
+        (f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}'),
         exception_info=exception_info,
     )
 

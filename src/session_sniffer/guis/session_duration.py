@@ -45,11 +45,7 @@ class SessionDurationWindow(ToggleAlwaysOnTopMixin):
     def refresh(self) -> None:
         """Rebuild the table with current session duration data."""
         disconnected = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
-        entries = [
-            (p.datetime.session_time.total_seconds(), p.ip, ', '.join(p.usernames) if p.usernames else '—')
-            for p in disconnected
-            if p.datetime.session_time is not None
-        ]
+        entries = [(p.datetime.session_time.total_seconds(), p.ip, ', '.join(p.usernames) if p.usernames else '—') for p in disconnected if p.datetime.session_time is not None]
         entries.sort(key=lambda e: e[0], reverse=True)
 
         self._table.setSortingEnabled(False)

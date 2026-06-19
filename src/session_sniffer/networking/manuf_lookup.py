@@ -2,6 +2,7 @@
 
 Includes functions to fetch, parse, and search the database, with support for longest-prefix matching.
 """
+
 import re
 from typing import ClassVar, NamedTuple
 
@@ -140,10 +141,7 @@ class MacLookup:
 
         for manuf_entries in cls._database.values():
             for manuf in manuf_entries:
-                if (
-                    _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits)
-                    and manuf.prefix_length_bits > best_prefix_length_bits
-                ):
+                if _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits) and manuf.prefix_length_bits > best_prefix_length_bits:
                     best_prefix_length_bits = manuf.prefix_length_bits
                     best_entry = manuf
 

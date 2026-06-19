@@ -32,9 +32,7 @@ from session_sniffer.settings import Settings
 
 COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 # Pre-scan available flag codes once to avoid per-country filesystem checks
-AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(
-    p.stem for p in COUNTRY_FLAGS_DIR.glob('*.png')
-) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
+AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(p.stem for p in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
 
 
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
@@ -139,9 +137,9 @@ class CountrySelectionDialog(QDialog):
 
     def selected_country(self) -> str | None:
         """Return the selected country name, or None if nothing valid is selected."""
-        idx = self._combo.currentIndex()
-        if idx >= 0:
-            data = self._combo.itemData(idx, Qt.ItemDataRole.UserRole)
+        index = self._combo.currentIndex()
+        if index >= 0:
+            data = self._combo.itemData(index, Qt.ItemDataRole.UserRole)
             if isinstance(data, str):
                 return data
         text = self._combo.currentText().strip()
@@ -289,7 +287,8 @@ class ComboRuleEditorDialog(QDialog):
 
         if rule:
             set_duration_widgets_helper(
-                self._duration_combo, self._duration_spin,
+                self._duration_combo,
+                self._duration_spin,
                 rule.duration if rule.protection_enabled else 'Disabled',
             )
 
@@ -315,7 +314,9 @@ class ComboRuleEditorDialog(QDialog):
         self._duration_spin.setVisible(text == 'Manual')
 
     def _add_condition_row(
-        self, preset_key: str | None = None, preset_value: str | bool | list[str] | None = None,  # noqa: FBT001
+        self,
+        preset_key: str | None = None,
+        preset_value: str | bool | list[str] | None = None,  # noqa: FBT001
     ) -> None:
         """Add a new condition row with type selector and value widget."""
         row_layout = QHBoxLayout()
@@ -420,9 +421,9 @@ class ComboRuleEditorDialog(QDialog):
             if preset_key in ('mobile', 'vpn', 'hosting') and isinstance(preset_value, bool):
                 bool_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
                 if bool_combo_widget is not None:
-                    idx = bool_combo_widget.findData(preset_value)
-                    if idx >= 0:
-                        bool_combo_widget.setCurrentIndex(idx)
+                    index = bool_combo_widget.findData(preset_value)
+                    if index >= 0:
+                        bool_combo_widget.setCurrentIndex(index)
             elif preset_key == 'event' and isinstance(preset_value, list):
                 events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
                 if events_widget is not None:
@@ -512,10 +513,10 @@ class ComboRuleEditorDialog(QDialog):
         country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
         if country_combo_widget is None:
             return None
-        idx = country_combo_widget.currentIndex()
-        if idx < 0:
+        index = country_combo_widget.currentIndex()
+        if index < 0:
             return None
-        data = country_combo_widget.itemData(idx, Qt.ItemDataRole.UserRole)
+        data = country_combo_widget.itemData(index, Qt.ItemDataRole.UserRole)
         return data if isinstance(data, str) and data else None
 
     def get_rule(self) -> ComboRule:

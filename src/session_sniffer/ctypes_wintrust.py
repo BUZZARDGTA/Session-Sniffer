@@ -20,9 +20,9 @@ class _Guid(ctypes.Structure):
 
 class _WintrustFileInfo(ctypes.Structure):
     _fields_ = [
-        ('cbStruct',       ctypes.wintypes.DWORD),
-        ('pcwszFilePath',  ctypes.c_wchar_p),
-        ('hFile',          ctypes.wintypes.HANDLE),
+        ('cbStruct', ctypes.wintypes.DWORD),
+        ('pcwszFilePath', ctypes.c_wchar_p),
+        ('hFile', ctypes.wintypes.HANDLE),
         ('pgKnownSubject', ctypes.c_void_p),
     ]
 
@@ -38,18 +38,18 @@ class _WintrustFileInfo(ctypes.Structure):
 
 class _WintrustData(ctypes.Structure):
     _fields_ = [
-        ('cbStruct',            ctypes.wintypes.DWORD),
+        ('cbStruct', ctypes.wintypes.DWORD),
         ('pPolicyCallbackData', ctypes.c_void_p),
-        ('pSIPClientData',      ctypes.c_void_p),
-        ('dwUIChoice',          ctypes.wintypes.DWORD),
+        ('pSIPClientData', ctypes.c_void_p),
+        ('dwUIChoice', ctypes.wintypes.DWORD),
         ('fdwRevocationChecks', ctypes.wintypes.DWORD),
-        ('dwUnionChoice',       ctypes.wintypes.DWORD),
-        ('pFile',               ctypes.c_void_p),
-        ('dwStateAction',       ctypes.wintypes.DWORD),
-        ('hWVTStateData',       ctypes.wintypes.HANDLE),
-        ('pwszURLReference',    ctypes.c_wchar_p),
-        ('dwProvFlags',         ctypes.wintypes.DWORD),
-        ('dwUIContext',         ctypes.wintypes.DWORD),
+        ('dwUnionChoice', ctypes.wintypes.DWORD),
+        ('pFile', ctypes.c_void_p),
+        ('dwStateAction', ctypes.wintypes.DWORD),
+        ('hWVTStateData', ctypes.wintypes.HANDLE),
+        ('pwszURLReference', ctypes.c_wchar_p),
+        ('dwProvFlags', ctypes.wintypes.DWORD),
+        ('dwUIContext', ctypes.wintypes.DWORD),
     ]
 
     def __init__(self, file_info: _WintrustFileInfo) -> None:
@@ -68,6 +68,8 @@ class _WintrustData(ctypes.Structure):
         self.dwProvFlags = 0
         self.dwUIContext = 0
         # pylint: enable=invalid-name
+
+
 # pylint: enable=too-few-public-methods
 
 
@@ -79,7 +81,9 @@ _WTD_STATEACTION_CLOSE = 0x00000002
 
 # WINTRUST_ACTION_GENERIC_VERIFY_V2: {00AAC56B-CD44-11D0-8CC2-00C04FC295EE}
 _WINTRUST_ACTION_GENERIC_VERIFY_V2 = _Guid(
-    0x00AAC56B, 0xCD44, 0x11D0,
+    0x00AAC56B,
+    0xCD44,
+    0x11D0,
     (ctypes.c_ubyte * 8)(0x8C, 0xC2, 0x00, 0xC0, 0x4F, 0xC2, 0x95, 0xEE),
 )
 

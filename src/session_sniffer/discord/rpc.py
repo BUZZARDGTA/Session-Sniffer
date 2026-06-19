@@ -3,6 +3,7 @@
 It connects to Discord using a provided client ID, updates the presence state with a message, and provides
 functionality to update or close the presence. It uses threading to run the update process asynchronously.
 """
+
 import asyncio
 import sys
 import time
@@ -21,6 +22,7 @@ from session_sniffer.logging_setup import get_logger
 
 class _PresenceUpdate(NamedTuple):
     """Payload queued for a Discord Rich Presence update."""
+
     state_message: str
     details: str | None
 

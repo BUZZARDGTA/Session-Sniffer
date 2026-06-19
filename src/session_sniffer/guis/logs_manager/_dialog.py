@@ -1,4 +1,5 @@
 """Logs Manager dialog — main entry point combining all log tabs."""
+
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -104,7 +105,8 @@ class LogsManager(QDialog):
     def purge_all_logs(self) -> None:
         """Purge all CSV log files and debug.log after strong confirmation."""
         reply = QMessageBox.warning(
-            self, TITLE,
+            self,
+            TITLE,
             'This will purge ALL log files:\n\n'
             '  • UserIP_Logging.csv\n'
             '  • Detection_Logging.csv\n'

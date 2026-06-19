@@ -35,6 +35,7 @@ class _GUIThreadDispatcher(QObject):
 
         def _dispatch_fn(fn: Callable[[], None]) -> None:
             fn()
+
         self._call.connect(_dispatch_fn)
 
     def invoke(self, fn: Callable[[], None]) -> None:
@@ -48,12 +49,14 @@ gui_dispatcher = _GUIThreadDispatcher()
 
 class ProtectionSettings(NamedTuple):
     """Protection-related settings for a UserIP entry."""
+
     enabled: bool
     suspend_process_mode: int | Literal['Auto']
 
 
 class UserIPSettings(NamedTuple):
     """Represent settings with attributes for each setting key."""
+
     enabled: bool
     color: QColor
     log: bool
@@ -64,23 +67,26 @@ class UserIPSettings(NamedTuple):
 
 class UserIP(NamedTuple):
     """Class representing information associated with a specific IP, including settings and usernames."""
+
     ip: str
-    database_path: Path
+    db_path: Path
     settings: UserIPSettings
     usernames: list[str]
 
 
 class _RangeEntry(NamedTuple):
     """A parsed IP range entry associated with a specific UserIP database."""
+
     ip_range: IPRange
-    database_path: Path
+    db_path: Path
     settings: UserIPSettings
     usernames: list[str]
 
 
 class _UserIPDatabaseEntry(NamedTuple):
     """Pre-classified UserIP database entry for efficient build."""
-    database_path: Path
+
+    db_path: Path
     settings: UserIPSettings
     single_ips: dict[str, list[str]]
     range_ips: dict[str, list[str]]
@@ -89,6 +95,7 @@ class _UserIPDatabaseEntry(NamedTuple):
 @dataclasses.dataclass(slots=True)
 class _BuildState:
     """Mutable accumulator passed through single-IP processing during `UserIPDatabases.build`."""
+
     ips_set: set[str]
     ip_to_userip: dict[str, UserIP]
     unresolved_conflicts: set[str]
@@ -114,12 +121,14 @@ class UserIPDatabases:
         conflicting_database_path: Path,
         conflicting_username: str,
     ) -> None:
-        text = format_triple_quoted_text(format_userip_ip_conflict_message(
-            existing_userip=existing_userip,
-            conflicting_database_path=conflicting_database_path,
-            conflicting_username=conflicting_username,
-            userip_databases_dir=USERIP_DATABASES_DIR_PATH,
-        ))
+        text = format_triple_quoted_text(
+            format_userip_ip_conflict_message(
+                existing_userip=existing_userip,
+                conflicting_database_path=conflicting_database_path,
+                conflicting_username=conflicting_username,
+                userip_databases_dir=USERIP_DATABASES_DIR_PATH,
+            ),
+        )
 
         def _show_on_gui() -> None:
             parent = find_main_window()
@@ -130,6 +139,7 @@ class UserIPDatabases:
 
             def _on_finished(_result: int) -> None:
                 UserIPDatabases._open_conflict_dialogs.pop(existing_userip.ip, None)
+
             dlg.finished.connect(_on_finished)
             UserIPDatabases._open_conflict_dialogs[existing_userip.ip] = dlg
             dlg.show()
@@ -147,10 +157,10 @@ class UserIPDatabases:
         """Replace `cls.userip_databases` with a new set of databases.
 
         Args:
-            database_entries: A list of tuples containing database_path, settings, and user_ips.
+            database_entries: A list of tuples containing db_path, settings, and user_ips.
         """
         classified: list[_UserIPDatabaseEntry] = []
-        for database_path, settings, user_ips in database_entries:
+        for db_path, settings, user_ips in database_entries:
             if not settings.enabled:
                 continue
             single_ips: dict[str, list[str]] = {}
@@ -162,12 +172,14 @@ class UserIPDatabases:
                         single_ips.setdefault(username, []).append(entry)
                     except ValueError:
                         range_ips.setdefault(username, []).append(entry)
-            classified.append(_UserIPDatabaseEntry(
-                database_path=database_path,
-                settings=settings,
-                single_ips=single_ips,
-                range_ips=range_ips,
-            ))
+            classified.append(
+                _UserIPDatabaseEntry(
+                    db_path=db_path,
+                    settings=settings,
+                    single_ips=single_ips,
+                    range_ips=range_ips,
+                ),
+            )
         with cls._update_userip_database_lock:
             cls.userip_databases = classified
 
@@ -180,11 +192,11 @@ class UserIPDatabases:
         build_state: _BuildState,
     ) -> None:
         """Process a single IP entry during build."""
-        if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].database_path != db_entry.database_path:
+        if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
             if entry not in cls.notified_ip_conflicts:
                 cls._notify_ip_conflict(
                     existing_userip=build_state.ip_to_userip[entry],
-                    conflicting_database_path=db_entry.database_path,
+                    conflicting_database_path=db_entry.db_path,
                     conflicting_username=username,
                 )
                 cls.notified_ip_conflicts.add(entry)
@@ -196,7 +208,7 @@ class UserIPDatabases:
         if entry not in build_state.ip_to_userip:
             build_state.ip_to_userip[entry] = UserIP(
                 ip=entry,
-                database_path=db_entry.database_path,
+                db_path=db_entry.db_path,
                 settings=db_entry.settings,
                 usernames=[username],
             )
@@ -210,7 +222,7 @@ class UserIPDatabases:
     def _process_range_entry(
         entry: str,
         username: str,
-        database_path: Path,
+        db_path: Path,
         settings: UserIPSettings,
         range_entries: list[_RangeEntry],
     ) -> None:
@@ -222,19 +234,21 @@ class UserIPDatabases:
             return
 
         existing = next(
-            (re for re in range_entries if re.ip_range.raw == entry and re.database_path == database_path),
+            (re for re in range_entries if re.ip_range.raw == entry and re.db_path == db_path),
             None,
         )
         if existing is not None:
             if username not in existing.usernames:
                 existing.usernames.append(username)
         else:
-            range_entries.append(_RangeEntry(
-                ip_range=ip_range,
-                database_path=database_path,
-                settings=settings,
-                usernames=[username],
-            ))
+            range_entries.append(
+                _RangeEntry(
+                    ip_range=ip_range,
+                    db_path=db_path,
+                    settings=settings,
+                    usernames=[username],
+                ),
+            )
 
     @classmethod
     def build(cls) -> None:
@@ -257,7 +271,7 @@ class UserIPDatabases:
                         cls._process_single_ip(ip, username, db_entry, build_state)
                 for username, ranges in db_entry.range_ips.items():
                     for range_str in ranges:
-                        cls._process_range_entry(range_str, username, db_entry.database_path, db_entry.settings, range_entries)
+                        cls._process_range_entry(range_str, username, db_entry.db_path, db_entry.settings, range_entries)
 
             # Assign or refresh range-matched UserIP for players not covered by single-IP entries.
             if range_entries:
@@ -268,7 +282,7 @@ class UserIPDatabases:
                         if player.ip in range_entry.ip_range:
                             player.userip = UserIP(
                                 ip=player.ip,
-                                database_path=range_entry.database_path,
+                                db_path=range_entry.db_path,
                                 settings=range_entry.settings,
                                 usernames=list(range_entry.usernames),
                             )
@@ -321,7 +335,7 @@ class UserIPDatabases:
         addr = IPv4Address(ip)
         for entry in cls._range_entries:
             if addr in entry.ip_range:
-                return UserIP(ip=ip, database_path=entry.database_path, settings=entry.settings, usernames=entry.usernames)
+                return UserIP(ip=ip, db_path=entry.db_path, settings=entry.settings, usernames=entry.usernames)
         return None
 
     @classmethod
@@ -337,4 +351,4 @@ class UserIPDatabases:
     def get_userip_database_filepaths(cls) -> list[Path]:
         """Return all enabled UserIP database file paths."""
         with cls._update_userip_database_lock:
-            return [db_entry.database_path for db_entry in cls.userip_databases]
+            return [db_entry.db_path for db_entry in cls.userip_databases]

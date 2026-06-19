@@ -46,7 +46,7 @@ class _LookyVerifyWorker(CrashingQThread):
     """Background thread that verifies a Looky System API key via `/api/whoami`."""
 
     verified: pyqtSignal = pyqtSignal(object)  # LookyVerifyResponse
-    failed: pyqtSignal = pyqtSignal(str)        # error message
+    failed: pyqtSignal = pyqtSignal(str)  # error message
 
     def __init__(self, api_key: str) -> None:
         super().__init__()
@@ -186,10 +186,10 @@ class SettingsDialogLookyMixin(QDialog):
         def add_right(label: str, html: str) -> None:
             self._looky_card_form_right.addRow(self._make_card_label(label), self._make_card_value(html))
 
-        add_left('Username',    f'<b style="color:#b09fe0; font-size:10pt;">{data.userData.username}</b>')
+        add_left('Username', f'<b style="color:#b09fe0; font-size:10pt;">{data.userData.username}</b>')
         add_left('Rockstar ID', f'<b style="color:#b09fe0; font-size:10pt;">{data.userData.rid}</b>')
         add_right('API Access', _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
-        add_right('Status',     _bool_badge(data.userData.status, 'Active', 'Inactive'))
+        add_right('Status', _bool_badge(data.userData.status, 'Active', 'Inactive'))
 
         self._looky_card_forms_container.setVisible(True)
 

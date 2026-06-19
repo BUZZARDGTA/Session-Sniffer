@@ -39,6 +39,7 @@ class PlayerPackets:
             accumulated_packets: Number of packets counted since last calculation.
             calculated_rate: The final PPS value to display (Packets Per Second).
         """
+
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
         accumulated_packets: int = 0
@@ -68,6 +69,7 @@ class PlayerPackets:
             accumulated_packets: Number of packets counted since last calculation.
             calculated_rate: The final PPM value to display (Packets Per Minute).
         """
+
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
         accumulated_packets: int = 0
@@ -134,15 +136,12 @@ class PlayerPackets:
         if sent_by_local_host:
             return cls(
                 exchanged=1,
-
                 total_received=0,
                 received=0,
                 total_sent=1,
                 sent=1,
-
                 pps=cls.PPS(accumulated_packets=1),
                 ppm=cls.PPM(accumulated_packets=1),
-
                 min_len=packet_length,
                 max_len=packet_length,
                 session_sum_len=packet_length,
@@ -152,15 +151,12 @@ class PlayerPackets:
             )
         return cls(
             exchanged=1,
-
             total_received=1,
             received=1,
             total_sent=0,
             sent=0,
-
             pps=cls.PPS(accumulated_packets=1),
             ppm=cls.PPM(accumulated_packets=1),
-
             min_len=packet_length,
             max_len=packet_length,
             session_sum_len=packet_length,
@@ -253,6 +249,7 @@ class PlayerBandwidth:
             accumulated_bytes: Number of bytes counted since last calculation.
             calculated_rate: The final BPS value to display (Bytes Per Second).
         """
+
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
         accumulated_bytes: int = 0
@@ -282,6 +279,7 @@ class PlayerBandwidth:
             accumulated_bytes: Number of bytes counted since last calculation.
             calculated_rate: The final BPM value to display (Bytes Per Minute).
         """
+
         is_first_calculation: bool = True
         last_update_time: float = dataclasses.field(default_factory=time.monotonic)
         accumulated_bytes: int = 0
@@ -330,23 +328,19 @@ class PlayerBandwidth:
         if sent_by_local_host:
             return cls(
                 exchanged=packet_length,
-
                 total_download=0,
                 download=0,
                 total_upload=packet_length,
                 upload=packet_length,
-
                 bps=cls.BPS(accumulated_bytes=packet_length),
                 bpm=cls.BPM(accumulated_bytes=packet_length),
             )
         return cls(
             exchanged=packet_length,
-
             total_download=packet_length,
             download=packet_length,
             total_upload=0,
             upload=0,
-
             bps=cls.BPS(accumulated_bytes=packet_length),
             bpm=cls.BPM(accumulated_bytes=packet_length),
         )

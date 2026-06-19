@@ -78,12 +78,12 @@ class _DownloadWorker(CrashingQThread):
 
             self._dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with self._dest_path.open('wb') as fh:
+            with self._dest_path.open('wb') as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if self._cancel_event.is_set():
                         self.finished_signal.emit(False, 'Cancelled')  # noqa: FBT003
                         return
-                    fh.write(chunk)
+                    f.write(chunk)
                     done += len(chunk)
                     self.progress_signal.emit(done, total)
 
@@ -116,9 +116,7 @@ class UpdateDownloadDialog(QDialog):
         self._progress_bar = QProgressBar()
         self._status_label = QLabel('Preparing download\u2026')
         self._size_label = QLabel(
-            '0.0 MB'
-            '<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>'
-            'xx.x MB',
+            '0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>xx.x MB',
         )
 
         self.setWindowTitle('Downloading Update')
@@ -231,8 +229,7 @@ class UpdateDownloadDialog(QDialog):
             dot = QLabel()
             dot.setFixedSize(8, 8)
             dot.setStyleSheet(
-                'background-color: #5fb4f5;'
-                'border-radius: 4px;',
+                'background-color: #5fb4f5;border-radius: 4px;',
             )
             label_row.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -302,10 +299,7 @@ class UpdateDownloadDialog(QDialog):
     @staticmethod
     def _is_generated_build_metadata(path: Path) -> bool:
         """Return whether a path is generated Python packaging/cache metadata."""
-        return any(
-            part == '__pycache__' or part.endswith(('.egg-info', '.dist-info'))
-            for part in path.parts
-        )
+        return any(part == '__pycache__' or part.endswith(('.egg-info', '.dist-info')) for part in path.parts)
 
     @classmethod
     def _compute_current_build_size_text(cls) -> str:
@@ -332,9 +326,7 @@ class UpdateDownloadDialog(QDialog):
                 total += sum(
                     file.stat().st_size
                     for file in path.rglob('*')
-                    if file.is_file()
-                    and not cls._is_generated_build_metadata(file)
-                    and file.suffix.lower() not in {'.pyc', '.pyo'}
+                    if file.is_file() and not cls._is_generated_build_metadata(file) and file.suffix.lower() not in {'.pyc', '.pyo'}
                 )
 
         return cls._format_size_mb(total)
@@ -462,9 +454,7 @@ class UpdateDownloadDialog(QDialog):
         if total > 0:
             self._progress_bar.setValue(int(done / total * 100))
             self._size_label.setText(
-                f'{self._format_size_mb(done)}'
-                '<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>'
-                f'{self._format_size_mb(total)}',
+                f'{self._format_size_mb(done)}<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{self._format_size_mb(total)}',
             )
             if self._new_size_label is not None:
                 self._new_size_label.setText(self._format_size_mb(total))

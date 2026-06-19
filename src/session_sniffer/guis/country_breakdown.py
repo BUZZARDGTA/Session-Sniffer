@@ -40,16 +40,10 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         counts: dict[str, int] = {}
         for player in all_players:
             if (
-                (
-                    country := player.iplookup.ipapi.country
-                    if (
-                        player.iplookup.geolite2.country == '...'
-                        and player.iplookup.ipapi.country != '...'
-                    )
-                    else player.iplookup.geolite2.country
-                )
-                and country != '...'
-            ):
+                country := player.iplookup.ipapi.country
+                if (player.iplookup.geolite2.country == '...' and player.iplookup.ipapi.country != '...')
+                else player.iplookup.geolite2.country
+            ) and country != '...':
                 counts[country] = counts.get(country, 0) + 1
 
         sorted_counts = sorted(counts.items(), key=lambda x: x[1], reverse=True)

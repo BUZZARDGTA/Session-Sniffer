@@ -1,4 +1,5 @@
 """Update release_versions.json with version info from a release tag."""  # noqa: INP001
+
 import argparse
 import json
 from pathlib import Path

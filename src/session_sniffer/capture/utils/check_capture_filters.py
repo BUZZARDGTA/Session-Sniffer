@@ -34,7 +34,7 @@ def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
                 timeout=0.5,
                 store=False,
             )
-        except (Scapy_Exception, OSError):
+        except Scapy_Exception, OSError:
             return False
         return True
 

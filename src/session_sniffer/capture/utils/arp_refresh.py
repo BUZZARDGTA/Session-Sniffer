@@ -1,4 +1,4 @@
-﻿"""Utilities to repopulate the Windows ARP cache via ICMP probes.
+"""Utilities to repopulate the Windows ARP cache via ICMP probes.
 
 The Interface Selection dialog uses these helpers to give the user a "Refresh
 ARP Table" action that wakes up devices on the local subnet(s) so that

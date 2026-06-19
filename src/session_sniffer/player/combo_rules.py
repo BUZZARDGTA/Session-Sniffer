@@ -1,4 +1,4 @@
-﻿"""Combo detection rules — multi-condition AND rules with per-rule actions."""
+"""Combo detection rules — multi-condition AND rules with per-rule actions."""
 
 import json
 from collections.abc import Callable
@@ -85,11 +85,7 @@ class ComboRule:
                     conditions[key] = value
 
             elif key == _EVENT_CONDITION and isinstance(value, list):
-                valid_events = [
-                    event
-                    for event in cast('list[object]', value)
-                    if isinstance(event, str) and event in _VALID_EVENTS
-                ]
+                valid_events = [event for event in cast('list[object]', value) if isinstance(event, str) and event in _VALID_EVENTS]
                 if valid_events:
                     conditions[key] = valid_events
 
@@ -112,10 +108,7 @@ def _valid_lookup_value(value: object) -> bool:
 
 def _match_exact_lookup(value: str, *candidates: object) -> bool:
     """Return True if any meaningful lookup candidate exactly matches value."""
-    return any(
-        _valid_lookup_value(candidate) and candidate == value
-        for candidate in candidates
-    )
+    return any(_valid_lookup_value(candidate) and candidate == value for candidate in candidates)
 
 
 def _match_isp_condition(value: str, player: Player) -> bool:
@@ -250,11 +243,7 @@ def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> b
     elif event_type is not None:
         return False
 
-    return all(
-        _check_condition(key, value, player)
-        for key, value in rule.conditions.items()
-        if key != _EVENT_CONDITION
-    )
+    return all(_check_condition(key, value, player) for key, value in rule.conditions.items() if key != _EVENT_CONDITION)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -273,7 +262,7 @@ class ComboRulesManager:
 
         try:
             data: object = json.loads(file_path.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             logger.warning('Failed to load combo rules from %s, starting with empty rules', file_path)
             return
 

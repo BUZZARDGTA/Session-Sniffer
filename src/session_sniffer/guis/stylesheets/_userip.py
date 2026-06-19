@@ -6,17 +6,13 @@
 
 SUBNET_DESC_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic;'
 
-COLOR_SWATCH_GROUP_HEADER_STYLESHEET = (
-    'color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;'
-)
+COLOR_SWATCH_GROUP_HEADER_STYLESHEET = 'color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;'
 
 COLOR_SWATCH_SEPARATOR_STYLESHEET = 'color: #3a3a3a;'
 
 SETTINGS_SEPARATOR_STYLESHEET = 'background-color: rgba(74, 144, 226, 0.2); border: none;'
 
-COLOR_BUTTON_EMPTY_STYLESHEET = (
-    'background-color: transparent; border: 1px solid #555; border-radius: 4px;'
-)
+COLOR_BUTTON_EMPTY_STYLESHEET = 'background-color: transparent; border: 1px solid #555; border-radius: 4px;'
 
 
 def color_swatch_btn_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str) -> str:

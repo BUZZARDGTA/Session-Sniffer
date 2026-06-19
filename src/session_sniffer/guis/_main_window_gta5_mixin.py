@@ -27,10 +27,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-GTA5_SOLO_TOOLTIP = (
-    'Suspend GTA5 for ~8 seconds then auto-resume.\n'
-    'This forces the game to spawn you alone in a public session.'
-)
+GTA5_SOLO_TOOLTIP = 'Suspend GTA5 for ~8 seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
 
 
 class GTA5Mixin(QMainWindow):
@@ -158,11 +155,7 @@ class GTA5Mixin(QMainWindow):
         self._gta5_process_detected = can_act and self._gta5_process_is_running()
 
         self._gta5_process_suspended = can_act and suspend_snapshot.is_suspended
-        self._gta5_externally_suspended = (
-            can_act
-            and not suspend_snapshot.is_suspended
-            and CaptureState.gta5_is_suspended
-        )
+        self._gta5_externally_suspended = can_act and not suspend_snapshot.is_suspended and CaptureState.gta5_is_suspended
 
     def _sync_gta5_process_button(self) -> None:
         """Update the GTA5 Process submenu title and menu-item enabled states."""

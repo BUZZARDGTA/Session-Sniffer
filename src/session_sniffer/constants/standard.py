@@ -1,4 +1,5 @@
 """Module for defining constants that include only imports from standard Python libraries."""
+
 import os
 from pathlib import Path
 

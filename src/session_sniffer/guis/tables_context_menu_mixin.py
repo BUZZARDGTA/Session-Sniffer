@@ -127,6 +127,7 @@ class TableContextMenuMixin(QTableView):
 
     def show_context_menu(self, pos: QPoint) -> None:
         """Show the context menu at the specified position with options to interact with the table's content."""
+
         def add_action(
             menu: QMenu,
             label: str,
@@ -169,12 +170,12 @@ class TableContextMenuMixin(QTableView):
             """Add database entries to *parent_menu*, nesting subfolders as child menus."""
             folder_menus: dict[tuple[str, ...], QMenu] = {}
 
-            for database_path in database_paths:
-                rel = database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+            for db_path in database_paths:
+                rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
                 if len(rel.parts) == 1:
-                    action = add_action(parent_menu, rel.parts[0], tooltip=tooltip, handler=handler_factory(database_path))
-                    if disabled_path is not None and database_path == disabled_path:
+                    action = add_action(parent_menu, rel.parts[0], tooltip=tooltip, handler=handler_factory(db_path))
+                    if disabled_path is not None and db_path == disabled_path:
                         action.setEnabled(False)
                 else:
                     # Build / reuse nested submenus for each folder level
@@ -185,8 +186,8 @@ class TableContextMenuMixin(QTableView):
                             folder_menus[folder_key] = add_menu(current_menu, rel.parts[depth])
                         current_menu = folder_menus[folder_key]
 
-                    action = add_action(current_menu, rel.parts[-1], tooltip=tooltip, handler=handler_factory(database_path))
-                    if disabled_path is not None and database_path == disabled_path:
+                    action = add_action(current_menu, rel.parts[-1], tooltip=tooltip, handler=handler_factory(db_path))
+                    if disabled_path is not None and db_path == disabled_path:
                         action.setEnabled(False)
 
         # Determine the index at the clicked position
@@ -273,6 +274,7 @@ class TableContextMenuMixin(QTableView):
                 return
 
             if len(ips) == 1:
+
                 def _do_block_single_ip() -> None:
                     if block_ip_as_range(self, ips[0]) is None:
                         return
@@ -375,11 +377,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if (
-                not Settings.is_gta5_preset()
-                or not players
-                or any(is_third_party_server_ip(p.ip) for p in players)
-            ):
+            if not Settings.is_gta5_preset() or not players or any(is_third_party_server_ip(p.ip) for p in players):
                 return
 
             def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
@@ -494,15 +492,7 @@ class TableContextMenuMixin(QTableView):
 
         def get_script_candidates(directory: Path) -> list[Path]:
             allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
-            return [
-                script
-                for script in directory.glob('*')
-                if (
-                    script.is_file()
-                    and not script.name.startswith(('_', '.'))
-                    and script.suffix.casefold() in allowed_suffixes
-                )
-            ]
+            return [script for script in directory.glob('*') if (script.is_file() and not script.name.startswith(('_', '.')) and script.suffix.casefold() in allowed_suffixes)]
 
         def create_script_handler(script_path: Path, ips: list[str]) -> Callable[[], None]:
             return lambda: run_cmd_script(script_path, ips)
@@ -511,6 +501,7 @@ class TableContextMenuMixin(QTableView):
             def _run() -> None:
                 for ip in ips:
                     run_cmd_script(script_path, [ip])
+
             return _run
 
         def add_scripts_to_menu(menu: QMenu, scripts: list[Path], ips: list[str], *, per_ip: bool = False) -> None:
@@ -576,7 +567,7 @@ class TableContextMenuMixin(QTableView):
             def _open_userip_database() -> None:
                 if player_obj.userip is None:
                     return
-                QDesktopServices.openUrl(QUrl.fromLocalFile(str(player_obj.userip.database_path)))
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(player_obj.userip.db_path)))
 
             add_action(
                 userip_menu,
@@ -625,7 +616,7 @@ class TableContextMenuMixin(QTableView):
                 UserIPDatabases.get_userip_database_filepaths(),
                 tooltip=f'Move this {entry_desc} entry to this UserIP database.',
                 handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
-                disabled_path=player_obj.userip.database_path,
+                disabled_path=player_obj.userip.db_path,
             )
             add_action(
                 userip_menu,
@@ -642,7 +633,7 @@ class TableContextMenuMixin(QTableView):
                 populate_db_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
-                    tooltip=f'Add the {add_count}selected IP address{pluralize(len(ips), plural='es')} to this UserIP database.',
+                    tooltip=f'Add the {add_count}selected IP address{pluralize(len(ips), plural="es")} to this UserIP database.',
                     handler_factory=lambda db_path: lambda: userip_add(self, ips, db_path),
                 )
                 return
@@ -692,11 +683,7 @@ class TableContextMenuMixin(QTableView):
             add_user_scripts_menu(ips)
 
         def add_clear_session_host_action(ip_address: str) -> None:
-            if (
-                not Settings.is_gta5_preset()
-                or SessionHost.player is None
-                or SessionHost.player.ip != ip_address
-            ):
+            if not Settings.is_gta5_preset() or SessionHost.player is None or SessionHost.player.ip != ip_address:
                 return
 
             add_action(

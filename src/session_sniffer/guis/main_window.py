@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class _MenuActions:
     """Menu bar QAction references."""
+
     toggle_capture: QAction
     change_interface: QAction
 
@@ -56,6 +57,7 @@ class _MenuActions:
 @dataclass(slots=True)
 class _WindowState:
     """Mutable runtime state for the main window."""
+
     worker_thread: GUIWorkerThread
     window_being_moved: bool
     min_accepted_snapshot_version: int
@@ -525,10 +527,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._header.setFont(QFont('Courier', 10, QFont.Weight.Bold))
 
         # Connected and disconnected table sections
-        connected_column_names = [
-            col for col in Settings.GUI_ALL_CONNECTED_COLUMNS
-            if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS
-        ]
+        connected_column_names = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS]
         self._connected = SessionTableSection(
             is_connected=True,
             column_names=connected_column_names,
@@ -542,8 +541,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._tables_separator.setFrameShadow(QFrame.Shadow.Sunken)
 
         disconnected_column_names = [
-            col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-            if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS
+            col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS
         ]
         self._disconnected = SessionTableSection(
             is_connected=False,
@@ -606,15 +604,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             event_type = a1.type()
 
             # Detect start of window movement/dragging
-            if (
-                event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange)
-                and not self._state.window_being_moved
-            ):
+            if event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange) and not self._state.window_being_moved:
                 self._start_window_move()
 
             # Detect end of window movement/dragging
             elif (
-                event_type in (
+                event_type
+                in (
                     QEvent.Type.WindowActivate,
                     QEvent.Type.WindowDeactivate,
                     QEvent.Type.NonClientAreaMouseButtonRelease,
@@ -945,9 +941,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         disconnected_ips = {player.ip for player in disconnected_players}
 
         PlayersRegistry.clear_disconnected_players()
-        SessionHost.players_pending_for_disconnection = [
-            p for p in SessionHost.players_pending_for_disconnection if p.ip not in disconnected_ips
-        ]
+        SessionHost.players_pending_for_disconnection = [p for p in SessionHost.players_pending_for_disconnection if p.ip not in disconnected_ips]
         self._disconnected.clear_table()
 
         if disconnected_ips:

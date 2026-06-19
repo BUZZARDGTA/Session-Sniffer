@@ -1,4 +1,5 @@
 """Plain-text log tab — for warnings.log and errors.log."""
+
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer
@@ -98,7 +99,9 @@ class TextLogTab(QWidget):
 
         # --- Bottom buttons ---
         button_row = setup_copy_save_button_row(
-            layout, self._copy_all, self._save_as,
+            layout,
+            self._copy_all,
+            self._save_as,
             copy_tooltip='Copy all log text to clipboard',
             save_tooltip='Save the log to a new file',
         )
@@ -242,7 +245,10 @@ class TextLogTab(QWidget):
 
     def _save_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, 'Save Log As', str(self._file_path.with_suffix('.export.log')), 'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
+            self,
+            'Save Log As',
+            str(self._file_path.with_suffix('.export.log')),
+            'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
         )
         if not path:
             return

@@ -133,8 +133,7 @@ class PlayerIdentifierWidget(QWidget):
         self._sample_label = QLabel('')
         self._sample_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._sample_label.setToolTip(
-            'Number of IPs being tracked and how many 1-second snapshots have been recorded.\n'
-            'More samples = more accurate baseline.',
+            'Number of IPs being tracked and how many 1-second snapshots have been recorded.\nMore samples = more accurate baseline.',
         )
         self._sample_label.setVisible(False)
         layout.addWidget(self._sample_label)
@@ -374,8 +373,7 @@ class PlayerIdentifierWidget(QWidget):
             QMessageBox.warning(
                 self,
                 'Not Enough Players',
-                f'There must be at least {MIN_CONNECTED_PLAYERS} connected players to use the Player Identifier.\n\n'
-                'With only 0 or 1 players, there is nothing to resolve.',
+                f'There must be at least {MIN_CONNECTED_PLAYERS} connected players to use the Player Identifier.\n\nWith only 0 or 1 players, there is nothing to resolve.',
             )
             return
 
@@ -787,20 +785,15 @@ class PlayerIdentifierWidget(QWidget):
 
         # --- Show live candidate status (only update label when text changes) ---
         if self._spike_streak:
-            parts = ', '.join(
-                f'<b>{ip}</b> (spiking {streak}/{self._spike_sustained_secs}s)'
-                for ip, streak in self._spike_streak.items()
-            )
+            parts = ', '.join(f'<b>{ip}</b> (spiking {streak}/{self._spike_sustained_secs}s)' for ip, streak in self._spike_streak.items())
             n_candidates = len(self._spike_streak)
             result_text = (
-                f'Possible candidate{pluralize(n_candidates)}: {parts}<br>'
-                f'<small>Needs {self._spike_sustained_secs} consecutive seconds of elevated traffic to confirm.</small>'
+                f'Possible candidate{pluralize(n_candidates)}: {parts}<br><small>Needs {self._spike_sustained_secs} consecutive seconds of elevated traffic to confirm.</small>'
             )
         else:
             n_ips = len(self._baselines)
             result_text = (
-                f'Watching {n_ips} baselined IP{pluralize(n_ips)} for traffic spikes…<br>'
-                '<small>Walk toward the target player. No unusual traffic detected yet.</small>'
+                f'Watching {n_ips} baselined IP{pluralize(n_ips)} for traffic spikes…<br><small>Walk toward the target player. No unusual traffic detected yet.</small>'
             )
         self._update_result_label(result_text)
 
@@ -817,14 +810,16 @@ class PlayerIdentifierWidget(QWidget):
                 player.packets.pps.calculated_rate,
                 player.bandwidth.bps.calculated_rate,
             )
-            table_rows.append((
-                player.usernames[0] if player.usernames else '—',
-                player.ip,
-                player.packets.pps.calculated_rate,
-                player.bandwidth.bps.calculated_rate,
-                score,
-                self._spike_streak.get(player.ip, 0),
-            ))
+            table_rows.append(
+                (
+                    player.usernames[0] if player.usernames else '—',
+                    player.ip,
+                    player.packets.pps.calculated_rate,
+                    player.bandwidth.bps.calculated_rate,
+                    score,
+                    self._spike_streak.get(player.ip, 0),
+                ),
+            )
         table_rows.sort(key=lambda r: r[4], reverse=True)
         self._update_zscore_table(table_rows)
 
@@ -844,8 +839,7 @@ class PlayerIdentifierWidget(QWidget):
 
         self._result_label.setText('<br>'.join(lines))
         self._instructions.setText(
-            f'{n} player{pluralize(n)} identified!<br>'
-            'Click <b>Reset</b> to start over, or check the highlighted rows in the connected players table.',
+            f'{n} player{pluralize(n)} identified!<br>Click <b>Reset</b> to start over, or check the highlighted rows in the connected players table.',
         )
         self._stability_bar.setValue(100)
         self._stability_bar.setFormat('Resolved \u2714')
@@ -886,7 +880,7 @@ class PlayerIdentifierWidget(QWidget):
     def _update_zscore_table(self, rows: list[tuple[str, str, int, int, float, int]]) -> None:
         """Rebuild the live z-score table. rows = [(username, ip, pps, bps, zscore, streak), ...] sorted by zscore desc."""
         self._zscore_table.setRowCount(len(rows))
-        for row_idx, (username, ip, pps, bps, zscore, streak) in enumerate(rows):
+        for row_index, (username, ip, pps, bps, zscore, streak) in enumerate(rows):
             username_item = QTableWidgetItem(username)
             username_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -918,12 +912,12 @@ class PlayerIdentifierWidget(QWidget):
             if streak > 0:
                 streak_item.setForeground(QColor('#f39c12'))
 
-            self._zscore_table.setItem(row_idx, 0, username_item)
-            self._zscore_table.setItem(row_idx, 1, ip_item)
-            self._zscore_table.setItem(row_idx, 2, pps_item)
-            self._zscore_table.setItem(row_idx, 3, bps_item)
-            self._zscore_table.setItem(row_idx, 4, zscore_item)
-            self._zscore_table.setItem(row_idx, 5, streak_item)
+            self._zscore_table.setItem(row_index, 0, username_item)
+            self._zscore_table.setItem(row_index, 1, ip_item)
+            self._zscore_table.setItem(row_index, 2, pps_item)
+            self._zscore_table.setItem(row_index, 3, bps_item)
+            self._zscore_table.setItem(row_index, 4, zscore_item)
+            self._zscore_table.setItem(row_index, 5, streak_item)
 
     # -- Parameter setters ----------------------------------------------------
 

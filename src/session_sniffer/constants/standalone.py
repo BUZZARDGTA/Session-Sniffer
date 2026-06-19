@@ -57,18 +57,20 @@ SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 
 DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')
 
 # Columns omitted from chooser drop-downs because they are either fixed or not useful to search directly.
-SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset({
-    *DATETIME_TRACKING_COLUMNS,
-    *SESSION_TRACKING_COLUMNS,
-    *CONNECTED_RATE_STAT_COLUMNS,
-    'Mobile',
-    'VPN',
-    'Hosting',
-    'Pinging',
-    'Lat',
-    'Lon',
-    'Offset',
-})
+SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset(
+    {
+        *DATETIME_TRACKING_COLUMNS,
+        *SESSION_TRACKING_COLUMNS,
+        *CONNECTED_RATE_STAT_COLUMNS,
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+        'Lat',
+        'Lon',
+        'Offset',
+    },
+)
 
 
 # Port numbers used by protocol-specific capture filters.

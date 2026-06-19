@@ -12,12 +12,7 @@ if TYPE_CHECKING:
     import geoip2.database
 
 
-def update_and_initialize_geolite2_readers() -> (
-    tuple[bool,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None]
-):
+def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     """Update GeoLite2 databases (best-effort) and initialize readers.
 
     Returns:

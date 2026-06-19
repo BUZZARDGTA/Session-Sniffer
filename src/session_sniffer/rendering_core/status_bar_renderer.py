@@ -12,7 +12,7 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureStats
 from session_sniffer.settings import Settings
 
-_BYTES_PER_MB = 1024 ** 2
+_BYTES_PER_MB = 1024**2
 
 _PROCESS = psutil.Process()
 _CPU_COUNT: int = psutil.cpu_count() or 1
@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class StatusBarCaptureInfo:
     """Capture-related settings for the status bar."""
+
     ip_address: str
     game_preset: str | None
     overflow_timer: int
@@ -52,6 +53,7 @@ class StatusBarCaptureInfo:
 @dataclass(frozen=True, slots=True)
 class StatusBarCaptureStats:
     """Capture statistics for the status bar."""
+
     global_bandwidth: int
     global_download: int
     global_upload: int
@@ -66,12 +68,14 @@ class StatusBarCaptureStats:
 @dataclass(frozen=True, slots=True)
 class StatusBarUserIPInfo:
     """UserIP database issue counts for the status bar."""
+
     conflict_ip_count: int
 
 
 @dataclass(frozen=True, slots=True)
 class StatusBarInterfaceInfo:
     """Network interface info for the status bar."""
+
     name: str
     is_neighbour_interface: bool
     arp_spoofing: bool
@@ -80,6 +84,7 @@ class StatusBarInterfaceInfo:
 @dataclass(frozen=True, slots=True)
 class StatusBarSystemInfo:
     """System-level metrics for the status bar."""
+
     memory_mb: float
     discord_presence_enabled: bool
     discord_rpc_connected: bool
@@ -88,6 +93,7 @@ class StatusBarSystemInfo:
 @dataclass(frozen=True, slots=True)
 class StatusBarSnapshot:
     """Snapshot of global values used to compose status sections."""
+
     capture: StatusBarCaptureInfo
     capture_stats: StatusBarCaptureStats
     userip: StatusBarUserIPInfo
@@ -200,14 +206,12 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
     if snapshot.interface.is_neighbour_interface:
         arp_label = 'Enabled (Spoofing)' if snapshot.interface.arp_spoofing else 'Enabled'
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">{arp_label}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">{arp_label}</span>',
         )
 
     if vpn_mode_enabled:
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
         )
 
     if snapshot.capture.game_preset is not None:
@@ -220,18 +224,12 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
         rpc_color = StatusBarColors.ENABLED if snapshot.system.discord_rpc_connected else StatusBarColors.DISABLED
         rpc_status = 'Connected' if snapshot.system.discord_rpc_connected else 'Waiting'
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> '
-            f'<span style="color: {rpc_color};">{rpc_status}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> <span style="color: {rpc_color};">{rpc_status}</span>',
         )
 
     divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
     body = divider.join(parts)
-    return (
-        f'<span style="font-size: 11px;">'
-        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> '
-        f'{body}'
-        f'</span>'
-    )
+    return f'<span style="font-size: 11px;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> {body}</span>'
 
 
 def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
@@ -243,17 +241,11 @@ def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
         issues.append(f'<span style="color: {StatusBarColors.DISABLED};">⚠️ Conflicts: {snapshot.userip.conflict_ip_count}</span>')
 
     divider = f' <span style="color: {StatusBarColors.DIVIDER};"> • </span> '
-    return (
-        f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">🧯 UserIP Issues:</span> '
-        f'{divider.join(issues)}'
-    )
+    return f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">🧯 UserIP Issues:</span> {divider.join(issues)}'
 
 
 def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
-    has_latency = (
-        snapshot.capture_stats.last_nonzero_latency_ts > 0
-        and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECS
-    )
+    has_latency = snapshot.capture_stats.last_nonzero_latency_ts > 0 and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECS
     display_latency_ms = snapshot.capture_stats.last_nonzero_latency_ms if has_latency else 0.0
 
     latency_color: StatusBarColors | ThresholdColors
@@ -274,7 +266,8 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Restarts:</span> '
         f'<span style="color: {restart_color};">{snapshot.capture_stats.restarted_times}</span>'
-        if snapshot.capture_stats.restarted_times else ''
+        if snapshot.capture_stats.restarted_times
+        else ''
     )
 
     return (

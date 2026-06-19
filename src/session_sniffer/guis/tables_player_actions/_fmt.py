@@ -114,5 +114,5 @@ def userip_database_text(player: Player) -> str:
     """Return the relative UserIP database path or 'No' when not present."""
     if player.userip_detection is None or player.userip is None:
         return 'No'
-    relative = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    relative = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     return str(relative)

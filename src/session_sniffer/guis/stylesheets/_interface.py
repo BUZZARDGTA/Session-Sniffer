@@ -4,12 +4,7 @@
 # INTERFACE SELECTION DIALOG STYLES
 # =============================================================================
 
-INTERFACE_TABLE_CONTAINER_STYLESHEET = (
-    'QFrame#tableContainer {'
-    ' border: 1px solid #3a6aaa;'
-    ' border-radius: 6px;'
-    '}'
-)
+INTERFACE_TABLE_CONTAINER_STYLESHEET = 'QFrame#tableContainer { border: 1px solid #3a6aaa; border-radius: 6px;}'
 
 INTERFACE_BOTTOM_CONTAINER_STYLESHEET = (
     'QFrame#bottomContainer {'
@@ -25,34 +20,24 @@ INTERFACE_BOTTOM_CONTAINER_STYLESHEET = (
     '}'
 )
 
-INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = (
-    'QFrame#bottomSeparator {'
-    ' background-color: #2f4356;'
-    ' max-height: 1px;'
-    ' border: none;'
-    '}'
-)
+INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = 'QFrame#bottomSeparator { background-color: #2f4356; max-height: 1px; border: none;}'
 
 
 def interface_header_label_stylesheet(scale: float) -> str:
     """Return the QSS for the interface selection dialog title label at the given UI `scale`."""
+
     def _s(n: int) -> int:
         return max(1, round(n * scale))
-    return (
-        'QLabel#dialogTitleLabel {'
-        ' color: #f4f7fb;'
-        f' font-size: {_s(23)}px;'
-        ' font-weight: 700;'
-        f' padding-top: {_s(6)}px;'
-        f' padding-bottom: {_s(6)}px;'
-        '}'
-    )
+
+    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {_s(23)}px; font-weight: 700; padding-top: {_s(6)}px; padding-bottom: {_s(6)}px;}}'
 
 
 def interface_table_stylesheet(scale: float) -> str:
     """Return the QSS for the interface selection table widget at the given UI `scale`."""
+
     def _s(n: int) -> int:
         return max(1, round(n * scale))
+
     return (
         'QTableWidget {'
         ' background-color: #131e2c;'
@@ -94,12 +79,11 @@ def interface_table_stylesheet(scale: float) -> str:
 
 def interface_checkbox_stylesheet(obj_name: str, scale: float) -> str:
     """Return the QSS for an interface selection dialog checkbox at the given UI `scale`."""
+
     def _s(n: int) -> int:
         return max(1, round(n * scale))
-    return (
-        f'QCheckBox#{obj_name} {{ font-size: {_s(14)}pt; }}'
-        f' QCheckBox#{obj_name}::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}'
-    )
+
+    return f'QCheckBox#{obj_name} {{ font-size: {_s(14)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}'
 
 
 def interface_instruction_label_stylesheet(scale: float) -> str:
@@ -115,15 +99,7 @@ def interface_instruction_label_stylesheet(scale: float) -> str:
 def interface_select_button_disabled_style(scale: float) -> str:
     """Return the QSS for the interface selection dialog Select button in its disabled/greyed state at the given UI `scale`."""
     font_size = max(1, round(20 * scale))
-    return (
-        'QPushButton {'
-        f' font-size: {font_size}pt;'
-        ' background-color: #555555;'
-        ' color: #aaaaaa;'
-        ' border: 2px solid #3a3a3a;'
-        ' border-radius: 10px;'
-        '}'
-    )
+    return f'QPushButton {{ font-size: {font_size}pt; background-color: #555555; color: #aaaaaa; border: 2px solid #3a3a3a; border-radius: 10px;}}'
 
 
 def interface_select_button_enabled_style(scale: float) -> str:

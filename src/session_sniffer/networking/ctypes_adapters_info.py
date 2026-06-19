@@ -75,6 +75,8 @@ class SOCKET_ADDRESS(ctypes.Structure):  # noqa: N801
         ('lpSockaddr', ctypes.c_void_p),
         ('iSockaddrLength', ctypes.c_int),
     ]
+
+
 # pylint: enable=too-few-public-methods
 
 
@@ -189,14 +191,19 @@ class SOCKADDR_IN(ctypes.Structure):  # noqa: N801
         ('sin_addr', ctypes.c_uint32),
         ('sin_zero', ctypes.c_char * 8),
     ]
+
+
 # pylint: enable=too-few-public-methods
 
 
 # Windows API
 GetAdaptersAddresses = ctypes.windll.iphlpapi.GetAdaptersAddresses
 GetAdaptersAddresses.argtypes = [
-    wintypes.ULONG, wintypes.ULONG, ctypes.c_void_p,
-    LP_IP_ADAPTER_ADDRESSES, ctypes.POINTER(wintypes.ULONG),
+    wintypes.ULONG,
+    wintypes.ULONG,
+    ctypes.c_void_p,
+    LP_IP_ADAPTER_ADDRESSES,
+    ctypes.POINTER(wintypes.ULONG),
 ]
 GetAdaptersAddresses.restype = wintypes.ULONG
 
@@ -208,6 +215,7 @@ GetIfEntry2.restype = wintypes.ULONG
 # =========================
 # Neighbor ("Neighborhood")
 # =========================
+
 
 class MIB_IPNETROW(ctypes.Structure):  # pylint: disable=too-few-public-methods  # noqa: N801
     """IPv4 neighbor table row (classic ARP style for IPv4)."""
@@ -294,10 +302,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
         ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
 
         # Format MAC if present
-        mac_address = (
-            None if not row.dwPhysAddrLen
-            else ':'.join(f'{b:02X}' for b in row.bPhysAddr[: row.dwPhysAddrLen])
-        )
+        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{b:02X}' for b in row.bPhysAddr[: row.dwPhysAddrLen])
 
         yield int(row.dwIndex), ipv4, mac_address
 
@@ -335,10 +340,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         addr = adapter.contents
 
         # Handle multiple MAC addresses (if any)
-        mac_address = (
-            None if not addr.PhysicalAddressLength
-            else ':'.join(f'{b:02X}' for b in addr.PhysicalAddress[:addr.PhysicalAddressLength])
-        )
+        mac_address = None if not addr.PhysicalAddressLength else ':'.join(f'{b:02X}' for b in addr.PhysicalAddress[: addr.PhysicalAddressLength])
         ipv4_list: list[str] = []
 
         # Handle multiple IPv4 addresses

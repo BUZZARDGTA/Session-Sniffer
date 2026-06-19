@@ -1,4 +1,4 @@
-﻿"""Webhook text rendering helpers (PrettyTable + mobile-friendly lists)."""
+"""Webhook text rendering helpers (PrettyTable + mobile-friendly lists)."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING

@@ -222,11 +222,7 @@ def wait_for_player_data_ready(
     """
     deadline = time.monotonic() + timeout
 
-    checker_items = [
-        _FIELD_CHECKERS[field]
-        for field in data_fields
-        if field in _FIELD_CHECKERS
-    ]
+    checker_items = [_FIELD_CHECKERS[field] for field in data_fields if field in _FIELD_CHECKERS]
 
     while True:
         if player.left_event.is_set() or gui_closed__event.is_set():
@@ -246,6 +242,7 @@ def wait_for_player_data_ready(
 
 class NotificationConfig(TypedDict):
     """Type definition for notification configuration."""
+
     emoji: str
     title: str
     description: str
@@ -311,6 +308,7 @@ def handle_detection_notification(
         notification_type: Type of notification - `player_joined_session`,
             `player_rejoined_session`, or `player_left_session`
     """
+
     def notification_thread() -> None:
         """Thread function to handle voice, logging, message box, and suspension actions."""
         config = _NOTIFICATION_CONFIGS[notification_type]
@@ -358,14 +356,16 @@ def handle_detection_notification(
                         writer = csv.writer(f)
                         if write_csv_header:
                             writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
-                        writer.writerow([
-                            config['title'],
-                            ', '.join(player.usernames),
-                            player.ip,
-                            now.strftime('%Y-%m-%d'),
-                            now.strftime('%H:%M:%S'),
-                            player.iplookup.geolite2.country,
-                        ])
+                        writer.writerow(
+                            [
+                                config['title'],
+                                ', '.join(player.usernames),
+                                player.ip,
+                                now.strftime('%Y-%m-%d'),
+                                now.strftime('%H:%M:%S'),
+                                player.iplookup.geolite2.country,
+                            ],
+                        )
 
             # Message box popup
             if msgbox_setting:
@@ -414,20 +414,20 @@ def handle_detection_notification(
                             writer = csv.writer(f)
                             if write_header:
                                 writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
-                            writer.writerow([
-                                f'COMBO RULE MATCHED: {rule.name}',
-                                ', '.join(player.usernames),
-                                player.ip,
-                                now.strftime('%Y-%m-%d'),
-                                now.strftime('%H:%M:%S'),
-                                player.iplookup.geolite2.country,
-                            ])
+                            writer.writerow(
+                                [
+                                    f'COMBO RULE MATCHED: {rule.name}',
+                                    ', '.join(player.usernames),
+                                    player.ip,
+                                    now.strftime('%Y-%m-%d'),
+                                    now.strftime('%H:%M:%S'),
+                                    player.iplookup.geolite2.country,
+                                ],
+                            )
 
                 # Message box
                 if rule.message_box and player.userip is None:
-                    conditions_summary = ', '.join(
-                        f'{k}={v}' for k, v in rule.conditions.items() if k != 'event'
-                    )
+                    conditions_summary = ', '.join(f'{k}={v}' for k, v in rule.conditions.items() if k != 'event')
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
                     _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
@@ -435,9 +435,11 @@ def handle_detection_notification(
                     def _make_event_combo_notif(t: str, e: list[tuple[str, str]], et: str) -> None:
                         def _callback() -> None:
                             show_detection_notification_dialog(
-                                find_main_window(), player,
+                                find_main_window(),
+                                player,
                                 DetectionNotificationInfo(emoji='\U0001f517', display_title=t, extra_detection_fields=e, event_time=et),
                             )
+
                         gui_dispatcher.invoke(_callback)
 
                     _make_event_combo_notif(_display_title, _extra, _et)
@@ -467,12 +469,7 @@ def process_userip_task(
 
     # We want to run this as fast as possible so it's on top of the function.
     # Protection actions are skipped when protection is not supported.
-    if (
-        connection_type == 'connected'
-        and player.userip.settings.protection.enabled
-        and Settings.is_gta5_preset()
-        and CaptureState.is_local_capture()
-    ):
+    if connection_type == 'connected' and player.userip.settings.protection.enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
         suspend_mode = player.userip.settings.protection.suspend_process_mode
         GTASuspendManager.request_suspend(
             reason_key=f'userip:{player.ip}',
@@ -487,7 +484,7 @@ def process_userip_task(
     if connection_type == 'connected':
         wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
 
-        relative_database_path = player.userip.database_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        relative_database_path = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
         if player.userip.settings.log:
             with _userip_logging_file_write_lock:
@@ -498,14 +495,16 @@ def process_userip_task(
                     if write_csv_header:
                         writer.writerow(['Database', 'Username', 'IP', 'Date', 'Time', 'Country'])
                     date_part, time_part = player.userip_detection.date_time.split('_', maxsplit=1)
-                    writer.writerow([
-                        str(relative_database_path),
-                        ', '.join(player.userip.usernames),
-                        player.ip,
-                        date_part,
-                        time_part,
-                        player.iplookup.geolite2.country,
-                    ])
+                    writer.writerow(
+                        [
+                            str(relative_database_path),
+                            ', '.join(player.userip.usernames),
+                            player.ip,
+                            date_part,
+                            time_part,
+                            player.iplookup.geolite2.country,
+                        ],
+                    )
 
         if player.userip.settings.notifications:
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
@@ -567,10 +566,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
         gui_closed__event.wait(0.25)
 
-    if (
-        player.left_event.is_set()
-        or gui_closed__event.is_set()
-    ):
+    if player.left_event.is_set() or gui_closed__event.is_set():
         return
 
     if GUIDetectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
@@ -595,24 +591,29 @@ def monitor_gta5_relay_task(player: Player) -> None:
                 writer = csv.writer(f)
                 if write_csv_header:
                     writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
-                writer.writerow([
-                    'GTA5 RELAY DETECTED!',
-                    ', '.join(player.usernames),
-                    player.ip,
-                    now.strftime('%Y-%m-%d'),
-                    now.strftime('%H:%M:%S'),
-                    player.iplookup.geolite2.country,
-                ])
+                writer.writerow(
+                    [
+                        'GTA5 RELAY DETECTED!',
+                        ', '.join(player.usernames),
+                        player.ip,
+                        now.strftime('%Y-%m-%d'),
+                        now.strftime('%H:%M:%S'),
+                        player.iplookup.geolite2.country,
+                    ],
+                )
 
     if GUIDetectionSettings.gta5_relay_message_box:
         _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
         def _show_relay_notif() -> None:
             show_detection_notification_dialog(
-                find_main_window(), player,
+                find_main_window(),
+                player,
                 DetectionNotificationInfo(
-                    emoji='\U0001f6e1', display_title='GTA5 Relay Detected',
-                    extra_detection_fields=[('Packets', str(player.packets.exchanged))], event_time=_et,
+                    emoji='\U0001f6e1',
+                    display_title='GTA5 Relay Detected',
+                    extra_detection_fields=[('Packets', str(player.packets.exchanged))],
+                    event_time=_et,
                 ),
             )
 
@@ -628,6 +629,7 @@ def check_global_detections(player: Player) -> None:
     Args:
         player: The player object to check detections against.
     """
+
     def execute_suspension_action(
         duration: int | Literal['Auto'],
         suspension_name: str,
@@ -662,21 +664,24 @@ def check_global_detections(player: Player) -> None:
                     writer = csv.writer(f)
                     if write_csv_header:
                         writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
-                    writer.writerow([
-                        detection_title,
-                        ', '.join(player.usernames),
-                        player.ip,
-                        now.strftime('%Y-%m-%d'),
-                        now.strftime('%H:%M:%S'),
-                        player.iplookup.geolite2.country,
-                    ])
+                    writer.writerow(
+                        [
+                            detection_title,
+                            ', '.join(player.usernames),
+                            player.ip,
+                            now.strftime('%Y-%m-%d'),
+                            now.strftime('%H:%M:%S'),
+                            player.iplookup.geolite2.country,
+                        ],
+                    )
 
         if settings.msgbox and player.userip is None:
             _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
             def _show_detection_notif() -> None:
                 show_detection_notification_dialog(
-                    find_main_window(), player,
+                    find_main_window(),
+                    player,
                     DetectionNotificationInfo(emoji=emoji, display_title=display_title, extra_detection_fields=extra_detection_fields, event_time=_event_time),
                 )
 
@@ -854,9 +859,7 @@ def check_global_detections(player: Player) -> None:
                 rule.duration,
                 f'ComboRule:{rule.name}',
             )
-        conditions_summary = ', '.join(
-            f'{k}={v}' for k, v in rule.conditions.items() if k != 'event'
-        )
+        conditions_summary = ', '.join(f'{k}={v}' for k, v in rule.conditions.items() if k != 'event')
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
             emoji='\U0001f517',
@@ -932,9 +935,6 @@ def player_rates_core() -> None:
 
         one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
         recent_latencies = [(t, lat) for t, lat in list(CaptureStats.packets_latencies) if t >= one_second_ago]
-        CaptureStats.global_avg_latency_ms = (
-            sum(lat.total_seconds() * 1000 for _, lat in recent_latencies) / len(recent_latencies)
-            if recent_latencies else 0.0
-        )
+        CaptureStats.global_avg_latency_ms = sum(lat.total_seconds() * 1000 for _, lat in recent_latencies) / len(recent_latencies) if recent_latencies else 0.0
 
         gui_closed__event.wait(max(0.0, 1.0 - (time.monotonic() - _start)))

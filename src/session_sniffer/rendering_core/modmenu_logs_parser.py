@@ -1,4 +1,5 @@
 """Parse mod menu logs to update the mapping of IPs to usernames."""
+
 import re
 from collections import defaultdict
 from pathlib import Path

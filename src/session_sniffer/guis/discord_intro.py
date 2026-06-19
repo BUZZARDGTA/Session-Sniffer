@@ -76,9 +76,7 @@ class DiscordIntro(QDialog):
         layout.addLayout(exit_layout)
 
         # Label for the Discord message
-        self.title_label = QLabel(
-            f"<font size='6' color='#5865F2'><b>{window_title}</b></font>",
-            self)
+        self.title_label = QLabel(f"<font size='6' color='#5865F2'><b>{window_title}</b></font>", self)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(self.title_label)
@@ -158,8 +156,7 @@ class DiscordIntro(QDialog):
     def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
         """Move the dialog while dragging."""
         if (
-            a0 is not None
-            and self._drag_pos is not None  # If mouse is pressed, move the window
+            a0 is not None and self._drag_pos is not None  # If mouse is pressed, move the window
         ):
             delta = a0.globalPosition().toPoint() - self._drag_pos
             self.move(self.pos() + delta)
@@ -208,7 +205,7 @@ class DiscordIntro(QDialog):
         # Smooth fade-out before closing
         self.fade_out.setDuration(500)
         self.fade_out.setStartValue(1)  # Start from fully opaque
-        self.fade_out.setEndValue(0)    # Fade to fully transparent
+        self.fade_out.setEndValue(0)  # Fade to fully transparent
         self.fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
         self.fade_out.finished.connect(self.close)
         self.fade_out.start()

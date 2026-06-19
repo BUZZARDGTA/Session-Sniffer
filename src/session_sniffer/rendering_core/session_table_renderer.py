@@ -99,7 +99,7 @@ def _format_player_time_zone(time_zone_value: object) -> str:
         return tz_text
     try:
         tz = ZoneInfo(tz_text)
-    except (ZoneInfoNotFoundError, ValueError):
+    except ZoneInfoNotFoundError, ValueError:
         return tz_text
     local_time = datetime.now(tz=tz).strftime('%H:%M')
     if mode == 'Local Time':

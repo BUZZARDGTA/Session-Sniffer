@@ -91,7 +91,6 @@ def _format_datetime(dt: datetime | None) -> str:
 
 
 class _LeaderboardTableModel(QAbstractTableModel):
-
     _SCOPE_ATTR_DAYS: ClassVar[dict[str, str]] = {
         _SCOPE_TODAY: 'days_today',
         _SCOPE_THIS_WEEK: 'days_week',
@@ -286,12 +285,7 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
     def _entry_matches_search(self, entry: LeaderboardEntry, text: str) -> bool:
         """Return True if *entry* contains *text* within the active search column."""
         if self._search_column == _SEARCH_COL_ALL:
-            return (
-                text in entry.ip.lower()
-                or any(text in u.lower() for u in entry.usernames)
-                or text in entry.country.lower()
-                or text in entry.isp.lower()
-            )
+            return text in entry.ip.lower() or any(text in u.lower() for u in entry.usernames) or text in entry.country.lower() or text in entry.isp.lower()
         if self._search_column == _SEARCH_COL_USERNAMES:
             return any(text in u.lower() for u in entry.usernames)
         _targets: dict[str, str] = {
@@ -330,11 +324,11 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
 
 
 _STATS_PERIODS: tuple[tuple[str, str, str], ...] = (
-    ('Today',      'sessions_today',  'days_today'),
-    ('This Week',  'sessions_week',   'days_week'),
-    ('This Month', 'sessions_month',  'days_month'),
-    ('This Year',  'sessions_year',   'days_year'),
-    ('Total',      'sessions_total',  'days_total'),
+    ('Today', 'sessions_today', 'days_today'),
+    ('This Week', 'sessions_week', 'days_week'),
+    ('This Month', 'sessions_month', 'days_month'),
+    ('This Year', 'sessions_year', 'days_year'),
+    ('Total', 'sessions_total', 'days_total'),
 )
 
 

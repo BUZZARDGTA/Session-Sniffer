@@ -20,6 +20,7 @@ from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVE
 
 class SettingType(Enum):
     """Enumeration of supported setting widget types."""
+
     BOOLEAN = auto()
     STRING = auto()
     INTEGER = auto()
@@ -37,6 +38,7 @@ class SettingType(Enum):
 @dataclass(frozen=True, slots=True)
 class SettingMeta:
     """Metadata describing a single application setting for the Settings dialog."""
+
     category: str
     display_label: str
     setting_type: SettingType
@@ -115,7 +117,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'GTA5',
         ),
     ),
-
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         group='General',
@@ -487,8 +488,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Output Format',
         setting_type=SettingType.ENUM,
         tooltip=(
-            'Desktop: wide bordered table inside a code block (best on PC).\n'
-            'Mobile: per-player markdown blocks rendered inside a Discord embed (readable on phone Discord).'
+            'Desktop: wide bordered table inside a code block (best on PC).\nMobile: per-player markdown blocks rendered inside a Discord embed (readable on phone Discord).'
         ),
         allowed_values=('Desktop', 'Mobile'),
     ),
@@ -623,24 +623,40 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_rate_graph_always_on_top': True,
     'gui_rate_graph_max_history': 3600,
     'gui_columns_connected_shown': (
-        'Packets', 'PPS',
-        'Min Packet Length', 'Avg Packet Length', 'Max Packet Length',
+        'Packets',
+        'PPS',
+        'Min Packet Length',
+        'Avg Packet Length',
+        'Max Packet Length',
         'Bandwidth',
         'BPS',
-        'Hostname', 'Last Port',
-        'Country', 'Region',
+        'Hostname',
+        'Last Port',
+        'Country',
+        'Region',
         'ASN / ISP',
-        'Mobile', 'VPN', 'Hosting', 'Pinging',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
     ),
     'gui_columns_disconnected_shown': (
-        'T. Session Time', 'Session Time',
+        'T. Session Time',
+        'Session Time',
         'Packets',
-        'Min Packet Length', 'Avg Packet Length', 'Max Packet Length',
+        'Min Packet Length',
+        'Avg Packet Length',
+        'Max Packet Length',
         'Bandwidth',
-        'Hostname', 'Last Port',
-        'Country', 'Region',
+        'Hostname',
+        'Last Port',
+        'Country',
+        'Region',
         'ASN / ISP',
-        'Mobile', 'VPN', 'Hosting', 'Pinging',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
     ),
     'gui_columns_datetime_show_date': False,
     'gui_columns_datetime_show_time': False,
@@ -664,10 +680,22 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'discord_webhook_max_disconnected_players': 0,
     'discord_webhook_format': 'Desktop',
     'discord_webhook_columns_connected': (
-        'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Rejoin',
+        'Usernames',
+        'IP Address',
+        'Country',
+        'Last Port',
+        'Packets',
+        'Session Time',
+        'Last Rejoin',
     ),
     'discord_webhook_columns_disconnected': (
-        'Usernames', 'IP Address', 'Country', 'Last Port', 'Packets', 'Session Time', 'Last Seen',
+        'Usernames',
+        'IP Address',
+        'Country',
+        'Last Port',
+        'Packets',
+        'Session Time',
+        'Last Seen',
     ),
     'discord_webhook_message_ids': None,
     'webserver_enabled': False,

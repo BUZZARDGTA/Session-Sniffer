@@ -58,15 +58,16 @@ class ReturnValues(enum.IntEnum):
 
     These values correspond to the button choices made by the user when interacting with a MessageBox dialog.
     """
-    IDABORT = 3   # The Abort     button was selected.
-    IDCANCEL = 2   # The Cancel    button was selected.
+
+    IDABORT = 3  # The Abort     button was selected.
+    IDCANCEL = 2  # The Cancel    button was selected.
     IDCONTINUE = 11  # The Continue  button was selected.
-    IDIGNORE = 5   # The Ignore    button was selected.
-    IDNO = 7   # The No        button was selected.
-    IDOK = 1   # The OK        button was selected.
-    IDRETRY = 4   # The Retry     button was selected.
+    IDIGNORE = 5  # The Ignore    button was selected.
+    IDNO = 7  # The No        button was selected.
+    IDOK = 1  # The OK        button was selected.
+    IDRETRY = 4  # The Retry     button was selected.
     IDTRY_AGAIN = 10  # The Try Again button was selected.
-    IDYES = 6   # The Yes       button was selected.
+    IDYES = 6  # The Yes       button was selected.
 
 
 _state: dict[str, int] = {'owner_hwnd': 0}

@@ -1,4 +1,5 @@
 """Module for defining and managing constants that require a local function to be executed first."""
+
 import tomllib
 from pathlib import Path
 from typing import Any

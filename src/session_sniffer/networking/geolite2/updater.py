@@ -28,11 +28,13 @@ logger = get_logger(__name__)
 
 class GeoLite2VersionEntry(BaseModel):
     """Represents a single GeoLite2 database version entry."""
+
     version: datetime
 
 
 class GeoLite2VersionFile(BaseModel):
     """Represents the full GeoLite2 version file."""
+
     GeoLite2_ASN: GeoLite2VersionEntry = Field(alias='GeoLite2-ASN.mmdb')
     GeoLite2_City: GeoLite2VersionEntry = Field(alias='GeoLite2-City.mmdb')
     GeoLite2_Country: GeoLite2VersionEntry = Field(alias='GeoLite2-Country.mmdb')
@@ -50,6 +52,7 @@ class GeoLite2UpdateResult:
 @dataclass(kw_only=True, slots=True)
 class GeoLite2DatabaseInfo:
     """Mutable state for a single GeoLite2 database file."""
+
     current_version: str | None = None
     last_version: str | None = None
     download_url: str | None = None

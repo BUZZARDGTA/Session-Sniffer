@@ -32,17 +32,13 @@ border: none;
 
 SECTION_CLEAR_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 12px;'
 
-SECTION_HEADER_SEPARATOR_STYLESHEET = (
-    'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;'
-)
+SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;'
 
 # =============================================================================
 # MAIN WINDOW STYLES
 # =============================================================================
 
-GTA5_STATUS_LABEL_STYLESHEET = (
-    'QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }'
-)
+GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }'
 
 # =============================================================================
 # SETTINGS DIALOG STYLES
@@ -86,14 +82,7 @@ LOOKY_INFO_LABEL_STYLESHEET = (
     '}'
 )
 
-LOOKY_ACCOUNT_CARD_STYLESHEET = (
-    'QFrame {'
-    'background: rgba(76, 29, 149, 0.12);'
-    'border: 1px solid #3d2d6e;'
-    'border-radius: 8px;'
-    'padding: 4px;'
-    '}'
-)
+LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
 
 # =============================================================================
 # SPLASH SCREEN STYLES
@@ -107,67 +96,28 @@ SPLASH_SUBTITLE_LABEL_STYLESHEET = 'color: #667788; background: transparent;'
 
 SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent;'
 
-SPLASH_LOG_AREA_STYLESHEET = (
-    'QTextEdit {'
-    '  background-color: #141922;'
-    '  color: #8899aa;'
-    '  border: 1px solid #2a3544;'
-    '  border-radius: 6px;'
-    '  padding: 8px;'
-    '}'
-)
+SPLASH_LOG_AREA_STYLESHEET = 'QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}'
 
 # =============================================================================
 # UPDATE DOWNLOAD DIALOG STYLES
 # =============================================================================
 
-UPDATE_DOWNLOAD_DIALOG_STYLESHEET = (
-    'QDialog {'
-    '  background-color: transparent;'
-    '}'
-)
+UPDATE_DOWNLOAD_DIALOG_STYLESHEET = 'QDialog {  background-color: transparent;}'
 
 UPDATE_DOWNLOAD_FRAME_STYLESHEET = (
-    'QFrame#updateDownloadFrame {'
-    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
-    '      stop:0 #232f3e, stop:1 #18212c);'
-    '  border: 1px solid #3a4a5c;'
-    '  border-radius: 14px;'
-    '}'
+    'QFrame#updateDownloadFrame {  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,      stop:0 #232f3e, stop:1 #18212c);  border: 1px solid #3a4a5c;  border-radius: 14px;}'
 )
 
-UPDATE_DOWNLOAD_APP_TITLE_STYLESHEET = (
-    'color: #8aa0b8;'
-    'background: transparent;'
-    'letter-spacing: 3px;'
-    'font-weight: 600;'
-)
+UPDATE_DOWNLOAD_APP_TITLE_STYLESHEET = 'color: #8aa0b8;background: transparent;letter-spacing: 3px;font-weight: 600;'
 
-UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = (
-    'color: #f0f4fa;'
-    'background: transparent;'
-    'letter-spacing: 0.5px;'
-)
+UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = 'color: #f0f4fa;background: transparent;letter-spacing: 0.5px;'
 
-UPDATE_DOWNLOAD_VERSION_LABEL_STYLESHEET = (
-    'color: #5fb4f5;'
-    'background: transparent;'
-    'font-weight: 600;'
-)
+UPDATE_DOWNLOAD_VERSION_LABEL_STYLESHEET = 'color: #5fb4f5;background: transparent;font-weight: 600;'
 
-UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = (
-    'background: rgba(255, 255, 255, 0.07);'
-    'min-height: 1px;'
-    'max-height: 1px;'
-    'border: none;'
-)
+UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = 'background: rgba(255, 255, 255, 0.07);min-height: 1px;max-height: 1px;border: none;'
 
 UPDATE_DOWNLOAD_VERSION_CARD_CURRENT_STYLESHEET = (
-    'QFrame#updateDownloadVersionCardCurrent {'
-    '  background: rgba(20, 28, 40, 0.55);'
-    '  border: 1px solid #2f3e52;'
-    '  border-radius: 10px;'
-    '}'
+    'QFrame#updateDownloadVersionCardCurrent {  background: rgba(20, 28, 40, 0.55);  border: 1px solid #2f3e52;  border-radius: 10px;}'
 )
 
 UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET = (
@@ -179,63 +129,23 @@ UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET = (
     '}'
 )
 
-UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = (
-    'color: #7a8a9c;'
-    'background: transparent;'
-    'letter-spacing: 1.5px;'
-    'font-weight: 700;'
-)
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = 'color: #7a8a9c;background: transparent;letter-spacing: 1.5px;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = (
-    'color: #5fb4f5;'
-    'background: transparent;'
-    'letter-spacing: 1.5px;'
-    'font-weight: 700;'
-)
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = 'color: #5fb4f5;background: transparent;letter-spacing: 1.5px;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = (
-    'color: #c4ced9;'
-    'background: transparent;'
-    'font-weight: 700;'
-)
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = 'color: #c4ced9;background: transparent;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = (
-    'color: #f0f4fa;'
-    'background: transparent;'
-    'font-weight: 700;'
-)
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = 'color: #f0f4fa;background: transparent;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = (
-    'color: #6f7e91;'
-    'background: transparent;'
-    'font-family: Consolas, "Courier New", monospace;'
-)
+UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Consolas, "Courier New", monospace;'
 
-UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = (
-    'color: #4aa3ee;'
-    'background: transparent;'
-    'font-weight: 800;'
-)
+UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = 'color: #4aa3ee;background: transparent;font-weight: 800;'
 
-UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = (
-    'color: #a0b0c4;'
-    'background: transparent;'
-)
+UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = 'color: #a0b0c4;background: transparent;'
 
-UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = (
-    'QFrame#updateDownloadSizePill {'
-    '  background: rgba(20, 28, 40, 0.65);'
-    '  border: 1px solid #2f3e52;'
-    '  border-radius: 12px;'
-    '}'
-)
+UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = 'QFrame#updateDownloadSizePill {  background: rgba(20, 28, 40, 0.65);  border: 1px solid #2f3e52;  border-radius: 12px;}'
 
-UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = (
-    'color: #c8d4e4;'
-    'background: transparent;'
-    'font-family: Consolas, "Courier New", monospace;'
-    'font-weight: 600;'
-)
+UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = 'color: #c8d4e4;background: transparent;font-family: Consolas, "Courier New", monospace;font-weight: 600;'
 
 UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = (
     'QProgressBar {'

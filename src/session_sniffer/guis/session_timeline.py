@@ -59,8 +59,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
         # Use Interactive so column widths are not recalculated on every cell update;
         # resizeSections() is called once after a full repopulate instead.
         h_header.setSectionResizeMode(_COL_PLAYER, QHeaderView.ResizeMode.Stretch)
-        for col in (_COL_STATUS, _COL_FIRST_SEEN, _COL_LAST_REJOIN, _COL_LAST_SEEN,
-                    _COL_SESSION_TIME, _COL_TOTAL_TIME, _COL_REJOINS):
+        for col in (_COL_STATUS, _COL_FIRST_SEEN, _COL_LAST_REJOIN, _COL_LAST_SEEN, _COL_SESSION_TIME, _COL_TOTAL_TIME, _COL_REJOINS):
             h_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         h_header.setStretchLastSection(False)
 
@@ -128,8 +127,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                 rejoins_item = NumericTableWidgetItem(player.rejoins)
                 rejoins_item.setData(Qt.ItemDataRole.UserRole, player.rejoins)
 
-                for col, item in enumerate((player_item, status_item, first_item, rejoin_item,
-                                            seen_item, session_item, total_item, rejoins_item)):
+                for col, item in enumerate((player_item, status_item, first_item, rejoin_item, seen_item, session_item, total_item, rejoins_item)):
                     item.setForeground(color)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     self._table.setItem(row, col, item)

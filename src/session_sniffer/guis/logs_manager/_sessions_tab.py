@@ -1,4 +1,5 @@
 """Sessions logging tab — folder tree + file viewer."""
+
 import queue
 import shutil
 import threading
@@ -186,7 +187,9 @@ class SessionsLogTab(QWidget):
 
         # --- Bottom buttons ---
         button_row = setup_copy_save_button_row(
-            layout, self._copy_all, self._save_as,
+            layout,
+            self._copy_all,
+            self._save_as,
             copy_tooltip='Copy all displayed text to clipboard',
             save_tooltip='Save the displayed file to a new location',
         )
@@ -464,11 +467,11 @@ class SessionsLogTab(QWidget):
         for row_length, rows in parsed_table_rows_by_length.items():
             column_widths: list[int] = []
             for cells in rows:
-                for idx, cell in enumerate(cells):
-                    if idx >= len(column_widths):
+                for i, cell in enumerate(cells):
+                    if i >= len(column_widths):
                         column_widths.append(len(cell))
                     else:
-                        column_widths[idx] = max(column_widths[idx], len(cell))
+                        column_widths[i] = max(column_widths[i], len(cell))
             column_widths_by_length[row_length] = column_widths
 
         for relative, line_number_width, line_matches, structured_matches in file_blocks:
@@ -558,26 +561,26 @@ class SessionsLogTab(QWidget):
 
     @staticmethod
     def _format_prettytable_row(cells: list[str], column_widths: list[int]) -> str:
-        padded = [cell.ljust(column_widths[idx]) if idx < len(column_widths) else cell for idx, cell in enumerate(cells)]
-        return f"│ {' │ '.join(padded)} │"
+        padded = [cell.ljust(column_widths[i]) if i < len(column_widths) else cell for i, cell in enumerate(cells)]
+        return f'│ {" │ ".join(padded)} │'
 
     @staticmethod
     def _build_effective_column_widths(base_widths: list[int], header_cells: list[str]) -> list[int]:
         effective_widths = list(base_widths)
-        for idx, header_cell in enumerate(header_cells):
+        for i, header_cell in enumerate(header_cells):
             header_len = len(header_cell)
-            if idx >= len(effective_widths):
+            if i >= len(effective_widths):
                 effective_widths.append(header_len)
             else:
-                effective_widths[idx] = max(effective_widths[idx], header_len)
+                effective_widths[i] = max(effective_widths[i], header_len)
         return effective_widths
 
     @staticmethod
     def _format_prettytable_separator(column_widths: list[int], num_columns: int) -> str:
         if num_columns <= 0:
             return ''
-        widths = [column_widths[idx] if idx < len(column_widths) else 0 for idx in range(num_columns)]
-        return f"├─{'─┼─'.join('─' * width for width in widths)}─┤"
+        widths = [column_widths[i] if i < len(column_widths) else 0 for i in range(num_columns)]
+        return f'├─{"─┼─".join("─" * width for width in widths)}─┤'
 
     @staticmethod
     def _column_headers_for_row_length(row_length: int) -> list[str] | None:
@@ -675,7 +678,7 @@ class SessionsLogTab(QWidget):
     def _collect_structured_search_matches(self, file_path: Path, search_lower: str, selected_column: str) -> list[str]:
         try:
             session_log = self._load_session_log_file(file_path)
-        except (OSError, ValidationError):
+        except OSError, ValidationError:
             return []
 
         matches: list[str] = []
@@ -716,7 +719,10 @@ class SessionsLogTab(QWidget):
             return
         default_name = str(self._current_file.with_suffix('.export.log'))
         path, _ = QFileDialog.getSaveFileName(
-            self, 'Save Session Log As', default_name, 'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
+            self,
+            'Save Session Log As',
+            default_name,
+            'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
         )
         if not path:
             return
@@ -842,7 +848,8 @@ class SessionsLogTab(QWidget):
         kind = 'folder' if is_dir else 'file'
         extra = '\n\nAll contents within the folder will be removed.' if is_dir else ''
         reply = QMessageBox.warning(
-            self, TITLE,
+            self,
+            TITLE,
             f'Delete {kind} "{target.name}"?{extra}\n\nThis cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )

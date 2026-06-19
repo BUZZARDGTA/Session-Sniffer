@@ -101,12 +101,12 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
     # header. The first '│' line is the header; subsequent '│' lines are body.
     body_indices: list[int] = []
     seen_header = False
-    for idx, line in enumerate(lines):
+    for i, line in enumerate(lines):
         if line.startswith('│'):
             if not seen_header:
                 seen_header = True
             else:
-                body_indices.append(idx)
+                body_indices.append(i)
 
     removed = 0
     if body_indices:
@@ -115,7 +115,7 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
             keep = set(body_indices[:max_rows])
             drop = set(body_indices[max_rows:])
             removed = len(drop)
-            lines = [line for idx, line in enumerate(lines) if idx not in drop or idx in keep]
+            lines = [line for i, line in enumerate(lines) if i not in drop or i in keep]
         truncated = '\n'.join(lines)
 
         # Hard char-cap fallback for PrettyTable: ugly but never breaks
@@ -196,6 +196,7 @@ def _build_multi_embed_payload(
     Discord's 10-embed-per-message and 6000-total-char-per-message limits.
     Any players that still don't fit are reported as "… and N more not shown".
     """
+
     def _make_embed(embed_title: str, description: str) -> dict[str, object]:
         return {
             'title': embed_title,
@@ -234,7 +235,7 @@ def _build_multi_embed_payload(
         total_chars_used += len(embed_title) + len(description)
         embeds.append(_make_embed(embed_title, description))
 
-    for block_idx, block in enumerate(blocks):
+    for block_index, block in enumerate(blocks):
         block_len = len(block)
         next_embed_title = title if embed_index == 1 else f'{title} \u00b7 {embed_index}'
         title_len = len(next_embed_title)
@@ -259,7 +260,7 @@ def _build_multi_embed_payload(
 
             if len(embeds) >= _DISCORD_MAX_EMBEDS_PER_MESSAGE:
                 # No more embed slots — count all remaining as removed.
-                total_removed += len(blocks) - block_idx
+                total_removed += len(blocks) - block_index
                 break
 
         current_blocks.append(block)
@@ -311,9 +312,11 @@ def send_test_message(url: str) -> tuple[bool, str]:
     if not is_valid_webhook_url(url):
         return False, 'URL does not look like a Discord webhook URL.'
 
-    payload = json.dumps({
-        'content': f'\U0001f527 Test from {TITLE} — webhook is working.',
-    }).encode('utf-8')
+    payload = json.dumps(
+        {
+            'content': f'\U0001f527 Test from {TITLE} — webhook is working.',
+        },
+    ).encode('utf-8')
     try:
         status, _headers, response_body = _http_request(url, method='POST', body=payload)
     except (http.client.HTTPException, OSError) as e:
@@ -465,19 +468,23 @@ class DiscordWebhookSender:
 
         kinds: list[tuple[str, str | None, int, str]] = []
         if Settings.discord_webhook_include_connected:
-            kinds.append((
-                'connected',
-                payload.connected_text,
-                payload.connected_count,
-                'Connected players',
-            ))
+            kinds.append(
+                (
+                    'connected',
+                    payload.connected_text,
+                    payload.connected_count,
+                    'Connected players',
+                ),
+            )
         if Settings.discord_webhook_include_disconnected:
-            kinds.append((
-                'disconnected',
-                payload.disconnected_text,
-                payload.disconnected_count,
-                'Disconnected players',
-            ))
+            kinds.append(
+                (
+                    'disconnected',
+                    payload.disconnected_text,
+                    payload.disconnected_count,
+                    'Disconnected players',
+                ),
+            )
 
         for kind, table_text, count, label in kinds:
             title = f'{label} ({count})'
@@ -586,7 +593,7 @@ class DiscordWebhookSender:
         """Extract the message id from a POST ?wait=true response body."""
         try:
             parsed: object = json.loads(response_body.decode('utf-8'))
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        except json.JSONDecodeError, UnicodeDecodeError:
             return None
         if not isinstance(parsed, dict):
             return None
@@ -610,7 +617,7 @@ class DiscordWebhookSender:
         else:
             try:
                 payload: object = json.loads(body.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 payload = None
             if isinstance(payload, dict):
                 payload_dict = cast('dict[str, object]', payload)

@@ -1,4 +1,5 @@
 """Module for defining networking utility functions."""
+
 import re
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
@@ -39,7 +40,7 @@ def sanitize_mac_address(mac_address: str, /) -> str:
 def format_mac_address(mac_address: str, /, separator: str = ':') -> str:
     """Format the MAC address using the specified separator (default: XX:XX:XX:XX:XX:XX)."""
     sanitized_mac = sanitize_mac_address(mac_address)
-    return separator.join(sanitized_mac[i:i + 2] for i in range(0, len(sanitized_mac), 2))
+    return separator.join(sanitized_mac[i : i + 2] for i in range(0, len(sanitized_mac), 2))
 
 
 def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> bool:
@@ -81,9 +82,4 @@ def is_valid_private_ipv4(ip_address: str, /) -> bool:
     except AddressValueError:
         return False
 
-    return (
-        ip.is_private
-        and not ip.is_loopback
-        and not ip.is_link_local
-        and not ip.is_unspecified
-    )
+    return ip.is_private and not ip.is_loopback and not ip.is_link_local and not ip.is_unspecified

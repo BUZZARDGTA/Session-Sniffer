@@ -40,6 +40,7 @@ logger = get_logger(__name__)
 
 class UpdateCheckOutcome(Enum):
     """Outcome of the update check process."""
+
     PROCEED = auto()
     IGNORE = auto()
     FAILED = auto()
@@ -80,7 +81,10 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
             http_str = str(http_code) if http_code is not None else 'no response'
             logger.warning(
                 'Update check failed (attempt %d/%d): %s (HTTP %s)',
-                attempt, max_attempts, type(e).__name__, http_str,
+                attempt,
+                max_attempts,
+                type(e).__name__,
+                http_str,
             )
 
             choice = msgbox.show(
@@ -91,11 +95,7 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
                         http_code=str(http_code) if http_code is not None else 'No response',
                     ),
                 ),
-                style=(
-                    msgbox.Style.MB_ABORTRETRYIGNORE
-                    | msgbox.Style.MB_ICONEXCLAMATION
-                    | msgbox.Style.MB_SETFOREGROUND
-                ),
+                style=(msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND),
             )
 
             if choice == msgbox.ReturnValues.IDABORT:
@@ -182,9 +182,7 @@ def _apply_update(new_exe: Path) -> None:
             msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(
-                    f'Failed to write the new executable, and failed to restore the previous version.'
-                    f'\n\nWrite error: {e}'
-                    f'\n\nRestore error: {restore_error}',
+                    f'Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {e}\n\nRestore error: {restore_error}',
                 ),
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
             )
@@ -239,9 +237,7 @@ def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.'
-                f'\n\nExpected: {candidate_info.sha256}'
-                f'\nActual:   {actual_hash}',
+                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.\n\nExpected: {candidate_info.sha256}\nActual:   {actual_hash}',
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )

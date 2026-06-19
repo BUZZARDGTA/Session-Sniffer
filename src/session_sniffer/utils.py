@@ -2,6 +2,7 @@
 
 This module contains a variety of helper functions and custom exceptions used across the project.
 """
+
 import os
 import subprocess
 import sys
@@ -125,7 +126,7 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
     now = datetime.now(tz=tz)
     date_dir = base_dir / now.strftime('%Y') / now.strftime('%m') / now.strftime('%d')
     date_dir.mkdir(parents=True, exist_ok=True)
-    return date_dir / f"{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    return date_dir / f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.log'
 
 
 def validate_file(file_path: Path) -> Path:
@@ -288,10 +289,7 @@ def custom_str_to_bool(string: str, *, only_match_against: bool | None = None) -
     if resolved_value is None:
         raise InvalidBooleanValueError
 
-    if (
-        only_match_against is not None
-        and only_match_against is not resolved_value
-    ):
+    if only_match_against is not None and only_match_against is not resolved_value:
         raise MismatchedBooleanValueError
 
     if string != str(resolved_value):
@@ -341,24 +339,21 @@ def validate_and_strip_balanced_outer_parens(expr: str) -> str:
     unmatched_closing: list[int] = []
     strip_outer_depth = 0
 
-    for idx, char in enumerate(expr):
+    for i, char in enumerate(expr):
         if char == '(':
-            unmatched_opening.append(idx)
+            unmatched_opening.append(i)
         elif char == ')':
             if unmatched_opening:
                 opening_index = unmatched_opening.pop()
 
                 before_opening = expr[:opening_index]
-                remaining_expr = expr[idx + 1:]
+                remaining_expr = expr[i + 1 :]
 
-                if (
-                    all(c == '(' for c in before_opening)
-                    and all(c == ')' for c in remaining_expr)
-                ):
+                if all(c == '(' for c in before_opening) and all(c == ')' for c in remaining_expr):
                     strip_outer_depth += 1
 
             else:
-                unmatched_closing.append(idx)
+                unmatched_closing.append(i)
 
     if unmatched_opening or unmatched_closing:
         raise ParenthesisMismatchError(expr, unmatched_opening, unmatched_closing)

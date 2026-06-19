@@ -1,4 +1,5 @@
 """The module checks the validity of packages for the launcher."""
+
 import importlib.metadata
 from typing import TYPE_CHECKING
 
@@ -14,9 +15,7 @@ def get_dependencies_from_pyproject() -> dict[str, Requirement]:
     """Return dependency requirements parsed from `pyproject.toml`."""
     dependencies = PYPROJECT_DATA.get('project', {}).get('dependencies', [])
 
-    return {
-        req.name: req for req in map(Requirement, dependencies)
-    }
+    return {req.name: req for req in map(Requirement, dependencies)}
 
 
 def check_packages_version(required_packages: dict[str, Requirement]) -> list[tuple[str, SpecifierSet, str]]:

@@ -469,7 +469,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         if not samples:
             return
 
-        trimmed = samples[-self._max_history:]
+        trimmed = samples[-self._max_history :]
         pad_len = max(0, VISIBLE_WINDOW - len(trimmed))
         n = pad_len + len(trimmed)
 

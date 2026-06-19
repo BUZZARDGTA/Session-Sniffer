@@ -21,7 +21,12 @@ logger = get_logger(__name__)
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 
 USERIP_INI_SETTINGS = [
-    'ENABLED', 'COLOR', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS', 'LOG', 'PROTECTION',
+    'ENABLED',
+    'COLOR',
+    'NOTIFICATIONS',
+    'VOICE_NOTIFICATIONS',
+    'LOG',
+    'PROTECTION',
     'PROTECTION_SUSPEND_PROCESS_MODE',
 ]
 
@@ -38,6 +43,7 @@ _USERIP_SETTING_DEFAULTS: dict[str, str] = {
 
 def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[str, list[str]] | None]:
     """Parse a UserIP INI file and return its settings and IP-to-usernames mapping."""
+
     def process_ini_line_output(line: str) -> str:
         return line.strip()
 
@@ -162,12 +168,12 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
     if list_of_missing_settings:
         # Ensure [Settings] header is present.
         if '[Settings]' not in corrected_ini_data_lines:
-            userip_section_idx = next(
+            userip_section_index = next(
                 (i for i, ln in enumerate(corrected_ini_data_lines) if ln == '[UserIP]'),
                 len(corrected_ini_data_lines),
             )
-            corrected_ini_data_lines.insert(userip_section_idx, '')
-            corrected_ini_data_lines.insert(userip_section_idx, '[Settings]')
+            corrected_ini_data_lines.insert(userip_section_index, '')
+            corrected_ini_data_lines.insert(userip_section_index, '[Settings]')
 
         # Insert each missing setting at the correct position according to USERIP_INI_SETTINGS order.
         for missing_setting in list_of_missing_settings:
@@ -176,34 +182,36 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
             missing_pos = USERIP_INI_SETTINGS.index(missing_setting)
 
             # Insert after the last preceding setting that already has a known line index.
-            insert_idx: int | None = None
+            insert_index: int | None = None
             for preceding in reversed(USERIP_INI_SETTINGS[:missing_pos]):
                 if preceding in setting_line_indices:
-                    insert_idx = setting_line_indices[preceding] + 1
+                    insert_index = setting_line_indices[preceding] + 1
                     break
 
-            if insert_idx is None:
+            if insert_index is None:
                 # No predecessor found — insert right after the [Settings] header.
-                settings_header_idx = next(
+                settings_header_index = next(
                     (i for i, ln in enumerate(corrected_ini_data_lines) if ln.strip() == '[Settings]'),
                     0,
                 )
-                insert_idx = settings_header_idx + 1
+                insert_index = settings_header_index + 1
 
-            corrected_ini_data_lines.insert(insert_idx, new_line)
+            corrected_ini_data_lines.insert(insert_index, new_line)
 
             # Shift all tracked line indices at or beyond the insertion point.
             for k in list(setting_line_indices):
-                if setting_line_indices[k] >= insert_idx:
+                if setting_line_indices[k] >= insert_index:
                     setting_line_indices[k] += 1
 
-            setting_line_indices[missing_setting] = insert_idx
+            setting_line_indices[missing_setting] = insert_index
             raw_settings[missing_setting] = default_value
             matched_settings.append(missing_setting)
 
         logger.info(
             'Auto-injected %d missing setting(s) in "%s": %s',
-            len(list_of_missing_settings), ini_path.name, ', '.join(list_of_missing_settings),
+            len(list_of_missing_settings),
+            ini_path.name,
+            ', '.join(list_of_missing_settings),
         )
 
     validated: UserIPSettingsModel | None = None
@@ -217,7 +225,10 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
         default_value = _USERIP_SETTING_DEFAULTS.get(corrupted_field, '')
         logger.info(
             'Auto-repaired corrupted setting "%s=%s" in "%s", reset to default "%s".',
-            corrupted_field, old_value, ini_path.name, default_value,
+            corrupted_field,
+            old_value,
+            ini_path.name,
+            default_value,
         )
         raw_settings[corrupted_field] = default_value
         if corrupted_field in setting_line_indices:
@@ -235,10 +246,7 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
             logger.info('Auto-normalized setting "%s" to "%s" in "%s".', field_name, rewrite_value, ini_path.name)
 
     # Basically always have a newline ending
-    if (
-        len(corrected_ini_data_lines) > 1
-        and corrected_ini_data_lines[-1]
-    ):
+    if len(corrected_ini_data_lines) > 1 and corrected_ini_data_lines[-1]:
         corrected_ini_data_lines.append('')
 
     fixed_ini_data = '\n'.join(corrected_ini_data_lines)

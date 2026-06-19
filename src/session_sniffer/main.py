@@ -178,7 +178,8 @@ def main() -> None:
 
     msgbox.set_owner_hwnd(0)  # Clear owner before handing off z-order to the interface dialog
     selected_interface = select_interface(
-        available_interfaces, screen_size,
+        available_interfaces,
+        screen_size,
         before_dialog=splash.lower_to_back,
     )
     if selected_interface is None:
@@ -194,10 +195,7 @@ def main() -> None:
     splash.update_status('Establishing connection')
     need_rewrite_settings = False
 
-    if (
-        Settings.capture_interface_name is None
-        or selected_interface.name != Settings.capture_interface_name
-    ):
+    if Settings.capture_interface_name is None or selected_interface.name != Settings.capture_interface_name:
         Settings.capture_interface_name = selected_interface.name
         need_rewrite_settings = True
 
@@ -236,8 +234,7 @@ def main() -> None:
             CaptureStats.restarted_times += 1
             CaptureStats.packets_latencies.clear()
             logger.warning(
-                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. '
-                'Restarting capture now (restart no.%d). Skipping this packet.',
+                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. Restarting capture now (restart no.%d). Skipping this packet.',
                 packet_latency.total_seconds(),
                 Settings.capture_overflow_timer,
                 CaptureStats.restarted_times,
@@ -307,10 +304,7 @@ def main() -> None:
                     daemon=True,
                 ).start()
 
-        if UserIPDatabases.is_known_ip(matched_player.ip) and (
-            not matched_player.userip_detection
-            or not matched_player.userip_detection.as_processed_task
-        ):
+        if UserIPDatabases.is_known_ip(matched_player.ip) and (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task):
             matched_player.userip_detection = PlayerUserIPDetection(
                 time=packet.datetime.strftime('%H:%M:%S'),
                 date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),

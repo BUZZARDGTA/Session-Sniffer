@@ -2,6 +2,7 @@
 
 This module contains custom exception classes for networking operations.
 """
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,8 +18,7 @@ class InvalidMacAddressError(Exception):
         Args:
             mac_address: The invalid MAC address that caused the error.
         """
-        super().__init__(f'Invalid MAC address: {mac_address}\n'
-                         f'A MAC address must be a 12-digit hexadecimal number long.')
+        super().__init__(f'Invalid MAC address: {mac_address}\nA MAC address must be a 12-digit hexadecimal number long.')
 
 
 class InvalidIPv4AddressError(Exception):
@@ -88,11 +88,8 @@ class InvalidPingResultError(Exception):
 
     def __init__(self, ip: str, response_content: str, ping_result: PingResult) -> None:
         """Initialize the exception with ping result information."""
-        attributes = '\n'.join(f'{attr}={getattr(ping_result, attr)}'
-                               for attr in ping_result._fields)
-        super().__init__(f'Invalid ping result for {ip}:\n'
-                         f'Response: {response_content}\n'
-                         f'{attributes}')
+        attributes = '\n'.join(f'{attr}={getattr(ping_result, attr)}' for attr in ping_result._fields)
+        super().__init__(f'Invalid ping result for {ip}:\nResponse: {response_content}\n{attributes}')
 
 
 class AllEndpointsExhaustedError(Exception):

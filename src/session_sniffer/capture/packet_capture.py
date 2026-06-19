@@ -1,4 +1,5 @@
 """Module for packet capture using scapy, including packet processing and capture lifecycle management."""
+
 import threading
 import time
 from ctypes import byref
@@ -379,11 +380,7 @@ class PacketCapture:
             )
 
         with self._state.control_lock:
-            if (
-                died_unexpectedly
-                and self._state.running_event.is_set()
-                and not self._state.restart_requested.is_set()
-            ):
+            if died_unexpectedly and self._state.running_event.is_set() and not self._state.restart_requested.is_set():
                 raise CaptureExitError(sniffer.exception)
 
     def is_restart_requested(self) -> bool:

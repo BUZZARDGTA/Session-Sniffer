@@ -120,10 +120,17 @@ class Player:
     mod_menus: PlayerModMenus | None
     looky_system: PlayerLooky
 
-    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset({
-        'left_event', 'rejoins', 'detection_checked', 'relay_monitor_started',
-        'usernames', 'userip_check_version', 'userip_check_positive',
-    })
+    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            'left_event',
+            'rejoins',
+            'detection_checked',
+            'relay_monitor_started',
+            'usernames',
+            'userip_check_version',
+            'userip_check_positive',
+        },
+    )
     _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
     _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
     _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus', 'looky_system'})

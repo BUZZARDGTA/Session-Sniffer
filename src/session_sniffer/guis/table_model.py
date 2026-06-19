@@ -206,30 +206,30 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         if not index.isValid():
             return None
 
-        row_idx = index.row()
-        col_idx = index.column()
+        row_index = index.row()
+        col_index = index.column()
 
         # Check bounds
-        if row_idx >= len(self._data) or col_idx >= len(self._data[row_idx]):
+        if row_index >= len(self._data) or col_index >= len(self._data[row_index]):
             return None  # Return None for invalid index
 
         output: str | QBrush | QIcon | None = None
 
-        if role == Qt.ItemDataRole.DecorationRole and self._col_indices.country is not None and self._col_indices.country == col_idx:
-            ip = self.get_ip_from_data_safely(self._data[row_idx])
+        if role == Qt.ItemDataRole.DecorationRole and self._col_indices.country is not None and self._col_indices.country == col_index:
+            ip = self.get_ip_from_data_safely(self._data[row_index])
 
             matched_player = PlayersRegistry.get_player_by_ip(ip)
             if matched_player is not None and matched_player.country_flag is not None:
                 output = matched_player.country_flag.icon
         elif role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
-            output = self._data[row_idx][col_idx]
-        elif role == Qt.ItemDataRole.ForegroundRole and row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
+            output = self._data[row_index][col_index]
+        elif role == Qt.ItemDataRole.ForegroundRole and row_index < len(self._compiled_colors) and col_index < len(self._compiled_colors[row_index]):
             # Return the cell's foreground color
-            output = QBrush(self._compiled_colors[row_idx][col_idx].foreground)
-        elif role == Qt.ItemDataRole.BackgroundRole and row_idx < len(self._compiled_colors) and col_idx < len(self._compiled_colors[row_idx]):
+            output = QBrush(self._compiled_colors[row_index][col_index].foreground)
+        elif role == Qt.ItemDataRole.BackgroundRole and row_index < len(self._compiled_colors) and col_index < len(self._compiled_colors[row_index]):
             # Return the cell's background color
-            output = QBrush(self._compiled_colors[row_idx][col_idx].background)
+            output = QBrush(self._compiled_colors[row_index][col_index].background)
         elif role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
             view = self.view
@@ -238,7 +238,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
             # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
             if resize_mode == QHeaderView.ResizeMode.Stretch:
-                cell_text = self._data[row_idx][col_idx]
+                cell_text = self._data[row_index][col_index]
 
                 font_metrics = view.fontMetrics()
                 text_width = font_metrics.horizontalAdvance(cell_text)
@@ -307,9 +307,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             _default_dt = datetime.min.replace(tzinfo=UTC)
             _ip_datetime_map: dict[str, datetime] = {
                 self.get_ip_from_data_safely(row): (
-                    getattr(p.datetime, _datetime_attr)
-                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else _default_dt
+                    getattr(p.datetime, _datetime_attr) if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else _default_dt
                 )
                 for row, _ in combined
             }
@@ -322,9 +320,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute total session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_total_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    p.datetime.get_total_session_time()
-                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else timedelta(0)
+                    p.datetime.get_total_session_time() if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -337,9 +333,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    p.datetime.get_session_time()
-                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else timedelta(0)
+                    p.datetime.get_session_time() if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -353,11 +347,22 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             )
         elif sorted_column_name in {
             'Rejoins',
-            'T. Packets', 'Packets', 'T. Packets Sent', 'Packets Sent', 'T. Packets Received', 'Packets Received', 'PPS', 'PPM',
-            'Last Port', 'First Port',
-            'T. Min Packet Length', 'Min Packet Length',
-            'T. Avg Packet Length', 'Avg Packet Length',
-            'T. Max Packet Length', 'Max Packet Length',
+            'T. Packets',
+            'Packets',
+            'T. Packets Sent',
+            'Packets Sent',
+            'T. Packets Received',
+            'Packets Received',
+            'PPS',
+            'PPM',
+            'Last Port',
+            'First Port',
+            'T. Min Packet Length',
+            'Min Packet Length',
+            'T. Avg Packet Length',
+            'Avg Packet Length',
+            'T. Max Packet Length',
+            'Max Packet Length',
         }:
             # Sort by integer/float value of the column value
             combined.sort(
@@ -365,7 +370,14 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {
-            'T. Bandwidth', 'Bandwidth', 'T. Download', 'Download', 'T. Upload', 'Upload', 'BPS', 'BPM',
+            'T. Bandwidth',
+            'Bandwidth',
+            'T. Download',
+            'Download',
+            'T. Upload',
+            'Upload',
+            'BPS',
+            'BPM',
         }:
             # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
             _bandwidth_attr_map = {
@@ -375,11 +387,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             }
             _bw_attr = _bandwidth_attr_map[sorted_column_name]
             _ip_bandwidth_map: dict[str, int] = {
-                self.get_ip_from_data_safely(row): (
-                    attrgetter(_bw_attr)(p)
-                    if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else 0
-                )
+                self.get_ip_from_data_safely(row): (attrgetter(_bw_attr)(p) if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0)
                 for row, _ in combined
             }
 
@@ -406,9 +414,25 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 reverse=sort_order_bool,
             )
         elif sorted_column_name in {
-            'Hostname', 'Continent', 'Country', 'Region', 'R. Code', 'City', 'District', 'ZIP Code',
-            'Time Zone', 'Currency', 'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN',
-            'Mobile', 'VPN', 'Hosting', 'Pinging',
+            'Hostname',
+            'Continent',
+            'Country',
+            'Region',
+            'R. Code',
+            'City',
+            'District',
+            'ZIP Code',
+            'Time Zone',
+            'Currency',
+            'Organization',
+            'ISP',
+            'ASN / ISP',
+            'AS',
+            'ASN',
+            'Mobile',
+            'VPN',
+            'Hosting',
+            'Pinging',
         }:
             # Sort by string representation of the column value
             combined.sort(
@@ -430,10 +454,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
     def _rebuild_ip_index(self) -> None:
         """Rebuild the IP-to-row-index cache from current data."""
-        self._ip_to_row_index = {
-            self.get_ip_from_data_safely(row): idx
-            for idx, row in enumerate(self._data)
-        }
+        self._ip_to_row_index = {self.get_ip_from_data_safely(row): i for i, row in enumerate(self._data)}
 
     def get_column_index(self, column_name: str, /) -> int | None:
         """Get the table index of a specified column, or None if not present.
@@ -654,15 +675,15 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         Args:
             ip: The IP address of the player to remove.
         """
-        row_idx = self._ip_to_row_index.get(ip)
-        if row_idx is None:
+        row_index = self._ip_to_row_index.get(ip)
+        if row_index is None:
             return
 
         # Remove the row
-        self.beginRemoveRows(QModelIndex(), row_idx, row_idx)
-        self._data.pop(row_idx)
-        if row_idx < len(self._compiled_colors):
-            self._compiled_colors.pop(row_idx)
+        self.beginRemoveRows(QModelIndex(), row_index, row_index)
+        self._data.pop(row_index)
+        if row_index < len(self._compiled_colors):
+            self._compiled_colors.pop(row_index)
         self._rebuild_ip_index()
         self.endRemoveRows()
 

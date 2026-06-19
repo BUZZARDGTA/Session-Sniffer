@@ -1,4 +1,4 @@
-﻿"""Historical IP encounter statistics from session log archives."""
+"""Historical IP encounter statistics from session log archives."""
 
 import json
 from dataclasses import dataclass, field
@@ -90,7 +90,7 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
             continue
         try:
             data: object = json.loads(json_file.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             continue
         if not isinstance(data, dict):
             continue
@@ -197,7 +197,7 @@ def build_leaderboard(folder_path: Path, *, limit: int = 1000) -> list[Leaderboa
             continue
         try:
             data: object = json.loads(json_file.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             continue
         if not isinstance(data, dict):
             continue

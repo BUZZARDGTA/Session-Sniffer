@@ -84,13 +84,10 @@ def rendering_core(
     geoip2_readers: GeoIP2Readers,
 ) -> None:
     """Compile GUI payloads from runtime state and emit updates."""
+
     def _snapshot_userip_database_mod_times() -> dict[Path, float]:
         """Return current modification times of all existing UserIP database INIs."""
-        return {
-            path: path.stat().st_mtime
-            for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini')
-            if path.is_file()
-        }
+        return {path: path.stat().st_mtime for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if path.is_file()}
 
     def _collect_userip_ini_files() -> tuple[list[Path], dict[Path, float]]:
         """Return discovered INI paths and their mod-times in a single `rglob` pass."""
@@ -113,10 +110,7 @@ def rendering_core(
         ),
     )
 
-    default_userip_files_settings = {
-        USERIP_DATABASES_DIR_PATH / ini_name: settings
-        for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()
-    }
+    default_userip_files_settings = {USERIP_DATABASES_DIR_PATH / ini_name: settings for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()}
 
     default_userip_file_footer = format_triple_quoted_text(
         USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
@@ -426,15 +420,12 @@ def rendering_core(
 
         session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
         players_to_disconnect: list[int] = []
-        for idx, player in enumerate(session_connected):
-            if (
-                not player.left_event.is_set()
-                and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer
-            ):
+        for i, player in enumerate(session_connected):
+            if not player.left_event.is_set() and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer:
                 player.mark_as_left()
                 player.detection_checked = False
                 player.relay_monitor_started = False
-                players_to_disconnect.append(idx)
+                players_to_disconnect.append(i)
                 session_disconnected.append(player)
 
                 if player.userip_detection and player.userip_detection.as_processed_task:
@@ -442,7 +433,8 @@ def rendering_core(
                     Thread(
                         target=process_userip_task,
                         name=f'ProcessUserIPTask-{player.ip}-disconnected',
-                        args=(player, 'disconnected'), daemon=True,
+                        args=(player, 'disconnected'),
+                        daemon=True,
                     ).start()
 
                 handle_detection_notification(player, 'player_left_session')
@@ -457,8 +449,8 @@ def rendering_core(
             logger.warning('High thread count detected: %d active threads (threshold: %d)', _active_threads, _THREAD_COUNT_WARN_THRESHOLD)
 
         # Remove disconnected players from session_connected in reverse index order
-        for idx in reversed(players_to_disconnect):
-            del session_connected[idx]
+        for i in reversed(players_to_disconnect):
+            del session_connected[i]
 
         for player in chain(session_connected, session_disconnected):
             if _userip_db_rebuilt and player.userip and not UserIPDatabases.is_known_ip(player.ip):
@@ -508,12 +500,7 @@ def rendering_core(
 
         if Settings.is_gta5_preset():
             if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
-                if (
-                    SessionHost.player
-                    or SessionHost.players_pending_for_disconnection
-                    or SessionHost.search_player
-                    or SessionHost.last_timing_gap_candidate
-                ):
+                if SessionHost.player or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate:
                     SessionHost.clear_session_host_data()
             else:
                 if CaptureState.gta5_just_started:
@@ -524,13 +511,12 @@ def rendering_core(
                     _relay_host_logged_ip = None
                 p2p_session_connected = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
                 if SessionHost.player and SessionHost.player.left_event.is_set():
-                    if (
-                        SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST
-                        and _relay_host_logged_ip != SessionHost.player.ip
-                    ):
+                    if SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != SessionHost.player.ip:
                         logger.debug(
                             '[SessionHost] Current host %s disconnected but is relayed (%d packets <= %d), keeping as host until session clears',
-                            SessionHost.player.ip, SessionHost.player.packets.exchanged, MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            SessionHost.player.ip,
+                            SessionHost.player.packets.exchanged,
+                            MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         )
                         _relay_host_logged_ip = SessionHost.player.ip
                     elif SessionHost.player.packets.exchanged > MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
@@ -556,8 +542,7 @@ def rendering_core(
                     SessionHost.search_start_time = None
                     SessionHost.players_pending_for_disconnection.clear()
                 elif SessionHost.players_pending_for_disconnection and any(
-                    not player.left_event.is_set() and player.packets.pps.calculated_rate
-                    for player in SessionHost.players_pending_for_disconnection
+                    not player.left_event.is_set() and player.packets.pps.calculated_rate for player in SessionHost.players_pending_for_disconnection
                 ):
                     logger.debug(
                         '[SessionHost] %d pending disconnection player(s) recovered non-zero PPS, clearing pending list (likely a transient network issue)',
@@ -576,7 +561,9 @@ def rendering_core(
                     if p2p_session_connected and past_window:
                         logger.debug(
                             '[SessionHost] Sniffer startup: %d pre-existing player%s detected within %.0fs window, skipping host search',
-                            len(p2p_session_connected), pluralize(len(p2p_session_connected)), SESSION_HOST_STARTUP_WINDOW_SECONDS,
+                            len(p2p_session_connected),
+                            pluralize(len(p2p_session_connected)),
+                            SESSION_HOST_STARTUP_WINDOW_SECONDS,
                         )
                         SessionHost.search_player = False
                     elif p2p_session_connected:
@@ -595,9 +582,7 @@ def rendering_core(
                     SessionHost.players_pending_for_disconnection.clear()
                 elif not p2p_session_connected:
                     pass
-                elif all(
-                    not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected
-                ):
+                elif all(not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected):
                     if not SessionHost.players_pending_for_disconnection:
                         logger.debug(
                             '[SessionHost] All %d connected players have 0 PPS (past first calc), marking as pending for disconnection',
@@ -609,19 +594,17 @@ def rendering_core(
                         SessionHost.search_start_time = time.monotonic()
                     if (time.monotonic() - SessionHost.search_start_time) >= SESSION_HOST_SEARCH_TIMEOUT_SECONDS:
                         logger.debug(
-                            '[SessionHost] Host search timed out after %ds with no result, giving up'
-                            ' (pending: %d players). Clearing search state.',
+                            '[SessionHost] Host search timed out after %ds with no result, giving up (pending: %d players). Clearing search state.',
                             SESSION_HOST_SEARCH_TIMEOUT_SECONDS,
                             len(SessionHost.players_pending_for_disconnection),
                         )
                         SessionHost.clear_session_host_data()
-                    elif (
-                        len(p2p_session_connected) == 1
-                        and p2p_session_connected[0].packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
-                    ):
+                    elif len(p2p_session_connected) == 1 and p2p_session_connected[0].packets.exchanged < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         logger.debug(
                             '[SessionHost] Sole candidate %s has %d packets, waiting for >= %d before searching',
-                            p2p_session_connected[0].ip, p2p_session_connected[0].packets.exchanged, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            p2p_session_connected[0].ip,
+                            p2p_session_connected[0].packets.exchanged,
+                            MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         )
                     else:
                         logger.debug(
@@ -629,24 +612,22 @@ def rendering_core(
                             len(p2p_session_connected),
                         )
                         SessionHost.get_host_player(p2p_session_connected)
-                elif (
-                    not SessionHost.player
-                    and SessionHost.last_timing_gap_candidate is not None
-                    and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT
-                ):
+                elif not SessionHost.player and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
                     top2 = sorted(p2p_session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
                     current_pair = (top2[0].ip, top2[1].ip)
                     if current_pair != SessionHost.last_timing_gap_candidate:
                         logger.debug(
                             '[SessionHost] Top candidates changed from %s to %s, re-triggering search',
-                            SessionHost.last_timing_gap_candidate, current_pair,
+                            SessionHost.last_timing_gap_candidate,
+                            current_pair,
                         )
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
                     elif top2[0].packets.exchanged >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         logger.debug(
                             '[SessionHost] Timing gap candidate[0] %s now has >= %d packets, re-triggering search',
-                            top2[0].ip, MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                            top2[0].ip,
+                            MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         )
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
@@ -669,11 +650,11 @@ def rendering_core(
             discord_rpc_manager.close()
             discord_rpc_manager = None
 
-        CaptureState.discord_rpc_connected = (discord_rpc_manager is not None and discord_rpc_manager.connection_status.is_set())
+        CaptureState.discord_rpc_connected = discord_rpc_manager is not None and discord_rpc_manager.connection_status.is_set()
 
-        if (discord_rpc_manager is not None and
-            (discord_rpc_manager.last_update_time is None or
-             (time.monotonic() - discord_rpc_manager.last_update_time) >= DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS)):
+        if discord_rpc_manager is not None and (
+            discord_rpc_manager.last_update_time is None or (time.monotonic() - discord_rpc_manager.last_update_time) >= DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS
+        ):
             discord_rpc_manager.update(
                 state_message=f'{len(session_connected)} player{pluralize(len(session_connected))} connected',
                 details=Settings.discord_presence_title or None,
@@ -687,22 +668,18 @@ def rendering_core(
             discord_webhook_sender = None
 
         if discord_webhook_sender is not None and (
-            last_webhook_submit_time is None
-            or (time.monotonic() - last_webhook_submit_time) >= DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS
+            last_webhook_submit_time is None or (time.monotonic() - last_webhook_submit_time) >= DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS
         ):
             last_webhook_submit_time = time.monotonic()
             use_mobile_text = Settings.discord_webhook_format in ('Mobile', 'Embed')
-            webhook_connected = (
-                session_connected[:Settings.discord_webhook_max_connected_players]
-                if Settings.discord_webhook_max_connected_players > 0 else session_connected
-            )
+            webhook_connected = session_connected[: Settings.discord_webhook_max_connected_players] if Settings.discord_webhook_max_connected_players > 0 else session_connected
             webhook_disconnected = (
-                session_disconnected[:Settings.discord_webhook_max_disconnected_players]
-                if Settings.discord_webhook_max_disconnected_players > 0 else session_disconnected
+                session_disconnected[: Settings.discord_webhook_max_disconnected_players] if Settings.discord_webhook_max_disconnected_players > 0 else session_disconnected
             )
             if Settings.discord_webhook_include_connected:
                 connected_text = (
-                    build_webhook_mobile_text(webhook_connected, Settings.discord_webhook_columns_connected) if use_mobile_text
+                    build_webhook_mobile_text(webhook_connected, Settings.discord_webhook_columns_connected)
+                    if use_mobile_text
                     else build_webhook_table_text(
                         webhook_connected,
                         columns=Settings.discord_webhook_columns_connected,
@@ -713,7 +690,8 @@ def rendering_core(
                 connected_text = None
             if Settings.discord_webhook_include_disconnected:
                 disconnected_text = (
-                    build_webhook_mobile_text(webhook_disconnected, Settings.discord_webhook_columns_disconnected) if use_mobile_text
+                    build_webhook_mobile_text(webhook_disconnected, Settings.discord_webhook_columns_disconnected)
+                    if use_mobile_text
                     else build_webhook_table_text(
                         webhook_disconnected,
                         columns=Settings.discord_webhook_columns_disconnected,
@@ -722,14 +700,16 @@ def rendering_core(
                 )
             else:
                 disconnected_text = None
-            discord_webhook_sender.submit(DiscordWebhookPayload(
-                connected_text=connected_text,
-                disconnected_text=disconnected_text,
-                connected_count=len(session_connected),
-                disconnected_count=len(session_disconnected),
-                generated_at=datetime.now(tz=LOCAL_TZ),
-                capture_running=capture.is_running(),
-            ))
+            discord_webhook_sender.submit(
+                DiscordWebhookPayload(
+                    connected_text=connected_text,
+                    disconnected_text=disconnected_text,
+                    connected_count=len(session_connected),
+                    disconnected_count=len(session_disconnected),
+                    generated_at=datetime.now(tz=LOCAL_TZ),
+                    capture_running=capture.is_running(),
+                ),
+            )
 
         _column_key = (Settings.gui_columns_connected_shown, Settings.gui_columns_disconnected_shown)
         if _column_key != _last_column_key:
@@ -737,14 +717,10 @@ def rendering_core(
             connected_shown_columns = set(Settings.gui_columns_connected_shown)
             disconnected_shown_columns = set(Settings.gui_columns_disconnected_shown)
             connected_column_names = [
-                column_name
-                for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS
-                if column_name in connected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
+                column_name for column_name in Settings.GUI_ALL_CONNECTED_COLUMNS if column_name in connected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
             disconnected_column_names = [
-                column_name
-                for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS
-                if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
+                column_name for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
             connected_num_cols = len(connected_column_names)
             disconnected_num_cols = len(disconnected_column_names)

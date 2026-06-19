@@ -1,4 +1,4 @@
-﻿"""Core data models and statistical helpers for the Player Identifier."""
+"""Core data models and statistical helpers for the Player Identifier."""
 
 from collections import deque
 from dataclasses import dataclass

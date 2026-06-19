@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -330,8 +331,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 0.55; }
-            50% { opacity: 1; }
+
+            0%,
+            100% {
+                opacity: 0.55;
+            }
+
+            50% {
+                opacity: 1;
+            }
         }
 
         @media (max-width: 720px) {
@@ -382,6 +390,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -534,8 +543,8 @@
                 `;
                 html += '<div class="player-details">';
 
-                columns.forEach((col, idx) => {
-                    const value = row[idx] ?? 'N/A';
+                columns.forEach((col, index) => {
+                    const value = row[index] ?? 'N/A';
                     html += `
                         <div class="player-detail-row">
                             <span class="detail-label">${escapeHtml(col)}</span>
@@ -563,9 +572,9 @@
             const ipKeys = ['IP Address', 'IP'];
 
             for (const key of usernameKeys) {
-                const idx = columns.indexOf(key);
-                if (idx !== -1 && row[idx]) {
-                    title = row[idx];
+                const index = columns.indexOf(key);
+                if (index !== -1 && row[index]) {
+                    title = row[index];
                     break;
                 }
             }
@@ -575,9 +584,9 @@
             }
 
             for (const key of ipKeys) {
-                const idx = columns.indexOf(key);
-                if (idx !== -1 && row[idx]) {
-                    ip = row[idx];
+                const index = columns.indexOf(key);
+                if (index !== -1 && row[index]) {
+                    ip = row[index];
                     break;
                 }
             }
@@ -671,4 +680,5 @@
         });
     </script>
 </body>
+
 </html>

@@ -101,9 +101,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         self._capture = capture
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
-        self._old_values: dict[str, SettingValue] = {
-            key: getattr(Settings, key) for key in SETTING_METADATA
-        }
+        self._old_values: dict[str, SettingValue] = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._saved: bool = False
         self._loading_settings: bool = False
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
@@ -116,11 +114,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         self._tabs = QTabWidget()
         self._looky_tab_index: int = -1
-        for idx, category in enumerate(SETTING_CATEGORIES_ORDER):
+        for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             self._tabs.addTab(tab_widget, category)
             if category == 'Looky System':
-                self._looky_tab_index = idx
+                self._looky_tab_index = i
         root_layout.addWidget(self._tabs)
 
         button_row = QHBoxLayout()
@@ -392,8 +390,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             url_line.setEchoMode(QLineEdit.EchoMode.Password)
             url_line.setPlaceholderText('https://discord.com/api/webhooks/<id>/<token>')
             url_line.setToolTip(
-                url_meta.tooltip
-                or 'Discord channel webhook URL. Treat this like a password — anyone with it can post to the channel.',
+                url_meta.tooltip or 'Discord channel webhook URL. Treat this like a password — anyone with it can post to the channel.',
             )
             self._widgets['discord_webhook_url'] = url_line
 
@@ -489,8 +486,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         confirm = QMessageBox.question(
             self,
             TITLE,
-            'Forget the IDs of the two posted Discord messages?\n\n'
-            'The next refresh will create two fresh messages instead of editing the old ones.',
+            'Forget the IDs of the two posted Discord messages?\n\nThe next refresh will create two fresh messages instead of editing the old ones.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -584,9 +580,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         """Set value for an enum combo box."""
         combo = cast('QComboBox', widget)
         text = _NONE_PLACEHOLDER if value is None else str(value)
-        idx = combo.findText(text, Qt.MatchFlag.MatchFixedString)
-        if idx >= 0:
-            combo.setCurrentIndex(idx)
+        index = combo.findText(text, Qt.MatchFlag.MatchFixedString)
+        if index >= 0:
+            combo.setCurrentIndex(index)
 
     def _set_bool_or_enum(self, widget: QWidget, value: SettingValue) -> None:
         """Set value for a bool-or-enum combo box."""
@@ -594,9 +590,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         if value is False:
             combo_be.setCurrentIndex(0)
         else:
-            idx = combo_be.findText(str(value), Qt.MatchFlag.MatchFixedString)
-            if idx >= 0:
-                combo_be.setCurrentIndex(idx)
+            index = combo_be.findText(str(value), Qt.MatchFlag.MatchFixedString)
+            if index >= 0:
+                combo_be.setCurrentIndex(index)
 
     def _read_widget_value(self, key: str, widget: QWidget) -> SettingValue:
         """Extract the current value from *widget* for setting *key*."""
@@ -623,9 +619,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 value = self._read_column_tuple(meta, widget)
             case SettingType.IP_RANGE_TUPLE:
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)
-                value = () if list_widget is None else tuple(
-                    item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None
-                )
+                value = () if list_widget is None else tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None)
 
         return value
 
@@ -634,10 +628,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         allowed_attr = meta.allowed_columns_attr or ''
         allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
         checkboxes = {checkbox.objectName(): checkbox for checkbox in widget.findChildren(QCheckBox)}
-        return tuple(
-            col_name for col_name in allowed_columns
-            if (checkbox := checkboxes.get(col_name)) is not None and checkbox.isChecked()
-        )
+        return tuple(col_name for col_name in allowed_columns if (checkbox := checkboxes.get(col_name)) is not None and checkbox.isChecked())
 
     def _validate(self) -> tuple[list[str], dict[str, SettingValue]]:
         """Read every widget once and return validation errors alongside the collected values."""
@@ -670,15 +661,16 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             url_value = values.get('discord_webhook_url')
             if not isinstance(url_value, str) or not is_valid_webhook_url(url_value):
                 errors.append(
-                    'Discord Webhook is enabled but the Webhook URL is missing or invalid. '
-                    'Expected format: https://discord.com/api/webhooks/<id>/<token>',
+                    'Discord Webhook is enabled but the Webhook URL is missing or invalid. Expected format: https://discord.com/api/webhooks/<id>/<token>',
                 )
 
-        if not any((
-            values.get('gui_columns_datetime_show_date'),
-            values.get('gui_columns_datetime_show_time'),
-            values.get('gui_columns_datetime_show_elapsed_time'),
-        )):
+        if not any(
+            (
+                values.get('gui_columns_datetime_show_date'),
+                values.get('gui_columns_datetime_show_time'),
+                values.get('gui_columns_datetime_show_elapsed_time'),
+            ),
+        ):
             errors.append(
                 'At least one of the DateTime column display options must be enabled:\n'
                 '  - Show Date in DateTime Columns\n'
@@ -705,9 +697,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'Interface Name "{value}" does not match any known network interface.\n\n'
-            f'Known interfaces:\n  - {names_list}\n\n'
-            'Save anyway?',
+            f'Interface Name "{value}" does not match any known network interface.\n\nKnown interfaces:\n  - {names_list}\n\nSave anyway?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -737,11 +727,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         ensure_gta5_process_monitor_running()
         ensure_looky_core_running()
 
-        capture_settings_changed = any(
-            new_values[key] != self._old_values.get(key)
-            for key, meta in SETTING_METADATA.items()
-            if meta.requires_capture_restart
-        )
+        capture_settings_changed = any(new_values[key] != self._old_values.get(key) for key, meta in SETTING_METADATA.items() if meta.requires_capture_restart)
         if capture_settings_changed and self._capture.is_running():
             if Settings.capture_ip_address is None:
                 msg = 'capture_ip_address is None while capture is running'
@@ -761,10 +747,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         webserver_enabled_changed = new_values['webserver_enabled'] != self._old_values.get('webserver_enabled')
         webserver_host_changed = new_values['webserver_host'] != self._old_values.get('webserver_host')
         webserver_port_changed = new_values['webserver_port'] != self._old_values.get('webserver_port')
-        webserver_credentials_changed = (
-            new_values['webserver_username'] != self._old_values.get('webserver_username')
-            or new_values['webserver_password'] != self._old_values.get('webserver_password')
-        )
+        webserver_credentials_changed = new_values['webserver_username'] != self._old_values.get('webserver_username') or new_values[
+            'webserver_password'
+        ] != self._old_values.get('webserver_password')
 
         if webserver_enabled_changed:
             if Settings.webserver_enabled:

@@ -1,10 +1,11 @@
-﻿"""Reason-based process suspension manager for the global GTA5 process.
+"""Reason-based process suspension manager for the global GTA5 process.
 
 This module provides a singleton manager that controls suspension and resumption
 of the single, globally-resolved GTA5 process based on multiple concurrent
 "reasons" (e.g. detections, player events, manual overrides). It ensures the
 process is only suspended once and only resumed when all active reasons are resolved.
 """
+
 import time
 from dataclasses import dataclass, field
 from threading import Condition, Event, Thread
@@ -203,19 +204,13 @@ class GTASuspendManager:
     def is_suspended(cls) -> bool:
         """Return whether the global GTA5 process is currently suspended by this manager."""
         with cls._condition:
-            return (
-                cls._state is not None
-                and cls._state.suspended
-            )
+            return cls._state is not None and cls._state.suspended
 
     @classmethod
     def has_reason(cls, reason_key: str) -> bool:
         """Check if a suspend reason is currently active."""
         with cls._condition:
-            return (
-                cls._state is not None
-                and reason_key in cls._state.reasons
-            )
+            return cls._state is not None and reason_key in cls._state.reasons
 
     @classmethod
     def snapshot(cls) -> GTASuspendSnapshot:

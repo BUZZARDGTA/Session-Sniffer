@@ -3,6 +3,7 @@
 Polls the running GTA5 process at 1-second intervals, updates `CaptureState`
 on every state change, and logs meaningful transitions via `_log_gta5_status_transition`.
 """
+
 from threading import Thread
 from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING

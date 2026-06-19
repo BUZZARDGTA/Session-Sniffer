@@ -1,4 +1,4 @@
-﻿"""Shared utilities for parsing and matching IP ranges in multiple formats."""
+"""Shared utilities for parsing and matching IP ranges in multiple formats."""
 
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
@@ -13,6 +13,7 @@ _IPV4_VERSION = 4
 @dataclass(frozen=True, slots=True)
 class IPRange:
     """Represents a parsed IP range entry that can match individual addresses."""
+
     raw: str
     network: IPv4Network | None = None
     start: IPv4Address | None = None

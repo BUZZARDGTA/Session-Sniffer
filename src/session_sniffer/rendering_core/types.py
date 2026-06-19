@@ -74,7 +74,7 @@ class SearchState:
     _lock: ClassVar[Lock] = Lock()
     _connected_text: ClassVar[str] = ''
     _disconnected_text: ClassVar[str] = ''
-    _connected_col: ClassVar[int] = -1   # -1 = all columns
+    _connected_col: ClassVar[int] = -1  # -1 = all columns
     _disconnected_col: ClassVar[int] = -1
     _version: ClassVar[int] = 0
 
@@ -103,6 +103,7 @@ class SearchState:
 
 class CaptureState:
     """Runtime state derived from the active capture interface."""
+
     vpn_mode_enabled: ClassVar[bool] = False
     is_neighbour_interface: ClassVar[bool] = False
     interface_name: ClassVar[str] = ''
@@ -134,11 +135,7 @@ class CaptureState:
         or the interface is a bridged/sharing adapter (each of which captures another
         machine's traffic). `Shared` is treated as local — it captures this host's traffic.
         """
-        return not (
-            Settings.capture_arp_spoofing
-            or cls.is_neighbour_interface
-            or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING)
-        )
+        return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
 
     @classmethod
     def update_gta5_status(cls, status: GTA5Status) -> None:
@@ -155,6 +152,7 @@ class CaptureState:
 
 class CaptureStats:
     """Statistics and data tracking for packet capture performance."""
+
     packets_latencies: ClassVar[deque[tuple[datetime, timedelta]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
     capture_health_samples: ClassVar[deque[tuple[float, int, int]]] = deque(maxlen=_MAX_LATENCY_ENTRIES)
     total_packets_captured: ClassVar[int] = 0
@@ -200,12 +198,14 @@ class CaptureStats:
 
 class CellColor(NamedTuple):
     """Hold foreground and background colors for a table cell."""
+
     foreground: QColor
     background: QColor
 
 
 class SessionTableSnapshot(NamedTuple):
     """Immutable snapshot of connected/disconnected table rows + cell colors."""
+
     connected_num: int
     connected_rows: tuple[tuple[str, ...], ...]
     connected_colors: tuple[tuple[CellColor, ...], ...]
@@ -216,6 +216,7 @@ class SessionTableSnapshot(NamedTuple):
 
 class GUIUpdatePayload(NamedTuple):
     """Payload containing all data needed for GUI updates."""
+
     snapshot_version: int
     column_config: GUIColumnConfig
     header_text: str
@@ -238,6 +239,7 @@ class GUIUpdatePayload(NamedTuple):
 @dataclass(frozen=True, slots=True)
 class GUIColumnConfig:
     """Column visibility and name config for both tables."""
+
     connected_shown_columns: set[str]
     disconnected_shown_columns: set[str]
     connected_column_names: list[str]
@@ -247,6 +249,7 @@ class GUIColumnConfig:
 @dataclass(frozen=True, slots=True)
 class GUIStatusTexts:
     """Header and status-bar text strings for the GUI."""
+
     header_text: str
     status_capture_text: str
     status_config_text: str
@@ -257,6 +260,7 @@ class GUIStatusTexts:
 @dataclass(frozen=True, slots=True)
 class GUITableData:
     """Row/color data for a single session table (connected or disconnected)."""
+
     num_cols: int
     num_rows: int
     rows: tuple[tuple[str, ...], ...]
@@ -269,6 +273,7 @@ class GUIRenderingSnapshot:
 
     Built off-thread, then published by replacement (no shared mutation).
     """
+
     column_config: GUIColumnConfig
     status: GUIStatusTexts
     connected: GUITableData
@@ -325,6 +330,7 @@ class GUIRenderingState:
 @dataclass(frozen=True, slots=True)
 class GeoIP2Readers:
     """Container for GeoIP2 database readers."""
+
     enabled: bool
     asn_reader: geoip2.database.Reader | None
     city_reader: geoip2.database.Reader | None

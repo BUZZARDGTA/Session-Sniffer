@@ -45,8 +45,7 @@ _IPAPI_MAX_BATCH_IPS = 100
 # Stop ip-api.com lookups after this many consecutive connection failures (e.g. a VPN/firewall silently blocking it).
 _IPAPI_MAX_CONSECUTIVE_FAILURES = 5
 _IPAPI_FIELDS = (
-    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,'
-    'timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 )
 
 
@@ -69,6 +68,7 @@ def _notify_ipapi_unavailable(reason: str) -> None:
 
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
+
     def throttle_until(requests_remaining: int, throttle_time: int) -> None:
         # Spread remaining requests evenly across the reset window to stay within the rate limit.
         sleep_time = throttle_time / requests_remaining
@@ -106,15 +106,14 @@ def iplookup_core() -> None:
                 timeout=3,
             )
             response.raise_for_status()
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+        except requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout:
             # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
             # blocking the connection. Retry a few times in case it is a transient blip, but give up after
             # too many consecutive failures so we surface a warning instead of hammering the network forever.
             consecutive_failures += 1
             if consecutive_failures >= _IPAPI_MAX_CONSECUTIVE_FAILURES:
                 _notify_ipapi_unavailable(
-                    f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts '
-                    '(a VPN, proxy, or firewall may be blocking the connection).',
+                    f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts (a VPN, proxy, or firewall may be blocking the connection).',
                 )
                 return
             gui_closed__event.wait(1)
@@ -127,13 +126,9 @@ def iplookup_core() -> None:
                 # endpoint only accepts POST, so the redirected request comes back as 405 Method Not Allowed.
                 # That 301-then-405 chain uniquely identifies this situation, so warn and stop this background
                 # thread gracefully; the rest of the sniffer keeps running normally.
-                if (
-                    e.response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
-                    and any(redirect.status_code == HTTPStatus.MOVED_PERMANENTLY for redirect in e.response.history)
-                ):
+                if e.response.status_code == HTTPStatus.METHOD_NOT_ALLOWED and any(redirect.status_code == HTTPStatus.MOVED_PERMANENTLY for redirect in e.response.history):
                     _notify_ipapi_unavailable(
-                        'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), '
-                        'which the free ip-api.com service does not support.',
+                        'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), which the free ip-api.com service does not support.',
                     )
                     return
 
@@ -306,10 +301,7 @@ def pinger_core() -> None:
         exhausted_ips.pop(player.ip, None)
 
         player.ping.update_fields(ping_result._asdict())
-        player.ping.is_pinging = (
-            ping_result.packets_received is not None
-            and ping_result.packets_received > 0
-        )
+        player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
         player.ping.is_initialized = True
 
     def handle_exception(ip: str, exception: Exception) -> bool:
@@ -417,7 +409,7 @@ def looky_core() -> None:
             if batch_start > 0:
                 gui_closed__event.wait(0.5)
 
-            batch = pending_ips[batch_start:batch_start + _batch_size]
+            batch = pending_ips[batch_start : batch_start + _batch_size]
             api_key = Settings.looky_api_key
 
             try:

@@ -62,9 +62,7 @@ WARNING_ICON_LABEL_STYLESHEET = 'font-size: 18pt; border: none;'
 WARNING_TEXT_LABEL_STYLESHEET = 'color: #ffcc66; border: none;'
 
 DETECTIONS_MANAGER_HEADER_STYLESHEET = (
-    'font-size: 16pt; font-weight: bold; color: #4A90E2; padding: 10px;'
-    'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e1e2e, stop:1 #2d2d4e);'
-    'border-radius: 6px;'
+    'font-size: 16pt; font-weight: bold; color: #4A90E2; padding: 10px;background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1e1e2e, stop:1 #2d2d4e);border-radius: 6px;'
 )
 
 # =============================================================================

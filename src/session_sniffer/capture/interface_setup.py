@@ -43,44 +43,49 @@ def populate_network_interfaces_info() -> None:
         else:
             interface_type = INTERFACE_TYPE_INTERFACE
 
-        interface = AllInterfaces.add_interface(Interface(
-            identity=InterfaceIdentity(
-                index=adapter.identity.interface_index,
-                name=adapter.identity.friendly_name,
-                description=adapter.identity.description,
-                mac_address=adapter.identity.mac_address,
-                device_name=None,
-                vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
-                adapter_guid=adapter_guid,
+        interface = AllInterfaces.add_interface(
+            Interface(
+                identity=InterfaceIdentity(
+                    index=adapter.identity.interface_index,
+                    name=adapter.identity.friendly_name,
+                    description=adapter.identity.description,
+                    mac_address=adapter.identity.mac_address,
+                    device_name=None,
+                    vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
+                    adapter_guid=adapter_guid,
+                ),
+                traffic=InterfaceTraffic(
+                    packets_sent=adapter.traffic.packets_sent,
+                    packets_recv=adapter.traffic.packets_recv,
+                    transmit_link_speed=adapter.traffic.transmit_link_speed,
+                    receive_link_speed=adapter.traffic.receive_link_speed,
+                ),
+                ip_enabled=adapter.status.ip_enabled,
+                state=adapter.status.operational_status,
+                media_connect_state=adapter.status.media_connect_state,
+                interface_type=interface_type,
+                ip_addresses=adapter.ipv4_addresses,
+                gateway_addresses=adapter.gateway_addresses,
             ),
-            traffic=InterfaceTraffic(
-                packets_sent=adapter.traffic.packets_sent,
-                packets_recv=adapter.traffic.packets_recv,
-                transmit_link_speed=adapter.traffic.transmit_link_speed,
-                receive_link_speed=adapter.traffic.receive_link_speed,
-            ),
-            ip_enabled=adapter.status.ip_enabled,
-            state=adapter.status.operational_status,
-            media_connect_state=adapter.status.media_connect_state,
-            interface_type=interface_type,
-            ip_addresses=adapter.ipv4_addresses,
-            gateway_addresses=adapter.gateway_addresses,
-        ))
+        )
 
         for neighbor_ip, neighbor_mac in adapter.neighbors:
             if (
-                not neighbor_ip or not neighbor_mac
+                not neighbor_ip
+                or not neighbor_mac
                 or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
                 or not is_valid_private_ipv4(neighbor_ip)
             ):
                 continue
 
             vendor_name = MacLookup.get_vendor_name(neighbor_mac)
-            interface.add_neighbour_entry(NeighbourEntry(
-                ip_address=neighbor_ip,
-                mac_address=neighbor_mac,
-                vendor_name=vendor_name,
-            ))
+            interface.add_neighbour_entry(
+                NeighbourEntry(
+                    ip_address=neighbor_ip,
+                    mac_address=neighbor_mac,
+                    vendor_name=vendor_name,
+                ),
+            )
 
 
 def get_filtered_scapy_interfaces() -> list[tuple[str, str]]:

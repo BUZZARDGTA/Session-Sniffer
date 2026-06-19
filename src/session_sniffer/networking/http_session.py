@@ -1,4 +1,5 @@
 """HTTP session for use throughout the project."""
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry

@@ -226,7 +226,9 @@ class _HighRateTableModel(QAbstractTableModel):
         if old_len == new_len:
             # Only emit dataChanged when visible content actually differs
             if new_len and any(
-                a.ip != b.ip or a.pps != b.pps or a.bps != b.bps
+                a.ip != b.ip
+                or a.pps != b.pps
+                or a.bps != b.bps
                 or a.current_pps_duration != b.current_pps_duration
                 or a.total_pps_duration != b.total_pps_duration
                 or a.usernames != b.usernames
@@ -363,8 +365,7 @@ class HighRateMonitorWidget(QWidget):
 
         reset_button = QPushButton('Reset Scan')
         reset_button.setToolTip(
-            'Clears all tracked data, rate history, and flagged players.\n'
-            'The scan restarts from scratch immediately.',
+            'Clears all tracked data, rate history, and flagged players.\nThe scan restarts from scratch immediately.',
         )
         reset_button.setFixedWidth(_BUTTON_WIDTH)
         reset_button.clicked.connect(self._reset_scan)
@@ -393,10 +394,7 @@ class HighRateMonitorWidget(QWidget):
     # Scanning ---------------------------------------------------------------
 
     def _scan_players(self) -> None:
-        players = [
-            p for p in PlayersRegistry.get_connected_players()
-            if p.ip not in self._blacklisted_ips
-        ]
+        players = [p for p in PlayersRegistry.get_connected_players() if p.ip not in self._blacklisted_ips]
         self._model.update_data(players)
 
         for ip, graph in list(self._graph_windows.items()):

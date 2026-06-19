@@ -17,14 +17,10 @@ PROGRESS_BAR_CHUNK_RED_STYLESHEET = 'QProgressBar::chunk { background-color: #e7
 
 PLAYER_INFO_FORM_LABEL_STYLESHEET = 'color: #cbd5e0; font-weight: 600; background: transparent;'
 
-PLAYER_INFO_VALUE_LABEL_STYLESHEET = (
-    'color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);'
-)
+PLAYER_INFO_VALUE_LABEL_STYLESHEET = 'color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);'
 
 DETECTION_WARN_LABEL_STYLESHEET = (
-    'color: #f6e05e; font-weight: bold; padding: 4px 8px;'
-    'background: rgba(214, 158, 46, 20); border: 1px solid rgba(214, 158, 46, 80);'
-    'border-radius: 4px;'
+    'color: #f6e05e; font-weight: bold; padding: 4px 8px;background: rgba(214, 158, 46, 20); border: 1px solid rgba(214, 158, 46, 80);border-radius: 4px;'
 )
 
 

@@ -1,8 +1,7 @@
-﻿"""Utility functions for GUI-related operations.
+"""Utility functions for GUI-related operations.
 
 This module provides helper functions to interact with GUI elements.
 """
-
 
 from typing import TYPE_CHECKING, override
 
@@ -66,9 +65,7 @@ SUSPEND_TOOLTIP_AUTO = (
     '• Freeze time: Moderate - depends on how long the player stays.'
 )
 SUSPEND_TOOLTIP_MANUAL = (
-    'Suspend for a fixed number of seconds without smart resume behavior.\n'
-    '• Robustness: High - no idle detection.\n'
-    '• Freeze time: Fixed - exactly the duration you set.'
+    'Suspend for a fixed number of seconds without smart resume behavior.\n• Robustness: High - no idle detection.\n• Freeze time: Fixed - exactly the duration you set.'
 )
 
 
@@ -151,6 +148,7 @@ def compute_ui_scale(screen_size: tuple[int, int]) -> float:
 # ---------------------------------------------------------------------------
 # Shared GUI helpers
 # ---------------------------------------------------------------------------
+
 
 class NumericTableWidgetItem(QTableWidgetItem):
     """QTableWidgetItem that sorts numerically."""
@@ -236,12 +234,7 @@ def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> No
     Use *keep_on_top* for transient notification dialogs that must stay above other windows.
     """
     dialog.setWindowModality(Qt.WindowModality.NonModal)
-    window_flags = (
-        Qt.WindowType.Window
-        | Qt.WindowType.WindowCloseButtonHint
-        | Qt.WindowType.WindowMinimizeButtonHint
-        | Qt.WindowType.WindowMaximizeButtonHint
-    )
+    window_flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
     if keep_on_top:
         window_flags |= Qt.WindowType.WindowStaysOnTopHint
     dialog.setWindowFlags(window_flags)

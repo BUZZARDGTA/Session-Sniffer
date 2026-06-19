@@ -17,10 +17,12 @@ from session_sniffer.logging_setup import get_logger
 
 logger = get_logger(__name__)
 
-_GTA5_PROCESS_NAMES: frozenset[str] = frozenset({
-    'gta5.exe',
-    'gta5_enhanced.exe',
-})
+_GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
+    {
+        'gta5.exe',
+        'gta5_enhanced.exe',
+    },
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,11 +91,7 @@ def find_running_gta5_path(
         back as `cached_proc` on the next call, or is `None` when nothing was found.
     """
     # Fast path: re-query only the previously validated PID.
-    if (
-        cached_proc is not None
-        and cached_status is not None
-        and cached_status.path is not None
-    ):
+    if cached_proc is not None and cached_status is not None and cached_status.path is not None:
         with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             if cached_proc.is_running():
                 return (
@@ -109,15 +107,12 @@ def find_running_gta5_path(
     for process in psutil.process_iter(['name']):
         process_name: str | None = process.info.get('name')
 
-        if (
-            not process_name
-            or process_name.lower() not in _GTA5_PROCESS_NAMES
-        ):
+        if not process_name or process_name.lower() not in _GTA5_PROCESS_NAMES:
             continue
 
         try:
             process_path = Path(process.exe())
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.NoSuchProcess, psutil.AccessDenied:
             continue
 
         if not has_valid_authenticode_signature(process_path):

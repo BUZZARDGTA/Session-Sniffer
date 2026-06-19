@@ -83,10 +83,7 @@ class SplashScreen(QWidget):
     @staticmethod
     def _build_line_html(icon: str, icon_color: str, text: str) -> str:
         """Build an HTML line with a colored icon prefix."""
-        return (
-            f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>'
-            f'&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
-        )
+        return f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
 
     def _replace_last_line(self, html: str) -> None:
         """Replace the last line in the log area with new HTML content."""
@@ -143,10 +140,7 @@ class SplashScreen(QWidget):
         self._subtitle.setText('Ready!')
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_READY_STYLESHEET)
 
-        ready_html = (
-            f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">'
-            f'&#x2714;&nbsp;&nbsp;All systems go &mdash; launching!</span>'
-        )
+        ready_html = f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">&#x2714;&nbsp;&nbsp;All systems go &mdash; launching!</span>'
         self._log_area.append(ready_html)
 
         scrollbar = self._log_area.verticalScrollBar()

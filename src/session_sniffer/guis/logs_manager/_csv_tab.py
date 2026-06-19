@@ -1,4 +1,5 @@
 """CSV log tab — reusable for UserIP_Logging.csv and Detection_Logging.csv."""
+
 import csv
 import shutil
 from dataclasses import dataclass, field
@@ -237,7 +238,8 @@ class CsvLogTab(QWidget):
 
             if skipped:
                 QMessageBox.warning(
-                    self, TITLE,
+                    self,
+                    TITLE,
                     f'Skipped {skipped} malformed row(s) while loading {self._file_path.name}.',
                 )
 
@@ -356,8 +358,8 @@ class CsvLogTab(QWidget):
             return
         lines: list[str] = []
         col_count = self._model.columnCount()
-        for idx in sorted(indexes, key=lambda i: i.row()):
-            source_row = self._proxy.mapToSource(idx).row()
+        for i in sorted(indexes, key=lambda i: i.row()):
+            source_row = self._proxy.mapToSource(i).row()
             cells: list[str] = []
             for c in range(col_count):
                 item = self._model.item(source_row, c)
@@ -371,7 +373,10 @@ class CsvLogTab(QWidget):
 
     def _export_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, 'Export Log As', str(self._file_path.with_suffix('.export.csv')), 'CSV Files (*.csv);;All Files (*)',
+            self,
+            'Export Log As',
+            str(self._file_path.with_suffix('.export.csv')),
+            'CSV Files (*.csv);;All Files (*)',
         )
         if not path:
             return
@@ -388,13 +393,15 @@ class CsvLogTab(QWidget):
             return
         count = len(indexes)
         reply = QMessageBox.question(
-            self, TITLE, f'Delete {count} selected row(s) from {self._file_path.name}?\n\nThis cannot be undone.',
+            self,
+            TITLE,
+            f'Delete {count} selected row(s) from {self._file_path.name}?\n\nThis cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        source_rows = sorted((self._proxy.mapToSource(idx).row() for idx in indexes), reverse=True)
+        source_rows = sorted((self._proxy.mapToSource(i).row() for i in indexes), reverse=True)
         for row in source_rows:
             self._model.removeRow(row)
 
@@ -414,10 +421,10 @@ class CsvLogTab(QWidget):
         with self._file_path.open('w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(headers)
-            for row_idx in range(self._model.rowCount()):
+            for row_index in range(self._model.rowCount()):
                 cells: list[str] = []
                 for c in range(self._model.columnCount()):
-                    item = self._model.item(row_idx, c)
+                    item = self._model.item(row_index, c)
                     cells.append(item.text() if item else '')
                 writer.writerow(cells)
 

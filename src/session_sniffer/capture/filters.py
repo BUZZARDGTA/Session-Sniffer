@@ -128,8 +128,7 @@ def build_capture_filters(
     capture_filter: list[str] = ['ip', 'udp']
 
     capture_filter.append(
-        f'((src host {capture_ip_address} and (not (dst net {_RESERVED_NETWORKS_FILTER}))) or '
-        f'(dst host {capture_ip_address} and (not (src net {_RESERVED_NETWORKS_FILTER}))))',
+        f'((src host {capture_ip_address} and (not (dst net {_RESERVED_NETWORKS_FILTER}))) or (dst host {capture_ip_address} and (not (src net {_RESERVED_NETWORKS_FILTER}))))',
     )
 
     if broadcast_support and multicast_support:
@@ -152,7 +151,7 @@ def build_capture_filters(
     if Settings.capture_block_third_party_servers:
         blocked_ip_ranges = ThirdPartyServers.get_ip_ranges_for(Settings.capture_block_third_party_servers)
         if blocked_ip_ranges:
-            capture_filter.append(f"not (net {' or '.join(blocked_ip_ranges)})")
+            capture_filter.append(f'not (net {" or ".join(blocked_ip_ranges)})')
 
     if Settings.capture_filter_block_ssdp:
         capture_filter.append(f'not port {SSDPP_PORT}')
@@ -174,7 +173,7 @@ def build_capture_filters(
                 blocked_bpf.append(f'host {raw}')
             # Start-end ranges and wildcards are handled at the software level only
         if blocked_bpf:
-            capture_filter.append(f"not ({' or '.join(blocked_bpf)})")
+            capture_filter.append(f'not ({" or ".join(blocked_bpf)})')
 
     if Settings.capture_prepend_custom_capture_filter:
         capture_filter.insert(0, f'({Settings.capture_prepend_custom_capture_filter})')

@@ -1,7 +1,9 @@
 [flake8]
 max-line-length = 176
 extend-ignore =
-    F821
+    F821,
+    E203,
+    W503
 extend-exclude =
     .history,
     .venv

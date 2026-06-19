@@ -155,11 +155,13 @@ class StatsMixin(QMainWindow):
 
     def _tick_stats(self) -> None:
         """Tick all open statistics windows with the latest data."""
-        CaptureStats.capture_health_samples.append((
-            CaptureStats.global_avg_latency_ms,
-            CaptureStats.global_pps_rate,
-            CaptureStats.global_bps_rate,
-        ))
+        CaptureStats.capture_health_samples.append(
+            (
+                CaptureStats.global_avg_latency_ms,
+                CaptureStats.global_pps_rate,
+                CaptureStats.global_bps_rate,
+            ),
+        )
         if self._session_rate_graph_window is not None:
             self._session_rate_graph_window.update_rates(
                 pps=CaptureStats.global_pps_rate,
@@ -324,9 +326,7 @@ class StatsMixin(QMainWindow):
         if removed_player is None:
             return
 
-        SessionHost.players_pending_for_disconnection = [
-            p for p in SessionHost.players_pending_for_disconnection if p.ip != ip
-        ]
+        SessionHost.players_pending_for_disconnection = [p for p in SessionHost.players_pending_for_disconnection if p.ip != ip]
 
         self._connected.table_model.remove_player_by_ip(ip)
 

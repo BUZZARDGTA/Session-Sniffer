@@ -130,30 +130,32 @@ class SettingsIniModel(BaseModel):
 
     # --- Internal context helpers ---
 
-    _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset({
-        'CAPTURE_ARP_SPOOFING',
-        *CAPTURE_FILTER_BLOCK_SETTINGS,
-        'DISCORD_PRESENCE',
-        'DISCORD_WEBHOOK_ENABLED',
-        'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
-        'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
-        'WEBSERVER_ENABLED',
-        'GUI_COLUMNS_DATETIME_SHOW_DATE',
-        'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
-        'GUI_COLUMNS_DATETIME_SHOW_TIME',
-        'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
-        'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
-        'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
-        'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
-        'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
-        'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
-        'GUI_RESET_PORTS_ON_REJOINS',
-        'GUI_SESSION_HOST_DETECTION',
-        'GUI_SESSIONS_LOGGING',
-        'LOOKY_AUTO_RESOLVE',
-        'LOOKY_ENABLED',
-        'SHOW_DISCORD_POPUP',
-    })
+    _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            'CAPTURE_ARP_SPOOFING',
+            *CAPTURE_FILTER_BLOCK_SETTINGS,
+            'DISCORD_PRESENCE',
+            'DISCORD_WEBHOOK_ENABLED',
+            'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
+            'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
+            'WEBSERVER_ENABLED',
+            'GUI_COLUMNS_DATETIME_SHOW_DATE',
+            'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',
+            'GUI_COLUMNS_DATETIME_SHOW_TIME',
+            'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
+            'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
+            'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
+            'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
+            'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
+            'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
+            'GUI_RESET_PORTS_ON_REJOINS',
+            'GUI_SESSION_HOST_DETECTION',
+            'GUI_SESSIONS_LOGGING',
+            'LOOKY_AUTO_RESOLVE',
+            'LOOKY_ENABLED',
+            'SHOW_DISCORD_POPUP',
+        },
+    )
 
     @staticmethod
     def _get_context(info: ValidationInfo) -> _ValidatorContext | None:
@@ -299,7 +301,7 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 parsed: object = ast.literal_eval(value)
-            except (ValueError, SyntaxError, RecursionError, MemoryError):
+            except ValueError, SyntaxError, RecursionError, MemoryError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
             if not isinstance(parsed, tuple):
@@ -683,7 +685,8 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(
-                    value, ('Timezone', 'Timezone + Local Time', 'Local Time'),
+                    value,
+                    ('Timezone', 'Timezone + Local Time', 'Local Time'),
                 )
             except NoMatchFoundError:
                 cls._set_flag(info, 'should_rewrite', value=True)
@@ -735,20 +738,18 @@ class SettingsIniModel(BaseModel):
     @model_validator(mode='after')
     def _check_datetime_columns(self, info: ValidationInfo) -> Self:
         """Ensure at least one datetime column is enabled; reset all to defaults if not."""
-        if (
-            self.GUI_COLUMNS_DATETIME_SHOW_DATE is False
-            and self.GUI_COLUMNS_DATETIME_SHOW_TIME is False
-            and self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False
-        ):
+        if self.GUI_COLUMNS_DATETIME_SHOW_DATE is False and self.GUI_COLUMNS_DATETIME_SHOW_TIME is False and self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False:
             self._set_flag(info, 'invalid_datetime_columns_corrected', value=True)
             self._set_flag(info, 'should_rewrite', value=True)
             context = self._get_context(info)
             if context is not None:
-                return self.model_copy(update={
-                    'GUI_COLUMNS_DATETIME_SHOW_DATE': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False),
-                    'GUI_COLUMNS_DATETIME_SHOW_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False),
-                    'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True),
-                })
+                return self.model_copy(
+                    update={
+                        'GUI_COLUMNS_DATETIME_SHOW_DATE': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_DATE', False),
+                        'GUI_COLUMNS_DATETIME_SHOW_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_TIME', False),
+                        'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME': context.defaults.get('GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME', True),
+                    },
+                )
         return self
 
     # --- Public API ---
@@ -820,7 +821,7 @@ def _normalize_tuple_column(
     """
     try:
         parsed: object = ast.literal_eval(setting_value)
-    except (ValueError, SyntaxError, RecursionError, MemoryError):
+    except ValueError, SyntaxError, RecursionError, MemoryError:
         return None, False, True
 
     if not isinstance(parsed, tuple):

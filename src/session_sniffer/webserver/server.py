@@ -110,7 +110,7 @@ class WebServer:
 
         try:
             decoded = base64.b64decode(auth_value, validate=True).decode('utf-8')
-        except (binascii.Error, UnicodeDecodeError):
+        except binascii.Error, UnicodeDecodeError:
             logger.debug('Authorization rejected for %s: malformed Basic token.', request.path)
             return False
 
@@ -119,10 +119,7 @@ class WebServer:
             logger.debug('Authorization rejected for %s: missing username/password separator.', request.path)
             return False
 
-        authorized = (
-            hmac.compare_digest(username, self.auth_username or '')
-            and hmac.compare_digest(password, self.auth_password or '')
-        )
+        authorized = hmac.compare_digest(username, self.auth_username or '') and hmac.compare_digest(password, self.auth_password or '')
         if not authorized:
             logger.debug('Authorization rejected for %s: credential mismatch.', request.path)
         return authorized
@@ -339,7 +336,8 @@ class WebServer:
                 logger.error(
                     'Web server failed to start: port %d on %s is already in use by another process. '
                     'Change the Web Server port in Settings or stop the conflicting application.',
-                    config.port, config.host,
+                    config.port,
+                    config.host,
                 )
             else:
                 logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, exc)

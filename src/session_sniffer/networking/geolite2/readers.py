@@ -6,12 +6,7 @@ import geoip2.errors
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
 
 
-def initialize_geolite2_readers() -> (
-    tuple[geoip2.errors.GeoIP2Error | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None,
-          geoip2.database.Reader | None]
-):
+def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     """Open the GeoLite2 databases and sanity-check them with a known IP."""
     try:
         geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb')

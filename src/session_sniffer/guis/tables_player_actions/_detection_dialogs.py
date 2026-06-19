@@ -132,9 +132,9 @@ class PlayerDetectionInfo:
 
 
 _DETECTION_EMOJI_HEADER_COLORS: dict[str, tuple[str, str]] = {
-    '\U0001f7e2': ('#276749', '#38a169'),   # 🟢 joined  → green
-    '\U0001f504': ('#2b6cb0', '#4c51bf'),   # 🔄 rejoined → blue
-    '\U0001f534': ('#9b2c2c', '#c53030'),   # 🔴 left     → red
+    '\U0001f7e2': ('#276749', '#38a169'),  # 🟢 joined  → green
+    '\U0001f504': ('#2b6cb0', '#4c51bf'),  # 🔄 rejoined → blue
+    '\U0001f534': ('#9b2c2c', '#c53030'),  # 🔴 left     → red
 }
 _DETECTION_DEFAULT_HEADER_COLORS = ('#2d3748', '#4a5568')
 

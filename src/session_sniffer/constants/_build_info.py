@@ -4,6 +4,7 @@ In development the values are resolved live from git/environment.
 The CI workflow overwrites this file with literal strings before bundling,
 so the frozen exe always carries the correct release info.
 """
+
 import os
 import platform
 

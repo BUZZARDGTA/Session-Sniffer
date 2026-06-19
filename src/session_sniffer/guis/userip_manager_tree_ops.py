@@ -1,4 +1,4 @@
-﻿"""Tree-panel operations mixin for the UserIP Databases Manager dialog."""
+"""Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
 import contextlib
 import os
@@ -64,6 +64,7 @@ class TreeOperationsMixin(QDialog):
     def _load_database(self, path: Path) -> None: ...
     def _update_file_info(self, path: Path | None) -> None: ...
     def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None: ...
+
     # pylint: enable=unused-argument
 
     def populate_settings_widgets(self, settings_dict: dict[str, str]) -> None:
@@ -328,16 +329,14 @@ class TreeOperationsMixin(QDialog):
         """Delete a file or folder with user confirmation."""
         if path.is_dir():
             children = list(path.iterdir())
-            msg = (
-                f'Folder "{path.name}" is not empty ({len(children)} items).\n\nDelete it and all its contents?'
-                if children
-                else f'Delete empty folder "{path.name}"?'
-            )
+            msg = f'Folder "{path.name}" is not empty ({len(children)} items).\n\nDelete it and all its contents?' if children else f'Delete empty folder "{path.name}"?'
         else:
             msg = f'Delete database "{path.name}"?'
 
         result = QMessageBox.warning(
-            self, TITLE, msg,
+            self,
+            TITLE,
+            msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -364,7 +363,8 @@ class TreeOperationsMixin(QDialog):
     def _reset_default_database(self, path: Path) -> None:
         """Reset a single default database file to its factory content after user confirmation."""
         result = QMessageBox.warning(
-            self, TITLE,
+            self,
+            TITLE,
             f'Reset "{path.name}" to factory content?\n\nAll entries and settings in this file will be lost.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -614,8 +614,7 @@ class TreeOperationsMixin(QDialog):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
             msg_box.setText(
-                f'The settings in "{src_name}" differ from "{dest_path.name}".\n\n'
-                'Which settings would you like to keep?',
+                f'The settings in "{src_name}" differ from "{dest_path.name}".\n\nWhich settings would you like to keep?',
             )
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
@@ -762,8 +761,7 @@ class TreeOperationsMixin(QDialog):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
             msg_box.setText(
-                f'The settings in "{src_path.name}" differ from the current database\'s settings.\n\n'
-                'Which settings would you like to keep?',
+                f'The settings in "{src_path.name}" differ from the current database\'s settings.\n\nWhich settings would you like to keep?',
             )
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
@@ -790,8 +788,7 @@ class TreeOperationsMixin(QDialog):
             self._highlight_duplicates()
 
         self._set_status(
-            f'Merged {added} entr{"y" if added == 1 else "ies"} from "{src_path.name}" into "{self._current_path.name}".'
-            + (' Remember to save.' if added else ''),
+            f'Merged {added} entr{"y" if added == 1 else "ies"} from "{src_path.name}" into "{self._current_path.name}".' + (' Remember to save.' if added else ''),
         )
 
     def _import_from_zip(self) -> None:

@@ -2,6 +2,7 @@
 
 It continuously sends ping requests and displays results using Rich formatting.
 """  # noqa: INP001
+
 import argparse
 import ctypes
 import enum
@@ -291,17 +292,21 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             rtt_min_color = get_rtt_gradient_color(round(rtt_min))
             rtt_avg_color = get_rtt_gradient_color(round(rtt_avg))
             rtt_max_color = get_rtt_gradient_color(round(rtt_max))
-            rows.extend([
-                f'[{rtt_min_color}]{round(rtt_min, 1)}[/{rtt_min_color}] ms',
-                f'[{rtt_avg_color}]{round(rtt_avg, 1)}[/{rtt_avg_color}] ms',
-                f'[{rtt_max_color}]{round(rtt_max, 1)}[/{rtt_max_color}] ms',
-            ])
+            rows.extend(
+                [
+                    f'[{rtt_min_color}]{round(rtt_min, 1)}[/{rtt_min_color}] ms',
+                    f'[{rtt_avg_color}]{round(rtt_avg, 1)}[/{rtt_avg_color}] ms',
+                    f'[{rtt_max_color}]{round(rtt_max, 1)}[/{rtt_max_color}] ms',
+                ],
+            )
         else:
-            rows.extend([
-                f'[{Colors.RED}]{message}[/{Colors.RED}]',
-                f'[{Colors.RED}]{message}[/{Colors.RED}]',
-                f'[{Colors.RED}]{message}[/{Colors.RED}]',
-            ])
+            rows.extend(
+                [
+                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
+                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
+                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
+                ],
+            )
 
         return rows
 
@@ -333,19 +338,16 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         global_rtt_values: list[float | int] = []
 
         table = Table(
-            title=(
-                f'[{Colors.CYAN}]Ping Results from[/{Colors.CYAN}] '
-                f'[{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]'
-            ),
+            title=(f'[{Colors.CYAN}]Ping Results from[/{Colors.CYAN}] [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]'),
             show_header=True,
             header_style=f'bold {Colors.CYAN_LIGHT}',
         )
-        table.add_column('Country',      header_style=f'{Colors.CYAN_LIGHT}')
-        table.add_column('City',         header_style=f'{Colors.CYAN_LIGHT}')
-        table.add_column('Success',      header_style=f'bold {Colors.CYAN_LIGHT}', justify='center')
-        table.add_column('Min RTT (ms)', header_style=f'{Colors.GREEN}',  justify='right')
+        table.add_column('Country', header_style=f'{Colors.CYAN_LIGHT}')
+        table.add_column('City', header_style=f'{Colors.CYAN_LIGHT}')
+        table.add_column('Success', header_style=f'bold {Colors.CYAN_LIGHT}', justify='center')
+        table.add_column('Min RTT (ms)', header_style=f'{Colors.GREEN}', justify='right')
         table.add_column('Avg RTT (ms)', header_style=f'{Colors.YELLOW}', justify='right')
-        table.add_column('Max RTT (ms)', header_style=f'{Colors.RED}',    justify='right')
+        table.add_column('Max RTT (ms)', header_style=f'{Colors.RED}', justify='right')
 
         for node, pings in results.items():
             rows = build_result_row(node, pings, nodes, global_rtt_values.append)
@@ -404,10 +406,12 @@ def main() -> None:
 
     try:
         with requests.Session() as session:
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:135.0) Gecko/20100101 Firefox/135.0',
-                'Accept': 'application/json',
-            })
+            session.headers.update(
+                {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:135.0) Gecko/20100101 Firefox/135.0',
+                    'Accept': 'application/json',
+                },
+            )
             # session.verify = False
             ping_loop(target_ip, session)
     except KeyboardInterrupt:

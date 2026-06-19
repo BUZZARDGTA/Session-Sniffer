@@ -35,7 +35,7 @@ class MalformedPacketError(CaptureError):
         """Return a user-friendly reason for the malformed packet."""
         try:
             return self.message_template.format(value=self.value)
-        except (IndexError, KeyError, ValueError):
+        except IndexError, KeyError, ValueError:
             return self.message_template
 
 

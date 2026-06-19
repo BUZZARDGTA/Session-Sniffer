@@ -1,4 +1,4 @@
-﻿"""Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
+"""Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
 
 import ipaddress
 import re
@@ -81,8 +81,13 @@ def handle_ini_section_header(
 
 
 SETTINGS_KEYS_ORDER: list[str] = [
-    'ENABLED', 'COLOR', 'LOG', 'NOTIFICATIONS', 'VOICE_NOTIFICATIONS',
-    'PROTECTION', 'PROTECTION_SUSPEND_PROCESS_MODE',
+    'ENABLED',
+    'COLOR',
+    'LOG',
+    'NOTIFICATIONS',
+    'VOICE_NOTIFICATIONS',
+    'PROTECTION',
+    'PROTECTION_SUSPEND_PROCESS_MODE',
 ]
 
 SETTINGS_DEFAULTS: dict[str, str] = {
@@ -475,8 +480,8 @@ class RemoveUsernameDialog(QDialog):
         if not indexes:
             return None
         result: list[str] = []
-        for idx in indexes:
-            data = self._proxy.data(idx, Qt.ItemDataRole.DisplayRole)
+        for i in indexes:
+            data = self._proxy.data(i, Qt.ItemDataRole.DisplayRole)
             if data:
                 result.append(str(data))
         return result or None
@@ -654,14 +659,14 @@ class IPRangeBuilderDialog(QDialog):
                 base_ip = parts[0]
                 try:
                     prefix = int(parts[1])
-                    slider_idx = next(
+                    slider_index = next(
                         (i for i, (p, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p == prefix),
                         _SUBNET_DEFAULT_SLIDER_INDEX,
                     )
                 except ValueError:
-                    slider_idx = _SUBNET_DEFAULT_SLIDER_INDEX
+                    slider_index = _SUBNET_DEFAULT_SLIDER_INDEX
                 self._subnet_ip_input.setText(base_ip)
-                self._subnet_slider.setValue(slider_idx)
+                self._subnet_slider.setValue(slider_index)
                 self._radio_subnet.setChecked(True)
             elif '-' in initial_entry:
                 from_ip, _, to_ip = initial_entry.partition('-')
@@ -703,9 +708,9 @@ class IPRangeBuilderDialog(QDialog):
 
     def _on_slider_changed(self, *_args: object) -> None:
         """Update the subnet description label when the slider moves."""
-        idx = self._subnet_slider.value()
-        if _SUBNET_PREFIX_MIN_INDEX <= idx <= _SUBNET_PREFIX_MAX_INDEX:
-            _, desc = _SUBNET_SLIDER_OPTIONS[idx]
+        index = self._subnet_slider.value()
+        if _SUBNET_PREFIX_MIN_INDEX <= index <= _SUBNET_PREFIX_MAX_INDEX:
+            _, desc = _SUBNET_SLIDER_OPTIONS[index]
             self._subnet_desc_label.setText(desc)
         self._update_preview()
 
@@ -748,21 +753,20 @@ class IPRangeBuilderDialog(QDialog):
             return
         count = int(end) - int(start) + 1
         self._set_preview(
-            f'Range: {start} - {end}\n'
-            f'Covers {count:,} address{"es" if count != 1 else ""}',
+            f'Range: {start} - {end}\nCovers {count:,} address{"es" if count != 1 else ""}',
             valid=True,
         )
 
     def _update_subnet_preview(self) -> None:
         text = self._subnet_ip_input.text().strip()
-        slider_idx = self._subnet_slider.value()
+        slider_index = self._subnet_slider.value()
         if not text:
             self._set_preview('', valid=None)
             return
-        if not _SUBNET_PREFIX_MIN_INDEX <= slider_idx <= _SUBNET_PREFIX_MAX_INDEX:
+        if not _SUBNET_PREFIX_MIN_INDEX <= slider_index <= _SUBNET_PREFIX_MAX_INDEX:
             self._set_preview('', valid=None)
             return
-        prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_idx]
+        prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_index]
         try:
             network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
         except ValueError:
@@ -771,9 +775,7 @@ class IPRangeBuilderDialog(QDialog):
         host_count = network.num_addresses
         usable = max(0, host_count - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else host_count
         self._set_preview(
-            f'Network: {network.network_address}/{prefix}\n'
-            f'Range: {network.network_address} - {network.broadcast_address}\n'
-            f'Addresses: {host_count:,} total, {usable:,} usable',
+            f'Network: {network.network_address}/{prefix}\nRange: {network.network_address} - {network.broadcast_address}\nAddresses: {host_count:,} total, {usable:,} usable',
             valid=True,
         )
 
@@ -803,8 +805,8 @@ class IPRangeBuilderDialog(QDialog):
 
         if mode == _MODE_SUBNET:
             text = self._subnet_ip_input.text().strip()
-            slider_idx = self._subnet_slider.value()
-            prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_idx]
+            slider_index = self._subnet_slider.value()
+            prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_index]
             try:
                 network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
             except ValueError:

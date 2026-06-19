@@ -654,7 +654,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if not selected_proxy_rows:
             selected_proxy_rows = [proxy_index]
 
-        source_rows = sorted({self._proxy.mapToSource(idx).row() for idx in selected_proxy_rows})
+        source_rows = sorted({self._proxy.mapToSource(i).row() for i in selected_proxy_rows})
 
         if direction < 0:
             if source_rows[0] <= 0:
@@ -678,10 +678,10 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if selection_model is not None:
             selection_model.clearSelection()
             for src_row in new_source_rows:
-                proxy_idx = self._proxy.mapFromSource(self._model.index(src_row, 0))
-                if proxy_idx.isValid():
+                proxy_index = self._proxy.mapFromSource(self._model.index(src_row, 0))
+                if proxy_index.isValid():
                     selection_model.select(
-                        proxy_idx,
+                        proxy_index,
                         QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
                     )
             # Scroll to the first moved row
@@ -711,7 +711,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         count = len(selected_indexes)
         source_rows = sorted(
-            {self._proxy.mapToSource(idx).row() for idx in selected_indexes},
+            {self._proxy.mapToSource(i).row() for i in selected_indexes},
             reverse=True,
         )
 
@@ -720,8 +720,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'Are you sure you want to delete {count} selected {"entry" if count == 1 else "entries"}?\n\n'
-            f'{consequence}',
+            f'Are you sure you want to delete {count} selected {"entry" if count == 1 else "entries"}?\n\n{consequence}',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -818,8 +817,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             QMessageBox.information(
                 self,
                 TITLE,
-                f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} '
-                f'removed before saving.',
+                f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} removed before saving.',
             )
 
         # --- Read existing file to preserve header ---

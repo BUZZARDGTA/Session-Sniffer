@@ -314,11 +314,7 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
         return
 
     entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
-    rid = (
-        player.looky_system.rockstarids[0]
-        if len(player.looky_system.rockstarids) == 1
-        else _RIDPickerDialog.pick_rid(parent, entries)
-    )
+    rid = player.looky_system.rockstarids[0] if len(player.looky_system.rockstarids) == 1 else _RIDPickerDialog.pick_rid(parent, entries)
     if rid is None:
         return
 

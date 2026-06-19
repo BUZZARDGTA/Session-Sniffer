@@ -150,14 +150,17 @@ target-version = "py314"
 line-length = 176
 exclude = [".history", ".venv"]
 
+[tool.ruff.format]
+quote-style = "single"
+
 [tool.ruff.lint]
 ignore = [
     "C901",    # complex-structure
+    "COM812",  # missing-trailing-comma - conflict with Ruff formatter (trailing comma handled by formatter)
     "ERA001",  # commented-out-code
     "FIX002",  # line-contains-todo
     "PLR0912", # too-many-branches
     "PLR0915", # too-many-statements
-    "S602",    # subprocess-popen-with-shell-equals-true
     "S603",    # subprocess-without-shell-equals-true
     "S606",    # start-process-with-no-shell
     "TD003",   # missing-todo-link

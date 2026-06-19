@@ -1,4 +1,5 @@
 """Session status bar and collapsible session table section widgets."""
+
 from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QEvent, QObject, QRectF, QSize, Qt, pyqtSignal
@@ -179,10 +180,10 @@ class SessionTableSection(QWidget):
         self._search_combo = QComboBox()
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
-        for col_idx, col_name in enumerate(column_names):
+        for col_index, col_name in enumerate(column_names):
             if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
                 self._search_combo.addItem(col_name)
-                self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
+                self._search_combo.setItemData(self._search_combo.count() - 1, col_index)
         self._search_combo.setToolTip(
             f'Select which column to search in the {self._section_name.lower()} players table',
         )
@@ -206,11 +207,7 @@ class SessionTableSection(QWidget):
         rows_label = QLabel('Rows:')
         rows_label.setToolTip('Rows per page (0 = show all)')
 
-        initial_rpp = (
-            Settings.gui_connected_table_rows_per_page
-            if is_connected
-            else Settings.gui_disconnected_table_rows_per_page
-        )
+        initial_rpp = Settings.gui_connected_table_rows_per_page if is_connected else Settings.gui_disconnected_table_rows_per_page
 
         self._rows_per_page_spinbox = QSpinBox()
         self._rows_per_page_spinbox.setRange(0, 5000)
@@ -359,10 +356,10 @@ class SessionTableSection(QWidget):
         self._search_combo.clear()
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
-        for col_idx, col_name in enumerate(column_names):
+        for col_index, col_name in enumerate(column_names):
             if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
                 self._search_combo.addItem(col_name)
-                self._search_combo.setItemData(self._search_combo.count() - 1, col_idx)
+                self._search_combo.setItemData(self._search_combo.count() - 1, col_index)
         restored_index = self._search_combo.findText(current_text)
         self._search_combo.setCurrentIndex(max(0, restored_index))
         self._search_combo.blockSignals(False)  # noqa: FBT003
@@ -391,7 +388,7 @@ class SessionTableSection(QWidget):
         self._on_selection_changed()
 
     def _on_selection_changed(self) -> None:
-        self._selected_count = len({idx.row() for idx in self.table_view.selectionModel().selectedIndexes()})
+        self._selected_count = len({i.row() for i in self.table_view.selectionModel().selectedIndexes()})
         self._update_header_label()
 
     # -- Pagination handlers --------------------------------------------------

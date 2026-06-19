@@ -1,8 +1,9 @@
-﻿"""Network interface models and registry.
+"""Network interface models and registry.
 
 This module provides dataclasses and utilities for managing network interface information,
 including the Interface class, SelectedInterfaceRow, NeighbourEntry, and the AllInterfaces registry.
 """
+
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
@@ -33,12 +34,12 @@ class NeighbourEntry(NamedTuple):
 class InterfaceIdentity:
     """Identity fields for a network interface."""
 
-    index:        int
-    name:         str
-    description:  str
-    mac_address:  str | None
-    device_name:  str | None
-    vendor_name:  str | None
+    index: int
+    name: str
+    description: str
+    mac_address: str | None
+    device_name: str | None
+    vendor_name: str | None
     adapter_guid: str | None = None
 
 
@@ -46,10 +47,10 @@ class InterfaceIdentity:
 class InterfaceTraffic:
     """Traffic statistics for a network interface."""
 
-    packets_sent:       int
-    packets_recv:       int
+    packets_sent: int
+    packets_recv: int
     transmit_link_speed: int
-    receive_link_speed:  int
+    receive_link_speed: int
 
 
 @dataclass(kw_only=True, slots=True)
@@ -104,13 +105,7 @@ class Interface:
             return True
 
         # Check if all identifying details and traffic data are missing
-        return (
-            not self.traffic.packets_sent
-            and not self.traffic.packets_recv
-            and not self.identity.description
-            and not self.ip_addresses
-            and not self.neighbour_entries
-        )
+        return not self.traffic.packets_sent and not self.traffic.packets_recv and not self.identity.description and not self.ip_addresses and not self.neighbour_entries
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

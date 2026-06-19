@@ -119,21 +119,9 @@ def build_detections_menu_multi(
 ) -> None:
     """Build a Detections submenu for multiple selected players."""
     # Collect unique values from all players
-    countries: list[str] = sorted({
-        cn
-        for p in players
-        if (cn := _safe_str(p.iplookup.geolite2.country))
-    })
-    isps: list[str] = sorted({
-        i
-        for p in players
-        if (i := _safe_str(p.iplookup.ipapi.isp))
-    })
-    asns: list[str] = sorted({
-        a
-        for p in players
-        if (a := _safe_str(p.iplookup.ipapi.as_name) or _safe_str(p.iplookup.geolite2.asn))
-    })
+    countries: list[str] = sorted({cn for p in players if (cn := _safe_str(p.iplookup.geolite2.country))})
+    isps: list[str] = sorted({i for p in players if (i := _safe_str(p.iplookup.ipapi.isp))})
+    asns: list[str] = sorted({a for p in players if (a := _safe_str(p.iplookup.ipapi.as_name) or _safe_str(p.iplookup.geolite2.asn))})
 
     has_items = False
 
@@ -143,6 +131,7 @@ def build_detections_menu_multi(
     if new_countries or existing_countries:
         has_items = True
     if new_countries:
+
         def _add_countries(names: list[str] = new_countries) -> None:
             for c in names:
                 if c not in GUIDetectionSettings.country_detection_list:
@@ -156,6 +145,7 @@ def build_detections_menu_multi(
             handler=_add_countries,
         )
     if existing_countries:
+
         def _remove_countries(names: list[str] = existing_countries) -> None:
             for c in names:
                 with suppress(ValueError):
@@ -177,6 +167,7 @@ def build_detections_menu_multi(
             menu.addSeparator()
         has_items = True
     if new_isps:
+
         def _add_isps(isp_list: list[str] = new_isps) -> None:
             for i in isp_list:
                 if i not in GUIDetectionSettings.isp_detection_list:
@@ -190,6 +181,7 @@ def build_detections_menu_multi(
             handler=_add_isps,
         )
     if existing_isps:
+
         def _remove_isps(isp_list: list[str] = existing_isps) -> None:
             for i in isp_list:
                 with suppress(ValueError):
@@ -209,6 +201,7 @@ def build_detections_menu_multi(
     if (new_asns or existing_asns) and has_items:
         menu.addSeparator()
     if new_asns:
+
         def _add_asns(asn_list: list[str] = new_asns) -> None:
             for a in asn_list:
                 if a not in GUIDetectionSettings.asn_detection_list:
@@ -222,6 +215,7 @@ def build_detections_menu_multi(
             handler=_add_asns,
         )
     if existing_asns:
+
         def _remove_asns(asn_list: list[str] = existing_asns) -> None:
             for a in asn_list:
                 with suppress(ValueError):

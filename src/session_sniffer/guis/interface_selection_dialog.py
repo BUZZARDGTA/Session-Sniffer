@@ -5,6 +5,7 @@ network interfaces and allowing users to select one for packet capture.
 The dialog refreshes automatically so that plugged/unplugged or
 enabled/disabled adapters appear and disappear in real time.
 """
+
 from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING, override
@@ -74,8 +75,10 @@ def _calculate_interface_score(
     if saved_interface_name is not None and interface.identity.name == saved_interface_name:
         score += 4
 
-    mac_address = interface.identity.mac_address if not is_neighbour else (
-        next((neighbour.mac_address for neighbour in interface.neighbour_entries if neighbour.ip_address == ip_address), None)
+    mac_address = (
+        interface.identity.mac_address
+        if not is_neighbour
+        else (next((neighbour.mac_address for neighbour in interface.neighbour_entries if neighbour.ip_address == ip_address), None))
     )
     if saved_mac_address is not None and mac_address == saved_mac_address:
         score += 2
@@ -113,7 +116,7 @@ def _find_best_matching_interface_row(
     best_index: int | None = None
     ambiguous = False
 
-    for idx, (interface, ip_address, is_neighbour) in enumerate(interface_rows):
+    for i, (interface, ip_address, is_neighbour) in enumerate(interface_rows):
         score = _calculate_interface_score(
             (interface, ip_address, is_neighbour),
             (saved_interface_name, saved_ip_address, saved_mac_address),
@@ -123,7 +126,7 @@ def _find_best_matching_interface_row(
 
         if score > best_score:
             best_score = score
-            best_index = idx
+            best_index = i
             ambiguous = False
         elif score == best_score:
             ambiguous = True
@@ -423,11 +426,13 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setMinimumSize(_s(330), _s(56))
         _play_pad = _s(10)
         _play_w, _play_h = _s(46), _s(28)
-        select_button.setIcon(make_padded_icon(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
-            (_play_w, _play_h),
-            _play_pad,
-        ))
+        select_button.setIcon(
+            make_padded_icon(
+                QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
+                (_play_w, _play_h),
+                _play_pad,
+            ),
+        )
         select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
         select_button.clicked.connect(self.select_interface)
 
@@ -516,16 +521,10 @@ class InterfaceSelectionDialog(QDialog):
             sub_text = f'{ip_text}\u00a0\u00a0\u00a0({counters} / {total:,})'
 
         button.setText('')
-        main_style = (
-            f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
-        )
-        sub_style = (
-            f'color:#ffd166; font-family:Consolas,monospace; '
-            f'font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
-        )
+        main_style = f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
+        sub_style = f'color:#ffd166; font-family:Consolas,monospace; font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
         self._refresh_arp_overlay.setText(
-            f'<div style="{main_style}">{main_text}</div>'
-            f'<div style="{sub_style}">{sub_text}</div>',
+            f'<div style="{main_style}">{main_text}</div><div style="{sub_style}">{sub_text}</div>',
         )
         button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction, dimmed=hide_neighbours))
 
@@ -610,9 +609,9 @@ class InterfaceSelectionDialog(QDialog):
 
         # Restore selection by matching the key
         if selected_key is not None:
-            for idx, (iface, ip, is_neighbour) in enumerate(self._data.interface_rows):
+            for i, (iface, ip, is_neighbour) in enumerate(self._data.interface_rows):
                 if (iface.identity.name, ip, is_neighbour) == selected_key:
-                    self.table.selectRow(idx)
+                    self.table.selectRow(i)
                     break
 
     def apply_filters(self) -> None:
@@ -656,9 +655,9 @@ class InterfaceSelectionDialog(QDialog):
 
         # Attempt to restore previous selection if still present & logically allowed
         if previously_selected_row is not None:
-            for idx, row in enumerate(self._data.interface_rows):
+            for i, row in enumerate(self._data.interface_rows):
                 if row == previously_selected_row:
-                    self.table.selectRow(idx)
+                    self.table.selectRow(i)
                     break
 
         # Ensure select button state reflects restored selection
@@ -695,8 +694,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setRowCount(0)
 
         # Populate with filtered data
-        for idx, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
-            self.table.insertRow(idx)
+        for i, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
+            self.table.insertRow(i)
 
             # Get display values
             mac_address = interface.identity.mac_address or 'N/A'
@@ -718,52 +717,50 @@ class InterfaceSelectionDialog(QDialog):
 
             # Name column
             item = QTableWidgetItem(interface.identity.name)
-            self.table.setItem(idx, 0, item)
+            self.table.setItem(index, 0, item)
 
             # Description
             item = QTableWidgetItem(interface.identity.description)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(idx, 1, item)
+            self.table.setItem(index, 1, item)
 
             # Type
             # Neighbour rows under a Bridged/Shared interface inherit the parent's type because their
             # traffic flows through this machine; otherwise they are plain neighbors.
             type_display = (
-                interface.interface_type
-                if not is_neighbour or interface.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARED)
-                else INTERFACE_TYPE_NEIGHBOUR
+                interface.interface_type if not is_neighbour or interface.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARED) else INTERFACE_TYPE_NEIGHBOUR
             )
             item = QTableWidgetItem(type_display)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(idx, 2, item)
+            self.table.setItem(index, 2, item)
 
             # Packets Sent
             item = QTableWidgetItem(packets_sent_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(idx, 3, item)
+            self.table.setItem(index, 3, item)
 
             # Packets Received
             item = QTableWidgetItem(packets_recv_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(idx, 4, item)
+            self.table.setItem(index, 4, item)
 
             # Gateway IP
             gateway_ip = interface.gateway_addresses[0] if interface.gateway_addresses else 'N/A'
             item = QTableWidgetItem(gateway_ip)
-            self.table.setItem(idx, 5, item)
+            self.table.setItem(index, 5, item)
 
             # IP Address
             item = QTableWidgetItem(ip_address)
-            self.table.setItem(idx, 6, item)
+            self.table.setItem(index, 6, item)
 
             # MAC Address
             item = QTableWidgetItem(mac_address)
-            self.table.setItem(idx, 7, item)
+            self.table.setItem(index, 7, item)
 
             # Vendor Name
             item = QTableWidgetItem(vendor_name)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(idx, 8, item)
+            self.table.setItem(index, 8, item)
 
         # Reset selection state
         self.update_select_button_state()
@@ -821,8 +818,7 @@ class InterfaceSelectionDialog(QDialog):
             self._controls.refresh_arp_button.setEnabled(arp_enabled)
             self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
             self._controls.refresh_arp_button.setStyleSheet(
-                interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled
-                else interface_refresh_arp_button_disabled_style(self._ui_scale),
+                interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled else interface_refresh_arp_button_disabled_style(self._ui_scale),
             )
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:

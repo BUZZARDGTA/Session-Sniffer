@@ -38,59 +38,173 @@ from session_sniffer.settings import Settings
 
 _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     'Reds': [
-        'red', 'darkred', 'firebrick', 'crimson', 'indianred',
-        'lightcoral', 'salmon', 'darksalmon', 'lightsalmon', 'rosybrown',
-        'tomato', 'orangered',
+        'red',
+        'darkred',
+        'firebrick',
+        'crimson',
+        'indianred',
+        'lightcoral',
+        'salmon',
+        'darksalmon',
+        'lightsalmon',
+        'rosybrown',
+        'tomato',
+        'orangered',
     ],
     'Pinks': [
-        'pink', 'lightpink', 'hotpink', 'deeppink',
-        'palevioletred', 'mediumvioletred',
+        'pink',
+        'lightpink',
+        'hotpink',
+        'deeppink',
+        'palevioletred',
+        'mediumvioletred',
     ],
     'Oranges': [
-        'orange', 'darkorange', 'coral', 'chocolate', 'peru', 'sandybrown',
+        'orange',
+        'darkorange',
+        'coral',
+        'chocolate',
+        'peru',
+        'sandybrown',
     ],
     'Browns': [
-        'saddlebrown', 'sienna', 'brown', 'maroon', 'burlywood',
-        'bisque', 'tan', 'wheat', 'moccasin', 'navajowhite',
-        'peachpuff', 'papayawhip', 'blanchedalmond', 'antiquewhite',
+        'saddlebrown',
+        'sienna',
+        'brown',
+        'maroon',
+        'burlywood',
+        'bisque',
+        'tan',
+        'wheat',
+        'moccasin',
+        'navajowhite',
+        'peachpuff',
+        'papayawhip',
+        'blanchedalmond',
+        'antiquewhite',
     ],
     'Yellows': [
-        'yellow', 'gold', 'goldenrod', 'darkgoldenrod', 'palegoldenrod',
-        'lemonchiffon', 'lightyellow', 'lightgoldenrodyellow', 'khaki', 'darkkhaki',
+        'yellow',
+        'gold',
+        'goldenrod',
+        'darkgoldenrod',
+        'palegoldenrod',
+        'lemonchiffon',
+        'lightyellow',
+        'lightgoldenrodyellow',
+        'khaki',
+        'darkkhaki',
     ],
     'Greens': [
-        'greenyellow', 'yellowgreen', 'chartreuse', 'lawngreen',
-        'lime', 'limegreen', 'palegreen', 'lightgreen',
-        'green', 'darkgreen', 'forestgreen', 'springgreen',
-        'mediumspringgreen', 'mediumseagreen', 'seagreen', 'darkseagreen',
-        'olive', 'olivedrab', 'darkolivegreen', 'mediumaquamarine',
+        'greenyellow',
+        'yellowgreen',
+        'chartreuse',
+        'lawngreen',
+        'lime',
+        'limegreen',
+        'palegreen',
+        'lightgreen',
+        'green',
+        'darkgreen',
+        'forestgreen',
+        'springgreen',
+        'mediumspringgreen',
+        'mediumseagreen',
+        'seagreen',
+        'darkseagreen',
+        'olive',
+        'olivedrab',
+        'darkolivegreen',
+        'mediumaquamarine',
     ],
     'Cyans': [
-        'aquamarine', 'turquoise', 'mediumturquoise', 'darkturquoise',
-        'lightseagreen', 'darkcyan', 'teal',
-        'cyan', 'aqua', 'lightcyan', 'paleturquoise', 'cadetblue',
+        'aquamarine',
+        'turquoise',
+        'mediumturquoise',
+        'darkturquoise',
+        'lightseagreen',
+        'darkcyan',
+        'teal',
+        'cyan',
+        'aqua',
+        'lightcyan',
+        'paleturquoise',
+        'cadetblue',
     ],
     'Blues': [
-        'powderblue', 'lightblue', 'lightskyblue', 'skyblue', 'deepskyblue',
-        'cornflowerblue', 'steelblue', 'dodgerblue',
-        'royalblue', 'blue', 'mediumblue', 'darkblue', 'navy', 'midnightblue',
-        'lightsteelblue', 'slateblue', 'darkslateblue', 'mediumslateblue',
+        'powderblue',
+        'lightblue',
+        'lightskyblue',
+        'skyblue',
+        'deepskyblue',
+        'cornflowerblue',
+        'steelblue',
+        'dodgerblue',
+        'royalblue',
+        'blue',
+        'mediumblue',
+        'darkblue',
+        'navy',
+        'midnightblue',
+        'lightsteelblue',
+        'slateblue',
+        'darkslateblue',
+        'mediumslateblue',
     ],
     'Purples & Magentas': [
-        'blueviolet', 'indigo', 'darkviolet', 'darkorchid', 'darkmagenta',
-        'purple', 'mediumorchid', 'mediumpurple', 'orchid',
-        'violet', 'plum', 'thistle', 'lavender', 'magenta', 'fuchsia',
+        'blueviolet',
+        'indigo',
+        'darkviolet',
+        'darkorchid',
+        'darkmagenta',
+        'purple',
+        'mediumorchid',
+        'mediumpurple',
+        'orchid',
+        'violet',
+        'plum',
+        'thistle',
+        'lavender',
+        'magenta',
+        'fuchsia',
     ],
     'Whites & Light': [
-        'white', 'snow', 'honeydew', 'mintcream', 'azure', 'aliceblue',
-        'ghostwhite', 'whitesmoke', 'ivory', 'cornsilk', 'beige',
-        'floralwhite', 'oldlace', 'linen', 'seashell', 'lavenderblush', 'mistyrose',
+        'white',
+        'snow',
+        'honeydew',
+        'mintcream',
+        'azure',
+        'aliceblue',
+        'ghostwhite',
+        'whitesmoke',
+        'ivory',
+        'cornsilk',
+        'beige',
+        'floralwhite',
+        'oldlace',
+        'linen',
+        'seashell',
+        'lavenderblush',
+        'mistyrose',
     ],
     'Grays & Black': [
-        'gainsboro', 'lightgray', 'lightgrey', 'silver',
-        'darkgray', 'darkgrey', 'gray', 'grey', 'dimgray', 'dimgrey',
-        'lightslategray', 'lightslategrey', 'slategray', 'slategrey',
-        'darkslategray', 'darkslategrey', 'black',
+        'gainsboro',
+        'lightgray',
+        'lightgrey',
+        'silver',
+        'darkgray',
+        'darkgrey',
+        'gray',
+        'grey',
+        'dimgray',
+        'dimgrey',
+        'lightslategray',
+        'lightslategrey',
+        'slategray',
+        'slategrey',
+        'darkslategray',
+        'darkslategrey',
+        'black',
     ],
 }
 
@@ -139,8 +253,8 @@ class _SVGColorPickerDialog(QDialog):
             grid.setSpacing(2)
             grid.setContentsMargins(0, 0, 0, 2)
 
-            for idx, name in enumerate(color_names):
-                row, col = divmod(idx, _SWATCH_COLS)
+            for i, name in enumerate(color_names):
+                row, col = divmod(i, _SWATCH_COLS)
                 color = QColor(name)
                 lum = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
                 text_color = '#111111' if lum > _LUMINANCE_DARK_THRESHOLD else '#eeeeee'
@@ -156,6 +270,7 @@ class _SVGColorPickerDialog(QDialog):
 
                 def _on_clicked(*_: object, n: str = name) -> None:
                     self._pick(QColor(n), n)
+
                 btn.clicked.connect(_on_clicked)
                 grid.addWidget(btn, row, col)
 
@@ -417,16 +532,16 @@ class SettingsPanelMixin(QDialog):
         settings['LOG'] = str(self._setting_log.isChecked())
         settings['NOTIFICATIONS'] = str(self._setting_notifications.isChecked())
 
-        voice_idx = self._setting_voice.currentIndex()
-        settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_idx]
+        voice_index = self._setting_voice.currentIndex()
+        settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_index]
 
         if not self._is_protection_supported():
             settings['PROTECTION'] = 'False'
         else:
             settings['PROTECTION'] = 'Suspend_Process' if self._setting_suspend_mode.currentIndex() else 'False'
 
-        suspend_idx = self._setting_suspend_mode.currentIndex()
-        if suspend_idx <= 1:  # Disabled or Auto
+        suspend_index = self._setting_suspend_mode.currentIndex()
+        if suspend_index <= 1:  # Disabled or Auto
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Auto'
         else:
             settings['PROTECTION_SUSPEND_PROCESS_MODE'] = f'Manual({self._setting_suspend_custom.value()})'

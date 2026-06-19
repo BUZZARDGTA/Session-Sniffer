@@ -1,4 +1,4 @@
-﻿"""Pydantic model for UserIP INI [Settings] section validation.
+"""Pydantic model for UserIP INI [Settings] section validation.
 
 Replaces the per-field if/elif chain in parse_userip_ini_file().
 Validates raw string values from the INI parser and normalizes them
@@ -115,7 +115,8 @@ class UserIPSettingsModel(BaseModel):
             except InvalidBooleanValueError:
                 try:
                     case_match, normalized = check_case_insensitive_and_exact_match(
-                        value, ('Suspend_Process',),
+                        value,
+                        ('Suspend_Process',),
                     )
                 except NoMatchFoundError:
                     msg = f'invalid protection mode: {value!r}'

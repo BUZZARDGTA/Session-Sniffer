@@ -204,7 +204,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         """Read GUIDetectionSettings and populate all widgets."""
         # Mobile
         self._set_duration_widgets(
-            self.mobile_duration_combo, self.mobile_duration_spin,
+            self.mobile_duration_combo,
+            self.mobile_duration_spin,
             GUIDetectionSettings.mobile_suspend_duration if GUIDetectionSettings.mobile_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.mobile_voice_combo, GUIDetectionSettings.mobile_voice_notifications)
@@ -213,7 +214,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # VPN
         self._set_duration_widgets(
-            self.vpn_duration_combo, self.vpn_duration_spin,
+            self.vpn_duration_combo,
+            self.vpn_duration_spin,
             GUIDetectionSettings.vpn_suspend_duration if GUIDetectionSettings.vpn_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.vpn_voice_combo, GUIDetectionSettings.vpn_voice_notifications)
@@ -222,7 +224,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Hosting
         self._set_duration_widgets(
-            self.hosting_duration_combo, self.hosting_duration_spin,
+            self.hosting_duration_combo,
+            self.hosting_duration_spin,
             GUIDetectionSettings.hosting_suspend_duration if GUIDetectionSettings.hosting_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.hosting_voice_combo, GUIDetectionSettings.hosting_voice_notifications)
@@ -237,7 +240,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 seen_countries.add(c)
                 self._add_country_item(c)
         self._set_duration_widgets(
-            self.country_duration_combo, self.country_duration_spin,
+            self.country_duration_combo,
+            self.country_duration_spin,
             GUIDetectionSettings.country_suspend_duration if GUIDetectionSettings.country_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.country_voice_combo, GUIDetectionSettings.country_voice_notifications)
@@ -252,7 +256,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 seen_isps.add(i)
                 self.isp_list.addItem(i)
         self._set_duration_widgets(
-            self.isp_duration_combo, self.isp_duration_spin,
+            self.isp_duration_combo,
+            self.isp_duration_spin,
             GUIDetectionSettings.isp_suspend_duration if GUIDetectionSettings.isp_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.isp_voice_combo, GUIDetectionSettings.isp_voice_notifications)
@@ -267,7 +272,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 seen_asns.add(a)
                 self.asn_list.addItem(a)
         self._set_duration_widgets(
-            self.asn_duration_combo, self.asn_duration_spin,
+            self.asn_duration_combo,
+            self.asn_duration_spin,
             GUIDetectionSettings.asn_suspend_duration if GUIDetectionSettings.asn_suspend_enabled else 'Disabled',
         )
         self._set_voice_combo(self.asn_voice_combo, GUIDetectionSettings.asn_voice_notifications)
@@ -276,7 +282,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Player Join
         self._set_duration_widgets(
-            self.player_join_duration_combo, self.player_join_duration_spin,
+            self.player_join_duration_combo,
+            self.player_join_duration_spin,
             GUIDetectionSettings.player_join_duration if GUIDetectionSettings.player_join_enabled else 'Disabled',
         )
         self._set_voice_combo(self.player_join_voice_combo, GUIDetectionSettings.player_join_voice_notifications)
@@ -285,7 +292,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Player Rejoin
         self._set_duration_widgets(
-            self.player_rejoin_duration_combo, self.player_rejoin_duration_spin,
+            self.player_rejoin_duration_combo,
+            self.player_rejoin_duration_spin,
             GUIDetectionSettings.player_rejoin_duration if GUIDetectionSettings.player_rejoin_enabled else 'Disabled',
         )
         self._set_voice_combo(self.player_rejoin_voice_combo, GUIDetectionSettings.player_rejoin_voice_notifications)
@@ -294,7 +302,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Player Leave
         self._set_duration_widgets(
-            self.player_leave_duration_combo, self.player_leave_duration_spin,
+            self.player_leave_duration_combo,
+            self.player_leave_duration_spin,
             GUIDetectionSettings.player_leave_duration if GUIDetectionSettings.player_leave_enabled else 'Disabled',
         )
         self._set_voice_combo(self.player_leave_voice_combo, GUIDetectionSettings.player_leave_voice_notifications)
@@ -305,7 +314,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         if hasattr(self, 'gta5_relay_duration_combo'):
             self.gta5_relay_packet_threshold_spin.setValue(GUIDetectionSettings.gta5_relay_packet_threshold)
             self._set_duration_widgets(
-                self.gta5_relay_duration_combo, self.gta5_relay_duration_spin,
+                self.gta5_relay_duration_combo,
+                self.gta5_relay_duration_spin,
                 GUIDetectionSettings.gta5_relay_duration if GUIDetectionSettings.gta5_relay_enabled else 'Disabled',
             )
             self._set_voice_combo(self.gta5_relay_voice_combo, GUIDetectionSettings.gta5_relay_voice_notifications)
@@ -319,14 +329,27 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         """Read widgets, write GUIDetectionSettings, persist to Settings.ini, and close."""
         # Clear voice queue if any detection was newly disabled
         enabled_fields = [
-            'mobile_suspend_enabled', 'vpn_suspend_enabled', 'hosting_suspend_enabled',
-            'country_suspend_enabled', 'isp_suspend_enabled',
-            'asn_suspend_enabled', 'player_join_enabled', 'player_rejoin_enabled', 'player_leave_enabled',
+            'mobile_suspend_enabled',
+            'vpn_suspend_enabled',
+            'hosting_suspend_enabled',
+            'country_suspend_enabled',
+            'isp_suspend_enabled',
+            'asn_suspend_enabled',
+            'player_join_enabled',
+            'player_rejoin_enabled',
+            'player_leave_enabled',
             'gta5_relay_enabled',
         ]
         checkbox_prefixes = [
-            'mobile', 'vpn', 'hosting', 'country', 'isp', 'asn',
-            'player_join', 'player_rejoin', 'player_leave',
+            'mobile',
+            'vpn',
+            'hosting',
+            'country',
+            'isp',
+            'asn',
+            'player_join',
+            'player_rejoin',
+            'player_leave',
             'gta5_relay',
         ]
         for field, prefix in zip(enabled_fields, checkbox_prefixes, strict=True):
@@ -383,9 +406,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                     combo_data: object = raw_dict.get('combo_rules')
                     if isinstance(combo_data, list):
                         ComboRulesManager.rules = [
-                            ComboRule.from_dict(cast('dict[str, object]', entry))
-                            for entry in cast('list[object]', combo_data)
-                            if isinstance(entry, dict)
+                            ComboRule.from_dict(cast('dict[str, object]', entry)) for entry in cast('list[object]', combo_data) if isinstance(entry, dict)
                         ]
             except (ValueError, KeyError, OSError, json.JSONDecodeError) as e:
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
@@ -468,9 +489,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # Country
         GUIDetectionSettings.country_suspend_enabled = self.country_duration_combo.currentText() != 'Disabled'
         GUIDetectionSettings.country_detection_list = [
-            item.data(Qt.ItemDataRole.UserRole)
-            for i in range(self.country_list.count())
-            if (item := self.country_list.item(i)) is not None
+            item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i)) is not None
         ]
         if GUIDetectionSettings.country_suspend_enabled:
             GUIDetectionSettings.country_suspend_duration = self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin)
@@ -480,11 +499,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # ISP
         GUIDetectionSettings.isp_suspend_enabled = self.isp_duration_combo.currentText() != 'Disabled'
-        GUIDetectionSettings.isp_detection_list = [
-            item.text()
-            for i in range(self.isp_list.count())
-            if (item := self.isp_list.item(i)) is not None
-        ]
+        GUIDetectionSettings.isp_detection_list = [item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i)) is not None]
         if GUIDetectionSettings.isp_suspend_enabled:
             GUIDetectionSettings.isp_suspend_duration = self._read_duration_widgets(self.isp_duration_combo, self.isp_duration_spin)
         GUIDetectionSettings.isp_voice_notifications = self._read_voice_combo(self.isp_voice_combo)
@@ -493,11 +508,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # ASN
         GUIDetectionSettings.asn_suspend_enabled = self.asn_duration_combo.currentText() != 'Disabled'
-        GUIDetectionSettings.asn_detection_list = [
-            item.text()
-            for i in range(self.asn_list.count())
-            if (item := self.asn_list.item(i)) is not None
-        ]
+        GUIDetectionSettings.asn_detection_list = [item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i)) is not None]
         if GUIDetectionSettings.asn_suspend_enabled:
             GUIDetectionSettings.asn_suspend_duration = self._read_duration_widgets(self.asn_duration_combo, self.asn_duration_spin)
         GUIDetectionSettings.asn_voice_notifications = self._read_voice_combo(self.asn_voice_combo)
@@ -557,31 +568,19 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             'hosting_logging': self.hosting_logging_checkbox.isChecked(),
             'hosting_msgbox': self.hosting_msgbox_checkbox.isChecked(),
             'country_enabled': self.country_duration_combo.currentText() != 'Disabled',
-            'country_list': tuple(
-                item.data(Qt.ItemDataRole.UserRole)
-                for i in range(self.country_list.count())
-                if (item := self.country_list.item(i)) is not None
-            ),
+            'country_list': tuple(item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i)) is not None),
             'country_duration': self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin),
             'country_voice': self._read_voice_combo(self.country_voice_combo),
             'country_logging': self.country_logging_checkbox.isChecked(),
             'country_msgbox': self.country_msgbox_checkbox.isChecked(),
             'isp_enabled': self.isp_duration_combo.currentText() != 'Disabled',
-            'isp_list': tuple(
-                item.text()
-                for i in range(self.isp_list.count())
-                if (item := self.isp_list.item(i)) is not None
-            ),
+            'isp_list': tuple(item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i)) is not None),
             'isp_duration': self._read_duration_widgets(self.isp_duration_combo, self.isp_duration_spin),
             'isp_voice': self._read_voice_combo(self.isp_voice_combo),
             'isp_logging': self.isp_logging_checkbox.isChecked(),
             'isp_msgbox': self.isp_msgbox_checkbox.isChecked(),
             'asn_enabled': self.asn_duration_combo.currentText() != 'Disabled',
-            'asn_list': tuple(
-                item.text()
-                for i in range(self.asn_list.count())
-                if (item := self.asn_list.item(i)) is not None
-            ),
+            'asn_list': tuple(item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i)) is not None),
             'asn_duration': self._read_duration_widgets(self.asn_duration_combo, self.asn_duration_spin),
             'asn_voice': self._read_voice_combo(self.asn_voice_combo),
             'asn_logging': self.asn_logging_checkbox.isChecked(),

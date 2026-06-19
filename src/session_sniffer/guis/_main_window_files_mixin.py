@@ -161,17 +161,19 @@ class FilesMixin(QMainWindow):
 
     def _show_about_dialog(self) -> None:
         """Show the About dialog with version, build, and system info."""
-        copy_text = '\n'.join([
-            f'Version: {VERSION}',
-            '',
-            f'Release Tag: {RELEASE_TAG}',
-            f'Release Date: {RELEASE_DATE}',
-            f'Commit Sha: {COMMIT_SHA}',
-            f'Commit Date: {COMMIT_DATE}',
-            '',
-            f'PyQt Version: {PYQT_VERSION}',
-            f'OS Info: {OS_INFO}',
-        ])
+        copy_text = '\n'.join(
+            [
+                f'Version: {VERSION}',
+                '',
+                f'Release Tag: {RELEASE_TAG}',
+                f'Release Date: {RELEASE_DATE}',
+                f'Commit Sha: {COMMIT_SHA}',
+                f'Commit Date: {COMMIT_DATE}',
+                '',
+                f'PyQt Version: {PYQT_VERSION}',
+                f'OS Info: {OS_INFO}',
+            ],
+        )
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f'About {TITLE}')

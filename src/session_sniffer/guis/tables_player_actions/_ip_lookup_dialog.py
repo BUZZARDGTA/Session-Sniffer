@@ -131,10 +131,17 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
         group, form = self._make_group('\U0001f4e1  Ping Response', accent='#d69e2e')
         self._add_live_row(form, 'Status', lambda p: fmt_ping_status(p.ping.is_pinging))
-        self._add_live_row(form, 'Packets', lambda p: fmt_packets_and_stats(
-            p.ping.packets_transmitted, p.ping.packets_received,
-            p.ping.packet_loss, p.ping.packet_errors, p.ping.packet_duplicates,
-        ))
+        self._add_live_row(
+            form,
+            'Packets',
+            lambda p: fmt_packets_and_stats(
+                p.ping.packets_transmitted,
+                p.ping.packets_received,
+                p.ping.packet_loss,
+                p.ping.packet_errors,
+                p.ping.packet_duplicates,
+            ),
+        )
         self._add_live_row(form, 'RTT Min/Avg/Max', lambda p: fmt_rtt_summary(p.ping.rtt_min, p.ping.rtt_avg, p.ping.rtt_max, p.ping.rtt_mdev))
         self._add_live_row(form, 'Per-Packet RTT', lambda p: fmt_ping_times(p.ping.ping_times))
         parent_layout.addWidget(group)
