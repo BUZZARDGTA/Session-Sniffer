@@ -72,7 +72,7 @@ class LogsManager(QDialog):
                 column_min_widths={0: 220, 5: 160},
             ),
         )
-        tabs.addTab(self._protection_tab, '🛡\ufe0f Protection Logging')
+        tabs.addTab(self._protection_tab, '🛡️ Protection Logging')
         self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH)
         tabs.addTab(self._debug_tab, '📄 Debug Log')
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)

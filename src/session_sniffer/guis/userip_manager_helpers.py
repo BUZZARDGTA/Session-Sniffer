@@ -664,7 +664,7 @@ class IPRangeBuilderDialog(QDialog):
                 try:
                     prefix = int(parts[1])
                     slider_index = next(
-                        (index for index, (prefix_val, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_val == prefix),
+                        (i for i, (prefix_val, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_val == prefix),
                         _SUBNET_DEFAULT_SLIDER_INDEX,
                     )
                 except ValueError:

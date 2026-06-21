@@ -119,7 +119,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         layout.setSpacing(10)
 
         # Header
-        header = QLabel('🛡\ufe0f Advanced Detection & Security Manager')
+        header = QLabel('🛡️ Advanced Detection & Security Manager')
         header.setStyleSheet(DETECTIONS_MANAGER_HEADER_STYLESHEET)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)

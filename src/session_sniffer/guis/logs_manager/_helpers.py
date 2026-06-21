@@ -119,9 +119,9 @@ class LogLevelHighlighter(QSyntaxHighlighter):
         """Apply log-level coloring to a single text block."""
         if text is None:
             return
-        for keyword, char_format in self._formats:
+        for keyword, character_format in self._formats:
             if keyword in text:
-                self.setFormat(0, len(text), char_format)
+                self.setFormat(0, len(text), character_format)
                 return
 
 

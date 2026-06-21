@@ -393,11 +393,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         model = self.model()
         self._saved_selection.clear()
-        for index in selected_indexes:
-            row = index.row()
+        for model_index in selected_indexes:
+            row = model_index.row()
             if 0 <= row < model.rowCount():
                 ip = model.get_ip_for_row(row)
-                self._saved_selection.append((ip, index.column()))
+                self._saved_selection.append((ip, model_index.column()))
 
     def restore_selection(self) -> None:
         """Restore cell selection from previously captured player IPs."""
@@ -611,8 +611,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         selected_texts: list[str] = []
 
         # Iterate over each selected index and retrieve its display data
-        for index in selected_indexes:
-            cell_text = selected_model.get_display_text(index)
+        for model_index in selected_indexes:
+            cell_text = selected_model.get_display_text(model_index)
             if cell_text is None:
                 continue  # Skip if no valid display text is available
 

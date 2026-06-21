@@ -16,7 +16,7 @@ _BYTES_PER_MB = 1024**2
 
 _PROCESS = psutil.Process()
 _CPU_COUNT: int = psutil.cpu_count() or 1
-_LATENCY_DISPLAY_WINDOW_SECS = 60
+_LATENCY_DISPLAY_WINDOW_SECONDS = 60
 
 
 @dataclass(slots=True)
@@ -245,7 +245,7 @@ def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
 
 
 def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
-    has_latency = snapshot.capture_stats.last_nonzero_latency_ts > 0 and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECS
+    has_latency = snapshot.capture_stats.last_nonzero_latency_ts > 0 and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECONDS
     display_latency_ms = snapshot.capture_stats.last_nonzero_latency_ms if has_latency else 0.0
 
     latency_color: StatusBarColors | ThresholdColors

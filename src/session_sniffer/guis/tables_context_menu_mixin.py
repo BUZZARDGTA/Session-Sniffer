@@ -517,11 +517,11 @@ class TableContextMenuMixin(QTableView):
             for script in scripts:
                 add_action(menu, script.resolve().name, tooltip='', handler=factory(script.resolve(), ip_addresses))
 
-        def _populate_scripts_menu(menu: QMenu, builtin: list[Path], user: list[Path], ip_addresses: list[str], *, per_ip: bool = False) -> None:
-            add_scripts_to_menu(menu, builtin, ip_addresses, per_ip=per_ip)
-            if builtin and user:
+        def _populate_scripts_menu(menu: QMenu, builtin_scripts: list[Path], user_scripts: list[Path], ip_addresses: list[str], *, per_ip: bool = False) -> None:
+            add_scripts_to_menu(menu, builtin_scripts, ip_addresses, per_ip=per_ip)
+            if builtin_scripts and user_scripts:
                 menu.addSeparator()
-            add_scripts_to_menu(menu, user, ip_addresses, per_ip=per_ip)
+            add_scripts_to_menu(menu, user_scripts, ip_addresses, per_ip=per_ip)
 
         def add_user_scripts_menu(ip_addresses: list[str]) -> None:
             scripts_menu = add_menu(context_menu, '📜 User Scripts')

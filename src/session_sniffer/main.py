@@ -76,7 +76,7 @@ logger = get_logger(__name__)
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
 
-_PACKET_DROUGHT_THRESHOLD_SECS = 8.0
+_PACKET_DROUGHT_THRESHOLD_SECONDS = 8.0
 
 
 def main() -> None:
@@ -565,7 +565,7 @@ def main() -> None:
                 drought_active = False
                 continue
 
-            if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECS:
+            if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECONDS:
                 continue  # Drought not long enough yet
 
             # Packet drought confirmed — check whether the interface IP changed.

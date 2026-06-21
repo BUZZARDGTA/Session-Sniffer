@@ -35,9 +35,9 @@ BPS_THRESHOLD_DEFAULT_KBS = 5
 BPS_THRESHOLD_MIN_KBS = 5
 BPS_THRESHOLD_MAX_KBS = 500
 
-DURATION_THRESHOLD_DEFAULT_SECS = 3
-DURATION_THRESHOLD_MIN_SECS = 1
-DURATION_THRESHOLD_MAX_SECS = 10
+DURATION_THRESHOLD_DEFAULT_SECONDS = 3
+DURATION_THRESHOLD_MIN_SECONDS = 1
+DURATION_THRESHOLD_MAX_SECONDS = 10
 
 _BUTTON_WIDTH = 250
 _UPDATE_INTERVAL_MS = 1_000
@@ -139,7 +139,7 @@ class _HighRateTableModel(QAbstractTableModel):
         self._visible: list[_PlayerRateData] = []
         self.pps_threshold = PPS_THRESHOLD_DEFAULT
         self.bps_threshold = BPS_THRESHOLD_DEFAULT_KBS * _KBS_TO_BYTES
-        self.required_duration = DURATION_THRESHOLD_DEFAULT_SECS
+        self.required_duration = DURATION_THRESHOLD_DEFAULT_SECONDS
 
     # Qt overrides -----------------------------------------------------------
 
@@ -336,13 +336,13 @@ class HighRateMonitorWidget(QWidget):
         # Duration spinner (shared for both PPS and BPS)
         self._duration_input = QSpinBox()
         self._duration_input.setFixedWidth(_BUTTON_WIDTH)
-        self._duration_input.setRange(DURATION_THRESHOLD_MIN_SECS, DURATION_THRESHOLD_MAX_SECS)
-        self._duration_input.setValue(DURATION_THRESHOLD_DEFAULT_SECS)
+        self._duration_input.setRange(DURATION_THRESHOLD_MIN_SECONDS, DURATION_THRESHOLD_MAX_SECONDS)
+        self._duration_input.setValue(DURATION_THRESHOLD_DEFAULT_SECONDS)
         self._duration_input.setSuffix('s (required duration)')
         self._duration_input.setToolTip(
             'How many consecutive seconds a player must stay above both thresholds '
             'before being flagged as high-rate.\n\n'
-            f'Range: {DURATION_THRESHOLD_MIN_SECS}-{DURATION_THRESHOLD_MAX_SECS} seconds.\n'
+            f'Range: {DURATION_THRESHOLD_MIN_SECONDS}-{DURATION_THRESHOLD_MAX_SECONDS} seconds.\n'
             'Higher values reduce false positives from short traffic bursts. '
             'Lower values detect spikes faster but may flag normal activity.',
         )
@@ -403,8 +403,8 @@ class HighRateMonitorWidget(QWidget):
                 pps=data.pps if data else 0,
                 bps=data.bps if data else 0,
             )
-            _player = PlayersRegistry.get_player_by_ip(ip)
-            graph.update_usernames(_player.usernames if _player is not None else [])
+            matched_player = PlayersRegistry.get_player_by_ip(ip)
+            graph.update_usernames(matched_player.usernames if matched_player is not None else [])
 
     # Threshold / duration ---------------------------------------------------
 
@@ -442,9 +442,9 @@ class HighRateMonitorWidget(QWidget):
         data = self._model.get_tracked(ip)
         if data is not None:
             graph.load_history(pps_history=list(data.pps_history), bps_history=list(data.bps_history))
-        _player = PlayersRegistry.get_player_by_ip(ip)
-        if _player is not None:
-            graph.update_usernames(_player.usernames)
+        matched_player = PlayersRegistry.get_player_by_ip(ip)
+        if matched_player is not None:
+            graph.update_usernames(matched_player.usernames)
         graph.show()
         graph.destroyed.connect(lambda: self._graph_windows.pop(ip, None))
         self._graph_windows[ip] = graph

@@ -693,9 +693,8 @@ class InterfaceSelectionDialog(QDialog):
         # Clear existing rows
         self.table.setRowCount(0)
 
-        # Populate with filtered data
-        for index, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
-            self.table.insertRow(index)
+        for i, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
+            self.table.insertRow(i)
 
             # Get display values
             mac_address = interface.identity.mac_address or 'N/A'
@@ -717,12 +716,12 @@ class InterfaceSelectionDialog(QDialog):
 
             # Name column
             item = QTableWidgetItem(interface.identity.name)
-            self.table.setItem(index, 0, item)
+            self.table.setItem(i, 0, item)
 
             # Description
             item = QTableWidgetItem(interface.identity.description)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(index, 1, item)
+            self.table.setItem(i, 1, item)
 
             # Type
             # Neighbour rows under a Bridged/Shared interface inherit the parent's type because their
@@ -732,35 +731,35 @@ class InterfaceSelectionDialog(QDialog):
             )
             item = QTableWidgetItem(type_display)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(index, 2, item)
+            self.table.setItem(i, 2, item)
 
             # Packets Sent
             item = QTableWidgetItem(packets_sent_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(index, 3, item)
+            self.table.setItem(i, 3, item)
 
             # Packets Received
             item = QTableWidgetItem(packets_recv_str)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(index, 4, item)
+            self.table.setItem(i, 4, item)
 
             # Gateway IP
             gateway_ip = interface.gateway_addresses[0] if interface.gateway_addresses else 'N/A'
             item = QTableWidgetItem(gateway_ip)
-            self.table.setItem(index, 5, item)
+            self.table.setItem(i, 5, item)
 
             # IP Address
             item = QTableWidgetItem(ip_address)
-            self.table.setItem(index, 6, item)
+            self.table.setItem(i, 6, item)
 
             # MAC Address
             item = QTableWidgetItem(mac_address)
-            self.table.setItem(index, 7, item)
+            self.table.setItem(i, 7, item)
 
             # Vendor Name
             item = QTableWidgetItem(vendor_name)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(index, 8, item)
+            self.table.setItem(i, 8, item)
 
         # Reset selection state
         self.update_select_button_state()

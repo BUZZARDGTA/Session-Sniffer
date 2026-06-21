@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.guis._player_identifier_core import (
     BASELINE_CONTAMINATION_MIN_SAMPLES,
-    BASELINE_CONTAMINATION_SECS,
+    BASELINE_CONTAMINATION_SECONDS,
     BASELINE_CONTAMINATION_ZSCORE,
     BASELINE_MAX_SECONDS,
     BASELINE_MIN_SAMPLES,
@@ -35,7 +35,7 @@ from session_sniffer.guis._player_identifier_core import (
     MIN_CONNECTED_PLAYERS,
     SESSION_DRIFT_ZSCORE_THRESHOLD,
     SPIKE_MIN_ZSCORE,
-    SPIKE_SUSTAINED_SECS,
+    SPIKE_SUSTAINED_SECONDS,
     UPDATE_INTERVAL_MS,
     ZSCORE_ELEVATED,
     IPBaseline,
@@ -76,9 +76,9 @@ class PlayerIdentifierWidget(QWidget):
 
         # Tweakable detection parameters (adjusted via the control panel)
         self._spike_min_zscore: float = SPIKE_MIN_ZSCORE
-        self._spike_sustained_secs: int = SPIKE_SUSTAINED_SECS
+        self._spike_sustained_seconds: int = SPIKE_SUSTAINED_SECONDS
         self._contamination_zscore: float = BASELINE_CONTAMINATION_ZSCORE
-        self._contamination_secs: int = BASELINE_CONTAMINATION_SECS
+        self._contamination_seconds: int = BASELINE_CONTAMINATION_SECONDS
         self._contamination_min_samples: int = BASELINE_CONTAMINATION_MIN_SAMPLES
         self._baseline_min_samples: int = BASELINE_MIN_SAMPLES
         self._baseline_max_seconds: int = BASELINE_MAX_SECONDS
@@ -216,7 +216,7 @@ class PlayerIdentifierWidget(QWidget):
             'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
             'When your game loads that player, it sends more data to/from their IP, '
             'causing a spike compared to the baseline.\n\n'
-            f'An IP must spike for {self._spike_sustained_secs} consecutive seconds to be confirmed.\n\n'
+            f'An IP must spike for {self._spike_sustained_seconds} consecutive seconds to be confirmed.\n\n'
             'Tip: Detection works best when the target player is moving — '
             'a moving player generates significantly more traffic than a stationary one.',
         )
@@ -255,17 +255,17 @@ class PlayerIdentifierWidget(QWidget):
         self._spike_zscore_input.valueChanged.connect(self._set_spike_min_zscore)
         params_layout.addRow('Spike Z-Score:', self._spike_zscore_input)
 
-        self._spike_secs_input = QSpinBox()
-        self._spike_secs_input.setRange(1, 30)
-        self._spike_secs_input.setValue(self._spike_sustained_secs)
-        self._spike_secs_input.setSuffix('s')
-        self._spike_secs_input.setToolTip(
+        self._spike_seconds_input = QSpinBox()
+        self._spike_seconds_input.setRange(1, 30)
+        self._spike_seconds_input.setValue(self._spike_sustained_seconds)
+        self._spike_seconds_input.setSuffix('s')
+        self._spike_seconds_input.setToolTip(
             'Consecutive seconds an IP must stay above the spike z-score to be confirmed as the target.\n\n'
             'Higher = fewer false positives but takes longer to confirm.\n'
             'Lower = faster confirmation but may match brief coincidental traffic bursts.',
         )
-        self._spike_secs_input.valueChanged.connect(self._set_spike_sustained_secs)
-        params_layout.addRow('Spike Duration:', self._spike_secs_input)
+        self._spike_seconds_input.valueChanged.connect(self._set_spike_sustained_seconds)
+        params_layout.addRow('Spike Duration:', self._spike_seconds_input)
 
         self._contam_zscore_input = QDoubleSpinBox()
         self._contam_zscore_input.setRange(3.0, 50.0)
@@ -281,17 +281,17 @@ class PlayerIdentifierWidget(QWidget):
         self._contam_zscore_input.valueChanged.connect(self._set_contamination_zscore)
         params_layout.addRow('Contamination Z-Score:', self._contam_zscore_input)
 
-        self._contam_secs_input = QSpinBox()
-        self._contam_secs_input.setRange(1, 30)
-        self._contam_secs_input.setValue(self._contamination_secs)
-        self._contam_secs_input.setSuffix('s')
-        self._contam_secs_input.setToolTip(
+        self._contamination_seconds_input = QSpinBox()
+        self._contamination_seconds_input.setRange(1, 30)
+        self._contamination_seconds_input.setValue(self._contamination_seconds)
+        self._contamination_seconds_input.setSuffix('s')
+        self._contamination_seconds_input.setToolTip(
             'Consecutive seconds an IP must stay above the contamination z-score to trigger a baseline abort.\n\n'
             'Higher = more tolerant of brief traffic bursts (fewer false aborts).\n'
             'Lower = aborts sooner if any IP stays elevated.',
         )
-        self._contam_secs_input.valueChanged.connect(self._set_contamination_secs)
-        params_layout.addRow('Contamination Duration:', self._contam_secs_input)
+        self._contamination_seconds_input.valueChanged.connect(self._set_contamination_seconds)
+        params_layout.addRow('Contamination Duration:', self._contamination_seconds_input)
 
         self._contam_min_samples_input = QSpinBox()
         self._contam_min_samples_input.setRange(5, 60)
@@ -447,7 +447,7 @@ class PlayerIdentifierWidget(QWidget):
         self._instructions.setText(
             'Spectate the player you want to identify (Orbital Cannon, CCTV, or walk up to them).<br><br>'
             'The tool is comparing live traffic against the baseline.<br>'
-            f"If any IP's traffic spikes for <b>{self._spike_sustained_secs}</b> consecutive seconds, "
+            f"If any IP's traffic spikes for <b>{self._spike_sustained_seconds}</b> consecutive seconds, "
             'it will be flagged as a match.<br>'
             '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
         )
@@ -609,7 +609,7 @@ class PlayerIdentifierWidget(QWidget):
         # Contamination check: if any IP shows a dramatic spike after enough
         # samples have been collected, the baseline is compromised (e.g. the
         # user spectated someone or moved closer to a player).
-        # Requires _BASELINE_CONTAMINATION_SECS consecutive ticks above the threshold
+        # Requires BASELINE_CONTAMINATION_SECONDS consecutive ticks above the threshold
         # to avoid false positives from single-tick network bursts.
         if self._sample_count >= self._contamination_min_samples:
             for ip, bl in self._baselines.items():
@@ -619,7 +619,7 @@ class PlayerIdentifierWidget(QWidget):
                 zscore = bl.live_zscore(matched_player.packets.pps.calculated_rate, matched_player.bandwidth.bps.calculated_rate)
                 if zscore >= self._contamination_zscore:
                     streak = self._contamination_streak[ip] = self._contamination_streak.get(ip, 0) + 1
-                    if streak >= self._contamination_secs:
+                    if streak >= self._contamination_seconds:
                         self._abort_contaminated(ip, zscore)
                         return
                 else:
@@ -760,7 +760,7 @@ class PlayerIdentifierWidget(QWidget):
             )
             if score > self._spike_min_zscore:
                 streak = self._spike_streak[ip] = self._spike_streak.get(ip, 0) + 1
-                if streak >= self._spike_sustained_secs:
+                if streak >= self._spike_sustained_seconds:
                     confirmed_baselined.append(ResolvedIP(ip, zscore_to_confidence(score), f'PPS/BPS spike (z={score:.1f})', player.usernames[0] if player.usernames else ''))
                 max_streak = max(max_streak, streak)
             else:
@@ -788,11 +788,11 @@ class PlayerIdentifierWidget(QWidget):
 
         # --- Show live candidate status (only update label when text changes) ---
         if self._spike_streak:
-            parts = ', '.join(f'<b>{ip}</b> (spiking {streak}/{self._spike_sustained_secs}s)' for ip, streak in self._spike_streak.items())
+            parts = ', '.join(f'<b>{ip}</b> (spiking {streak}/{self._spike_sustained_seconds}s)' for ip, streak in self._spike_streak.items())
             num_candidates = len(self._spike_streak)
             result_text = (
                 f'Possible candidate{pluralize(num_candidates)}: {parts}<br>'
-                f'<small>Needs {self._spike_sustained_secs} consecutive seconds of elevated traffic to confirm.</small>'
+                f'<small>Needs {self._spike_sustained_seconds} consecutive seconds of elevated traffic to confirm.</small>'
             )
         else:
             num_ips = len(self._baselines)
@@ -802,7 +802,7 @@ class PlayerIdentifierWidget(QWidget):
         self._update_result_label(result_text)
 
         # Update progress bar as a visual heartbeat (max_streak tracked incrementally)
-        self._stability_bar.setValue(min(int(max_streak / self._spike_sustained_secs * 100), 99))
+        self._stability_bar.setValue(min(int(max_streak / self._spike_sustained_seconds * 100), 99))
 
         # Update live z-score table (sorted by z-score descending)
         table_rows: list[tuple[str, str, int, int, float, int]] = []
@@ -900,7 +900,7 @@ class PlayerIdentifierWidget(QWidget):
             zscore_item = QTableWidgetItem(f'{zscore:.1f}')
             zscore_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            streak_text = f'{streak}/{self._spike_sustained_secs}' if streak > 0 else '—'
+            streak_text = f'{streak}/{self._spike_sustained_seconds}' if streak > 0 else '—'
             streak_item = QTableWidgetItem(streak_text)
             streak_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -928,14 +928,14 @@ class PlayerIdentifierWidget(QWidget):
     def _set_spike_min_zscore(self, value: float) -> None:
         self._spike_min_zscore = value
 
-    def _set_spike_sustained_secs(self, value: int) -> None:
-        self._spike_sustained_secs = value
+    def _set_spike_sustained_seconds(self, value: int) -> None:
+        self._spike_sustained_seconds = value
 
     def _set_contamination_zscore(self, value: float) -> None:
         self._contamination_zscore = value
 
-    def _set_contamination_secs(self, value: int) -> None:
-        self._contamination_secs = value
+    def _set_contamination_seconds(self, value: int) -> None:
+        self._contamination_seconds = value
 
     def _set_contamination_min_samples(self, value: int) -> None:
         self._contamination_min_samples = value

@@ -10,12 +10,12 @@ UPDATE_INTERVAL_MS = 1_000
 CONVERGENCE_RECENT_WINDOW = 10
 CONVERGENCE_GREEN = 0.10
 CONVERGENCE_YELLOW = 0.25
-SPIKE_SUSTAINED_SECS = 5
+SPIKE_SUSTAINED_SECONDS = 5
 SPIKE_MIN_ZSCORE = 6.0
 BUTTON_WIDTH = 250
 MIN_CONNECTED_PLAYERS = 2
 BASELINE_CONTAMINATION_ZSCORE = 10.0
-BASELINE_CONTAMINATION_SECS = 5
+BASELINE_CONTAMINATION_SECONDS = 5
 BASELINE_CONTAMINATION_MIN_SAMPLES = 15
 BASELINE_MIN_SAMPLES = 20
 BASELINE_MAX_SECONDS = 30
@@ -48,13 +48,13 @@ class ResolvedIP:
 class IPBaseline:
     """Stores PPS/BPS samples for a single IP during the baseline phase."""
 
-    __slots__ = ('_bps_sum', '_pps_sum', 'bps_mean', 'bps_samples', 'bps_std', 'bps_std_floor', 'pps_mean', 'pps_samples', 'pps_std', 'pps_std_floor')
+    __slots__ = ('_bps_running_sum', '_pps_running_sum', 'bps_mean', 'bps_samples', 'bps_std', 'bps_std_floor', 'pps_mean', 'pps_samples', 'pps_std', 'pps_std_floor')
 
     def __init__(self) -> None:
         self.pps_samples: deque[int] = deque(maxlen=120)
         self.bps_samples: deque[int] = deque(maxlen=120)
-        self._pps_sum: int = 0
-        self._bps_sum: int = 0
+        self._pps_running_sum: int = 0
+        self._bps_running_sum: int = 0
         self.pps_mean: float = 0.0
         self.pps_std: float = 0.0
         self.bps_mean: float = 0.0
@@ -66,12 +66,12 @@ class IPBaseline:
         """Append a PPS/BPS sample pair, maintaining running sums in O(1)."""
         # Subtract evicted values before append (deque at maxlen drops leftmost)
         if len(self.pps_samples) == self.pps_samples.maxlen:
-            self._pps_sum -= self.pps_samples[0]
-            self._bps_sum -= self.bps_samples[0]
+            self._pps_running_sum -= self.pps_samples[0]
+            self._bps_running_sum -= self.bps_samples[0]
         self.pps_samples.append(pps)
         self.bps_samples.append(bps)
-        self._pps_sum += pps
-        self._bps_sum += bps
+        self._pps_running_sum += pps
+        self._bps_running_sum += bps
 
     def finalize(self) -> None:
         """Compute mean and standard deviation from collected samples."""
@@ -91,10 +91,10 @@ class IPBaseline:
         count = 0
         total = 0.0
         if self.pps_samples:
-            total += self._sample_mean_shift(self.pps_samples, self._pps_sum, recent_window)
+            total += self._sample_mean_shift(self.pps_samples, self._pps_running_sum, recent_window)
             count += 1
         if self.bps_samples:
-            total += self._sample_mean_shift(self.bps_samples, self._bps_sum, recent_window)
+            total += self._sample_mean_shift(self.bps_samples, self._bps_running_sum, recent_window)
             count += 1
         return (total / count) if count else 0.0
 
@@ -125,8 +125,8 @@ class IPBaseline:
         num_bps = len(self.bps_samples)
         if num_pps < _MIN_VARIANCE_SAMPLES or num_bps < _MIN_VARIANCE_SAMPLES:
             return 0.0
-        pps_mean = self._pps_sum / num_pps
-        bps_mean = self._bps_sum / num_bps
+        pps_mean = self._pps_running_sum / num_pps
+        bps_mean = self._bps_running_sum / num_bps
         pps_var = sum((sample - pps_mean) ** 2 for sample in self.pps_samples) / (num_pps - 1)
         bps_var = sum((sample - bps_mean) ** 2 for sample in self.bps_samples) / (num_bps - 1)
         pps_std = max(sqrt(pps_var), pps_mean * 0.05, 1.0)

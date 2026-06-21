@@ -515,7 +515,7 @@ def process_userip_task(
             gui_dispatcher.invoke(_show_userip_dialog)
 
 
-_GTA5_RELAY_PPS_NONZERO_STREAK_SECS = 5.0
+_GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
@@ -546,7 +546,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         return
 
     # Poll until the packet threshold is exceeded AND PPS has been continuously
-    # above 0 for at least `_GTA5_RELAY_PPS_NONZERO_STREAK_SECS` (any 0-PPS sample resets the streak).
+    # above 0 for at least `_GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS` (any 0-PPS sample resets the streak).
     # A 0-PPS relay is not actively sending packets and must be a false positive.
     _pps_nonzero_since: float | None = None
     while not player.left_event.is_set() and not gui_closed__event.is_set():
@@ -560,7 +560,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         if (
             player.packets.exchanged >= GUIDetectionSettings.gta5_relay_packet_threshold
             and _pps_nonzero_since is not None
-            and (time.monotonic() - _pps_nonzero_since) >= _GTA5_RELAY_PPS_NONZERO_STREAK_SECS
+            and (time.monotonic() - _pps_nonzero_since) >= _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS
         ):
             break
 

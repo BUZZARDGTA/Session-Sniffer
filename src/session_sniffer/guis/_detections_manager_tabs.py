@@ -201,7 +201,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout = QHBoxLayout(filter_warning)
         filter_warning_layout.setContentsMargins(8, 6, 8, 6)
         filter_warning_layout.setSpacing(10)
-        warning_icon_label = QLabel('⚠\ufe0f')
+        warning_icon_label = QLabel('⚠️')
         warning_icon_label.setStyleSheet(WARNING_ICON_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
@@ -340,7 +340,7 @@ class DetectionsManagerTabsMixin(QDialog):
         result = QMessageBox.question(
             self,
             TITLE,
-            '⚠\ufe0f The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
+            '⚠️ The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
             '(<i>Block Third-Party Servers</i> setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
             'so this detection will never trigger while that filter is active.\n\n'

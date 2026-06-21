@@ -304,10 +304,12 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         elif sorted_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
             # Precompute datetime values once to avoid O(n log n) registry lookups in the sort key
             _datetime_attr = {'First Seen': 'first_seen', 'Last Rejoin': 'last_rejoin', 'Last Seen': 'last_seen'}[sorted_column_name]
-            _default_dt = datetime.min.replace(tzinfo=UTC)
+            _default_datetime = datetime.min.replace(tzinfo=UTC)
             _ip_datetime_map: dict[str, datetime] = {
                 self.get_ip_from_data_safely(row): (
-                    getattr(player.datetime, _datetime_attr) if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else _default_dt
+                    getattr(matched_player.datetime, _datetime_attr)
+                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else _default_datetime
                 )
                 for row, _ in combined
             }
@@ -320,7 +322,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute total session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_total_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    player.datetime.get_total_session_time() if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
+                    matched_player.datetime.get_total_session_time()
+                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -333,7 +337,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    player.datetime.get_session_time() if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
+                    matched_player.datetime.get_session_time()
+                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
+                    else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -388,7 +394,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             _bw_attr = _bandwidth_attr_map[sorted_column_name]
             _ip_bandwidth_map: dict[str, int] = {
                 self.get_ip_from_data_safely(row): (
-                    attrgetter(_bw_attr)(player) if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0
+                    attrgetter(_bw_attr)(matched_player) if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0
                 )
                 for row, _ in combined
             }
@@ -597,13 +603,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             selection_model = view.selectionModel()
 
             # Adjust selection for the deleted row
-            for index in selection_model.selection().indexes():
-                if index.row() == row_index:  # Row to be deleted
+            for model_index in selection_model.selection().indexes():
+                if model_index.row() == row_index:  # Row to be deleted
                     # Deselect the row because it's about to be deleted
                     # Select the row to be deleted
                     selection = QItemSelection(
-                        self.index(index.row(), index.column()),
-                        self.index(index.row(), index.column()),
+                        self.index(model_index.row(), model_index.column()),
+                        self.index(model_index.row(), model_index.column()),
                     )
                     selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
 
@@ -616,19 +622,19 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             self._rebuild_ip_index()
 
             # Adjust selection for rows below the deleted one
-            for index in selection_model.selection().indexes():
-                if index.row() > row_index:  # Items below the deleted row
+            for model_index in selection_model.selection().indexes():
+                if model_index.row() > row_index:  # Items below the deleted row
                     # Deselect the original row
                     selection_to_deselect = QItemSelection(
-                        self.index(index.row(), index.column()),  # Original row
-                        self.index(index.row(), index.column()),
+                        self.index(model_index.row(), model_index.column()),  # Original row
+                        self.index(model_index.row(), model_index.column()),
                     )
                     selection_model.select(selection_to_deselect, QItemSelectionModel.SelectionFlag.Deselect)
 
                     # Move the selection up by one row
                     selection_to_select = QItemSelection(
-                        self.index(index.row() - 1, index.column()),  # New row after deletion
-                        self.index(index.row() - 1, index.column()),
+                        self.index(model_index.row() - 1, model_index.column()),  # New row after deletion
+                        self.index(model_index.row() - 1, model_index.column()),
                     )
                     selection_model.select(selection_to_select, QItemSelectionModel.SelectionFlag.Select)
 

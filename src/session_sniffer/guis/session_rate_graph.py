@@ -35,11 +35,11 @@ class SessionRateGraphWindow(DualRateGraphBase):
 
     def reset(self) -> None:
         """Clear all history buffers and reset both graphs to zero."""
-        self._pps_buf[:] = 0.0
-        self._bps_buf[:] = 0.0
-        self._buf_len = VISIBLE_WINDOW
-        self._pps_sum = 0.0
-        self._bps_sum = 0.0
+        self._pps_buffer[:] = 0.0
+        self._bps_buffer[:] = 0.0
+        self._buffer_len = VISIBLE_WINDOW
+        self._pps_running_sum = 0.0
+        self._bps_running_sum = 0.0
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
         self._x_cache_len = VISIBLE_WINDOW
 

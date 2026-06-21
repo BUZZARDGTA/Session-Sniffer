@@ -27,8 +27,8 @@ def populate_host_history_submenu(menu: QMenu, highlight_ip_callback: Callable[[
         return
     now = datetime.now(tz=LOCAL_TZ)
     for entry in reversed(history):
-        live_player = PlayersRegistry.get_player_by_ip(entry.ip)
-        usernames = ', '.join(live_player.usernames) if live_player and live_player.usernames else '—'
+        matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
+        usernames = ', '.join(matched_player.usernames) if matched_player and matched_player.usernames else '—'
         elapsed_time_str = format_elapsed_time(now - entry.detected_at)
         act = QAction(f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_str} ago)', menu)
         ip = entry.ip

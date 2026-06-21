@@ -23,7 +23,7 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
     result = QMessageBox.question(
         parent,
         TITLE,
-        f'⚠\ufe0f {detail}\n\n'
+        f'⚠️ {detail}\n\n'
         'Relay IPs will be dropped before the capture engine sees them, so relay detection '
         'will never trigger.\n\n'
         'Would you like to automatically disable GTA5 relay detection?',

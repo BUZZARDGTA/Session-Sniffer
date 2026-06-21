@@ -164,7 +164,7 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         self._add_header_label(outer_layout, f'{info.emoji}  {info.title} — {format_player_display(player.ip, player.usernames)}', color_start, color_stop)
 
         if not info.data_ready:
-            warn_label = QLabel('⚠\ufe0f  Some data may still be loading and missing from this notification')
+            warn_label = QLabel('⚠️  Some data may still be loading and missing from this notification')
             warn_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             warn_label.setWordWrap(True)
             warn_label.setStyleSheet(DETECTION_WARN_LABEL_STYLESHEET)

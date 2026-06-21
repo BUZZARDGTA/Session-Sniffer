@@ -43,19 +43,19 @@ def build_rate_plot_widget(left_label: str, max_history: int) -> tuple[pg.PlotWi
 
 
 def grow_x_cache(
-    buffer_length: int,
+    buffer_len: int,
     x_cache: np.ndarray[Any, np.dtype[np.float64]],
     x_cache_len: int,
 ) -> tuple[int, np.ndarray[Any, np.dtype[np.float64]], int]:
-    """Increment *buffer_length* and rebuild the x-axis cache array if the window length changed.
+    """Increment *buffer_len* and rebuild the x-axis cache array if the window length changed.
 
-    Returns `(new_n, x_cache, x_cache_len)`.
+    Returns the updated `(buffer_len, x_cache, x_cache_len)`.
     """
-    buffer_length += 1
-    if buffer_length != x_cache_len:
-        x_cache = np.arange(-buffer_length + 1, 1, dtype=np.float64)
-        x_cache_len = buffer_length
-    return buffer_length, x_cache, x_cache_len
+    buffer_len += 1
+    if buffer_len != x_cache_len:
+        x_cache = np.arange(-buffer_len + 1, 1, dtype=np.float64)
+        x_cache_len = buffer_len
+    return buffer_len, x_cache, x_cache_len
 
 
 class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
@@ -70,9 +70,9 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
     Y_FLOOR: float
 
     _max_history: int
-    _buf: np.ndarray[Any, np.dtype[np.float64]]
-    _buf_len: int
-    _buf_sum: float
+    _buffer: np.ndarray[Any, np.dtype[np.float64]]
+    _buffer_len: int
+    _buffer_running_sum: float
     _graph_idle: bool
     _x_cache_len: int
     _x_cache: np.ndarray[Any, np.dtype[np.float64]]
@@ -82,7 +82,7 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
         super().__init__()
 
         self._max_history = max_history
-        self._buf_sum = 0.0
+        self._buffer_running_sum = 0.0
 
         self.setWindowTitle(self.WINDOW_TITLE)
         self.resize(700, 350)
@@ -105,9 +105,9 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
 
     def _setup_single_history_buffers(self) -> None:
         """Initialise pre-allocated numpy sliding-window buffers."""
-        self._buf = np.zeros(self._max_history, dtype=np.float64)
-        self._buf_len = VISIBLE_WINDOW
-        self._buf_sum = 0.0
+        self._buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._buffer_len = VISIBLE_WINDOW
+        self._buffer_running_sum = 0.0
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
         self._graph_idle: bool = False
@@ -119,40 +119,40 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
     def update_graph(self, sample: float) -> None:
         """Append a new sample and refresh the graph."""
         value = self._transform_sample(sample)
-        buffer_length = self._buf_len
+        buffer_len = self._buffer_len
 
-        if buffer_length < self._max_history:
-            self._buf[buffer_length] = value
-            self._buf_sum += value
-            buffer_length, self._x_cache, self._x_cache_len = grow_x_cache(buffer_length, self._x_cache, self._x_cache_len)
-            self._buf_len = buffer_length
+        if buffer_len < self._max_history:
+            self._buffer[buffer_len] = value
+            self._buffer_running_sum += value
+            buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(buffer_len, self._x_cache, self._x_cache_len)
+            self._buffer_len = buffer_len
         else:
-            self._buf_sum += value - self._buf[0]
-            self._buf[:-1] = self._buf[1:]
-            self._buf[-1] = value
+            self._buffer_running_sum += value - self._buffer[0]
+            self._buffer[:-1] = self._buffer[1:]
+            self._buffer[-1] = value
 
         # Skip pyqtgraph draw calls when the graph is already showing a stable
         # flat zero baseline and the new sample is also zero.
         if not value and self._graph_idle:
             return
 
-        data = self._buf[:buffer_length]
+        data = self._buffer[:buffer_len]
         self._curve.setData(self._x_cache, data)
         if self._is_at_live_edge(self._widget):
             self._widget.setXRange(-VISIBLE_WINDOW, 0)
         visible_max = float(np.max(data[-VISIBLE_WINDOW:]))
         self._widget.setYRange(0, max(visible_max * 1.2, self.Y_FLOOR))
-        if buffer_length:
-            self._avg_line.setPos(self._buf_sum / buffer_length)
+        if buffer_len:
+            self._avg_line.setPos(self._buffer_running_sum / buffer_len)
 
         # Mark graph as idle once the visible window is fully zeroed out.
         self._graph_idle = not value and not visible_max
 
     def reset(self) -> None:
         """Clear all history and reset the graph to zero."""
-        self._buf[:] = 0.0
-        self._buf_len = VISIBLE_WINDOW
-        self._buf_sum = 0.0
+        self._buffer[:] = 0.0
+        self._buffer_len = VISIBLE_WINDOW
+        self._buffer_running_sum = 0.0
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
         self._x_cache_len = VISIBLE_WINDOW
 
@@ -179,8 +179,8 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
 
     _BYTES_TO_KBS: int = 1024
     _max_history: int
-    _buf_len: int
-    _buf_sum: float
+    _buffer_len: int
+    _buffer_running_sum: float
     _dual_graph_idle: bool
     _x_cache_len: int
     _x_cache: np.ndarray[Any, np.dtype[np.float64]]
@@ -190,10 +190,10 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     _bps_widget: pg.PlotWidget
     _bps_curve: Any
     _bps_avg_line: pg.InfiniteLine
-    _pps_buf: np.ndarray[Any, np.dtype[np.float64]]
-    _bps_buf: np.ndarray[Any, np.dtype[np.float64]]
-    _pps_sum: float
-    _bps_sum: float
+    _pps_buffer: np.ndarray[Any, np.dtype[np.float64]]
+    _bps_buffer: np.ndarray[Any, np.dtype[np.float64]]
+    _pps_running_sum: float
+    _bps_running_sum: float
 
     def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
         """Create PPS and BPS PlotWidgets and add them to *layout*.
@@ -260,12 +260,12 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
 
     def _setup_history_buffers(self) -> None:
         """Initialise pre-allocated numpy sliding-window buffers."""
-        self._pps_buf = np.zeros(self._max_history, dtype=np.float64)
-        self._bps_buf = np.zeros(self._max_history, dtype=np.float64)
-        self._buf_len = VISIBLE_WINDOW
-        self._pps_sum: float = 0.0
-        self._bps_sum: float = 0.0
-        self._buf_sum = 0.0
+        self._pps_buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._bps_buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._buffer_len = VISIBLE_WINDOW
+        self._pps_running_sum: float = 0.0
+        self._bps_running_sum: float = 0.0
+        self._buffer_running_sum = 0.0
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
         self._dual_graph_idle: bool = False
@@ -273,30 +273,30 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     def _advance_buffers(self, pps: int, bps: int) -> tuple[np.ndarray, np.ndarray, int]:
         """Advance the dual sliding window; return `(pps_data, bps_data, n)`."""
         kbps = bps / self._BYTES_TO_KBS
-        buffer_length = self._buf_len
+        buffer_len = self._buffer_len
 
-        if buffer_length < self._max_history:
+        if buffer_len < self._max_history:
             # Growth phase: append to end, rebuild x-cache only when length changes
-            self._pps_buf[buffer_length] = pps
-            self._bps_buf[buffer_length] = kbps
-            self._pps_sum += pps
-            self._bps_sum += kbps
-            buffer_length, self._x_cache, self._x_cache_len = grow_x_cache(buffer_length, self._x_cache, self._x_cache_len)
-            self._buf_len = buffer_length
+            self._pps_buffer[buffer_len] = pps
+            self._bps_buffer[buffer_len] = kbps
+            self._pps_running_sum += pps
+            self._bps_running_sum += kbps
+            buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(buffer_len, self._x_cache, self._x_cache_len)
+            self._buffer_len = buffer_len
         else:
             # Steady state: shift left (C-level memcpy), append at end
-            self._pps_sum += pps - self._pps_buf[0]
-            self._bps_sum += kbps - self._bps_buf[0]
-            self._pps_buf[:-1] = self._pps_buf[1:]
-            self._pps_buf[-1] = pps
-            self._bps_buf[:-1] = self._bps_buf[1:]
-            self._bps_buf[-1] = kbps
+            self._pps_running_sum += pps - self._pps_buffer[0]
+            self._bps_running_sum += kbps - self._bps_buffer[0]
+            self._pps_buffer[:-1] = self._pps_buffer[1:]
+            self._pps_buffer[-1] = pps
+            self._bps_buffer[:-1] = self._bps_buffer[1:]
+            self._bps_buffer[-1] = kbps
 
-        return self._pps_buf[:buffer_length], self._bps_buf[:buffer_length], buffer_length
+        return self._pps_buffer[:buffer_len], self._bps_buffer[:buffer_len], buffer_len
 
     def update_rates(self, *, pps: int, bps: int) -> None:
         """Append new PPS and BPS samples and refresh both graphs."""
-        pps_data, bps_data, buffer_length = self._advance_buffers(pps, bps)
+        pps_data, bps_data, buffer_len = self._advance_buffers(pps, bps)
 
         # Skip pyqtgraph draw calls when both graphs are already showing a stable
         # flat zero baseline and both new samples are also zero.
@@ -307,15 +307,15 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
         if self._is_at_live_edge(self._pps_widget):
             self._pps_widget.setXRange(-VISIBLE_WINDOW, 0)
         self._on_pps_rendered(pps_data)
-        if buffer_length:
-            self._pps_avg_line.setPos(self._pps_sum / buffer_length)
+        if buffer_len:
+            self._pps_avg_line.setPos(self._pps_running_sum / buffer_len)
 
         self._bps_curve.setData(self._x_cache, bps_data)
         if self._is_at_live_edge(self._bps_widget):
             self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
         self._on_bps_rendered(bps_data)
-        if buffer_length:
-            self._bps_avg_line.setPos(self._bps_sum / buffer_length)
+        if buffer_len:
+            self._bps_avg_line.setPos(self._bps_running_sum / buffer_len)
 
         # Mark graphs as idle once both visible windows are fully zeroed out.
         if not pps and not bps:
@@ -410,33 +410,33 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         pad_len = max(0, VISIBLE_WINDOW - len(pps_trimmed))
 
         total_len = pad_len + len(pps_trimmed)
-        self._buf_len = total_len
-        self._pps_buf[:pad_len] = 0
-        self._pps_buf[pad_len:total_len] = pps_trimmed
-        self._pps_sum = float(np.sum(self._pps_buf[:total_len]))
+        self._buffer_len = total_len
+        self._pps_buffer[:pad_len] = 0
+        self._pps_buffer[pad_len:total_len] = pps_trimmed
+        self._pps_running_sum = float(np.sum(self._pps_buffer[:total_len]))
 
-        self._bps_buf[:pad_len] = 0
+        self._bps_buffer[:pad_len] = 0
         # Vectorized bytes→KB/s conversion via numpy
         bps_arr = np.array(bps_trimmed, dtype=np.float64)
         bps_arr /= self._BYTES_TO_KBS
-        self._bps_buf[pad_len:total_len] = bps_arr
-        self._bps_sum = float(np.sum(self._bps_buf[:total_len]))
+        self._bps_buffer[pad_len:total_len] = bps_arr
+        self._bps_running_sum = float(np.sum(self._bps_buffer[:total_len]))
 
         self._x_cache = np.arange(-total_len + 1, 1, dtype=np.float64)
         self._x_cache_len = total_len
 
-        pps_data = self._pps_buf[:total_len]
-        bps_data = self._bps_buf[:total_len]
+        pps_data = self._pps_buffer[:total_len]
+        bps_data = self._bps_buffer[:total_len]
 
         self._pps_curve.setData(self._x_cache, pps_data)
         self._pps_widget.setXRange(-VISIBLE_WINDOW, 0)
         if total_len:
-            self._pps_avg_line.setPos(self._pps_sum / total_len)
+            self._pps_avg_line.setPos(self._pps_running_sum / total_len)
 
         self._bps_curve.setData(self._x_cache, bps_data)
         self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
         if total_len:
-            self._bps_avg_line.setPos(self._bps_sum / total_len)
+            self._bps_avg_line.setPos(self._bps_running_sum / total_len)
 
 
 class PositiveTicksAxis(pg.AxisItem):  # type: ignore[misc]    # pylint: disable=abstract-method

@@ -30,7 +30,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
 
     WINDOW_TITLE = 'Capture Statistics'
 
-    _buf_len: int
+    _buffer_len: int
     _x_cache_len: int
     _x_cache: np.ndarray[Any, np.dtype[np.float64]]
 
@@ -261,17 +261,17 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
         # Shared sliding-window x-cache (one advance per tick covers all three graphs)
-        self._buf_len = VISIBLE_WINDOW
+        self._buffer_len = VISIBLE_WINDOW
         self._x_cache_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
 
         # Per-graph buffers
-        self._latency_buf = np.zeros(self._max_history, dtype=np.float64)
-        self._latency_sum: float = 0.0
-        self._pps_buf = np.zeros(self._max_history, dtype=np.float64)
-        self._pps_sum: float = 0.0
-        self._bps_buf = np.zeros(self._max_history, dtype=np.float64)
-        self._bps_sum: float = 0.0
+        self._latency_buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._latency_running_sum: float = 0.0
+        self._pps_buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._pps_running_sum: float = 0.0
+        self._bps_buffer = np.zeros(self._max_history, dtype=np.float64)
+        self._bps_running_sum: float = 0.0
 
         self._last_latency_ms: float = 0.0
         self._last_latency_ts: float = 0.0
@@ -339,30 +339,30 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         kbps = CaptureStats.global_bps_rate / _BYTES_TO_KBS
 
         # Advance the shared sliding window once per tick
-        buffer_length = self._buf_len
-        if buffer_length < self._max_history:
-            self._latency_buf[buffer_length] = CaptureStats.global_avg_latency_ms
-            self._latency_sum += CaptureStats.global_avg_latency_ms
-            self._pps_buf[buffer_length] = CaptureStats.global_pps_rate
-            self._pps_sum += CaptureStats.global_pps_rate
-            self._bps_buf[buffer_length] = kbps
-            self._bps_sum += kbps
-            buffer_length, self._x_cache, self._x_cache_len = grow_x_cache(buffer_length, self._x_cache, self._x_cache_len)
-            self._buf_len = buffer_length
+        buffer_len = self._buffer_len
+        if buffer_len < self._max_history:
+            self._latency_buffer[buffer_len] = CaptureStats.global_avg_latency_ms
+            self._latency_running_sum += CaptureStats.global_avg_latency_ms
+            self._pps_buffer[buffer_len] = CaptureStats.global_pps_rate
+            self._pps_running_sum += CaptureStats.global_pps_rate
+            self._bps_buffer[buffer_len] = kbps
+            self._bps_running_sum += kbps
+            buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(buffer_len, self._x_cache, self._x_cache_len)
+            self._buffer_len = buffer_len
         else:
-            self._latency_sum += CaptureStats.global_avg_latency_ms - self._latency_buf[0]
-            self._latency_buf[:-1] = self._latency_buf[1:]
-            self._latency_buf[-1] = CaptureStats.global_avg_latency_ms
-            self._pps_sum += CaptureStats.global_pps_rate - self._pps_buf[0]
-            self._pps_buf[:-1] = self._pps_buf[1:]
-            self._pps_buf[-1] = CaptureStats.global_pps_rate
-            self._bps_sum += kbps - self._bps_buf[0]
-            self._bps_buf[:-1] = self._bps_buf[1:]
-            self._bps_buf[-1] = kbps
+            self._latency_running_sum += CaptureStats.global_avg_latency_ms - self._latency_buffer[0]
+            self._latency_buffer[:-1] = self._latency_buffer[1:]
+            self._latency_buffer[-1] = CaptureStats.global_avg_latency_ms
+            self._pps_running_sum += CaptureStats.global_pps_rate - self._pps_buffer[0]
+            self._pps_buffer[:-1] = self._pps_buffer[1:]
+            self._pps_buffer[-1] = CaptureStats.global_pps_rate
+            self._bps_running_sum += kbps - self._bps_buffer[0]
+            self._bps_buffer[:-1] = self._bps_buffer[1:]
+            self._bps_buffer[-1] = kbps
 
-        latency_data = self._latency_buf[:buffer_length]
-        pps_data = self._pps_buf[:buffer_length]
-        bps_data = self._bps_buf[:buffer_length]
+        latency_data = self._latency_buffer[:buffer_len]
+        pps_data = self._pps_buffer[:buffer_len]
+        bps_data = self._bps_buffer[:buffer_len]
 
         # ── Packets stats ─────────────────────────────────────────────────
         self._ppm_sample_buf.append(CaptureStats.total_packets_captured)
@@ -416,22 +416,22 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._pps_widget.setYRange(0, max(_pps_visible_max * 1.2, _FLOOR_PPS))
             self._bps_widget.setYRange(0, max(_bps_visible_max * 1.2, _FLOOR_KBS))
 
-            if buffer_length:
-                self._latency_avg_line.setPos(self._latency_sum / buffer_length)
-                self._pps_avg_line.setPos(self._pps_sum / buffer_length)
-                self._bps_avg_line.setPos(self._bps_sum / buffer_length)
+            if buffer_len:
+                self._latency_avg_line.setPos(self._latency_running_sum / buffer_len)
+                self._pps_avg_line.setPos(self._pps_running_sum / buffer_len)
+                self._bps_avg_line.setPos(self._bps_running_sum / buffer_len)
 
         self._graphs_all_zero = _all_values_zero and _visible_all_zero
 
     def reset(self) -> None:
         """Clear all history buffers and reset all graphs to zero."""
-        self._latency_buf[:] = 0.0
-        self._latency_sum = 0.0
-        self._pps_buf[:] = 0.0
-        self._pps_sum = 0.0
-        self._bps_buf[:] = 0.0
-        self._bps_sum = 0.0
-        self._buf_len = VISIBLE_WINDOW
+        self._latency_buffer[:] = 0.0
+        self._latency_running_sum = 0.0
+        self._pps_buffer[:] = 0.0
+        self._pps_running_sum = 0.0
+        self._bps_buffer[:] = 0.0
+        self._bps_running_sum = 0.0
+        self._buffer_len = VISIBLE_WINDOW
         self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
         self._x_cache_len = VISIBLE_WINDOW
 
@@ -462,7 +462,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         pad_len = max(0, VISIBLE_WINDOW - len(trimmed))
         total_len = pad_len + len(trimmed)
 
-        self._buf_len = total_len
+        self._buffer_len = total_len
         self._x_cache = np.arange(-total_len + 1, 1, dtype=np.float64)
         self._x_cache_len = total_len
 
@@ -470,17 +470,17 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         pps_vals = [sample[1] for sample in trimmed]
         bps_vals = [sample[2] / _BYTES_TO_KBS for sample in trimmed]
 
-        self._latency_buf[:pad_len] = 0.0
-        self._latency_buf[pad_len:total_len] = latency_vals
-        self._latency_sum = float(np.sum(self._latency_buf[:total_len]))
+        self._latency_buffer[:pad_len] = 0.0
+        self._latency_buffer[pad_len:total_len] = latency_vals
+        self._latency_running_sum = float(np.sum(self._latency_buffer[:total_len]))
 
-        self._pps_buf[:pad_len] = 0.0
-        self._pps_buf[pad_len:total_len] = pps_vals
-        self._pps_sum = float(np.sum(self._pps_buf[:total_len]))
+        self._pps_buffer[:pad_len] = 0.0
+        self._pps_buffer[pad_len:total_len] = pps_vals
+        self._pps_running_sum = float(np.sum(self._pps_buffer[:total_len]))
 
-        self._bps_buf[:pad_len] = 0.0
-        self._bps_buf[pad_len:total_len] = bps_vals
-        self._bps_sum = float(np.sum(self._bps_buf[:total_len]))
+        self._bps_buffer[:pad_len] = 0.0
+        self._bps_buffer[pad_len:total_len] = bps_vals
+        self._bps_running_sum = float(np.sum(self._bps_buffer[:total_len]))
 
     # Internal ————————————————————————————————————————————————————————————————
 
