@@ -263,6 +263,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'GTA V PlayStation',
         'GTA V Xbox One',
         'Minecraft Bedrock',
+        'NEW MONOPOLY',
         'OmeTV',
         'Red Dead Redemption 2',
         'RustDesk',
@@ -412,6 +413,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'Minecraft Bedrock': {
             'MICROSOFT',
+        },
+        'NEW MONOPOLY': {
+            'AMAZON',
         },
         'OmeTV': {
             'GOOGLE_LLC',
