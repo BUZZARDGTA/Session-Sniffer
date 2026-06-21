@@ -777,8 +777,7 @@ class SessionsLogTab(QWidget):
         table.set_style(TableStyle.SINGLE_BORDER)
         table.title = config.title
         table.field_names = [
-            f'{column} \u2193' if column == config.sort_column and config.descending else f'{column} \u2191' if column == config.sort_column else column
-            for column in column_names
+            f'{column} ↓' if column == config.sort_column and config.descending else f'{column} ↑' if column == config.sort_column else column for column in column_names
         ]
         for field_name in table.field_names:
             table.align[field_name] = 'l'

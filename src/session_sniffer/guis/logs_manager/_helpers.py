@@ -301,13 +301,13 @@ def setup_copy_save_button_row(
     """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it."""
     button_row = QHBoxLayout()
 
-    copy_button = QPushButton('\U0001f4cb Copy All')
+    copy_button = QPushButton('📋 Copy All')
     copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     copy_button.setToolTip(copy_tooltip)
     copy_button.clicked.connect(copy_fn)
     button_row.addWidget(copy_button)
 
-    save_button = QPushButton('\U0001f4be Save As...')
+    save_button = QPushButton('💾 Save As...')
     save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     save_button.setToolTip(save_tooltip)
     save_button.clicked.connect(save_fn)

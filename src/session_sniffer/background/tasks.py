@@ -437,7 +437,7 @@ def handle_detection_notification(
                             show_detection_notification_dialog(
                                 find_main_window(),
                                 player,
-                                DetectionNotificationInfo(emoji='\U0001f517', display_title=title, extra_detection_fields=extra_fields, event_time=event_time_str),
+                                DetectionNotificationInfo(emoji='🔗', display_title=title, extra_detection_fields=extra_fields, event_time=event_time_str),
                             )
 
                         gui_dispatcher.invoke(_callback)
@@ -610,7 +610,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
                 find_main_window(),
                 player,
                 DetectionNotificationInfo(
-                    emoji='\U0001f6e1',
+                    emoji='🛡',
                     display_title='GTA5 Relay Detected',
                     extra_detection_fields=[('Packets', str(player.packets.exchanged))],
                     event_time=_et,
@@ -699,7 +699,7 @@ def check_global_detections(player: Player) -> None:
             )
         handle_detection_notifications(
             detection_title='MOBILE CONNECTION DETECTED!',
-            emoji='\U0001f4f1',
+            emoji='📱',
             display_title='Mobile Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
@@ -718,7 +718,7 @@ def check_global_detections(player: Player) -> None:
             )
         handle_detection_notifications(
             detection_title='VPN/PROXY/TOR CONNECTION DETECTED!',
-            emoji='\U0001f512',
+            emoji='🔒',
             display_title='VPN/Proxy/Tor Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
@@ -738,7 +738,7 @@ def check_global_detections(player: Player) -> None:
             )
         handle_detection_notifications(
             detection_title='HOSTING/DATA CENTER CONNECTION DETECTED!',
-            emoji='\U0001f3e2',
+            emoji='🏢',
             display_title='Hosting/Data Center Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
@@ -758,7 +758,7 @@ def check_global_detections(player: Player) -> None:
             )
         handle_detection_notifications(
             detection_title='BLOCKED COUNTRY DETECTED!',
-            emoji='\U0001f30d',
+            emoji='🌍',
             display_title='Blocked Country Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
@@ -796,7 +796,7 @@ def check_global_detections(player: Player) -> None:
                 )
             handle_detection_notifications(
                 detection_title='BLOCKED ISP DETECTED!',
-                emoji='\U0001f310',
+                emoji='🌐',
                 display_title='Blocked ISP Detected',
                 extra_detection_fields=[('Matched Entry', matched_isp)],
                 settings=_DetectionSettings(
@@ -840,7 +840,7 @@ def check_global_detections(player: Player) -> None:
                 )
                 handle_detection_notifications(
                     detection_title='BLOCKED ASN DETECTED!',
-                    emoji='\U0001f522',
+                    emoji='🔢',
                     display_title='Blocked ASN Detected',
                     extra_detection_fields=[('ASN', asn_display)],
                     settings=_DetectionSettings(
@@ -862,7 +862,7 @@ def check_global_detections(player: Player) -> None:
         conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
-            emoji='\U0001f517',
+            emoji='🔗',
             display_title=f'Combo Rule Matched: {rule.name}',
             extra_detection_fields=[('Conditions', conditions_summary)],
             settings=_DetectionSettings(

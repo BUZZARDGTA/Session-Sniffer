@@ -165,7 +165,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         try:
             return tuple(ipaddress.ip_address(value).packed)
         except ValueError:
-            return tuple(b for c in value.encode() for b in (c,))
+            return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
 
     @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
@@ -347,12 +347,12 @@ def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -
         if is_header:
             continue
         if in_userip_section and to_remove:
-            m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-            if m:
-                u = m.group('username').strip()
-                i = m.group('ip').strip()
-                if u and i and (u, i) in to_remove:
-                    to_remove.discard((u, i))
+            match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+            if match:
+                username_val = match.group('username').strip()
+                ip_val = match.group('ip').strip()
+                if username_val and ip_val and (username_val, ip_val) in to_remove:
+                    to_remove.discard((username_val, ip_val))
                     continue
         new_lines.append(raw_line)
     db_path.write_text('\n'.join(new_lines), encoding='utf-8')
@@ -400,11 +400,13 @@ class RenameUsernameDialog(QDialog):
 
         rename_button = QPushButton('Rename')
         rename_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        rename_button.setCursor(Qt.CursorShape.PointingHandCursor)
         rename_button.clicked.connect(self.accept)
         button_row.addWidget(rename_button)
 
         cancel_button = QPushButton('Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
 
@@ -464,11 +466,13 @@ class RemoveUsernameDialog(QDialog):
 
         remove_button = QPushButton('Remove')
         remove_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_button.clicked.connect(self.accept)
         button_row.addWidget(remove_button)
 
         cancel_button = QPushButton('Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
 
@@ -660,7 +664,7 @@ class IPRangeBuilderDialog(QDialog):
                 try:
                     prefix = int(parts[1])
                     slider_index = next(
-                        (i for i, (p, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p == prefix),
+                        (index for index, (prefix_val, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_val == prefix),
                         _SUBNET_DEFAULT_SLIDER_INDEX,
                     )
                 except ValueError:

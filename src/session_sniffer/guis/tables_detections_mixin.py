@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from session_sniffer.guis.detections_manager import open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.player.detections import GUIDetectionSettings
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,7 +54,7 @@ def build_detections_menu(
         if country_in_list:
             add_action(
                 menu,
-                f'\u2705 Remove Country ({country_name})',
+                f'✅ Remove Country ({country_name})',
                 tooltip=f'Remove {country_name} from the country detection list.',
                 handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=False),
             )
@@ -71,7 +72,7 @@ def build_detections_menu(
         if isp_in_list:
             add_action(
                 menu,
-                f'\u2705 Remove ISP ({isp})',
+                f'✅ Remove ISP ({isp})',
                 tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
                 handler=lambda: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, isp, add=False),
             )
@@ -90,7 +91,7 @@ def build_detections_menu(
         if asn_in_list:
             add_action(
                 menu,
-                f'\u2705 Remove ASN ({asn_value})',
+                f'✅ Remove ASN ({asn_value})',
                 tooltip=f'Remove ASN "{asn_value}" from the ASN detection list.',
                 handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=False),
             )
@@ -105,7 +106,7 @@ def build_detections_menu(
     menu.addSeparator()
     add_action(
         menu,
-        '\U0001f517 Create Combo Rule...',
+        '🔗 Create Combo Rule...',
         tooltip="Open the combo rule editor pre-filled with this player's Country, ISP and ASN.",
         handler=lambda: open_combo_rule_editor_for_player(parent, player),
     )
@@ -140,7 +141,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_countries)} Country/Countries to Detection List',
+            f'Add {len(new_countries)} Countr{pluralize(len(new_countries), "y", "ies")} to Detection List',
             tooltip=f'Add {", ".join(new_countries)} to the country detection list.',
             handler=_add_countries,
         )
@@ -154,7 +155,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_countries)} Country/Countries from Detection List',
+            f'✅ Remove {len(existing_countries)} Countr{pluralize(len(existing_countries), "y", "ies")} from Detection List',
             tooltip=f'Remove {", ".join(existing_countries)} from the country detection list.',
             handler=_remove_countries,
         )
@@ -176,7 +177,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_isps)} ISP(s) to Detection List',
+            f'Add {len(new_isps)} ISP{pluralize(len(new_isps))} to Detection List',
             tooltip=f'Add {", ".join(new_isps)} to the ISP detection list.',
             handler=_add_isps,
         )
@@ -190,7 +191,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_isps)} ISP(s) from Detection List',
+            f'✅ Remove {len(existing_isps)} ISP{pluralize(len(existing_isps))} from Detection List',
             tooltip=f'Remove {", ".join(existing_isps)} from the ISP detection list.',
             handler=_remove_isps,
         )
@@ -210,7 +211,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_asns)} ASN(s) to Detection List',
+            f'Add {len(new_asns)} ASN{pluralize(len(new_asns))} to Detection List',
             tooltip=f'Add {", ".join(new_asns)} to the ASN detection list.',
             handler=_add_asns,
         )
@@ -224,7 +225,7 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'\u2705 Remove {len(existing_asns)} ASN(s) from Detection List',
+            f'✅ Remove {len(existing_asns)} ASN{pluralize(len(existing_asns))} from Detection List',
             tooltip=f'Remove {", ".join(existing_asns)} from the ASN detection list.',
             handler=_remove_asns,
         )
@@ -232,7 +233,7 @@ def build_detections_menu_multi(
     menu.addSeparator()
     add_action(
         menu,
-        '\U0001f517 Create Combo Rule...',
+        '🔗 Create Combo Rule...',
         tooltip='Open the combo rule editor to create a new combo rule.',
         handler=lambda: open_combo_rule_editor(parent),
     )

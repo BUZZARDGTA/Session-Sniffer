@@ -156,18 +156,18 @@ class PlayerIdentifierWidget(QWidget):
         _zscore_header.setToolTip(
             "How far this IP's current traffic deviates from its baseline.\n\n"
             'Green  (< 3.0)                — normal\n'
-            'Yellow (\u2265 3.0)                — slightly elevated\n'
-            'Orange (\u2265 spike threshold)    — in spike zone (resolve confirmation)\n'
-            'Red    (\u2265 contam. threshold)  — baseline abort zone',
+            'Yellow (≥ 3.0)                — slightly elevated\n'
+            'Orange (≥ spike threshold)    — in spike zone (resolve confirmation)\n'
+            'Red    (≥ contam. threshold)  — baseline abort zone',
         )
         self._zscore_table.setHorizontalHeaderItem(4, _zscore_header)
         _streak_header = QTableWidgetItem('Streak')
         _streak_header.setToolTip(
             'Consecutive seconds above the relevant threshold.\n\n'
             'Baseline/Ready phase: contamination streak — aborts when it reaches\n'
-            'the contamination duration (see \u2699 Parameters).\n\n'
+            'the contamination duration (see ⚙ Parameters).\n\n'
             'Resolving phase: spike streak — confirms the IP as a match when\n'
-            'it reaches the spike duration (see \u2699 Parameters).',
+            'it reaches the spike duration (see ⚙ Parameters).',
         )
         self._zscore_table.setHorizontalHeaderItem(5, _streak_header)
         _zscore_header_view = self._zscore_table.horizontalHeader()
@@ -204,6 +204,7 @@ class PlayerIdentifierWidget(QWidget):
             'Only IPs connected RIGHT NOW will be tracked. Anyone who joins later is ignored.\n\n'
             f'The baseline runs until traffic is stable or {self._baseline_max_seconds}s have elapsed, then automatically locks in.',
         )
+        self._start_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._start_button.setFixedWidth(BUTTON_WIDTH)
         self._start_button.clicked.connect(self._on_start_baseline)
         button_layout.addWidget(self._start_button)
@@ -219,6 +220,7 @@ class PlayerIdentifierWidget(QWidget):
             'Tip: Detection works best when the target player is moving — '
             'a moving player generates significantly more traffic than a stationary one.',
         )
+        self._resolve_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._resolve_button.setFixedWidth(BUTTON_WIDTH)
         self._resolve_button.clicked.connect(self._on_resolve)
         self._resolve_button.setEnabled(False)
@@ -226,6 +228,7 @@ class PlayerIdentifierWidget(QWidget):
 
         self._reset_button = QPushButton('Reset')
         self._reset_button.setToolTip('Discard all data and start over from scratch.')
+        self._reset_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._reset_button.setFixedWidth(BUTTON_WIDTH)
         self._reset_button.clicked.connect(self.reset)
         self._reset_button.setEnabled(False)
@@ -235,7 +238,7 @@ class PlayerIdentifierWidget(QWidget):
         layout.addStretch()
 
         # Parameters control panel
-        self._params_box = QGroupBox('\u2699 Parameters')
+        self._params_box = QGroupBox('⚙ Parameters')
         params_layout = QFormLayout(self._params_box)
         params_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -433,7 +436,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setFormat('Locked')
         self._stability_bar.setValue(100)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
-        self._stability_label.setText('Stability: <span style="color:green;">Locked \u2714</span>')
+        self._stability_label.setText('Stability: <span style="color:green;">Locked ✔</span>')
         self._contamination_streak.clear()
 
     def _on_resolve(self) -> None:
@@ -661,7 +664,7 @@ class PlayerIdentifierWidget(QWidget):
         elif converged:
             pct = 100
             style = 'QProgressBar::chunk { background-color: #27ae60; }'
-            label = 'Stability: <span style="color:green;">Stable \u2714 Ready to stop</span>'
+            label = 'Stability: <span style="color:green;">Stable ✔ Ready to stop</span>'
         elif avg_shift <= effective_yellow:
             ratio = (effective_yellow - avg_shift) / (effective_yellow - effective_green)
             pct = int(60 + ratio * 39)
@@ -674,7 +677,7 @@ class PlayerIdentifierWidget(QWidget):
 
         self._update_stability(pct, style, label)
         num_ips = len(self._baselines)
-        self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} \u00b7 {self._sample_count} sample{pluralize(self._sample_count)}')
+        self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} · {self._sample_count} sample{pluralize(self._sample_count)}')
 
         # Update live z-score table (sorted by z-score descending)
         table_rows = sorted(
@@ -830,23 +833,23 @@ class PlayerIdentifierWidget(QWidget):
         self._resolved_ips = resolved
 
         # Build ranked result text
-        n = len(resolved)
-        lines: list[str] = [f'\U0001f3af {n} match{pluralize(n, plural="es")} found (ranked by confidence):']
+        num_resolved = len(resolved)
+        lines: list[str] = [f'🎯 {num_resolved} match{pluralize(num_resolved, plural="es")} found (ranked by confidence):']
         for rank, entry in enumerate(resolved, 1):
             name_part = f' — <b>{entry.username}</b>' if entry.username else ''
             lines.append(f'#{rank} — <b>{entry.ip}</b>{name_part} — {entry.confidence:.0f}% — {entry.reason}')
         lines.append('')
-        lines.append(f'The IP{pluralize(n)} ha{pluralize(n, singular="s", plural="ve")} been highlighted in the connected players table.')
+        lines.append(f'The IP{pluralize(num_resolved)} ha{pluralize(num_resolved, singular="s", plural="ve")} been highlighted in the connected players table.')
 
         self._result_label.setText('<br>'.join(lines))
         self._instructions.setText(
-            f'{n} player{pluralize(n)} identified!<br>Click <b>Reset</b> to start over, or check the highlighted rows in the connected players table.',
+            f'{num_resolved} player{pluralize(num_resolved)} identified!<br>Click <b>Reset</b> to start over, or check the highlighted rows in the connected players table.',
         )
         self._stability_bar.setValue(100)
-        self._stability_bar.setFormat('Resolved \u2714')
+        self._stability_bar.setFormat('Resolved ✔')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
-        self._start_btn.setEnabled(False)
-        self._resolve_btn.setEnabled(False)
+        self._start_button.setEnabled(False)
+        self._resolve_button.setEnabled(False)
         self._zscore_table.setRowCount(0)
         self._zscore_table.setVisible(False)
         self._highlight_ips([entry.ip for entry in resolved])

@@ -409,7 +409,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 looky_menu,
-                '\ud83c\udf10 Open Website',
+                '🌐 Open Website',
                 tooltip='Open the Looky System website in your default browser.',
                 handler=_open_looky_website,
             )

@@ -293,8 +293,8 @@ def _renamed_line(
     ip_raw = match.group('ip')
     if username_raw is None or ip_raw is None:
         return None
-    user, ip = username_raw.strip(), ip_raw.strip()
-    matched = next((pair for pair in pairs if pair[0] == user and _entry_ip_matches_any(ip, [pair[1]])), None)
+    username, ip = username_raw.strip(), ip_raw.strip()
+    matched = next((pair for pair in pairs if pair[0] == username and _entry_ip_matches_any(ip, [pair[1]])), None)
     if matched is None:
         return None
     entry_key = f'{new_username}={ip}'

@@ -72,7 +72,7 @@ class LogsManager(QDialog):
                 column_min_widths={0: 220, 5: 160},
             ),
         )
-        tabs.addTab(self._protection_tab, '\U0001f6e1\ufe0f Protection Logging')
+        tabs.addTab(self._protection_tab, '🛡\ufe0f Protection Logging')
         self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH)
         tabs.addTab(self._debug_tab, '📄 Debug Log')
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
@@ -90,7 +90,7 @@ class LogsManager(QDialog):
         purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
 
-        close_button = QPushButton('\u2716 Close')
+        close_button = QPushButton('✖ Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.setToolTip('Close the Logs Manager')
         close_button.clicked.connect(self.close)

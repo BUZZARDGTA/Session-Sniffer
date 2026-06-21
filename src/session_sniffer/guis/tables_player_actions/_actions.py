@@ -35,11 +35,11 @@ PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
 def build_discord_player_report(player: Player) -> str:
     """Build a Discord-formatted player info report string."""
     lines: list[str] = []
-    lines.append(f'## \U0001f4ca Player Report — `{player.ip}`')
+    lines.append(f'## 📊 Player Report — `{player.ip}`')
     lines.append('')
 
     # Player Info
-    lines.append('**\U0001f464 Player Info**')
+    lines.append('**👤 Player Info**')
     lines.append(f'> **IP Address:** `{player.ip}`')
     hostname = format_text(player.reverse_dns.hostname)
     lines.append(f'> **Hostname:** `{hostname}`')
@@ -64,7 +64,7 @@ def build_discord_player_report(player: Player) -> str:
     region = format_text(player.iplookup.ipapi.region)
     city = format_text(player.iplookup.geolite2.city)
     timezone = format_text(player.iplookup.ipapi.time_zone)
-    lines.append('**\U0001f30d Location**')
+    lines.append('**🌍 Location**')
     country_display = f'{country} ({country_code})' if country != 'N/A' and country_code != 'N/A' else country
     lines.append(f'> **Country:** {country_display}')
     if continent != 'N/A':
@@ -85,7 +85,7 @@ def build_discord_player_report(player: Player) -> str:
     mobile = format_bool(player.iplookup.ipapi.mobile)
     proxy = format_bool(player.iplookup.ipapi.proxy)
     hosting = format_bool(player.iplookup.ipapi.hosting)
-    lines.append('**\U0001f310 Network**')
+    lines.append('**🌐 Network**')
     if isp != 'N/A':
         lines.append(f'> **ISP:** {isp}')
     if org not in {'N/A', isp}:
@@ -99,7 +99,7 @@ def build_discord_player_report(player: Player) -> str:
     # Ping
     avg_rtt = format_ms(player.ping.rtt_avg)
     packet_loss = format_loss_pct(player.ping.packet_loss)
-    lines.append('**\U0001f4e1 Ping**')
+    lines.append('**📡 Ping**')
     lines.append(f'> **Avg RTT:** {avg_rtt}  |  **Packet Loss:** {packet_loss}')
 
     return '\n'.join(lines)

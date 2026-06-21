@@ -263,6 +263,7 @@ class _SVGColorPickerDialog(QDialog):
                 border_width = 3 if is_current else 1
                 swatch_button = QPushButton(color_name)
                 swatch_button.setFixedSize(_SWATCH_WIDTH, _SWATCH_HEIGHT)
+                swatch_button.setCursor(Qt.CursorShape.PointingHandCursor)
                 swatch_button.setAutoDefault(False)
                 swatch_button.setStyleSheet(
                     color_swatch_button_stylesheet(color.name(), text_color, border_width, border_color),
@@ -286,12 +287,14 @@ class _SVGColorPickerDialog(QDialog):
         bottom = QHBoxLayout()
         no_color_button = QPushButton('✖ No Color')
         no_color_button.setAutoDefault(False)
+        no_color_button.setCursor(Qt.CursorShape.PointingHandCursor)
         no_color_button.setToolTip('Remove the color for this database')
         no_color_button.clicked.connect(self._clear)
         bottom.addWidget(no_color_button)
         bottom.addStretch()
         cancel_button = QPushButton('Cancel')
         cancel_button.setAutoDefault(False)
+        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_button.clicked.connect(self.reject)
         bottom.addWidget(cancel_button)
         outer.addLayout(bottom)
@@ -369,7 +372,7 @@ class SettingsPanelMixin(QDialog):
 
         self._settings_toggle = QPushButton('▼ ⚙ Database Settings')
         self._settings_toggle.setAutoDefault(False)
-        self._settings_toggle.setCursor(self._settings_toggle.cursor())
+        self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._settings_toggle.setStyleSheet(USERIP_SETTINGS_TOGGLE_STYLESHEET)
         self._settings_toggle.clicked.connect(self._on_settings_toggle_clicked)
         group_outer.addWidget(self._settings_toggle)
@@ -410,6 +413,7 @@ class SettingsPanelMixin(QDialog):
         self._setting_color.setFixedSize(52, 26)
         self._setting_color.setToolTip('Click to choose a display color for entries from this database')
         self._setting_color.setAutoDefault(False)
+        self._setting_color.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setting_color.clicked.connect(self._on_color_button_clicked)
         self._update_color_button()
         row_cln.addWidget(self._setting_color)

@@ -505,7 +505,7 @@ class InterfaceSelectionDialog(QDialog):
             phase = self._arp_refresh_sweep_phase
             fraction = phase / (half - 1) if phase < half else (sweep_period - 1 - phase) / (half - 1)
             main_text = f'Pinging{dots}'
-            sub_text = 'Resolving subnets\u2026'
+            sub_text = 'Resolving subnets…'
         else:
             fraction = completed / total
             last_ip = self._arp_refresh_last_ip

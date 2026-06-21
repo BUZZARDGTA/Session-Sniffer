@@ -114,7 +114,7 @@ class UpdateDownloadDialog(QDialog):
         self._current_size_text = self._compute_current_build_size_text()
         self._new_size_label: QLabel | None = None
         self._progress_bar = QProgressBar()
-        self._status_label = QLabel('Preparing download\u2026')
+        self._status_label = QLabel('Preparing download…')
         self._size_label = QLabel(
             '0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>xx.x MB',
         )
@@ -186,7 +186,7 @@ class UpdateDownloadDialog(QDialog):
 
         row.addWidget(self._create_version_card('CURRENT', self._current_version_label, self._current_size_text, accent=False), 1)
 
-        arrow_label = QLabel('\u2192')
+        arrow_label = QLabel('→')
         arrow_label.setFont(QFont('Segoe UI', 22, QFont.Weight.Bold))
         arrow_label.setStyleSheet(UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET)
         arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -460,7 +460,7 @@ class UpdateDownloadDialog(QDialog):
                 self._new_size_label.setText(self._format_size_mb(total))
         else:
             self._size_label.setText(f'{self._format_size_mb(done)} downloaded')
-        self._status_label.setText('Streaming update from GitHub\u2026')
+        self._status_label.setText('Streaming update from GitHub…')
 
     def _on_finished(self, success: bool, message: str) -> None:  # noqa: FBT001
         """Handle download completion or failure."""

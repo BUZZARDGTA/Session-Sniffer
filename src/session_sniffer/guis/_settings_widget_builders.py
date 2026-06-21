@@ -32,7 +32,7 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-RESTART_INDICATOR = ' \u27f3'
+RESTART_INDICATOR = ' ⟳'
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
@@ -558,13 +558,13 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 
-    add_button = QPushButton('\u2795 Add')
+    add_button = QPushButton('➕ Add')  # noqa: RUF001
     add_button.setToolTip('Add a new blocked IP address, range, or subnet')
     add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     add_button.setCursor(Qt.CursorShape.PointingHandCursor)
     add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-    remove_button = QPushButton('\U0001f5d1 Remove')
+    remove_button = QPushButton('🗑 Remove')
     remove_button.setToolTip('Remove the selected entries')
     remove_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     remove_button.setCursor(Qt.CursorShape.PointingHandCursor)

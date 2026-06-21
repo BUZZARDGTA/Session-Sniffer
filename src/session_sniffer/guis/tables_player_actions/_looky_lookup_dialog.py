@@ -97,7 +97,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         for entry in results:
-            group, form = self._make_group(f'\U0001f3ae  {entry.name}', accent='#4c1d95')
+            group, form = self._make_group(f'🎮  {entry.name}', accent='#4c1d95')
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))
             self._add_row(form, 'Username', entry.name)
             self._add_row(form, 'Last Seen', entry.lastSeen.strftime('%Y-%m-%d %H:%M:%S UTC'))
@@ -114,6 +114,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         button_box.accepted.connect(self.accept)
         close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
         if close_button is not None:
+            close_button.setCursor(Qt.CursorShape.PointingHandCursor)
             close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         outer_layout.addWidget(button_box)
 

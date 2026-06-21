@@ -82,21 +82,21 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.setSpacing(20)
 
         join_group = self._create_detection_group(
-            '\u2795 Player Join',
+            '➕ Player Join',  # noqa: RUF001
             'Triggers when a new player joins your session.',
             'player_join',
         )
         scroll_layout.addWidget(join_group)
 
         rejoin_group = self._create_detection_group(
-            '\U0001f504 Player Rejoin',
+            '🔄 Player Rejoin',
             'Triggers when a player rejoins your session after disconnecting.',
             'player_rejoin',
         )
         scroll_layout.addWidget(rejoin_group)
 
         leave_group = self._create_detection_group(
-            '\u274c Player Leave',
+            '❌ Player Leave',
             'Triggers when a player leaves your session.',
             'player_leave',
         )
@@ -122,21 +122,21 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.setSpacing(20)
 
         mobile_group = self._create_detection_group(
-            '\U0001f4f1 Mobile Connection',
+            '📱 Mobile Connection',
             'Triggers when a player is on a mobile or cellular connection.',
             'mobile',
         )
         scroll_layout.addWidget(mobile_group)
 
         vpn_group = self._create_detection_group(
-            '\U0001f512 VPN/Proxy/Tor',
+            '🔒 VPN/Proxy/Tor',
             'Triggers when a player is using a VPN, proxy, or Tor exit node.',
             'vpn',
         )
         scroll_layout.addWidget(vpn_group)
 
         hosting_group = self._create_detection_group(
-            '\U0001f3e2 Hosting/Data Center',
+            '🏢 Hosting/Data Center',
             'Triggers when a player connects from a hosting provider or data center.',
             'hosting',
         )
@@ -162,21 +162,21 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.setSpacing(20)
 
         country_group = self._create_list_detection_group(
-            '\U0001f30d Country Detection',
+            '🌍 Country Detection',
             "Triggers when a player's country is in the detection list.",
             'country',
         )
         scroll_layout.addWidget(country_group)
 
         isp_group = self._create_list_detection_group(
-            '\U0001f310 ISP/Company Detection',
+            '🌐 ISP/Company Detection',
             "Triggers when a player's ISP or company is in the detection list (e.g., Vodafone, Orange, Cloudflare).",
             'isp',
         )
         scroll_layout.addWidget(isp_group)
 
         asn_group = self._create_list_detection_group(
-            '\U0001f522 ASN Number Detection',
+            '🔢 ASN Number Detection',
             "Triggers when a player's ASN is in the detection list (e.g., AS15169, AS13335, or just 15169, 13335).",
             'asn',
         )
@@ -201,7 +201,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout = QHBoxLayout(filter_warning)
         filter_warning_layout.setContentsMargins(8, 6, 8, 6)
         filter_warning_layout.setSpacing(10)
-        warning_icon_label = QLabel('\u26a0\ufe0f')
+        warning_icon_label = QLabel('⚠\ufe0f')
         warning_icon_label.setStyleSheet(WARNING_ICON_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
@@ -230,7 +230,7 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.setSpacing(20)
 
         relay_group = self._create_detection_group(
-            '\U0001f6e1 GTA5 Relay',
+            '🛡 GTA5 Relay',
             'Triggers when a Take-Two Interactive relay IP exceeds the configured packet threshold.',
             'gta5_relay',
         )
@@ -290,27 +290,32 @@ class DetectionsManagerTabsMixin(QDialog):
         # Buttons row
         button_layout = QHBoxLayout()
 
-        add_button = QPushButton('\u2795 Add Rule')
+        add_button = QPushButton('➕ Add Rule')  # noqa: RUF001
+        add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
 
-        self._combo_edit_button = QPushButton('\u270f\ufe0f Edit')
+        self._combo_edit_button = QPushButton('📝 Edit')
         self._combo_edit_button.setEnabled(False)
+        self._combo_edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_edit_button.clicked.connect(self._edit_combo_rule)
         button_layout.addWidget(self._combo_edit_button)
 
-        self._combo_duplicate_button = QPushButton('\U0001f4cb Duplicate')
+        self._combo_duplicate_button = QPushButton('📋 Duplicate')
         self._combo_duplicate_button.setEnabled(False)
+        self._combo_duplicate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_duplicate_button.clicked.connect(self._duplicate_combo_rule)
         button_layout.addWidget(self._combo_duplicate_button)
 
-        self._combo_remove_button = QPushButton('\u2796 Remove')
+        self._combo_remove_button = QPushButton('➖ Remove')  # noqa: RUF001
         self._combo_remove_button.setEnabled(False)
+        self._combo_remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_remove_button.clicked.connect(self._remove_combo_rule)
         button_layout.addWidget(self._combo_remove_button)
 
-        self._combo_clear_button = QPushButton('\U0001f5d1\ufe0f Clear All')
+        self._combo_clear_button = QPushButton('🗑️ Clear All')
         self._combo_clear_button.setEnabled(False)
+        self._combo_clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_clear_button.clicked.connect(self._clear_combo_rules)
         button_layout.addWidget(self._combo_clear_button)
 
@@ -335,7 +340,7 @@ class DetectionsManagerTabsMixin(QDialog):
         result = QMessageBox.question(
             self,
             TITLE,
-            '\u26a0\ufe0f The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
+            '⚠\ufe0f The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
             '(<i>Block Third-Party Servers</i> setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
             'so this detection will never trigger while that filter is active.\n\n'
@@ -376,7 +381,7 @@ class DetectionsManagerTabsMixin(QDialog):
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
             conditions_summary = ', '.join(f'{key}={value}' if not isinstance(value, bool) else key for key, value in rule.conditions.items())
-            status = '\u2705' if rule.enabled else '\u274c'
+            status = '✅' if rule.enabled else '❌'
             item = QListWidgetItem(f'{status} {rule.name}  [{conditions_summary}]')
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
             self._combo_rules_list.addItem(item)
@@ -484,7 +489,7 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
         setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator = QLabel('─── Detection Settings ───')
         detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detection_section_layout.addWidget(detection_separator)
@@ -546,17 +551,20 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
-        add_button = QPushButton('\u2795 Add')
+        add_button = QPushButton('➕ Add')  # noqa: RUF001
+        add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_callback = getattr(self, f'_add_{detection_type}')
         add_button.clicked.connect(add_callback)
         buttons_layout.addWidget(add_button)
 
-        remove_button = QPushButton('\u2796 Remove')
+        remove_button = QPushButton('➖ Remove')  # noqa: RUF001
+        remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_callback = getattr(self, f'_remove_{detection_type}')
         remove_button.clicked.connect(remove_callback)
         buttons_layout.addWidget(remove_button)
 
-        clear_button = QPushButton('\U0001f5d1\ufe0f Clear All')
+        clear_button = QPushButton('🗑️ Clear All')
+        clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_button.clicked.connect(list_widget.clear)
         buttons_layout.addWidget(clear_button)
 
@@ -570,7 +578,7 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
         setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator = QLabel('─── Detection Settings ───')
         detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detection_section_layout.addWidget(detection_separator)
@@ -614,7 +622,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _create_notification_controls(self, parent_layout: QVBoxLayout, prefix: str) -> None:
         """Add voice notification, logging, and message box controls to a group layout."""
-        separator = QLabel('\u2500\u2500\u2500 Notification Settings \u2500\u2500\u2500')
+        separator = QLabel('─── Notification Settings ───')
         separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         parent_layout.addWidget(separator)

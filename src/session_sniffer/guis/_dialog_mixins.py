@@ -71,13 +71,13 @@ def setup_tab_dialog_buttons(
 
     button_row.addStretch()
 
-    reset_tab_button = QPushButton('\U0001f504 Reset')
+    reset_tab_button = QPushButton('🔄 Reset')
     reset_tab_button.setToolTip('Reset current tab settings to default values (review before saving)')
     reset_tab_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     reset_tab_button.clicked.connect(reset_current_tab)
     button_row.addWidget(reset_tab_button)
 
-    save_button = QPushButton('\U0001f4be Save')
+    save_button = QPushButton('💾 Save')
     save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
     save_button.setDefault(True)
     return save_button

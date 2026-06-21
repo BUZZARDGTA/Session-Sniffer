@@ -164,9 +164,11 @@ class _RIDPickerDialog(QDialog):
         button_box.rejected.connect(self.reject)
         ok_button = button_box.button(QDialogButtonBox.StandardButton.Ok)
         if ok_button is not None:
+            ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
             ok_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
         cancel_button = button_box.button(QDialogButtonBox.StandardButton.Cancel)
         if cancel_button is not None:
+            cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         layout.addWidget(button_box)
 
@@ -226,7 +228,7 @@ def _build_crawler_request_dialog(
 
     def _on_status_updated(status: str, result: object) -> None:
         ts = datetime.now(tz=UTC).astimezone().strftime('%H:%M:%S')
-        line = f'[{ts}]  \u25cf {status}' if result is None else f'[{ts}]  \u25cf {status}: {result}'
+        line = f'[{ts}]  ● {status}' if result is None else f'[{ts}]  ● {status}: {result}'
         log.appendPlainText(line)
 
     def _on_completed() -> None:
@@ -239,7 +241,7 @@ def _build_crawler_request_dialog(
 
     def _on_failed(message: str) -> None:
         widgets.progress_bar.hide()
-        widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
+        widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">✗ Failed: {message}</span>')
         widgets.status_label.show()
         widgets.try_again_button.show()
         log.setPlaceholderText('')
@@ -254,7 +256,7 @@ def _build_crawler_request_dialog(
 
         def _on_retry_send_failed(message: str) -> None:
             widgets.progress_bar.hide()
-            widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
+            widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">✗ Failed: {message}</span>')
             widgets.status_label.show()
             widgets.try_again_button.show()
             log.setPlaceholderText('')

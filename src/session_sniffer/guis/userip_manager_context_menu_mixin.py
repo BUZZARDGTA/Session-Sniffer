@@ -211,10 +211,10 @@ class EntriesContextMenuMixin(QDialog):
                 continue
 
             if in_userip_section and not removed:
-                m = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-                if m:
-                    u_raw = m.group('username')
-                    ip_raw = m.group('ip')
+                match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+                if match:
+                    u_raw = match.group('username')
+                    ip_raw = match.group('ip')
                     if u_raw is not None and ip_raw is not None and u_raw.strip() == username and ip_raw.strip() == ip_or_range:
                         removed = True
                         continue

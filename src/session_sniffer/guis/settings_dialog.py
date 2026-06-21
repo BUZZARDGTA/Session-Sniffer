@@ -123,26 +123,26 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         button_row = QHBoxLayout()
 
-        import_button = QPushButton('\U0001f4e5 Import')
+        import_button = QPushButton('📥 Import')
         import_button.setToolTip('Import settings from a Settings.ini file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton('\U0001f4e4 Export')
+        export_button = QPushButton('📤 Export')
         export_button.setToolTip('Export current settings to a Settings.ini file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('\U0001f504 Reset all…')
+        reset_button = QPushButton('🔄 Reset all…')
         reset_button.setToolTip('Reset all settings across every tab to their default values (review before saving)')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Validate and save all settings to Settings.ini')
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton('\u274c Cancel')
+        cancel_button = QPushButton('❌ Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
@@ -400,14 +400,14 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            show_button = QPushButton('\U0001f441 Show')
+            show_button = QPushButton('👁 Show')
             show_button.setCheckable(True)
             show_button.setToolTip('Reveal or hide the webhook URL')
             show_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))
             url_row_layout.addWidget(show_button)
 
-            test_button = QPushButton('\U0001f527 Test')
+            test_button = QPushButton('🔧 Test')
             test_button.setToolTip('Send a one-time test message to this webhook URL')
             test_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             test_button.clicked.connect(partial(self._test_webhook, url_line))
@@ -437,7 +437,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         # Reset Stored Messages button (separate row, also gated on enabled).
         reset_messages_row = QHBoxLayout()
         reset_messages_row.addStretch()
-        reset_messages_button = QPushButton('\U0001f5d1 Reset Stored Messages')
+        reset_messages_button = QPushButton('🗑 Reset Stored Messages')
         reset_messages_button.setToolTip(
             'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
             'Use this after changing channels or after Wick/automod deletes the old messages.',
@@ -449,7 +449,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         # Footer note about automod / Wick.
         note = QLabel(
-            '\u26a0 If your server runs Wick or another automod with a "wall of text" filter, '
+            '⚠ If your server runs Wick or another automod with a "wall of text" filter, '
             'whitelist this webhook (or its channel) to prevent the messages — and the webhook itself — from being deleted.',
         )
         note.setWordWrap(True)
@@ -473,10 +473,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         """Toggle masked/plain echo for the webhook URL."""
         if checked:
             url_line.setEchoMode(QLineEdit.EchoMode.Normal)
-            show_button.setText('\U0001f648 Hide')
+            show_button.setText('🙈 Hide')
         else:
             url_line.setEchoMode(QLineEdit.EchoMode.Password)
-            show_button.setText('\U0001f441 Show')
+            show_button.setText('👁 Show')
 
     def _reset_stored_messages(self) -> None:
         """Clear persisted Discord webhook message IDs so the next post creates new messages."""

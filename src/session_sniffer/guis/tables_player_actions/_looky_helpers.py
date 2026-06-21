@@ -64,6 +64,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
 
     try_again_button = QPushButton('Try Again')
     try_again_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
+    try_again_button.setCursor(Qt.CursorShape.PointingHandCursor)
     try_again_button.hide()
     layout.addWidget(try_again_button)
 
@@ -71,6 +72,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     button_box.rejected.connect(dialog.reject)
     close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
     if close_button is not None:
+        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     layout.addWidget(button_box)
 

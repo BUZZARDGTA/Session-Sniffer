@@ -119,44 +119,44 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         layout.setSpacing(10)
 
         # Header
-        header = QLabel('\U0001f6e1\ufe0f Advanced Detection & Security Manager')
+        header = QLabel('🛡\ufe0f Advanced Detection & Security Manager')
         header.setStyleSheet(DETECTIONS_MANAGER_HEADER_STYLESHEET)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.addTab(self.create_player_events_tab(), '\U0001f464 Player Events')
-        self._tabs.addTab(self.create_network_based_tab(), '\U0001f310 Network-Based')
-        self._tabs.addTab(self.create_geo_based_tab(), '\U0001f30d Geography-Based')
-        self._tabs.addTab(self.create_combo_rules_tab(), '\U0001f517 Combo Rules')
+        self._tabs.addTab(self.create_player_events_tab(), '👤 Player Events')
+        self._tabs.addTab(self.create_network_based_tab(), '🌐 Network-Based')
+        self._tabs.addTab(self.create_geo_based_tab(), '🌍 Geography-Based')
+        self._tabs.addTab(self.create_combo_rules_tab(), '🔗 Combo Rules')
         if Settings.is_gta5_preset():
-            self._tabs.addTab(self.create_gta5_relays_tab(), '\U0001f3ae GTA5 Relays')
+            self._tabs.addTab(self.create_gta5_relays_tab(), '🎮 GTA5 Relays')
         layout.addWidget(self._tabs)
 
         # Bottom buttons
         button_row = QHBoxLayout()
 
-        import_button = QPushButton('\U0001f4e5 Import')
+        import_button = QPushButton('📥 Import')
         import_button.setToolTip('Import detection settings from a JSON file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_detections)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton('\U0001f4e4 Export')
+        export_button = QPushButton('📤 Export')
         export_button.setToolTip('Export detection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_detections)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('\U0001f504 Reset all…')
+        reset_button = QPushButton('🔄 Reset all…')
         reset_button.setToolTip('Reset all detection settings to defaults')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Save all detection settings')
         save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton('\u274c Cancel')
+        cancel_button = QPushButton('❌ Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)

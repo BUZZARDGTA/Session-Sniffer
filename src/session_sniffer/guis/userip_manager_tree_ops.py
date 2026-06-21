@@ -422,7 +422,7 @@ class TreeOperationsMixin(QDialog):
         if self._current_path == path:
             self._current_path = new_path
 
-        self._set_status(f'Renamed "{path.name}" \u2192 "{new_name}"')
+        self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
         """Move a file or folder to a different directory via a folder picker."""
@@ -453,7 +453,7 @@ class TreeOperationsMixin(QDialog):
         if self._current_path == path:
             self._current_path = new_path
 
-        self._set_status(f'Moved "{path.name}" \u2192 {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
+        self._set_status(f'Moved "{path.name}" → {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
 
     @staticmethod
     def _open_in_explorer(path: Path) -> None:
@@ -621,6 +621,7 @@ class TreeOperationsMixin(QDialog):
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
                 _button.setMinimumWidth(160)
+                _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -663,6 +664,7 @@ class TreeOperationsMixin(QDialog):
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
                 _button.setMinimumWidth(200)
+                _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -714,6 +716,7 @@ class TreeOperationsMixin(QDialog):
                 skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
                 for _button in msg_box.buttons():
                     _button.setMinimumWidth(100)
+                    _button.setCursor(Qt.CursorShape.PointingHandCursor)
                 msg_box.exec()
                 clicked = msg_box.clickedButton()
                 if clicked is skip_button:
@@ -768,6 +771,7 @@ class TreeOperationsMixin(QDialog):
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
                 _button.setMinimumWidth(160)
+                _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -845,6 +849,7 @@ class TreeOperationsMixin(QDialog):
                         cancel_button = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
                         for _button in msg_box.buttons():
                             _button.setMinimumWidth(120)
+                            _button.setCursor(Qt.CursorShape.PointingHandCursor)
                         msg_box.exec()
 
                         clicked = msg_box.clickedButton()

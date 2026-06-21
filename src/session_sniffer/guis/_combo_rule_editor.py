@@ -212,7 +212,7 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container = QVBoxLayout()
         conditions_layout.addLayout(self._conditions_container)
 
-        add_condition_button = QPushButton('\u2795 Add Condition')
+        add_condition_button = QPushButton('➕ Add Condition')  # noqa: RUF001
         add_condition_button.clicked.connect(self._add_condition_row)
         conditions_layout.addWidget(add_condition_button)
 
@@ -230,7 +230,7 @@ class ComboRuleEditorDialog(QDialog):
         action_layout = QVBoxLayout()
 
         # Notification Settings
-        notification_separator = QLabel('\u2500\u2500\u2500 Notification Settings \u2500\u2500\u2500')
+        notification_separator = QLabel('─── Notification Settings ───')
         notification_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         notification_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_layout.addWidget(notification_separator)
@@ -262,7 +262,7 @@ class ComboRuleEditorDialog(QDialog):
         detection_section_layout = QVBoxLayout(detection_section)
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
 
-        detection_separator = QLabel('\u2500\u2500\u2500 Detection Settings \u2500\u2500\u2500')
+        detection_separator = QLabel('─── Detection Settings ───')
         detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
         detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         detection_section_layout.addWidget(detection_separator)
@@ -393,8 +393,9 @@ class ComboRuleEditorDialog(QDialog):
 
         type_combo.currentTextChanged.connect(on_type_changed)
 
-        remove_button = QPushButton('\u2796')
+        remove_button = QPushButton('➖')  # noqa: RUF001
         remove_button.setMaximumWidth(40)
+        remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         row_widget = QWidget()
         row_layout.addWidget(type_combo, stretch=1)

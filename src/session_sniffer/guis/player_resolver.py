@@ -42,11 +42,11 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
         # Tab 1: High Rate Monitor
         self.high_rate_monitor = HighRateMonitorWidget(self)
-        self._tabs.addTab(self.high_rate_monitor, '\U0001f4c8 High Rate Monitor')
+        self._tabs.addTab(self.high_rate_monitor, '📈 High Rate Monitor')
 
         # Tab 2: Player Identifier
         self.player_identifier = PlayerIdentifierWidget(highlight_ips_callback, self)
-        self._tabs.addTab(self.player_identifier, '\U0001f3af Player Identifier')
+        self._tabs.addTab(self.player_identifier, '🎯 Player Identifier')
 
         # Always on top checkbox (shared across tabs)
         always_on_top_checkbox = QCheckBox('Always on Top')

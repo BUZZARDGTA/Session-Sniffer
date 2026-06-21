@@ -274,7 +274,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         # Entry action buttons
         entry_buttons = QHBoxLayout()
 
-        self._add_button = QPushButton('\u2795 Add Entry')
+        self._add_button = QPushButton('➕ Add Entry')  # noqa: RUF001
         self._add_button.setAutoDefault(False)
         self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
         self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -282,7 +282,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._edit_ip_button = QPushButton('\U0001f527 Edit IP/Range…')
+        self._edit_ip_button = QPushButton('🔧 Edit IP/Range…')
         self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
         self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)

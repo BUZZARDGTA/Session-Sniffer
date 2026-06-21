@@ -226,7 +226,7 @@ def _build_multi_embed_payload(
 
     def _flush(*, is_last: bool, extra_removed: int) -> None:
         nonlocal total_chars_used
-        embed_title = title if embed_index == 1 else f'{title} \u00b7 {embed_index}'
+        embed_title = title if embed_index == 1 else f'{title} · {embed_index}'
         parts = ['\n\n'.join(current_blocks)]
         remaining = total_removed + extra_removed
         if is_last and remaining:
@@ -237,7 +237,7 @@ def _build_multi_embed_payload(
 
     for block_index, block in enumerate(blocks):
         block_len = len(block)
-        next_embed_title = title if embed_index == 1 else f'{title} \u00b7 {embed_index}'
+        next_embed_title = title if embed_index == 1 else f'{title} · {embed_index}'
         title_len = len(next_embed_title)
         # Extra chars needed: separator ('\n\n' = 2 chars) if not first block in embed,
         # plus the block itself.  We also need to reserve _TRUNCATION_NOTICE_RESERVE
@@ -314,7 +314,7 @@ def send_test_message(url: str) -> tuple[bool, str]:
 
     payload = json.dumps(
         {
-            'content': f'\U0001f527 Test from {TITLE} — webhook is working.',
+            'content': f'🔧 Test from {TITLE} — webhook is working.',
         },
     ).encode('utf-8')
     try:

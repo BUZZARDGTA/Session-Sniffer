@@ -67,7 +67,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
         self._header_label = self._add_header_label(
             outer_layout,
-            f'\U0001f50e  IP Lookup Details — {format_player_display(player.ip, player.usernames)}',
+            f'🔎  IP Lookup Details — {format_player_display(player.ip, player.usernames)}',
             '#2b6cb0',
             '#4c51bf',
         )
@@ -90,7 +90,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     def _build_player_info_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Player Info' section to the scroll layout."""
-        group, form = self._make_group('\U0001f464  Player Info', accent='#2b6cb0')
+        group, form = self._make_group('👤  Player Info', accent='#2b6cb0')
         self._add_live_row(form, 'IP Address', lambda player: player.ip)
         self._add_live_row(form, 'Hostname', lambda player: format_text(player.reverse_dns.hostname))
         self._add_live_row(form, 'Usernames', lambda player: ', '.join(player.usernames) or 'N/A')
@@ -102,7 +102,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     def _build_iplookup_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'IP Lookup Details' section to the scroll layout."""
-        group, form = self._make_group('\U0001f30d  IP Lookup Details', accent='#38a169')
+        group, form = self._make_group('🌍  IP Lookup Details', accent='#38a169')
         self._add_live_row(form, 'Continent', lambda player: format_text(player.iplookup.ipapi.continent))
         self._add_live_row(form, 'Continent Code', lambda player: format_text(player.iplookup.ipapi.continent_code))
         self._add_live_row(form, 'Country', lambda player: format_text(player.iplookup.geolite2.country))
@@ -129,7 +129,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     def _build_ping_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
-        group, form = self._make_group('\U0001f4e1  Ping Response', accent='#d69e2e')
+        group, form = self._make_group('📡  Ping Response', accent='#d69e2e')
         self._add_live_row(form, 'Status', lambda player: format_ping_status(player.ping.is_pinging))
         self._add_live_row(
             form,
@@ -161,7 +161,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         new_title = f'{TITLE} - IP Lookup Details ({display})'
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
-            self._header_label.setText(f'\U0001f50e  IP Lookup Details — {display}')
+            self._header_label.setText(f'🔎  IP Lookup Details — {display}')
         for value_widget, provider in self._rows:
             text = provider(player)
             if value_widget.text() != text:

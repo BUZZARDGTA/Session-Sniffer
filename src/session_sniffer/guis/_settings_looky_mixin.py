@@ -90,7 +90,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _build_looky_info_group(self) -> QGroupBox:
         """Build an informational banner for the Looky System API key setting."""
-        group_box = QGroupBox('\U0001f6b9 Looky System — GTA IP Lookup')
+        group_box = QGroupBox('🚹 Looky System — GTA IP Lookup')
         layout = QVBoxLayout(group_box)
 
         info_label = QLabel(

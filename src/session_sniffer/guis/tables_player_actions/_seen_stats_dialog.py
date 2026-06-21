@@ -44,7 +44,7 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'\U0001f4c5  Seen Stats — {format_player_display(player.ip, player.usernames)}', '#6b46c1', '#9f7aea')
+        self._add_header_label(outer_layout, f'📅  Seen Stats — {format_player_display(player.ip, player.usernames)}', '#6b46c1', '#9f7aea')
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
@@ -55,7 +55,7 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
 
     def _build_encounter_group(self, parent_layout: QVBoxLayout, stats: SeenStats) -> None:
         """Add the 'Session Encounters' section to the scroll layout."""
-        group, form = self._make_group('\U0001f4c5  Session Encounters', accent='#6b46c1')
+        group, form = self._make_group('📅  Session Encounters', accent='#6b46c1')
         for key, label in SEEN_STATS_LABELS.items():
             self._add_row(form, label, str(getattr(stats, key)))
         parent_layout.addWidget(group)

@@ -229,6 +229,7 @@ class FilesMixin(QMainWindow):
         button_box.addButton(QDialogButtonBox.StandardButton.Close)
 
         if copy_button is not None:
+            copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
             clipboard = QApplication.clipboard()
             if clipboard is not None:
                 copy_button.clicked.connect(lambda: clipboard.setText(copy_text))
