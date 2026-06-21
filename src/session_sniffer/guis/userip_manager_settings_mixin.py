@@ -26,7 +26,7 @@ from session_sniffer.guis.stylesheets import (
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
     USERIP_SETTINGS_TOGGLE_STYLESHEET,
     color_button_filled_stylesheet,
-    color_swatch_btn_stylesheet,
+    color_swatch_button_stylesheet,
 )
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
@@ -208,9 +208,9 @@ _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     ],
 }
 
-_SWATCH_COLS = 8
-_SWATCH_W = 110
-_SWATCH_H = 30
+_SWATCH_COLUMNS = 8
+_SWATCH_WIDTH = 110
+_SWATCH_HEIGHT = 30
 _LUMINANCE_DARK_THRESHOLD = 128
 
 
@@ -253,26 +253,26 @@ class _SVGColorPickerDialog(QDialog):
             grid.setSpacing(2)
             grid.setContentsMargins(0, 0, 0, 2)
 
-            for i, name in enumerate(color_names):
-                row, col = divmod(i, _SWATCH_COLS)
-                color = QColor(name)
-                lum = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
-                text_color = '#111111' if lum > _LUMINANCE_DARK_THRESHOLD else '#eeeeee'
+            for i, color_name in enumerate(color_names):
+                row, column = divmod(i, _SWATCH_COLUMNS)
+                color = QColor(color_name)
+                luminance = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
+                text_color = '#111111' if luminance > _LUMINANCE_DARK_THRESHOLD else '#eeeeee'
                 is_current = color.name().lower() == initial_hex
                 border_color = '#ffffff' if is_current else '#555555'
                 border_width = 3 if is_current else 1
-                btn = QPushButton(name)
-                btn.setFixedSize(_SWATCH_W, _SWATCH_H)
-                btn.setAutoDefault(False)
-                btn.setStyleSheet(
-                    color_swatch_btn_stylesheet(color.name(), text_color, border_width, border_color),
+                swatch_button = QPushButton(color_name)
+                swatch_button.setFixedSize(_SWATCH_WIDTH, _SWATCH_HEIGHT)
+                swatch_button.setAutoDefault(False)
+                swatch_button.setStyleSheet(
+                    color_swatch_button_stylesheet(color.name(), text_color, border_width, border_color),
                 )
 
-                def _on_clicked(*_: object, n: str = name) -> None:
-                    self._pick(QColor(n), n)
+                def _on_clicked(*_: object, color_name: str = color_name) -> None:
+                    self._pick(QColor(color_name), color_name)
 
-                btn.clicked.connect(_on_clicked)
-                grid.addWidget(btn, row, col)
+                swatch_button.clicked.connect(_on_clicked)
+                grid.addWidget(swatch_button, row, column)
 
             content_layout.addWidget(group_widget)
 
@@ -284,16 +284,16 @@ class _SVGColorPickerDialog(QDialog):
         outer.addWidget(scroll)
 
         bottom = QHBoxLayout()
-        no_color_btn = QPushButton('✖ No Color')
-        no_color_btn.setAutoDefault(False)
-        no_color_btn.setToolTip('Remove the color for this database')
-        no_color_btn.clicked.connect(self._clear)
-        bottom.addWidget(no_color_btn)
+        no_color_button = QPushButton('✖ No Color')
+        no_color_button.setAutoDefault(False)
+        no_color_button.setToolTip('Remove the color for this database')
+        no_color_button.clicked.connect(self._clear)
+        bottom.addWidget(no_color_button)
         bottom.addStretch()
-        cancel_btn = QPushButton('Cancel')
-        cancel_btn.setAutoDefault(False)
-        cancel_btn.clicked.connect(self.reject)
-        bottom.addWidget(cancel_btn)
+        cancel_button = QPushButton('Cancel')
+        cancel_button.setAutoDefault(False)
+        cancel_button.clicked.connect(self.reject)
+        bottom.addWidget(cancel_button)
         outer.addLayout(bottom)
 
     def _pick(self, color: QColor, name: str) -> None:

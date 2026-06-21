@@ -56,13 +56,13 @@ class StatsMixin(QMainWindow):
 
     def _sync_gta5_process_button(self) -> None: ...  # Provided by GTA5Mixin
 
-    def _highlight_connected_ips(self, ips: list[str]) -> None:
+    def _highlight_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
         model = self._connected.table_model
         view = self._connected.table_view
         selection = QItemSelection()
         first_index = None
-        for ip in ips:
+        for ip in ip_addresses:
             row = model.get_row_index_by_ip(ip)
             if row is None:
                 continue
@@ -78,13 +78,13 @@ class StatsMixin(QMainWindow):
         view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         view.scrollTo(first_index)
 
-    def _highlight_ips(self, ips: list[str]) -> None:
+    def _highlight_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP, checking connected first then disconnected."""
         connected_selection = QItemSelection()
         disconnected_selection = QItemSelection()
         connected_first_index = None
         disconnected_first_index = None
-        for ip in ips:
+        for ip in ip_addresses:
             row = self._connected.table_model.get_row_index_by_ip(ip)
             if row is not None:
                 top_left = self._connected.table_model.index(row, 0)
@@ -326,7 +326,7 @@ class StatsMixin(QMainWindow):
         if removed_player is None:
             return
 
-        SessionHost.players_pending_for_disconnection = [p for p in SessionHost.players_pending_for_disconnection if p.ip != ip]
+        SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player.ip != ip]
 
         self._connected.table_model.remove_player_by_ip(ip)
 

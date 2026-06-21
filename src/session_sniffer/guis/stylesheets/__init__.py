@@ -127,7 +127,7 @@ from session_sniffer.guis.stylesheets._userip import (
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
     USERIP_SETTINGS_TOGGLE_STYLESHEET,
     color_button_filled_stylesheet,
-    color_swatch_btn_stylesheet,
+    color_swatch_button_stylesheet,
 )
 
 __all__ = [
@@ -225,7 +225,7 @@ __all__ = [
     'WEBHOOK_NOTE_LABEL_STYLESHEET',
     'WEBSERVER_HELP_LABEL_STYLESHEET',
     'color_button_filled_stylesheet',
-    'color_swatch_btn_stylesheet',
+    'color_swatch_button_stylesheet',
     'format_interface_refresh_arp_progress_style',
     'interface_checkbox_stylesheet',
     'interface_header_label_stylesheet',

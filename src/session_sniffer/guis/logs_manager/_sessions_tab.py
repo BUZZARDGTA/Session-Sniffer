@@ -45,16 +45,16 @@ from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 
 _SEARCH_ALL = 'All Searchable Columns'
-_SEARCH_COL_USERNAMES = 'Usernames'
-_SEARCH_COL_IP = 'IP Address'
-_SEARCH_COL_HOSTNAME = 'Hostname'
-_SEARCH_COL_COUNTRY = 'Country'
-_SEARCH_COL_CITY = 'City'
-_SEARCH_COL_ISP = 'ISP'
-_SEARCH_COL_ASN = 'ASN'
-_SEARCH_COL_LAST_PORT = 'Last Port'
-_SEARCH_COL_MIDDLE_PORTS = 'Middle Ports'
-_SEARCH_COL_FIRST_PORT = 'First Port'
+_SEARCH_COLUMN_USERNAMES = 'Usernames'
+_SEARCH_COLUMN_IP = 'IP Address'
+_SEARCH_COLUMN_HOSTNAME = 'Hostname'
+_SEARCH_COLUMN_COUNTRY = 'Country'
+_SEARCH_COLUMN_CITY = 'City'
+_SEARCH_COLUMN_ISP = 'ISP'
+_SEARCH_COLUMN_ASN = 'ASN'
+_SEARCH_COLUMN_LAST_PORT = 'Last Port'
+_SEARCH_COLUMN_MIDDLE_PORTS = 'Middle Ports'
+_SEARCH_COLUMN_FIRST_PORT = 'First Port'
 _SINGLE_FILE_VIEWER_PLACEHOLDER = 'Select a session JSON file from the tree to view its contents.'
 _GLOBAL_SEARCH_VIEWER_PLACEHOLDER = 'Press Enter to search across all session JSON files.'
 
@@ -152,8 +152,8 @@ class SessionsLogTab(QWidget):
         self._tree.setModel(self._fs_model)
         self._tree.setRootIndex(self._fs_model.index(str(self._sessions_dir)))
         self._tree.setHeaderHidden(True)
-        for col in (1, 2, 3):
-            self._tree.setColumnHidden(col, True)  # noqa: FBT003
+        for column in (1, 2, 3):
+            self._tree.setColumnHidden(column, True)  # noqa: FBT003
         self._tree.clicked.connect(self._on_tree_clicked)
         self._tree.activated.connect(self._on_tree_activated)
         selection_model = self._tree.selectionModel()
@@ -304,29 +304,29 @@ class SessionsLogTab(QWidget):
         document = prepare_search(text, self._match_label, self._viewer)
         if document is None:
             return
-        matches: list[QTextCursor] = []
+        matched_cursors: list[QTextCursor] = []
         cursor = document.find(text)
         while not cursor.isNull():
-            matches.append(QTextCursor(cursor))
+            matched_cursors.append(QTextCursor(cursor))
             cursor = document.find(text, cursor)
 
-        highlight_fmt = QTextCharFormat()
-        highlight_fmt.setBackground(QColor('#665c00'))
-        highlight_fmt.setForeground(QColor('#ffffff'))
+        highlight_format = QTextCharFormat()
+        highlight_format.setBackground(QColor('#665c00'))
+        highlight_format.setForeground(QColor('#ffffff'))
 
         selections = []
-        for c in matches:
+        for match_cursor in matched_cursors:
             selection = QTextEdit.ExtraSelection()
-            selection.cursor = c
-            selection.format = highlight_fmt
+            selection.cursor = match_cursor
+            selection.format = highlight_format
             selections.append(selection)
         self._viewer.setExtraSelections(selections)
 
-        if matches:
-            self._viewer.setTextCursor(matches[0])
+        if matched_cursors:
+            self._viewer.setTextCursor(matched_cursors[0])
             self._viewer.centerCursor()
 
-        self._match_label.setText(f'{len(matches)} match(es)' if matches else 'No matches')
+        self._match_label.setText(f'{len(matched_cursors)} match(es)' if matched_cursors else 'No matches')
 
     def _on_search_return_pressed(self) -> None:
         """Run global search on Enter. Activates global mode if not already active."""
@@ -576,10 +576,10 @@ class SessionsLogTab(QWidget):
         return effective_widths
 
     @staticmethod
-    def _format_prettytable_separator(column_widths: list[int], num_columns: int) -> str:
-        if num_columns <= 0:
+    def _format_prettytable_separator(column_widths: list[int], column_count: int) -> str:
+        if column_count <= 0:
             return ''
-        widths = [column_widths[i] if i < len(column_widths) else 0 for i in range(num_columns)]
+        widths = [column_widths[i] if i < len(column_widths) else 0 for i in range(column_count)]
         return f'├─{"─┼─".join("─" * width for width in widths)}─┤'
 
     @staticmethod
@@ -641,16 +641,16 @@ class SessionsLogTab(QWidget):
     @classmethod
     def _build_player_search_fields(cls, ip: str, info: dict[str, Any]) -> dict[str, str]:
         return {
-            _SEARCH_COL_USERNAMES: cls._normalize_search_value(info.get('Usernames')),
-            _SEARCH_COL_IP: ip,
-            _SEARCH_COL_HOSTNAME: cls._normalize_search_value(info.get('Hostname')),
-            _SEARCH_COL_COUNTRY: cls._normalize_search_value(info.get('Country')),
-            _SEARCH_COL_CITY: cls._normalize_search_value(info.get('City')),
-            _SEARCH_COL_ISP: cls._normalize_search_value(info.get('ISP')),
-            _SEARCH_COL_ASN: cls._normalize_search_value(info.get('ASN')),
-            _SEARCH_COL_LAST_PORT: cls._normalize_search_value(info.get('Last Port')),
-            _SEARCH_COL_MIDDLE_PORTS: cls._normalize_search_value(info.get('Middle Ports')),
-            _SEARCH_COL_FIRST_PORT: cls._normalize_search_value(info.get('First Port')),
+            _SEARCH_COLUMN_USERNAMES: cls._normalize_search_value(info.get('Usernames')),
+            _SEARCH_COLUMN_IP: ip,
+            _SEARCH_COLUMN_HOSTNAME: cls._normalize_search_value(info.get('Hostname')),
+            _SEARCH_COLUMN_COUNTRY: cls._normalize_search_value(info.get('Country')),
+            _SEARCH_COLUMN_CITY: cls._normalize_search_value(info.get('City')),
+            _SEARCH_COLUMN_ISP: cls._normalize_search_value(info.get('ISP')),
+            _SEARCH_COLUMN_ASN: cls._normalize_search_value(info.get('ASN')),
+            _SEARCH_COLUMN_LAST_PORT: cls._normalize_search_value(info.get('Last Port')),
+            _SEARCH_COLUMN_MIDDLE_PORTS: cls._normalize_search_value(info.get('Middle Ports')),
+            _SEARCH_COLUMN_FIRST_PORT: cls._normalize_search_value(info.get('First Port')),
         }
 
     @classmethod
@@ -682,10 +682,8 @@ class SessionsLogTab(QWidget):
             return []
 
         matches: list[str] = []
-        connected = session_log.connected
-        disconnected = session_log.disconnected
 
-        for section_name, players in (('connected', connected), ('disconnected', disconnected)):
+        for section_name, players in (('connected', session_log.connected), ('disconnected', session_log.disconnected)):
             for ip, info in players.items():
                 fields = self._build_player_search_fields(ip, info)
                 if selected_column == _SEARCH_ALL:

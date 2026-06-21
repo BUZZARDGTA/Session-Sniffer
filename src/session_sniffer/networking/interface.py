@@ -151,8 +151,8 @@ class SelectedInterfaceRow:
                 None,
             )
             if mac is None:
-                msg = f'No neighbour entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
-                raise RuntimeError(msg)
+                message = f'No neighbour entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
+                raise RuntimeError(message)
             return mac
         return self.interface.identity.mac_address
 

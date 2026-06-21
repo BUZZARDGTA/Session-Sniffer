@@ -36,7 +36,7 @@ class LookyProgressWidgets:
 
     progress_bar: QProgressBar
     status_label: QLabel
-    try_again_btn: QPushButton
+    try_again_button: QPushButton
 
 
 def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyProgressWidgets:
@@ -62,19 +62,19 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     status_label.hide()
     layout.addWidget(status_label)
 
-    try_again_btn = QPushButton('Try Again')
-    try_again_btn.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
-    try_again_btn.hide()
-    layout.addWidget(try_again_btn)
+    try_again_button = QPushButton('Try Again')
+    try_again_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
+    try_again_button.hide()
+    layout.addWidget(try_again_button)
 
     button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
     button_box.rejected.connect(dialog.reject)
-    close_btn = button_box.button(QDialogButtonBox.StandardButton.Close)
-    if close_btn is not None:
-        close_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+    close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
+    if close_button is not None:
+        close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     layout.addWidget(button_box)
 
-    return LookyProgressWidgets(progress_bar, status_label, try_again_btn)
+    return LookyProgressWidgets(progress_bar, status_label, try_again_button)
 
 
 def check_looky_prerequisites(parent: QWidget) -> str | None:

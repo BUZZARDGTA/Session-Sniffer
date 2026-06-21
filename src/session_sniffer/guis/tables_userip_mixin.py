@@ -35,9 +35,9 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
 def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
     """Add the selected IP address(es) to the chosen UserIP database."""
     # Prompt the user for a username
-    username, ok = QInputDialog.getText(parent, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:')
+    username, success = QInputDialog.getText(parent, 'Input Username', f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:')
 
-    if not ok:
+    if not success:
         return
 
     username = username.strip()
@@ -68,13 +68,13 @@ def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Pat
 
     range_input = range_dlg.result_entry()
 
-    username, ok = QInputDialog.getText(
+    username, success = QInputDialog.getText(
         parent,
         'Input Username',
         f'Enter the username to associate with range "{range_input}":',
     )
 
-    if not ok:
+    if not success:
         return
 
     username = username.strip()
@@ -189,7 +189,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
     if len(matching_ranges) == 1:
         old_range = matching_ranges[0]
     else:
-        chosen, ok = QInputDialog.getItem(
+        chosen, success = QInputDialog.getItem(
             parent,
             'Edit Range',
             f'Multiple ranges cover IP {ip_address}.\nSelect the range to edit:',
@@ -197,7 +197,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
             0,
             editable=False,
         )
-        if not ok or not chosen:
+        if not success or not chosen:
             return
         old_range = chosen
 
@@ -252,13 +252,13 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         return
 
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
-    username, ok = QInputDialog.getText(
+    username, success = QInputDialog.getText(
         parent,
         'Add Username',
         f'Current usernames for {ip_address}: {existing}\n\nEnter the new username to add:',
     )
 
-    if not ok:
+    if not success:
         return
 
     username = username.strip()
@@ -293,8 +293,8 @@ def _renamed_line(
     ip_raw = match.group('ip')
     if username_raw is None or ip_raw is None:
         return None
-    u, ip = username_raw.strip(), ip_raw.strip()
-    matched = next((t for t in pairs if t[0] == u and _entry_ip_matches_any(ip, [t[1]])), None)
+    user, ip = username_raw.strip(), ip_raw.strip()
+    matched = next((pair for pair in pairs if pair[0] == user and _entry_ip_matches_any(ip, [pair[1]])), None)
     if matched is None:
         return None
     entry_key = f'{new_username}={ip}'
@@ -339,7 +339,7 @@ def _rewrite_db_for_rename(db_path: Path, pairs: list[tuple[str, str]], new_user
 
 def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
     """Prompt once for a new username and apply it to all selected players' IP entries."""
-    eligible = [(p.ip, p.userip) for p in players if p.userip is not None and p.userip.usernames]
+    eligible = [(player.ip, player.userip) for player in players if player.userip is not None and player.userip.usernames]
     if not eligible:
         return
 
@@ -347,18 +347,20 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
 
     # Pre-fill with the shared username if every selected player has exactly the same one
     all_username_sets = [frozenset(userip.usernames) for _, userip in eligible]
-    shared_username = next(iter(all_username_sets[0])) if len(all_username_sets[0]) == 1 and all(s == all_username_sets[0] for s in all_username_sets) else ''
+    shared_username = (
+        next(iter(all_username_sets[0])) if len(all_username_sets[0]) == 1 and all(username_set == all_username_sets[0] for username_set in all_username_sets) else ''
+    )
 
-    new_username, ok = QInputDialog.getText(
+    new_username, success = QInputDialog.getText(
         parent,
         'Rename Selected',
         f'Enter a new username for {len(eligible)} selected IP(s):\n{ips_display}',
         QLineEdit.EchoMode.Normal,
         shared_username,
     )
-    new_username = new_username.strip() if ok else ''
+    new_username = new_username.strip() if success else ''
     if not new_username:
-        if ok:
+        if success:
             QMessageBox.warning(parent, TITLE, 'No username was provided.')
         return
 
@@ -407,16 +409,16 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
     # Step 2: Prompt for the new username
     db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-    new_username, ok = QInputDialog.getText(
+    new_username, success = QInputDialog.getText(
         parent,
         'Rename Username',
         f'Renaming "{old_username}" for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the new username:',
         QLineEdit.EchoMode.Normal,
         old_username,
     )
-    new_username = new_username.strip() if ok else ''
+    new_username = new_username.strip() if success else ''
     if not new_username:
-        if ok:
+        if success:
             QMessageBox.warning(parent, TITLE, 'No username was provided.')
         return
 

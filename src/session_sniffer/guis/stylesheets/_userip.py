@@ -15,7 +15,7 @@ SETTINGS_SEPARATOR_STYLESHEET = 'background-color: rgba(74, 144, 226, 0.2); bord
 COLOR_BUTTON_EMPTY_STYLESHEET = 'background-color: transparent; border: 1px solid #555; border-radius: 4px;'
 
 
-def color_swatch_btn_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str) -> str:
+def color_swatch_button_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str) -> str:
     """Return the QSS for a color swatch button in the SVG color picker."""
     return (
         f'background-color: {bg_color}; color: {text_color};'

@@ -77,7 +77,7 @@
             flex-wrap: wrap;
         }
 
-        .tab-btn {
+        .tab-button {
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(136, 192, 208, 0.18);
             color: #d8dee9;
@@ -92,14 +92,14 @@
             backdrop-filter: blur(8px);
         }
 
-        .tab-btn.active {
+        .tab-button.active {
             background: linear-gradient(180deg, #88c0d0, #81a1c1);
             color: #1e242f;
             border-color: rgba(136, 192, 208, 0.55);
             box-shadow: 0 0 16px rgba(136, 192, 208, 0.18);
         }
 
-        .tab-btn:hover {
+        .tab-button:hover {
             background: rgba(136, 192, 208, 0.15);
         }
 
@@ -418,10 +418,10 @@
         <div id="error" class="error" style="display: none;"></div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab(event, 'connected')">
+            <button class="tab-button active" onclick="switchTab(event, 'connected')">
                 Connected <span id="connectedCount">0</span>
             </button>
-            <button class="tab-btn" onclick="switchTab(event, 'disconnected')">
+            <button class="tab-button" onclick="switchTab(event, 'disconnected')">
                 Disconnected <span id="disconnectedCount">0</span>
             </button>
         </div>
@@ -476,11 +476,11 @@
         let lastVersion = 0;
         let isConnected = false;
 
-        function switchTab(event, tab) {
+        function switchTab(event, tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
 
-            document.getElementById(tab).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
         }
 
@@ -543,11 +543,11 @@
                 `;
                 html += '<div class="player-details">';
 
-                columns.forEach((col, index) => {
+                columns.forEach((column, index) => {
                     const value = row[index] ?? 'N/A';
                     html += `
                         <div class="player-detail-row">
-                            <span class="detail-label">${escapeHtml(col)}</span>
+                            <span class="detail-label">${escapeHtml(column)}</span>
                             <span class="detail-value">${escapeHtml(value)}</span>
                         </div>
                     `;

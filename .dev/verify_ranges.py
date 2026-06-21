@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from rich.status import Status
 
 IP_API_BATCH_URL = 'http://ip-api.com/batch'
-THROTTLING_RL_THRESHOLD = 3
+THROTTLING_RATE_LIMIT_THRESHOLD = 3
 COOLDOWN_HTTP_STATUS = 429
 EXPECTED_ARGS_COUNT = 2
 MIN_WORD_LENGTH = 4
@@ -65,7 +65,7 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
     min_interval: float
     last_request_time: float
     cooldown_until: float
-    last_rl: int | None
+    last_rate_limit: int | None
     capacity: int
     window: int
     tokens: int
@@ -77,7 +77,7 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
         self.min_interval = 60 / 45
         self.last_request_time = 0.0
         self.cooldown_until = 0.0
-        self.last_rl = None
+        self.last_rate_limit = None
         self.capacity = 45
         self.window = 60
         self.tokens = 45
@@ -86,9 +86,9 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
     def _refill(self) -> None:
         """Refill the token bucket based on elapsed time."""
         now = time.time()
-        elapsed = now - self.last_refill
+        elapsed_seconds = now - self.last_refill
 
-        if elapsed >= self.window:
+        if elapsed_seconds >= self.window:
             self.tokens = self.capacity
             self.last_refill = now
 
@@ -101,27 +101,27 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
 
     def _apply_headers(self, headers: Mapping[str, str]) -> None:
         """Apply rate limit headers from the API response."""
-        rl_str = headers.get('X-Rl')
-        ttl_str = headers.get('X-Ttl')
+        rate_limit_str = headers.get('X-Rl')
+        time_to_live_str = headers.get('X-Ttl')
 
-        rl: int | None = None
-        if rl_str is not None:
+        rate_limit: int | None = None
+        if rate_limit_str is not None:
             with contextlib.suppress(ValueError):
-                rl = int(rl_str)
+                rate_limit = int(rate_limit_str)
 
-        ttl: int | None = None
-        if ttl_str is not None:
+        time_to_live: int | None = None
+        if time_to_live_str is not None:
             with contextlib.suppress(ValueError):
-                ttl = int(ttl_str)
+                time_to_live = int(time_to_live_str)
 
-        self.last_rl = rl
+        self.last_rate_limit = rate_limit
 
-        if rl is not None and rl == 0:  # pylint: disable=use-implicit-booleaness-not-comparison-to-zero
-            wait_time = (ttl + 1) if ttl else 60
+        if rate_limit is not None and rate_limit == 0:  # pylint: disable=use-implicit-booleaness-not-comparison-to-zero
+            wait_time = (time_to_live + 1) if time_to_live else 60
             console.print(f'[yellow]\\[RATE] exhausted[/yellow] → [yellow]sleeping {wait_time}s[/yellow]')
             time.sleep(wait_time)
 
-        elif rl is not None and rl <= THROTTLING_RL_THRESHOLD:
+        elif rate_limit is not None and rate_limit <= THROTTLING_RATE_LIMIT_THRESHOLD:
             time.sleep(2)
 
     def _consume(self) -> None:
@@ -154,15 +154,15 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                 self.last_request_time = time.time()
 
                 if response.status_code == COOLDOWN_HTTP_STATUS:
-                    ttl_str = response.headers.get('X-Ttl')
+                    time_to_live_str = response.headers.get('X-Ttl')
 
                     try:
-                        ttl = int(ttl_str) if ttl_str else 60
+                        time_to_live = int(time_to_live_str) if time_to_live_str else 60
                     except ValueError:
-                        ttl = 60
+                        time_to_live = 60
 
                     # always use fresh TTL, minimum 1s
-                    wait_time = max(ttl + 1, 1)
+                    wait_time = max(time_to_live + 1, 1)
 
                     # track cooldown deadline
                     self.cooldown_until = time.time() + wait_time
@@ -540,7 +540,7 @@ def suggest_fix(
 
             total_first_ip = matching_networks[0].network_address
             total_last_ip = matching_networks[-1].broadcast_address
-            total_ip_addresses = sum(n.num_addresses for n in matching_networks)
+            total_ip_addresses = sum(matching_network.num_addresses for matching_network in matching_networks)
 
             table.add_section()
             table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
@@ -630,7 +630,7 @@ def suggest_fix(
 
         total_first_ip = good_networks[0].network_address
         total_last_ip = good_networks[-1].broadcast_address
-        total_ip_addresses = sum(n.num_addresses for n in good_networks)
+        total_ip_addresses = sum(good_network.num_addresses for good_network in good_networks)
 
         table.add_section()
         table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
@@ -775,7 +775,7 @@ def suggest_expansion(
 
     total_first = expanded_networks[0].network_address
     total_last = expanded_networks[-1].broadcast_address
-    total_ip_addresses = sum(n.num_addresses for n in expanded_networks)
+    total_ip_addresses = sum(expanded_network.num_addresses for expanded_network in expanded_networks)
 
     table.add_section()
     table.add_row('[bold]Total[/bold]', f'[bold]{total_first} - {total_last} ({total_ip_addresses:,} IPs)[/bold]')
@@ -873,13 +873,13 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         percent = int((current_index / total_count) * 100)
         progress_prefix = f'[cyan][{percent}%][/cyan] '
 
-    status_msg = (
+    status_message = (
         f'{progress_prefix}[bold cyan]Scanning [/bold cyan]'
         f'[bold white]{owner}[/bold white] '
         f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
         f'[bold cyan])...[/bold cyan]'
     )
-    with console.status(status_msg) as status:
+    with console.status(status_message) as status:
         # -----------------------------
         # BUILD ONE SINGLE REQUEST SET
         # -----------------------------
@@ -935,7 +935,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         for ip in adjacent_ip_addresses:
             ip_int = int(ipaddress.IPv4Address(ip))
             direction = 'BACKWARD' if ip_int < start_ip_int else 'FORWARD'
-            ip_object = ipaddress.IPv4Address(ip)
+            ip_addr = ipaddress.IPv4Address(ip)
 
             details_list = backward_expansion_details if direction == 'BACKWARD' else forward_expansion_details
 
@@ -946,7 +946,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                 else:
                     forward_expansion_status = status_str
 
-            if any(ip_object in n for n in owner_networks):
+            if any(ip_addr in owner_network for owner_network in owner_networks):
                 update_status('[green]✓ Already Covered[/green]')
                 details_list.append(f'[magenta]{ip}[/magenta]\nStatus: [green]Already Covered[/green]')
                 continue
@@ -1122,7 +1122,7 @@ def run_preflight_checks(
             collapses.append(f'[dim]• {owner}: {len(networks)} ranges → {len(collapsed)}[/dim]')
 
             # Find lines matching this owner to help user locate it
-            owner_line_numbers = [line_number for o, _, line_number in ranges if o == owner]
+            owner_line_numbers = [line_number for owner_name, _, line_number in ranges if owner_name == owner]
             link_str = f'  •  [blue]{clean_relative_path}:{min(owner_line_numbers)}[/blue]' if (owner_line_numbers and clean_relative_path) else ''
 
             owner_suggestions = [f"    '{network.with_prefixlen}'," for network in collapsed]

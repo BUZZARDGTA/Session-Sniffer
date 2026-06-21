@@ -176,8 +176,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
         regex = self.filterRegularExpression()
         if not regex.pattern():
             return True
-        for col in (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN):
-            index = model.index(source_row, col, source_parent)
+        for column in (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN):
+            index = model.index(source_row, column, source_parent)
             data = model.data(index, self.filterRole())
             if data is not None and regex.match(str(data)).hasMatch():
                 return True
@@ -234,9 +234,9 @@ class ElidedTooltipFilter(QObject):
                 text = index.data(Qt.ItemDataRole.DisplayRole)
                 if text:
                     header = self._get_header()
-                    col_width = header.sectionSize(index.column()) if header is not None else 0
+                    column_width = header.sectionSize(index.column()) if header is not None else 0
                     fm = QFontMetrics(self._view.font())
-                    if fm.horizontalAdvance(str(text)) + 8 > col_width:
+                    if fm.horizontalAdvance(str(text)) + 8 > column_width:
                         QToolTip.showText(a1.globalPos(), str(text), self._view)
                     else:
                         QToolTip.hideText()
@@ -398,15 +398,15 @@ class RenameUsernameDialog(QDialog):
         button_row = QHBoxLayout()
         button_row.addStretch()
 
-        rename_btn = QPushButton('Rename')
-        rename_btn.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        rename_btn.clicked.connect(self.accept)
-        button_row.addWidget(rename_btn)
+        rename_button = QPushButton('Rename')
+        rename_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        rename_button.clicked.connect(self.accept)
+        button_row.addWidget(rename_button)
 
-        cancel_btn = QPushButton('Cancel')
-        cancel_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
+        cancel_button = QPushButton('Cancel')
+        cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        cancel_button.clicked.connect(self.reject)
+        button_row.addWidget(cancel_button)
 
         layout.addLayout(button_row)
 
@@ -462,15 +462,15 @@ class RemoveUsernameDialog(QDialog):
         button_row = QHBoxLayout()
         button_row.addStretch()
 
-        remove_btn = QPushButton('Remove')
-        remove_btn.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        remove_btn.clicked.connect(self.accept)
-        button_row.addWidget(remove_btn)
+        remove_button = QPushButton('Remove')
+        remove_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        remove_button.clicked.connect(self.accept)
+        button_row.addWidget(remove_button)
 
-        cancel_btn = QPushButton('Cancel')
-        cancel_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
+        cancel_button = QPushButton('Cancel')
+        cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        cancel_button.clicked.connect(self.reject)
+        button_row.addWidget(cancel_button)
 
         layout.addLayout(button_row)
 

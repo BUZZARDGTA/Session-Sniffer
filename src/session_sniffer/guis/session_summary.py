@@ -4,7 +4,7 @@ import time
 
 from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_duration
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureStats
@@ -76,24 +76,17 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         connected = PlayersRegistry.get_connected_players()
         all_players = PlayersRegistry.get_all_players()
 
-        total_bandwidth = sum(p.bandwidth.exchanged for p in all_players)
-        total_download = sum(p.bandwidth.download for p in all_players)
-        total_upload = sum(p.bandwidth.upload for p in all_players)
+        total_bandwidth = sum(player.bandwidth.exchanged for player in all_players)
+        total_download = sum(player.bandwidth.download for player in all_players)
+        total_upload = sum(player.bandwidth.upload for player in all_players)
 
         pps = CaptureStats.global_pps_rate
         bps = CaptureStats.global_bps_rate
         self._peak_pps = max(self._peak_pps, pps)
         self._peak_bps = max(self._peak_bps, bps)
 
-        elapsed = int(time.monotonic() - self._opened_at)
-        h, rem = divmod(elapsed, 3600)
-        m, s = divmod(rem, 60)
-        if h:
-            uptime = f'{h}h {m}m {s}s'
-        elif m:
-            uptime = f'{m}m {s}s'
-        else:
-            uptime = f'{s}s'
+        elapsed_seconds = int(time.monotonic() - self._opened_at)
+        uptime = format_duration(elapsed_seconds)
 
         self._lbl_connected.setText(str(len(connected)))
         self._lbl_total.setText(str(len(all_players)))

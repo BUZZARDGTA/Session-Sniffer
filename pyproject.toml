@@ -209,17 +209,14 @@ error-on-warning = true # Error if ty emits any warning-level diagnostics.
 exclude = [".history", ".venv"]
 min_confidence = 61
 ignore_names = [
-    "validate_nodes",
-    "thread_name",
     "field_names",
-    "highlightBlock",
     "filterAcceptsRow",
-    "tickStrings",
     "flush",
-    "nameservers",
+    "highlightBlock",
     "lifetime",
+    "num_columns",
     "snapshot_version",
-    "num_cols",
-    "_baseline",
-    "_baseline_floor",
+    "thread_name",
+    "tickStrings",
+    "validate_nodes",
 ]

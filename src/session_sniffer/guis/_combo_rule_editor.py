@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH
+from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import COUNTRY_NAMES
 from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
@@ -32,7 +33,7 @@ from session_sniffer.settings import Settings
 
 COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 # Pre-scan available flag codes once to avoid per-country filesystem checks
-AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(p.stem for p in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
+AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(path.stem for path in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
 
 
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
@@ -100,15 +101,15 @@ class CountrySelectionDialog(QDialog):
         self._combo.setMaxVisibleItems(15)
 
         model = QStandardItemModel(self._combo)
-        for code in sorted(COUNTRY_NAMES, key=lambda c: COUNTRY_NAMES[c]):
-            name = COUNTRY_NAMES[code]
-            if name in existing_countries:
+        for country_code in sorted(COUNTRY_NAMES, key=lambda country_code: COUNTRY_NAMES[country_code]):
+            country_name = COUNTRY_NAMES[country_code]
+            if country_name in existing_countries:
                 continue
-            display = f'{code} - {name}'
+            display = f'{country_code} - {country_name}'
             item = QStandardItem(display)
-            item.setData(name, Qt.ItemDataRole.UserRole)
-            if code in AVAILABLE_FLAG_CODES:
-                item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{code}.png'))))
+            item.setData(country_name, Qt.ItemDataRole.UserRole)
+            if country_code in AVAILABLE_FLAG_CODES:
+                item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))
             model.appendRow(item)
 
         self._combo.setModel(model)
@@ -144,9 +145,9 @@ class CountrySelectionDialog(QDialog):
                 return data
         text = self._combo.currentText().strip()
         text_upper = text.upper()
-        for code, name in COUNTRY_NAMES.items():
-            if text_upper == code or text_upper == f'{code} - {name}'.upper() or text_upper == name.upper():
-                return name
+        for country_code, country_name in COUNTRY_NAMES.items():
+            if text_upper == country_code or text_upper == f'{country_code} - {country_name}'.upper() or text_upper == country_name.upper():
+                return country_name
         return None
 
 
@@ -211,9 +212,9 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container = QVBoxLayout()
         conditions_layout.addLayout(self._conditions_container)
 
-        add_condition_btn = QPushButton('\u2795 Add Condition')
-        add_condition_btn.clicked.connect(self._add_condition_row)
-        conditions_layout.addWidget(add_condition_btn)
+        add_condition_button = QPushButton('\u2795 Add Condition')
+        add_condition_button.clicked.connect(self._add_condition_row)
+        conditions_layout.addWidget(add_condition_button)
 
         conditions_group.setLayout(conditions_layout)
 
@@ -276,7 +277,7 @@ class ComboRuleEditorDialog(QDialog):
         self._duration_combo.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
         duration_row.addWidget(self._duration_combo)
         self._duration_spin = QSpinBox()
-        self._duration_spin.setRange(1, 3600)
+        self._duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         self._duration_spin.setValue(60)
         self._duration_spin.setSuffix(' seconds')
         self._duration_spin.setVisible(False)
@@ -363,13 +364,13 @@ class ComboRuleEditorDialog(QDialog):
                 country_combo.setEditable(True)
                 country_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
                 model = QStandardItemModel(country_combo)
-                for code in sorted(COUNTRY_NAMES, key=lambda c: COUNTRY_NAMES[c]):
-                    name = COUNTRY_NAMES[code]
-                    display = f'{code} - {name}'
+                for country_code in sorted(COUNTRY_NAMES, key=lambda country_code: COUNTRY_NAMES[country_code]):
+                    country_name = COUNTRY_NAMES[country_code]
+                    display = f'{country_code} - {country_name}'
                     item = QStandardItem(display)
-                    item.setData(name, Qt.ItemDataRole.UserRole)
-                    if code in AVAILABLE_FLAG_CODES:
-                        item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{code}.png'))))
+                    item.setData(country_name, Qt.ItemDataRole.UserRole)
+                    if country_code in AVAILABLE_FLAG_CODES:
+                        item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))
                     model.appendRow(item)
                 country_combo.setModel(model)
                 country_combo.setCurrentIndex(-1)
@@ -392,13 +393,13 @@ class ComboRuleEditorDialog(QDialog):
 
         type_combo.currentTextChanged.connect(on_type_changed)
 
-        remove_btn = QPushButton('\u2796')
-        remove_btn.setMaximumWidth(40)
+        remove_button = QPushButton('\u2796')
+        remove_button.setMaximumWidth(40)
 
         row_widget = QWidget()
         row_layout.addWidget(type_combo, stretch=1)
         row_layout.addWidget(value_stack, stretch=2)
-        row_layout.addWidget(remove_btn)
+        row_layout.addWidget(remove_button)
         row_widget.setLayout(row_layout)
 
         self._conditions_container.addWidget(row_widget)
@@ -408,13 +409,13 @@ class ComboRuleEditorDialog(QDialog):
             self._condition_rows.remove((type_combo, value_stack))
             row_widget.deleteLater()
 
-        remove_btn.clicked.connect(remove_row)
+        remove_button.clicked.connect(remove_row)
 
         # Set preset values if provided
         if preset_key is not None:
             # Find the display label for the key
-            for label, k in self._CONDITION_LABELS.items():
-                if k == preset_key:
+            for label, condition_key in self._CONDITION_LABELS.items():
+                if condition_key == preset_key:
                     type_combo.setCurrentText(label)
                     break
             # Now set the value

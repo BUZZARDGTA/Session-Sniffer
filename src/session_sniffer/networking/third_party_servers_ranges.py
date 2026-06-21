@@ -10,32 +10,32 @@ class NamedRange(NamedTuple):
 
     owner: str
 
-    cidr: CidrRange
+    cidr_range: CidrRange
 
 
-def create_ranges(owner: str, *cidrs: str) -> tuple[NamedRange, ...]:
+def create_named_ranges(owner: str, *cidr_ranges: str) -> tuple[NamedRange, ...]:
     """Helper to group multiple CIDR ranges under a single owner name."""
-    return tuple(NamedRange(owner, cidr) for cidr in cidrs)
+    return tuple(NamedRange(owner, cidr_range) for cidr_range in cidr_ranges)
 
 
-BATTLEYE_RANGES: tuple[NamedRange, ...] = create_ranges(
+BATTLEYE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'BattlEye',
     '51.89.97.102/32',
     '51.89.99.255/32',
 )
 
-CLOUDFLARE_RANGES: tuple[NamedRange, ...] = create_ranges(
+CLOUDFLARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Cloudflare',
     '104.16.0.0/12',
     '141.101.64.0/18',
 )
 
-DEMONWARE_RANGES: tuple[NamedRange, ...] = create_ranges(
+DEMONWARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Demonware Limited',
     '185.34.104.0/22',
 )
 
-DISCORD_RANGES: tuple[NamedRange, ...] = create_ranges(
+DISCORD_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Discord',
     '66.22.192.0/19',
     '66.22.224.0/22',
@@ -44,13 +44,13 @@ DISCORD_RANGES: tuple[NamedRange, ...] = create_ranges(
     '66.22.240.0/20',
 )
 
-FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_ranges(
+FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'FRIEND IT Ltd',
     '193.169.172.0/23',
 )
 
 # https://www.gstatic.com/ipranges/goog.json
-GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_ranges(
+GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Google LLC',
     '8.8.4.0/24',
     '8.8.8.0/24',
@@ -150,12 +150,12 @@ GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_ranges(
     '216.252.220.0/22',
 )
 
-LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_ranges(
+LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Latitude.sh LTDA',
     '189.1.160.0/20',
 )
 
-MICROSOFT_RANGES: tuple[NamedRange, ...] = create_ranges(
+MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Microsoft Corporation',
     '9.163.0.0/16',
     '9.164.0.0/16',
@@ -196,7 +196,7 @@ MICROSOFT_RANGES: tuple[NamedRange, ...] = create_ranges(
     '168.62.0.0/15',
 )
 
-OVH_RANGES: tuple[NamedRange, ...] = create_ranges(
+OVH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'OVH SAS',
     '15.204.0.0/16',
     '15.235.0.0/16',
@@ -214,25 +214,25 @@ OVH_RANGES: tuple[NamedRange, ...] = create_ranges(
     '162.19.0.0/16',
 )
 
-PLAYSTATION_SONY_RANGES: tuple[NamedRange, ...] = create_ranges(
+PLAYSTATION_SONY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Sony Interactive (PlayStation)',
     '100.42.96.0/20',
     '104.142.128.0/17',
 )
 
-TAKETWO_INTERACTIVE_RANGES: tuple[NamedRange, ...] = create_ranges(
+TAKETWO_INTERACTIVE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Take-Two Interactive Software, Inc.',
     '104.255.104.0/22',
     '185.56.64.0/22',
     '192.81.240.0/21',
 )
 
-TELLAS_GREECE_RANGES: tuple[NamedRange, ...] = create_ranges(
+TELLAS_GREECE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Tellas Greece',
     '176.58.224.0/22',
 )
 
-TENCENT_RANGES: tuple[NamedRange, ...] = create_ranges(
+TENCENT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Tencent Building, Kejizhongyi Avenue',
     '43.128.0.0/17',
     '43.128.128.0/19',
@@ -255,7 +255,7 @@ TENCENT_RANGES: tuple[NamedRange, ...] = create_ranges(
     '43.144.0.0/15',
 )
 
-THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_ranges(
+THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'The Constant Company, LLC',
     '45.32.0.0/16',
     '45.63.0.0/17',
@@ -278,12 +278,12 @@ THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_ranges(
     '217.69.0.0/20',
 )
 
-TSEFLOW_RANGES: tuple[NamedRange, ...] = create_ranges(
+TSEFLOW_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'TSeflow s.r.l.',
     '95.141.32.0/20',
 )
 
-UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_ranges(
+UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'UK Ministry of Defence',
     '25.0.0.0/12',
     '25.16.0.0/13',
@@ -323,14 +323,14 @@ UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_ranges(
     '25.192.0.0/10',
 )
 
-US_DEPARTMENT_OF_DEFENSE_RANGES: tuple[NamedRange, ...] = create_ranges(
+US_DEPARTMENT_OF_DEFENSE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'US Department of Defense',
     '21.0.0.0/8',
     '22.0.0.0/8',
     '26.0.0.0/8',
 )
 
-VALVE_RANGES: tuple[NamedRange, ...] = create_ranges(
+VALVE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Valve Corporation',
     '45.121.184.0/22',
     '103.10.124.0/23',

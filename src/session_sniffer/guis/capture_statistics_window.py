@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, build_rate_plot_widget, grow_x_cache
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_duration
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -53,12 +53,12 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         body_layout.setSpacing(6)
 
         # ── Left column — two sub-columns of stats panels ────────────────
-        left_col = QHBoxLayout()
-        left_col.setSpacing(6)
-        left_col_a = QVBoxLayout()
-        left_col_a.setSpacing(6)
-        left_col_b = QVBoxLayout()
-        left_col_b.setSpacing(6)
+        left_column = QHBoxLayout()
+        left_column.setSpacing(6)
+        left_column_a = QVBoxLayout()
+        left_column_a.setSpacing(6)
+        left_column_b = QVBoxLayout()
+        left_column_b.setSpacing(6)
 
         # Capture Config group
         capture_config_group = QGroupBox('Capture Config')
@@ -77,7 +77,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         capture_config_form.addRow('VPN Mode:', self._lbl_vpn)
         capture_config_form.addRow('Game Preset:', self._lbl_preset)
         capture_config_form.addRow('Discord RPC:', self._lbl_discord)
-        left_col_a.addWidget(capture_config_group)
+        left_column_a.addWidget(capture_config_group)
 
         # Players group
         players_group = QGroupBox('Players')
@@ -88,7 +88,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         players_form.addRow('Total:', self._lbl_total)
         players_form.addRow('Connected:', self._lbl_connected)
         players_form.addRow('Disconnected:', self._lbl_disconnected)
-        left_col_a.addWidget(players_group)
+        left_column_a.addWidget(players_group)
 
         # Stability group
         stability_group = QGroupBox('Stability')
@@ -101,7 +101,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         stability_form.addRow('Capture Uptime:', self._lbl_uptime)
         stability_form.addRow('Capture Restarts:', self._lbl_restarts)
         stability_form.addRow('Packets Dropped:', self._lbl_packets_dropped)
-        left_col_a.addWidget(stability_group)
+        left_column_a.addWidget(stability_group)
 
         self._process_started_at: float = psutil.Process().create_time()
 
@@ -120,9 +120,9 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         performance_form.addRow('Disk Read Rate:', self._lbl_disk_read_rate)
         performance_form.addRow('Disk Write Total:', self._lbl_disk_write_total)
         performance_form.addRow('Disk Write Rate:', self._lbl_disk_write_rate)
-        left_col_a.addWidget(performance_group)
+        left_column_a.addWidget(performance_group)
 
-        left_col_a.addStretch()
+        left_column_a.addStretch()
 
         # Traffic group
         traffic_group = QGroupBox('Traffic')
@@ -149,7 +149,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         traffic_form.addRow('Peak BPM:', self._lbl_peak_bpm)
         traffic_form.addRow('BPM:', self._lbl_bpm)
 
-        left_col_b.addWidget(traffic_group)
+        left_column_b.addWidget(traffic_group)
 
         # Packets group
         packets_group = QGroupBox('Packets')
@@ -163,7 +163,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         packets_form.addRow('PPM:', self._lbl_ppm)
         packets_form.addRow('Peak PPS:', self._lbl_peak_pps)
         packets_form.addRow('PPS:', self._lbl_pps)
-        left_col_b.addWidget(packets_group)
+        left_column_b.addWidget(packets_group)
 
         # Latency stats group
         self._latency_group = QGroupBox('Packet Latency (last 60s)')
@@ -180,26 +180,26 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._chk_all_time.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._chk_all_time.toggled.connect(self._on_all_time_toggled)
         latency_form.addRow(self._chk_all_time)
-        left_col_b.addWidget(self._latency_group)
+        left_column_b.addWidget(self._latency_group)
 
-        left_col_b.addStretch()
+        left_column_b.addStretch()
 
-        left_col.addLayout(left_col_a)
-        left_col.addLayout(left_col_b)
+        left_column.addLayout(left_column_a)
+        left_column.addLayout(left_column_b)
 
         # ── Right column — live graphs ────────────────────────────────────
-        right_col = QVBoxLayout()
-        right_col.setSpacing(6)
+        right_column = QVBoxLayout()
+        right_column.setSpacing(6)
 
         # BPS graph — cyan/teal tones
         bps_graph_group = QGroupBox('Bandwidth (KB/s)')
         bps_graph_layout = QVBoxLayout(bps_graph_group)
         bps_popout_row = QHBoxLayout()
         bps_popout_row.addStretch()
-        bps_popout_btn = QPushButton('⤢ Pop Out')
-        bps_popout_btn.setToolTip('Open BPS Graph in a separate window')
-        bps_popout_btn.clicked.connect(self.open_session_bps_graph_requested)
-        bps_popout_row.addWidget(bps_popout_btn)
+        bps_popout_button = QPushButton('⤢ Pop Out')
+        bps_popout_button.setToolTip('Open BPS Graph in a separate window')
+        bps_popout_button.clicked.connect(self.open_session_bps_graph_requested)
+        bps_popout_row.addWidget(bps_popout_button)
         bps_graph_layout.addLayout(bps_popout_row)
         self._bps_widget, bps_plot = build_rate_plot_widget('KB/s', self._max_history)
         bps_plot.getAxis('left').setTextPen(pg.mkPen('#00bcd4'))
@@ -209,17 +209,17 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._bps_avg_line = pg.InfiniteLine(angle=0, pen=pg.mkPen('#0097a7', width=1, style=Qt.PenStyle.DotLine))
         self._bps_widget.addItem(self._bps_avg_line)
         bps_graph_layout.addWidget(self._bps_widget)
-        right_col.addWidget(bps_graph_group)
+        right_column.addWidget(bps_graph_group)
 
         # PPS graph — lime green tones
         pps_graph_group = QGroupBox('Packets per Second (PPS)')
         pps_graph_layout = QVBoxLayout(pps_graph_group)
         pps_popout_row = QHBoxLayout()
         pps_popout_row.addStretch()
-        pps_popout_btn = QPushButton('⤢ Pop Out')
-        pps_popout_btn.setToolTip('Open PPS Graph in a separate window')
-        pps_popout_btn.clicked.connect(self.open_session_pps_graph_requested)
-        pps_popout_row.addWidget(pps_popout_btn)
+        pps_popout_button = QPushButton('⤢ Pop Out')
+        pps_popout_button.setToolTip('Open PPS Graph in a separate window')
+        pps_popout_button.clicked.connect(self.open_session_pps_graph_requested)
+        pps_popout_row.addWidget(pps_popout_button)
         pps_graph_layout.addLayout(pps_popout_row)
         self._pps_widget, pps_plot = build_rate_plot_widget('PPS', self._max_history)
         pps_plot.getAxis('left').setTextPen(pg.mkPen('lime'))
@@ -229,17 +229,17 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._pps_avg_line = pg.InfiniteLine(angle=0, pen=pg.mkPen('#388e3c', width=1, style=Qt.PenStyle.DotLine))
         self._pps_widget.addItem(self._pps_avg_line)
         pps_graph_layout.addWidget(self._pps_widget)
-        right_col.addWidget(pps_graph_group)
+        right_column.addWidget(pps_graph_group)
 
         # Latency graph — orange tones
         latency_graph_group = QGroupBox('Latency (ms/s)')
         latency_graph_layout = QVBoxLayout(latency_graph_group)
         latency_popout_row = QHBoxLayout()
         latency_popout_row.addStretch()
-        latency_popout_btn = QPushButton('⤢ Pop Out')
-        latency_popout_btn.setToolTip('Open Packets Latency Graph in a separate window')
-        latency_popout_btn.clicked.connect(self.open_packets_latency_graph_requested)
-        latency_popout_row.addWidget(latency_popout_btn)
+        latency_popout_button = QPushButton('⤢ Pop Out')
+        latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
+        latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
+        latency_popout_row.addWidget(latency_popout_button)
         latency_graph_layout.addLayout(latency_popout_row)
         self._latency_widget, latency_plot = build_rate_plot_widget('Latency (ms/s)', self._max_history)
         latency_plot.getAxis('left').setTextPen(pg.mkPen('#ff9800'))
@@ -249,10 +249,10 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._latency_avg_line = pg.InfiniteLine(angle=0, pen=pg.mkPen('#e65100', width=1, style=Qt.PenStyle.DotLine))
         self._latency_widget.addItem(self._latency_avg_line)
         latency_graph_layout.addWidget(self._latency_widget)
-        right_col.addWidget(latency_graph_group)
+        right_column.addWidget(latency_graph_group)
 
-        body_layout.addLayout(left_col)
-        body_layout.addLayout(right_col, 1)
+        body_layout.addLayout(left_column)
+        body_layout.addLayout(right_column, 1)
         layout.addLayout(body_layout)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
@@ -307,25 +307,11 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         else:
             self._lbl_discord.setText('Disabled')
 
-        elapsed = int(time.monotonic() - CaptureStats.capture_started_at)
-        h, rem = divmod(elapsed, 3600)
-        m, s = divmod(rem, 60)
-        if h:
-            self._lbl_uptime.setText(f'{h}h {m}m {s}s')
-        elif m:
-            self._lbl_uptime.setText(f'{m}m {s}s')
-        else:
-            self._lbl_uptime.setText(f'{s}s')
+        elapsed_seconds = int(time.monotonic() - CaptureStats.capture_started_at)
+        self._lbl_uptime.setText(format_duration(elapsed_seconds))
 
         total_elapsed = int(time.time() - self._process_started_at)
-        th, trem = divmod(total_elapsed, 3600)
-        tm, ts = divmod(trem, 60)
-        if th:
-            self._lbl_total_uptime.setText(f'{th}h {tm}m {ts}s')
-        elif tm:
-            self._lbl_total_uptime.setText(f'{tm}m {ts}s')
-        else:
-            self._lbl_total_uptime.setText(f'{ts}s')
+        self._lbl_total_uptime.setText(format_duration(total_elapsed))
 
         all_players = PlayersRegistry.get_all_players()
         connected_players = PlayersRegistry.get_connected_players()
@@ -333,12 +319,12 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_disconnected.setText(str(len(all_players) - len(connected_players)))
         self._lbl_total.setText(str(len(all_players)))
 
-        self._lbl_bandwidth.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.exchanged for p in all_players)))
-        self._lbl_download.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.download for p in all_players)))
-        self._lbl_upload.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.upload for p in all_players)))
-        self._lbl_total_bandwidth.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.total_exchanged for p in all_players)))
-        self._lbl_total_download.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.total_download for p in all_players)))
-        self._lbl_total_upload.setText(PlayerBandwidth.format_bytes(sum(p.bandwidth.total_upload for p in all_players)))
+        self._lbl_bandwidth.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.exchanged for player in all_players)))
+        self._lbl_download.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.download for player in all_players)))
+        self._lbl_upload.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.upload for player in all_players)))
+        self._lbl_total_bandwidth.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.total_exchanged for player in all_players)))
+        self._lbl_total_download.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.total_download for player in all_players)))
+        self._lbl_total_upload.setText(PlayerBandwidth.format_bytes(sum(player.bandwidth.total_upload for player in all_players)))
 
         self._lbl_bps.setText(PlayerBandwidth.format_bytes(CaptureStats.global_bps_rate))
         self._lbl_bpm.setText(PlayerBandwidth.format_bytes(CaptureStats.global_bpm_rate))
@@ -350,16 +336,16 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         kbps = CaptureStats.global_bps_rate / _BYTES_TO_KBS
 
         # Advance the shared sliding window once per tick
-        n = self._buf_len
-        if n < self._max_history:
-            self._latency_buf[n] = CaptureStats.global_avg_latency_ms
+        buffer_length = self._buf_len
+        if buffer_length < self._max_history:
+            self._latency_buf[buffer_length] = CaptureStats.global_avg_latency_ms
             self._latency_sum += CaptureStats.global_avg_latency_ms
-            self._pps_buf[n] = CaptureStats.global_pps_rate
+            self._pps_buf[buffer_length] = CaptureStats.global_pps_rate
             self._pps_sum += CaptureStats.global_pps_rate
-            self._bps_buf[n] = kbps
+            self._bps_buf[buffer_length] = kbps
             self._bps_sum += kbps
-            n, self._x_cache, self._x_cache_len = grow_x_cache(n, self._x_cache, self._x_cache_len)
-            self._buf_len = n
+            buffer_length, self._x_cache, self._x_cache_len = grow_x_cache(buffer_length, self._x_cache, self._x_cache_len)
+            self._buf_len = buffer_length
         else:
             self._latency_sum += CaptureStats.global_avg_latency_ms - self._latency_buf[0]
             self._latency_buf[:-1] = self._latency_buf[1:]
@@ -371,9 +357,9 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._bps_buf[:-1] = self._bps_buf[1:]
             self._bps_buf[-1] = kbps
 
-        latency_data = self._latency_buf[:n]
-        pps_data = self._pps_buf[:n]
-        bps_data = self._bps_buf[:n]
+        latency_data = self._latency_buf[:buffer_length]
+        pps_data = self._pps_buf[:buffer_length]
+        bps_data = self._bps_buf[:buffer_length]
 
         # ── Packets stats ─────────────────────────────────────────────────
         self._ppm_sample_buf.append(CaptureStats.total_packets_captured)
@@ -427,10 +413,10 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._pps_widget.setYRange(0, max(_pps_visible_max * 1.2, _FLOOR_PPS))
             self._bps_widget.setYRange(0, max(_bps_visible_max * 1.2, _FLOOR_KBS))
 
-            if n:
-                self._latency_avg_line.setPos(self._latency_sum / n)
-                self._pps_avg_line.setPos(self._pps_sum / n)
-                self._bps_avg_line.setPos(self._bps_sum / n)
+            if buffer_length:
+                self._latency_avg_line.setPos(self._latency_sum / buffer_length)
+                self._pps_avg_line.setPos(self._pps_sum / buffer_length)
+                self._bps_avg_line.setPos(self._bps_sum / buffer_length)
 
         self._graphs_all_zero = _all_values_zero and _visible_all_zero
 
@@ -471,27 +457,27 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
 
         trimmed = samples[-self._max_history :]
         pad_len = max(0, VISIBLE_WINDOW - len(trimmed))
-        n = pad_len + len(trimmed)
+        total_len = pad_len + len(trimmed)
 
-        self._buf_len = n
-        self._x_cache = np.arange(-n + 1, 1, dtype=np.float64)
-        self._x_cache_len = n
+        self._buf_len = total_len
+        self._x_cache = np.arange(-total_len + 1, 1, dtype=np.float64)
+        self._x_cache_len = total_len
 
-        latency_vals = [s[0] for s in trimmed]
-        pps_vals = [s[1] for s in trimmed]
-        bps_vals = [s[2] / _BYTES_TO_KBS for s in trimmed]
+        latency_vals = [sample[0] for sample in trimmed]
+        pps_vals = [sample[1] for sample in trimmed]
+        bps_vals = [sample[2] / _BYTES_TO_KBS for sample in trimmed]
 
         self._latency_buf[:pad_len] = 0.0
-        self._latency_buf[pad_len:n] = latency_vals
-        self._latency_sum = float(np.sum(self._latency_buf[:n]))
+        self._latency_buf[pad_len:total_len] = latency_vals
+        self._latency_sum = float(np.sum(self._latency_buf[:total_len]))
 
         self._pps_buf[:pad_len] = 0.0
-        self._pps_buf[pad_len:n] = pps_vals
-        self._pps_sum = float(np.sum(self._pps_buf[:n]))
+        self._pps_buf[pad_len:total_len] = pps_vals
+        self._pps_sum = float(np.sum(self._pps_buf[:total_len]))
 
         self._bps_buf[:pad_len] = 0.0
-        self._bps_buf[pad_len:n] = bps_vals
-        self._bps_sum = float(np.sum(self._bps_buf[:n]))
+        self._bps_buf[pad_len:total_len] = bps_vals
+        self._bps_sum = float(np.sum(self._bps_buf[:total_len]))
 
     # Internal ————————————————————————————————————————————————————————————————
 

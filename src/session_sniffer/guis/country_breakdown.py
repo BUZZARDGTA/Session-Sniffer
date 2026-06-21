@@ -23,8 +23,8 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         setup_stat_table(self._table, layout, sorting=False)
         h_header = self._table.horizontalHeader()
         if h_header is None:
-            msg = 'Failed to get horizontal header'
-            raise RuntimeError(msg)
+            message = 'Failed to get horizontal header'
+            raise RuntimeError(message)
         h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         h_header.setStretchLastSection(False)
@@ -46,7 +46,7 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
             ) and country != '...':
                 counts[country] = counts.get(country, 0) + 1
 
-        sorted_counts = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        sorted_counts = sorted(counts.items(), key=lambda item: item[1], reverse=True)
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)

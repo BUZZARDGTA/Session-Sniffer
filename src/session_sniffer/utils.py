@@ -140,8 +140,8 @@ def validate_file(file_path: Path) -> Path:
         The validated file path.
     """
     if not file_path.exists():
-        error_msg = f'File not found: {file_path.absolute()}'
-        raise FileNotFoundError(error_msg)
+        message = f'File not found: {file_path.absolute()}'
+        raise FileNotFoundError(message)
     if not file_path.is_file():
         raise InvalidFileError(file_path)
 
@@ -349,7 +349,7 @@ def validate_and_strip_balanced_outer_parens(expr: str) -> str:
                 before_opening = expr[:opening_index]
                 remaining_expr = expr[i + 1 :]
 
-                if all(c == '(' for c in before_opening) and all(c == ')' for c in remaining_expr):
+                if all(char == '(' for char in before_opening) and all(char == ')' for char in remaining_expr):
                     strip_outer_depth += 1
 
             else:

@@ -12,13 +12,13 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
-from session_sniffer.guis.tables_player_actions._fmt import (
-    fmt_bool,
-    fmt_packets_and_stats,
-    fmt_ping_status,
-    fmt_ping_times,
-    fmt_rtt_summary,
-    fmt_text,
+from session_sniffer.guis.tables_player_actions._format import (
+    format_bool,
+    format_packets_and_stats,
+    format_ping_status,
+    format_ping_times,
+    format_rtt_summary,
+    format_text,
     userip_database_text,
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
@@ -91,59 +91,59 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _build_player_info_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Player Info' section to the scroll layout."""
         group, form = self._make_group('\U0001f464  Player Info', accent='#2b6cb0')
-        self._add_live_row(form, 'IP Address', lambda p: p.ip)
-        self._add_live_row(form, 'Hostname', lambda p: fmt_text(p.reverse_dns.hostname))
-        self._add_live_row(form, 'Usernames', lambda p: ', '.join(p.usernames) or 'N/A')
+        self._add_live_row(form, 'IP Address', lambda player: player.ip)
+        self._add_live_row(form, 'Hostname', lambda player: format_text(player.reverse_dns.hostname))
+        self._add_live_row(form, 'Usernames', lambda player: ', '.join(player.usernames) or 'N/A')
         self._add_live_row(form, 'In UserIP database', userip_database_text)
-        self._add_live_row(form, 'First Port', lambda p: str(p.ports.first))
-        self._add_live_row(form, 'Middle Port(s)', lambda p: ', '.join(map(str, p.ports.middle)) or '')
-        self._add_live_row(form, 'Last Port', lambda p: str(p.ports.last))
+        self._add_live_row(form, 'First Port', lambda player: str(player.ports.first))
+        self._add_live_row(form, 'Middle Port(s)', lambda player: ', '.join(map(str, player.ports.middle)) or '')
+        self._add_live_row(form, 'Last Port', lambda player: str(player.ports.last))
         parent_layout.addWidget(group)
 
     def _build_iplookup_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'IP Lookup Details' section to the scroll layout."""
         group, form = self._make_group('\U0001f30d  IP Lookup Details', accent='#38a169')
-        self._add_live_row(form, 'Continent', lambda p: fmt_text(p.iplookup.ipapi.continent))
-        self._add_live_row(form, 'Continent Code', lambda p: fmt_text(p.iplookup.ipapi.continent_code))
-        self._add_live_row(form, 'Country', lambda p: fmt_text(p.iplookup.geolite2.country))
-        self._add_live_row(form, 'Country Code', lambda p: fmt_text(p.iplookup.geolite2.country_code))
-        self._add_live_row(form, 'Region', lambda p: fmt_text(p.iplookup.ipapi.region))
-        self._add_live_row(form, 'Region Code', lambda p: fmt_text(p.iplookup.ipapi.region_code))
-        self._add_live_row(form, 'City', lambda p: fmt_text(p.iplookup.geolite2.city))
-        self._add_live_row(form, 'District', lambda p: fmt_text(p.iplookup.ipapi.district))
-        self._add_live_row(form, 'ZIP Code', lambda p: fmt_text(p.iplookup.ipapi.zip_code))
-        self._add_live_row(form, 'Latitude', lambda p: fmt_text(p.iplookup.ipapi.lat))
-        self._add_live_row(form, 'Longitude', lambda p: fmt_text(p.iplookup.ipapi.lon))
-        self._add_live_row(form, 'Time Zone', lambda p: fmt_text(p.iplookup.ipapi.time_zone))
-        self._add_live_row(form, 'UTC Offset', lambda p: fmt_text(p.iplookup.ipapi.offset))
-        self._add_live_row(form, 'Currency', lambda p: fmt_text(p.iplookup.ipapi.currency))
-        self._add_live_row(form, 'Organization', lambda p: fmt_text(p.iplookup.ipapi.org))
-        self._add_live_row(form, 'ISP', lambda p: fmt_text(p.iplookup.ipapi.isp))
-        self._add_live_row(form, 'GeoLite2 ASN / ISP', lambda p: fmt_text(p.iplookup.geolite2.asn))
-        self._add_live_row(form, 'AS Number', lambda p: fmt_text(p.iplookup.ipapi.asn))
-        self._add_live_row(form, 'AS Name', lambda p: fmt_text(p.iplookup.ipapi.as_name))
-        self._add_live_row(form, 'Mobile (cellular)', lambda p: fmt_bool(p.iplookup.ipapi.mobile))
-        self._add_live_row(form, 'Proxy / VPN / Tor', lambda p: fmt_bool(p.iplookup.ipapi.proxy))
-        self._add_live_row(form, 'Hosting / Datacenter', lambda p: fmt_bool(p.iplookup.ipapi.hosting))
+        self._add_live_row(form, 'Continent', lambda player: format_text(player.iplookup.ipapi.continent))
+        self._add_live_row(form, 'Continent Code', lambda player: format_text(player.iplookup.ipapi.continent_code))
+        self._add_live_row(form, 'Country', lambda player: format_text(player.iplookup.geolite2.country))
+        self._add_live_row(form, 'Country Code', lambda player: format_text(player.iplookup.geolite2.country_code))
+        self._add_live_row(form, 'Region', lambda player: format_text(player.iplookup.ipapi.region))
+        self._add_live_row(form, 'Region Code', lambda player: format_text(player.iplookup.ipapi.region_code))
+        self._add_live_row(form, 'City', lambda player: format_text(player.iplookup.geolite2.city))
+        self._add_live_row(form, 'District', lambda player: format_text(player.iplookup.ipapi.district))
+        self._add_live_row(form, 'ZIP Code', lambda player: format_text(player.iplookup.ipapi.zip_code))
+        self._add_live_row(form, 'Latitude', lambda player: format_text(player.iplookup.ipapi.lat))
+        self._add_live_row(form, 'Longitude', lambda player: format_text(player.iplookup.ipapi.lon))
+        self._add_live_row(form, 'Time Zone', lambda player: format_text(player.iplookup.ipapi.time_zone))
+        self._add_live_row(form, 'UTC Offset', lambda player: format_text(player.iplookup.ipapi.offset))
+        self._add_live_row(form, 'Currency', lambda player: format_text(player.iplookup.ipapi.currency))
+        self._add_live_row(form, 'Organization', lambda player: format_text(player.iplookup.ipapi.org))
+        self._add_live_row(form, 'ISP', lambda player: format_text(player.iplookup.ipapi.isp))
+        self._add_live_row(form, 'GeoLite2 ASN / ISP', lambda player: format_text(player.iplookup.geolite2.asn))
+        self._add_live_row(form, 'AS Number', lambda player: format_text(player.iplookup.ipapi.asn))
+        self._add_live_row(form, 'AS Name', lambda player: format_text(player.iplookup.ipapi.as_name))
+        self._add_live_row(form, 'Mobile (cellular)', lambda player: format_bool(player.iplookup.ipapi.mobile))
+        self._add_live_row(form, 'Proxy / VPN / Tor', lambda player: format_bool(player.iplookup.ipapi.proxy))
+        self._add_live_row(form, 'Hosting / Datacenter', lambda player: format_bool(player.iplookup.ipapi.hosting))
         parent_layout.addWidget(group)
 
     def _build_ping_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
         group, form = self._make_group('\U0001f4e1  Ping Response', accent='#d69e2e')
-        self._add_live_row(form, 'Status', lambda p: fmt_ping_status(p.ping.is_pinging))
+        self._add_live_row(form, 'Status', lambda player: format_ping_status(player.ping.is_pinging))
         self._add_live_row(
             form,
             'Packets',
-            lambda p: fmt_packets_and_stats(
-                p.ping.packets_transmitted,
-                p.ping.packets_received,
-                p.ping.packet_loss,
-                p.ping.packet_errors,
-                p.ping.packet_duplicates,
+            lambda player: format_packets_and_stats(
+                player.ping.packets_transmitted,
+                player.ping.packets_received,
+                player.ping.packet_loss,
+                player.ping.packet_errors,
+                player.ping.packet_duplicates,
             ),
         )
-        self._add_live_row(form, 'RTT Min/Avg/Max', lambda p: fmt_rtt_summary(p.ping.rtt_min, p.ping.rtt_avg, p.ping.rtt_max, p.ping.rtt_mdev))
-        self._add_live_row(form, 'Per-Packet RTT', lambda p: fmt_ping_times(p.ping.ping_times))
+        self._add_live_row(form, 'RTT Min/Avg/Max', lambda player: format_rtt_summary(player.ping.rtt_min, player.ping.rtt_avg, player.ping.rtt_max, player.ping.rtt_mdev))
+        self._add_live_row(form, 'Per-Packet RTT', lambda player: format_ping_times(player.ping.ping_times))
         parent_layout.addWidget(group)
 
     def _add_live_row(self, form: QFormLayout, label_text: str, provider: Callable[[Player], str]) -> None:

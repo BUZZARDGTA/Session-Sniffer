@@ -29,8 +29,8 @@ def populate_host_history_submenu(menu: QMenu, highlight_ip_callback: Callable[[
     for entry in reversed(history):
         live_player = PlayersRegistry.get_player_by_ip(entry.ip)
         usernames = ', '.join(live_player.usernames) if live_player and live_player.usernames else '—'
-        elapsed = format_elapsed_time(now - entry.detected_at)
-        act = QAction(f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed} ago)', menu)
+        elapsed_time_str = format_elapsed_time(now - entry.detected_at)
+        act = QAction(f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_str} ago)', menu)
         ip = entry.ip
         act.triggered.connect(lambda _checked=False, _ip=ip: highlight_ip_callback([_ip]))
         country_code = entry.country_code.strip().upper()

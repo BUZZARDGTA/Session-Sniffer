@@ -120,15 +120,15 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Menu bar -----
         menu_bar = self.menuBar()
         if menu_bar is None:
-            msg = 'Failed to get menu bar'
-            raise RuntimeError(msg)
+            message = 'Failed to get menu bar'
+            raise RuntimeError(message)
         menu_bar.setStyleSheet(MENU_BAR_STYLESHEET)
 
         # ----- Capture menu -----
         capture_menu = menu_bar.addMenu('Capture')
         if capture_menu is None:
-            msg = 'Failed to create Capture menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Capture menu'
+            raise RuntimeError(message)
         capture_menu.setToolTipsVisible(True)
 
         toggle_capture_action = QAction('⏹️ Stop Capture', self)
@@ -146,13 +146,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- GTA5 menu (hidden unless GTA5 preset) -----
         gta5_menu = menu_bar.addMenu('GTA5')
         if gta5_menu is None:
-            msg = 'Failed to create GTA5 menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create GTA5 menu'
+            raise RuntimeError(message)
         gta5_menu.setToolTipsVisible(True)
         gta5_menu_action = gta5_menu.menuAction()
         if gta5_menu_action is None:
-            msg = 'Failed to get GTA5 menu action'
-            raise RuntimeError(msg)
+            message = 'Failed to get GTA5 menu action'
+            raise RuntimeError(message)
         gta5_menu_action.setVisible(Settings.is_gta5_preset())
         self._gta5_menu = gta5_menu
 
@@ -185,8 +185,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         session_host_submenu = gta5_menu.addMenu('👑 Session Host')
         if session_host_submenu is None:
-            msg = 'Failed to create Session Host submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Session Host submenu'
+            raise RuntimeError(message)
         session_host_submenu.setToolTipsVisible(True)
         cast('QAction', session_host_submenu.menuAction()).setToolTip('Session host detection controls for the current GTA5 lobby')
         self._session_host_submenu = session_host_submenu
@@ -222,8 +222,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         session_host_submenu.addSeparator()
         host_history_submenu = session_host_submenu.addMenu('📜 Host History')
         if host_history_submenu is None:
-            msg = 'Failed to create Host History submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Host History submenu'
+            raise RuntimeError(message)
         host_history_submenu.setToolTipsVisible(True)
         host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, self._highlight_ips))
 
@@ -231,8 +231,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
         if gta5_process_submenu is None:
-            msg = 'Failed to create GTA5 Process submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create GTA5 Process submenu'
+            raise RuntimeError(message)
         gta5_process_submenu.setToolTipsVisible(True)
         cast('QAction', gta5_process_submenu.menuAction()).setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
         self._gta5_process_submenu = gta5_process_submenu
@@ -272,8 +272,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
         if tools_menu is None:
-            msg = 'Failed to create Tools menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Tools menu'
+            raise RuntimeError(message)
         tools_menu.setToolTipsVisible(True)
 
         detections_manager_action = QAction('🛡️ Detections Manager', self)
@@ -301,8 +301,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Statistics menu -----
         statistics_menu = menu_bar.addMenu('Statistics')
         if statistics_menu is None:
-            msg = 'Failed to create Statistics menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Statistics menu'
+            raise RuntimeError(message)
         statistics_menu.setToolTipsVisible(True)
 
         capture_health_action = QAction('📊 Capture Statistics', self)
@@ -347,8 +347,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Data & Files menu -----
         data_menu = menu_bar.addMenu('Data && Files')
         if data_menu is None:
-            msg = 'Failed to create Data & Files menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Data & Files menu'
+            raise RuntimeError(message)
         data_menu.setToolTipsVisible(True)
 
         # --- AppData Roots ---
@@ -388,8 +388,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # --- Debug Logs Submenu ---
         debug_logs_submenu = data_menu.addMenu('🐛 Debug Logs')
         if debug_logs_submenu is None:
-            msg = 'Failed to create Debug Logs submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Debug Logs submenu'
+            raise RuntimeError(message)
         debug_logs_submenu.setToolTipsVisible(True)
         cast('QAction', debug_logs_submenu.menuAction()).setToolTip('Open or browse the application debug log files')
 
@@ -408,8 +408,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # --- Application Logs Submenu ---
         app_logs_submenu = data_menu.addMenu('📋 Application Logs')
         if app_logs_submenu is None:
-            msg = 'Failed to create Application Logs submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Application Logs submenu'
+            raise RuntimeError(message)
         app_logs_submenu.setToolTipsVisible(True)
         cast('QAction', app_logs_submenu.menuAction()).setToolTip('Open or browse CSV application log files (detections, protection, UserIP)')
 
@@ -443,8 +443,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Settings menu -----
         settings_menu = menu_bar.addMenu('Settings')
         if settings_menu is None:
-            msg = 'Failed to create Settings menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Settings menu'
+            raise RuntimeError(message)
         settings_menu.setToolTipsVisible(True)
 
         open_settings_action = QAction('⚙️ Open Settings', self)
@@ -464,8 +464,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # ----- Help menu -----
         help_menu = menu_bar.addMenu('Help')
         if help_menu is None:
-            msg = 'Failed to create Help menu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Help menu'
+            raise RuntimeError(message)
         help_menu.setToolTipsVisible(True)
 
         repo_action = QAction('📦 Project Repository', self)
@@ -527,7 +527,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._header.setFont(QFont('Courier', 10, QFont.Weight.Bold))
 
         # Connected and disconnected table sections
-        connected_column_names = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS]
+        connected_column_names = [
+            column for column in Settings.GUI_ALL_CONNECTED_COLUMNS if column in set(Settings.gui_columns_connected_shown) or column in Settings.GUI_FORCED_COLUMNS
+        ]
         self._connected = SessionTableSection(
             is_connected=True,
             column_names=connected_column_names,
@@ -541,7 +543,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._tables_separator.setFrameShadow(QFrame.Shadow.Sunken)
 
         disconnected_column_names = [
-            col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS
+            column for column in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column in set(Settings.gui_columns_disconnected_shown) or column in Settings.GUI_FORCED_COLUMNS
         ]
         self._disconnected = SessionTableSection(
             is_connected=False,
@@ -672,17 +674,17 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         )
 
         # Detect column config changes and rebuild tables when needed
-        col_cfg = payload.column_config
-        if col_cfg.connected_column_names != self._connected.table_model.column_names:
-            self._connected.update_columns(col_cfg.connected_column_names)
-        if col_cfg.disconnected_column_names != self._disconnected.table_model.column_names:
-            self._disconnected.update_columns(col_cfg.disconnected_column_names)
+        column_config = payload.column_config
+        if column_config.connected_column_names != self._connected.table_model.column_names:
+            self._connected.update_columns(column_config.connected_column_names)
+        if column_config.disconnected_column_names != self._disconnected.table_model.column_names:
+            self._disconnected.update_columns(column_config.disconnected_column_names)
 
-        connected_count_changed = self._connected.last_count != payload.connected_num
-        disconnected_count_changed = self._disconnected.last_count != payload.disconnected_num
+        connected_count_changed = self._connected.last_count != payload.connected_count
+        disconnected_count_changed = self._disconnected.last_count != payload.disconnected_count
 
         if connected_count_changed:
-            self._connected.update_current_count(payload.connected_num)
+            self._connected.update_current_count(payload.connected_count)
 
         self._connected.table_view.capture_selection()
         self._disconnected.table_view.capture_selection()
@@ -709,7 +711,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._connected.table_view.adjust_username_column_width()
 
         if disconnected_count_changed:
-            self._disconnected.update_current_count(payload.disconnected_num)
+            self._disconnected.update_current_count(payload.disconnected_count)
 
         disconnected_payload_ips: set[str] = set()
         for processed_data, compiled_colors in payload.disconnected_rows_with_colors:
@@ -741,12 +743,12 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # Sync pagination controls with payload data
         self._connected.sync_paging_from_payload(
-            total_count=payload.connected_num,
+            total_count=payload.connected_count,
             rows_per_page=payload.connected_rows_per_page,
             page=payload.connected_page,
         )
         self._disconnected.sync_paging_from_payload(
-            total_count=payload.disconnected_num,
+            total_count=payload.disconnected_count,
             rows_per_page=payload.disconnected_rows_per_page,
             page=payload.disconnected_page,
         )
@@ -941,7 +943,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         disconnected_ips = {player.ip for player in disconnected_players}
 
         PlayersRegistry.clear_disconnected_players()
-        SessionHost.players_pending_for_disconnection = [p for p in SessionHost.players_pending_for_disconnection if p.ip not in disconnected_ips]
+        SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player.ip not in disconnected_ips]
         self._disconnected.clear_table()
 
         if disconnected_ips:

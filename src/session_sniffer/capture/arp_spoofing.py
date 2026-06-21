@@ -52,11 +52,11 @@ class ArpSpoofingController:
     def start(cls, interface: SelectedInterfaceRow) -> None:
         """Start ARP spoofing on `interface`. Caller must ensure no thread is currently active."""
         if cls._config is None:
-            msg = 'ArpSpoofingController.start() called before configure()'
-            raise RuntimeError(msg)
+            message = 'ArpSpoofingController.start() called before configure()'
+            raise RuntimeError(message)
         if cls._thread is not None:
-            msg = 'ArpSpoofingController.start() called while a previous thread is still alive'
-            raise RuntimeError(msg)
+            message = 'ArpSpoofingController.start() called while a previous thread is still alive'
+            raise RuntimeError(message)
         cls._stop_event.clear()
         cls._thread = Thread(
             target=arp_spoofing_task,
@@ -121,7 +121,7 @@ def arp_spoofing_task(
         if error_output:
             logger.error('Error: %s', error_output)
 
-        error_message = format_arp_spoofing_failed_message(
+        message = format_arp_spoofing_failed_message(
             selected_interface=selected_interface,
             exit_code=exit_code,
             error_details=error_output,
@@ -130,7 +130,7 @@ def arp_spoofing_task(
         def show_msgbox() -> None:
             msgbox.show(
                 title='ARP Spoofing Failed',
-                text=error_message,
+                text=message,
                 style=msgbox_style,
             )
 
@@ -167,10 +167,10 @@ def arp_spoofing_task(
                 text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            log_msg = f'Started spoofing on interface {selected_interface.ip_address}'
+            log_message = f'Started spoofing on interface {selected_interface.ip_address}'
             if selected_interface.gateway_ip:
-                log_msg += f' (gateway: {selected_interface.gateway_ip})'
-            logger.info(log_msg)
+                log_message += f' (gateway: {selected_interface.gateway_ip})'
+            logger.info(log_message)
 
             try:
                 proc.wait(timeout=startup_probe_timeout)

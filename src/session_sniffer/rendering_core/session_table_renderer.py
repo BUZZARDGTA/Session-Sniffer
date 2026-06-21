@@ -65,28 +65,28 @@ def format_player_middle_ports(player: Player) -> str:
     return ''
 
 
-def _format_player_gui_datetime(datetime_object: datetime) -> str:
-    formatted_elapsed = None
+def _format_player_gui_datetime(player_datetime: datetime) -> str:
+    formatted_elapsed_time = None
 
     if Settings.gui_columns_datetime_show_elapsed_time:
-        elapsed_time = datetime.now(tz=LOCAL_TZ) - datetime_object
-        formatted_elapsed = format_elapsed_time(elapsed_time)
+        elapsed_time = datetime.now(tz=LOCAL_TZ) - player_datetime
+        formatted_elapsed_time = format_elapsed_time(elapsed_time)
 
         if Settings.gui_columns_datetime_show_date is False and Settings.gui_columns_datetime_show_time is False:
-            return formatted_elapsed
+            return formatted_elapsed_time
 
     datetime_parts: list[str] = []
     if Settings.gui_columns_datetime_show_date:
-        datetime_parts.append(datetime_object.strftime('%m/%d/%Y'))
+        datetime_parts.append(player_datetime.strftime('%m/%d/%Y'))
     if Settings.gui_columns_datetime_show_time:
-        datetime_parts.append(datetime_object.strftime('%H:%M:%S.%f')[:-3])
+        datetime_parts.append(player_datetime.strftime('%H:%M:%S.%f')[:-3])
     if not datetime_parts:
         raise InvalidDateColumnConfigurationError
 
     formatted_datetime = ' '.join(datetime_parts)
 
-    if formatted_elapsed:
-        formatted_datetime += f' ({formatted_elapsed})'
+    if formatted_elapsed_time:
+        formatted_datetime += f' ({formatted_elapsed_time})'
 
     return formatted_datetime
 
@@ -124,8 +124,8 @@ class SessionTableRenderContext:
     session_disconnected: list[Player]
     connected_shown_columns: set[str]
     disconnected_shown_columns: set[str]
-    connected_num_cols: int
-    disconnected_num_cols: int
+    connected_num_columns: int
+    disconnected_num_columns: int
     connected_column_mapping: dict[str, int]
 
 
@@ -137,8 +137,8 @@ def build_session_table_snapshot(
     session_disconnected = context.session_disconnected
     connected_shown_columns = context.connected_shown_columns
     disconnected_shown_columns = context.disconnected_shown_columns
-    connected_num_cols = context.connected_num_cols
-    disconnected_num_cols = context.disconnected_num_cols
+    connected_num_columns = context.connected_num_columns
+    disconnected_num_columns = context.disconnected_num_columns
     connected_column_mapping = context.connected_column_mapping
 
     session_connected_table__processed_data: list[list[str]] = []
@@ -147,13 +147,13 @@ def build_session_table_snapshot(
     session_disconnected_table__compiled_colors: list[list[CellColor]] = []
 
     _base_connected_cell = CellColor(foreground=_CONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
-    _base_connected_row_colors = [_base_connected_cell] * connected_num_cols
+    _base_connected_row_colors = [_base_connected_cell] * connected_num_columns
 
     for player in session_connected:
         if player.userip and player.userip.usernames:
             row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
-            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * connected_num_cols
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * connected_num_columns
         else:
             row_fg_color = _CONNECTED_TEXT_COLOR
             row_colors = _base_connected_row_colors.copy()
@@ -311,13 +311,13 @@ def build_session_table_snapshot(
         session_connected_table__compiled_colors.append(row_colors)
 
     _base_disconnected_cell = CellColor(foreground=_DISCONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
-    _base_disconnected_row_colors = [_base_disconnected_cell] * disconnected_num_cols
+    _base_disconnected_row_colors = [_base_disconnected_cell] * disconnected_num_columns
 
     for player in session_disconnected:
         if player.userip and player.userip.usernames:
             row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
-            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * disconnected_num_cols
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * disconnected_num_columns
         else:
             row_fg_color = _DISCONNECTED_TEXT_COLOR
             row_colors = _base_disconnected_row_colors.copy()
@@ -435,19 +435,19 @@ def build_session_table_snapshot(
         session_disconnected_table__processed_data.append(disconnected_row_texts)
         session_disconnected_table__compiled_colors.append(row_colors)
 
-    connected_num = len(session_connected_table__processed_data)
+    connected_count = len(session_connected_table__processed_data)
     connected_rows = tuple(tuple(row) for row in session_connected_table__processed_data)
     connected_colors = tuple(tuple(row) for row in session_connected_table__compiled_colors)
 
-    disconnected_num = len(session_disconnected_table__processed_data)
+    disconnected_count = len(session_disconnected_table__processed_data)
     disconnected_rows = tuple(tuple(row) for row in session_disconnected_table__processed_data)
     disconnected_colors = tuple(tuple(row) for row in session_disconnected_table__compiled_colors)
 
     return SessionTableSnapshot(
-        connected_num=connected_num,
+        connected_count=connected_count,
         connected_rows=connected_rows,
         connected_colors=connected_colors,
-        disconnected_num=disconnected_num,
+        disconnected_count=disconnected_count,
         disconnected_rows=disconnected_rows,
         disconnected_colors=disconnected_colors,
     )

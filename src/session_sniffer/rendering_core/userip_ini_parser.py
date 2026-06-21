@@ -199,9 +199,9 @@ def parse_userip_ini_file(ini_path: Path) -> tuple[UserIPSettings | None, dict[s
             corrected_ini_data_lines.insert(insert_index, new_line)
 
             # Shift all tracked line indices at or beyond the insertion point.
-            for k in list(setting_line_indices):
-                if setting_line_indices[k] >= insert_index:
-                    setting_line_indices[k] += 1
+            for setting_key in list(setting_line_indices):
+                if setting_line_indices[setting_key] >= insert_index:
+                    setting_line_indices[setting_key] += 1
 
             setting_line_indices[missing_setting] = insert_index
             raw_settings[missing_setting] = default_value

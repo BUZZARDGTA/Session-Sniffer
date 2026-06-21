@@ -194,8 +194,8 @@ def rendering_core(
         # JSON session snapshots are the canonical persisted format.
         SESSIONS_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-        def format_player_logging_datetime(datetime_object: datetime) -> str:
-            return datetime_object.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
+        def format_player_logging_datetime(player_datetime: datetime) -> str:
+            return player_datetime.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
 
         def _format_lookup_text(value: object) -> str:
             return str(value)
@@ -339,8 +339,8 @@ def rendering_core(
                 session_disconnected=session_disconnected,
                 connected_shown_columns=connected_shown_columns,
                 disconnected_shown_columns=disconnected_shown_columns,
-                connected_num_cols=connected_num_cols,
-                disconnected_num_cols=disconnected_num_cols,
+                connected_num_columns=connected_num_columns,
+                disconnected_num_columns=disconnected_num_columns,
                 connected_column_mapping=connected_column_mapping,
             ),
         )
@@ -369,8 +369,8 @@ def rendering_core(
     disconnected_shown_columns: set[str] = set()
     connected_column_names: list[str] = []
     disconnected_column_names: list[str] = []
-    connected_num_cols = 0
-    disconnected_num_cols = 0
+    connected_num_columns = 0
+    disconnected_num_columns = 0
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
     _country_flag_cache: dict[str, PlayerCountryFlag] = {}
@@ -509,7 +509,7 @@ def rendering_core(
                     _sniffer_start_time = time.monotonic()
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
-                p2p_session_connected = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
+                p2p_session_connected = [player for player in session_connected if not is_third_party_server_ip(player.ip)]
                 if SessionHost.player and SessionHost.player.left_event.is_set():
                     if SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != SessionHost.player.ip:
                         logger.debug(
@@ -554,8 +554,8 @@ def rendering_core(
                 # Players seen before the window expires suppress the search; once the window
                 # elapses we snapshot whoever is still connected and either skip or allow search.
                 if _sniffer_just_started:
-                    elapsed = time.monotonic() - _sniffer_start_time
-                    past_window = elapsed >= SESSION_HOST_STARTUP_WINDOW_SECONDS
+                    elapsed_seconds = time.monotonic() - _sniffer_start_time
+                    past_window = elapsed_seconds >= SESSION_HOST_STARTUP_WINDOW_SECONDS
                     if past_window:
                         _sniffer_just_started = False
                     if p2p_session_connected and past_window:
@@ -722,8 +722,8 @@ def rendering_core(
             disconnected_column_names = [
                 column_name for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
-            connected_num_cols = len(connected_column_names)
-            disconnected_num_cols = len(disconnected_column_names)
+            connected_num_columns = len(connected_column_names)
+            disconnected_num_columns = len(disconnected_column_names)
             connected_column_mapping = {header: index for index, header in enumerate(connected_column_names)}
         header_text = generate_gui_header_html(capture=capture)
         (
@@ -750,14 +750,14 @@ def rendering_core(
                     status_performance_text=status_performance_text,
                 ),
                 connected=GUITableData(
-                    num_cols=connected_num_cols,
-                    num_rows=session_table_snapshot.connected_num,
+                    column_count=connected_num_columns,
+                    row_count=session_table_snapshot.connected_count,
                     rows=session_table_snapshot.connected_rows,
                     colors=session_table_snapshot.connected_colors,
                 ),
                 disconnected=GUITableData(
-                    num_cols=disconnected_num_cols,
-                    num_rows=session_table_snapshot.disconnected_num,
+                    column_count=disconnected_num_columns,
+                    row_count=session_table_snapshot.disconnected_count,
                     rows=session_table_snapshot.disconnected_rows,
                     colors=session_table_snapshot.disconnected_colors,
                 ),

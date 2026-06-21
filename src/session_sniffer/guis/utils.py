@@ -248,20 +248,20 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
     """
     v_header = table.verticalHeader()
     if v_header is None:
-        msg = 'Failed to get vertical header'
-        raise RuntimeError(msg)
+        message = 'Failed to get vertical header'
+        raise RuntimeError(message)
     v_header.setVisible(False)
     h_header = table.horizontalHeader()
     if h_header is None:
-        msg = 'Failed to get horizontal header'
-        raise RuntimeError(msg)
+        message = 'Failed to get horizontal header'
+        raise RuntimeError(message)
     return h_header
 
 
 def find_main_window() -> QMainWindow | None:
     """Return the first visible top-level QMainWindow, or None."""
     return next(
-        (w for w in QApplication.topLevelWidgets() if isinstance(w, QMainWindow) and w.isVisible()),
+        (widget for widget in QApplication.topLevelWidgets() if isinstance(widget, QMainWindow) and widget.isVisible()),
         None,
     )
 
@@ -285,8 +285,8 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     """
     h_header = table.horizontalHeader()
     if h_header is None:
-        msg = 'Failed to get horizontal header'
-        raise RuntimeError(msg)
+        message = 'Failed to get horizontal header'
+        raise RuntimeError(message)
     h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     h_header.setStretchLastSection(True)
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -294,8 +294,8 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     table.setSortingEnabled(sorting)
     v_header = table.verticalHeader()
     if v_header is None:
-        msg = 'Failed to get vertical header'
-        raise RuntimeError(msg)
+        message = 'Failed to get vertical header'
+        raise RuntimeError(message)
     v_header.setVisible(False)
     layout.addWidget(table)
 
@@ -308,8 +308,8 @@ def setup_stat_table_with_header(table: QTableWidget, layout: QVBoxLayout, *, so
     setup_stat_table(table, layout, sorting=sorting)
     h_header = table.horizontalHeader()
     if h_header is None:
-        msg = 'Failed to get horizontal header'
-        raise RuntimeError(msg)
+        message = 'Failed to get horizontal header'
+        raise RuntimeError(message)
     return h_header
 
 
@@ -320,8 +320,8 @@ def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
     """
     viewport = table.viewport()
     if viewport is None:
-        msg = 'Failed to get table viewport'
-        raise RuntimeError(msg)
+        message = 'Failed to get table viewport'
+        raise RuntimeError(message)
     menu.popup(viewport.mapToGlobal(pos))
 
 
@@ -405,3 +405,15 @@ def center_window_on_screen(window: QWidget) -> None:
     x = geo.x() + (geo.width() - window.width()) // 2
     y = geo.y() + (geo.height() - window.height()) // 2
     window.move(x, y)
+
+
+def format_duration(total_seconds: float) -> str:
+    """Format a duration in seconds as a human-readable string."""
+    duration_seconds = int(total_seconds)
+    hours, remaining_seconds = divmod(duration_seconds, 3600)
+    minutes, seconds = divmod(remaining_seconds, 60)
+    if hours:
+        return f'{hours}h {minutes}m {seconds}s'
+    if minutes:
+        return f'{minutes}m {seconds}s'
+    return f'{seconds}s'

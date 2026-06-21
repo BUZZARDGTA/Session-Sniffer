@@ -48,21 +48,21 @@ _MODES = (_MODE_DAYS, _MODE_SESSIONS)
 
 _HEADERS = ('Rank', 'Usernames', 'IP Address', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
 
-_SEARCH_COL_ALL = 'All Columns'
-_SEARCH_COL_USERNAMES = 'Usernames'
-_SEARCH_COL_IP = 'IP Address'
-_SEARCH_COL_COUNTRY = 'Country'
-_SEARCH_COL_ISP = 'ISP'
+_SEARCH_COLUMN_ALL = 'All Columns'
+_SEARCH_COLUMN_USERNAMES = 'Usernames'
+_SEARCH_COLUMN_IP = 'IP Address'
+_SEARCH_COLUMN_COUNTRY = 'Country'
+_SEARCH_COLUMN_ISP = 'ISP'
 
 _SEARCH_COLUMNS = (
-    _SEARCH_COL_ALL,
-    _SEARCH_COL_USERNAMES,
-    _SEARCH_COL_IP,
-    _SEARCH_COL_COUNTRY,
-    _SEARCH_COL_ISP,
+    _SEARCH_COLUMN_ALL,
+    _SEARCH_COLUMN_USERNAMES,
+    _SEARCH_COLUMN_IP,
+    _SEARCH_COLUMN_COUNTRY,
+    _SEARCH_COLUMN_ISP,
 )
-_COL_SESSIONS = 3
-_COL_COUNTRY = 6
+_COLUMN_SESSIONS = 3
+_COLUMN_COUNTRY = 6
 
 _flag_icon_cache: dict[str, QIcon | None] = {}
 
@@ -107,7 +107,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
         _SCOPE_ALL_TIME: 'sessions_total',
     }
 
-    _CENTER_COLS: ClassVar[frozenset[int]] = frozenset({0, 3, 8, 9, 10})
+    _CENTER_COLUMNS: ClassVar[frozenset[int]] = frozenset({0, 3, 8, 9, 10})
 
     def __init__(self) -> None:
         super().__init__()
@@ -152,19 +152,19 @@ class _LeaderboardTableModel(QAbstractTableModel):
             return None
 
         entry = self._entries[index.row()]
-        col = index.column()
+        column = index.column()
 
         if role == Qt.ItemDataRole.DisplayRole:
-            method = self._display_dispatch.get(col)
+            method = self._display_dispatch.get(column)
             return method(index.row(), entry) if method is not None else None
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            return Qt.AlignmentFlag.AlignCenter if col in self._CENTER_COLS else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignCenter if column in self._CENTER_COLUMNS else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ItemDataRole.UserRole and col == _COL_SESSIONS:
+        if role == Qt.ItemDataRole.UserRole and column == _COLUMN_SESSIONS:
             return self.get_session_count(entry)
 
-        if role == Qt.ItemDataRole.ToolTipRole and col == _COL_SESSIONS:
+        if role == Qt.ItemDataRole.ToolTipRole and column == _COLUMN_SESSIONS:
             count = self.get_session_count(entry)
             return (
                 f'{count} unique calendar day(s) this player was seen within the selected time period'
@@ -172,14 +172,14 @@ class _LeaderboardTableModel(QAbstractTableModel):
                 else f'{count} sniffer session(s) in which this player was seen within the selected time period'
             )
 
-        return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and col == _COL_COUNTRY else None
+        return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and column == _COLUMN_COUNTRY else None
 
     @override
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return column header labels."""
         if role != Qt.ItemDataRole.DisplayRole or orientation != Qt.Orientation.Horizontal:
             return None
-        if section == _COL_SESSIONS:
+        if section == _COLUMN_SESSIONS:
             return 'Days' if self._mode == _MODE_DAYS else 'Sessions'
         return _HEADERS[section]
 
@@ -256,7 +256,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
         self._refresh_scope_attr()
         self.beginResetModel()
         self.endResetModel()
-        self.headerDataChanged.emit(Qt.Orientation.Horizontal, _COL_SESSIONS, _COL_SESSIONS)
+        self.headerDataChanged.emit(Qt.Orientation.Horizontal, _COLUMN_SESSIONS, _COLUMN_SESSIONS)
 
     def _refresh_scope_attr(self) -> None:
         scope_map = self._SCOPE_ATTR_DAYS if self._mode == _MODE_DAYS else self._SCOPE_ATTR_SESSIONS
@@ -270,7 +270,7 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
     def __init__(self) -> None:
         super().__init__()
         self._search_text: str = ''
-        self._search_column: str = _SEARCH_COL_ALL
+        self._search_column: str = _SEARCH_COLUMN_ALL
 
     def set_search_text(self, text: str) -> None:
         """Update the search filter text and re-evaluate visible rows."""
@@ -284,14 +284,14 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
 
     def _entry_matches_search(self, entry: LeaderboardEntry, text: str) -> bool:
         """Return True if *entry* contains *text* within the active search column."""
-        if self._search_column == _SEARCH_COL_ALL:
-            return text in entry.ip.lower() or any(text in u.lower() for u in entry.usernames) or text in entry.country.lower() or text in entry.isp.lower()
-        if self._search_column == _SEARCH_COL_USERNAMES:
-            return any(text in u.lower() for u in entry.usernames)
+        if self._search_column == _SEARCH_COLUMN_ALL:
+            return text in entry.ip.lower() or any(text in username.lower() for username in entry.usernames) or text in entry.country.lower() or text in entry.isp.lower()
+        if self._search_column == _SEARCH_COLUMN_USERNAMES:
+            return any(text in username.lower() for username in entry.usernames)
         _targets: dict[str, str] = {
-            _SEARCH_COL_IP: entry.ip,
-            _SEARCH_COL_COUNTRY: entry.country,
-            _SEARCH_COL_ISP: entry.isp,
+            _SEARCH_COLUMN_IP: entry.ip,
+            _SEARCH_COLUMN_COUNTRY: entry.country,
+            _SEARCH_COLUMN_ISP: entry.isp,
         }
         return text in _targets.get(self._search_column, '').lower()
 
@@ -432,12 +432,12 @@ class PlayerLeaderboardWindow(QWidget):
         apply_search_icon(self._search_box)
         controls_layout.addWidget(self._search_box)
 
-        self._search_col_combo = QComboBox()
-        self._search_col_combo.addItems(_SEARCH_COLUMNS)
-        self._search_col_combo.setCurrentText(_SEARCH_COL_ALL)
-        self._search_col_combo.setToolTip('Restrict the search to a specific column')
-        self._search_col_combo.currentTextChanged.connect(self._on_search_column_changed)
-        controls_layout.addWidget(self._search_col_combo)
+        self._search_column_combo = QComboBox()
+        self._search_column_combo.addItems(_SEARCH_COLUMNS)
+        self._search_column_combo.setCurrentText(_SEARCH_COLUMN_ALL)
+        self._search_column_combo.setToolTip('Restrict the search to a specific column')
+        self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
+        controls_layout.addWidget(self._search_column_combo)
 
         controls_layout.addSpacing(12)
 
@@ -457,10 +457,11 @@ class PlayerLeaderboardWindow(QWidget):
 
         controls_layout.addStretch()
 
-        refresh_btn = QPushButton('🔄 Refresh')
-        refresh_btn.setToolTip('Reload leaderboard data from disk')
-        refresh_btn.clicked.connect(self.refresh)
-        controls_layout.addWidget(refresh_btn)
+        refresh_button = QPushButton('🔄 Refresh')
+        refresh_button.setToolTip('Reload leaderboard data from disk')
+        refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_button.clicked.connect(self.refresh)
+        controls_layout.addWidget(refresh_button)
 
         controls_layout.addSpacing(12)
 
@@ -562,8 +563,8 @@ class PlayerLeaderboardWindow(QWidget):
     def _copy_to_clipboard(self, text: str) -> None:
         clipboard = QApplication.clipboard()
         if clipboard is None:
-            msg = 'Failed to get clipboard'
-            raise RuntimeError(msg)
+            message = 'Failed to get clipboard'
+            raise RuntimeError(message)
         clipboard.setText(text)
 
     def _show_seen_stats_for_entry(self, entry: LeaderboardEntry) -> None:

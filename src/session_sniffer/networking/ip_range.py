@@ -43,8 +43,8 @@ def parse_ip_range(raw: str) -> IPRange:
     """
     raw = raw.strip()
     if not raw:
-        msg = 'Empty IP range string'
-        raise ValueError(msg)
+        message = 'Empty IP range string'
+        raise ValueError(message)
 
     # Wildcard → CIDR
     if '*' in raw:
@@ -69,8 +69,8 @@ def _parse_wildcard(raw: str) -> IPRange:
     """Parse wildcard notation (e.g. `192.168.1.*`) into a CIDR-based `IPRange`."""
     parts = raw.split('.')
     if len(parts) != _IPV4_OCTET_COUNT:
-        msg = f'Invalid wildcard format: {raw}'
-        raise ValueError(msg)
+        message = f'Invalid wildcard format: {raw}'
+        raise ValueError(message)
     cidr_parts: list[str] = []
     prefix_bits = 0
     wildcard_seen = False
@@ -79,13 +79,13 @@ def _parse_wildcard(raw: str) -> IPRange:
             wildcard_seen = True
             cidr_parts.append('0')
         elif wildcard_seen:
-            msg = f'Invalid wildcard format (non-wildcard after wildcard): {raw}'
-            raise ValueError(msg)
+            message = f'Invalid wildcard format (non-wildcard after wildcard): {raw}'
+            raise ValueError(message)
         else:
             int_val = int(part)
             if not 0 <= int_val <= _IPV4_MAX_OCTET:
-                msg = f'Invalid octet value: {part}'
-                raise ValueError(msg)
+                message = f'Invalid octet value: {part}'
+                raise ValueError(message)
             cidr_parts.append(part)
             prefix_bits += 8
     cidr_str = '.'.join(cidr_parts) + f'/{prefix_bits}'
@@ -97,13 +97,13 @@ def _parse_start_end(raw: str) -> IPRange:
     """Parse start-end notation (e.g. `192.168.1.100-192.168.1.200`) into an `IPRange`."""
     start_str, sep, end_str = raw.partition('-')
     if not sep:
-        msg = f'Invalid range format: {raw}'
-        raise ValueError(msg)
+        message = f'Invalid range format: {raw}'
+        raise ValueError(message)
     start = IPv4Address(start_str.strip())
     end = IPv4Address(end_str.strip())
     if start > end:
-        msg = f'Start address {start} is greater than end address {end}'
-        raise ValueError(msg)
+        message = f'Start address {start} is greater than end address {end}'
+        raise ValueError(message)
     return IPRange(raw=raw, start=start, end=end)
 
 
@@ -122,8 +122,8 @@ def parse_ip_range_entry(entry: str) -> list[IPRange]:
         if stripped:
             results.append(parse_ip_range(stripped))
     if not results:
-        msg = f'No valid IP ranges found in: {entry}'
-        raise ValueError(msg)
+        message = f'No valid IP ranges found in: {entry}'
+        raise ValueError(message)
     return results
 
 
@@ -143,25 +143,25 @@ def check_ip_against_ranges(ip: str, ranges: list[IPRange]) -> IPRange | None:
     return None
 
 
-def describe_range(r: IPRange) -> str:
+def describe_range(ip_range: IPRange) -> str:
     """Return a human-readable description of an `IPRange` for preview/tooltip use."""
-    if r.start is not None and r.end is not None and r.network is None:
-        count = int(r.end) - int(r.start) + 1
-        return f'Range: {r.start} - {r.end}  ({count:,} addresses)'
+    if ip_range.start is not None and ip_range.end is not None and ip_range.network is None:
+        count = int(ip_range.end) - int(ip_range.start) + 1
+        return f'Range: {ip_range.start} - {ip_range.end}  ({count:,} addresses)'
 
-    if r.network is not None:
-        if r.network.prefixlen == _IPV4_SINGLE_HOST_PREFIX:
-            return f'Single host: {r.network.network_address}'
-        host_count = r.network.num_addresses
-        usable = max(0, host_count - 2) if r.network.prefixlen < _IPV4_MIN_USABLE_PREFIX and r.network.version == _IPV4_VERSION else host_count
+    if ip_range.network is not None:
+        if ip_range.network.prefixlen == _IPV4_SINGLE_HOST_PREFIX:
+            return f'Single host: {ip_range.network.network_address}'
+        host_count = ip_range.network.num_addresses
+        usable = max(0, host_count - 2) if ip_range.network.prefixlen < _IPV4_MIN_USABLE_PREFIX and ip_range.network.version == _IPV4_VERSION else host_count
         return (
-            f'Network: {r.network.network_address}/{r.network.prefixlen}\n'
-            f'Range: {r.network.network_address} - {r.network.broadcast_address}\n'
+            f'Network: {ip_range.network.network_address}/{ip_range.network.prefixlen}\n'
+            f'Range: {ip_range.network.network_address} - {ip_range.network.broadcast_address}\n'
             f'Addresses: {host_count:,} total, {usable:,} usable\n'
-            f'Netmask: {r.network.netmask}'
+            f'Netmask: {ip_range.network.netmask}'
         )
 
-    return r.raw
+    return ip_range.raw
 
 
 def is_valid_ip_range_entry(entry: str) -> bool:

@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.tables_player_actions._fmt import fmt_bool, fmt_text
+from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
 from session_sniffer.text_utils import pluralize
@@ -63,9 +63,9 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         self._add_row(form, 'Detection Time', detection_time)
         self._add_row(form, f'Username{pluralize(len(userip.usernames) if userip is not None else 0)}', usernames)
         self._add_row(form, 'IP Address', player.ip)
-        self._add_row(form, 'Hostname', fmt_text(player.reverse_dns.hostname))
+        self._add_row(form, 'Hostname', format_text(player.reverse_dns.hostname))
         self._add_row(form, 'Port(s)', ports_str)
-        self._add_row(form, 'Country Code', fmt_text(player.iplookup.geolite2.country_code))
+        self._add_row(form, 'Country Code', format_text(player.iplookup.geolite2.country_code))
         self._add_row(form, 'Detection Type', detection_type)
         self._add_row(form, 'Database', relative_db)
         parent_layout.addWidget(group)
@@ -73,17 +73,17 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
     def _build_iplookup_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'IP Lookup' section to the scroll layout."""
         group, form = self._make_group('\U0001f30d  IP Lookup', accent='#38a169')
-        self._add_row(form, 'Continent', fmt_text(player.iplookup.ipapi.continent))
-        self._add_row(form, 'Country', fmt_text(player.iplookup.geolite2.country))
-        self._add_row(form, 'Region', fmt_text(player.iplookup.ipapi.region))
-        self._add_row(form, 'City', fmt_text(player.iplookup.geolite2.city))
-        self._add_row(form, 'Organization', fmt_text(player.iplookup.ipapi.org))
-        self._add_row(form, 'ISP', fmt_text(player.iplookup.ipapi.isp))
-        self._add_row(form, 'GeoLite2 ASN / ISP', fmt_text(player.iplookup.geolite2.asn))
-        self._add_row(form, 'AS Name', fmt_text(player.iplookup.ipapi.as_name))
-        self._add_row(form, 'Mobile (cellular)', fmt_bool(player.iplookup.ipapi.mobile))
-        self._add_row(form, 'Proxy / VPN / Tor', fmt_bool(player.iplookup.ipapi.proxy))
-        self._add_row(form, 'Hosting / Datacenter', fmt_bool(player.iplookup.ipapi.hosting))
+        self._add_row(form, 'Continent', format_text(player.iplookup.ipapi.continent))
+        self._add_row(form, 'Country', format_text(player.iplookup.geolite2.country))
+        self._add_row(form, 'Region', format_text(player.iplookup.ipapi.region))
+        self._add_row(form, 'City', format_text(player.iplookup.geolite2.city))
+        self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
+        self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
+        self._add_row(form, 'GeoLite2 ASN / ISP', format_text(player.iplookup.geolite2.asn))
+        self._add_row(form, 'AS Name', format_text(player.iplookup.ipapi.as_name))
+        self._add_row(form, 'Mobile (cellular)', format_bool(player.iplookup.ipapi.mobile))
+        self._add_row(form, 'Proxy / VPN / Tor', format_bool(player.iplookup.ipapi.proxy))
+        self._add_row(form, 'Hosting / Datacenter', format_bool(player.iplookup.ipapi.hosting))
         parent_layout.addWidget(group)
 
 

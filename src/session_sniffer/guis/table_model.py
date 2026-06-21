@@ -117,7 +117,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         self._data: list[list[str]] = []  # The data to be displayed in the table
         self._compiled_colors: list[list[CellColor]] = []  # The compiled colors for the table
         self._headers = headers  # The column headers
-        self._col_indices = _ColumnIndices(
+        self._column_indices = _ColumnIndices(
             ip=self._headers.index('IP Address'),
             username=self._headers.index('Usernames'),
             country=self.get_column_index('Country'),
@@ -171,7 +171,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         This value is computed during initialization based on the `headers` provided.<br>
         It is read-only and specific to this instance.
         """
-        return self._col_indices.ip
+        return self._column_indices.ip
 
     @property
     def username_column_index(self) -> int:
@@ -180,7 +180,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         This value is computed during initialization based on the `headers` provided.<br>
         It is read-only and specific to this instance.
         """
-        return self._col_indices.username
+        return self._column_indices.username
 
     # --------------------------------------------------------------------------
     # Qt model methods (overrides)
@@ -207,15 +207,15 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             return None
 
         row_index = index.row()
-        col_index = index.column()
+        column_index = index.column()
 
         # Check bounds
-        if row_index >= len(self._data) or col_index >= len(self._data[row_index]):
+        if row_index >= len(self._data) or column_index >= len(self._data[row_index]):
             return None  # Return None for invalid index
 
         output: str | QBrush | QIcon | None = None
 
-        if role == Qt.ItemDataRole.DecorationRole and self._col_indices.country is not None and self._col_indices.country == col_index:
+        if role == Qt.ItemDataRole.DecorationRole and self._column_indices.country is not None and self._column_indices.country == column_index:
             ip = self.get_ip_from_data_safely(self._data[row_index])
 
             matched_player = PlayersRegistry.get_player_by_ip(ip)
@@ -223,13 +223,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 output = matched_player.country_flag.icon
         elif role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
-            output = self._data[row_index][col_index]
-        elif role == Qt.ItemDataRole.ForegroundRole and row_index < len(self._compiled_colors) and col_index < len(self._compiled_colors[row_index]):
+            output = self._data[row_index][column_index]
+        elif role == Qt.ItemDataRole.ForegroundRole and row_index < len(self._compiled_colors) and column_index < len(self._compiled_colors[row_index]):
             # Return the cell's foreground color
-            output = QBrush(self._compiled_colors[row_index][col_index].foreground)
-        elif role == Qt.ItemDataRole.BackgroundRole and row_index < len(self._compiled_colors) and col_index < len(self._compiled_colors[row_index]):
+            output = QBrush(self._compiled_colors[row_index][column_index].foreground)
+        elif role == Qt.ItemDataRole.BackgroundRole and row_index < len(self._compiled_colors) and column_index < len(self._compiled_colors[row_index]):
             # Return the cell's background color
-            output = QBrush(self._compiled_colors[row_index][col_index].background)
+            output = QBrush(self._compiled_colors[row_index][column_index].background)
         elif role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
             view = self.view
@@ -238,7 +238,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
             # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
             if resize_mode == QHeaderView.ResizeMode.Stretch:
-                cell_text = self._data[row_index][col_index]
+                cell_text = self._data[row_index][column_index]
 
                 font_metrics = view.fontMetrics()
                 text_width = font_metrics.horizontalAdvance(cell_text)
@@ -307,7 +307,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             _default_dt = datetime.min.replace(tzinfo=UTC)
             _ip_datetime_map: dict[str, datetime] = {
                 self.get_ip_from_data_safely(row): (
-                    getattr(p.datetime, _datetime_attr) if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else _default_dt
+                    getattr(player.datetime, _datetime_attr) if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else _default_dt
                 )
                 for row, _ in combined
             }
@@ -320,7 +320,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute total session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_total_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    p.datetime.get_total_session_time() if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
+                    player.datetime.get_total_session_time() if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -333,7 +333,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             # Precompute session time values once to avoid O(n log n) registry lookups in the sort key
             _ip_session_time_map: dict[str, timedelta] = {
                 self.get_ip_from_data_safely(row): (
-                    p.datetime.get_session_time() if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
+                    player.datetime.get_session_time() if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else timedelta(0)
                 )
                 for row, _ in combined
             }
@@ -387,7 +387,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             }
             _bw_attr = _bandwidth_attr_map[sorted_column_name]
             _ip_bandwidth_map: dict[str, int] = {
-                self.get_ip_from_data_safely(row): (attrgetter(_bw_attr)(p) if (p := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0)
+                self.get_ip_from_data_safely(row): (
+                    attrgetter(_bw_attr)(player) if (player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0
+                )
                 for row, _ in combined
             }
 
@@ -515,8 +517,8 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             TypeError: If the IP data is not a string.
         """
         if self.ip_column_index >= len(row_data):
-            error_msg = f'IP column index {self.ip_column_index} is out of bounds for row data with {len(row_data)} columns'
-            raise IndexError(error_msg)
+            message = f'IP column index {self.ip_column_index} is out of bounds for row data with {len(row_data)} columns'
+            raise IndexError(message)
 
         ip_data = row_data[self.ip_column_index]
 
@@ -659,7 +661,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         self.beginResetModel()
         if headers is not None:
             self._headers = headers
-            self._col_indices = _ColumnIndices(
+            self._column_indices = _ColumnIndices(
                 ip=self._headers.index('IP Address'),
                 username=self._headers.index('Usernames'),
                 country=self.get_column_index('Country'),

@@ -235,10 +235,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # Country
         self.country_list.clear()
         seen_countries: set[str] = set()
-        for c in GUIDetectionSettings.country_detection_list:
-            if c not in seen_countries:
-                seen_countries.add(c)
-                self._add_country_item(c)
+        for country in GUIDetectionSettings.country_detection_list:
+            if country not in seen_countries:
+                seen_countries.add(country)
+                self._add_country_item(country)
         self._set_duration_widgets(
             self.country_duration_combo,
             self.country_duration_spin,
@@ -251,10 +251,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # ISP
         self.isp_list.clear()
         seen_isps: set[str] = set()
-        for i in GUIDetectionSettings.isp_detection_list:
-            if i not in seen_isps:
-                seen_isps.add(i)
-                self.isp_list.addItem(i)
+        for isp in GUIDetectionSettings.isp_detection_list:
+            if isp not in seen_isps:
+                seen_isps.add(isp)
+                self.isp_list.addItem(isp)
         self._set_duration_widgets(
             self.isp_duration_combo,
             self.isp_duration_spin,
@@ -267,10 +267,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # ASN
         self.asn_list.clear()
         seen_asns: set[str] = set()
-        for a in GUIDetectionSettings.asn_detection_list:
-            if a not in seen_asns:
-                seen_asns.add(a)
-                self.asn_list.addItem(a)
+        for asn in GUIDetectionSettings.asn_detection_list:
+            if asn not in seen_asns:
+                seen_asns.add(asn)
+                self.asn_list.addItem(asn)
         self._set_duration_widgets(
             self.asn_duration_combo,
             self.asn_duration_spin,
@@ -381,10 +381,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             GUIDetectionSettings.export_to_file(target)
             data: object = json.loads(target.read_text(encoding='utf-8'))
             if not isinstance(data, dict):
-                msg = 'Expected a JSON object in the exported file.'
-                raise RuntimeError(msg)
+                message = 'Expected a JSON object in the exported file.'
+                raise RuntimeError(message)
             data_dict = cast('dict[str, object]', data)
-            data_dict['combo_rules'] = [r.to_dict() for r in ComboRulesManager.rules]
+            data_dict['combo_rules'] = [rule.to_dict() for rule in ComboRulesManager.rules]
             target.write_text(json.dumps(data_dict, indent=4), encoding='utf-8')
             QMessageBox.information(self, TITLE, 'Detection settings exported successfully.')
 
@@ -600,7 +600,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             'player_leave_voice': self._read_voice_combo(self.player_leave_voice_combo),
             'player_leave_logging': self.player_leave_logging_checkbox.isChecked(),
             'player_leave_msgbox': self.player_leave_msgbox_checkbox.isChecked(),
-            'combo_rules': [r.to_dict() for r in ComboRulesManager.rules],
+            'combo_rules': [rule.to_dict() for rule in ComboRulesManager.rules],
         }
         if hasattr(self, 'gta5_relay_duration_combo'):
             values['gta5_relay_enabled'] = self.gta5_relay_duration_combo.currentText() != 'Disabled'

@@ -3,20 +3,8 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, format_duration, setup_stat_table_with_header
 from session_sniffer.player.registry import PlayersRegistry
-
-
-def _format_duration(total_seconds: float) -> str:
-    """Format a duration in seconds to a human-readable string."""
-    secs = int(total_seconds)
-    h, rem = divmod(secs, 3600)
-    m, s = divmod(rem, 60)
-    if h:
-        return f'{h}h {m}m {s}s'
-    if m:
-        return f'{m}m {s}s'
-    return f'{s}s'
 
 
 class SessionDurationWindow(ToggleAlwaysOnTopMixin):
@@ -45,16 +33,20 @@ class SessionDurationWindow(ToggleAlwaysOnTopMixin):
     def refresh(self) -> None:
         """Rebuild the table with current session duration data."""
         disconnected = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
-        entries = [(p.datetime.session_time.total_seconds(), p.ip, ', '.join(p.usernames) if p.usernames else '—') for p in disconnected if p.datetime.session_time is not None]
+        entries = [
+            (player.datetime.session_time.total_seconds(), player.ip, ', '.join(player.usernames) if player.usernames else '—')
+            for player in disconnected
+            if player.datetime.session_time is not None
+        ]
         entries.sort(key=lambda e: e[0], reverse=True)
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
-        for duration_secs, ip, usernames in entries:
+        for duration_seconds, ip, usernames in entries:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            duration_item = NumericTableWidgetItem(_format_duration(duration_secs))
-            duration_item.setData(Qt.ItemDataRole.UserRole, duration_secs)
+            duration_item = NumericTableWidgetItem(format_duration(duration_seconds))
+            duration_item.setData(Qt.ItemDataRole.UserRole, duration_seconds)
             duration_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             ip_item = QTableWidgetItem(ip)
             ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)

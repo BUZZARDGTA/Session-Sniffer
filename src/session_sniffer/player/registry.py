@@ -278,7 +278,7 @@ class SessionHost:
     @staticmethod
     def get_host_player(session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players."""
-        p2p_players = [p for p in session_connected if not is_third_party_server_ip(p.ip)]
+        p2p_players = [player for player in session_connected if not is_third_party_server_ip(player.ip)]
         if len(p2p_players) < len(session_connected):
             logger.debug(
                 '[SessionHost] Filtered %d server IP(s) from candidates (%d P2P players remain)',
@@ -290,13 +290,13 @@ class SessionHost:
             return None
         connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, p2p_players, key=attrgetter('datetime.last_rejoin'))
 
-        for i, p in enumerate(connected_players):
+        for i, player in enumerate(connected_players):
             logger.debug(
                 '[SessionHost]   candidate[%d]: ip=%s, last_rejoin=%s, packets_exchanged=%d',
                 i,
-                p.ip,
-                p.datetime.last_rejoin,
-                p.packets.exchanged,
+                player.ip,
+                player.datetime.last_rejoin,
+                player.packets.exchanged,
             )
 
         potential_session_host_player = None

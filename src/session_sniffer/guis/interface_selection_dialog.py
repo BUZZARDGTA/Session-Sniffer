@@ -211,11 +211,11 @@ class InterfaceSelectionDialog(QDialog):
 
         # UI scale factor - 2K (2560x1440) is the design baseline (1.0).
         # Smaller screens receive proportionally reduced font sizes, row heights and spacings.
-        _scale = compute_ui_scale(screen_size)
-        self._ui_scale = _scale
+        ui_scale = compute_ui_scale(screen_size)
+        self._ui_scale = ui_scale
 
-        def _s(n: int) -> int:
-            return max(1, round(n * _scale))
+        def scale(value: int) -> int:
+            return max(1, round(value * ui_scale))
 
         # Custom variables
         self.selected_interface: SelectedInterfaceRow | None = None
@@ -226,14 +226,14 @@ class InterfaceSelectionDialog(QDialog):
 
         # Layout for the dialog
         layout = QVBoxLayout()
-        layout.setContentsMargins(_s(12), _s(16), _s(12), _s(12))
-        layout.setSpacing(_s(16))
+        layout.setContentsMargins(scale(12), scale(16), scale(12), scale(12))
+        layout.setSpacing(scale(16))
 
         # Header above the table
         header_label = QLabel('Available Network Interfaces for Packet Capture')
         header_label.setObjectName('dialogTitleLabel')
         header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_label.setStyleSheet(interface_header_label_stylesheet(_scale))
+        header_label.setStyleSheet(interface_header_label_stylesheet(ui_scale))
         layout.addWidget(header_label)
 
         # Table widget for displaying interfaces
@@ -246,14 +246,14 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
-        self.table.setStyleSheet(interface_table_stylesheet(_scale))
+        self.table.setStyleSheet(interface_table_stylesheet(ui_scale))
 
         # Connect cell hover to tooltip logic
         self.table.cellEntered.connect(self.show_tooltip_if_elided)
 
         horizontal_header = self.table.horizontalHeader()
         header_font = QFont()
-        header_font.setPixelSize(_s(14))
+        header_font.setPixelSize(scale(14))
         header_font.setBold(True)
         horizontal_header.setFont(header_font)
         horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -269,7 +269,7 @@ class InterfaceSelectionDialog(QDialog):
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
-        vertical_header.setDefaultSectionSize(_s(48))
+        vertical_header.setDefaultSectionSize(scale(48))
 
         # Table container with a subtle dark-blue border matching the bottom container
         table_container = QFrame()
@@ -287,16 +287,16 @@ class InterfaceSelectionDialog(QDialog):
         # Filter controls layout
         options_layout = QHBoxLayout()
         options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        options_layout.setSpacing(_s(28))
+        options_layout.setSpacing(scale(28))
 
         refresh_arp_button = QPushButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
         refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
-        refresh_arp_button.setMinimumHeight(_s(58))
-        refresh_arp_button.setMinimumWidth(_s(280))
-        _refresh_pad = _s(10)
-        _refresh_w, _refresh_h = _s(36), _s(28)
+        refresh_arp_button.setMinimumHeight(scale(58))
+        refresh_arp_button.setMinimumWidth(scale(280))
+        _refresh_pad = scale(10)
+        _refresh_w, _refresh_h = scale(36), scale(28)
         self._refresh_arp_icon = make_padded_icon(
             QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')),
             (_refresh_w, _refresh_h),
@@ -325,7 +325,7 @@ class InterfaceSelectionDialog(QDialog):
         remember_interface_checkbox.setChecked(Settings.gui_interface_selection_auto_connect)
         remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
         remember_interface_checkbox.setStyleSheet(
-            interface_checkbox_stylesheet('remember_interface_checkbox', _scale),
+            interface_checkbox_stylesheet('remember_interface_checkbox', ui_scale),
         )
         remember_interface_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         options_layout.addWidget(remember_interface_checkbox)
@@ -335,7 +335,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.setChecked(hide_inactive_default)
         hide_inactive_checkbox.setToolTip('Hide disabled, disconnected, unconfigured, or interfaces with no traffic')
         hide_inactive_checkbox.setStyleSheet(
-            interface_checkbox_stylesheet('hide_inactive_checkbox', _scale),
+            interface_checkbox_stylesheet('hide_inactive_checkbox', ui_scale),
         )
         hide_inactive_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
@@ -346,7 +346,7 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
         hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
         hide_neighbours_checkbox.setStyleSheet(
-            interface_checkbox_stylesheet('hide_neighbours_checkbox', _scale),
+            interface_checkbox_stylesheet('hide_neighbours_checkbox', ui_scale),
         )
         hide_neighbours_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         hide_neighbours_checkbox.stateChanged.connect(self.apply_filters)
@@ -358,7 +358,7 @@ class InterfaceSelectionDialog(QDialog):
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
         arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
         arp_spoofing_checkbox.setStyleSheet(
-            interface_checkbox_stylesheet('arp_spoofing_checkbox', _scale),
+            interface_checkbox_stylesheet('arp_spoofing_checkbox', ui_scale),
         )
         arp_spoofing_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         arp_spoofing_checkbox.stateChanged.connect(self._on_arp_spoofing_changed)
@@ -386,7 +386,7 @@ class InterfaceSelectionDialog(QDialog):
         bottom_container.setFrameShape(QFrame.Shape.NoFrame)
         bottom_container.setStyleSheet(INTERFACE_BOTTOM_CONTAINER_STYLESHEET)
         container_layout = QVBoxLayout(bottom_container)
-        container_layout.setContentsMargins(_s(28), _s(18), _s(28), _s(20))
+        container_layout.setContentsMargins(scale(28), scale(18), scale(28), scale(20))
         container_layout.setSpacing(0)
 
         # Options row - centered using stretches on both sides
@@ -395,7 +395,7 @@ class InterfaceSelectionDialog(QDialog):
         centered_options_layout.addLayout(options_layout)
         centered_options_layout.addStretch()
         container_layout.addLayout(centered_options_layout)
-        container_layout.addSpacing(_s(16))
+        container_layout.addSpacing(scale(16))
 
         # Horizontal separator between options row and action row
         separator = QFrame()
@@ -404,28 +404,28 @@ class InterfaceSelectionDialog(QDialog):
         separator.setFrameShadow(QFrame.Shadow.Plain)
         separator.setStyleSheet(INTERFACE_BOTTOM_SEPARATOR_STYLESHEET)
         container_layout.addWidget(separator)
-        container_layout.addSpacing(_s(20))
+        container_layout.addSpacing(scale(20))
 
         # Action row: info text left, Start button right
         action_layout = QHBoxLayout()
-        action_layout.addSpacing(_s(50))
+        action_layout.addSpacing(scale(50))
         info_icon_label = QLabel()
-        info_icon_label.setPixmap(render_svg_pixmap_from_resource('info.svg', _s(32), _s(32)))
-        info_icon_label.setFixedSize(_s(36), _s(36))
+        info_icon_label.setPixmap(render_svg_pixmap_from_resource('info.svg', scale(32), scale(32)))
+        info_icon_label.setFixedSize(scale(36), scale(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         instruction_label = QLabel('Select a network interface to start packet capture.')
-        instruction_label.setStyleSheet(interface_instruction_label_stylesheet(_scale))
+        instruction_label.setStyleSheet(interface_instruction_label_stylesheet(ui_scale))
         action_layout.addWidget(info_icon_label)
-        action_layout.addSpacing(_s(8))
+        action_layout.addSpacing(scale(8))
         action_layout.addWidget(instruction_label)
         action_layout.addStretch()
 
         select_button = QPushButton('Start Sniffing')
         select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
         select_button.setEnabled(False)  # Initially disabled
-        select_button.setMinimumSize(_s(330), _s(56))
-        _play_pad = _s(10)
-        _play_w, _play_h = _s(46), _s(28)
+        select_button.setMinimumSize(scale(330), scale(56))
+        _play_pad = scale(10)
+        _play_w, _play_h = scale(46), scale(28)
         select_button.setIcon(
             make_padded_icon(
                 QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
@@ -446,7 +446,7 @@ class InterfaceSelectionDialog(QDialog):
         )
 
         action_layout.addWidget(select_button)
-        action_layout.addSpacing(_s(50))
+        action_layout.addSpacing(scale(50))
         container_layout.addLayout(action_layout)
 
         layout.addWidget(bottom_container)
@@ -694,8 +694,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setRowCount(0)
 
         # Populate with filtered data
-        for i, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
-            self.table.insertRow(i)
+        for index, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
+            self.table.insertRow(index)
 
             # Get display values
             mac_address = interface.identity.mac_address or 'N/A'

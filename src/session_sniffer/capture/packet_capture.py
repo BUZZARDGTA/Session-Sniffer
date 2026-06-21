@@ -286,8 +286,8 @@ class PacketCapture:
         """Run one sniffer session until stopped, restarted, or crashed."""
         device_name = self.config.interface.device_name
         if not device_name:
-            msg = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
-            raise CaptureError(msg)
+            message = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
+            raise CaptureError(message)
 
         def prn(raw_pkt: ScapyPacket) -> None:
             # NPcap on Windows applies BPF in userspace for some adapter types

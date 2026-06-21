@@ -23,8 +23,8 @@ function Invoke-QualityTool {
         $startTime = Get-Date
         Invoke-Expression $Command
         $endTime = Get-Date
-        $elapsed = $endTime - $startTime
-        $elapsedSeconds = [math]::Round($elapsed.TotalSeconds, 1)
+        $elapsed_duration = $endTime - $startTime
+        $elapsedSeconds = [math]::Round($elapsed_duration.TotalSeconds, 1)
         Write-Host "✓  $ToolName completed in $elapsedSeconds seconds" -ForegroundColor Green
     } else {
         Write-Host "⚠  $ToolName is not installed. Skipping $ToolName check." -ForegroundColor DarkYellow

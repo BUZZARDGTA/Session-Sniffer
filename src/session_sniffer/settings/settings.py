@@ -439,7 +439,7 @@ class Settings:
             need_rewrite_settings = True
         else:
             # Build UPPER_CASE defaults dict for the model
-            upper_defaults: dict[str, Any] = {k.upper(): v for k, v in SETTING_DEFAULTS.items()}
+            upper_defaults: dict[str, Any] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
 
             validated, _ini_rewrites, flags = SettingsIniModel.validate_and_get_rewrites(
                 raw_settings,

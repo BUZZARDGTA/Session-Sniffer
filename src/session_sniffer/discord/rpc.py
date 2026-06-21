@@ -121,8 +121,6 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
             return
 
         update_payload = ensure_instance(queue_item, _PresenceUpdate)
-        state_message = update_payload.state_message
-        details = update_payload.details
 
         if not connection_status.is_set():
             now = time.monotonic()
@@ -146,8 +144,8 @@ def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
 
         try:
             rpc.update(
-                state=state_message,
-                details=details,
+                state=update_payload.state_message,
+                details=update_payload.details,
                 start=START_TIME_INT,
                 buttons=DISCORD_RPC_BUTTONS,
             )

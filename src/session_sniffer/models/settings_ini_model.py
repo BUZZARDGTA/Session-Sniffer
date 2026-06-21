@@ -159,10 +159,9 @@ class SettingsIniModel(BaseModel):
 
     @staticmethod
     def _get_context(info: ValidationInfo) -> _ValidatorContext | None:
-        context_obj = info.context
-        if not isinstance(context_obj, _ValidatorContext):
+        if not isinstance(info.context, _ValidatorContext):
             return None
-        return context_obj
+        return info.context
 
     @classmethod
     def _get_default_for_field(cls, info: ValidationInfo) -> object:
@@ -177,19 +176,17 @@ class SettingsIniModel(BaseModel):
     def _record_rewrite(info: ValidationInfo, rewrite_to: str | None) -> None:
         if rewrite_to is None:
             return
-        context_obj = info.context
-        if not isinstance(context_obj, _ValidatorContext):
+        if not isinstance(info.context, _ValidatorContext):
             return
         if not isinstance(info.field_name, str):
             return
-        context_obj.ini_rewrites[info.field_name] = rewrite_to
+        info.context.ini_rewrites[info.field_name] = rewrite_to
 
     @staticmethod
     def _set_flag(info: ValidationInfo, flag_name: str, *, value: object) -> None:
-        context_obj = info.context
-        if not isinstance(context_obj, _ValidatorContext):
+        if not isinstance(info.context, _ValidatorContext):
             return
-        context_obj.flags[flag_name] = value
+        info.context.flags[flag_name] = value
 
     # --- Validators ---
 
@@ -844,7 +841,7 @@ def _normalize_tuple_column(
         if not case_match:
             need_rewrite_current = True
 
-    sorted_result = [col for col in allowed_columns if col in filtered]
+    sorted_result = [column for column in allowed_columns if column in filtered]
     if filtered != sorted_result:
         need_rewrite_current = True
 

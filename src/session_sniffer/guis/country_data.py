@@ -253,7 +253,7 @@ COUNTRY_NAMES: dict[str, str] = {
     'ZW': 'Zimbabwe',
 }
 
-COUNTRY_CODES: dict[str, str] = {name: code for code, name in COUNTRY_NAMES.items()}
+COUNTRY_CODES: dict[str, str] = {country_name: country_code for country_code, country_name in COUNTRY_NAMES.items()}
 
 
 def get_country_flag_code(country_name: str) -> str | None:

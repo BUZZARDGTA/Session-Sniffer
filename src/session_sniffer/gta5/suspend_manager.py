@@ -291,7 +291,7 @@ class GTASuspendManager:
 
                     # all reasons satisfied
                     now = time.monotonic()
-                    if all(cls._reason_ok(r, now) for r in state.reasons.values()):
+                    if all(cls._reason_ok(reason, now) for reason in state.reasons.values()):
                         pid_to_resume = state.pid
                         cls._state = None
                         cls._publish_snapshot_locked()
@@ -338,10 +338,10 @@ class GTASuspendManager:
     def _next_timeout(state: _ProcessState, now: float) -> float:
         earliest = None
 
-        for r in state.reasons.values():
-            if r.manual:
+        for reason in state.reasons.values():
+            if reason.manual:
                 continue
-            remaining = r.min_duration - (now - r.added_at)
+            remaining = reason.min_duration - (now - reason.added_at)
             if remaining > 0:
                 earliest = remaining if earliest is None else min(earliest, remaining)
 

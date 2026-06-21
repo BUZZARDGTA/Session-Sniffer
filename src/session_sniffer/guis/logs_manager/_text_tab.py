@@ -188,14 +188,14 @@ class TextLogTab(QWidget):
 
     def _highlight_all_matches(self) -> None:
         selections = []
-        highlight_fmt = QTextCharFormat()
-        highlight_fmt.setBackground(QColor('#665c00'))
-        highlight_fmt.setForeground(QColor('#ffffff'))
+        highlight_format = QTextCharFormat()
+        highlight_format.setBackground(QColor('#665c00'))
+        highlight_format.setForeground(QColor('#ffffff'))
 
         for cursor in self._search_matches:
             selection = QTextEdit.ExtraSelection()
             selection.cursor = cursor
-            selection.format = highlight_fmt
+            selection.format = highlight_format
             selections.append(selection)
 
         self._viewer.setExtraSelections(selections)
@@ -256,7 +256,7 @@ class TextLogTab(QWidget):
         QMessageBox.information(self, TITLE, f'Saved to {path}')
 
     def _purge_file(self) -> None:
-        msg = purge_log_file(self, self._file_path, item_label='contents')
-        if msg is not None:
-            QMessageBox.information(self, TITLE, msg)
+        message = purge_log_file(self, self._file_path, item_label='contents')
+        if message is not None:
+            QMessageBox.information(self, TITLE, message)
             self.load_data()

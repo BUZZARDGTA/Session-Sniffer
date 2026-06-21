@@ -87,8 +87,8 @@ class CsvLogTab(QWidget):
         top_bar.addWidget(QLabel('Column:'))
         self._column_combo = QComboBox()
         self._column_combo.addItem('All Columns', -1)
-        for i, col_name in enumerate(self._expected_headers):
-            self._column_combo.addItem(col_name, i)
+        for i, column_name in enumerate(self._expected_headers):
+            self._column_combo.addItem(column_name, i)
         self._column_combo.currentIndexChanged.connect(self._on_column_filter_changed)
         top_bar.addWidget(self._column_combo)
 
@@ -133,8 +133,8 @@ class CsvLogTab(QWidget):
                 h_header.setSectionResizeMode(self._stretch_column, QHeaderView.ResizeMode.Stretch)
             else:
                 h_header.setStretchLastSection(True)
-            for col, width in self._column_min_widths.items():
-                h_header.resizeSection(col, width)
+            for column, width in self._column_min_widths.items():
+                h_header.resizeSection(column, width)
             h_header.setSectionsMovable(True)
             h_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             h_header.customContextMenuRequested.connect(self._on_header_context_menu)
@@ -251,19 +251,19 @@ class CsvLogTab(QWidget):
         """Apply the default sort using stable-sort chaining."""
         if not self._default_sort_columns:
             return
-        header_labels = [self._model.headerData(c, Qt.Orientation.Horizontal) for c in range(self._model.columnCount())]
-        primary_col_index: int | None = None
+        header_labels = [self._model.headerData(column, Qt.Orientation.Horizontal) for column in range(self._model.columnCount())]
+        primary_column_index: int | None = None
         # Sort in reverse order so the first column in the tuple ends up as the primary sort key.
-        for col_name in reversed(self._default_sort_columns):
-            if col_name in header_labels:
-                col_index = header_labels.index(col_name)
-                self._proxy.sort(col_index, self._default_sort_order)
-                primary_col_index = col_index
+        for column_name in reversed(self._default_sort_columns):
+            if column_name in header_labels:
+                column_index = header_labels.index(column_name)
+                self._proxy.sort(column_index, self._default_sort_order)
+                primary_column_index = column_index
         # Sync the header sort indicator with the primary sort column.
-        if primary_col_index is not None:
+        if primary_column_index is not None:
             h_header = self._table.horizontalHeader()
             if h_header is not None:
-                h_header.setSortIndicator(primary_col_index, self._default_sort_order)
+                h_header.setSortIndicator(primary_column_index, self._default_sort_order)
 
     # ------------------------------------------------------------------
     # Filtering
@@ -274,8 +274,8 @@ class CsvLogTab(QWidget):
         self._column_combo.blockSignals(True)  # noqa: FBT003
         self._column_combo.clear()
         self._column_combo.addItem('All Columns', -1)
-        for i, h in enumerate(headers):
-            self._column_combo.addItem(h, i)
+        for i, header in enumerate(headers):
+            self._column_combo.addItem(header, i)
         self._column_combo.blockSignals(False)  # noqa: FBT003
 
     def _on_search_changed(self, text: str) -> None:
@@ -283,18 +283,18 @@ class CsvLogTab(QWidget):
         self._update_counts()
 
     def _on_column_filter_changed(self) -> None:
-        col = self._column_combo.currentData()
-        if col is None:
-            col = -1
-        self._proxy.set_filter_column(col)
+        column = self._column_combo.currentData()
+        if column is None:
+            column = -1
+        self._proxy.set_filter_column(column)
         self._update_counts()
 
     def _on_date_filter_changed(self, choice: str) -> None:
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]
-        date_col = -1
-        for i, h in enumerate(headers):
-            if h == DATE_COLUMN_NAME:
-                date_col = i
+        date_column = -1
+        for i, header in enumerate(headers):
+            if header == DATE_COLUMN_NAME:
+                date_column = i
                 break
 
         cutoff: datetime | None = None
@@ -306,7 +306,7 @@ class CsvLogTab(QWidget):
         elif choice == DATE_FILTER_30_DAYS:
             cutoff = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        self._proxy.set_date_filter(date_col, cutoff)
+        self._proxy.set_date_filter(date_column, cutoff)
         self._update_counts()
 
     def _update_counts(self) -> None:
@@ -328,12 +328,12 @@ class CsvLogTab(QWidget):
         if h_header is None:
             return
         menu = QMenu(self)
-        for col in range(self._model.columnCount()):
-            name = self._model.headerData(col, Qt.Orientation.Horizontal)
+        for column in range(self._model.columnCount()):
+            name = self._model.headerData(column, Qt.Orientation.Horizontal)
             action = QAction(str(name), menu)
             action.setCheckable(True)
-            action.setChecked(not self._table.isColumnHidden(col))
-            action.setData(col)
+            action.setChecked(not self._table.isColumnHidden(column))
+            action.setData(column)
             action.toggled.connect(self._toggle_column_visibility)
             menu.addAction(action)
         menu.popup(h_header.mapToGlobal(pos))
@@ -341,8 +341,8 @@ class CsvLogTab(QWidget):
     def _toggle_column_visibility(self, checked: bool) -> None:  # noqa: FBT001
         action = self.sender()
         if isinstance(action, QAction):
-            col = action.data()
-            self._table.setColumnHidden(col, not checked)
+            column = action.data()
+            self._table.setColumnHidden(column, not checked)
 
     # ------------------------------------------------------------------
     # Actions
@@ -357,12 +357,12 @@ class CsvLogTab(QWidget):
             QMessageBox.information(self, TITLE, 'No rows selected.')
             return
         lines: list[str] = []
-        col_count = self._model.columnCount()
+        column_count = self._model.columnCount()
         for i in sorted(indexes, key=lambda i: i.row()):
             source_row = self._proxy.mapToSource(i).row()
             cells: list[str] = []
-            for c in range(col_count):
-                item = self._model.item(source_row, c)
+            for column in range(column_count):
+                item = self._model.item(source_row, column)
                 cells.append(item.text() if item else '')
             lines.append(','.join(cells))
 
@@ -410,9 +410,9 @@ class CsvLogTab(QWidget):
         self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _purge_file(self) -> None:
-        msg = purge_log_file(self, self._file_path, item_label='entries')
-        if msg is not None:
-            self._show_status(msg)
+        message = purge_log_file(self, self._file_path, item_label='entries')
+        if message is not None:
+            self._show_status(message)
             self.load_data()
 
     def _rewrite_csv_from_model(self) -> None:
@@ -423,8 +423,8 @@ class CsvLogTab(QWidget):
             writer.writerow(headers)
             for row_index in range(self._model.rowCount()):
                 cells: list[str] = []
-                for c in range(self._model.columnCount()):
-                    item = self._model.item(row_index, c)
+                for column in range(self._model.columnCount()):
+                    item = self._model.item(row_index, column)
                     cells.append(item.text() if item else '')
                 writer.writerow(cells)
 

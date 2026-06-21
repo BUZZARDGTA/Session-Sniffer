@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import (
     AVAILABLE_FLAG_CODES,
     COUNTRY_FLAGS_DIR,
@@ -56,10 +56,10 @@ class DetectionsManagerTabsMixin(QDialog):
         _relay_filter_warning: QWidget
         gta5_relay_packet_threshold_spin: QSpinBox
         _combo_rules_list: QListWidget
-        _combo_edit_btn: QPushButton
-        _combo_duplicate_btn: QPushButton
-        _combo_remove_btn: QPushButton
-        _combo_clear_btn: QPushButton
+        _combo_edit_button: QPushButton
+        _combo_duplicate_button: QPushButton
+        _combo_remove_button: QPushButton
+        _combo_clear_button: QPushButton
         country_list: QListWidget
         isp_list: QListWidget
         asn_list: QListWidget
@@ -288,34 +288,34 @@ class DetectionsManagerTabsMixin(QDialog):
         layout.addWidget(self._combo_rules_list, stretch=1)
 
         # Buttons row
-        btn_layout = QHBoxLayout()
+        button_layout = QHBoxLayout()
 
-        add_btn = QPushButton('\u2795 Add Rule')
-        add_btn.clicked.connect(self._add_combo_rule)
-        btn_layout.addWidget(add_btn)
+        add_button = QPushButton('\u2795 Add Rule')
+        add_button.clicked.connect(self._add_combo_rule)
+        button_layout.addWidget(add_button)
 
-        self._combo_edit_btn = QPushButton('\u270f\ufe0f Edit')
-        self._combo_edit_btn.setEnabled(False)
-        self._combo_edit_btn.clicked.connect(self._edit_combo_rule)
-        btn_layout.addWidget(self._combo_edit_btn)
+        self._combo_edit_button = QPushButton('\u270f\ufe0f Edit')
+        self._combo_edit_button.setEnabled(False)
+        self._combo_edit_button.clicked.connect(self._edit_combo_rule)
+        button_layout.addWidget(self._combo_edit_button)
 
-        self._combo_duplicate_btn = QPushButton('\U0001f4cb Duplicate')
-        self._combo_duplicate_btn.setEnabled(False)
-        self._combo_duplicate_btn.clicked.connect(self._duplicate_combo_rule)
-        btn_layout.addWidget(self._combo_duplicate_btn)
+        self._combo_duplicate_button = QPushButton('\U0001f4cb Duplicate')
+        self._combo_duplicate_button.setEnabled(False)
+        self._combo_duplicate_button.clicked.connect(self._duplicate_combo_rule)
+        button_layout.addWidget(self._combo_duplicate_button)
 
-        self._combo_remove_btn = QPushButton('\u2796 Remove')
-        self._combo_remove_btn.setEnabled(False)
-        self._combo_remove_btn.clicked.connect(self._remove_combo_rule)
-        btn_layout.addWidget(self._combo_remove_btn)
+        self._combo_remove_button = QPushButton('\u2796 Remove')
+        self._combo_remove_button.setEnabled(False)
+        self._combo_remove_button.clicked.connect(self._remove_combo_rule)
+        button_layout.addWidget(self._combo_remove_button)
 
-        self._combo_clear_btn = QPushButton('\U0001f5d1\ufe0f Clear All')
-        self._combo_clear_btn.setEnabled(False)
-        self._combo_clear_btn.clicked.connect(self._clear_combo_rules)
-        btn_layout.addWidget(self._combo_clear_btn)
+        self._combo_clear_button = QPushButton('\U0001f5d1\ufe0f Clear All')
+        self._combo_clear_button.setEnabled(False)
+        self._combo_clear_button.clicked.connect(self._clear_combo_rules)
+        button_layout.addWidget(self._combo_clear_button)
 
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
 
         self._combo_rules_list.currentRowChanged.connect(self._update_combo_rule_buttons)
         self._combo_rules_list.itemActivated.connect(self._on_combo_item_activated)
@@ -348,7 +348,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _remove_take_two_interactive_from_blocked_servers(self) -> None:
         """Remove TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
-        Settings.capture_block_third_party_servers = tuple(s for s in Settings.capture_block_third_party_servers if s != 'TAKETWO_INTERACTIVE')
+        Settings.capture_block_third_party_servers = tuple(server for server in Settings.capture_block_third_party_servers if server != 'TAKETWO_INTERACTIVE')
         Settings.rewrite_settings_file()
         self._relay_filter_warning.setVisible(False)
         QMessageBox.information(
@@ -366,16 +366,16 @@ class DetectionsManagerTabsMixin(QDialog):
         """Enable or disable combo rule action buttons based on list state."""
         has_selection = self._combo_rules_list.currentRow() >= 0
         has_items = self._combo_rules_list.count() > 0
-        self._combo_edit_btn.setEnabled(has_selection)
-        self._combo_duplicate_btn.setEnabled(has_selection)
-        self._combo_remove_btn.setEnabled(has_selection)
-        self._combo_clear_btn.setEnabled(has_items)
+        self._combo_edit_button.setEnabled(has_selection)
+        self._combo_duplicate_button.setEnabled(has_selection)
+        self._combo_remove_button.setEnabled(has_selection)
+        self._combo_clear_button.setEnabled(has_items)
 
     def refresh_combo_rules_list(self) -> None:
         """Reload the combo rules QListWidget from ComboRulesManager."""
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
-            conditions_summary = ', '.join(f'{k}={v}' if not isinstance(v, bool) else k for k, v in rule.conditions.items())
+            conditions_summary = ', '.join(f'{key}={value}' if not isinstance(value, bool) else key for key, value in rule.conditions.items())
             status = '\u2705' if rule.enabled else '\u274c'
             item = QListWidgetItem(f'{status} {rule.name}  [{conditions_summary}]')
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
@@ -503,7 +503,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_combo)
 
         duration_spin = QSpinBox()
-        duration_spin.setRange(1, 3600)
+        duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         duration_spin.setValue(60)
         duration_spin.setSuffix(' seconds')
         duration_spin.setVisible(False)
@@ -589,7 +589,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_combo)
 
         duration_spin = QSpinBox()
-        duration_spin.setRange(1, 3600)
+        duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         duration_spin.setValue(60)
         duration_spin.setSuffix(' seconds')
         duration_spin.setVisible(False)
@@ -687,12 +687,12 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _add_isp(self) -> None:
         """Add an ISP/company name to the list."""
-        text, ok = QInputDialog.getText(
+        text, success = QInputDialog.getText(
             self,
             'Add ISP/Company',
             'Enter ISP or company name:\nExamples: Vodafone, Orange, Cloudflare',
         )
-        if ok and text:
+        if success and text:
             stripped = text.strip()
             if stripped and not self._list_contains(self.isp_list, stripped):
                 self.isp_list.addItem(stripped)
@@ -705,12 +705,12 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _add_asn(self) -> None:
         """Add an ASN to the list."""
-        text, ok = QInputDialog.getText(
+        text, success = QInputDialog.getText(
             self,
             'Add ASN',
             'Enter ASN (with or without AS prefix):\nExamples: AS13335, 15169',
         )
-        if ok and text:
+        if success and text:
             asn = text.strip().upper()
             if not asn.startswith('AS'):
                 asn = f'AS{asn}'

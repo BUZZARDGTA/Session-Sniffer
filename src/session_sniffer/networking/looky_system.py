@@ -171,11 +171,11 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
     return _RESPONSE_ADAPTER.validate_json(response.content)
 
 
-def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
+def lookup_ip_batch(ip_addresses: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
     """Query the Looky System batch endpoint for players associated with multiple IPs in one request.
 
     Args:
-        ips: List of IPv4 addresses to look up (max 32 per call).
+        ip_addresses: List of IPv4 addresses to look up (max 32 per call).
         api_key: Looky System Bearer API key.
         version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
 
@@ -191,7 +191,7 @@ def lookup_ip_batch(ips: list[str], api_key: str, version: str = 'both') -> dict
     response = session.post(
         LOOKY_BATCH_URL,
         headers=_json_auth_headers(api_key),
-        json={'ips': ips, 'version': version},
+        json={'ips': ip_addresses, 'version': version},
         timeout=(3.0, 10.0),
     )
     response.raise_for_status()
@@ -305,5 +305,5 @@ def watch_instruction_status(
         if completed:
             return
         if attempt >= max_reconnects:
-            msg = f'SSE stream for instruction {tracking_id!r} ended without a terminal status after {max_reconnects} reconnect attempts'
-            raise requests.ConnectionError(msg)
+            message = f'SSE stream for instruction {tracking_id!r} ended without a terminal status after {max_reconnects} reconnect attempts'
+            raise requests.ConnectionError(message)

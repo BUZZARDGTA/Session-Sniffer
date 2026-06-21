@@ -163,7 +163,7 @@ def clear_voice_notification_queue() -> None:
 
 def clear_detection_voice_notifications() -> None:
     """Remove only detection voice notifications from the queue, keeping userip ones."""
-    _voice_notification_queue.remove_matching(lambda p: 'detection' in Path(p).parts)
+    _voice_notification_queue.remove_matching(lambda path: 'detection' in Path(path).parts)
 
 
 def _tts_voice_name(voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:  # noqa: FBT001
@@ -427,17 +427,17 @@ def handle_detection_notification(
 
                 # Message box
                 if rule.message_box and player.userip is None:
-                    conditions_summary = ', '.join(f'{k}={v}' for k, v in rule.conditions.items() if k != 'event')
+                    conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
                     _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
-                    def _make_event_combo_notif(t: str, e: list[tuple[str, str]], et: str) -> None:
+                    def _make_event_combo_notif(title: str, extra_fields: list[tuple[str, str]], event_time_str: str) -> None:
                         def _callback() -> None:
                             show_detection_notification_dialog(
                                 find_main_window(),
                                 player,
-                                DetectionNotificationInfo(emoji='\U0001f517', display_title=t, extra_detection_fields=e, event_time=et),
+                                DetectionNotificationInfo(emoji='\U0001f517', display_title=title, extra_detection_fields=extra_fields, event_time=event_time_str),
                             )
 
                         gui_dispatcher.invoke(_callback)
@@ -859,7 +859,7 @@ def check_global_detections(player: Player) -> None:
                 rule.duration,
                 f'ComboRule:{rule.name}',
             )
-        conditions_summary = ', '.join(f'{k}={v}' for k, v in rule.conditions.items() if k != 'event')
+        conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
             emoji='\U0001f517',
@@ -934,7 +934,7 @@ def player_rates_core() -> None:
         CaptureStats.peak_pps_rate = max(CaptureStats.peak_pps_rate, global_pps_rate)
 
         one_second_ago = datetime.now(tz=LOCAL_TZ) - timedelta(seconds=1)
-        recent_latencies = [(t, lat) for t, lat in list(CaptureStats.packets_latencies) if t >= one_second_ago]
-        CaptureStats.global_avg_latency_ms = sum(lat.total_seconds() * 1000 for _, lat in recent_latencies) / len(recent_latencies) if recent_latencies else 0.0
+        recent_latencies = [(timestamp, latency) for timestamp, latency in list(CaptureStats.packets_latencies) if timestamp >= one_second_ago]
+        CaptureStats.global_avg_latency_ms = sum(latency.total_seconds() * 1000 for _, latency in recent_latencies) / len(recent_latencies) if recent_latencies else 0.0
 
         gui_closed__event.wait(max(0.0, 1.0 - (time.monotonic() - _start)))

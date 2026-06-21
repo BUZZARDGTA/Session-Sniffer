@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
@@ -26,6 +26,7 @@ from session_sniffer.networking.looky_system import (
     lookup_ip,
 )
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.looky_system import LookyPlayer
@@ -54,12 +55,12 @@ class _LookyFetchWorker(CrashingQThread):
             if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 self.fetch_not_found.emit()
             elif e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(e)
-                wait = extract_rate_limit_wait_seconds(e)
-                self.fetch_failed.emit(f'Rate limited: {msg}. Try again in {wait}s.')
+                message = extract_rate_limit_message(e)
+                wait_seconds = extract_rate_limit_wait_seconds(e)
+                self.fetch_failed.emit(f'Rate limited: {message}. Try again in {wait_seconds} second{pluralize(wait_seconds)}.')
             else:
-                code = e.response.status_code if e.response is not None else '?'
-                self.fetch_failed.emit(f'Looky System API error: HTTP {code}')
+                status_code = e.response.status_code if e.response is not None else '?'
+                self.fetch_failed.emit(f'Looky System API error: HTTP {status_code}')
             return
         except requests.RequestException as e:
             self.fetch_failed.emit(f'Looky System request failed: {e}')
@@ -111,9 +112,9 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
         button_box.rejected.connect(self.reject)
         button_box.accepted.connect(self.accept)
-        close_btn = button_box.button(QDialogButtonBox.StandardButton.Close)
-        if close_btn is not None:
-            close_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+        close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
+        if close_button is not None:
+            close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         outer_layout.addWidget(button_box)
 
 
@@ -127,8 +128,8 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
 
     def _on_fetch_succeeded() -> None:
         with player.looky_system.lock:
-            player.looky_system.usernames = [p.name for p in worker.results]
-            player.looky_system.rockstarids = [p.rockstarid for p in worker.results]
+            player.looky_system.usernames = [player.name for player in worker.results]
+            player.looky_system.rockstarids = [player.rockstarid for player in worker.results]
             player.looky_system.needs_refresh = False
             player.looky_system.last_fetched_at = time.monotonic()
             player.looky_system.is_initialized = True
@@ -142,8 +143,8 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
     def _on_fetch_not_found() -> None:
         QMessageBox.information(parent, LOOKY_TITLE, f'No results found\n\nWe couldn\'t find any players matching "{player.ip}"')
 
-    def _on_fetch_failed(msg: str) -> None:
-        QMessageBox.warning(parent, LOOKY_TITLE, f'Failed: {msg}')
+    def _on_fetch_failed(message: str) -> None:
+        QMessageBox.warning(parent, LOOKY_TITLE, f'Failed: {message}')
 
     worker.fetch_succeeded.connect(_on_fetch_succeeded)
     worker.fetch_not_found.connect(_on_fetch_not_found)

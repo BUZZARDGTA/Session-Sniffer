@@ -225,13 +225,13 @@ class FilesMixin(QMainWindow):
         layout.addSpacing(8)
 
         button_box = QDialogButtonBox()
-        copy_btn = button_box.addButton('Copy Details', QDialogButtonBox.ButtonRole.ActionRole)
+        copy_button = button_box.addButton('Copy Details', QDialogButtonBox.ButtonRole.ActionRole)
         button_box.addButton(QDialogButtonBox.StandardButton.Close)
 
-        if copy_btn is not None:
+        if copy_button is not None:
             clipboard = QApplication.clipboard()
             if clipboard is not None:
-                copy_btn.clicked.connect(lambda: clipboard.setText(copy_text))
+                copy_button.clicked.connect(lambda: clipboard.setText(copy_text))
 
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)

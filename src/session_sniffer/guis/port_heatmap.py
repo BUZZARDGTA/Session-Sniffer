@@ -37,7 +37,7 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
                 counts[port] = counts.get(port, 0) + 1
 
         total = sum(counts.values())
-        sorted_ports = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        sorted_ports = sorted(counts.items(), key=lambda item: item[1], reverse=True)
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)

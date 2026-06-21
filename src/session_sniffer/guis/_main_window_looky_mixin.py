@@ -41,8 +41,8 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
         """Build the Looky System submenu and attach it to `gta5_menu`."""
         looky_submenu = gta5_menu.addMenu('👁 Looky System')
         if looky_submenu is None:
-            msg = 'Failed to create Looky System submenu'
-            raise RuntimeError(msg)
+            message = 'Failed to create Looky System submenu'
+            raise RuntimeError(message)
         looky_submenu.setToolTipsVisible(True)
         cast('QAction', looky_submenu.menuAction()).setToolTip('Looky System tools and shortcuts for GTA5 sessions')
         self._looky_submenu = looky_submenu

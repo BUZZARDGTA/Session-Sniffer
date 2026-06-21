@@ -22,8 +22,8 @@ def _read_pyqt_version() -> str:
                 if specifier.operator == '==':
                     return specifier.version
 
-    msg = f'PyQt6 dependency is missing from {PYPROJECT_PATH}.'
-    raise RuntimeError(msg)
+    message = f'PyQt6 dependency is missing from {PYPROJECT_PATH}.'
+    raise RuntimeError(message)
 
 
 def _compute_os_info() -> str:

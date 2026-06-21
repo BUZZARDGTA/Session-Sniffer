@@ -117,12 +117,12 @@ class _PlayerRateData:
 
 
 class _HighRateTableModel(QAbstractTableModel):
-    _COL_USERNAME = 0
-    _COL_IP = 1
-    _COL_PPS = 2
-    _COL_BPS = 3
-    COL_DURATION = 4
-    _COL_TOTAL_DURATION = 5
+    _COLUMN_USERNAME = 0
+    _COLUMN_IP = 1
+    _COLUMN_PPS = 2
+    _COLUMN_BPS = 3
+    COLUMN_DURATION = 4
+    _COLUMN_TOTAL_DURATION = 5
     _HEADERS = ('Username', 'IP', 'PPS', 'BPS', 'Duration (s)', 'Total Duration (s)')
     _HEADER_TOOLTIPS = (
         'Usernames associated with this IP.',
@@ -163,16 +163,16 @@ class _HighRateTableModel(QAbstractTableModel):
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
         player = self._visible[index.row()]
-        col = index.column()
-        if col == self._COL_PPS:
+        column = index.column()
+        if column == self._COLUMN_PPS:
             return player.pps
-        if col == self._COL_BPS:
+        if column == self._COLUMN_BPS:
             return PlayerBandwidth.format_bytes(player.bps)
-        if col == self._COL_IP:
+        if column == self._COLUMN_IP:
             return player.ip
-        if col == self._COL_USERNAME:
+        if column == self._COLUMN_USERNAME:
             return ', '.join(player.usernames) if player.usernames else '—'
-        return player.current_pps_duration if col == self.COL_DURATION else player.total_pps_duration
+        return player.current_pps_duration if column == self.COLUMN_DURATION else player.total_pps_duration
 
     @override
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
@@ -216,8 +216,8 @@ class _HighRateTableModel(QAbstractTableModel):
             del self._tracked[ip]
 
         new_visible = sorted(
-            (p for p in self._tracked.values() if p.is_high_pps and p.is_high_bps),
-            key=lambda p: (p.current_pps_duration, p.total_pps_duration, p.pps, p.bps, p.ip),
+            (player for player in self._tracked.values() if player.is_high_pps and player.is_high_bps),
+            key=lambda player: (player.current_pps_duration, player.total_pps_duration, player.pps, player.bps, player.ip),
             reverse=True,
         )
         old_len = len(self._visible)
@@ -226,13 +226,13 @@ class _HighRateTableModel(QAbstractTableModel):
         if old_len == new_len:
             # Only emit dataChanged when visible content actually differs
             if new_len and any(
-                a.ip != b.ip
-                or a.pps != b.pps
-                or a.bps != b.bps
-                or a.current_pps_duration != b.current_pps_duration
-                or a.total_pps_duration != b.total_pps_duration
-                or a.usernames != b.usernames
-                for a, b in zip(new_visible, self._visible, strict=True)
+                first_item.ip != second_item.ip
+                or first_item.pps != second_item.pps
+                or first_item.bps != second_item.bps
+                or first_item.current_pps_duration != second_item.current_pps_duration
+                or first_item.total_pps_duration != second_item.total_pps_duration
+                or first_item.usernames != second_item.usernames
+                for first_item, second_item in zip(new_visible, self._visible, strict=True)
             ):
                 self._visible = new_visible
                 self.dataChanged.emit(self.index(0, 0), self.index(new_len - 1, len(self._HEADERS) - 1))
@@ -289,7 +289,7 @@ class HighRateMonitorWidget(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header.setSectionsClickable(False)
         header.setSortIndicatorShown(True)
-        header.setSortIndicator(self._model.COL_DURATION, Qt.SortOrder.DescendingOrder)
+        header.setSortIndicator(self._model.COLUMN_DURATION, Qt.SortOrder.DescendingOrder)
         self._table.setSortingEnabled(False)
         layout.addWidget(self._table)
 
@@ -394,7 +394,7 @@ class HighRateMonitorWidget(QWidget):
     # Scanning ---------------------------------------------------------------
 
     def _scan_players(self) -> None:
-        players = [p for p in PlayersRegistry.get_connected_players() if p.ip not in self._blacklisted_ips]
+        players = [player for player in PlayersRegistry.get_connected_players() if player.ip not in self._blacklisted_ips]
         self._model.update_data(players)
 
         for ip, graph in list(self._graph_windows.items()):

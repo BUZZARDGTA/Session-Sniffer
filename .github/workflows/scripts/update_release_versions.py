@@ -18,8 +18,8 @@ def get_repo_root() -> Path:
 def validate_sha256(value: str) -> str:
     """Return the SHA-256 value if it is valid lowercase hexadecimal."""
     if len(value) != SHA256_HEX_LENGTH or not all(char in LOWERCASE_HEX_DIGITS for char in value):
-        error_msg = 'SHA-256 must be exactly 64 lowercase hexadecimal characters.'
-        raise argparse.ArgumentTypeError(error_msg)
+        message = 'SHA-256 must be exactly 64 lowercase hexadecimal characters.'
+        raise argparse.ArgumentTypeError(message)
     return value
 
 
@@ -32,12 +32,12 @@ def validate_release_type(
 ) -> None:
     """Validate that the GitHub release type matches the parsed version."""
     if version.is_prerelease and not prerelease:
-        error_msg = f'Release tag "{tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
-        parser.error(error_msg)
+        message = f'Release tag "{tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
+        parser.error(message)
 
     if prerelease and not version.is_prerelease:
-        error_msg = f'Release tag "{tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
-        parser.error(error_msg)
+        message = f'Release tag "{tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
+        parser.error(message)
 
 
 def main() -> None:
@@ -61,13 +61,13 @@ def main() -> None:
     json_path = get_repo_root() / 'release_versions.json'
 
     if not json_path.exists():
-        error_msg = f'File: "{json_path.absolute()}" not found.'
-        raise FileNotFoundError(error_msg)
+        message = f'File: "{json_path.absolute()}" not found.'
+        raise FileNotFoundError(message)
 
     data = json.loads(json_path.read_text(encoding='utf-8'))
     if not isinstance(data, dict):
-        error_msg = f'File: "{json_path.absolute()}" must contain a JSON object.'
-        raise TypeError(error_msg)
+        message = f'File: "{json_path.absolute()}" must contain a JSON object.'
+        raise TypeError(message)
 
     target_key = 'latest_prerelease' if args.prerelease else 'latest_stable'
 

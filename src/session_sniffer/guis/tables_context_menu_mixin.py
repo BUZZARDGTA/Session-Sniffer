@@ -87,7 +87,7 @@ def _classify_userip_entry(ip: str) -> str:
     return labels.pop() if len(labels) == 1 else 'range'
 
 
-def _describe_selected_userip_entries(ips: list[str]) -> str:
+def _describe_selected_userip_entries(ip_addresses: list[str]) -> str:
     """Return wording like 'the selected subnet' or 'the 3 selected single IPs' for a UserIP selection.
 
     Each IP is classified as an exact single-IP entry (a member of `UserIPDatabases.ips_set`) or a
@@ -95,18 +95,26 @@ def _describe_selected_userip_entries(ips: list[str]) -> str:
     every entry is a range of the same concrete kind the specific noun (`subnet`/`IP range`) is used;
     a selection mixing single IPs with ranges is described with the neutral noun `entries`.
     """
-    total = len(ips)
-    single_count = sum(1 for ip in ips if ip in UserIPDatabases.ips_set)
-    range_count = total - single_count
-    if single_count and range_count:
-        noun = 'entries'
-    elif range_count:
-        labels = {_classify_userip_entry(ip) for ip in ips}
-        noun = f'{labels.pop()}{pluralize(total)}' if len(labels) == 1 else f'range{pluralize(total)}'
+    total_selected_ips = len(ip_addresses)
+
+    single_ip_count = sum(1 for ip_address in ip_addresses if ip_address in UserIPDatabases.ips_set)
+
+    range_ip_count = total_selected_ips - single_ip_count
+
+    if single_ip_count and range_ip_count:
+        noun_label = 'entries'
+
+    elif range_ip_count:
+        entry_types = {_classify_userip_entry(ip_address) for ip_address in ip_addresses}
+
+        noun_label = f'{entry_types.pop()}{pluralize(total_selected_ips)}' if len(entry_types) == 1 else f'range{pluralize(total_selected_ips)}'
+
     else:
-        noun = f'single IP{pluralize(total)}'
-    count = '' if total == 1 else f'{total} '
-    return f'the {count}selected {noun}'
+        noun_label = f'single IP{pluralize(total_selected_ips)}'
+
+    total_prefix = '' if total_selected_ips == 1 else f'{total_selected_ips} '
+
+    return f'the {total_prefix}selected {noun_label}'
 
 
 class TableContextMenuMixin(QTableView):
@@ -207,19 +215,19 @@ class TableContextMenuMixin(QTableView):
 
         def get_selected_ips(indexes: list[QModelIndex]) -> list[str]:
             seen_rows: set[int] = set()
-            ips: list[str] = []
+            ip_addresses: list[str] = []
             for selected_index in indexes:
                 if selected_index.row() in seen_rows:
                     continue
                 seen_rows.add(selected_index.row())
                 ip_index = selected_model.index(selected_index.row(), selected_model.ip_column_index)
                 displayed_ip = selected_model.get_display_text(ip_index)
-                if displayed_ip and displayed_ip not in ips:
-                    ips.append(displayed_ip)
-            return ips
+                if displayed_ip and displayed_ip not in ip_addresses:
+                    ip_addresses.append(displayed_ip)
+            return ip_addresses
 
-        def get_matched_players(ips: list[str]) -> list[Player]:
-            return [player for ip in ips if (player := PlayersRegistry.get_player_by_ip(ip)) is not None]
+        def get_matched_players(ip_addresses: list[str]) -> list[Player]:
+            return [player for ip in ip_addresses if (player := PlayersRegistry.get_player_by_ip(ip)) is not None]
 
         def remove_blocked_players_from_tables() -> None:
             main_window = cast('MainWindow', self.window())
@@ -250,11 +258,11 @@ class TableContextMenuMixin(QTableView):
                 handler=lambda: copy_players_info_for_discord(players),
             )
 
-        def add_remove_players_action(ips: list[str]) -> None:
-            if not ips:
+        def add_remove_players_action(ip_addresses: list[str]) -> None:
+            if not ip_addresses:
                 return
 
-            ips_to_remove = set(ips)
+            ips_to_remove = set(ip_addresses)
             if len(ips_to_remove) == 1:
                 label = '🗑️ Remove Player'
                 tooltip = 'Remove this player from the table and registry.'
@@ -269,14 +277,14 @@ class TableContextMenuMixin(QTableView):
                 handler=lambda: self.remove_players_by_ip_from_table(ips_to_remove),
             )
 
-        def add_exclude_ips_action(ips: list[str]) -> None:
-            if not ips:
+        def add_exclude_ips_action(ip_addresses: list[str]) -> None:
+            if not ip_addresses:
                 return
 
-            if len(ips) == 1:
+            if len(ip_addresses) == 1:
 
                 def _do_block_single_ip() -> None:
-                    if block_ip_as_range(self, ips[0]) is None:
+                    if block_ip_as_range(self, ip_addresses[0]) is None:
                         return
                     remove_blocked_players_from_tables()
 
@@ -289,7 +297,7 @@ class TableContextMenuMixin(QTableView):
                 return
 
             def _do_block_multi_ips() -> None:
-                for ip in ips:
+                for ip in ip_addresses:
                     block_ip_as_range(self, ip)
                 if not Settings.blocked_ip_ranges:
                     return
@@ -297,7 +305,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 context_menu,
-                f'🚫 Exclude {len(ips)} IPs / Ranges',
+                f'🚫 Exclude {len(ip_addresses)} IPs / Ranges',
                 tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
                 handler=_do_block_multi_ips,
             )
@@ -326,23 +334,23 @@ class TableContextMenuMixin(QTableView):
                 handler=_show_all_lookups,
             )
 
-        def add_rate_graph_action(ips: list[str]) -> None:
-            if not ips or not self.is_connected_table or self.open_rate_graph_callback is None:
+        def add_rate_graph_action(ip_addresses: list[str]) -> None:
+            if not ip_addresses or not self.is_connected_table or self.open_rate_graph_callback is None:
                 return
 
             rate_graph_callback = self.open_rate_graph_callback
 
-            if len(ips) == 1:
+            if len(ip_addresses) == 1:
                 add_action(
                     context_menu,
                     '📈 Rate Graph',
                     tooltip='Open a live PPS/BPS graph for this player.',
-                    handler=lambda: rate_graph_callback(ips[0]),
+                    handler=lambda: rate_graph_callback(ip_addresses[0]),
                 )
                 return
 
             def _open_multi_graphs() -> None:
-                for ip in ips:
+                for ip in ip_addresses:
                     rate_graph_callback(ip)
 
             add_action(
@@ -377,7 +385,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if not Settings.is_gta5_preset() or not players or any(is_third_party_server_ip(p.ip) for p in players):
+            if not Settings.is_gta5_preset() or not players or any(is_third_party_server_ip(player.ip) for player in players):
                 return
 
             def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
@@ -438,36 +446,36 @@ class TableContextMenuMixin(QTableView):
             )
             _apply_looky_gating(lookup_all_action, require_gta5_running=False)
 
-        def add_ping_menu(ips: list[str]) -> None:
-            if not ips:
+        def add_ping_menu(ip_addresses: list[str]) -> None:
+            if not ip_addresses:
                 return
 
             ping_menu = add_menu(context_menu, '📡 Ping')
 
-            if len(ips) == 1:
+            if len(ip_addresses) == 1:
                 add_action(
                     ping_menu,
                     '🏓 Normal',
                     tooltip='Checks if selected IP address responds to pings.',
-                    handler=lambda: ping_ip(ips[0]),
+                    handler=lambda: ping_ip(ip_addresses[0]),
                 )
                 add_action(
                     ping_menu,
                     '🔌 TCP Port (paping.exe)',
                     tooltip='Checks if selected IP address responds to TCP pings on a given port.',
-                    handler=lambda: tcp_port_ping(self, ips[0]),
+                    handler=lambda: tcp_port_ping(self, ip_addresses[0]),
                 )
                 return
 
             def _ping_all() -> None:
-                for ip in ips:
+                for ip in ip_addresses:
                     ping_ip(ip)
 
             def _tcp_ping_all_one_port() -> None:
-                tcp_port_ping_multi(self, ips)
+                tcp_port_ping_multi(self, ip_addresses)
 
             def _tcp_ping_all_diff_ports() -> None:
-                for ip in ips:
+                for ip in ip_addresses:
                     tcp_port_ping(self, ip)
 
             add_action(
@@ -494,42 +502,42 @@ class TableContextMenuMixin(QTableView):
             allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
             return [script for script in directory.glob('*') if (script.is_file() and not script.name.startswith(('_', '.')) and script.suffix.casefold() in allowed_suffixes)]
 
-        def create_script_handler(script_path: Path, ips: list[str]) -> Callable[[], None]:
-            return lambda: run_cmd_script(script_path, ips)
+        def create_script_handler(script_path: Path, ip_addresses: list[str]) -> Callable[[], None]:
+            return lambda: run_cmd_script(script_path, ip_addresses)
 
-        def create_script_handler_per_ip(script_path: Path, ips: list[str]) -> Callable[[], None]:
+        def create_script_handler_per_ip(script_path: Path, ip_addresses: list[str]) -> Callable[[], None]:
             def _run() -> None:
-                for ip in ips:
+                for ip in ip_addresses:
                     run_cmd_script(script_path, [ip])
 
             return _run
 
-        def add_scripts_to_menu(menu: QMenu, scripts: list[Path], ips: list[str], *, per_ip: bool = False) -> None:
+        def add_scripts_to_menu(menu: QMenu, scripts: list[Path], ip_addresses: list[str], *, per_ip: bool = False) -> None:
             factory = create_script_handler_per_ip if per_ip else create_script_handler
             for script in scripts:
-                add_action(menu, script.resolve().name, tooltip='', handler=factory(script.resolve(), ips))
+                add_action(menu, script.resolve().name, tooltip='', handler=factory(script.resolve(), ip_addresses))
 
-        def _populate_scripts_menu(menu: QMenu, builtin: list[Path], user: list[Path], ips: list[str], *, per_ip: bool = False) -> None:
-            add_scripts_to_menu(menu, builtin, ips, per_ip=per_ip)
+        def _populate_scripts_menu(menu: QMenu, builtin: list[Path], user: list[Path], ip_addresses: list[str], *, per_ip: bool = False) -> None:
+            add_scripts_to_menu(menu, builtin, ip_addresses, per_ip=per_ip)
             if builtin and user:
                 menu.addSeparator()
-            add_scripts_to_menu(menu, user, ips, per_ip=per_ip)
+            add_scripts_to_menu(menu, user, ip_addresses, per_ip=per_ip)
 
-        def add_user_scripts_menu(ips: list[str]) -> None:
+        def add_user_scripts_menu(ip_addresses: list[str]) -> None:
             scripts_menu = add_menu(context_menu, '📜 User Scripts')
             builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
             user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
-            if len(ips) == 1:
-                _populate_scripts_menu(scripts_menu, builtin_scripts, user_scripts, ips)
+            if len(ip_addresses) == 1:
+                _populate_scripts_menu(scripts_menu, builtin_scripts, user_scripts, ip_addresses)
                 return
 
             if builtin_scripts or user_scripts:
                 all_at_once_menu = add_menu(scripts_menu, '📜 All IPs as Args', 'Pass all selected IPs as arguments to the script in one call.')
-                _populate_scripts_menu(all_at_once_menu, builtin_scripts, user_scripts, ips)
+                _populate_scripts_menu(all_at_once_menu, builtin_scripts, user_scripts, ip_addresses)
 
                 per_ip_menu = add_menu(scripts_menu, '📜 One Process per IP', 'Spawn a separate script process for each selected IP.')
-                _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ips, per_ip=True)
+                _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ip_addresses, per_ip=True)
 
         def add_detections_menu(players: list[Player]) -> None:
             if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
@@ -543,10 +551,10 @@ class TableContextMenuMixin(QTableView):
                 return
             build_detections_menu_multi(detections_menu, add_action, players, self)
 
-        def add_userip_single_menu(ip_address: str, player_obj: Player) -> None:
+        def add_userip_single_menu(ip_address: str, player: Player) -> None:
             userip_menu = add_menu(context_menu, '🗂️ UserIP')
 
-            if player_obj.userip is None:
+            if player.userip is None:
                 database_paths = UserIPDatabases.get_userip_database_filepaths()
                 add_userip_menu = add_menu(userip_menu, '📥 Add', 'Add selected IP address to UserIP database.')
                 populate_db_menu(
@@ -565,9 +573,9 @@ class TableContextMenuMixin(QTableView):
                 return
 
             def _open_userip_database() -> None:
-                if player_obj.userip is None:
+                if player.userip is None:
                     return
-                QDesktopServices.openUrl(QUrl.fromLocalFile(str(player_obj.userip.db_path)))
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(player.userip.db_path)))
 
             add_action(
                 userip_menu,
@@ -580,35 +588,35 @@ class TableContextMenuMixin(QTableView):
                 userip_menu,
                 '📥 Add Username',
                 tooltip='Add an additional username for this IP address in its UserIP database.',
-                handler=lambda: userip_add_username(self, ip_address, player_obj),
+                handler=lambda: userip_add_username(self, ip_address, player),
             )
             add_action(
                 userip_menu,
                 '✏️ Rename',
                 tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
-                handler=lambda: userip_rename(self, ip_address, player_obj),
+                handler=lambda: userip_rename(self, ip_address, player),
             )
             entry_desc = _classify_userip_entry(ip_address)
             if entry_desc == 'single IP':
                 add_action(
                     userip_menu,
                     '🔁 Convert to Range',
-                    tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player_obj.userip.usernames))}.',
-                    handler=lambda: userip_convert_to_range(self, ip_address, player_obj),
+                    tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player.userip.usernames))}.',
+                    handler=lambda: userip_convert_to_range(self, ip_address, player),
                 )
             else:
                 add_action(
                     userip_menu,
                     '📏 Edit Range',
-                    tooltip=f'Edit this {entry_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player_obj.userip.usernames))}.',
-                    handler=lambda: userip_edit_range(self, ip_address, player_obj),
+                    tooltip=f'Edit this {entry_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player.userip.usernames))}.',
+                    handler=lambda: userip_edit_range(self, ip_address, player),
                 )
-            if player_obj.userip.usernames and len(player_obj.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
+            if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
                 add_action(
                     userip_menu,
                     '❌ Remove Username',
                     tooltip='Remove selected usernames for this IP address while keeping others.',
-                    handler=lambda: userip_remove_username(self, ip_address, player_obj),
+                    handler=lambda: userip_remove_username(self, ip_address, player),
                 )
             move_userip_menu = add_menu(userip_menu, '📦 Move', f'Move this {entry_desc} entry to another UserIP database.')
             populate_db_menu(
@@ -616,7 +624,7 @@ class TableContextMenuMixin(QTableView):
                 UserIPDatabases.get_userip_database_filepaths(),
                 tooltip=f'Move this {entry_desc} entry to this UserIP database.',
                 handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
-                disabled_path=player_obj.userip.db_path,
+                disabled_path=player.userip.db_path,
             )
             add_action(
                 userip_menu,
@@ -625,22 +633,22 @@ class TableContextMenuMixin(QTableView):
                 handler=lambda: userip_delete(self, [ip_address]),
             )
 
-        def add_userip_multi_menu(ips: list[str], players: list[Player]) -> None:
-            if all(not UserIPDatabases.is_known_ip(ip) for ip in ips):
+        def add_userip_multi_menu(ip_addresses: list[str], players: list[Player]) -> None:
+            if all(not UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
                 userip_menu = add_menu(context_menu, '🗂️ UserIP')
-                add_count = '' if len(ips) == 1 else f'{len(ips)} '
+                add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
                 add_userip_menu = add_menu(userip_menu, '📥 Add Selected')
                 populate_db_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
-                    tooltip=f'Add the {add_count}selected IP address{pluralize(len(ips), plural="es")} to this UserIP database.',
-                    handler_factory=lambda db_path: lambda: userip_add(self, ips, db_path),
+                    tooltip=f'Add the {add_count}selected IP address{pluralize(len(ip_addresses), plural="es")} to this UserIP database.',
+                    handler_factory=lambda db_path: lambda: userip_add(self, ip_addresses, db_path),
                 )
                 return
 
-            if all(UserIPDatabases.is_known_ip(ip) for ip in ips):
+            if all(UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
                 userip_menu = add_menu(context_menu, '🗂️ UserIP')
-                entries_phrase = _describe_selected_userip_entries(ips)
+                entries_phrase = _describe_selected_userip_entries(ip_addresses)
 
                 rename_players = [player for player in players if player.userip is not None]
                 if rename_players:
@@ -657,30 +665,30 @@ class TableContextMenuMixin(QTableView):
                     move_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
                     tooltip=f'Move {entries_phrase} to this UserIP database.',
-                    handler_factory=lambda db_path: lambda: userip_move(self, ips, db_path),
+                    handler_factory=lambda db_path: lambda: userip_move(self, ip_addresses, db_path),
                 )
 
                 add_action(
                     userip_menu,
                     '🗑️ Delete Selected',
                     tooltip=f'Delete {entries_phrase} from the UserIP databases.',
-                    handler=lambda: userip_delete(self, ips),
+                    handler=lambda: userip_delete(self, ip_addresses),
                 )
 
         selected_ips = get_selected_ips(selected_indexes)
         selected_players = get_matched_players(selected_ips)
         selected_cell_count = len(selected_indexes)
 
-        def add_shared_selected_players_actions(ips: list[str], players: list[Player]) -> None:
-            add_exclude_ips_action(ips)
+        def add_shared_selected_players_actions(ip_addresses: list[str], players: list[Player]) -> None:
+            add_exclude_ips_action(ip_addresses)
             add_ip_lookup_action(players)
-            add_rate_graph_action(ips)
+            add_rate_graph_action(ip_addresses)
             add_seen_stats_action(players)
             context_menu.addSeparator()
             add_looky_system_menu(context_menu, players)
-            add_ping_menu(ips)
+            add_ping_menu(ip_addresses)
             add_detections_menu(players)
-            add_user_scripts_menu(ips)
+            add_user_scripts_menu(ip_addresses)
 
         def add_clear_session_host_action(ip_address: str) -> None:
             if not Settings.is_gta5_preset() or SessionHost.player is None or SessionHost.player.ip != ip_address:

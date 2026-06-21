@@ -243,7 +243,7 @@ class SettingsDialogLookyMixin(QDialog):
         if a0 is api_key_widget and a1 is not None and a1.type() == QEvent.Type.KeyPress and cast('QKeyEvent', a1).matches(QKeySequence.StandardKey.Paste):
             clipboard = QGuiApplication.clipboard()
             clipboard_text = clipboard.text() if clipboard is not None else ''
-            if any(c.isspace() for c in clipboard_text.strip()):
+            if any(char.isspace() for char in clipboard_text.strip()):
                 return True
             QTimer.singleShot(0, self._on_looky_api_key_pasted)
         return super().eventFilter(a0, a1)

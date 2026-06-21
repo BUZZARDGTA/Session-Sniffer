@@ -62,7 +62,7 @@ class GUIWorkerThread(CrashingQThread):
                 last_seen_version=last_seen_version,
             )
 
-            c_text, c_col, d_text, d_col, search_version = SearchState.get()
+            connected_search_text, connected_column, disconnected_search_text, disconnected_column, search_version = SearchState.get()
 
             if snapshot is not None:
                 last_snapshot = snapshot
@@ -70,10 +70,8 @@ class GUIWorkerThread(CrashingQThread):
                 continue
 
             last_search_version = search_version
-
-            status = last_snapshot.status
-            connected_num = last_snapshot.connected.num_rows
-            disconnected_num = last_snapshot.disconnected.num_rows
+            connected_count = last_snapshot.connected.row_count
+            disconnected_count = last_snapshot.disconnected.row_count
 
             # Preprocess rows with colors
             connected_rows_with_colors: list[tuple[list[str], list[CellColor]]] = [
@@ -84,44 +82,44 @@ class GUIWorkerThread(CrashingQThread):
             ]
 
             # Apply search filter (before pagination so counts and pages stay accurate)
-            if c_text:
-                connected_rows_with_colors = _search_filter(connected_rows_with_colors, c_text, c_col)
-                connected_num = len(connected_rows_with_colors)
-            if d_text:
-                disconnected_rows_with_colors = _search_filter(disconnected_rows_with_colors, d_text, d_col)
-                disconnected_num = len(disconnected_rows_with_colors)
+            if connected_search_text:
+                connected_rows_with_colors = _search_filter(connected_rows_with_colors, connected_search_text, connected_column)
+                connected_count = len(connected_rows_with_colors)
+            if disconnected_search_text:
+                disconnected_rows_with_colors = _search_filter(disconnected_rows_with_colors, disconnected_search_text, disconnected_column)
+                disconnected_count = len(disconnected_rows_with_colors)
 
             # Apply pagination
-            c_rpp, c_page, d_rpp, d_page = PaginationState.get()
+            connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page = PaginationState.get()
 
             connected_rows_with_colors, connected_page, connected_total_pages = _paginate(
                 connected_rows_with_colors,
-                connected_num,
-                c_rpp,
-                c_page,
+                connected_count,
+                connected_rows_per_page,
+                connected_page,
             )
             disconnected_rows_with_colors, disconnected_page, disconnected_total_pages = _paginate(
                 disconnected_rows_with_colors,
-                disconnected_num,
-                d_rpp,
-                d_page,
+                disconnected_count,
+                disconnected_rows_per_page,
+                disconnected_page,
             )
 
             self.update_signal.emit(
                 GUIUpdatePayload(
                     snapshot_version=last_seen_version,
                     column_config=last_snapshot.column_config,
-                    header_text=status.header_text,
-                    status_capture_text=status.status_capture_text,
-                    status_config_text=status.status_config_text,
-                    status_issues_text=status.status_issues_text,
-                    status_performance_text=status.status_performance_text,
+                    header_text=last_snapshot.status.header_text,
+                    status_capture_text=last_snapshot.status.status_capture_text,
+                    status_config_text=last_snapshot.status.status_config_text,
+                    status_issues_text=last_snapshot.status.status_issues_text,
+                    status_performance_text=last_snapshot.status.status_performance_text,
                     connected_rows_with_colors=connected_rows_with_colors,
                     disconnected_rows_with_colors=disconnected_rows_with_colors,
-                    connected_num=connected_num,
-                    disconnected_num=disconnected_num,
-                    connected_rows_per_page=c_rpp,
-                    disconnected_rows_per_page=d_rpp,
+                    connected_count=connected_count,
+                    disconnected_count=disconnected_count,
+                    connected_rows_per_page=connected_rows_per_page,
+                    disconnected_rows_per_page=disconnected_rows_per_page,
                     connected_page=connected_page,
                     disconnected_page=disconnected_page,
                     connected_total_pages=connected_total_pages,

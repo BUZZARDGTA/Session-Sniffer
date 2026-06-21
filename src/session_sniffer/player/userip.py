@@ -266,8 +266,8 @@ class UserIPDatabases:
             build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, unresolved_conflicts=unresolved_conflicts)
 
             for db_entry in cls.userip_databases:
-                for username, ips in db_entry.single_ips.items():
-                    for ip in ips:
+                for username, ip_addresses in db_entry.single_ips.items():
+                    for ip in ip_addresses:
                         cls._process_single_ip(ip, username, db_entry, build_state)
                 for username, ranges in db_entry.range_ips.items():
                     for range_str in ranges:

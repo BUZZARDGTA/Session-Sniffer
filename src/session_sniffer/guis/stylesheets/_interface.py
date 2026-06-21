@@ -23,20 +23,20 @@ INTERFACE_BOTTOM_CONTAINER_STYLESHEET = (
 INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = 'QFrame#bottomSeparator { background-color: #2f4356; max-height: 1px; border: none;}'
 
 
-def interface_header_label_stylesheet(scale: float) -> str:
+def interface_header_label_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection dialog title label at the given UI `scale`."""
 
-    def _s(n: int) -> int:
-        return max(1, round(n * scale))
+    def scale(n: int) -> int:
+        return max(1, round(n * ui_scale))
 
-    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {_s(23)}px; font-weight: 700; padding-top: {_s(6)}px; padding-bottom: {_s(6)}px;}}'
+    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {scale(23)}px; font-weight: 700; padding-top: {scale(6)}px; padding-bottom: {scale(6)}px;}}'
 
 
-def interface_table_stylesheet(scale: float) -> str:
+def interface_table_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection table widget at the given UI `scale`."""
 
-    def _s(n: int) -> int:
-        return max(1, round(n * scale))
+    def scale(n: int) -> int:
+        return max(1, round(n * ui_scale))
 
     return (
         'QTableWidget {'
@@ -46,16 +46,16 @@ def interface_table_stylesheet(scale: float) -> str:
         ' outline: none;'
         '}'
         'QTableWidget::item {'
-        f' font-size: {_s(12)}px;'
+        f' font-size: {scale(12)}px;'
         ' color: #c8ddf0;'
-        f' padding: 0px {_s(16)}px;'
+        f' padding: 0px {scale(16)}px;'
         ' border-bottom: 1px solid #1e3048;'
         ' border-right: 1px solid #1e3048;'
         '}'
         'QTableWidget::item:selected {'
         ' background-color: #1a4a8a;'
         ' color: #ffffff;'
-        f' padding: 0px {_s(16)}px;'
+        f' padding: 0px {scale(16)}px;'
         ' border-bottom: 1px solid #1e3048;'
         ' border-right: 1px solid #1e3048;'
         '}'
@@ -67,8 +67,8 @@ def interface_table_stylesheet(scale: float) -> str:
         'QHeaderView::section {'
         ' background-color: #0e1824;'
         ' color: #7bafd4;'
-        f' min-height: {_s(36)}px;'
-        f' padding: 0px {_s(16)}px;'
+        f' min-height: {scale(36)}px;'
+        f' padding: 0px {scale(16)}px;'
         ' border-bottom: 2px solid #2a5080;'
         ' border-right: 1px solid #1e3048;'
         ' border-top: none;'
@@ -77,13 +77,13 @@ def interface_table_stylesheet(scale: float) -> str:
     )
 
 
-def interface_checkbox_stylesheet(obj_name: str, scale: float) -> str:
+def interface_checkbox_stylesheet(obj_name: str, ui_scale: float) -> str:
     """Return the QSS for an interface selection dialog checkbox at the given UI `scale`."""
 
-    def _s(n: int) -> int:
-        return max(1, round(n * scale))
+    def scale(n: int) -> int:
+        return max(1, round(n * ui_scale))
 
-    return f'QCheckBox#{obj_name} {{ font-size: {_s(14)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {_s(20)}px; height: {_s(20)}px; }}'
+    return f'QCheckBox#{obj_name} {{ font-size: {scale(14)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {scale(20)}px; height: {scale(20)}px; }}'
 
 
 def interface_instruction_label_stylesheet(scale: float) -> str:

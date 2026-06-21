@@ -138,7 +138,7 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
         # appends; the _TRUNCATION_NOTICE_RESERVE constant already accounts
         # for it within _MAX_TABLE_BODY_CHARS.
         def _joined_len(parts: list[str]) -> int:
-            return sum(len(p) for p in parts) + 2 * max(0, len(parts) - 1)
+            return sum(len(part) for part in parts) + 2 * max(0, len(parts) - 1)
 
         while blocks and _joined_len(blocks) > body_char_limit:
             blocks.pop()
@@ -290,16 +290,16 @@ def _http_request(
     path = parsed.path or '/'
     if parsed.query:
         path += '?' + parsed.query
-    conn = http.client.HTTPSConnection(parsed.netloc, timeout=_REQUEST_TIMEOUT_SECONDS)
+    connection = http.client.HTTPSConnection(parsed.netloc, timeout=_REQUEST_TIMEOUT_SECONDS)
     try:
-        conn.request(method, path, body=body, headers=headers)
-        response = conn.getresponse()
+        connection.request(method, path, body=body, headers=headers)
+        response = connection.getresponse()
         response_body = response.read()
     finally:
-        conn.close()
+        connection.close()
     return (
         response.status,
-        {str(k).lower(): str(v) for k, v in response.getheaders()},
+        {str(key).lower(): str(value) for key, value in response.getheaders()},
         response_body,
     )
 
@@ -339,7 +339,7 @@ def _load_message_ids() -> dict[str, str]:
     if not isinstance(parsed, dict):
         return {}
     parsed_dict = cast('dict[object, object]', parsed)
-    return {str(k): str(v) for k, v in parsed_dict.items() if isinstance(v, (str, int))}
+    return {str(key): str(value) for key, value in parsed_dict.items() if isinstance(value, (str, int))}
 
 
 def _save_message_ids(message_ids: dict[str, str]) -> None:
@@ -497,8 +497,7 @@ class DiscordWebhookSender:
             else:
                 empty_label = 'No players'
 
-            webhook_format = Settings.discord_webhook_format
-            if webhook_format == 'Mobile':
+            if Settings.discord_webhook_format == 'Mobile':
                 if not payload.capture_running:
                     color = _EMBED_COLOR_STOPPED
                 elif kind == 'connected':

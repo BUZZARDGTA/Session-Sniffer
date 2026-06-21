@@ -73,18 +73,18 @@ class _DetectionWarnings:
             return len(cls._notified_ips)
 
     @classmethod
-    def remove_notified_ips_batch(cls, ips: set[str]) -> int:
+    def remove_notified_ips_batch(cls, ip_addresses: set[str]) -> int:
         """Remove multiple IPs from the notified set in a single thread-safe operation.
 
         Args:
-            ips: Set of IP addresses to remove.
+            ip_addresses: Set of IP addresses to remove.
 
         Returns:
             The number of IPs that were actually removed.
         """
         with cls._lock:
             initial_count = len(cls._notified_ips)
-            cls._notified_ips -= ips
+            cls._notified_ips -= ip_addresses
             return initial_count - len(cls._notified_ips)
 
     @classmethod

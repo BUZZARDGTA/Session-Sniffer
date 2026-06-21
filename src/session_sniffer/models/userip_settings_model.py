@@ -41,9 +41,8 @@ class UserIPSettingsModel(BaseModel):
 
     @staticmethod
     def _record_rewrite(info: ValidationInfo, field_name: str, rewrite_value: str) -> None:
-        context_obj = info.context
-        if isinstance(context_obj, _UserIPValidatorContext):
-            context_obj.record_rewrite(field_name, rewrite_value)
+        if isinstance(info.context, _UserIPValidatorContext):
+            info.context.record_rewrite(field_name, rewrite_value)
 
     @field_validator('ENABLED', 'LOG', 'NOTIFICATIONS', mode='before')
     @classmethod
@@ -55,8 +54,8 @@ class UserIPSettingsModel(BaseModel):
             if need_rewrite and isinstance(info.field_name, str):
                 cls._record_rewrite(info, info.field_name, str(resolved))
             return resolved
-        msg = f'expected bool-like string, got {type(value).__name__}'
-        raise ValueError(msg)
+        message = f'expected bool-like string, got {type(value).__name__}'
+        raise ValueError(message)
 
     @field_validator('COLOR', mode='before')
     @classmethod
@@ -67,10 +66,10 @@ class UserIPSettingsModel(BaseModel):
             q_color = QColor(value)
             if q_color.isValid():
                 return q_color
-            msg = f'invalid color: {value!r}'
-            raise ValueError(msg)
-        msg = f'expected color string, got {type(value).__name__}'
-        raise ValueError(msg)
+            message = f'invalid color: {value!r}'
+            raise ValueError(message)
+        message = f'expected color string, got {type(value).__name__}'
+        raise ValueError(message)
 
     @field_validator('VOICE_NOTIFICATIONS', mode='before')
     @classmethod
@@ -78,8 +77,8 @@ class UserIPSettingsModel(BaseModel):
         if isinstance(value, bool):
             if value is False:
                 return value
-            msg = f'expected voice notification value, got {type(value).__name__}'
-            raise ValueError(msg)
+            message = f'expected voice notification value, got {type(value).__name__}'
+            raise ValueError(message)
         if isinstance(value, str):
             try:
                 resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
@@ -87,8 +86,8 @@ class UserIPSettingsModel(BaseModel):
                 try:
                     case_match, normalized = check_case_insensitive_and_exact_match(value, ('Male', 'Female'))
                 except NoMatchFoundError:
-                    msg = f'invalid voice notification: {value!r}'
-                    raise ValueError(msg) from None
+                    message = f'invalid voice notification: {value!r}'
+                    raise ValueError(message) from None
                 if not case_match and isinstance(info.field_name, str):
                     cls._record_rewrite(info, info.field_name, normalized)
                 return cast("Literal['Male', 'Female']", normalized)
@@ -96,10 +95,10 @@ class UserIPSettingsModel(BaseModel):
                 cls._record_rewrite(info, info.field_name, str(resolved))
             if resolved is False:
                 return resolved
-            msg = f'expected voice notification value, got {type(value).__name__}'
-            raise ValueError(msg)
-        msg = f'expected voice notification value, got {type(value).__name__}'
-        raise ValueError(msg)
+            message = f'expected voice notification value, got {type(value).__name__}'
+            raise ValueError(message)
+        message = f'expected voice notification value, got {type(value).__name__}'
+        raise ValueError(message)
 
     @field_validator('PROTECTION', mode='before')
     @classmethod
@@ -107,8 +106,8 @@ class UserIPSettingsModel(BaseModel):
         if isinstance(value, bool):
             if value is False:
                 return value
-            msg = f'expected protection value, got {type(value).__name__}'
-            raise ValueError(msg)
+            message = f'expected protection value, got {type(value).__name__}'
+            raise ValueError(message)
         if isinstance(value, str):
             try:
                 resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
@@ -119,8 +118,8 @@ class UserIPSettingsModel(BaseModel):
                         ('Suspend_Process',),
                     )
                 except NoMatchFoundError:
-                    msg = f'invalid protection mode: {value!r}'
-                    raise ValueError(msg) from None
+                    message = f'invalid protection mode: {value!r}'
+                    raise ValueError(message) from None
                 if not case_match and isinstance(info.field_name, str):
                     cls._record_rewrite(info, info.field_name, normalized)
                 return cast("Literal['Suspend_Process']", normalized)
@@ -128,10 +127,10 @@ class UserIPSettingsModel(BaseModel):
                 cls._record_rewrite(info, info.field_name, str(resolved))
             if resolved is False:
                 return resolved
-            msg = f'expected protection value, got {type(value).__name__}'
-            raise ValueError(msg)
-        msg = f'expected protection value, got {type(value).__name__}'
-        raise ValueError(msg)
+            message = f'expected protection value, got {type(value).__name__}'
+            raise ValueError(message)
+        message = f'expected protection value, got {type(value).__name__}'
+        raise ValueError(message)
 
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')
     @classmethod
@@ -140,16 +139,16 @@ class UserIPSettingsModel(BaseModel):
         if isinstance(value, int):
             if value >= 0:
                 return value
-            msg = f'suspend process mode must be >= 0, got {value}'
-            raise ValueError(msg)
+            message = f'suspend process mode must be >= 0, got {value}'
+            raise ValueError(message)
         if isinstance(value, str):
             parsed = parse_suspend_duration_setting(value)
             if isinstance(parsed, int) or parsed == 'Auto':
                 return parsed
-            msg = f'invalid suspend process mode: {value!r}'
-            raise ValueError(msg)
-        msg = f'expected suspend mode value, got {type(value).__name__}'
-        raise ValueError(msg)
+            message = f'invalid suspend process mode: {value!r}'
+            raise ValueError(message)
+        message = f'expected suspend mode value, got {type(value).__name__}'
+        raise ValueError(message)
 
     @classmethod
     def validate_settings(cls, raw_settings: dict[str, str]) -> tuple[Self, dict[str, str]]:

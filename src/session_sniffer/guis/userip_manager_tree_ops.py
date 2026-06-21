@@ -268,8 +268,8 @@ class TreeOperationsMixin(QDialog):
         """Create a new UserIP database .ini file."""
         target_dir = parent_dir or self._get_selected_tree_directory()
 
-        name, ok = QInputDialog.getText(self, TITLE, 'New database name:')
-        if not ok or not name.strip():
+        name, success = QInputDialog.getText(self, TITLE, 'New database name:')
+        if not success or not name.strip():
             return
 
         name = name.strip()
@@ -294,8 +294,8 @@ class TreeOperationsMixin(QDialog):
         """Create a new folder inside the databases directory."""
         target_dir = parent_dir or self._get_selected_tree_directory()
 
-        name, ok = QInputDialog.getText(self, TITLE, 'New folder name:')
-        if not ok or not name.strip():
+        name, success = QInputDialog.getText(self, TITLE, 'New folder name:')
+        if not success or not name.strip():
             return
 
         folder_name = name.strip()
@@ -329,14 +329,14 @@ class TreeOperationsMixin(QDialog):
         """Delete a file or folder with user confirmation."""
         if path.is_dir():
             children = list(path.iterdir())
-            msg = f'Folder "{path.name}" is not empty ({len(children)} items).\n\nDelete it and all its contents?' if children else f'Delete empty folder "{path.name}"?'
+            message = f'Folder "{path.name}" is not empty ({len(children)} items).\n\nDelete it and all its contents?' if children else f'Delete empty folder "{path.name}"?'
         else:
-            msg = f'Delete database "{path.name}"?'
+            message = f'Delete database "{path.name}"?'
 
         result = QMessageBox.warning(
             self,
             TITLE,
-            msg,
+            message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -396,8 +396,8 @@ class TreeOperationsMixin(QDialog):
         old_name = path.stem if path.is_file() else path.name
         label = 'New name:' if path.is_file() else 'New folder name:'
 
-        new_name, ok = QInputDialog.getText(self, TITLE, label, QLineEdit.EchoMode.Normal, old_name)
-        if not ok or not new_name.strip():
+        new_name, success = QInputDialog.getText(self, TITLE, label, QLineEdit.EchoMode.Normal, old_name)
+        if not success or not new_name.strip():
             return
 
         new_name = new_name.strip()
@@ -619,8 +619,8 @@ class TreeOperationsMixin(QDialog):
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
-            for _btn in msg_box.buttons():
-                _btn.setMinimumWidth(160)
+            for _button in msg_box.buttons():
+                _button.setMinimumWidth(160)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -632,7 +632,7 @@ class TreeOperationsMixin(QDialog):
         dest_content = dest_path.read_text('utf-8')
         existing_set: set[tuple[str, str]] = set(iter_userip_entries(dest_content))
         existing_entries = list(iter_userip_entries(dest_content))
-        new_entries = [(u, ip) for u, ip in iter_userip_entries(src_content) if (u, ip) not in existing_set]
+        new_entries = [(username, ip) for username, ip in iter_userip_entries(src_content) if (username, ip) not in existing_set]
 
         header_lines, _ = read_preserved_sections(dest_path)
 
@@ -658,17 +658,17 @@ class TreeOperationsMixin(QDialog):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
             msg_box.setText('How would you like to import the file(s)?')
-            import_btn = msg_box.addButton('Import as new database(s)', QMessageBox.ButtonRole.AcceptRole)
-            merge_btn = msg_box.addButton(f'Merge into "{current_name}"', QMessageBox.ButtonRole.AcceptRole)
+            import_button = msg_box.addButton('Import as new database(s)', QMessageBox.ButtonRole.AcceptRole)
+            merge_button = msg_box.addButton(f'Merge into "{current_name}"', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
-            for _btn in msg_box.buttons():
-                _btn.setMinimumWidth(200)
+            for _button in msg_box.buttons():
+                _button.setMinimumWidth(200)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return
-            merge_mode = clicked is merge_btn
-            _ = import_btn  # suppress unused-variable warning
+            merge_mode = clicked is merge_button
+            _ = import_button  # suppress unused-variable warning
 
         if merge_mode:
             src_path_str, _ = QFileDialog.getOpenFileName(
@@ -709,17 +709,17 @@ class TreeOperationsMixin(QDialog):
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle(TITLE)
                 msg_box.setText(f'"{src.name}" already exists in the destination folder.\n\nWhat would you like to do?')
-                overwrite_btn = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
-                merge_btn = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
-                skip_btn = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
-                for _btn in msg_box.buttons():
-                    _btn.setMinimumWidth(100)
+                overwrite_button = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
+                merge_button = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
+                skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
+                for _button in msg_box.buttons():
+                    _button.setMinimumWidth(100)
                 msg_box.exec()
                 clicked = msg_box.clickedButton()
-                if clicked is skip_btn:
+                if clicked is skip_button:
                     skipped += 1
                     continue
-                if clicked is merge_btn:
+                if clicked is merge_button:
                     result = self._merge_content_into_disk(src.read_text('utf-8'), dest, src.name)
                     if result is None:
                         skipped += 1
@@ -729,7 +729,7 @@ class TreeOperationsMixin(QDialog):
                 if clicked is None:
                     skipped += 1
                     continue
-                _ = overwrite_btn  # suppress unused-variable warning
+                _ = overwrite_button  # suppress unused-variable warning
 
             target_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(str(src), str(dest))
@@ -766,8 +766,8 @@ class TreeOperationsMixin(QDialog):
             keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
             use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
-            for _btn in msg_box.buttons():
-                _btn.setMinimumWidth(160)
+            for _button in msg_box.buttons():
+                _button.setMinimumWidth(160)
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
@@ -808,7 +808,7 @@ class TreeOperationsMixin(QDialog):
 
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                ini_members = [m for m in zf.infolist() if not m.is_dir() and m.filename.lower().endswith('.ini')]
+                ini_members = [member for member in zf.infolist() if not member.is_dir() and member.filename.lower().endswith('.ini')]
 
                 if not ini_members:
                     QMessageBox.information(self, TITLE, 'No .ini database files found in the selected ZIP archive.')
@@ -837,26 +837,26 @@ class TreeOperationsMixin(QDialog):
                         msg_box = QMessageBox(self)
                         msg_box.setWindowTitle(TITLE)
                         msg_box.setText(f'"{member.filename}" already exists.\n\nWhat would you like to do?')
-                        overwrite_btn = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
-                        overwrite_all_btn = msg_box.addButton('Overwrite All', QMessageBox.ButtonRole.YesRole)
-                        merge_btn = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
-                        merge_all_btn = msg_box.addButton('Merge All', QMessageBox.ButtonRole.AcceptRole)
-                        skip_btn = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
-                        cancel_btn = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
-                        for _btn in msg_box.buttons():
-                            _btn.setMinimumWidth(120)
+                        overwrite_button = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
+                        overwrite_all_button = msg_box.addButton('Overwrite All', QMessageBox.ButtonRole.YesRole)
+                        merge_button = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
+                        merge_all_button = msg_box.addButton('Merge All', QMessageBox.ButtonRole.AcceptRole)
+                        skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
+                        cancel_button = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
+                        for _button in msg_box.buttons():
+                            _button.setMinimumWidth(120)
                         msg_box.exec()
 
                         clicked = msg_box.clickedButton()
-                        if clicked is None or clicked is cancel_btn:
+                        if clicked is None or clicked is cancel_button:
                             break
-                        if clicked is skip_btn:
+                        if clicked is skip_button:
                             skipped += 1
                             continue
-                        if clicked is overwrite_all_btn:
+                        if clicked is overwrite_all_button:
                             overwrite_all = True
-                        elif clicked is merge_btn or clicked is merge_all_btn:
-                            if clicked is merge_all_btn:
+                        elif clicked is merge_button or clicked is merge_all_button:
+                            if clicked is merge_all_button:
                                 merge_all = True
                             result = self._merge_content_into_disk(src_content, dest, member.filename)
                             if result is None:
@@ -864,7 +864,7 @@ class TreeOperationsMixin(QDialog):
                             else:
                                 merged += result
                             continue
-                        _ = overwrite_btn  # suppress unused-variable warning
+                        _ = overwrite_button  # suppress unused-variable warning
 
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_bytes(member_bytes)

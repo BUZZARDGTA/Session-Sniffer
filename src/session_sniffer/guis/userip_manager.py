@@ -141,8 +141,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
 
         # Hide size / type / date-modified columns — keep only the name
-        for col in range(1, self._fs_model.columnCount()):
-            self._tree.setColumnHidden(col, True)  # noqa: FBT003
+        for column in range(1, self._fs_model.columnCount()):
+            self._tree.setColumnHidden(column, True)  # noqa: FBT003
 
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_tree_context_menu)
@@ -249,9 +249,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         header = self._entries_table.header()
         if header is not None:
             header.setStretchLastSection(False)
-            for col, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-                header.resizeSection(col, width)
+            for column, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                header.resizeSection(column, width)
             header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
 
         self._entries_table.setColumnHidden(DATABASE_COLUMN, True)  # noqa: FBT003
@@ -673,7 +673,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._mark_entries_dirty()
 
         # Reselect the moved rows
-        new_source_rows = [r + direction for r in source_rows]
+        new_source_rows = [row + direction for row in source_rows]
         selection_model = self._entries_table.selectionModel()
         if selection_model is not None:
             selection_model.clearSelection()
@@ -888,8 +888,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._model.blockSignals(True)  # noqa: FBT003
         try:
             for row in range(self._model.rowCount()):
-                for col in range(DATABASE_COLUMN):
-                    item = self._model.item(row, col)
+                for column in range(DATABASE_COLUMN):
+                    item = self._model.item(row, column)
                     if item is None:
                         continue
                     if row in duplicate_rows:

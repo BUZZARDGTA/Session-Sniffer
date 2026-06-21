@@ -7,34 +7,22 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, format_player_display, setup_stat_table
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, format_duration, format_player_display, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
 
-_COL_PLAYER = 0
-_COL_STATUS = 1
-_COL_FIRST_SEEN = 2
-_COL_LAST_REJOIN = 3
-_COL_LAST_SEEN = 4
-_COL_SESSION_TIME = 5
-_COL_TOTAL_TIME = 6
-_COL_REJOINS = 7
+_COLUMN_PLAYER = 0
+_COLUMN_STATUS = 1
+_COLUMN_FIRST_SEEN = 2
+_COLUMN_LAST_REJOIN = 3
+_COLUMN_LAST_SEEN = 4
+_COLUMN_SESSION_TIME = 5
+_COLUMN_TOTAL_TIME = 6
+_COLUMN_REJOINS = 7
 
 _HEADERS = ['Player', 'Status', 'First Seen', 'Last Rejoin', 'Last Seen', 'Session Time', 'Total Time', 'Rejoins']
 
 _COLOR_CONNECTED = QColor(80, 200, 80)
 _COLOR_DISCONNECTED = QColor(220, 80, 60)
-
-
-def _fmt_duration(total_seconds: float) -> str:
-    """Format a duration in seconds as a human-readable string."""
-    s = int(total_seconds)
-    h, rem = divmod(s, 3600)
-    m, sec = divmod(rem, 60)
-    if h:
-        return f'{h}h {m}m {sec:02d}s'
-    if m:
-        return f'{m}m {sec:02d}s'
-    return f'{sec}s'
 
 
 class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
@@ -54,16 +42,16 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
 
         h_header = self._table.horizontalHeader()
         if h_header is None:
-            msg = 'Failed to get horizontal header'
-            raise RuntimeError(msg)
+            message = 'Failed to get horizontal header'
+            raise RuntimeError(message)
         # Use Interactive so column widths are not recalculated on every cell update;
         # resizeSections() is called once after a full repopulate instead.
-        h_header.setSectionResizeMode(_COL_PLAYER, QHeaderView.ResizeMode.Stretch)
-        for col in (_COL_STATUS, _COL_FIRST_SEEN, _COL_LAST_REJOIN, _COL_LAST_SEEN, _COL_SESSION_TIME, _COL_TOTAL_TIME, _COL_REJOINS):
-            h_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        h_header.setSectionResizeMode(_COLUMN_PLAYER, QHeaderView.ResizeMode.Stretch)
+        for column in (_COLUMN_STATUS, _COLUMN_FIRST_SEEN, _COLUMN_LAST_REJOIN, _COLUMN_LAST_SEEN, _COLUMN_SESSION_TIME, _COLUMN_TOTAL_TIME, _COLUMN_REJOINS):
+            h_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
         h_header.setStretchLastSection(False)
 
-        self._table.sortByColumn(_COL_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
+        self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
@@ -75,36 +63,36 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
     def refresh(self) -> None:
         """Update the table with current player presence data."""
         all_players = PlayersRegistry.get_all_players()
-        n = len(all_players)
+        num_players = len(all_players)
 
-        if not n:
+        if not num_players:
             if self._table.rowCount() > 0:
                 self._table.setRowCount(0)
             self._last_player_ips = []
             return
 
         now = datetime.now(tz=all_players[0].datetime.first_seen.tzinfo)
-        current_ips = [p.ip for p in all_players]
+        current_ips = [player.ip for player in all_players]
         players_changed = current_ips != self._last_player_ips
 
         if players_changed:
             # Full repopulate: disable sorting so setItem doesn't trigger a sort after
             # every single cell write, then re-enable once at the end.
             self._table.setSortingEnabled(False)
-            self._table.setRowCount(n)
+            self._table.setRowCount(num_players)
 
             for row, player in enumerate(all_players):
                 is_connected = not player.left_event.is_set()
                 color = _COLOR_CONNECTED if is_connected else _COLOR_DISCONNECTED
 
                 try:
-                    session_secs = player.datetime.get_session_time().total_seconds()
+                    session_seconds = player.datetime.get_session_time().total_seconds()
                 except PlayerDateTimeCorruptionError:
-                    session_secs = (now - player.datetime.last_rejoin).total_seconds()
+                    session_seconds = (now - player.datetime.last_rejoin).total_seconds()
                 try:
-                    total_secs = player.datetime.get_total_session_time().total_seconds()
+                    total_seconds = player.datetime.get_total_session_time().total_seconds()
                 except PlayerDateTimeCorruptionError:
-                    total_secs = session_secs
+                    total_seconds = session_seconds
 
                 player_item = QTableWidgetItem(format_player_display(player.ip, player.usernames))
                 status_item = QTableWidgetItem('🟢 Connected' if is_connected else '🔴 Disconnected')
@@ -118,19 +106,19 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                 seen_item = NumericTableWidgetItem(player.datetime.last_seen.strftime('%H:%M:%S'))
                 seen_item.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
 
-                session_item = NumericTableWidgetItem(_fmt_duration(session_secs))
-                session_item.setData(Qt.ItemDataRole.UserRole, session_secs)
+                session_item = NumericTableWidgetItem(format_duration(session_seconds))
+                session_item.setData(Qt.ItemDataRole.UserRole, session_seconds)
 
-                total_item = NumericTableWidgetItem(_fmt_duration(total_secs))
-                total_item.setData(Qt.ItemDataRole.UserRole, total_secs)
+                total_item = NumericTableWidgetItem(format_duration(total_seconds))
+                total_item.setData(Qt.ItemDataRole.UserRole, total_seconds)
 
                 rejoins_item = NumericTableWidgetItem(player.rejoins)
                 rejoins_item.setData(Qt.ItemDataRole.UserRole, player.rejoins)
 
-                for col, item in enumerate((player_item, status_item, first_item, rejoin_item, seen_item, session_item, total_item, rejoins_item)):
+                for column, item in enumerate((player_item, status_item, first_item, rejoin_item, seen_item, session_item, total_item, rejoins_item)):
                     item.setForeground(color)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    self._table.setItem(row, col, item)
+                    self._table.setItem(row, column, item)
 
             h_header = self._table.horizontalHeader()
             if h_header is not None:
@@ -150,29 +138,29 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                 color = _COLOR_CONNECTED if is_connected else _COLOR_DISCONNECTED
 
                 try:
-                    session_secs = player.datetime.get_session_time().total_seconds()
+                    session_seconds = player.datetime.get_session_time().total_seconds()
                 except PlayerDateTimeCorruptionError:
-                    session_secs = (now - player.datetime.last_rejoin).total_seconds()
+                    session_seconds = (now - player.datetime.last_rejoin).total_seconds()
                 try:
-                    total_secs = player.datetime.get_total_session_time().total_seconds()
+                    total_seconds = player.datetime.get_total_session_time().total_seconds()
                 except PlayerDateTimeCorruptionError:
-                    total_secs = session_secs
+                    total_seconds = session_seconds
 
-                cell = self._table.item(row, _COL_PLAYER)
+                cell = self._table.item(row, _COLUMN_PLAYER)
                 if cell is not None:
                     new_val = format_player_display(player.ip, player.usernames)
                     if cell.text() != new_val:
                         cell.setText(new_val)
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_STATUS)
+                cell = self._table.item(row, _COLUMN_STATUS)
                 if cell is not None:
                     new_val = '🟢 Connected' if is_connected else '🔴 Disconnected'
                     if cell.text() != new_val:
                         cell.setText(new_val)
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_LAST_REJOIN)
+                cell = self._table.item(row, _COLUMN_LAST_REJOIN)
                 if cell is not None:
                     new_val = player.datetime.last_rejoin.strftime('%H:%M:%S')
                     if cell.text() != new_val:
@@ -180,7 +168,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                         cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_rejoin.timestamp())
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_LAST_SEEN)
+                cell = self._table.item(row, _COLUMN_LAST_SEEN)
                 if cell is not None:
                     new_val = player.datetime.last_seen.strftime('%H:%M:%S')
                     if cell.text() != new_val:
@@ -188,23 +176,23 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                         cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_SESSION_TIME)
+                cell = self._table.item(row, _COLUMN_SESSION_TIME)
                 if cell is not None:
-                    new_val = _fmt_duration(session_secs)
+                    new_val = format_duration(session_seconds)
                     if cell.text() != new_val:
                         cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, session_secs)
+                        cell.setData(Qt.ItemDataRole.UserRole, session_seconds)
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_TOTAL_TIME)
+                cell = self._table.item(row, _COLUMN_TOTAL_TIME)
                 if cell is not None:
-                    new_val = _fmt_duration(total_secs)
+                    new_val = format_duration(total_seconds)
                     if cell.text() != new_val:
                         cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, total_secs)
+                        cell.setData(Qt.ItemDataRole.UserRole, total_seconds)
                         cell.setForeground(color)
 
-                cell = self._table.item(row, _COL_REJOINS)
+                cell = self._table.item(row, _COLUMN_REJOINS)
                 if cell is not None:
                     new_val = str(player.rejoins)
                     if cell.text() != new_val:

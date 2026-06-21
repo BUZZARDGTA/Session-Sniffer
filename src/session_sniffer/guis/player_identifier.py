@@ -172,8 +172,8 @@ class PlayerIdentifierWidget(QWidget):
         self._zscore_table.setHorizontalHeaderItem(5, _streak_header)
         _zscore_header_view = self._zscore_table.horizontalHeader()
         if _zscore_header_view is None:
-            msg = 'Failed to get horizontal header view'
-            raise RuntimeError(msg)
+            message = 'Failed to get horizontal header view'
+            raise RuntimeError(message)
         _zscore_header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         _zscore_header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         _zscore_header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -193,23 +193,23 @@ class PlayerIdentifierWidget(QWidget):
         layout.addWidget(self._result_label)
 
         # Buttons row
-        btn_layout = QHBoxLayout()
-        btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        button_layout = QHBoxLayout()
+        button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._start_btn = QPushButton('Start Baseline')
-        self._start_btn.setToolTip(
+        self._start_button = QPushButton('Start Baseline')
+        self._start_button.setToolTip(
             'Step 1: Records the normal traffic (PPS/BPS) for every IP currently in the session.\n\n'
             'IMPORTANT: Make sure you are ALONE and standing still (e.g. inside a bunker, '
             'facility, or away from all other players) before clicking this.\n\n'
             'Only IPs connected RIGHT NOW will be tracked. Anyone who joins later is ignored.\n\n'
             f'The baseline runs until traffic is stable or {self._baseline_max_seconds}s have elapsed, then automatically locks in.',
         )
-        self._start_btn.setFixedWidth(BUTTON_WIDTH)
-        self._start_btn.clicked.connect(self._on_start_baseline)
-        btn_layout.addWidget(self._start_btn)
+        self._start_button.setFixedWidth(BUTTON_WIDTH)
+        self._start_button.clicked.connect(self._on_start_baseline)
+        button_layout.addWidget(self._start_button)
 
-        self._resolve_btn = QPushButton('Resolve')
-        self._resolve_btn.setToolTip(
+        self._resolve_button = QPushButton('Resolve')
+        self._resolve_button.setToolTip(
             'Step 2: Starts watching for traffic spikes.\n\n'
             'After clicking this, spectate the player you want to identify using '
             'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
@@ -219,19 +219,19 @@ class PlayerIdentifierWidget(QWidget):
             'Tip: Detection works best when the target player is moving — '
             'a moving player generates significantly more traffic than a stationary one.',
         )
-        self._resolve_btn.setFixedWidth(BUTTON_WIDTH)
-        self._resolve_btn.clicked.connect(self._on_resolve)
-        self._resolve_btn.setEnabled(False)
-        btn_layout.addWidget(self._resolve_btn)
+        self._resolve_button.setFixedWidth(BUTTON_WIDTH)
+        self._resolve_button.clicked.connect(self._on_resolve)
+        self._resolve_button.setEnabled(False)
+        button_layout.addWidget(self._resolve_button)
 
-        self._reset_btn = QPushButton('Reset')
-        self._reset_btn.setToolTip('Discard all data and start over from scratch.')
-        self._reset_btn.setFixedWidth(BUTTON_WIDTH)
-        self._reset_btn.clicked.connect(self.reset)
-        self._reset_btn.setEnabled(False)
-        btn_layout.addWidget(self._reset_btn)
+        self._reset_button = QPushButton('Reset')
+        self._reset_button.setToolTip('Discard all data and start over from scratch.')
+        self._reset_button.setFixedWidth(BUTTON_WIDTH)
+        self._reset_button.clicked.connect(self.reset)
+        self._reset_button.setEnabled(False)
+        button_layout.addWidget(self._reset_button)
 
-        layout.addLayout(btn_layout)
+        layout.addLayout(button_layout)
         layout.addStretch()
 
         # Parameters control panel
@@ -389,16 +389,16 @@ class PlayerIdentifierWidget(QWidget):
         self._prev_sample_text = None
         self._prev_result_text = None
         self._result_label.setText('')
-        self._start_btn.setEnabled(False)
-        self._resolve_btn.setEnabled(False)
+        self._start_button.setEnabled(False)
+        self._resolve_button.setEnabled(False)
 
-        self._baseline_ips = {p.ip for p in players}
+        self._baseline_ips = {player.ip for player in players}
         for ip in self._baseline_ips:
             self._baselines[ip] = IPBaseline()
 
-        n_ips = len(self._baseline_ips)
+        num_ips = len(self._baseline_ips)
         self._instructions.setText(
-            f'Recording baseline for <b>{n_ips}</b> IP{pluralize(n_ips)}…<br><br>'
+            f'Recording baseline for <b>{num_ips}</b> IP{pluralize(num_ips)}…<br><br>'
             'Stay still while the baseline records. It will auto-lock once traffic is stable '
             f'(or after {self._baseline_max_seconds}s).<br>'
             'Do <b>NOT</b> move or interact with anyone while recording.',
@@ -410,7 +410,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setVisible(True)
         self._sample_label.setVisible(True)
         self._sample_label.setText('')
-        self._reset_btn.setEnabled(True)
+        self._reset_button.setEnabled(True)
         self._zscore_table.setRowCount(0)
         self._zscore_table.setVisible(True)
         self._params_box.setVisible(False)
@@ -421,10 +421,10 @@ class PlayerIdentifierWidget(QWidget):
         for bl in self._baselines.values():
             bl.finalize()
         self._phase = Phase.READY
-        self._resolve_btn.setEnabled(True)
-        n_ips = len(self._baselines)
+        self._resolve_button.setEnabled(True)
+        num_ips = len(self._baselines)
         self._instructions.setText(
-            f'Baseline locked ({reason}) with <b>{n_ips}</b> IP{pluralize(n_ips)} '
+            f'Baseline locked ({reason}) with <b>{num_ips}</b> IP{pluralize(num_ips)} '
             f'over <b>{self._sample_count}</b> sample{pluralize(self._sample_count)}.<br><br>'
             'Click <b>Resolve</b>, then spectate the target player (Orbital Cannon, CCTV, or walk up to them).<br>'
             "The tool will detect which IP's traffic spikes when your game loads that player.<br>"
@@ -440,7 +440,7 @@ class PlayerIdentifierWidget(QWidget):
         self._phase = Phase.RESOLVING
         self._spike_streak.clear()
         self._resolved_ips = []
-        self._resolve_btn.setEnabled(False)
+        self._resolve_button.setEnabled(False)
         self._instructions.setText(
             'Spectate the player you want to identify (Orbital Cannon, CCTV, or walk up to them).<br><br>'
             'The tool is comparing live traffic against the baseline.<br>'
@@ -464,9 +464,9 @@ class PlayerIdentifierWidget(QWidget):
         self._spike_streak.clear()
         self._contamination_streak.clear()
         self._resolved_ips = []
-        self._start_btn.setEnabled(True)
-        self._resolve_btn.setEnabled(False)
-        self._reset_btn.setEnabled(False)
+        self._start_button.setEnabled(True)
+        self._resolve_button.setEnabled(False)
+        self._reset_button.setEnabled(False)
         self._set_idle_instructions()
         self._stability_label.setText('Stability: —')
         self._stability_label.setVisible(False)
@@ -485,8 +485,8 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the current phase because too many players disconnected."""
         self._timer.stop()
         self._phase = Phase.IDLE
-        self._start_btn.setEnabled(True)
-        self._resolve_btn.setEnabled(False)
+        self._start_button.setEnabled(True)
+        self._resolve_button.setEnabled(False)
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
@@ -503,8 +503,8 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the baseline because a dramatic traffic spike was detected (contamination)."""
         self._timer.stop()
         self._phase = Phase.IDLE
-        self._start_btn.setEnabled(True)
-        self._resolve_btn.setEnabled(False)
+        self._start_button.setEnabled(True)
+        self._resolve_button.setEnabled(False)
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Contaminated')
@@ -524,8 +524,8 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the current phase because overall session traffic drifted too far from the baseline."""
         self._timer.stop()
         self._phase = Phase.IDLE
-        self._start_btn.setEnabled(True)
-        self._resolve_btn.setEnabled(False)
+        self._start_button.setEnabled(True)
+        self._resolve_button.setEnabled(False)
         self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
@@ -610,10 +610,10 @@ class PlayerIdentifierWidget(QWidget):
         # to avoid false positives from single-tick network bursts.
         if self._sample_count >= self._contamination_min_samples:
             for ip, bl in self._baselines.items():
-                p = player_by_ip.get(ip)
-                if p is None:
+                matched_player = player_by_ip.get(ip)
+                if matched_player is None:
                     continue
-                zscore = bl.live_zscore(p.packets.pps.calculated_rate, p.bandwidth.bps.calculated_rate)
+                zscore = bl.live_zscore(matched_player.packets.pps.calculated_rate, matched_player.bandwidth.bps.calculated_rate)
                 if zscore >= self._contamination_zscore:
                     streak = self._contamination_streak[ip] = self._contamination_streak.get(ip, 0) + 1
                     if streak >= self._contamination_secs:
@@ -673,8 +673,8 @@ class PlayerIdentifierWidget(QWidget):
             label = 'Stability: <span style="color:red;">Unstable — stay still</span>'
 
         self._update_stability(pct, style, label)
-        n_ips = len(self._baselines)
-        self._update_sample_label(f'{n_ips} IP{pluralize(n_ips)} \u00b7 {self._sample_count} sample{pluralize(self._sample_count)}')
+        num_ips = len(self._baselines)
+        self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} \u00b7 {self._sample_count} sample{pluralize(self._sample_count)}')
 
         # Update live z-score table (sorted by z-score descending)
         table_rows = sorted(
@@ -693,7 +693,7 @@ class PlayerIdentifierWidget(QWidget):
                 for ip, bl in self._baselines.items()
                 if ip in player_by_ip
             ],
-            key=lambda r: r[4],
+            key=lambda row: row[4],
             reverse=True,
         )
         self._update_zscore_table(table_rows)
@@ -711,13 +711,13 @@ class PlayerIdentifierWidget(QWidget):
             self._abort_session_changed()
             return
 
-        connected_baselined = sum(1 for p in players if p.ip in self._baselines)
+        connected_baselined = sum(1 for player in players if player.ip in self._baselines)
         if connected_baselined < MIN_CONNECTED_PLAYERS:
             self._abort_insufficient_players()
             return
 
         # Update live z-score table (sorted by z-score descending)
-        player_by_ip = {p.ip: p for p in players}
+        player_by_ip = {player.ip: player for player in players}
         table_rows = sorted(
             [
                 (
@@ -734,7 +734,7 @@ class PlayerIdentifierWidget(QWidget):
                 for ip, bl in self._baselines.items()
                 if ip in player_by_ip
             ],
-            key=lambda r: r[4],
+            key=lambda row: row[4],
             reverse=True,
         )
         self._update_zscore_table(table_rows)
@@ -764,7 +764,7 @@ class PlayerIdentifierWidget(QWidget):
                 self._spike_streak.pop(ip, None)
 
         # --- Resolve if any IPs confirmed ---
-        all_resolved = sorted(confirmed_baselined, key=lambda r: r.confidence, reverse=True)
+        all_resolved = sorted(confirmed_baselined, key=lambda resolved_ip: resolved_ip.confidence, reverse=True)
         if all_resolved:
             self._resolve_matches(all_resolved)
             return
@@ -778,7 +778,7 @@ class PlayerIdentifierWidget(QWidget):
             return
 
         # --- 3. Abort if too many baselined IPs disconnected ---
-        connected_baselined = sum(1 for p in players if p.ip in self._baselines)
+        connected_baselined = sum(1 for player in players if player.ip in self._baselines)
         if connected_baselined < MIN_CONNECTED_PLAYERS:
             self._abort_insufficient_players()
             return
@@ -786,14 +786,15 @@ class PlayerIdentifierWidget(QWidget):
         # --- Show live candidate status (only update label when text changes) ---
         if self._spike_streak:
             parts = ', '.join(f'<b>{ip}</b> (spiking {streak}/{self._spike_sustained_secs}s)' for ip, streak in self._spike_streak.items())
-            n_candidates = len(self._spike_streak)
+            num_candidates = len(self._spike_streak)
             result_text = (
-                f'Possible candidate{pluralize(n_candidates)}: {parts}<br><small>Needs {self._spike_sustained_secs} consecutive seconds of elevated traffic to confirm.</small>'
+                f'Possible candidate{pluralize(num_candidates)}: {parts}<br>'
+                f'<small>Needs {self._spike_sustained_secs} consecutive seconds of elevated traffic to confirm.</small>'
             )
         else:
-            n_ips = len(self._baselines)
+            num_ips = len(self._baselines)
             result_text = (
-                f'Watching {n_ips} baselined IP{pluralize(n_ips)} for traffic spikes…<br><small>Walk toward the target player. No unusual traffic detected yet.</small>'
+                f'Watching {num_ips} baselined IP{pluralize(num_ips)} for traffic spikes…<br><small>Walk toward the target player. No unusual traffic detected yet.</small>'
             )
         self._update_result_label(result_text)
 
@@ -820,7 +821,7 @@ class PlayerIdentifierWidget(QWidget):
                     self._spike_streak.get(player.ip, 0),
                 ),
             )
-        table_rows.sort(key=lambda r: r[4], reverse=True)
+        table_rows.sort(key=lambda row: row[4], reverse=True)
         self._update_zscore_table(table_rows)
 
     def _resolve_matches(self, resolved: list[ResolvedIP]) -> None:

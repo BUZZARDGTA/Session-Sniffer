@@ -34,7 +34,7 @@ def is_mac_address(mac_address: str, /, *, raise_exception: bool = False) -> boo
 
 def sanitize_mac_address(mac_address: str, /) -> str:
     """Remove any separators from the MAC address and convert to uppercase."""
-    return ''.join(c for c in mac_address if c.isalnum()).upper()
+    return ''.join(char for char in mac_address if char.isalnum()).upper()
 
 
 def format_mac_address(mac_address: str, /, separator: str = ':') -> str:
@@ -69,10 +69,10 @@ def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> b
 def is_private_device_ipv4(ip_address: str, /) -> bool:
     """Return whether the address is a valid IPv4 private address."""
     try:
-        ipv4_obj = IPv4Address(ip_address)
+        ipv4 = IPv4Address(ip_address)
     except AddressValueError:
         return False
-    return ipv4_obj.is_private
+    return ipv4.is_private
 
 
 def is_valid_private_ipv4(ip_address: str, /) -> bool:

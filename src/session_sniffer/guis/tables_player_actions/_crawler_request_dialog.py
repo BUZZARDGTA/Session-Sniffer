@@ -43,6 +43,7 @@ from session_sniffer.networking.looky_system import (
     watch_instruction_status,
 )
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -67,12 +68,12 @@ class _CrawlerSendWorker(CrashingQThread):
             tracking_id = self._send_fn()
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(e)
-                wait = extract_rate_limit_wait_seconds(e)
-                self.send_failed.emit(f'Rate limited: {msg}. Try again in {wait}s.')
+                message = extract_rate_limit_message(e)
+                wait_seconds = extract_rate_limit_wait_seconds(e)
+                self.send_failed.emit(f'Rate limited: {message}. Try again in {wait_seconds} second{pluralize(wait_seconds)}.')
             else:
-                code = e.response.status_code if e.response is not None else '?'
-                self.send_failed.emit(f'API error: HTTP {code}')
+                status_code = e.response.status_code if e.response is not None else '?'
+                self.send_failed.emit(f'API error: HTTP {status_code}')
             return
         except requests.RequestException as e:
             self.send_failed.emit(f'Connection error: {e}')
@@ -99,24 +100,24 @@ class _CrawlerWatchWorker(CrashingQThread):
     def _run(self) -> None:
         """Stream SSE status events until the instruction completes or fails."""
         last_status = ''
-        failure_msg: str | None = None
+        failure_message: str | None = None
         try:
             for status, result in watch_instruction_status(self._tracking_id, self._api_key):
                 last_status = status
                 self.status_updated.emit(status, result)
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                msg = extract_rate_limit_message(e)
-                wait = extract_rate_limit_wait_seconds(e)
-                failure_msg = f'Rate limited during status stream: {msg}. Try again in {wait}s.'
+                message = extract_rate_limit_message(e)
+                wait_seconds = extract_rate_limit_wait_seconds(e)
+                failure_message = f'Rate limited during status stream: {message}. Try again in {wait_seconds} second{pluralize(wait_seconds)}.'
             else:
-                code = e.response.status_code if e.response is not None else '?'
-                failure_msg = f'API error while watching status: HTTP {code}'
+                status_code = e.response.status_code if e.response is not None else '?'
+                failure_message = f'API error while watching status: HTTP {status_code}'
         except requests.RequestException as e:
-            failure_msg = f'Connection error while watching status: {e}'
+            failure_message = f'Connection error while watching status: {e}'
 
-        if failure_msg is not None:
-            self.request_failed.emit(failure_msg)
+        if failure_message is not None:
+            self.request_failed.emit(failure_message)
             return
         if is_terminal_failure_instruction_status(last_status):
             self.request_failed.emit(f'Instruction ended with status: {last_status}')
@@ -161,12 +162,12 @@ class _RIDPickerDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        ok_btn = button_box.button(QDialogButtonBox.StandardButton.Ok)
-        if ok_btn is not None:
-            ok_btn.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
-        cancel_btn = button_box.button(QDialogButtonBox.StandardButton.Cancel)
-        if cancel_btn is not None:
-            cancel_btn.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+        ok_button = button_box.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_button is not None:
+            ok_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
+        cancel_button = button_box.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_button is not None:
+            cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         layout.addWidget(button_box)
 
     def selected_rid(self) -> int | None:
@@ -236,11 +237,11 @@ def _build_crawler_request_dialog(
         if on_completed is not None:
             on_completed()
 
-    def _on_failed(msg: str) -> None:
+    def _on_failed(message: str) -> None:
         widgets.progress_bar.hide()
-        widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {msg}</span>')
+        widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
         widgets.status_label.show()
-        widgets.try_again_btn.show()
+        widgets.try_again_button.show()
         log.setPlaceholderText('')
 
     def _on_try_again() -> None:
@@ -248,14 +249,14 @@ def _build_crawler_request_dialog(
         log.setPlaceholderText('Waiting for response...')
         widgets.progress_bar.show()
         widgets.status_label.hide()
-        widgets.try_again_btn.hide()
+        widgets.try_again_button.hide()
         retry_send_worker = _CrawlerSendWorker(send_fn, dialog)
 
-        def _on_retry_send_failed(msg: str) -> None:
+        def _on_retry_send_failed(message: str) -> None:
             widgets.progress_bar.hide()
-            widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {msg}</span>')
+            widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
             widgets.status_label.show()
-            widgets.try_again_btn.show()
+            widgets.try_again_button.show()
             log.setPlaceholderText('')
 
         def _on_retry_send_succeeded(new_tracking_id: str) -> None:
@@ -271,7 +272,7 @@ def _build_crawler_request_dialog(
         retry_send_worker.setParent(dialog)
         retry_send_worker.start()
 
-    widgets.try_again_btn.clicked.connect(_on_try_again)
+    widgets.try_again_button.clicked.connect(_on_try_again)
 
     worker = _CrawlerWatchWorker(watch_config.tracking_id, watch_config.api_key)
     worker.status_updated.connect(_on_status_updated)
@@ -287,8 +288,8 @@ def _start_crawler_send(parent: QWidget, display_name: str, send_fn: Callable[[]
     """Start a pre-flight send worker; open a crawler request dialog only on success."""
     worker = _CrawlerSendWorker(send_fn, parent)
 
-    def _on_send_failed(msg: str) -> None:
-        QMessageBox.warning(parent, LOOKY_TITLE, msg)
+    def _on_send_failed(message: str) -> None:
+        QMessageBox.warning(parent, LOOKY_TITLE, message)
 
     worker.send_failed.connect(_on_send_failed)
 
@@ -340,9 +341,9 @@ def show_crawlme_request(parent: QWidget) -> None:
         return
 
     def _on_crawl_completed() -> None:
-        for p in PlayersRegistry.get_default_sorted_players():
-            if p.looky_system.is_initialized:
-                with p.looky_system.lock:
-                    p.looky_system.needs_refresh = True
+        for player in PlayersRegistry.get_default_sorted_players():
+            if player.looky_system.is_initialized:
+                with player.looky_system.lock:
+                    player.looky_system.needs_refresh = True
 
     _start_crawler_send(parent, 'My Session', lambda: send_crawlme_instruction(api_key), api_key, on_completed=_on_crawl_completed)

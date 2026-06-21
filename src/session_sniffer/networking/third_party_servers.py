@@ -77,7 +77,7 @@ class ThirdPartyServers(enum.Enum):
     @property
     def ip_ranges(self) -> tuple[CidrRange, ...]:
         """Return this server group's CIDR ranges as strings."""
-        return tuple(r.cidr for r in self.named_ranges)
+        return tuple(named_range.cidr_range for named_range in self.named_ranges)
 
     @cached_property
     def ip_networks(self) -> tuple[IpNetwork, ...]:
@@ -88,15 +88,15 @@ class ThirdPartyServers(enum.Enum):
     def get_ip_ranges_for(cls, server_names: Iterable[str]) -> list[CidrRange]:
         """Return a collapsed, minimal list of CIDR range strings for the specified server names."""
         names_set = set(server_names)
-        nets: list[ipaddress.IPv4Network] = []
+        networks: list[ipaddress.IPv4Network] = []
 
         for server in cls:
             if server.name in names_set:
-                nets.extend(net for net in server.ip_networks if isinstance(net, ipaddress.IPv4Network))
+                networks.extend(network for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network))
 
         # Merge overlapping/adjacent ranges to keep the BPF filter small and efficient
-        collapsed = list(ipaddress.collapse_addresses(nets))
-        return [str(net) for net in collapsed]
+        collapsed = list(ipaddress.collapse_addresses(networks))
+        return [str(network) for network in collapsed]
 
 
 ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(server.name for server in ThirdPartyServers)
@@ -109,4 +109,4 @@ _ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
 
 def is_third_party_server_ip(ip: str) -> bool:
     """Return True if `ip` matches any known third-party server CIDR range."""
-    return any(IPv4Address(ip) in net for net in _ALL_THIRD_PARTY_SERVER_NETWORKS)
+    return any(IPv4Address(ip) in network for network in _ALL_THIRD_PARTY_SERVER_NETWORKS)

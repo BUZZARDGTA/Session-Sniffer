@@ -99,29 +99,29 @@ class LogLevelHighlighter(QSyntaxHighlighter):
 
         self._formats: list[tuple[str, QTextCharFormat]] = []
 
-        fmt_warning = QTextCharFormat()
-        fmt_warning.setForeground(QColor('#e5c07b'))
-        self._formats.append(('WARNING', fmt_warning))
+        format_warning = QTextCharFormat()
+        format_warning.setForeground(QColor('#e5c07b'))
+        self._formats.append(('WARNING', format_warning))
 
-        fmt_error = QTextCharFormat()
-        fmt_error.setForeground(QColor('#e06c75'))
-        fmt_error.setFontWeight(QFont.Weight.Bold)
-        self._formats.append(('ERROR', fmt_error))
+        format_error = QTextCharFormat()
+        format_error.setForeground(QColor('#e06c75'))
+        format_error.setFontWeight(QFont.Weight.Bold)
+        self._formats.append(('ERROR', format_error))
 
-        fmt_critical = QTextCharFormat()
-        fmt_critical.setForeground(QColor('#ff6b6b'))
-        fmt_critical.setFontWeight(QFont.Weight.Bold)
-        fmt_critical.setBackground(QColor(80, 20, 20))
-        self._formats.append(('CRITICAL', fmt_critical))
+        format_critical = QTextCharFormat()
+        format_critical.setForeground(QColor('#ff6b6b'))
+        format_critical.setFontWeight(QFont.Weight.Bold)
+        format_critical.setBackground(QColor(80, 20, 20))
+        self._formats.append(('CRITICAL', format_critical))
 
     @override
     def highlightBlock(self, text: str | None) -> None:
         """Apply log-level coloring to a single text block."""
         if text is None:
             return
-        for keyword, fmt in self._formats:
+        for keyword, char_format in self._formats:
             if keyword in text:
-                self.setFormat(0, len(text), fmt)
+                self.setFormat(0, len(text), char_format)
                 return
 
 
@@ -179,7 +179,7 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
             item = model.item(source_row, self._filter_column)
             return item is not None and pattern.match(item.text()).hasMatch()
 
-        return any((item := model.item(source_row, col)) is not None and pattern.match(item.text()).hasMatch() for col in range(model.columnCount()))
+        return any((item := model.item(source_row, column)) is not None and pattern.match(item.text()).hasMatch() for column in range(model.columnCount()))
 
 
 # ---------------------------------------------------------------------------
@@ -265,10 +265,10 @@ def purge_log_file(
         return None
     bak = backup_file(file_path)
     file_path.write_text('', encoding='utf-8')
-    msg = f'Purged {file_path.name}.'
+    message = f'Purged {file_path.name}.'
     if bak:
-        msg += f'\nBackup saved to {bak.name}'
-    return msg
+        message += f'\nBackup saved to {bak.name}'
+    return message
 
 
 def copy_viewer_text_to_clipboard(parent: QWidget, viewer: QPlainTextEdit, *, success_label: str = 'text') -> None:

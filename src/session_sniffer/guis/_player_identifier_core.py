@@ -101,10 +101,10 @@ class IPBaseline:
     @staticmethod
     def _sample_mean_shift(samples: deque[int], overall_sum: int, recent_window: int) -> float:
         """Compute relative mean shift using cached sum and O(recent_window) tail access."""
-        n = len(samples)
-        if n < recent_window:
+        num_samples = len(samples)
+        if num_samples < recent_window:
             return 1.0
-        overall_mean = overall_sum / n
+        overall_mean = overall_sum / num_samples
         # reversed() on deque yields from the right in O(1) per step;
         # islice takes only `recent_window` elements -> O(recent_window) total.
         recent_mean = sum(islice(reversed(samples), recent_window)) / recent_window
@@ -121,14 +121,14 @@ class IPBaseline:
 
         Used during baseline to detect contamination spikes.
         """
-        n_pps = len(self.pps_samples)
-        n_bps = len(self.bps_samples)
-        if n_pps < _MIN_VARIANCE_SAMPLES or n_bps < _MIN_VARIANCE_SAMPLES:
+        num_pps = len(self.pps_samples)
+        num_bps = len(self.bps_samples)
+        if num_pps < _MIN_VARIANCE_SAMPLES or num_bps < _MIN_VARIANCE_SAMPLES:
             return 0.0
-        pps_mean = self._pps_sum / n_pps
-        bps_mean = self._bps_sum / n_bps
-        pps_var = sum((x - pps_mean) ** 2 for x in self.pps_samples) / (n_pps - 1)
-        bps_var = sum((x - bps_mean) ** 2 for x in self.bps_samples) / (n_bps - 1)
+        pps_mean = self._pps_sum / num_pps
+        bps_mean = self._bps_sum / num_bps
+        pps_var = sum((sample - pps_mean) ** 2 for sample in self.pps_samples) / (num_pps - 1)
+        bps_var = sum((sample - bps_mean) ** 2 for sample in self.bps_samples) / (num_bps - 1)
         pps_std = max(sqrt(pps_var), pps_mean * 0.05, 1.0)
         bps_std = max(sqrt(bps_var), bps_mean * 0.05, 1.0)
         return (current_pps - pps_mean) / pps_std + (current_bps - bps_mean) / bps_std
@@ -136,13 +136,13 @@ class IPBaseline:
 
 def _mean_std(samples: deque[int]) -> tuple[float, float]:
     """Return (mean, std) of integer samples."""
-    n = len(samples)
-    if not n:
+    num_samples = len(samples)
+    if not num_samples:
         return 0.0, 0.0
-    mean = sum(samples) / n
-    if n < _MIN_VARIANCE_SAMPLES:
+    mean = sum(samples) / num_samples
+    if num_samples < _MIN_VARIANCE_SAMPLES:
         return mean, 0.0
-    variance = sum((x - mean) ** 2 for x in samples) / (n - 1)
+    variance = sum((sample - mean) ** 2 for sample in samples) / (num_samples - 1)
     return mean, sqrt(variance)
 
 

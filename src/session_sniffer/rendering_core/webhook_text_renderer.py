@@ -87,11 +87,11 @@ def build_webhook_table_text(players: list[Player], *, columns: tuple[str, ...],
     table.set_style(TableStyle.SINGLE_BORDER)
     table.title = title
     table.field_names = list(columns)
-    for col in columns:
-        table.align[col] = 'l'
+    for column in columns:
+        table.align[column] = 'l'
     now = datetime.now(tz=LOCAL_TZ)
     for player in players:
-        table.add_row([format_player_column_value(player, col, now) for col in columns])
+        table.add_row([format_player_column_value(player, column, now) for column in columns])
     return table.get_string()
 
 
@@ -121,7 +121,7 @@ def build_webhook_mobile_text(players: list[Player], columns: tuple[str, ...]) -
         return None
 
     promote_header = 'Usernames' in columns
-    body_columns = tuple(c for c in columns if c != 'Usernames') if promote_header else columns
+    body_columns = tuple(column for column in columns if column != 'Usernames') if promote_header else columns
 
     now = datetime.now(tz=LOCAL_TZ)
     blocks: list[str] = []

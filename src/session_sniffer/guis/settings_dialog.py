@@ -82,8 +82,8 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
         return widget
     child = cast('QLineEdit | None', widget.findChild(QLineEdit))
     if child is None:
-        msg = f'No QLineEdit child found in {widget!r}'
-        raise RuntimeError(msg)
+        message = f'No QLineEdit child found in {widget!r}'
+        raise RuntimeError(message)
     return child
 
 
@@ -225,11 +225,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 continue
 
             group_box = QGroupBox(group_name)
-            direct_items = [(k, m) for k, m in items if not m.subgroup]
+            direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
-            for k, m in items:
-                if m.subgroup:
-                    subgrouped.setdefault(m.subgroup, []).append((k, m))
+            for setting_key, setting_meta in items:
+                if setting_meta.subgroup:
+                    subgrouped.setdefault(setting_meta.subgroup, []).append((setting_key, setting_meta))
 
             if subgrouped:
                 group_vbox = QVBoxLayout(group_box)
@@ -435,17 +435,17 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         outer.addWidget(details_widget)
 
         # Reset Stored Messages button (separate row, also gated on enabled).
-        reset_msgs_row = QHBoxLayout()
-        reset_msgs_row.addStretch()
-        reset_msgs_button = QPushButton('\U0001f5d1 Reset Stored Messages')
-        reset_msgs_button.setToolTip(
+        reset_messages_row = QHBoxLayout()
+        reset_messages_row.addStretch()
+        reset_messages_button = QPushButton('\U0001f5d1 Reset Stored Messages')
+        reset_messages_button.setToolTip(
             'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
             'Use this after changing channels or after Wick/automod deletes the old messages.',
         )
-        reset_msgs_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        reset_msgs_button.clicked.connect(self._reset_stored_messages)
-        reset_msgs_row.addWidget(reset_msgs_button)
-        outer.addLayout(reset_msgs_row)
+        reset_messages_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        reset_messages_button.clicked.connect(self._reset_stored_messages)
+        reset_messages_row.addWidget(reset_messages_button)
+        outer.addLayout(reset_messages_row)
 
         # Footer note about automod / Wick.
         note = QLabel(
@@ -502,8 +502,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         if not url:
             QMessageBox.warning(self, TITLE, 'Please enter a Discord webhook URL first.')
             return
-        ok, message = send_test_message(url)
-        if ok:
+        success, message = send_test_message(url)
+        if success:
             QMessageBox.information(self, TITLE, message)
         else:
             QMessageBox.critical(self, TITLE, message)
@@ -628,7 +628,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         allowed_attr = meta.allowed_columns_attr or ''
         allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
         checkboxes = {checkbox.objectName(): checkbox for checkbox in widget.findChildren(QCheckBox)}
-        return tuple(col_name for col_name in allowed_columns if (checkbox := checkboxes.get(col_name)) is not None and checkbox.isChecked())
+        return tuple(column_name for column_name in allowed_columns if (checkbox := checkboxes.get(column_name)) is not None and checkbox.isChecked())
 
     def _validate(self) -> tuple[list[str], dict[str, SettingValue]]:
         """Read every widget once and return validation errors alongside the collected values."""
@@ -730,8 +730,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         capture_settings_changed = any(new_values[key] != self._old_values.get(key) for key, meta in SETTING_METADATA.items() if meta.requires_capture_restart)
         if capture_settings_changed and self._capture.is_running():
             if Settings.capture_ip_address is None:
-                msg = 'capture_ip_address is None while capture is running'
-                raise RuntimeError(msg)
+                message = 'capture_ip_address is None while capture is running'
+                raise RuntimeError(message)
             capture_filter_str, display_filter_fn = build_capture_filters(
                 capture_ip_address=Settings.capture_ip_address,
                 broadcast_support=self._capture.config.broadcast_support,

@@ -15,14 +15,14 @@ def _is_unset(value: object) -> bool:
     return value is None or value == _UNSET_SENTINEL
 
 
-def fmt_text(value: object) -> str:
+def format_text(value: object) -> str:
     """Format a generic lookup field, showing 'N/A' for unset values."""
     if _is_unset(value):
         return 'N/A'
     return str(value)
 
 
-def fmt_bool(value: object) -> str:
+def format_bool(value: object) -> str:
     """Format a boolean-ish lookup field as Yes / No / N/A."""
     if _is_unset(value):
         return 'N/A'
@@ -37,7 +37,7 @@ def fmt_bool(value: object) -> str:
     return str(value)
 
 
-def fmt_ms(value: object) -> str:
+def format_ms(value: object) -> str:
     """Format a millisecond RTT value with one decimal."""
     if _is_unset(value):
         return 'N/A'
@@ -46,7 +46,7 @@ def fmt_ms(value: object) -> str:
     return str(value)
 
 
-def _fmt_int(value: object) -> str:
+def _format_int(value: object) -> str:
     """Format an integer count, falling back to N/A for unset values."""
     if _is_unset(value):
         return 'N/A'
@@ -55,7 +55,7 @@ def _fmt_int(value: object) -> str:
     return str(value)
 
 
-def fmt_loss_pct(value: object) -> str:
+def format_loss_pct(value: object) -> str:
     """Format a packet-loss percentage with one decimal place."""
     if _is_unset(value):
         return 'N/A'
@@ -64,29 +64,29 @@ def fmt_loss_pct(value: object) -> str:
     return str(value)
 
 
-def fmt_packets_and_stats(transmitted: object, received: object, loss: object, errors: object, duplicates: object) -> str:
+def format_packets_and_stats(transmitted: object, received: object, loss: object, errors: object, duplicates: object) -> str:
     """Format sent/received counts, appending loss/errors/duplicates only when non-zero."""
     if _is_unset(transmitted) and _is_unset(received) and _is_unset(loss) and _is_unset(errors) and _is_unset(duplicates):
         return 'N/A'
-    base = f'{_fmt_int(transmitted)} sent · {_fmt_int(received)} received'
+    base = f'{_format_int(transmitted)} sent · {_format_int(received)} received'
     extras: list[str] = []
     if isinstance(loss, (int, float)) and loss:
-        extras.append(f'{fmt_loss_pct(loss)} loss')
+        extras.append(f'{format_loss_pct(loss)} loss')
     if isinstance(errors, (int, float)) and errors:
-        extras.append(f'{_fmt_int(errors)} errors')
+        extras.append(f'{_format_int(errors)} errors')
     if isinstance(duplicates, (int, float)) and duplicates:
-        extras.append(f'{_fmt_int(duplicates)} duplicates')
+        extras.append(f'{_format_int(duplicates)} duplicates')
     return f'{base} · {" · ".join(extras)}' if extras else base
 
 
-def fmt_rtt_summary(rtt_min: object, rtt_avg: object, rtt_max: object, rtt_mdev: object) -> str:
+def format_rtt_summary(rtt_min: object, rtt_avg: object, rtt_max: object, rtt_mdev: object) -> str:
     """Format min / avg / max / mean deviation RTT on a single line."""
     if _is_unset(rtt_min) and _is_unset(rtt_avg) and _is_unset(rtt_max) and _is_unset(rtt_mdev):
         return 'N/A'
-    return f'{fmt_ms(rtt_min)} / {fmt_ms(rtt_avg)} / {fmt_ms(rtt_max)} · {fmt_ms(rtt_mdev)} mean deviation'
+    return f'{format_ms(rtt_min)} / {format_ms(rtt_avg)} / {format_ms(rtt_max)} · {format_ms(rtt_mdev)} mean deviation'
 
 
-def fmt_ping_times(value: object) -> str:
+def format_ping_times(value: object) -> str:
     """Format the per-packet RTT samples as a compact ms list."""
     if _is_unset(value):
         return 'N/A'
@@ -101,7 +101,7 @@ def fmt_ping_times(value: object) -> str:
     return f'{formatted} ms'
 
 
-def fmt_ping_status(value: object) -> str:
+def format_ping_status(value: object) -> str:
     """Format the is_pinging status field."""
     if _is_unset(value):
         return 'Pending…'

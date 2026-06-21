@@ -160,12 +160,12 @@ class WebServer:
                 'performance': snapshot.status.status_performance_text,
             },
             'connected': {
-                'count': snapshot.connected.num_rows,
+                'count': snapshot.connected.row_count,
                 'columns': snapshot.column_config.connected_column_names,
                 'rows': [list(row) for row in snapshot.connected.rows],
             },
             'disconnected': {
-                'count': snapshot.disconnected.num_rows,
+                'count': snapshot.disconnected.row_count,
                 'columns': snapshot.column_config.disconnected_column_names,
                 'rows': [list(row) for row in snapshot.disconnected.rows],
             },

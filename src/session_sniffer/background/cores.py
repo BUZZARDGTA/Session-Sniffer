@@ -5,7 +5,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from http import HTTPStatus
 from threading import Thread
 from threading import enumerate as enumerate_threads
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 import requests
 from pydantic import ValidationError
@@ -34,8 +34,6 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 logger = get_logger(__name__)
-
-T = TypeVar('T')
 
 
 # API limits taken from https://ip-api.com/docs/api:batch the 03/04/2024.
@@ -410,10 +408,9 @@ def looky_core() -> None:
                 gui_closed__event.wait(0.5)
 
             batch = pending_ips[batch_start : batch_start + _batch_size]
-            api_key = Settings.looky_api_key
 
             try:
-                results = looky_lookup_ip_batch(batch, api_key, Settings.looky_game_version.lower())
+                results = looky_lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
             except requests.HTTPError as e:
                 if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                     wait_seconds = extract_rate_limit_wait_seconds(e)
@@ -458,8 +455,8 @@ def looky_core() -> None:
                     if matched_player is not None:
                         players = results.get(ip, [])
                         with matched_player.looky_system.lock:
-                            matched_player.looky_system.usernames = [p.name for p in players]
-                            matched_player.looky_system.rockstarids = [p.rockstarid for p in players]
+                            matched_player.looky_system.usernames = [player.name for player in players]
+                            matched_player.looky_system.rockstarids = [player.rockstarid for player in players]
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True

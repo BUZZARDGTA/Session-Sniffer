@@ -203,7 +203,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
             if index.isValid():
                 model = self.model()
-                if (country_col := model.get_column_index('Country')) is not None and country_col == index.column():
+                if (country_column := model.get_column_index('Country')) is not None and country_column == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
                         matched_player = PlayersRegistry.get_player_by_ip(ip)
@@ -359,9 +359,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
     def _has_any_username(self) -> bool:
         """Return True if any row has a non-empty username value."""
         model = self.model()
-        col = model.username_column_index
+        column = model.username_column_index
         for row in range(model.rowCount()):
-            text = model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)
+            text = model.data(model.index(row, column), Qt.ItemDataRole.DisplayRole)
             if isinstance(text, str) and text.strip():
                 return True
         return False
@@ -493,36 +493,36 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         shown_columns = set(
             Settings.gui_columns_connected_shown if self.is_connected_table else Settings.gui_columns_disconnected_shown,
         )
-        for col in toggleable_columns:
+        for column in toggleable_columns:
             placed = False
             for label, members in _COLUMN_CATEGORY_GROUPS:
-                if col in members:
-                    bucketed[label].append(col)
+                if column in members:
+                    bucketed[label].append(column)
                     placed = True
                     break
             if not placed:
-                bucketed['Other'].append(col)
+                bucketed['Other'].append(column)
 
         for label, _ in (*_COLUMN_CATEGORY_GROUPS, ('Other', frozenset[str]())):
-            cols = bucketed[label]
-            if not cols:
+            columns = bucketed[label]
+            if not columns:
                 continue
             category_menu = PersistentMenu(label, choose_columns_menu)
             category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
             category_menu.setToolTipsVisible(True)
-            for col_name in cols:
-                col_action = QAction(col_name, category_menu)
-                col_action.setCheckable(True)
-                col_action.setChecked(col_name in shown_columns)
-                col_tooltip = GUI_COLUMN_HEADERS_TOOLTIPS.get(col_name)
-                if col_tooltip is not None:
-                    col_action.setToolTip(col_tooltip)
+            for column_name in columns:
+                column_action = QAction(column_name, category_menu)
+                column_action.setCheckable(True)
+                column_action.setChecked(column_name in shown_columns)
+                column_tooltip = GUI_COLUMN_HEADERS_TOOLTIPS.get(column_name)
+                if column_tooltip is not None:
+                    column_action.setToolTip(column_tooltip)
 
-                def _on_col_toggled(checked: bool, name: str = col_name) -> None:  # noqa: FBT001
+                def _on_column_toggled(checked: bool, name: str = column_name) -> None:  # noqa: FBT001
                     self._toggle_column_visibility(name, checked=checked)
 
-                col_action.toggled.connect(_on_col_toggled)
-                category_menu.addAction(col_action)
+                column_action.toggled.connect(_on_column_toggled)
+                category_menu.addAction(column_action)
             choose_columns_menu.addMenu(category_menu)
 
         menu.addMenu(choose_columns_menu)
@@ -566,7 +566,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             shown.discard(column_name)
 
         # Preserve ordering from the toggleable columns tuple
-        new_shown = tuple(col for col in toggleable if col in shown)
+        new_shown = tuple(column for column in toggleable if column in shown)
 
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = new_shown
@@ -629,17 +629,17 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         clipboard.setText(clipboard_content)
 
     @override
-    def remove_players_by_ip_from_table(self, ips: set[str]) -> None:
+    def remove_players_by_ip_from_table(self, ip_addresses: set[str]) -> None:
         """Remove multiple players from the table by calling the appropriate `MainWindow` method.
 
         Args:
-            ips: Set of IP addresses of the players to remove.
+            ip_addresses: Set of IP addresses of the players to remove.
         """
         # Get the MainWindow instance
         main_window = cast('MainWindow', self.window())
 
         # Remove each player
-        for ip in ips:
+        for ip in ip_addresses:
             if self.is_connected_table:
                 main_window.remove_player_from_connected(ip)
             else:

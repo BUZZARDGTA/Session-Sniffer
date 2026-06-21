@@ -100,3 +100,6 @@ CAPTURE_FILTER_BLOCK_SETTINGS: tuple[str, ...] = (
     *CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS,
     *CAPTURE_FILTER_BLOCK_PORT_SETTINGS,
 )
+
+# Maximum duration in seconds for suspend rules and actions.
+MAX_SUSPEND_DURATION_SECONDS: int = 3600

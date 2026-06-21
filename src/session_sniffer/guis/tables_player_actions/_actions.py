@@ -14,11 +14,11 @@ from session_sniffer.constants.local import BIN_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
-from session_sniffer.guis.tables_player_actions._fmt import (
-    fmt_bool,
-    fmt_loss_pct,
-    fmt_ms,
-    fmt_text,
+from session_sniffer.guis.tables_player_actions._format import (
+    format_bool,
+    format_loss_pct,
+    format_ms,
+    format_text,
     userip_database_text,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
@@ -41,7 +41,7 @@ def build_discord_player_report(player: Player) -> str:
     # Player Info
     lines.append('**\U0001f464 Player Info**')
     lines.append(f'> **IP Address:** `{player.ip}`')
-    hostname = fmt_text(player.reverse_dns.hostname)
+    hostname = format_text(player.reverse_dns.hostname)
     lines.append(f'> **Hostname:** `{hostname}`')
     usernames = ', '.join(player.usernames) if player.usernames else 'N/A'
     lines.append(f'> **Username{pluralize(len(player.usernames))}:** {usernames}')
@@ -58,12 +58,12 @@ def build_discord_player_report(player: Player) -> str:
     lines.append('')
 
     # Location
-    country = fmt_text(player.iplookup.geolite2.country)
-    country_code = fmt_text(player.iplookup.geolite2.country_code)
-    continent = fmt_text(player.iplookup.ipapi.continent)
-    region = fmt_text(player.iplookup.ipapi.region)
-    city = fmt_text(player.iplookup.geolite2.city)
-    timezone = fmt_text(player.iplookup.ipapi.time_zone)
+    country = format_text(player.iplookup.geolite2.country)
+    country_code = format_text(player.iplookup.geolite2.country_code)
+    continent = format_text(player.iplookup.ipapi.continent)
+    region = format_text(player.iplookup.ipapi.region)
+    city = format_text(player.iplookup.geolite2.city)
+    timezone = format_text(player.iplookup.ipapi.time_zone)
     lines.append('**\U0001f30d Location**')
     country_display = f'{country} ({country_code})' if country != 'N/A' and country_code != 'N/A' else country
     lines.append(f'> **Country:** {country_display}')
@@ -78,13 +78,13 @@ def build_discord_player_report(player: Player) -> str:
     lines.append('')
 
     # Network
-    isp = fmt_text(player.iplookup.ipapi.isp)
-    org = fmt_text(player.iplookup.ipapi.org)
-    asn = fmt_text(player.iplookup.ipapi.asn)
-    as_name = fmt_text(player.iplookup.ipapi.as_name)
-    mobile = fmt_bool(player.iplookup.ipapi.mobile)
-    proxy = fmt_bool(player.iplookup.ipapi.proxy)
-    hosting = fmt_bool(player.iplookup.ipapi.hosting)
+    isp = format_text(player.iplookup.ipapi.isp)
+    org = format_text(player.iplookup.ipapi.org)
+    asn = format_text(player.iplookup.ipapi.asn)
+    as_name = format_text(player.iplookup.ipapi.as_name)
+    mobile = format_bool(player.iplookup.ipapi.mobile)
+    proxy = format_bool(player.iplookup.ipapi.proxy)
+    hosting = format_bool(player.iplookup.ipapi.hosting)
     lines.append('**\U0001f310 Network**')
     if isp != 'N/A':
         lines.append(f'> **ISP:** {isp}')
@@ -97,8 +97,8 @@ def build_discord_player_report(player: Player) -> str:
     lines.append('')
 
     # Ping
-    avg_rtt = fmt_ms(player.ping.rtt_avg)
-    packet_loss = fmt_loss_pct(player.ping.packet_loss)
+    avg_rtt = format_ms(player.ping.rtt_avg)
+    packet_loss = format_loss_pct(player.ping.packet_loss)
     lines.append('**\U0001f4e1 Ping**')
     lines.append(f'> **Avg RTT:** {avg_rtt}  |  **Packet Loss:** {packet_loss}')
 
@@ -115,7 +115,7 @@ def copy_players_info_for_discord(players: list[Player]) -> None:
     """Copy Discord-formatted reports for multiple players, separated by a divider."""
     clipboard = ensure_instance(app.clipboard(), QClipboard)
     separator = '\n\n---\n\n'
-    clipboard.setText(separator.join(build_discord_player_report(p) for p in players))
+    clipboard.setText(separator.join(build_discord_player_report(player) for player in players))
 
 
 def ping_ip(ip: str) -> None:
@@ -125,9 +125,9 @@ def ping_ip(ip: str) -> None:
 
 def tcp_port_ping(parent: QWidget, ip: str) -> None:
     """Run paping to check TCP connectivity to a host on a user-specified port indefinitely."""
-    port_str, ok = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+    port_str, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
 
-    if not ok:
+    if not success:
         return
 
     port_str = port_str.strip()
@@ -145,11 +145,11 @@ def tcp_port_ping(parent: QWidget, ip: str) -> None:
     run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
 
 
-def tcp_port_ping_multi(parent: QWidget, ips: list[str]) -> None:
+def tcp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
     """Ask for a port once, then run paping for each IP on that same port."""
-    port_str, ok = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+    port_str, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
 
-    if not ok:
+    if not success:
         return
 
     port_str = port_str.strip()
@@ -164,7 +164,7 @@ def tcp_port_ping_multi(parent: QWidget, ips: list[str]) -> None:
         QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
         return
 
-    for ip in ips:
+    for ip in ip_addresses:
         run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
 
 

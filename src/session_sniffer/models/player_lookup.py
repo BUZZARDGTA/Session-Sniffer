@@ -152,14 +152,14 @@ class PlayerIPAPI:  # pylint: disable=too-many-public-methods
     @property
     def lat(self) -> float | str:
         """Return the latitude from the IP-API lookup result."""
-        v = self._values['lat']
-        return float(v) if isinstance(v, (int, float)) else str(v)
+        value = self._values['lat']
+        return float(value) if isinstance(value, (int, float)) else str(value)
 
     @property
     def lon(self) -> float | str:
         """Return the longitude from the IP-API lookup result."""
-        v = self._values['lon']
-        return float(v) if isinstance(v, (int, float)) else str(v)
+        value = self._values['lon']
+        return float(value) if isinstance(value, (int, float)) else str(value)
 
     @property
     def time_zone(self) -> str:
@@ -169,8 +169,8 @@ class PlayerIPAPI:  # pylint: disable=too-many-public-methods
     @property
     def offset(self) -> int | str:
         """Return the UTC offset from the IP-API lookup result."""
-        v = self._values['offset']
-        return int(v) if isinstance(v, (int, float)) else str(v)
+        value = self._values['offset']
+        return int(value) if isinstance(value, (int, float)) else str(value)
 
     @property
     def currency(self) -> str:
@@ -200,20 +200,20 @@ class PlayerIPAPI:  # pylint: disable=too-many-public-methods
     @property
     def mobile(self) -> bool | str:
         """Return the mobile flag from the IP-API lookup result."""
-        v = self._values['mobile']
-        return bool(v) if isinstance(v, bool) else str(v)
+        value = self._values['mobile']
+        return bool(value) if isinstance(value, bool) else str(value)
 
     @property
     def proxy(self) -> bool | str:
         """Return the proxy flag from the IP-API lookup result."""
-        v = self._values['proxy']
-        return bool(v) if isinstance(v, bool) else str(v)
+        value = self._values['proxy']
+        return bool(value) if isinstance(value, bool) else str(value)
 
     @property
     def hosting(self) -> bool | str:
         """Return the hosting flag from the IP-API lookup result."""
-        v = self._values['hosting']
-        return bool(v) if isinstance(v, bool) else str(v)
+        value = self._values['hosting']
+        return bool(value) if isinstance(value, bool) else str(value)
 
 
 class PlayerCountryFlag:

@@ -53,7 +53,7 @@ class _DownloadWorker(CrashingQThread):
     """Background thread that streams an HTTP download and reports progress."""
 
     progress_signal: pyqtSignal = pyqtSignal(int, int)  # bytes_done, total_bytes
-    finished_signal: pyqtSignal = pyqtSignal(bool, str)  # success, error_msg
+    finished_signal: pyqtSignal = pyqtSignal(bool, str)  # success, message
 
     def __init__(self, download_url: str, dest_path: Path) -> None:
         super().__init__()
@@ -462,14 +462,14 @@ class UpdateDownloadDialog(QDialog):
             self._size_label.setText(f'{self._format_size_mb(done)} downloaded')
         self._status_label.setText('Streaming update from GitHub\u2026')
 
-    def _on_finished(self, success: bool, error_msg: str) -> None:  # noqa: FBT001
+    def _on_finished(self, success: bool, message: str) -> None:  # noqa: FBT001
         """Handle download completion or failure."""
         self._success = success
         if success:
             self.accept()
         else:
-            if error_msg and error_msg != 'Cancelled':
-                self._status_label.setText(f'Download failed: {error_msg}')
+            if message and message != 'Cancelled':
+                self._status_label.setText(f'Download failed: {message}')
             self.reject()
 
     def _on_cancel(self) -> None:

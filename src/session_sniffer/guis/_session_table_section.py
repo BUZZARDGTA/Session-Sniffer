@@ -180,10 +180,10 @@ class SessionTableSection(QWidget):
         self._search_combo = QComboBox()
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
-        for col_index, col_name in enumerate(column_names):
-            if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
-                self._search_combo.addItem(col_name)
-                self._search_combo.setItemData(self._search_combo.count() - 1, col_index)
+        for column_index, column_name in enumerate(column_names):
+            if column_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
+                self._search_combo.addItem(column_name)
+                self._search_combo.setItemData(self._search_combo.count() - 1, column_index)
         self._search_combo.setToolTip(
             f'Select which column to search in the {self._section_name.lower()} players table',
         )
@@ -343,9 +343,9 @@ class SessionTableSection(QWidget):
 
     def update_columns(self, column_names: list[str]) -> None:
         """Replace the column set at runtime and reconfigure the view."""
-        sort_col_name = 'Last Rejoin' if self._section_name == 'Connected' else 'Last Seen'
+        sort_column_name = 'Last Rejoin' if self._section_name == 'Connected' else 'Last Seen'
         self.table_model.reset_columns(column_names)
-        sort_index = column_names.index(sort_col_name)
+        sort_index = column_names.index(sort_column_name)
         header = self.table_view.horizontalHeader()
         header.setSortIndicator(sort_index, header.sortIndicatorOrder())
         self.table_view.setup_static_column_resizing()
@@ -356,10 +356,10 @@ class SessionTableSection(QWidget):
         self._search_combo.clear()
         self._search_combo.addItem('All Columns')
         self._search_combo.setItemData(0, -1)
-        for col_index, col_name in enumerate(column_names):
-            if col_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
-                self._search_combo.addItem(col_name)
-                self._search_combo.setItemData(self._search_combo.count() - 1, col_index)
+        for column_index, column_name in enumerate(column_names):
+            if column_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
+                self._search_combo.addItem(column_name)
+                self._search_combo.setItemData(self._search_combo.count() - 1, column_index)
         restored_index = self._search_combo.findText(current_text)
         self._search_combo.setCurrentIndex(max(0, restored_index))
         self._search_combo.blockSignals(False)  # noqa: FBT003
@@ -509,21 +509,21 @@ class SessionTableSection(QWidget):
 
     def _on_search_changed(self, text: str) -> None:
         raw = self._search_combo.itemData(self._search_combo.currentIndex())
-        col = raw if isinstance(raw, int) else -1
+        column = raw if isinstance(raw, int) else -1
         if self._is_connected:
-            SearchState.set_connected(text, col)
+            SearchState.set_connected(text, column)
             PaginationState.set_connected_page(1)
         else:
-            SearchState.set_disconnected(text, col)
+            SearchState.set_disconnected(text, column)
             PaginationState.set_disconnected_page(1)
 
     def _on_search_column_changed(self, index: int) -> None:
         raw = self._search_combo.itemData(index)
-        col = raw if isinstance(raw, int) else -1
+        column = raw if isinstance(raw, int) else -1
         text = self._search_bar.text()
         if self._is_connected:
-            SearchState.set_connected(text, col)
+            SearchState.set_connected(text, column)
             PaginationState.set_connected_page(1)
         else:
-            SearchState.set_disconnected(text, col)
+            SearchState.set_disconnected(text, column)
             PaginationState.set_disconnected_page(1)

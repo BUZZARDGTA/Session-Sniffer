@@ -61,8 +61,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
 
         def _auto_format_mac(text: str, widget: QLineEdit = le) -> None:
             cursor = widget.cursorPosition()
-            hex_before = sum(1 for c in text[:cursor] if c in '0123456789ABCDEFabcdef')
-            hex_only = ''.join(c for c in text.upper() if c in '0123456789ABCDEF')[:12]
+            hex_before = sum(1 for char in text[:cursor] if char in '0123456789ABCDEFabcdef')
+            hex_only = ''.join(char for char in text.upper() if char in '0123456789ABCDEF')[:12]
             formatted = ':'.join(hex_only[i : i + 2] for i in range(0, len(hex_only), 2))
             if formatted == text:
                 return
@@ -71,11 +71,11 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             widget.blockSignals(False)  # noqa: FBT003
             new_pos = len(formatted)
             hex_count = 0
-            for i, c in enumerate(formatted):
+            for i, char in enumerate(formatted):
                 if hex_count == hex_before:
                     new_pos = i
                     break
-                if c != ':':
+                if char != ':':
                     hex_count += 1
             widget.setCursorPosition(new_pos)
 
@@ -103,8 +103,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         icon_hide = QIcon(str(_icons_dir / 'eye_hide.svg'))
         reveal_action = le.addAction(icon_hide, QLineEdit.ActionPosition.TrailingPosition)
         if reveal_action is None:
-            msg = 'QLineEdit.addAction returned None'
-            raise RuntimeError(msg)
+            message = 'QLineEdit.addAction returned None'
+            raise RuntimeError(message)
         _act: QAction = reveal_action
         _act.setCheckable(True)
         _act.setToolTip('Show')
@@ -198,38 +198,38 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     grid.setContentsMargins(4, 4, 4, 4)
     grid.setSpacing(2)
 
-    num_columns = 3
-    for i, col_name in enumerate(allowed_columns):
-        display_text = meta.display_labels.get(col_name, col_name) if meta.display_labels else col_name
+    column_count = 3
+    for i, column_name in enumerate(allowed_columns):
+        display_text = meta.display_labels.get(column_name, column_name) if meta.display_labels else column_name
         checkbox = QCheckBox(display_text)
-        checkbox.setObjectName(col_name)
-        grid.addWidget(checkbox, i // num_columns, i % num_columns)
+        checkbox.setObjectName(column_name)
+        grid.addWidget(checkbox, i // column_count, i % column_count)
 
     scroll.setWidget(inner)
 
-    btn_select_all = QPushButton('Select All')
-    btn_deselect_all = QPushButton('Deselect All')
-    btn_reset = QPushButton('Reset')
-    btn_reset.setToolTip('Reset to default selected columns')
-    for btn in (btn_select_all, btn_deselect_all, btn_reset):
-        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    btn_select_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=True))
-    btn_deselect_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=False))
-    btn_reset.clicked.connect(lambda: set_checkboxes_to(inner, default_columns))
+    button_select_all = QPushButton('Select All')
+    button_deselect_all = QPushButton('Deselect All')
+    button_reset = QPushButton('Reset')
+    button_reset.setToolTip('Reset to default selected columns')
+    for button in (button_select_all, button_deselect_all, button_reset):
+        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    button_select_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=True))
+    button_deselect_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=False))
+    button_reset.clicked.connect(lambda: set_checkboxes_to(inner, default_columns))
 
-    btn_row = QHBoxLayout()
-    btn_row.setContentsMargins(0, 0, 0, 0)
-    btn_row.setSpacing(6)
-    btn_row.addWidget(btn_select_all)
-    btn_row.addWidget(btn_deselect_all)
-    btn_row.addWidget(btn_reset)
-    btn_row.addStretch()
+    button_row = QHBoxLayout()
+    button_row.setContentsMargins(0, 0, 0, 0)
+    button_row.setSpacing(6)
+    button_row.addWidget(button_select_all)
+    button_row.addWidget(button_deselect_all)
+    button_row.addWidget(button_reset)
+    button_row.addStretch()
 
     outer = QVBoxLayout(group)
     outer.setSpacing(4)
-    outer.addLayout(btn_row)
+    outer.addLayout(button_row)
     outer.addWidget(scroll, 1)
     return group
 
@@ -278,22 +278,22 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         preset_checkboxes[pname] = cb
         presets_grid.addWidget(cb, i // presets_num_columns, i % presets_num_columns)
 
-    preset_btn_select_all = QPushButton('Select All')
-    preset_btn_deselect_all = QPushButton('Deselect All')
-    preset_btn_reset = QPushButton('Reset')
-    preset_btn_reset.setToolTip('Reset to default presets')
-    for btn in (preset_btn_select_all, preset_btn_deselect_all, preset_btn_reset):
-        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    preset_button_select_all = QPushButton('Select All')
+    preset_button_deselect_all = QPushButton('Deselect All')
+    preset_button_reset = QPushButton('Reset')
+    preset_button_reset.setToolTip('Reset to default presets')
+    for button in (preset_button_select_all, preset_button_deselect_all, preset_button_reset):
+        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-    preset_btn_row = QHBoxLayout()
-    preset_btn_row.setContentsMargins(0, 0, 0, 0)
-    preset_btn_row.setSpacing(6)
-    preset_btn_row.addWidget(preset_btn_select_all)
-    preset_btn_row.addWidget(preset_btn_deselect_all)
-    preset_btn_row.addWidget(preset_btn_reset)
-    preset_btn_row.addStretch()
+    preset_button_row = QHBoxLayout()
+    preset_button_row.setContentsMargins(0, 0, 0, 0)
+    preset_button_row.setSpacing(6)
+    preset_button_row.addWidget(preset_button_select_all)
+    preset_button_row.addWidget(preset_button_deselect_all)
+    preset_button_row.addWidget(preset_button_reset)
+    preset_button_row.addStretch()
 
     presets_scroll = QScrollArea()
     presets_scroll.setWidgetResizable(True)
@@ -303,7 +303,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     presets_layout = QVBoxLayout(presets_group)
     presets_layout.setSpacing(4)
-    presets_layout.addLayout(preset_btn_row)
+    presets_layout.addLayout(preset_button_row)
     presets_layout.addWidget(presets_scroll)
 
     # Checklist container
@@ -321,13 +321,13 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     grid.setSpacing(2)
 
     checkboxes: dict[str, QCheckBox] = {}
-    num_columns = 3
-    for i, col_name in enumerate(allowed_columns):
-        display_text = display_labels.get(col_name, col_name)
+    column_count = 3
+    for i, column_name in enumerate(allowed_columns):
+        display_text = display_labels.get(column_name, column_name)
         checkbox = QCheckBox(display_text)
-        checkbox.setObjectName(col_name)
-        checkboxes[col_name] = checkbox
-        grid.addWidget(checkbox, i // num_columns, i % num_columns)
+        checkbox.setObjectName(column_name)
+        checkboxes[column_name] = checkbox
+        grid.addWidget(checkbox, i // column_count, i % column_count)
 
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
@@ -335,30 +335,30 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     scroll.setWidget(grid_container)
 
-    btn_select_all = QPushButton('Select All')
-    btn_deselect_all = QPushButton('Deselect All')
-    btn_reset = QPushButton('Reset')
-    btn_reset.setToolTip('Reset to default selected options')
-    for btn in (btn_select_all, btn_deselect_all, btn_reset):
-        btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    button_select_all = QPushButton('Select All')
+    button_deselect_all = QPushButton('Deselect All')
+    button_reset = QPushButton('Reset')
+    button_reset.setToolTip('Reset to default selected options')
+    for button in (button_select_all, button_deselect_all, button_reset):
+        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-    btn_select_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=True))
-    btn_deselect_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=False))
-    btn_reset.clicked.connect(lambda: set_checkboxes_to(grid_container, default_columns))
+    button_select_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=True))
+    button_deselect_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=False))
+    button_reset.clicked.connect(lambda: set_checkboxes_to(grid_container, default_columns))
 
-    btn_row = QHBoxLayout()
-    btn_row.setContentsMargins(0, 0, 0, 0)
-    btn_row.setSpacing(6)
-    btn_row.addWidget(btn_select_all)
-    btn_row.addWidget(btn_deselect_all)
-    btn_row.addWidget(btn_reset)
-    btn_row.addStretch()
+    button_row = QHBoxLayout()
+    button_row.setContentsMargins(0, 0, 0, 0)
+    button_row.setSpacing(6)
+    button_row.addWidget(button_select_all)
+    button_row.addWidget(button_deselect_all)
+    button_row.addWidget(button_reset)
+    button_row.addStretch()
 
     group_layout = QVBoxLayout(checklist_group)
     group_layout.setSpacing(4)
-    group_layout.addLayout(btn_row)
+    group_layout.addLayout(button_row)
     group_layout.addWidget(scroll, 1)
 
     layout.addWidget(presets_group)
@@ -529,9 +529,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     def reset_presets() -> None:
         set_checkboxes_to(grid_container, default_columns)
 
-    preset_btn_select_all.clicked.connect(select_all_presets)
-    preset_btn_deselect_all.clicked.connect(deselect_all_presets)
-    preset_btn_reset.clicked.connect(reset_presets)
+    preset_button_select_all.clicked.connect(select_all_presets)
+    preset_button_deselect_all.clicked.connect(deselect_all_presets)
+    preset_button_reset.clicked.connect(reset_presets)
 
     for pname, p_cb in preset_checkboxes.items():
         p_cb.clicked.connect(make_handler(pname))
@@ -588,16 +588,16 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     add_button.clicked.connect(_add_entry)
     remove_button.clicked.connect(_remove_entries)
 
-    btn_row = QHBoxLayout()
-    btn_row.setContentsMargins(0, 0, 0, 0)
-    btn_row.setSpacing(6)
-    btn_row.addWidget(add_button)
-    btn_row.addWidget(remove_button)
-    btn_row.addStretch()
+    button_row = QHBoxLayout()
+    button_row.setContentsMargins(0, 0, 0, 0)
+    button_row.setSpacing(6)
+    button_row.addWidget(add_button)
+    button_row.addWidget(remove_button)
+    button_row.addStretch()
 
     outer_layout = QVBoxLayout(group)
     outer_layout.setSpacing(4)
-    outer_layout.addLayout(btn_row)
+    outer_layout.addLayout(button_row)
     outer_layout.addWidget(list_widget, 1)
     return group
 

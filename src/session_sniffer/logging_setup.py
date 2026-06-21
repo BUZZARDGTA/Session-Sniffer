@@ -50,12 +50,12 @@ _SUPPRESSED_SCAPY_SUBSTRINGS = ('Unable to guess datalink type',)
 
 def _urllib3_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress noisy third-party retry warnings."""
-    return not (record.name.startswith('urllib3.') and any(s in record.getMessage() for s in _SUPPRESSED_URLLIB3_SUBSTRINGS))
+    return not (record.name.startswith('urllib3.') and any(substring in record.getMessage() for substring in _SUPPRESSED_URLLIB3_SUBSTRINGS))
 
 
 def _scapy_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress benign Scapy datalink-type warnings captured via stderr redirection."""
-    return not (record.name == _STDERR_LOGGER_NAME and any(s in record.getMessage() for s in _SUPPRESSED_SCAPY_SUBSTRINGS))
+    return not (record.name == _STDERR_LOGGER_NAME and any(substring in record.getMessage() for substring in _SUPPRESSED_SCAPY_SUBSTRINGS))
 
 
 def _app_only_filter(record: logging.LogRecord) -> bool:
@@ -103,7 +103,7 @@ def _redact_value(value: object, secrets: tuple[str, ...]) -> object:
         return [_redact_value(item, secrets) for item in cast('Sequence[object]', value)]
     if isinstance(value, dict):
         pairs = cast('Mapping[object, object]', value)
-        return {k: _redact_value(v, secrets) for k, v in pairs.items()}
+        return {key: _redact_value(value, secrets) for key, value in pairs.items()}
     return value
 
 

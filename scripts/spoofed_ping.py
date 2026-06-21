@@ -45,8 +45,8 @@ class CheckPingResponse(BaseModel):
 
         for node_name, node_data in nodes.items():
             if len(node_data) < NODE_INFO_MIN_LENGTH:
-                error_msg = f'Node "{node_name}" must include at least 3 values.'
-                raise ValueError(error_msg)
+                message = f'Node "{node_name}" must include at least 3 values.'
+                raise ValueError(message)
 
         return nodes
 
@@ -54,8 +54,8 @@ class CheckPingResponse(BaseModel):
 def validate_check_result_response(data: object) -> PingCheckResults:
     """Validate and return a check-result response."""
     if not isinstance(data, dict):
-        error_msg = f'Expected dict, got {type(data).__name__}'
-        raise TypeError(error_msg)
+        message = f'Expected dict, got {type(data).__name__}'
+        raise TypeError(message)
 
     for node_name, node_result in cast('dict[str, object]', data).items():
         if node_result is None:
@@ -64,8 +64,8 @@ def validate_check_result_response(data: object) -> PingCheckResults:
         if is_ping_error(node_result) or is_ping_success(node_result):
             continue
 
-        error_msg = f'Unexpected ping result structure for node "{node_name}".'
-        raise ValueError(error_msg)
+        message = f'Unexpected ping result structure for node "{node_name}".'
+        raise ValueError(message)
 
     return cast('PingCheckResults', data)
 
@@ -235,12 +235,12 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             for hop in ping[:PING_HOPS_PER_ATTEMPT]:
                 result = hop[0]
                 if not isinstance(result, str):
-                    error_msg = f'Expected "str", got "{type(result).__name__}"'
-                    raise TypeError(error_msg)
+                    message = f'Expected "str", got "{type(result).__name__}"'
+                    raise TypeError(message)
                 rtt = hop[1]
                 if not isinstance(rtt, (float, int)):
-                    error_msg = f'Expected "(float, int)", got "{type(rtt).__name__}"'
-                    raise TypeError(error_msg)
+                    message = f'Expected "(float, int)", got "{type(rtt).__name__}"'
+                    raise TypeError(message)
 
                 if result == 'OK':
                     successful_pings += 1
@@ -259,8 +259,8 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         """Build a table row for one node and append RTT values to global stats."""
         node_info = all_nodes.get(node)
         if node_info is None or len(node_info) < NODE_INFO_MIN_LENGTH:
-            error_msg = f'Expected node info list with at least 3 items for node "{node}"'
-            raise TypeError(error_msg)
+            message = f'Expected node info list with at least 3 items for node "{node}"'
+            raise TypeError(message)
 
         country = node_info[1]
         city = node_info[2]

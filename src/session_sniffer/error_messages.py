@@ -35,7 +35,7 @@ def format_type_error(
     actual_type = type(obj).__name__
 
     if isinstance(expected_types, tuple):
-        expected_types_names = ' | '.join(t.__name__ for t in expected_types)
+        expected_types_names = ' | '.join(expected_type.__name__ for expected_type in expected_types)
         expected_type_count = len(expected_types)
     else:
         expected_types_names = expected_types.__name__

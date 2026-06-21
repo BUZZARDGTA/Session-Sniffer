@@ -2,13 +2,14 @@
 
 import json
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
+    from datetime import date
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -241,17 +242,17 @@ def build_leaderboard(folder_path: Path, *, limit: int = 1000) -> list[Leaderboa
     # Derive unique-days counts from the collected date sets
     today = now.date()
     current_week = now.isocalendar()[:2]
-    for ip, dates in seen_dates.items():
+    for ip, player_seen_dates in seen_dates.items():
         entry = entries[ip]
-        for d in dates:
+        for seen_date in player_seen_dates:
             entry.days_total += 1
-            if d == today:
+            if seen_date == today:
                 entry.days_today += 1
-            if d.isocalendar()[:2] == current_week:
+            if seen_date.isocalendar()[:2] == current_week:
                 entry.days_week += 1
-            if d.year == now.year and d.month == now.month:
+            if seen_date.year == now.year and seen_date.month == now.month:
                 entry.days_month += 1
-            if d.year == now.year:
+            if seen_date.year == now.year:
                 entry.days_year += 1
 
-    return sorted(entries.values(), key=lambda e: e.sessions_total, reverse=True)[:limit]
+    return sorted(entries.values(), key=lambda entry: entry.sessions_total, reverse=True)[:limit]

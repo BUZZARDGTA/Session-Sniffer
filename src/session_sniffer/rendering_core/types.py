@@ -74,8 +74,8 @@ class SearchState:
     _lock: ClassVar[Lock] = Lock()
     _connected_text: ClassVar[str] = ''
     _disconnected_text: ClassVar[str] = ''
-    _connected_col: ClassVar[int] = -1  # -1 = all columns
-    _disconnected_col: ClassVar[int] = -1
+    _connected_column: ClassVar[int] = -1  # -1 = all columns
+    _disconnected_column: ClassVar[int] = -1
     _version: ClassVar[int] = 0
 
     @classmethod
@@ -83,7 +83,7 @@ class SearchState:
         """Update the connected-table search text and column, then bump the version."""
         with cls._lock:
             cls._connected_text = text
-            cls._connected_col = column
+            cls._connected_column = column
             cls._version += 1
 
     @classmethod
@@ -91,14 +91,14 @@ class SearchState:
         """Update the disconnected-table search text and column, then bump the version."""
         with cls._lock:
             cls._disconnected_text = text
-            cls._disconnected_col = column
+            cls._disconnected_column = column
             cls._version += 1
 
     @classmethod
     def get(cls) -> tuple[str, int, str, int, int]:
-        """Return (connected_text, connected_col, disconnected_text, disconnected_col, version)."""
+        """Return (connected_text, connected_column, disconnected_text, disconnected_column, version)."""
         with cls._lock:
-            return cls._connected_text, cls._connected_col, cls._disconnected_text, cls._disconnected_col, cls._version
+            return cls._connected_text, cls._connected_column, cls._disconnected_text, cls._disconnected_column, cls._version
 
 
 class CaptureState:
@@ -206,10 +206,10 @@ class CellColor(NamedTuple):
 class SessionTableSnapshot(NamedTuple):
     """Immutable snapshot of connected/disconnected table rows + cell colors."""
 
-    connected_num: int
+    connected_count: int
     connected_rows: tuple[tuple[str, ...], ...]
     connected_colors: tuple[tuple[CellColor, ...], ...]
-    disconnected_num: int
+    disconnected_count: int
     disconnected_rows: tuple[tuple[str, ...], ...]
     disconnected_colors: tuple[tuple[CellColor, ...], ...]
 
@@ -226,8 +226,8 @@ class GUIUpdatePayload(NamedTuple):
     status_performance_text: str
     connected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
     disconnected_rows_with_colors: list[tuple[list[str], list[CellColor]]]
-    connected_num: int
-    disconnected_num: int
+    connected_count: int
+    disconnected_count: int
     connected_rows_per_page: int
     disconnected_rows_per_page: int
     connected_page: int
@@ -261,8 +261,8 @@ class GUIStatusTexts:
 class GUITableData:
     """Row/color data for a single session table (connected or disconnected)."""
 
-    num_cols: int
-    num_rows: int
+    column_count: int
+    row_count: int
     rows: tuple[tuple[str, ...], ...]
     colors: tuple[tuple[CellColor, ...], ...]
 
