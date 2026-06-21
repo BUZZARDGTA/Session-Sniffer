@@ -270,6 +270,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Steam',
         'The Division 2',
         'theHunter: Call of the Wild',
+        'theHunter Classic',
         'UNO',
     ]
 
@@ -440,7 +441,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'theHunter: Call of the Wild': {
             'AMAZON',
+            'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'theHunter Classic': {
+            'AMAZON',
+            'GOOGLE_LLC',
         },
         'UNO': {
             'AMAZON',
