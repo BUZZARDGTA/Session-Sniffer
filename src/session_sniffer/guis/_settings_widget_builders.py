@@ -269,6 +269,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'RustDesk',
         'Steam',
         'The Division 2',
+        'theHunter: Call of the Wild',
         'UNO',
     ]
 
@@ -436,6 +437,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'The Division 2': {
             'CLOUDFLARE',
             'MICROSOFT',
+        },
+        'theHunter: Call of the Wild': {
+            'AMAZON',
+            'US_DEPARTMENT_OF_DEFENSE',
         },
         'UNO': {
             'AMAZON',
