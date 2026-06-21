@@ -73,6 +73,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 | Tom Clancy's Ghost Recon® Wildlands     | PC                                            |                                                                                                                                                                                   |
 | MONOPOLY 2024                           | PC                                            | Only the host is connected trough P2P                                                                                                                                             |
 | GSClient                                | PC                                            |                                                                                                                                                                                   |
+| UNO                                     | PC                                            |                                                                                                                                                                                   |
 
 ---
 

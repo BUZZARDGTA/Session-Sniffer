@@ -268,6 +268,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'RustDesk',
         'Steam',
         'The Division 2',
+        'UNO',
     ]
 
     preset_checkboxes: dict[str, QCheckBox] = {}
@@ -431,6 +432,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'The Division 2': {
             'CLOUDFLARE',
             'MICROSOFT',
+        },
+        'UNO': {
+            'AMAZON',
+            'I3D_NET',
+            'MICROSOFT',
+            'US_DEPARTMENT_OF_DEFENSE',
         },
     }
 

@@ -257,7 +257,7 @@ def extract_ranges(file_path: str) -> list[tuple[str, str, int]]:
             arg_a, arg_b = node.args
             if isinstance(arg_a, ast.Constant) and isinstance(arg_a.value, str) and isinstance(arg_b, ast.Constant) and isinstance(arg_b.value, str):
                 extracted_ranges.append((arg_a.value, arg_b.value, node.lineno))
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'create_ranges' and len(node.args) >= EXPECTED_ARGS_COUNT:
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'create_named_ranges' and len(node.args) >= EXPECTED_ARGS_COUNT:
             owner_node = node.args[0]
             if isinstance(owner_node, ast.Constant) and isinstance(owner_node.value, str):
                 owner = owner_node.value
