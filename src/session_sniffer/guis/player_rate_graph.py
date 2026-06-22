@@ -273,16 +273,14 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     def _advance_buffers(self, pps: int, bps: int) -> tuple[np.ndarray, np.ndarray, int]:
         """Advance the dual sliding window; return `(pps_data, bps_data, n)`."""
         kbps = bps / self._BYTES_TO_KBS
-        buffer_len = self._buffer_len
 
-        if buffer_len < self._max_history:
+        if self._buffer_len < self._max_history:
             # Growth phase: append to end, rebuild x-cache only when length changes
-            self._pps_buffer[buffer_len] = pps
-            self._bps_buffer[buffer_len] = kbps
+            self._pps_buffer[self._buffer_len] = pps
+            self._bps_buffer[self._buffer_len] = kbps
             self._pps_running_sum += pps
             self._bps_running_sum += kbps
-            buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(buffer_len, self._x_cache, self._x_cache_len)
-            self._buffer_len = buffer_len
+            self._buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(self._buffer_len, self._x_cache, self._x_cache_len)
         else:
             # Steady state: shift left (C-level memcpy), append at end
             self._pps_running_sum += pps - self._pps_buffer[0]
@@ -292,7 +290,7 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
             self._bps_buffer[:-1] = self._bps_buffer[1:]
             self._bps_buffer[-1] = kbps
 
-        return self._pps_buffer[:buffer_len], self._bps_buffer[:buffer_len], buffer_len
+        return self._pps_buffer[:self._buffer_len], self._bps_buffer[:self._buffer_len], self._buffer_len
 
     def update_rates(self, *, pps: int, bps: int) -> None:
         """Append new PPS and BPS samples and refresh both graphs."""

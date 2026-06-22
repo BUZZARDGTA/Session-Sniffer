@@ -339,16 +339,14 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         kbps = CaptureStats.global_bps_rate / _BYTES_TO_KBS
 
         # Advance the shared sliding window once per tick
-        buffer_len = self._buffer_len
-        if buffer_len < self._max_history:
-            self._latency_buffer[buffer_len] = CaptureStats.global_avg_latency_ms
+        if self._buffer_len < self._max_history:
+            self._latency_buffer[self._buffer_len] = CaptureStats.global_avg_latency_ms
             self._latency_running_sum += CaptureStats.global_avg_latency_ms
-            self._pps_buffer[buffer_len] = CaptureStats.global_pps_rate
+            self._pps_buffer[self._buffer_len] = CaptureStats.global_pps_rate
             self._pps_running_sum += CaptureStats.global_pps_rate
-            self._bps_buffer[buffer_len] = kbps
+            self._bps_buffer[self._buffer_len] = kbps
             self._bps_running_sum += kbps
-            buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(buffer_len, self._x_cache, self._x_cache_len)
-            self._buffer_len = buffer_len
+            self._buffer_len, self._x_cache, self._x_cache_len = grow_x_cache(self._buffer_len, self._x_cache, self._x_cache_len)
         else:
             self._latency_running_sum += CaptureStats.global_avg_latency_ms - self._latency_buffer[0]
             self._latency_buffer[:-1] = self._latency_buffer[1:]
@@ -360,9 +358,9 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._bps_buffer[:-1] = self._bps_buffer[1:]
             self._bps_buffer[-1] = kbps
 
-        latency_data = self._latency_buffer[:buffer_len]
-        pps_data = self._pps_buffer[:buffer_len]
-        bps_data = self._bps_buffer[:buffer_len]
+        latency_data = self._latency_buffer[:self._buffer_len]
+        pps_data = self._pps_buffer[:self._buffer_len]
+        bps_data = self._bps_buffer[:self._buffer_len]
 
         # ── Packets stats ─────────────────────────────────────────────────
         self._ppm_sample_buf.append(CaptureStats.total_packets_captured)
@@ -416,10 +414,10 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._pps_widget.setYRange(0, max(_pps_visible_max * 1.2, _FLOOR_PPS))
             self._bps_widget.setYRange(0, max(_bps_visible_max * 1.2, _FLOOR_KBS))
 
-            if buffer_len:
-                self._latency_avg_line.setPos(self._latency_running_sum / buffer_len)
-                self._pps_avg_line.setPos(self._pps_running_sum / buffer_len)
-                self._bps_avg_line.setPos(self._bps_running_sum / buffer_len)
+            if self._buffer_len:
+                self._latency_avg_line.setPos(self._latency_running_sum / self._buffer_len)
+                self._pps_avg_line.setPos(self._pps_running_sum / self._buffer_len)
+                self._bps_avg_line.setPos(self._bps_running_sum / self._buffer_len)
 
         self._graphs_all_zero = _all_values_zero and _visible_all_zero
 

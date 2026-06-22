@@ -133,27 +133,19 @@ def build_session_table_snapshot(
     context: SessionTableRenderContext,
 ) -> SessionTableSnapshot:
     """Build connected and disconnected table rows plus compiled colors."""
-    session_connected = context.session_connected
-    session_disconnected = context.session_disconnected
-    connected_shown_columns = context.connected_shown_columns
-    disconnected_shown_columns = context.disconnected_shown_columns
-    connected_num_columns = context.connected_num_columns
-    disconnected_num_columns = context.disconnected_num_columns
-    connected_column_mapping = context.connected_column_mapping
-
     session_connected_table__processed_data: list[list[str]] = []
     session_connected_table__compiled_colors: list[list[CellColor]] = []
     session_disconnected_table__processed_data: list[list[str]] = []
     session_disconnected_table__compiled_colors: list[list[CellColor]] = []
 
     _base_connected_cell = CellColor(foreground=_CONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
-    _base_connected_row_colors = [_base_connected_cell] * connected_num_columns
+    _base_connected_row_colors = [_base_connected_cell] * context.connected_num_columns
 
-    for player in session_connected:
+    for player in context.session_connected:
         if player.userip and player.userip.usernames:
             row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
-            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * connected_num_columns
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * context.connected_num_columns
         else:
             row_fg_color = _CONNECTED_TEXT_COLOR
             row_colors = _base_connected_row_colors.copy()
@@ -162,37 +154,37 @@ def build_session_table_snapshot(
         connected_row_texts.append(format_player_usernames(player))
         connected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
         connected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
-        if 'T. Session Time' in connected_shown_columns:
+        if 'T. Session Time' in context.connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-        if 'Session Time' in connected_shown_columns:
+        if 'Session Time' in context.connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
         connected_row_texts.append(f'{player.rejoins}')
-        if 'T. Packets' in connected_shown_columns:
+        if 'T. Packets' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_exchanged}')
-        if 'Packets' in connected_shown_columns:
+        if 'Packets' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.exchanged}')
-        if 'T. Packets Received' in connected_shown_columns:
+        if 'T. Packets Received' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_received}')
-        if 'Packets Received' in connected_shown_columns:
+        if 'Packets Received' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.received}')
-        if 'T. Packets Sent' in connected_shown_columns:
+        if 'T. Packets Sent' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_sent}')
-        if 'Packets Sent' in connected_shown_columns:
+        if 'Packets Sent' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.sent}')
-        if 'T. Min Packet Length' in connected_shown_columns:
+        if 'T. Min Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_min_len}')
-        if 'Min Packet Length' in connected_shown_columns:
+        if 'Min Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.min_len}')
-        if 'T. Avg Packet Length' in connected_shown_columns:
+        if 'T. Avg Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_avg_len:.1f}')
-        if 'Avg Packet Length' in connected_shown_columns:
+        if 'Avg Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.avg_len:.1f}')
-        if 'T. Max Packet Length' in connected_shown_columns:
+        if 'T. Max Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.total_max_len}')
-        if 'Max Packet Length' in connected_shown_columns:
+        if 'Max Packet Length' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.packets.max_len}')
-        if 'PPS' in connected_shown_columns:
-            row_colors[connected_column_mapping['PPS']] = row_colors[connected_column_mapping['PPS']]._replace(
+        if 'PPS' in context.connected_shown_columns:
+            row_colors[context.connected_column_mapping['PPS']] = row_colors[context.connected_column_mapping['PPS']]._replace(
                 foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.packets.pps.calculated_rate,
@@ -201,8 +193,8 @@ def build_session_table_snapshot(
                 ),
             )
             connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
-        if 'PPM' in connected_shown_columns:
-            row_colors[connected_column_mapping['PPM']] = row_colors[connected_column_mapping['PPM']]._replace(
+        if 'PPM' in context.connected_shown_columns:
+            row_colors[context.connected_column_mapping['PPM']] = row_colors[context.connected_column_mapping['PPM']]._replace(
                 foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.packets.ppm.calculated_rate,
@@ -211,20 +203,20 @@ def build_session_table_snapshot(
                 ),
             )
             connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
-        if 'T. Bandwidth' in connected_shown_columns:
+        if 'T. Bandwidth' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwidth' in connected_shown_columns:
+        if 'Bandwidth' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-        if 'T. Download' in connected_shown_columns:
+        if 'T. Download' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-        if 'Download' in connected_shown_columns:
+        if 'Download' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-        if 'T. Upload' in connected_shown_columns:
+        if 'T. Upload' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-        if 'Upload' in connected_shown_columns:
+        if 'Upload' in context.connected_shown_columns:
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
-        if 'BPS' in connected_shown_columns:
-            row_colors[connected_column_mapping['BPS']] = row_colors[connected_column_mapping['BPS']]._replace(
+        if 'BPS' in context.connected_shown_columns:
+            row_colors[context.connected_column_mapping['BPS']] = row_colors[context.connected_column_mapping['BPS']]._replace(
                 foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.bandwidth.bps.calculated_rate,
@@ -233,8 +225,8 @@ def build_session_table_snapshot(
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
-        if 'BPM' in connected_shown_columns:
-            row_colors[connected_column_mapping['BPM']] = row_colors[connected_column_mapping['BPM']]._replace(
+        if 'BPM' in context.connected_shown_columns:
+            row_colors[context.connected_column_mapping['BPM']] = row_colors[context.connected_column_mapping['BPM']]._replace(
                 foreground=_get_rate_gradient_color(
                     row_fg_color,
                     player.bandwidth.bpm.calculated_rate,
@@ -244,20 +236,20 @@ def build_session_table_snapshot(
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))
         connected_row_texts.append(format_player_ip(player.ip))
-        if 'Hostname' in connected_shown_columns:
+        if 'Hostname' in context.connected_shown_columns:
             connected_row_texts.append(player.reverse_dns.hostname)
-        if 'Last Port' in connected_shown_columns:
+        if 'Last Port' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.ports.last}')
-        if 'Middle Ports' in connected_shown_columns:
+        if 'Middle Ports' in context.connected_shown_columns:
             connected_row_texts.append(format_player_middle_ports(player))
-        if 'First Port' in connected_shown_columns:
+        if 'First Port' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.ports.first}')
-        if 'Continent' in connected_shown_columns:
+        if 'Continent' in context.connected_shown_columns:
             if Settings.gui_columns_geo_continent_append_alpha2:
                 connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
             else:
                 connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-        if 'Country' in connected_shown_columns:
+        if 'Country' in context.connected_shown_columns:
             if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
                 _country_name = player.iplookup.geolite2.country
                 _country_code = player.iplookup.geolite2.country_code
@@ -268,56 +260,56 @@ def build_session_table_snapshot(
                 connected_row_texts.append(f'{_country_name} ({_country_code})')
             else:
                 connected_row_texts.append(_country_name)
-        if 'Region' in connected_shown_columns:
+        if 'Region' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region}')
-        if 'R. Code' in connected_shown_columns:
+        if 'R. Code' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-        if 'City' in connected_shown_columns:
+        if 'City' in context.connected_shown_columns:
             connected_row_texts.append(player.iplookup.geolite2.city)
-        if 'District' in connected_shown_columns:
+        if 'District' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.district}')
-        if 'ZIP Code' in connected_shown_columns:
+        if 'ZIP Code' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-        if 'Lat' in connected_shown_columns:
+        if 'Lat' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-        if 'Lon' in connected_shown_columns:
+        if 'Lon' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-        if 'Time Zone' in connected_shown_columns:
+        if 'Time Zone' in context.connected_shown_columns:
             connected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
-        if 'Offset' in connected_shown_columns:
+        if 'Offset' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-        if 'Currency' in connected_shown_columns:
+        if 'Currency' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-        if 'Organization' in connected_shown_columns:
+        if 'Organization' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.org}')
-        if 'ISP' in connected_shown_columns:
+        if 'ISP' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-        if 'ASN / ISP' in connected_shown_columns:
+        if 'ASN / ISP' in context.connected_shown_columns:
             connected_row_texts.append(player.iplookup.geolite2.asn)
-        if 'AS' in connected_shown_columns:
+        if 'AS' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-        if 'ASN' in connected_shown_columns:
+        if 'ASN' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-        if 'Mobile' in connected_shown_columns:
+        if 'Mobile' in context.connected_shown_columns:
             connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
-        if 'VPN' in connected_shown_columns:
+        if 'VPN' in context.connected_shown_columns:
             connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
-        if 'Hosting' in connected_shown_columns:
+        if 'Hosting' in context.connected_shown_columns:
             connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
-        if 'Pinging' in connected_shown_columns:
+        if 'Pinging' in context.connected_shown_columns:
             connected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
 
         session_connected_table__processed_data.append(connected_row_texts)
         session_connected_table__compiled_colors.append(row_colors)
 
     _base_disconnected_cell = CellColor(foreground=_DISCONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
-    _base_disconnected_row_colors = [_base_disconnected_cell] * disconnected_num_columns
+    _base_disconnected_row_colors = [_base_disconnected_cell] * context.disconnected_num_columns
 
-    for player in session_disconnected:
+    for player in context.session_disconnected:
         if player.userip and player.userip.usernames:
             row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_bg_color = player.userip.settings.color
-            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * disconnected_num_columns
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * context.disconnected_num_columns
         else:
             row_fg_color = _DISCONNECTED_TEXT_COLOR
             row_colors = _base_disconnected_row_colors.copy()
@@ -327,62 +319,62 @@ def build_session_table_snapshot(
         disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
         disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
         disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_seen))
-        if 'T. Session Time' in disconnected_shown_columns:
+        if 'T. Session Time' in context.disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
-        if 'Session Time' in disconnected_shown_columns:
+        if 'Session Time' in context.disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_session_time()))
         disconnected_row_texts.append(f'{player.rejoins}')
-        if 'T. Packets' in disconnected_shown_columns:
+        if 'T. Packets' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_exchanged}')
-        if 'Packets' in disconnected_shown_columns:
+        if 'Packets' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.exchanged}')
-        if 'T. Packets Received' in disconnected_shown_columns:
+        if 'T. Packets Received' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_received}')
-        if 'Packets Received' in disconnected_shown_columns:
+        if 'Packets Received' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.received}')
-        if 'T. Packets Sent' in disconnected_shown_columns:
+        if 'T. Packets Sent' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_sent}')
-        if 'Packets Sent' in disconnected_shown_columns:
+        if 'Packets Sent' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.sent}')
-        if 'T. Min Packet Length' in disconnected_shown_columns:
+        if 'T. Min Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_min_len}')
-        if 'Min Packet Length' in disconnected_shown_columns:
+        if 'Min Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.min_len}')
-        if 'T. Avg Packet Length' in disconnected_shown_columns:
+        if 'T. Avg Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_avg_len:.1f}')
-        if 'Avg Packet Length' in disconnected_shown_columns:
+        if 'Avg Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.avg_len:.1f}')
-        if 'T. Max Packet Length' in disconnected_shown_columns:
+        if 'T. Max Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.total_max_len}')
-        if 'Max Packet Length' in disconnected_shown_columns:
+        if 'Max Packet Length' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.packets.max_len}')
-        if 'T. Bandwidth' in disconnected_shown_columns:
+        if 'T. Bandwidth' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged))
-        if 'Bandwidth' in disconnected_shown_columns:
+        if 'Bandwidth' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.exchanged))
-        if 'T. Download' in disconnected_shown_columns:
+        if 'T. Download' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_download))
-        if 'Download' in disconnected_shown_columns:
+        if 'Download' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.download))
-        if 'T. Upload' in disconnected_shown_columns:
+        if 'T. Upload' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.total_upload))
-        if 'Upload' in disconnected_shown_columns:
+        if 'Upload' in context.disconnected_shown_columns:
             disconnected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.upload))
         disconnected_row_texts.append(format_player_ip(player.ip))
-        if 'Hostname' in disconnected_shown_columns:
+        if 'Hostname' in context.disconnected_shown_columns:
             disconnected_row_texts.append(player.reverse_dns.hostname)
-        if 'Last Port' in disconnected_shown_columns:
+        if 'Last Port' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.last}')
-        if 'Middle Ports' in disconnected_shown_columns:
+        if 'Middle Ports' in context.disconnected_shown_columns:
             disconnected_row_texts.append(format_player_middle_ports(player))
-        if 'First Port' in disconnected_shown_columns:
+        if 'First Port' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.first}')
-        if 'Continent' in disconnected_shown_columns:
+        if 'Continent' in context.disconnected_shown_columns:
             if Settings.gui_columns_geo_continent_append_alpha2:
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
             else:
                 disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
-        if 'Country' in disconnected_shown_columns:
+        if 'Country' in context.disconnected_shown_columns:
             if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
                 _country_name = player.iplookup.geolite2.country
                 _country_code = player.iplookup.geolite2.country_code
@@ -393,43 +385,43 @@ def build_session_table_snapshot(
                 disconnected_row_texts.append(f'{_country_name} ({_country_code})')
             else:
                 disconnected_row_texts.append(_country_name)
-        if 'Region' in disconnected_shown_columns:
+        if 'Region' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
-        if 'R. Code' in disconnected_shown_columns:
+        if 'R. Code' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
-        if 'City' in disconnected_shown_columns:
+        if 'City' in context.disconnected_shown_columns:
             disconnected_row_texts.append(player.iplookup.geolite2.city)
-        if 'District' in disconnected_shown_columns:
+        if 'District' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
-        if 'ZIP Code' in disconnected_shown_columns:
+        if 'ZIP Code' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.zip_code}')
-        if 'Lat' in disconnected_shown_columns:
+        if 'Lat' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lat}')
-        if 'Lon' in disconnected_shown_columns:
+        if 'Lon' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
-        if 'Time Zone' in disconnected_shown_columns:
+        if 'Time Zone' in context.disconnected_shown_columns:
             disconnected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
-        if 'Offset' in disconnected_shown_columns:
+        if 'Offset' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
-        if 'Currency' in disconnected_shown_columns:
+        if 'Currency' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.currency}')
-        if 'Organization' in disconnected_shown_columns:
+        if 'Organization' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.org}')
-        if 'ISP' in disconnected_shown_columns:
+        if 'ISP' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.isp}')
-        if 'ASN / ISP' in disconnected_shown_columns:
+        if 'ASN / ISP' in context.disconnected_shown_columns:
             disconnected_row_texts.append(player.iplookup.geolite2.asn)
-        if 'AS' in disconnected_shown_columns:
+        if 'AS' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.asn}')
-        if 'ASN' in disconnected_shown_columns:
+        if 'ASN' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
-        if 'Mobile' in disconnected_shown_columns:
+        if 'Mobile' in context.disconnected_shown_columns:
             disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
-        if 'VPN' in disconnected_shown_columns:
+        if 'VPN' in context.disconnected_shown_columns:
             disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
-        if 'Hosting' in disconnected_shown_columns:
+        if 'Hosting' in context.disconnected_shown_columns:
             disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
-        if 'Pinging' in disconnected_shown_columns:
+        if 'Pinging' in context.disconnected_shown_columns:
             disconnected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
 
         session_disconnected_table__processed_data.append(disconnected_row_texts)
