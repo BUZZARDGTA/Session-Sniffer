@@ -662,9 +662,10 @@ class IPRangeBuilderDialog(QDialog):
                 parts = initial_entry.split('/', 1)
                 base_ip = parts[0]
                 try:
-                    prefix = int(parts[1])
+                    cidr_prefix = int(parts[1])
+
                     slider_index = next(
-                        (i for i, (prefix_val, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_val == prefix),
+                        (i for i, (prefix_length, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_length == cidr_prefix),
                         _SUBNET_DEFAULT_SLIDER_INDEX,
                     )
                 except ValueError:
