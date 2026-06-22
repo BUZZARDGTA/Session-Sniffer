@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import geoip2.database
+import geoip2.errors
 import requests
 from rich import box
 from rich.columns import Columns
@@ -188,14 +190,10 @@ class GeoLite2Client:
 
     def __init__(self, db_path: Path) -> None:
         """Initialize the GeoLite2Client database reader."""
-        import geoip2.database  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-
         self.reader = geoip2.database.Reader(db_path)
 
     def post_batch(self, payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Look up IP details from local GeoLite2 ASN database."""
-        import geoip2.errors  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-
         results: list[dict[str, Any]] = []
         for item in payload:
             ip = item['query']
@@ -458,8 +456,6 @@ def scan_network_geolite2(
     network: ipaddress.IPv4Network,
 ) -> tuple[list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]], list[ipaddress.IPv4Network]]:
     """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches and matching subnets."""
-    import geoip2.errors  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-
     current_ip = network.network_address
     end_ip = network.broadcast_address
 

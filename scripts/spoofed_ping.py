@@ -265,19 +265,19 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         country = node_info[1]
         city = node_info[2]
 
-        message: str | None = None
+        status_message: str | None = None
         successful_pings = 0
         this_rtt_values: list[float | int] = []
 
         if pings is None:
-            message = 'Inactivity timeout'
+            status_message = 'Inactivity timeout'
         elif is_ping_error(pings):
             error_data = pings[1]
-            message = error_data.get('message', 'Unknown error') if isinstance(error_data, dict) else 'Unknown error'
+            status_message = error_data.get('message', 'Unknown error') if isinstance(error_data, dict) else 'Unknown error'
         elif is_ping_success(pings):
             successful_pings, this_rtt_values = parse_successful_pings(pings, append_global_rtt)
         else:
-            message = 'Unexpected response format'
+            status_message = 'Unexpected response format'
 
         rows = [
             country,
@@ -302,9 +302,9 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         else:
             rows.extend(
                 [
-                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
-                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
-                    f'[{Colors.RED}]{message}[/{Colors.RED}]',
+                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
+                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
+                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
                 ],
             )
 

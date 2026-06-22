@@ -186,6 +186,7 @@ class SessionsLogTab(QWidget):
         self._metadata_label = setup_metadata_label(layout)
 
         # --- Bottom buttons ---
+        # pylint: disable=duplicate-code
         button_row = setup_copy_save_button_row(
             layout,
             self._copy_all,
@@ -193,6 +194,7 @@ class SessionsLogTab(QWidget):
             copy_tooltip='Copy all displayed text to clipboard',
             save_tooltip='Save the displayed file to a new location',
         )
+        # pylint: enable=duplicate-code
 
         button_row.addStretch()
 

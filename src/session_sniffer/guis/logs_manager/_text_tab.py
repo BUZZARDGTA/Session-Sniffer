@@ -98,6 +98,7 @@ class TextLogTab(QWidget):
         self._metadata_label = setup_metadata_label(layout)
 
         # --- Bottom buttons ---
+        # pylint: disable=duplicate-code
         button_row = setup_copy_save_button_row(
             layout,
             self._copy_all,
@@ -105,6 +106,7 @@ class TextLogTab(QWidget):
             copy_tooltip='Copy all log text to clipboard',
             save_tooltip='Save the log to a new file',
         )
+        # pylint: enable=duplicate-code
 
         add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
 

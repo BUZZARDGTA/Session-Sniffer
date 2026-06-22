@@ -56,6 +56,73 @@ SESSION_TRACKING_COLUMNS: tuple[str, ...] = ('T. Session Time', 'Session Time', 
 # Timestamp columns that appear in both connected and disconnected rows.
 DATETIME_TRACKING_COLUMNS: tuple[str, ...] = ('First Seen', 'Last Rejoin', 'Last Seen')
 
+# Shared port column names.
+PORT_COLUMNS: tuple[str, ...] = (
+    'Last Port',
+    'Middle Ports',
+    'First Port',
+)
+
+# Shared location column names.
+LOCATION_COLUMNS: tuple[str, ...] = (
+    'Continent',
+    'Country',
+    'Region',
+    'R. Code',
+    'City',
+    'District',
+    'ZIP Code',
+    'Lat',
+    'Lon',
+    'Time Zone',
+    'Offset',
+    'Currency',
+)
+
+# Shared organization column names.
+ORGANIZATION_COLUMNS: tuple[str, ...] = (
+    'Organization',
+    'ISP',
+    'ASN / ISP',
+    'AS',
+    'ASN',
+)
+
+# Shared status column names.
+STATUS_COLUMNS: tuple[str, ...] = (
+    'Mobile',
+    'VPN',
+    'Hosting',
+    'Pinging',
+)
+
+# Bandwidth columns including rates.
+BANDWIDTH_RATE_STAT_COLUMNS: tuple[str, ...] = (*BANDWIDTH_STAT_COLUMNS, 'BPS', 'BPM')
+
+# Columns resized to content size rather than stretched.
+RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
+    {
+        *DATETIME_TRACKING_COLUMNS,
+        *SESSION_TRACKING_COLUMNS,
+        *CONNECTED_RATE_STAT_COLUMNS,
+        *BANDWIDTH_RATE_STAT_COLUMNS,
+        'IP Address',
+        'First Port',
+        'Last Port',
+        'Mobile',
+        'VPN',
+        'Hosting',
+        'Pinging',
+        'R. Code',
+        'ZIP Code',
+        'Lat',
+        'Lon',
+        'Offset',
+        'Currency',
+        'Time Zone',
+    },
+)
+
 # Columns omitted from chooser drop-downs because they are either fixed or not useful to search directly.
 SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset(
     {

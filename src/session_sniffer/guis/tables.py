@@ -13,6 +13,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.standalone import (
+    BANDWIDTH_RATE_STAT_COLUMNS,
+    LOCATION_COLUMNS,
+    PACKET_STAT_COLUMNS,
+    PORT_COLUMNS,
+    RESIZE_TO_CONTENTS_COLUMNS,
+    STATUS_COLUMNS,
+)
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
@@ -38,18 +46,7 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
         '📦 Packets',
         frozenset(
             {
-                'T. Packets',
-                'Packets',
-                'T. Packets Received',
-                'Packets Received',
-                'T. Packets Sent',
-                'Packets Sent',
-                'T. Min Packet Length',
-                'Min Packet Length',
-                'T. Avg Packet Length',
-                'Avg Packet Length',
-                'T. Max Packet Length',
-                'Max Packet Length',
+                *PACKET_STAT_COLUMNS,
                 'PPS',
                 'PPM',
             },
@@ -57,52 +54,21 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ),
     (
         '📶 Bandwidth',
-        frozenset(
-            {
-                'T. Bandwidth',
-                'Bandwidth',
-                'T. Download',
-                'Download',
-                'T. Upload',
-                'Upload',
-                'BPS',
-                'BPM',
-            },
-        ),
+        frozenset(BANDWIDTH_RATE_STAT_COLUMNS),
     ),
     (
         '🌐 Network',
         frozenset(
             {
                 'Hostname',
-                'Last Port',
-                'Middle Ports',
-                'First Port',
-                'Mobile',
-                'VPN',
-                'Hosting',
-                'Pinging',
+                *PORT_COLUMNS,
+                *STATUS_COLUMNS,
             },
         ),
     ),
     (
         '📍 Location',
-        frozenset(
-            {
-                'Continent',
-                'Country',
-                'Region',
-                'R. Code',
-                'City',
-                'District',
-                'ZIP Code',
-                'Lat',
-                'Lon',
-                'Time Zone',
-                'Offset',
-                'Currency',
-            },
-        ),
+        frozenset(LOCATION_COLUMNS),
     ),
     ('🏢 Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
@@ -298,44 +264,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         for column in range(model.columnCount()):
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
 
-            if header_label in {
-                'First Seen',
-                'Last Rejoin',
-                'Last Seen',
-                'T. Session Time',
-                'Session Time',
-                'Rejoins',
-                'T. Packets',
-                'Packets',
-                'T. Packets Received',
-                'Packets Received',
-                'T. Packets Sent',
-                'Packets Sent',
-                'PPS',
-                'PPM',
-                'Bandwidth',
-                'T. Bandwidth',
-                'Download',
-                'T. Download',
-                'Upload',
-                'T. Upload',
-                'BPS',
-                'BPM',
-                'IP Address',
-                'First Port',
-                'Last Port',
-                'Mobile',
-                'VPN',
-                'Hosting',
-                'Pinging',
-                'R. Code',
-                'ZIP Code',
-                'Lat',
-                'Lon',
-                'Offset',
-                'Currency',
-                'Time Zone',
-            }:
+            if header_label in RESIZE_TO_CONTENTS_COLUMNS:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
             else:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)

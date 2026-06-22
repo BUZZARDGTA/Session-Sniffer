@@ -92,8 +92,8 @@ disable = [
     "no-name-in-module",            # TODO (BUZZARDGTA): unsupported in Python 3.14
     "redefined-outer-name",
     "suppressed-message",
-    "too-many-instance-attributes",
     "too-many-branches",
+    "too-many-instance-attributes",
     "too-many-locals",
     "too-many-statements",
     "used-before-assignment",       # TODO (BUZZARDGTA): unsupported in Python 3.14
@@ -105,8 +105,10 @@ good-names = [
     "_atexit_registered",
     "_OPER_STATUS_FLAGS",
     "closeEvent",
+    "columnCount",
     "eventFilter",
     "filterAcceptsRow",
+    "headerData",
     "highlightBlock",
     "horizontalHeader",
     "InterfaceIndex",
@@ -119,16 +121,15 @@ good-names = [
     "mouseMoveEvent",
     "mousePressEvent",
     "mouseReleaseEvent",
-    "columnCount",
-    "headerData",
     "rowCount",
-    "SOCKET_ADDRESS",
-    "SOCKADDR_IN",
     "selectionModel",
     "setModel",
+    "showEvent",
+    "SOCKADDR_IN",
+    "SOCKET_ADDRESS",
     "verticalHeader",
 ]
-method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|verticalHeader)$"
+method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|showEvent|verticalHeader)$"
 
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]

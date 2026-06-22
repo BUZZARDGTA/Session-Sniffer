@@ -19,7 +19,14 @@ from PyQt6.QtWidgets import (
     QTableView,
 )
 
-from session_sniffer.constants.standalone import BANDWIDTH_BASE_COLUMN_ATTRS
+from session_sniffer.constants.standalone import (
+    BANDWIDTH_BASE_COLUMN_ATTRS,
+    BANDWIDTH_RATE_STAT_COLUMNS,
+    LOCATION_COLUMNS,
+    ORGANIZATION_COLUMNS,
+    PACKET_STAT_COLUMNS,
+    STATUS_COLUMNS,
+)
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
 from session_sniffer.player.registry import PlayersRegistry
@@ -353,38 +360,18 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             )
         elif sorted_column_name in {
             'Rejoins',
-            'T. Packets',
-            'Packets',
-            'T. Packets Sent',
-            'Packets Sent',
-            'T. Packets Received',
-            'Packets Received',
+            *PACKET_STAT_COLUMNS,
             'PPS',
             'PPM',
             'Last Port',
             'First Port',
-            'T. Min Packet Length',
-            'Min Packet Length',
-            'T. Avg Packet Length',
-            'Avg Packet Length',
-            'T. Max Packet Length',
-            'Max Packet Length',
         }:
             # Sort by integer/float value of the column value
             combined.sort(
                 key=lambda row: float(row[0][column]),
                 reverse=sort_order_bool,
             )
-        elif sorted_column_name in {
-            'T. Bandwidth',
-            'Bandwidth',
-            'T. Download',
-            'Download',
-            'T. Upload',
-            'Upload',
-            'BPS',
-            'BPM',
-        }:
+        elif sorted_column_name in BANDWIDTH_RATE_STAT_COLUMNS:
             # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
             _bandwidth_attr_map = {
                 **BANDWIDTH_BASE_COLUMN_ATTRS,
@@ -423,24 +410,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             )
         elif sorted_column_name in {
             'Hostname',
-            'Continent',
-            'Country',
-            'Region',
-            'R. Code',
-            'City',
-            'District',
-            'ZIP Code',
-            'Time Zone',
-            'Currency',
-            'Organization',
-            'ISP',
-            'ASN / ISP',
-            'AS',
-            'ASN',
-            'Mobile',
-            'VPN',
-            'Hosting',
-            'Pinging',
+            *LOCATION_COLUMNS,
+            *ORGANIZATION_COLUMNS,
+            *STATUS_COLUMNS,
         }:
             # Sort by string representation of the column value
             combined.sort(
