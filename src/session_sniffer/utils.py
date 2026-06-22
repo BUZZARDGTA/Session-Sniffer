@@ -52,11 +52,6 @@ def get_working_directory_to_script_location() -> Path:
     return get_repo_root_from_package_path()
 
 
-def set_working_directory_to_script_location() -> None:
-    """Set the current working directory to the script or executable location."""
-    os.chdir(get_working_directory_to_script_location())
-
-
 def resource_path(relative_path: Path) -> Path:
     """Get absolute path to resource, works for dev and for PyInstaller."""
     base_path = getattr(sys, '_MEIPASS', get_repo_root_from_package_path())

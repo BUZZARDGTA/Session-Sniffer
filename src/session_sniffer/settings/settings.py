@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
 from session_sniffer.constants.standalone import (
-    BANDWIDTH_BASE_COLUMN_ATTRS,
     BANDWIDTH_STAT_COLUMNS,
     CAPTURE_FILTER_BLOCK_SETTINGS,
     CONNECTED_RATE_STAT_COLUMNS,
@@ -168,58 +167,6 @@ class Settings:
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)
 
-    GUI_COLUMNS_MAPPING: ClassVar[dict[str, str]] = {
-        'Usernames': 'usernames',
-        'First Seen': 'datetime.first_seen',
-        'Last Rejoin': 'datetime.last_rejoin',
-        'Last Seen': 'datetime.last_seen',
-        'T. Session Time': 'datetime.total_session_time',
-        'Session Time': 'datetime.session_time',
-        'Rejoins': 'rejoins',
-        'T. Packets': 'total_packets',
-        'Packets': 'packets',
-        'T. Packets Received': 'total_packets_received',
-        'Packets Received': 'packets_received',
-        'T. Packets Sent': 'total_packets_sent',
-        'Packets Sent': 'packets_sent',
-        'T. Min Packet Length': 'packets.total_min_len',
-        'Min Packet Length': 'packets.min_len',
-        'T. Avg Packet Length': 'packets.total_avg_len',
-        'Avg Packet Length': 'packets.avg_len',
-        'T. Max Packet Length': 'packets.total_max_len',
-        'Max Packet Length': 'packets.max_len',
-        'PPS': 'pps.calculated_rate',
-        'PPM': 'ppm.calculated_rate',
-        **BANDWIDTH_BASE_COLUMN_ATTRS,
-        'BPS': 'bps.calculated_rate',
-        'BPM': 'bpm.calculated_rate',
-        'IP Address': 'ip',
-        'Hostname': 'reverse_dns.hostname',
-        'Last Port': 'ports.last',
-        'Middle Ports': 'ports.middle',
-        'First Port': 'ports.first',
-        'Continent': 'iplookup.ipapi.continent',
-        'Country': 'iplookup.geolite2.country',
-        'Region': 'iplookup.ipapi.region',
-        'R. Code': 'iplookup.ipapi.region_code',
-        'City': 'iplookup.geolite2.city',
-        'District': 'iplookup.ipapi.district',
-        'ZIP Code': 'iplookup.ipapi.zip_code',
-        'Lat': 'iplookup.ipapi.lat',
-        'Lon': 'iplookup.ipapi.lon',
-        'Time Zone': 'iplookup.ipapi.time_zone',
-        'Offset': 'iplookup.ipapi.offset',
-        'Currency': 'iplookup.ipapi.currency',
-        'Organization': 'iplookup.ipapi.org',
-        'ISP': 'iplookup.ipapi.isp',
-        'ASN / ISP': 'iplookup.geolite2.asn',
-        'AS': 'iplookup.ipapi.asn',
-        'ASN': 'iplookup.ipapi.as_name',
-        'Mobile': 'iplookup.ipapi.mobile',
-        'VPN': 'iplookup.ipapi.proxy',
-        'Hosting': 'iplookup.ipapi.hosting',
-        'Pinging': 'ping.is_pinging',
-    }
     GUI_FORCED_COLUMNS: ClassVar[tuple[str, ...]] = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
     ALL_THIRD_PARTY_SERVERS: ClassVar[tuple[str, ...]] = ALL_THIRD_PARTY_SERVER_NAMES
     GUI_TOGGLEABLE_CONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
@@ -280,16 +227,6 @@ class Settings:
     def is_gta5_preset(cls) -> bool:
         """Return `True` when the active capture game preset is GTA5."""
         return cls.capture_game_preset == 'GTA5'
-
-    @classmethod
-    def get_settings_length(cls) -> int:
-        """Get the total number of settings."""
-        return len(cls.ALL_SETTINGS)
-
-    @classmethod
-    def has_setting(cls, setting_name: str) -> bool:
-        """Check if a setting exists."""
-        return setting_name in cls._ALL_SETTINGS_SET
 
     @classmethod
     def rebuild_blocked_ip_ranges(cls) -> None:

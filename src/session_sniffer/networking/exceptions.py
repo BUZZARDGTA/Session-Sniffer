@@ -3,11 +3,6 @@
 This module contains custom exception classes for networking operations.
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from session_sniffer.networking.endpoint_ping_manager import PingResult
-
 
 class InvalidMacAddressError(Exception):
     """Exception raised when an invalid MAC address is found."""
@@ -81,15 +76,6 @@ class InvalidFullVendorNameError(InvalidManufEntryFieldError):
     def __init__(self, value: object) -> None:
         """Initialize the exception with the invalid full vendor name."""
         super().__init__('full_vendor_name', value)
-
-
-class InvalidPingResultError(Exception):
-    """Exception raised when the parsed ping result contains invalid or missing data."""
-
-    def __init__(self, ip: str, response_content: str, ping_result: PingResult) -> None:
-        """Initialize the exception with ping result information."""
-        attributes = '\n'.join(f'{attr}={getattr(ping_result, attr)}' for attr in ping_result._fields)
-        super().__init__(f'Invalid ping result for {ip}:\nResponse: {response_content}\n{attributes}')
 
 
 class AllEndpointsExhaustedError(Exception):

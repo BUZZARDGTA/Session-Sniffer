@@ -7,7 +7,6 @@ from ipaddress import AddressValueError, IPv4Address
 from session_sniffer.networking.exceptions import InvalidIPv4AddressError, InvalidMacAddressError
 
 RE_MAC_ADDRESS_PATTERN = re.compile(r'^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$', re.IGNORECASE)
-IPV4_LAST_OCTET_VALUE = 255
 
 
 def is_mac_address(mac_address: str, /, *, raise_exception: bool = False) -> bool:
@@ -64,15 +63,6 @@ def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> b
     if raise_exception:
         raise InvalidIPv4AddressError(ipv4_address)
     return False
-
-
-def is_private_device_ipv4(ip_address: str, /) -> bool:
-    """Return whether the address is a valid IPv4 private address."""
-    try:
-        ipv4 = IPv4Address(ip_address)
-    except AddressValueError:
-        return False
-    return ipv4.is_private
 
 
 def is_valid_private_ipv4(ip_address: str, /) -> bool:

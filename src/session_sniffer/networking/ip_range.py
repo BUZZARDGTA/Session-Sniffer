@@ -143,27 +143,6 @@ def check_ip_against_ranges(ip: str, ranges: list[IPRange]) -> IPRange | None:
     return None
 
 
-def describe_range(ip_range: IPRange) -> str:
-    """Return a human-readable description of an `IPRange` for preview/tooltip use."""
-    if ip_range.start is not None and ip_range.end is not None and ip_range.network is None:
-        count = int(ip_range.end) - int(ip_range.start) + 1
-        return f'Range: {ip_range.start} - {ip_range.end}  ({count:,} addresses)'
-
-    if ip_range.network is not None:
-        if ip_range.network.prefixlen == _IPV4_SINGLE_HOST_PREFIX:
-            return f'Single host: {ip_range.network.network_address}'
-        host_count = ip_range.network.num_addresses
-        usable = max(0, host_count - 2) if ip_range.network.prefixlen < _IPV4_MIN_USABLE_PREFIX and ip_range.network.version == _IPV4_VERSION else host_count
-        return (
-            f'Network: {ip_range.network.network_address}/{ip_range.network.prefixlen}\n'
-            f'Range: {ip_range.network.network_address} - {ip_range.network.broadcast_address}\n'
-            f'Addresses: {host_count:,} total, {usable:,} usable\n'
-            f'Netmask: {ip_range.network.netmask}'
-        )
-
-    return ip_range.raw
-
-
 def is_valid_ip_range_entry(entry: str) -> bool:
     """Return whether the entry string is a valid IP range (any supported format)."""
     try:

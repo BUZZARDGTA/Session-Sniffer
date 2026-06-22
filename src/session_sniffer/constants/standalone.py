@@ -17,8 +17,7 @@ GITHUB_LICENSE_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/blob/ma
 GITHUB_WIKI_SCRIPT_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration'
 GITHUB_WIKI_USERIP_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration'
 
-# Shared bandwidth column → attribute-path mapping (first 6 entries identical in both
-# table_model sort map and Settings.GUI_COLUMNS_MAPPING; BPS/BPM paths differ per usage).
+# Shared bandwidth column → attribute-path mapping used in the table_model sort map.
 BANDWIDTH_BASE_COLUMN_ATTRS: dict[str, str] = {
     'T. Bandwidth': 'bandwidth.total_exchanged',
     'Bandwidth': 'bandwidth.exchanged',

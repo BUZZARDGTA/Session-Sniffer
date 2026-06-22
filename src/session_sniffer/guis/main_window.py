@@ -35,7 +35,6 @@ from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
-from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
 
@@ -932,9 +931,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if connected_ips:
             for ip in connected_ips:
                 GTASuspendManager.release_reasons_for_ip(ip)
-            MobileWarnings.remove_notified_ips_batch(connected_ips)
-            VPNWarnings.remove_notified_ips_batch(connected_ips)
-            HostingWarnings.remove_notified_ips_batch(connected_ips)
 
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
@@ -949,6 +945,3 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if disconnected_ips:
             for ip in disconnected_ips:
                 GTASuspendManager.release_reasons_for_ip(ip)
-            MobileWarnings.remove_notified_ips_batch(disconnected_ips)
-            VPNWarnings.remove_notified_ips_batch(disconnected_ips)
-            HostingWarnings.remove_notified_ips_batch(disconnected_ips)

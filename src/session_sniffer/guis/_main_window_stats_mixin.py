@@ -18,7 +18,6 @@ from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
-from session_sniffer.player.warnings import HostingWarnings, MobileWarnings, VPNWarnings
 from session_sniffer.rendering_core.types import CaptureStats
 from session_sniffer.settings import Settings
 
@@ -331,9 +330,6 @@ class StatsMixin(QMainWindow):
         self._connected.table_model.remove_player_by_ip(ip)
 
         GTASuspendManager.release_reasons_for_ip(ip)
-        MobileWarnings.remove_notified_ip(ip)
-        VPNWarnings.remove_notified_ip(ip)
-        HostingWarnings.remove_notified_ip(ip)
 
     def remove_player_from_disconnected(self, ip: str) -> None:
         """Remove a single player from disconnected table and registry by IP address."""
@@ -344,6 +340,3 @@ class StatsMixin(QMainWindow):
         self._disconnected.table_model.remove_player_by_ip(ip)
 
         GTASuspendManager.release_reasons_for_ip(ip)
-        MobileWarnings.remove_notified_ip(ip)
-        VPNWarnings.remove_notified_ip(ip)
-        HostingWarnings.remove_notified_ip(ip)
