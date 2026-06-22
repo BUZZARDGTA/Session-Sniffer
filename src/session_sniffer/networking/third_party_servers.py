@@ -12,6 +12,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     CLOUDFLARE_RANGES,
     DEMONWARE_RANGES,
     DISCORD_RANGES,
+    EA_RANGES,
     FRIEND_IT_RANGES,
     GOOGLE_LLC_RANGES,
     I3D_NET_RANGES,
@@ -61,6 +62,7 @@ class ThirdPartyServers(enum.Enum):
     CLOUDFLARE = 'Cloudflare', CLOUDFLARE_RANGES
     DEMONWARE = 'Demonware Limited', DEMONWARE_RANGES
     DISCORD = 'Discord', DISCORD_RANGES
+    EA = 'Electronic Arts, Inc.', EA_RANGES
     FRIEND_IT = 'FRIEND IT Ltd', FRIEND_IT_RANGES
     GOOGLE_LLC = 'Google LLC', GOOGLE_LLC_RANGES
     I3D_NET = 'i3D.net B.V', I3D_NET_RANGES

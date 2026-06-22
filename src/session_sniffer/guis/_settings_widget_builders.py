@@ -263,6 +263,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'GTA V PlayStation',
         'GTA V Xbox One',
         'Minecraft Bedrock',
+        'Need for Speed Most Wanted',
         'NEW MONOPOLY',
         'OmeTV',
         'Red Dead Redemption 2',
@@ -414,6 +415,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'Minecraft Bedrock': {
+            'MICROSOFT',
+        },
+        'Need for Speed Most Wanted': {
+            'EA',
+            'I3D_NET',
             'MICROSOFT',
         },
         'NEW MONOPOLY': {

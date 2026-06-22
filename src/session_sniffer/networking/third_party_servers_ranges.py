@@ -227,6 +227,11 @@ DISCORD_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '66.22.240.0/20',
 )
 
+EA_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Electronic Arts, Inc.',
+    '159.153.48.0/20',
+)
+
 FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'FRIEND IT Ltd',
     '193.169.172.0/23',
@@ -335,6 +340,7 @@ GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 
 I3D_NET_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'i3D.net B.V',
+    '109.200.192.0/19',
     '203.132.16.0/20',
 )
 
