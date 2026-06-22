@@ -97,31 +97,32 @@ class LogLevelHighlighter(QSyntaxHighlighter):
     def __init__(self, document: QTextDocument) -> None:
         super().__init__(document)
 
-        self._formats: list[tuple[str, QTextCharFormat]] = []
+        self._log_level_formats: list[tuple[str, QTextCharFormat]] = []
 
-        format_warning = QTextCharFormat()
-        format_warning.setForeground(QColor('#e5c07b'))
-        self._formats.append(('WARNING', format_warning))
+        warning_format = QTextCharFormat()
+        warning_format.setForeground(QColor('#e5c07b'))
+        self._log_level_formats.append(('WARNING', warning_format))
 
-        format_error = QTextCharFormat()
-        format_error.setForeground(QColor('#e06c75'))
-        format_error.setFontWeight(QFont.Weight.Bold)
-        self._formats.append(('ERROR', format_error))
+        error_format = QTextCharFormat()
+        error_format.setForeground(QColor('#e06c75'))
+        error_format.setFontWeight(QFont.Weight.Bold)
+        self._log_level_formats.append(('ERROR', error_format))
 
-        format_critical = QTextCharFormat()
-        format_critical.setForeground(QColor('#ff6b6b'))
-        format_critical.setFontWeight(QFont.Weight.Bold)
-        format_critical.setBackground(QColor(80, 20, 20))
-        self._formats.append(('CRITICAL', format_critical))
+        critical_format = QTextCharFormat()
+        critical_format.setForeground(QColor('#ff6b6b'))
+        critical_format.setFontWeight(QFont.Weight.Bold)
+        critical_format.setBackground(QColor(80, 20, 20))
+        self._log_level_formats.append(('CRITICAL', critical_format))
 
     @override
     def highlightBlock(self, text: str | None) -> None:
         """Apply log-level coloring to a single text block."""
         if text is None:
             return
-        for keyword, character_format in self._formats:
+
+        for keyword, text_format in self._log_level_formats:
             if keyword in text:
-                self.setFormat(0, len(text), character_format)
+                self.setFormat(0, len(text), text_format)
                 return
 
 
