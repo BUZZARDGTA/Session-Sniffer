@@ -384,11 +384,13 @@ def owner_matches(expected: str, data: dict[str, Any]) -> bool:
         if normalize(alias) in actual:
             return True
 
-    words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+    words = {word.strip('.,/') for word in normalize(expected).split()}
+    words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
     words -= GENERIC_WORDS
     if not words:
         # Fallback to original words if everything was generic
-        words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+        words = {word.strip('.,/') for word in normalize(expected).split()}
+        words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
 
     return any(word in actual for word in words)
 
@@ -520,7 +522,7 @@ def suggest_fix(
     network: ipaddress.IPv4Network,
     results: dict[str, dict[str, Any]],
     status: Status,
-) -> RenderableType | None:
+) -> tuple[RenderableType | None, str]:
     """Binary-search /24 boundaries and suggest replacement CIDRs for a mismatched range."""
     base_samples = sample_ips(network)
     if isinstance(client, GeoLite2Client):
@@ -540,12 +542,14 @@ def suggest_fix(
 
             table.add_section()
             table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
-            return table
-        return Text(f'[FIX SUGGESTION] No matching blocks found — consider removing {network.with_prefixlen}', style='red')
+            raw_text = f'Replace with: {", ".join(f"{net.with_prefixlen}" for net in matching_networks)}'
+            return table, raw_text
+        raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
+        return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
     if network.prefixlen > 24:  # noqa: PLR2004
         status.update(f'[yellow]Range /{network.prefixlen} is smaller than /24 — skipping auto-fix[/yellow]')
-        return None
+        return None, f'Range /{network.prefixlen} is smaller than /24 — skipping auto-fix'
 
     start_block = int(network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(network.broadcast_address) // SUBNET_BLOCK_SIZE
@@ -630,8 +634,10 @@ def suggest_fix(
 
         table.add_section()
         table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
-        return table
-    return Text(f'[FIX SUGGESTION] No matching blocks found — consider removing {network.with_prefixlen}', style='red')
+        raw_text = f'Replace with: {", ".join(f"{net.with_prefixlen}" for net in good_networks)}'
+        return table, raw_text
+    raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
+    return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
 
 def _search_expansion_boundary(
@@ -710,7 +716,7 @@ def suggest_expansion(
     context: RangeContext,
     expandable_ip_addresses: list[str],
     status: Status,
-) -> RenderableType | None:
+) -> tuple[RenderableType | None, str]:
     """Binary-search outward from expandable adjacent blocks to find the full owner boundary."""
     start_block = int(context.network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(context.network.broadcast_address) // SUBNET_BLOCK_SIZE
@@ -775,7 +781,8 @@ def suggest_expansion(
 
     table.add_section()
     table.add_row('[bold]Total[/bold]', f'[bold]{total_first} - {total_last} ({total_ip_addresses:,} IPs)[/bold]')
-    return table
+    raw_text = f'Expand to: {", ".join(f"{net.with_prefixlen}" for net in expanded_networks)}'
+    return table, raw_text
 
 
 def check_expansion(client: RateLimitClient | GeoLite2Client, owner: str, cidr_range: str) -> None:
@@ -855,6 +862,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     only_detections: bool = False,
     current_index: int = 0,
     total_count: int = 0,
+    detections: list[str] | None = None,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
     file_path, line_number = location or ('', None)
@@ -893,6 +901,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         # Base Check
         has_mismatches = False
         mismatch_lines: list[str] = []
+        mismatches_raw: list[str] = []
 
         if isinstance(client, GeoLite2Client):
             # Thorough 100% offline GeoLite2 validation using tree-jumping
@@ -903,8 +912,10 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                 for start_ip, end_ip, actual_owner in mismatches:
                     if start_ip == end_ip:
                         mismatch_lines.append(f'[red]✗[/red] [magenta]{start_ip}[/magenta] → {actual_owner}')
+                        mismatches_raw.append(f'✗ {cidr_range} ({start_ip}) → {actual_owner}')
                     else:
                         mismatch_lines.append(f'[red]✗[/red] [magenta]{start_ip} - {end_ip}[/magenta] → {actual_owner}')
+                        mismatches_raw.append(f'✗ {cidr_range} ({start_ip} - {end_ip}) → {actual_owner}')
         else:
             # Random 20-IP rate-limited online validation (IP-API)
             for ip in base_samples:
@@ -915,6 +926,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
                 if not owner_matches(owner, lookup_result):
                     mismatch_lines.append(f'[red]✗[/red] [magenta]{ip}[/magenta] → {lookup_result.get("isp")} / {lookup_result.get("org")}')
+                    mismatches_raw.append(f'✗ {cidr_range} ({ip}) → {lookup_result.get("isp")} / {lookup_result.get("org")}')
                     is_valid = False
                     has_mismatches = True
 
@@ -1037,21 +1049,31 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     renderables.append(details_table)
 
     # If we have auto-fix / expand tables, we append them so they show inside the master panel
+    fix_raw = ''
     if has_mismatches:
         renderables.append(Text(''))
         renderables.append(Rule('[bold white]Fix Suggestion[/bold white]'))
         renderables.append(Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED))
-        fix_renderable = suggest_fix(client, owner, network, results, status)
+        fix_renderable, fix_raw = suggest_fix(client, owner, network, results, status)
         if fix_renderable:
             renderables.append(fix_renderable)
 
+    expansion_raw = ''
     if expansion_found:
         context = RangeContext(network, owner_networks)
-        expansion_renderable = suggest_expansion(client, owner, context, expandable_ip_addresses, status)
+        expansion_renderable, expansion_raw = suggest_expansion(client, owner, context, expandable_ip_addresses, status)
         if expansion_renderable:
             renderables.append(Text(''))
             renderables.append(Rule('[bold white]Expansion Available[/bold white]'))
             renderables.append(expansion_renderable)
+
+    # Populate detections list for export
+    clean_relative_path = os.path.relpath(file_path).replace('\\', '/') if file_path else ''
+    if has_mismatches and detections is not None:
+        for mismatch in mismatches_raw:
+            detections.append(f'{clean_relative_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}')
+    if expansion_found and detections is not None:
+        detections.append(f'{clean_relative_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
     # Print the master panel
     if not only_detections or not is_valid or expansion_found:
@@ -1078,7 +1100,6 @@ def run_preflight_checks(
     networks_by_owner: dict[str, list[ipaddress.IPv4Network]],
     *,
     ranges_file: str = '',
-    only_detections: bool = False,
 ) -> None:
     """Run all pre-flight checks and display them in a neat panel."""
     table = Table(show_header=False, expand=True, box=None, padding=(0, 2))
@@ -1101,6 +1122,8 @@ def run_preflight_checks(
     for i, (owner_1, network_1) in enumerate(all_networks):
         for j, (owner_2, network_2) in enumerate(all_networks):
             if i != j and network_1.subnet_of(network_2):
+                if 'BattlEye' in (owner_1, owner_2):
+                    continue
                 overlaps.append(f'[dim]• {network_1} ({owner_1}) falls within {network_2} ({owner_2})[/dim]')
     if overlaps:
         table.add_row('Overlapping CIDRs', f'[yellow]⚠ {len(overlaps)} overlaps detected![/yellow]\n' + '\n'.join(overlaps))
@@ -1131,9 +1154,6 @@ def run_preflight_checks(
     else:
         table.add_row('Collapsible CIDRs', '[green]✓ No collapsible ranges found[/green]')
 
-    if only_detections and not (warnings or overlaps or collapses):
-        return
-
     renderables: list[Any] = [table]
     if collapse_suggestions:
         renderables.append(Text(''))
@@ -1152,6 +1172,13 @@ def run_preflight_checks(
     )
 
 
+def should_skip(owner: str, *, use_geolite2: bool) -> bool:
+    """Return True if range verification should be skipped for this owner."""
+    if owner in {'BattlEye', 'Tellas Greece'}:
+        return True
+    return not use_geolite2 and owner in {'Google LLC', 'Amazon.com, Inc.'}
+
+
 def main() -> None:
     """Main entry point to parse command-line arguments and check ranges."""
     if hasattr(sys.stdout, 'reconfigure'):
@@ -1164,6 +1191,7 @@ def main() -> None:
     parser.add_argument('ranges_file', help='Python file containing NamedRange definitions.')
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
     parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
+    parser.add_argument('--export', help='Export one-line detections to the specified text file.')
 
     parsed_arguments = parser.parse_args(arguments[1:])
 
@@ -1183,7 +1211,6 @@ def main() -> None:
         ranges,
         networks_by_owner,
         ranges_file=str(parsed_arguments.ranges_file),
-        only_detections=parsed_arguments.only_detections,
     )
 
     if parsed_arguments.geolite2:
@@ -1203,11 +1230,12 @@ def main() -> None:
         console.print()  # Add a newline for visual separation before skipping/checking ranges
 
     # Count total non-skipped ranges first
-    total_count = sum(1 for owner, _, _ in ranges if not ('google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower()))
+    total_count = sum(1 for owner, _, _ in ranges if not should_skip(owner, use_geolite2=parsed_arguments.geolite2))
 
+    detections: list[str] = []
     current_index = 0
     for owner, cidr_range, line_number in ranges:
-        if 'google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower():
+        if should_skip(owner, use_geolite2=parsed_arguments.geolite2):
             if not parsed_arguments.only_detections:
                 clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
                 link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
@@ -1226,11 +1254,28 @@ def main() -> None:
             only_detections=parsed_arguments.only_detections,
             current_index=current_index,
             total_count=total_count,
+            detections=detections,
         )
 
     if not parsed_arguments.only_detections:
         console.print()
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
+    skipped_count = len(ranges) - total_count
+    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges.[/green]')
+    if skipped_count > 0:
+        console.print(f'  [yellow]⚠ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/yellow]')
+
+    if parsed_arguments.export:
+        export_path = Path(parsed_arguments.export)
+        try:
+            with export_path.open('w', encoding='utf-8') as f:
+                if detections:
+                    f.write('\n'.join(detections) + '\n')
+                else:
+                    f.write('')
+            console.print(f'\n[green]✓ Exported {len(detections)} detection(s) to {export_path}[/green]')
+        except OSError as e:
+            console.print(f'\n[red]✗ Failed to export detections to {export_path}: {e}[/red]')
 
     if isinstance(client, GeoLite2Client):
         client.close()

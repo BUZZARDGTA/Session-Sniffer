@@ -204,7 +204,8 @@
                 "${workspaceFolder}/.dev/verify_ranges.py",
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
                 "${input:useGeoLite2}",
-                "${input:onlyDetections}"
+                "${input:onlyDetections}",
+                "${input:exportDetections}"
             ],
             "options": {
                 "env": {
@@ -250,6 +251,22 @@
                 {
                     "label": "Yes (Only show detections)",
                     "value": "--only-detections"
+                }
+            ],
+            "default": ""
+        },
+        {
+            "id": "exportDetections",
+            "type": "pickString",
+            "description": "Export detections to detections.txt in workspace root?",
+            "options": [
+                {
+                    "label": "No (Do not export)",
+                    "value": ""
+                },
+                {
+                    "label": "Yes (Save to detections.txt)",
+                    "value": "--export=detections.txt"
                 }
             ],
             "default": ""
