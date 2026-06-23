@@ -392,6 +392,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=3,
         step=1,
     ),
+    'gui_ignore_screen_resolution_warning': SettingMeta(
+        category='Launcher',
+        group='Popups',
+        display_label='Ignore Screen Resolution Warning',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Ignore the warning when screen resolution is below 1024x768.',
+        hidden=True,
+    ),
     # ------------------------------------------------------------------
     'discord_presence': SettingMeta(
         category='Discord',
@@ -667,6 +675,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'gui_connected_table_rows_per_page': 0,
     'gui_disconnected_table_rows_per_page': 0,
     'gui_disconnected_players_timer': 10,
+    'gui_ignore_screen_resolution_warning': False,
     'discord_presence': True,
     'discord_presence_title': 'Sniffing session traffic',
     'show_discord_popup': True,

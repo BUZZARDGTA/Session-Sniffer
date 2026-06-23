@@ -93,16 +93,25 @@ def main() -> None:
     if sys.platform != 'win32':
         raise UnsupportedPlatformError(sys.platform)
 
+    # Load settings early to check if user has ignored resolution warning before
+    Settings.load_from_settings_file(SETTINGS_PATH)
+
     # Check minimum screen resolution requirement early to avoid wasting user's time
     try:
         screen_size = get_screen_size()
     except UnsupportedScreenResolutionError as e:
-        msgbox.show(
+        prompt_text = e.msgbox_text + '\n\nDo you want to ignore this warning and continue anyway?'
+        response = msgbox.show(
             title='Unsupported Screen Resolution',
-            text=e.msgbox_text,
-            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
+            text=prompt_text,
+            style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
         )
-        sys.exit(1)
+        if response == msgbox.ReturnValues.IDYES:
+            Settings.gui_ignore_screen_resolution_warning = True
+            Settings.rewrite_settings_file()
+            screen_size = get_screen_size()
+        else:
+            sys.exit(1)
 
     splash = SplashScreen()
     splash.show()

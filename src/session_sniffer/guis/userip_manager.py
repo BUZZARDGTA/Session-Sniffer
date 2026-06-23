@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override
 
 from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QStandardItem, QStandardItemModel
+from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QShowEvent, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -51,7 +51,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
-from session_sniffer.guis.utils import apply_search_icon, set_dialog_window_flags
+from session_sniffer.guis.utils import apply_search_icon, get_screen_size, resize_window_for_screen, set_dialog_window_flags
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
@@ -65,7 +65,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
         set_dialog_window_flags(self)
         self.setMinimumSize(1100, 660)
-        self.resize(1280, 800)
+        screen_size = get_screen_size()
+        resize_window_for_screen(self, screen_size)
 
         self._current_path: Path | None = None
         self._dirty = False
@@ -982,3 +983,11 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         """Save the database; return `True` if the save succeeded (no longer dirty)."""
         self._save_database()
         return not self._dirty
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()

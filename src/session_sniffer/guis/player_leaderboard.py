@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
+from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
-from session_sniffer.guis.utils import apply_search_icon, format_player_display, popup_menu_at_table, setup_table_view_headers
+from session_sniffer.guis.utils import apply_search_icon, format_player_display, get_screen_size, popup_menu_at_table, resize_window_for_screen, setup_table_view_headers
 from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
 
 if TYPE_CHECKING:
@@ -377,9 +377,10 @@ class PlayerLeaderboardWindow(QWidget):
         super().__init__(parent)
 
         self.setWindowTitle('Most Seen Players')
-        self.setMinimumSize(1100, 550)
-        self.resize(1400, 700)
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint)
+        self.setMinimumSize(1100, 550)
+        screen_size = get_screen_size()
+        resize_window_for_screen(self, screen_size)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         layout = QVBoxLayout(self)
@@ -574,3 +575,11 @@ class PlayerLeaderboardWindow(QWidget):
         visible = self._proxy.rowCount()
         total = len(self._all_entries)
         self._count_label.setText(f'{visible} of {total} players')
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()

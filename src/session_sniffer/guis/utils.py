@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.settings.settings import Settings
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
@@ -34,6 +35,27 @@ if TYPE_CHECKING:
     from PyQt6.QtGui import QMouseEvent
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
+
+# Screen resolution resizing thresholds and breakpoints
+_MIN_SCREEN_HEIGHT_WARNING = 768
+_LARGE_WINDOW_MIN_HEIGHT = 500
+
+_BREAKPOINT_2K_WIDTH = 2560
+_BREAKPOINT_2K_HEIGHT = 1400
+_TARGET_2K_WIDTH = 1400
+_TARGET_2K_HEIGHT = 900
+
+_BREAKPOINT_FHD_WIDTH = 1920
+_BREAKPOINT_FHD_HEIGHT = 1040
+_TARGET_FHD_WIDTH = 1200
+_TARGET_FHD_HEIGHT = 720
+
+_BREAKPOINT_HD_WIDTH = 1024
+_BREAKPOINT_HD_HEIGHT = 720
+_TARGET_HD_WIDTH = 940
+_TARGET_HD_HEIGHT = 680
+
+_FALLBACK_MARGIN = 80
 
 
 class PersistentMenu(QMenu):
@@ -102,25 +124,52 @@ def get_screen_size() -> tuple[int, int]:
     screen_width = size.width()
     screen_height = size.height()
 
-    if screen_width < min_screen_width or screen_height < min_screen_height:
+    if (screen_width < min_screen_width or screen_height < min_screen_height) and not getattr(Settings, 'gui_ignore_screen_resolution_warning', False):
         raise UnsupportedScreenResolutionError(screen_width, screen_height, min_screen_width, min_screen_height)
 
     return screen_width, screen_height
 
 
-def resize_window_for_screen(window: QDialog | QMainWindow, screen_size: tuple[int, int]) -> None:
+def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> None:
     """Resize a window based on the screen resolution.
 
     Args:
         window: The window to resize.
         screen_size: Screen dimensions as (width, height) in pixels.
     """
-    if screen_size >= (2560, 1440):
-        window.resize(1400, 900)
-    elif screen_size >= (1920, 1080):
-        window.resize(1200, 720)
-    elif screen_size >= (1024, 768):
-        window.resize(940, 680)
+    screen = window.screen() or QApplication.primaryScreen()
+    if screen is not None:
+        avail = screen.availableGeometry()
+        avail_width = avail.width()
+        avail_height = avail.height()
+    else:
+        avail_width, avail_height = screen_size
+
+    min_size = window.minimumSize()
+    pad_width = 40
+
+    # Maximize if minimum size doesn't fit, or if screen height is low and window is relatively large
+    if (
+        (min_size.width() + pad_width) > avail_width
+        or min_size.height() > avail_height
+        or (avail_height < _MIN_SCREEN_HEIGHT_WARNING and min_size.height() >= _LARGE_WINDOW_MIN_HEIGHT)
+    ):
+        window.setWindowState(Qt.WindowState.WindowMaximized)
+        window.setProperty('_should_maximize_on_show', value=True)
+        return
+
+    # Resize window to fit available geometry based on breakpoints
+    if avail_width >= _BREAKPOINT_2K_WIDTH and avail_height >= _BREAKPOINT_2K_HEIGHT:
+        window.resize(_TARGET_2K_WIDTH, _TARGET_2K_HEIGHT)
+    elif avail_width >= _BREAKPOINT_FHD_WIDTH and avail_height >= _BREAKPOINT_FHD_HEIGHT:
+        window.resize(_TARGET_FHD_WIDTH, _TARGET_FHD_HEIGHT)
+    elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
+        window.resize(_TARGET_HD_WIDTH, _TARGET_HD_HEIGHT)
+    else:
+        # Fallback: resize to fit available geometry comfortably without going below minimum size
+        w = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
+        h = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
+        window.resize(max(w, min_size.width()), max(h, min_size.height()))
 
 
 def compute_ui_scale(screen_size: tuple[int, int]) -> float:

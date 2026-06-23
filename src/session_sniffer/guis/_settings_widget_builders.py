@@ -304,14 +304,14 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     presets_scroll = QScrollArea()
     presets_scroll.setWidgetResizable(True)
-    presets_scroll.setMaximumHeight(110)
+    presets_scroll.setMaximumHeight(350)
     presets_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     presets_scroll.setWidget(presets_grid_container)
 
     presets_layout = QVBoxLayout(presets_group)
     presets_layout.setSpacing(4)
     presets_layout.addLayout(preset_button_row)
-    presets_layout.addWidget(presets_scroll)
+    presets_layout.addWidget(presets_scroll, 1)
 
     # Checklist container
     title_checklist = meta.display_label
@@ -368,8 +368,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     group_layout.addLayout(button_row)
     group_layout.addWidget(scroll, 1)
 
-    layout.addWidget(presets_group)
-    layout.addWidget(checklist_group)
+    layout.addWidget(presets_group, 1)
+    layout.addWidget(checklist_group, 1)
 
     # Preset mappings
     presets_map: dict[str, set[str]] = {

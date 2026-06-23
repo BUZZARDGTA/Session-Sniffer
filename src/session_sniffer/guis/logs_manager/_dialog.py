@@ -1,5 +1,7 @@
 """Logs Manager dialog — main entry point combining all log tabs."""
 
+from typing import TYPE_CHECKING, override
+
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -23,7 +25,10 @@ from session_sniffer.guis.logs_manager._helpers import backup_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
+
+if TYPE_CHECKING:
+    from PyQt6.QtGui import QShowEvent
 
 
 class LogsManager(QDialog):
@@ -35,7 +40,8 @@ class LogsManager(QDialog):
         self.setWindowTitle(f'Logs Manager - {TITLE}')
         set_dialog_window_flags(self)
         self.setMinimumSize(1000, 600)
-        self.resize(1100, 700)
+        screen_size = get_screen_size()
+        resize_window_for_screen(self, screen_size)
 
         root_layout = QVBoxLayout(self)
 
@@ -143,3 +149,11 @@ class LogsManager(QDialog):
             parts.append('No log files to purge.')
 
         QMessageBox.information(self, TITLE, '\n'.join(parts))
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()

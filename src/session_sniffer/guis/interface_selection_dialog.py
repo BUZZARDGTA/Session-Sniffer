@@ -11,7 +11,7 @@ from threading import Thread
 from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QIcon
+from PyQt6.QtGui import QCursor, QFont, QIcon, QShowEvent
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -865,3 +865,11 @@ class InterfaceSelectionDialog(QDialog):
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         super().reject()
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()

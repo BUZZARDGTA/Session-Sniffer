@@ -98,6 +98,7 @@ class SettingsIniModel(BaseModel):
     GUI_CONNECTED_TABLE_ROWS_PER_PAGE: int
     GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE: int
     GUI_DISCONNECTED_PLAYERS_TIMER: int
+    GUI_IGNORE_SCREEN_RESOLUTION_WARNING: bool
 
     # Detection settings
 
@@ -151,6 +152,7 @@ class SettingsIniModel(BaseModel):
             'GUI_RESET_PORTS_ON_REJOINS',
             'GUI_SESSION_HOST_DETECTION',
             'GUI_SESSIONS_LOGGING',
+            'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
             'LOOKY_AUTO_RESOLVE',
             'LOOKY_ENABLED',
             'SHOW_DISCORD_POPUP',

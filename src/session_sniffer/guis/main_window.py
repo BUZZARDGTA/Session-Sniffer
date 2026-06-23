@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics
+from PyQt6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QShowEvent
 from PyQt6.QtWidgets import (
     QFrame,
     QLabel,
@@ -662,6 +662,14 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if a0 is not None:
             a0.accept()
         terminate_script('EXIT')
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()
 
     def _update_gui(self, payload: GUIUpdatePayload) -> None:
         self._header.setText(payload.header_text)

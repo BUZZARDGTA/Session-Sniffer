@@ -28,14 +28,14 @@ from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QKeyEvent
+    from PyQt6.QtGui import QKeyEvent, QShowEvent
 
     from session_sniffer.models.player import Player
 
@@ -47,9 +47,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         """Initialize the Detections Manager dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'{TITLE} - Detections Manager')
-        self.setMinimumSize(720, 560)
-        self.resize(800, 640)
         set_dialog_window_flags(self)
+        self.setMinimumSize(720, 560)
+        screen_size = get_screen_size()
+        resize_window_for_screen(self, screen_size)
 
         # Widget references (populated by tab builders)
         # -- Network-based (mobile, vpn, hosting) --
@@ -632,6 +633,14 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         """Save and apply detection settings; always succeeds."""
         self._save_and_apply()
         return True
+
+    @override
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        """Handle the window show event and maximize if required."""
+        super().showEvent(a0)
+        if self.property('_should_maximize_on_show') is True:
+            self.setProperty('_should_maximize_on_show', value=False)
+            self.showMaximized()
 
 
 def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
