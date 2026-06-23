@@ -11,6 +11,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     BATTLEYE_RANGES,
     CLOUDFLARE_RANGES,
     DEMONWARE_RANGES,
+    DIMENSION_DATA_RANGES,
     DISCORD_RANGES,
     EA_RANGES,
     FRIEND_IT_RANGES,
@@ -61,6 +62,7 @@ class ThirdPartyServers(enum.Enum):
     BATTLEYE = 'BattlEye', BATTLEYE_RANGES
     CLOUDFLARE = 'Cloudflare', CLOUDFLARE_RANGES
     DEMONWARE = 'Demonware Limited', DEMONWARE_RANGES
+    DIMENSION_DATA = 'Dimension Data', DIMENSION_DATA_RANGES
     DISCORD = 'Discord', DISCORD_RANGES
     EA = 'Electronic Arts, Inc.', EA_RANGES
     FRIEND_IT = 'FRIEND IT Ltd', FRIEND_IT_RANGES
