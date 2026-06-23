@@ -18,6 +18,7 @@ from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
 from rich.panel import Panel
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
@@ -27,7 +28,14 @@ SOURCE_PATH = str(Path(__file__).resolve().parent.parent / 'src')
 if SOURCE_PATH not in sys.path:
     sys.path.insert(0, SOURCE_PATH)
 
-from session_sniffer.networking.http_session import session  # pylint: disable=wrong-import-position  # noqa: E402
+from session_sniffer.networking.http_session import HEADERS  # pylint: disable=wrong-import-position  # noqa: E402
+
+# Dedicated session for ip-api.com with NO automatic retries.
+# The shared `session` from http_session.py has urllib3 Retry(total=3) which silently
+# retries failed POSTs 3x before the RateLimitClient even sees the error — causing
+# 4x the actual traffic and triggering server-side connection drops.
+_ip_api_session = requests.Session()
+_ip_api_session.headers.update(HEADERS)
 
 try:
     from session_sniffer.utils import get_app_dir
@@ -45,7 +53,7 @@ except ImportError:
 console = Console()
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping
+    from collections.abc import Callable, Generator, Mapping
 
     from rich.console import RenderableType
     from rich.status import Status
@@ -58,6 +66,9 @@ MIN_WORD_LENGTH = 4
 MAX_SAMPLES = 20
 API_BATCH_LIMIT = 100
 SUBNET_BLOCK_SIZE = 256  # /24 boundary alignment
+MAX_DISPLAYED_OWNERS = 3
+STALE_CONNECTION_THRESHOLD = 10  # seconds; close pooled connections after sleeps longer than this
+MAX_ERROR_BACKOFF = 120
 
 
 class RateLimitClient:  # pylint: disable=too-few-public-methods
@@ -70,90 +81,129 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
     last_rate_limit: int | None
     capacity: int
     window: int
-    tokens: int
+    tokens: float
     last_refill: float
+    consecutive_errors: int
+    cache: dict[str, dict[str, Any]]
+    sleep_callback: Callable[[float, str], None] | None
 
     def __init__(self, session: requests.Session) -> None:
         """Initialize the RateLimitClient."""
         self.session = session
-        self.min_interval = 60 / 45
+        self.min_interval = 60 / 14  # slightly conservative (14 req/min instead of 15)
         self.last_request_time = 0.0
         self.cooldown_until = 0.0
         self.last_rate_limit = None
-        self.capacity = 45
+        self.capacity = 14  # leave 1 token headroom vs the 15 API limit
         self.window = 60
-        self.tokens = 45
+        self.tokens = float(self.capacity)
         self.last_refill = time.time()
+        self.consecutive_errors = 0
+        self.cache = {}
+        self.sleep_callback = None
 
     def _refill(self) -> None:
-        """Refill the token bucket based on elapsed time."""
+        """Refill the token bucket gradually based on elapsed time."""
         now = time.time()
         elapsed_seconds = now - self.last_refill
 
-        if elapsed_seconds >= self.window:
-            self.tokens = self.capacity
+        if elapsed_seconds > 0:
+            # Gradual refill: tokens accrue proportionally over time
+            tokens_to_add = elapsed_seconds * (self.capacity / self.window)
+            self.tokens = min(self.tokens + tokens_to_add, float(self.capacity))
             self.last_refill = now
+
+    def _wait_for_cooldown(self) -> None:
+        """Block until any active cooldown period has expired."""
+        now = time.time()
+        if now < self.cooldown_until:
+            wait = self.cooldown_until - now
+            console.print(f'[yellow]\\[COOLDOWN] waiting[/yellow] → [yellow]sleeping {int(wait) + 1}s[/yellow]')
+            self._sleep(wait + 1, 'COOLDOWN waiting')
+            self._close_stale_connections(wait + 1)
+            # Rate window has passed — reset tokens
+            self.tokens = float(self.capacity)
+            self.last_refill = time.time()
+            self.cooldown_until = 0.0
+
+    def _close_stale_connections(self, sleep_duration: float) -> None:
+        """Close pooled TCP connections if the sleep was long enough to make them stale."""
+        if sleep_duration >= STALE_CONNECTION_THRESHOLD:
+            self.session.close()
 
     def _respect_min_interval(self) -> None:
         """Ensure requests are spaced out by at least the minimum interval."""
         now = time.time()
         wait = self.min_interval - (now - self.last_request_time)
         if wait > 0:
-            time.sleep(wait)
+            self._sleep(wait, 'API spacing')
 
     def _apply_headers(self, headers: Mapping[str, str]) -> None:
-        """Apply rate limit headers from the API response."""
+        """Apply rate limit headers from the API response.
+
+        This method does NOT sleep. It records the rate-limit state so that
+        ``_consume`` / ``_wait_for_cooldown`` will pause before the **next**
+        request, avoiding double-sleeps when recovering from a 429.
+        """
         rate_limit_str = headers.get('X-Rl')
-        time_to_live_str = headers.get('X-Ttl')
 
         rate_limit: int | None = None
         if rate_limit_str is not None:
             with contextlib.suppress(ValueError):
                 rate_limit = int(rate_limit_str)
 
-        time_to_live: int | None = None
-        if time_to_live_str is not None:
-            with contextlib.suppress(ValueError):
-                time_to_live = int(time_to_live_str)
-
         self.last_rate_limit = rate_limit
 
-        if rate_limit is not None and rate_limit == 0:  # pylint: disable=use-implicit-booleaness-not-comparison-to-zero
-            wait_time = (time_to_live + 1) if time_to_live else 60
-            console.print(f'[yellow]\\[RATE] exhausted[/yellow] → [yellow]sleeping {wait_time}s[/yellow]')
-            time.sleep(wait_time)
+        # Sync internal token count with server-reported remaining requests
+        if rate_limit is not None:
+            self.tokens = min(float(rate_limit), float(self.capacity))
 
-        elif rate_limit is not None and rate_limit <= THROTTLING_RATE_LIMIT_THRESHOLD:
-            time.sleep(2)
+    def _sleep(self, seconds: float, reason: str) -> None:
+        """Sleep for the specified duration, using the sleep callback if registered."""
+        callback = self.sleep_callback
+        if callback is not None:
+            try:
+                callback(seconds, reason)
+            except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001, S110
+                pass
+            else:
+                return
+        time.sleep(seconds)
 
     def _consume(self) -> None:
         """Consume a token from the bucket, throttling if necessary."""
+        self._wait_for_cooldown()
+
         while True:
             self._refill()
 
-            if self.tokens > 0:
-                self.tokens -= 1
+            if self.tokens >= 1.0:
+                self.tokens -= 1.0
                 return
 
-            sleep_time = self.window - (time.time() - self.last_refill)
-            sleep_time = max(sleep_time, 1.0)
+            # Calculate wait based on gradual refill rate, not the full window
+            tokens_needed = 1.0 - self.tokens
+            refill_rate = self.capacity / self.window  # tokens per second
+            sleep_time = max(tokens_needed / refill_rate, 1.0)
 
             console.print(f'[yellow]\\[RATE] throttling[/yellow] → [yellow]sleeping {int(sleep_time)}s[/yellow]')
-            time.sleep(sleep_time)
+            self._sleep(sleep_time, 'RATE throttling')
 
     def post_batch(self, payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Post a batch of IPs to the rate-limited API."""
         self._consume()
+        self._respect_min_interval()
 
         while True:
             try:
                 response = self.session.post(
                     IP_API_BATCH_URL,
                     json=payload,
-                    timeout=20,
+                    timeout=30,
                 )
 
                 self.last_request_time = time.time()
+                self.consecutive_errors = 0  # reset on successful connection
 
                 if response.status_code == COOLDOWN_HTTP_STATUS:
                     time_to_live_str = response.headers.get('X-Ttl')
@@ -166,12 +216,18 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                     # always use fresh TTL, minimum 1s
                     wait_time = max(time_to_live + 1, 1)
 
-                    # track cooldown deadline
+                    # track cooldown deadline and drain tokens
                     self.cooldown_until = time.time() + wait_time
+                    self.tokens = 0.0
 
                     console.print(f'[yellow]\\[429] cooldown[/yellow] → [yellow]sleeping {wait_time}s[/yellow]')
 
-                    time.sleep(wait_time)
+                    self._sleep(wait_time, '429 cooldown')
+                    self._close_stale_connections(wait_time)
+
+                    # After cooldown, refill tokens
+                    self.tokens = float(self.capacity)
+                    self.last_refill = time.time()
                     continue
 
                 response.raise_for_status()
@@ -181,16 +237,27 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                 return cast('list[dict[str, Any]]', response.json())
 
             except requests.RequestException as e:
-                console.print(f'[red]\\[ERROR] Request failed: {e}[/red]')
-                time.sleep(5)
+                self.consecutive_errors += 1
+                # Exponential backoff: 10s, 20s, 40s, 80s, 120s (capped)
+                backoff = min(10 * (2 ** (self.consecutive_errors - 1)), MAX_ERROR_BACKOFF)
+                console.print(f'[red]\\[ERROR] Request failed (attempt {self.consecutive_errors}): {e}[/red]')
+                console.print(f'[yellow]\\[BACKOFF] sleeping {backoff}s[/yellow]')
+                self._sleep(backoff, 'BACKOFF retry')
+                self._close_stale_connections(backoff)
 
 
 class GeoLite2Client:
     """Offline lookup client using local GeoLite2 database."""
 
+    reader: geoip2.database.Reader
+    cache: dict[str, dict[str, Any]]
+    sleep_callback: Callable[[float, str], None] | None
+
     def __init__(self, db_path: Path) -> None:
         """Initialize the GeoLite2Client database reader."""
         self.reader = geoip2.database.Reader(db_path)
+        self.cache = {}
+        self.sleep_callback = None
 
     def post_batch(self, payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Look up IP details from local GeoLite2 ASN database."""
@@ -235,11 +302,21 @@ class GeoLite2Client:
 def lookup_ips_batch(client: RateLimitClient | GeoLite2Client, ip_addresses: list[str]) -> dict[str, dict[str, Any]]:
     """Look up details for a batch of IP addresses, chunking to respect API limits."""
     results: dict[str, dict[str, Any]] = {}
+    missing_ips: list[str] = []
 
-    for batch in chunked(ip_addresses, API_BATCH_LIMIT):
-        payload: list[dict[str, Any]] = [{'query': ip, 'fields': 'status,message,query,isp,org,as,asname'} for ip in batch]
-        batch_results = client.post_batch(payload)
-        results.update({cast('str', result.get('query')): result for result in batch_results})
+    for ip in ip_addresses:
+        if ip in client.cache:
+            results[ip] = client.cache[ip]
+        else:
+            missing_ips.append(ip)
+
+    if missing_ips:
+        for batch in chunked(missing_ips, API_BATCH_LIMIT):
+            payload: list[dict[str, Any]] = [{'query': ip, 'fields': 'status,message,query,isp,org,as,asname'} for ip in batch]
+            batch_results = client.post_batch(payload)
+            batch_dict = {cast('str', result.get('query')): result for result in batch_results}
+            client.cache.update(batch_dict)
+            results.update(batch_dict)
 
     return results
 
@@ -384,11 +461,13 @@ def owner_matches(expected: str, data: dict[str, Any]) -> bool:
         if normalize(alias) in actual:
             return True
 
-    words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+    words = {word.strip('.,/') for word in normalize(expected).split()}
+    words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
     words -= GENERIC_WORDS
     if not words:
         # Fallback to original words if everything was generic
-        words = {word for word in normalize(expected).split() if len(word) >= MIN_WORD_LENGTH}
+        words = {word.strip('.,/') for word in normalize(expected).split()}
+        words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
 
     return any(word in actual for word in words)
 
@@ -520,7 +599,7 @@ def suggest_fix(
     network: ipaddress.IPv4Network,
     results: dict[str, dict[str, Any]],
     status: Status,
-) -> RenderableType | None:
+) -> tuple[RenderableType | None, str]:
     """Binary-search /24 boundaries and suggest replacement CIDRs for a mismatched range."""
     base_samples = sample_ips(network)
     if isinstance(client, GeoLite2Client):
@@ -540,12 +619,14 @@ def suggest_fix(
 
             table.add_section()
             table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
-            return table
-        return Text(f'[FIX SUGGESTION] No matching blocks found — consider removing {network.with_prefixlen}', style='red')
+            raw_text = f'Replace with: {", ".join(f"{net.with_prefixlen}" for net in matching_networks)}'
+            return table, raw_text
+        raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
+        return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
     if network.prefixlen > 24:  # noqa: PLR2004
         status.update(f'[yellow]Range /{network.prefixlen} is smaller than /24 — skipping auto-fix[/yellow]')
-        return None
+        return None, f'Range /{network.prefixlen} is smaller than /24 — skipping auto-fix'
 
     start_block = int(network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(network.broadcast_address) // SUBNET_BLOCK_SIZE
@@ -630,8 +711,10 @@ def suggest_fix(
 
         table.add_section()
         table.add_row('[bold]Total[/bold]', f'[bold]{total_first_ip} - {total_last_ip} ({total_ip_addresses:,} IPs)[/bold]')
-        return table
-    return Text(f'[FIX SUGGESTION] No matching blocks found — consider removing {network.with_prefixlen}', style='red')
+        raw_text = f'Replace with: {", ".join(f"{net.with_prefixlen}" for net in good_networks)}'
+        return table, raw_text
+    raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
+    return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
 
 def _search_expansion_boundary(
@@ -710,7 +793,7 @@ def suggest_expansion(
     context: RangeContext,
     expandable_ip_addresses: list[str],
     status: Status,
-) -> RenderableType | None:
+) -> tuple[RenderableType | None, str]:
     """Binary-search outward from expandable adjacent blocks to find the full owner boundary."""
     start_block = int(context.network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(context.network.broadcast_address) // SUBNET_BLOCK_SIZE
@@ -775,7 +858,8 @@ def suggest_expansion(
 
     table.add_section()
     table.add_row('[bold]Total[/bold]', f'[bold]{total_first} - {total_last} ({total_ip_addresses:,} IPs)[/bold]')
-    return table
+    raw_text = f'Expand to: {", ".join(f"{net.with_prefixlen}" for net in expanded_networks)}'
+    return table, raw_text
 
 
 def check_expansion(client: RateLimitClient | GeoLite2Client, owner: str, cidr_range: str) -> None:
@@ -855,6 +939,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     only_detections: bool = False,
     current_index: int = 0,
     total_count: int = 0,
+    detections: list[str] | None = None,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
     file_path, line_number = location or ('', None)
@@ -893,6 +978,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         # Base Check
         has_mismatches = False
         mismatch_lines: list[str] = []
+        mismatches_raw: list[str] = []
 
         if isinstance(client, GeoLite2Client):
             # Thorough 100% offline GeoLite2 validation using tree-jumping
@@ -903,8 +989,10 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                 for start_ip, end_ip, actual_owner in mismatches:
                     if start_ip == end_ip:
                         mismatch_lines.append(f'[red]✗[/red] [magenta]{start_ip}[/magenta] → {actual_owner}')
+                        mismatches_raw.append(f'✗ {cidr_range} ({start_ip}) → {actual_owner}')
                     else:
                         mismatch_lines.append(f'[red]✗[/red] [magenta]{start_ip} - {end_ip}[/magenta] → {actual_owner}')
+                        mismatches_raw.append(f'✗ {cidr_range} ({start_ip} - {end_ip}) → {actual_owner}')
         else:
             # Random 20-IP rate-limited online validation (IP-API)
             for ip in base_samples:
@@ -915,6 +1003,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
                 if not owner_matches(owner, lookup_result):
                     mismatch_lines.append(f'[red]✗[/red] [magenta]{ip}[/magenta] → {lookup_result.get("isp")} / {lookup_result.get("org")}')
+                    mismatches_raw.append(f'✗ {cidr_range} ({ip}) → {lookup_result.get("isp")} / {lookup_result.get("org")}')
                     is_valid = False
                     has_mismatches = True
 
@@ -1037,21 +1126,31 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     renderables.append(details_table)
 
     # If we have auto-fix / expand tables, we append them so they show inside the master panel
+    fix_raw = ''
     if has_mismatches:
         renderables.append(Text(''))
         renderables.append(Rule('[bold white]Fix Suggestion[/bold white]'))
         renderables.append(Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED))
-        fix_renderable = suggest_fix(client, owner, network, results, status)
+        fix_renderable, fix_raw = suggest_fix(client, owner, network, results, status)
         if fix_renderable:
             renderables.append(fix_renderable)
 
+    expansion_raw = ''
     if expansion_found:
         context = RangeContext(network, owner_networks)
-        expansion_renderable = suggest_expansion(client, owner, context, expandable_ip_addresses, status)
+        expansion_renderable, expansion_raw = suggest_expansion(client, owner, context, expandable_ip_addresses, status)
         if expansion_renderable:
             renderables.append(Text(''))
             renderables.append(Rule('[bold white]Expansion Available[/bold white]'))
             renderables.append(expansion_renderable)
+
+    # Populate detections list for export
+    clean_relative_path = os.path.relpath(file_path).replace('\\', '/') if file_path else ''
+    if has_mismatches and detections is not None:
+        for mismatch in mismatches_raw:
+            detections.append(f'{clean_relative_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}')
+    if expansion_found and detections is not None:
+        detections.append(f'{clean_relative_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
     # Print the master panel
     if not only_detections or not is_valid or expansion_found:
@@ -1078,7 +1177,6 @@ def run_preflight_checks(
     networks_by_owner: dict[str, list[ipaddress.IPv4Network]],
     *,
     ranges_file: str = '',
-    only_detections: bool = False,
 ) -> None:
     """Run all pre-flight checks and display them in a neat panel."""
     table = Table(show_header=False, expand=True, box=None, padding=(0, 2))
@@ -1101,6 +1199,8 @@ def run_preflight_checks(
     for i, (owner_1, network_1) in enumerate(all_networks):
         for j, (owner_2, network_2) in enumerate(all_networks):
             if i != j and network_1.subnet_of(network_2):
+                if 'BattlEye' in (owner_1, owner_2):
+                    continue
                 overlaps.append(f'[dim]• {network_1} ({owner_1}) falls within {network_2} ({owner_2})[/dim]')
     if overlaps:
         table.add_row('Overlapping CIDRs', f'[yellow]⚠ {len(overlaps)} overlaps detected![/yellow]\n' + '\n'.join(overlaps))
@@ -1131,9 +1231,6 @@ def run_preflight_checks(
     else:
         table.add_row('Collapsible CIDRs', '[green]✓ No collapsible ranges found[/green]')
 
-    if only_detections and not (warnings or overlaps or collapses):
-        return
-
     renderables: list[Any] = [table]
     if collapse_suggestions:
         renderables.append(Text(''))
@@ -1152,6 +1249,13 @@ def run_preflight_checks(
     )
 
 
+def should_skip(owner: str, *, use_geolite2: bool) -> bool:
+    """Return True if range verification should be skipped for this owner."""
+    if owner in {'BattlEye', 'Tellas Greece'}:
+        return True
+    return not use_geolite2 and owner in {'Google LLC', 'Amazon.com, Inc.'}
+
+
 def main() -> None:
     """Main entry point to parse command-line arguments and check ranges."""
     if hasattr(sys.stdout, 'reconfigure'):
@@ -1164,6 +1268,7 @@ def main() -> None:
     parser.add_argument('ranges_file', help='Python file containing NamedRange definitions.')
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
     parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
+    parser.add_argument('--export', help='Export one-line detections to the specified text file.')
 
     parsed_arguments = parser.parse_args(arguments[1:])
 
@@ -1183,7 +1288,6 @@ def main() -> None:
         ranges,
         networks_by_owner,
         ranges_file=str(parsed_arguments.ranges_file),
-        only_detections=parsed_arguments.only_detections,
     )
 
     if parsed_arguments.geolite2:
@@ -1197,40 +1301,163 @@ def main() -> None:
 
         client: GeoLite2Client | RateLimitClient = GeoLite2Client(asn_database_path)
     else:
-        client = RateLimitClient(session)
+        client = RateLimitClient(_ip_api_session)
+
+    # Collect all IPs to pre-fetch for non-skipped ranges
+    ip_to_owners: dict[str, set[str]] = {}
+    for owner, cidr_range, _ in ranges:
+        if not should_skip(owner, use_geolite2=parsed_arguments.geolite2):
+            with contextlib.suppress(ValueError, TypeError):
+                network = ipaddress.ip_network(cidr_range)
+                if isinstance(network, ipaddress.IPv4Network):
+                    base_samples = sample_ips(network)
+                    adjacent_ip_addresses = _get_adjacent_ips(network)
+                    for ip in base_samples + adjacent_ip_addresses:
+                        ip_to_owners.setdefault(ip, set()).add(owner)
+
+    if ip_to_owners:
+        ips_list = list(ip_to_owners.keys())
+        batch_count = (len(ips_list) + API_BATCH_LIMIT - 1) // API_BATCH_LIMIT
+
+        mode_suffix = ' (offline)' if parsed_arguments.geolite2 else ''
+        prefetch_progress = Progress(
+            SpinnerColumn(),
+            TextColumn(f'[bold cyan]Pre-fetching {len(ips_list):,} IPs{mode_suffix}[/bold cyan]'),
+            BarColumn(bar_width=30),
+            MofNCompleteColumn(),
+            TextColumn('[dim]•[/dim]'),
+            TimeElapsedColumn(),
+            TextColumn('[dim]•[/dim]'),
+            TextColumn('{task.description}'),
+            console=console,
+            transient=True,
+        )
+
+        with prefetch_progress:
+            prefetch_task = prefetch_progress.add_task('', total=batch_count)
+
+            def prefetch_sleep_callback(seconds: float, reason: str) -> None:
+                total_sleep = int(seconds)
+                if total_sleep <= 0:
+                    time.sleep(seconds)
+                    return
+                fraction = seconds - total_sleep
+                if fraction > 0:
+                    time.sleep(fraction)
+                for remaining in range(total_sleep, 0, -1):
+                    prefetch_progress.update(prefetch_task, description=f'[yellow]{reason} (sleeping {remaining}s)...[/yellow]')
+                    time.sleep(1)
+
+            if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+                client.sleep_callback = prefetch_sleep_callback
+
+            for i, batch in enumerate(chunked(ips_list, API_BATCH_LIMIT), 1):
+                batch_owners = sorted({owner for ip in batch for owner in ip_to_owners[ip]})
+                owners_str = (
+                    ', '.join(batch_owners[:MAX_DISPLAYED_OWNERS]) + f' and {len(batch_owners) - MAX_DISPLAYED_OWNERS} more'
+                    if len(batch_owners) > MAX_DISPLAYED_OWNERS
+                    else ', '.join(batch_owners)
+                )
+                prefetch_progress.update(prefetch_task, completed=i, description=f'[white]{owners_str}[/white]')
+                lookup_ips_batch(client, batch)
+
+            if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+                client.sleep_callback = None
 
     if not parsed_arguments.only_detections:
         console.print()  # Add a newline for visual separation before skipping/checking ranges
 
     # Count total non-skipped ranges first
-    total_count = sum(1 for owner, _, _ in ranges if not ('google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower()))
+    total_count = sum(1 for owner, _, _ in ranges if not should_skip(owner, use_geolite2=parsed_arguments.geolite2))
 
+    detections: list[str] = []
     current_index = 0
-    for owner, cidr_range, line_number in ranges:
-        if 'google llc' in owner.lower() or 'tellas greece' in owner.lower() or 'battleye' in owner.lower():
-            if not parsed_arguments.only_detections:
-                clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
-                link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
-                console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')
-            continue
 
-        current_index += 1
-        owner_networks = networks_by_owner.get(owner, [])
-        location = (str(parsed_arguments.ranges_file), line_number)
-        check_range(
-            client,
-            owner,
-            cidr_range,
-            owner_networks,
-            location=location,
-            only_detections=parsed_arguments.only_detections,
-            current_index=current_index,
-            total_count=total_count,
-        )
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn('[bold cyan]Verifying[/bold cyan]'),
+        BarColumn(bar_width=30),
+        MofNCompleteColumn(),
+        TextColumn('[dim]•[/dim]'),
+        TimeElapsedColumn(),
+        TextColumn('[dim]•[/dim]'),
+        TextColumn('{task.description}'),
+        console=console,
+        transient=True,
+    )
+
+    with progress:
+        task_id = progress.add_task('', total=total_count)
+
+        def verification_sleep_callback(seconds: float, reason: str) -> None:
+            total_sleep = int(seconds)
+            if total_sleep <= 0:
+                time.sleep(seconds)
+                return
+            fraction = seconds - total_sleep
+            if fraction > 0:
+                time.sleep(fraction)
+            task = next((t for t in progress.tasks if t.id == task_id), None)
+            original_description = task.description if task else ''
+            for remaining in range(total_sleep, 0, -1):
+                progress.update(task_id, description=f'{original_description} [yellow]• {reason} ({remaining}s)[/yellow]')
+                time.sleep(1)
+            progress.update(task_id, description=original_description)
+
+        if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+            client.sleep_callback = verification_sleep_callback
+
+        for owner, cidr_range, line_number in ranges:
+            if should_skip(owner, use_geolite2=parsed_arguments.geolite2):
+                if not parsed_arguments.only_detections:
+                    clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
+                    link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
+                    console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')
+                continue
+
+            current_index += 1
+            progress.update(task_id, completed=current_index, description=f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]')
+
+            owner_networks = networks_by_owner.get(owner, [])
+            location = (str(parsed_arguments.ranges_file), line_number)
+            check_range(
+                client,
+                owner,
+                cidr_range,
+                owner_networks,
+                location=location,
+                only_detections=parsed_arguments.only_detections,
+                current_index=current_index,
+                total_count=total_count,
+                detections=detections,
+            )
+
+            # Smooth visual progress sweep for cached ranges
+            if total_count > 0:
+                time.sleep(min(0.005, 1.0 / total_count))
+
+    if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+        client.sleep_callback = None
 
     if not parsed_arguments.only_detections:
         console.print()
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
+    skipped_count = len(ranges) - total_count
+    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges.[/green]')
+    if skipped_count > 0:
+        console.print(f'  [yellow]⚠ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/yellow]')
+
+    if parsed_arguments.export:
+        export_path = Path(parsed_arguments.export)
+        try:
+            with export_path.open('w', encoding='utf-8') as f:
+                if detections:
+                    f.write('\n'.join(detections) + '\n')
+                else:
+                    f.write('')
+            console.print(f'\n[green]✓ Exported {len(detections)} detection(s) to {export_path}[/green]')
+        except OSError as e:
+            console.print(f'\n[red]✗ Failed to export detections to {export_path}: {e}[/red]')
 
     if isinstance(client, GeoLite2Client):
         client.close()
