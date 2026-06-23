@@ -581,5 +581,5 @@ class PlayerLeaderboardWindow(QWidget):
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', value=False)
+            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()

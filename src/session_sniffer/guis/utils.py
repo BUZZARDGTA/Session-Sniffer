@@ -155,7 +155,7 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
         or (avail_height < _MIN_SCREEN_HEIGHT_WARNING and min_size.height() >= _LARGE_WINDOW_MIN_HEIGHT)
     ):
         window.setWindowState(Qt.WindowState.WindowMaximized)
-        window.setProperty('_should_maximize_on_show', value=True)
+        window.setProperty('_should_maximize_on_show', True)  # noqa: FBT003
         return
 
     # Resize window to fit available geometry based on breakpoints

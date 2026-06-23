@@ -668,7 +668,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', value=False)
+            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
 
     def _update_gui(self, payload: GUIUpdatePayload) -> None:
