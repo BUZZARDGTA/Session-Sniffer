@@ -1125,6 +1125,11 @@ CLOUDFLARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '141.101.64.0/18',
 )
 
+COMNET_INTERNATIONAL_BV_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Comnet Internetional BV',
+    '77.72.168.0/21',
+)
+
 DEMONWARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Demonware Limited',
     '185.34.104.0/22',
@@ -1182,6 +1187,14 @@ EA_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'FRIEND IT Ltd',
     '193.169.172.0/23',
+)
+
+G_CORE_LABS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'G-Core Labs S.A.',
+    '85.204.246.0/24',
+    '91.199.84.0/24',
+    '185.244.208.0/23',
+    '185.244.210.0/24',
 )
 
 # https://www.gstatic.com/ipranges/goog.json
@@ -1300,6 +1313,9 @@ LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 
 MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Microsoft Corporation',
+    '4.144.0.0/12',
+    '4.160.0.0/11',
+    '4.192.0.0/10',
     '9.163.0.0/16',
     '9.164.0.0/16',
     '20.0.0.0/9',
@@ -1313,6 +1329,7 @@ MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '20.158.0.0/15',
     '20.160.0.0/11',
     '20.192.0.0/10',
+    '40.64.0.0/13',
     '40.74.0.0/15',
     '40.76.0.0/14',
     '40.80.0.0/12',
@@ -1335,8 +1352,34 @@ MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '52.148.0.0/14',
     '52.152.0.0/13',
     '52.160.0.0/11',
+    '52.224.0.0/11',
+    '104.40.0.0/13',
+    '108.140.0.0/14',
+    '135.220.0.0/15',
+    '135.222.0.0/16',
+    '135.224.0.0/12',
+    '135.240.0.0/14',
+    '135.244.0.0/16',
+    '135.246.0.0/15',
+    '135.248.0.0/16',
+    '137.116.0.0/15',
     '168.61.0.0/16',
     '168.62.0.0/15',
+    '172.128.0.0/10',
+    '172.192.0.0/24',
+    '172.192.2.0/23',
+    '172.192.4.0/22',
+    '172.192.8.0/21',
+    '172.192.16.0/20',
+    '172.192.32.0/19',
+    '172.192.64.0/18',
+    '172.192.128.0/17',
+    '172.193.0.0/16',
+    '172.194.0.0/15',
+    '172.196.0.0/14',
+    '172.200.0.0/13',
+    '172.208.0.0/13',
+    '191.232.0.0/13',
 )
 
 OVH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
@@ -1361,6 +1404,12 @@ PLAYSTATION_SONY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Sony Interactive (PlayStation)',
     '100.42.96.0/20',
     '104.142.128.0/17',
+)
+
+SERVERS_COM_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Servers.com',
+    '172.240.0.0/16',
+    '172.241.0.0/21',
 )
 
 TAKETWO_INTERACTIVE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
@@ -1483,4 +1532,34 @@ VALVE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '162.254.192.0/21',
     '185.25.180.0/22',
     '205.196.6.0/24',
+)
+
+ZENLAYER_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Zenlayer Inc',
+    '156.59.0.0/19',
+    '156.59.32.0/24',
+    '156.59.34.0/23',
+    '156.59.36.0/22',
+    '156.59.40.0/21',
+    '156.59.48.0/20',
+    '156.59.64.0/20',
+    '156.59.80.0/21',
+    '156.59.88.0/22',
+    '156.59.92.0/24',
+    '156.59.94.0/23',
+    '156.59.96.0/21',
+    '156.59.104.0/22',
+    '156.59.109.0/24',
+    '156.59.110.0/23',
+    '156.59.112.0/20',
+    '156.59.128.0/18',
+    '156.59.192.0/21',
+    '156.59.200.0/23',
+    '156.59.207.0/24',
+    '156.59.208.0/21',
+    '156.59.217.0/24',
+    '156.59.218.0/23',
+    '156.59.221.0/24',
+    '156.59.222.0/23',
+    '156.59.224.0/19',
 )

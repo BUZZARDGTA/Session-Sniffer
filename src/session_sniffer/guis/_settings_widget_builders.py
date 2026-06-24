@@ -261,6 +261,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Chatspin',
         'Discord',
         'GTA V',
+        "John Carpenter's Toxic Commando",
         'Minecraft Bedrock',
         'Mortal Kombat 11',
         'Mortal Kombat X',
@@ -411,6 +412,15 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'TELLAS_GREECE',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        "John Carpenter's Toxic Commando": {
+            'COMNET_INTERNATIONAL_BV',
+            'G_CORE_LABS',
+            'GOOGLE_LLC',
+            'MICROSOFT',
+            'SERVERS_COM',
+            'US_DEPARTMENT_OF_DEFENSE',
+            'ZENLAYER',
         },
         'Minecraft Bedrock': {
             'MICROSOFT',

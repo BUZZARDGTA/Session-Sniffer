@@ -10,17 +10,20 @@ from session_sniffer.networking.third_party_servers_ranges import (
     AMAZON_RANGES,
     BATTLEYE_RANGES,
     CLOUDFLARE_RANGES,
+    COMNET_INTERNATIONAL_BV_RANGES,
     DEMONWARE_RANGES,
     DIMENSION_DATA_RANGES,
     DISCORD_RANGES,
     EA_RANGES,
     FRIEND_IT_RANGES,
+    G_CORE_LABS_RANGES,
     GOOGLE_LLC_RANGES,
     I3D_NET_RANGES,
     LATITUDE_SH_RANGES,
     MICROSOFT_RANGES,
     OVH_RANGES,
     PLAYSTATION_SONY_RANGES,
+    SERVERS_COM_RANGES,
     TAKETWO_INTERACTIVE_RANGES,
     TELLAS_GREECE_RANGES,
     TENCENT_RANGES,
@@ -29,6 +32,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     UK_MINISTRY_OF_DEFENCE_RANGES,
     US_DEPARTMENT_OF_DEFENSE_RANGES,
     VALVE_RANGES,
+    ZENLAYER_RANGES,
     NamedRange,
 )
 
@@ -61,11 +65,13 @@ class ThirdPartyServers(enum.Enum):
     AMAZON = 'Amazon.com, Inc.', AMAZON_RANGES
     BATTLEYE = 'BattlEye', BATTLEYE_RANGES
     CLOUDFLARE = 'Cloudflare', CLOUDFLARE_RANGES
+    COMNET_INTERNATIONAL_BV = 'Comnet Internetional BV', COMNET_INTERNATIONAL_BV_RANGES
     DEMONWARE = 'Demonware Limited', DEMONWARE_RANGES
     DIMENSION_DATA = 'Dimension Data', DIMENSION_DATA_RANGES
     DISCORD = 'Discord', DISCORD_RANGES
     EA = 'Electronic Arts, Inc.', EA_RANGES
     FRIEND_IT = 'FRIEND IT Ltd', FRIEND_IT_RANGES
+    G_CORE_LABS = 'G-Core Labs S.A.', G_CORE_LABS_RANGES
     GOOGLE_LLC = 'Google LLC', GOOGLE_LLC_RANGES
     I3D_NET = 'i3D.net B.V', I3D_NET_RANGES
     LATITUDE_SH = 'Latitude.sh', LATITUDE_SH_RANGES
@@ -73,6 +79,7 @@ class ThirdPartyServers(enum.Enum):
     OVH = 'OVH', OVH_RANGES
     PLAYSTATION_SONY = 'PlayStation (Sony)', PLAYSTATION_SONY_RANGES
     RUSTDESK = 'RustDesk', THE_CONSTANT_COMPANY_RANGES
+    SERVERS_COM = 'Servers.com', SERVERS_COM_RANGES
     TAKETWO_INTERACTIVE = 'Take-Two Interactive Software, Inc.', TAKETWO_INTERACTIVE_RANGES
     TELLAS_GREECE = 'Tellas Greece', TELLAS_GREECE_RANGES
     TENCENT = 'Tencent Building, Kejizhongyi Avenue', TENCENT_RANGES
@@ -81,6 +88,7 @@ class ThirdPartyServers(enum.Enum):
     UK_MINISTRY_OF_DEFENCE = 'UK Ministry of Defence', UK_MINISTRY_OF_DEFENCE_RANGES
     US_DEPARTMENT_OF_DEFENSE = 'US Department of Defense', US_DEPARTMENT_OF_DEFENSE_RANGES
     VALVE = 'Valve', VALVE_RANGES
+    ZENLAYER = 'Zenlayer Inc', ZENLAYER_RANGES
 
     @property
     def ip_ranges(self) -> tuple[CidrRange, ...]:
