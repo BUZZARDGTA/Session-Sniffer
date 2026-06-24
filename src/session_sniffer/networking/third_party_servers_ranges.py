@@ -1191,8 +1191,14 @@ FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 
 G_CORE_LABS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'G-Core Labs S.A.',
+    '45.82.160.0/22',
     '85.204.246.0/24',
+    '85.234.80.0/23',
+    '85.234.83.0/24',
+    '85.234.84.0/22',
+    '85.234.88.0/23',
     '91.199.84.0/24',
+    '91.243.81.0/24',
     '185.244.208.0/23',
     '185.244.210.0/24',
 )
