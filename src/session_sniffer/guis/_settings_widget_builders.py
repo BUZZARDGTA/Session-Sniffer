@@ -190,8 +190,6 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
-    scroll.setMaximumHeight(340)
-    scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
     inner = QWidget()
     grid = QGridLayout(inner)
@@ -204,8 +202,10 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
         checkbox = QCheckBox(display_text)
         checkbox.setObjectName(column_name)
         grid.addWidget(checkbox, i // column_count, i % column_count)
+    grid.setRowStretch(grid.rowCount(), 1)
 
     scroll.setWidget(inner)
+    scroll.setMinimumHeight(inner.sizeHint().height() + 10)
 
     button_select_all = QPushButton('Select All')
     button_deselect_all = QPushButton('Deselect All')
@@ -287,6 +287,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         cb.setObjectName(pname)
         preset_checkboxes[pname] = cb
         presets_grid.addWidget(cb, i // presets_num_columns, i % presets_num_columns)
+    presets_grid.setRowStretch(presets_grid.rowCount(), 1)
 
     preset_button_select_all = QPushButton('Select All')
     preset_button_deselect_all = QPushButton('Deselect All')
@@ -307,9 +308,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     presets_scroll = QScrollArea()
     presets_scroll.setWidgetResizable(True)
-    presets_scroll.setMaximumHeight(350)
-    presets_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     presets_scroll.setWidget(presets_grid_container)
+    presets_scroll.setMinimumHeight(presets_grid_container.sizeHint().height() + 10)
 
     presets_layout = QVBoxLayout(presets_group)
     presets_layout.setSpacing(4)
@@ -338,12 +338,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         checkbox.setObjectName(column_name)
         checkboxes[column_name] = checkbox
         grid.addWidget(checkbox, i // column_count, i % column_count)
+    grid.setRowStretch(grid.rowCount(), 1)
 
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
-    scroll.setMaximumHeight(350)
-    scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     scroll.setWidget(grid_container)
+    scroll.setMinimumHeight(grid_container.sizeHint().height() + 10)
 
     button_select_all = QPushButton('Select All')
     button_deselect_all = QPushButton('Deselect All')
@@ -606,7 +606,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
         group.setToolTip(meta.tooltip)
 
     list_widget = QListWidget()
-    list_widget.setMaximumHeight(180)
+    list_widget.setMinimumHeight(250)
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 
