@@ -1,7 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PyQt6.QtCore import QRegularExpression, QSize, Qt
 from PyQt6.QtGui import QAction, QIcon, QRegularExpressionValidator
@@ -599,9 +599,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 class _AutoFitListWidget(QListWidget):
     """List widget that pads its size hint to avoid spurious scrollbars."""
 
+    @override
     def sizeHint(self) -> QSize:
+        """Return a slightly padded size hint to prevent spurious scrollbars."""
         hint = super().sizeHint()
-        if self.count() == 0:
+        if not self.count():
             return QSize(hint.width(), 44)
         return QSize(hint.width(), hint.height() + 10)
 
