@@ -260,15 +260,14 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Call of Duty: WWII',
         'Chatspin',
         'Discord',
-        'GTA V PC',
-        'GTA V PlayStation',
-        'GTA V Xbox One',
+        'GTA V',
         'Minecraft Bedrock',
         'Mortal Kombat 11',
         'Mortal Kombat X',
         'Need for Speed Most Wanted',
         'NEW MONOPOLY',
         'OmeTV',
+        'PlayStation',
         'Red Dead Redemption 2',
         'RustDesk',
         'Steam',
@@ -276,6 +275,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'theHunter: Call of the Wild',
         'theHunter Classic',
         'UNO',
+        'Windows',
+        'Xbox',
     ]
 
     preset_checkboxes: dict[str, QCheckBox] = {}
@@ -403,24 +404,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'CLOUDFLARE',
             'DISCORD',
         },
-        'GTA V PC': {
+        'GTA V': {
             'BATTLEYE',
             'MICROSOFT',
             'TAKETWO_INTERACTIVE',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'GTA V PlayStation': {
-            'MICROSOFT',
-            'PLAYSTATION_SONY',
-            'TAKETWO_INTERACTIVE',
             'TELLAS_GREECE',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'GTA V Xbox One': {
-            'MICROSOFT',
-            'TAKETWO_INTERACTIVE',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
@@ -445,6 +433,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'OmeTV': {
             'GOOGLE_LLC',
             'OVH',
+        },
+        'PlayStation': {
+            'PLAYSTATION_SONY',
         },
         'Red Dead Redemption 2': {
             'MICROSOFT',
@@ -476,6 +467,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'I3D_NET',
             'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Windows': {
+            'MICROSOFT',
+        },
+        'Xbox': {
+            'MICROSOFT',
         },
     }
 
