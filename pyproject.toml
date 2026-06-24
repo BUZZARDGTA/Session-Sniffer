@@ -125,11 +125,12 @@ good-names = [
     "selectionModel",
     "setModel",
     "showEvent",
+    "sizeHint",
     "SOCKADDR_IN",
     "SOCKET_ADDRESS",
     "verticalHeader",
 ]
-method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|showEvent|verticalHeader)$"
+method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|rowCount|selectionModel|setModel|showEvent|sizeHint|verticalHeader)$"
 
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]
