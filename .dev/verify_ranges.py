@@ -1412,7 +1412,7 @@ def main() -> None:
                 if not parsed_arguments.only_detections:
                     clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
                     link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
-                    console.print(f'[yellow dim]⚠ Skipping Range Verification for[/yellow dim] [dim]{owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')
+                    console.print(f'[dim]ℹ Skipping Range Verification for {owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')  # noqa: RUF001
                 continue
 
             current_index += 1
@@ -1445,7 +1445,7 @@ def main() -> None:
     skipped_count = len(ranges) - total_count
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges.[/green]')
     if skipped_count > 0:
-        console.print(f'  [yellow]⚠ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/yellow]')
+        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/dim]')  # noqa: RUF001
 
     if parsed_arguments.export:
         export_path = Path(parsed_arguments.export)
@@ -1455,9 +1455,9 @@ def main() -> None:
                     f.write('\n'.join(detections) + '\n')
                 else:
                     f.write('')
-            console.print(f'\n[green]✓ Exported {len(detections)} detection(s) to {export_path}[/green]')
+            console.print(f'\n[green]✓ Exported {len(detections)} detection(s) to {export_path.resolve()}[/green]')
         except OSError as e:
-            console.print(f'\n[red]✗ Failed to export detections to {export_path}: {e}[/red]')
+            console.print(f'\n[red]✗ Failed to export detections to {export_path.resolve()}: {e}[/red]')
 
     if isinstance(client, GeoLite2Client):
         client.close()
