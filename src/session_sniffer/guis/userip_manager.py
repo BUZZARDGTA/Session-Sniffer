@@ -80,11 +80,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         # === Main splitter: file tree (left) | entries editor (right) ===
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
 
         # ------ LEFT PANEL: file tree ------
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(0, 0, 10, 0)
 
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
@@ -202,7 +203,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         # ------ RIGHT PANEL: entries editor ------
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(10, 0, 0, 0)
 
         # Search / filter bar
         search_bar = QHBoxLayout()
@@ -329,6 +330,11 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         splitter.addWidget(right_panel)
         splitter.setSizes([300, 700])
+        splitter.setHandleWidth(1)
+
+        handle = splitter.handle(1)
+        if handle is not None:
+            handle.setDisabled(True)
 
         root_layout.addWidget(splitter)
 
