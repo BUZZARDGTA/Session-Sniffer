@@ -3,7 +3,7 @@
 import re
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRegularExpression, Qt
+from PyQt6.QtCore import QRegularExpression, QSize, Qt
 from PyQt6.QtGui import QAction, QIcon, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -596,6 +596,16 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     return container
 
 
+class _AutoFitListWidget(QListWidget):
+    """List widget that pads its size hint to avoid spurious scrollbars."""
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        if self.count() == 0:
+            return QSize(hint.width(), 44)
+        return QSize(hint.width(), hint.height() + 10)
+
+
 def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
     title = meta.display_label
@@ -605,8 +615,11 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
 
-    list_widget = QListWidget()
-    list_widget.setMinimumHeight(250)
+    list_widget = _AutoFitListWidget()
+    list_widget.setSizeAdjustPolicy(QListWidget.SizeAdjustPolicy.AdjustToContents)
+    list_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    list_widget.setMaximumHeight(250)
+    list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 
