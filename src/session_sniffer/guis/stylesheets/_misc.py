@@ -308,3 +308,92 @@ LOOKY_LIST_WIDGET_STYLESHEET = (
 )
 
 LOOKY_BODY_LABEL_STYLESHEET = 'color: #d4c8f0; font-size: 12pt; padding: 2px;'
+
+# =============================================================================
+# LOOKY SYSTEM REFRESH REVIEW DIALOG STYLES
+# =============================================================================
+
+LOOKY_REVIEW_DIALOG_STYLESHEET = (
+    'QDialog {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '        stop:0 #1a0e2e, stop:1 #0f0a1c);'
+    '}'
+)
+
+LOOKY_REVIEW_TABLE_STYLESHEET = (
+    'QTreeWidget {'
+    '    background-color: #0e0a1c;'
+    '    color: #d4c8f0;'
+    '    border: 1px solid #2d1b6e;'
+    '    border-radius: 8px;'
+    '    font-family: Consolas, "Courier New", monospace;'
+    '    font-size: 12px;'
+    '    padding: 4px;'
+    '    outline: 0;'
+    '    alternate-background-color: #140f24;'
+    '}'
+    'QTreeWidget::item {'
+    '    padding: 5px 6px;'
+    '    border-bottom: 1px solid rgba(45, 27, 110, 0.3);'
+    '}'
+    'QTreeWidget::item:hover {'
+    '    background-color: #1e1030;'
+    '}'
+    'QTreeWidget::item:selected {'
+    '    background-color: #4c1d95;'
+    '    color: #ffffff;'
+    '}'
+    'QTreeWidget::indicator {'
+    '    width: 18px;'
+    '    height: 18px;'
+    '}'
+    'QTreeWidget::indicator:unchecked {'
+    '    border: 2px solid #5b21b6;'
+    '    border-radius: 4px;'
+    '    background-color: #1a1325;'
+    '}'
+    'QTreeWidget::indicator:checked {'
+    '    border: 2px solid #a855f7;'
+    '    border-radius: 4px;'
+    '    background-color: #7c3aed;'
+    '    image: none;'
+    '}'
+    'QHeaderView::section {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '        stop:0 #2e1065, stop:1 #1c0a38);'
+    '    color: #d8b4fe;'
+    '    border: 1px solid #4c1d95;'
+    '    padding: 6px 10px;'
+    '    font-weight: 700;'
+    '    font-size: 11px;'
+    '}'
+)
+
+LOOKY_REVIEW_SUMMARY_STYLESHEET = (
+    'QFrame {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
+    '        stop:0 rgba(76, 29, 149, 0.15), stop:1 rgba(30, 16, 48, 0.25));'
+    '    border: 1px solid #3d2d6e;'
+    '    border-radius: 10px;'
+    '    padding: 10px 14px;'
+    '}'
+)
+
+LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background-color: #1e1030;'
+    '    color: #c084fc;'
+    '    border: 1px solid #5b21b6;'
+    '    border-radius: 6px;'
+    '    padding: 4px 14px;'
+    '    font-weight: 600;'
+    '    font-size: 11px;'
+    '}'
+    'QPushButton:hover {'
+    '    background-color: #2d1858;'
+    '    border-color: #7c3aed;'
+    '}'
+    'QPushButton:pressed {'
+    '    background-color: #4c1d95;'
+    '}'
+)

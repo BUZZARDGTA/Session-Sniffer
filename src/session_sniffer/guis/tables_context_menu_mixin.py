@@ -22,6 +22,7 @@ from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
     copy_player_info_for_discord,
     copy_players_info_for_discord,
+    looky_refresh_userip_entries,
     ping_ip,
     show_crawler_request,
     show_detailed_ip_lookup,
@@ -590,6 +591,22 @@ class TableContextMenuMixin(QTableView):
                 tooltip='Add an additional username for this IP address in its UserIP database.',
                 handler=lambda: userip_add_username(self, ip_address, player),
             )
+            if Settings.is_gta5_preset():
+                refresh_action = add_action(
+                    userip_menu,
+                    '👁 Add Username (Looky)',
+                    tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
+                    handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
+                )
+                if not Settings.looky_enabled:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+                elif not Settings.looky_api_key:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
+                elif not LookyState.api_access:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
             add_action(
                 userip_menu,
                 '✏️ Rename',
@@ -659,6 +676,29 @@ class TableContextMenuMixin(QTableView):
                         tooltip=f'Rename the username for {rename_phrase} in its UserIP database.',
                         handler=lambda: userip_rename_multi(self, rename_players),
                     )
+
+                if Settings.is_gta5_preset():
+                    # Group IPs by their UserIP database path for the batch refresh
+                    _refresh_by_db: dict[Path, list[str]] = {}
+                    for _p in players:
+                        if _p.userip is not None:
+                            _refresh_by_db.setdefault(_p.userip.db_path, []).append(_p.ip)
+                    if _refresh_by_db:
+                        refresh_multi_action = add_action(
+                            userip_menu,
+                            '👁 Add Usernames (Looky)',
+                            tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
+                            handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
+                        )
+                        if not Settings.looky_enabled:
+                            refresh_multi_action.setEnabled(False)
+                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+                        elif not Settings.looky_api_key:
+                            refresh_multi_action.setEnabled(False)
+                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
+                        elif not LookyState.api_access:
+                            refresh_multi_action.setEnabled(False)
+                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
 
                 move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(

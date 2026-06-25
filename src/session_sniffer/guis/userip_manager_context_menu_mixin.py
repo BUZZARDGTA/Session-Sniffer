@@ -1,5 +1,6 @@
 """Entries context-menu mixin for the UserIP Databases Manager dialog."""
 
+from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -7,6 +8,12 @@ from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
 
+from session_sniffer.guis.looky_text import (
+    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
+    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
+    LOOKY_MENU_TOOLTIP_DISABLED,
+)
+from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     RANGE_COLUMN,
@@ -16,6 +23,8 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
+from session_sniffer.networking.looky_system import LookyState
+from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -78,9 +87,13 @@ class EntriesContextMenuMixin(QDialog):
             if index.isValid():
                 self._build_entry_context_menu(menu, index)
             else:
-                add_action = QAction('+ Add Entry', self)
-                add_action.triggered.connect(self._add_entry)
-                menu.addAction(add_action)
+                add_top_action = QAction('+ Add Entry to Top', self)
+                add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
+                menu.addAction(add_top_action)
+
+                add_end_action = QAction('+ Add Entry to End', self)
+                add_end_action.triggered.connect(self._add_entry)
+                menu.addAction(add_end_action)
 
         if menu.isEmpty():
             return
@@ -115,6 +128,31 @@ class EntriesContextMenuMixin(QDialog):
         if not menu.isEmpty():
             menu.addSeparator()
 
+        # Looky System refresh (only for single IPs in GTA5 preset)
+        if ip_or_range and self._current_path is not None and Settings.is_gta5_preset():
+            try:
+                IPv4Address(ip_or_range)
+                is_single_ip = True
+            except ValueError:
+                is_single_ip = False
+            if is_single_ip:
+                _db = self._current_path
+                _ip = ip_or_range
+                refresh_action = QAction('👁 Add Username (Looky)', self)
+                refresh_action.triggered.connect(lambda _checked=False, d=_db, i=_ip: looky_refresh_userip_entries(self, [(d, [i])]))
+                if not Settings.looky_enabled:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+                elif not Settings.looky_api_key:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
+                elif not LookyState.api_access:
+                    refresh_action.setEnabled(False)
+                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
+                else:
+                    refresh_action.setToolTip('Look up this IP via Looky System and add any new usernames to its UserIP database.')
+                menu.addAction(refresh_action)
+
         source_row = self._proxy.mapToSource(index).row()
 
         edit_ip_action = QAction('🔧 Edit IP/Range…', self)
@@ -142,9 +180,15 @@ class EntriesContextMenuMixin(QDialog):
         insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
         menu.addAction(insert_below_action)
 
-        add_action = QAction('+ Add Entry to End', self)
-        add_action.triggered.connect(self._add_entry)
-        menu.addAction(add_action)
+        menu.addSeparator()
+
+        add_top_action = QAction('+ Add Entry to Top', self)
+        add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
+        menu.addAction(add_top_action)
+
+        add_end_action = QAction('+ Add Entry to End', self)
+        add_end_action.triggered.connect(self._add_entry)
+        menu.addAction(add_end_action)
 
     def _build_global_search_context_menu(self, menu: QMenu, index: QModelIndex) -> None:
         """Populate context menu actions for a row in global search (read-only) mode."""
@@ -191,6 +235,31 @@ class EntriesContextMenuMixin(QDialog):
 
             if username and ip_or_range:
                 menu.addSeparator()
+
+                # Looky System refresh (only for single IPs in GTA5 preset)
+                if Settings.is_gta5_preset():
+                    try:
+                        IPv4Address(ip_or_range)
+                        is_single_ip = True
+                    except ValueError:
+                        is_single_ip = False
+                    if is_single_ip:
+                        _db_refresh = db_path
+                        _ip_refresh = ip_or_range
+                        refresh_gs_action = QAction('👁 Add Username (Looky)', self)
+                        refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
+                        if not Settings.looky_enabled:
+                            refresh_gs_action.setEnabled(False)
+                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+                        elif not Settings.looky_api_key:
+                            refresh_gs_action.setEnabled(False)
+                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
+                        elif not LookyState.api_access:
+                            refresh_gs_action.setEnabled(False)
+                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
+                        else:
+                            refresh_gs_action.setToolTip('Look up this IP via Looky System and add any new usernames to its UserIP database.')
+                        menu.addAction(refresh_gs_action)
 
                 delete_action = QAction(f'🗑 Delete Entry  ({db_path.stem})', self)
                 delete_action.triggered.connect(lambda: self._delete_global_search_entry(db_path, username, ip_or_range, row))

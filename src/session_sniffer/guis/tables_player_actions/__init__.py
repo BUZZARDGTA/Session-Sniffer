@@ -29,6 +29,10 @@ from session_sniffer.guis.tables_player_actions._looky_lookup_dialog import (
     LookyLookupDialog,
     show_looky_lookup,
 )
+from session_sniffer.guis.tables_player_actions._looky_refresh_userip import (
+    LookyRefreshReviewDialog,
+    looky_refresh_userip_entries,
+)
 from session_sniffer.guis.tables_player_actions._seen_stats_dialog import (
     SeenStatsDialog,
     show_seen_stats,
@@ -43,6 +47,7 @@ __all__ = [
     'DetectionNotificationInfo',
     'IPLookupDetailsDialog',
     'LookyLookupDialog',
+    'LookyRefreshReviewDialog',
     'PlayerDetectionDialog',
     'PlayerDetectionInfo',
     'SeenStatsDialog',
@@ -51,6 +56,7 @@ __all__ = [
     'build_discord_player_report',
     'copy_player_info_for_discord',
     'copy_players_info_for_discord',
+    'looky_refresh_userip_entries',
     'ping_ip',
     'show_crawler_request',
     'show_crawlme_request',
