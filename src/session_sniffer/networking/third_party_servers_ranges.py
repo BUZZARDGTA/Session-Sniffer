@@ -1192,6 +1192,7 @@ FRIEND_IT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 G_CORE_LABS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'G-Core Labs S.A.',
     '45.82.160.0/22',
+    '80.240.96.0/23',
     '85.204.246.0/24',
     '85.234.80.0/23',
     '85.234.83.0/24',
@@ -1201,6 +1202,7 @@ G_CORE_LABS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '91.243.81.0/24',
     '185.244.208.0/23',
     '185.244.210.0/24',
+    '193.57.88.0/23',
 )
 
 # https://www.gstatic.com/ipranges/goog.json
@@ -1262,6 +1264,8 @@ GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '136.22.2.0/23',
     '136.22.4.0/23',
     '136.22.8.0/22',
+    '136.22.157.0/24',
+    '136.22.158.0/23',
     '136.22.160.0/20',
     '136.22.176.0/21',
     '136.22.184.0/23',
