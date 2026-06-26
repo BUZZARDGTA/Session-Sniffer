@@ -80,7 +80,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 | theHunter Classic                       | PC                                            | Only the host is connected trough P2P                                                                                                                                             |
 | Tom Clancy's Ghost Recon® Wildlands     | PC                                            |                                                                                                                                                                                   |
 | UNO                                     | PC                                            |                                                                                                                                                                                   |
-| Watch Dogs® 2                          | PC                                            |                                                                                                                                                                                   |
+| Watch Dogs® 2                           | PC                                            |                                                                                                                                                                                   |
 
 ---
 
