@@ -276,6 +276,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'theHunter: Call of the Wild',
         'theHunter Classic',
         'UNO',
+        'Watch Dogs 2',
         'Windows',
         'Xbox',
     ]
@@ -476,6 +477,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'AMAZON',
             'I3D_NET',
             'MICROSOFT',
+            'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Watch Dogs 2': {
+            'I3D_NET',
+            'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'Windows': {
