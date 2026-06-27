@@ -1321,6 +1321,16 @@ LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '189.1.160.0/20',
 )
 
+LIMESTONE_NETWORKS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Limestone Networks, Inc.',
+    '64.31.0.0/19',
+    '64.31.32.0/20',
+    '64.31.48.0/21',
+    '64.31.56.0/22',
+    '64.31.60.0/23',
+    '64.31.62.0/24',
+)
+
 MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Microsoft Corporation',
     '4.144.0.0/12',

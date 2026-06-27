@@ -20,6 +20,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     GOOGLE_LLC_RANGES,
     I3D_NET_RANGES,
     LATITUDE_SH_RANGES,
+    LIMESTONE_NETWORKS_RANGES,
     MICROSOFT_RANGES,
     OVH_RANGES,
     PLAYSTATION_SONY_RANGES,
@@ -75,6 +76,7 @@ class ThirdPartyServers(enum.Enum):
     GOOGLE_LLC = 'Google LLC', GOOGLE_LLC_RANGES
     I3D_NET = 'i3D.net B.V', I3D_NET_RANGES
     LATITUDE_SH = 'Latitude.sh', LATITUDE_SH_RANGES
+    LIMESTONE_NETWORKS = 'Limestone Networks, Inc.', LIMESTONE_NETWORKS_RANGES
     MICROSOFT = 'Microsoft', MICROSOFT_RANGES
     OVH = 'OVH', OVH_RANGES
     PLAYSTATION_SONY = 'PlayStation (Sony)', PLAYSTATION_SONY_RANGES

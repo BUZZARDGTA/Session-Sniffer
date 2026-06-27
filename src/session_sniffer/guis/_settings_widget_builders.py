@@ -272,6 +272,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'PlayStation',
         'Red Dead Redemption 2',
         'RustDesk',
+        'Sniper Elite 3',
         'Steam',
         'The Division 2',
         'theHunter: Call of the Wild',
@@ -461,6 +462,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'RustDesk': {
             'RUSTDESK',
+        },
+        'Sniper Elite 3': {
+            'LIMESTONE_NETWORKS',
         },
         'Steam': {
             'VALVE',
