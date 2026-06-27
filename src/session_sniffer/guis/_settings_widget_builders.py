@@ -536,12 +536,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
                         checkboxes[rname].setChecked(True)
                         checkboxes[rname].blockSignals(False)  # noqa: FBT003
             else:
-                other_required: set[str] = set()
-                for other_name, other_cb in preset_checkboxes.items():
-                    if other_name != pname and other_cb.isChecked():
-                        other_required.update(presets_map[other_name])
                 for rname in preset_set:
-                    if rname not in other_required and rname in checkboxes:
+                    if rname in checkboxes:
                         checkboxes[rname].blockSignals(True)  # noqa: FBT003
                         checkboxes[rname].setChecked(False)
                         checkboxes[rname].blockSignals(False)  # noqa: FBT003
