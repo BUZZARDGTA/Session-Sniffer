@@ -268,6 +268,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Need for Speed Most Wanted',
         'NEW MONOPOLY',
         'OmeTV',
+        'Payday 2',
         'PlayStation',
         'Red Dead Redemption 2',
         'RustDesk',
@@ -444,6 +445,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'OmeTV': {
             'GOOGLE_LLC',
             'OVH',
+        },
+        'Payday 2': {
+            'AMAZON',
+            'US_DEPARTMENT_OF_DEFENSE',
         },
         'PlayStation': {
             'PLAYSTATION_SONY',
