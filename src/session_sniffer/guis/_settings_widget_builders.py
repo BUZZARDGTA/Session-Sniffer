@@ -256,30 +256,30 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_names = [
         'Azar',
-        'Call of Duty: Black Ops III',
-        'Call of Duty: WWII',
+        'Call of Duty®: Black Ops III',
+        'Call of Duty®: WWII',
         'Chatspin',
         'Discord',
-        'GTA V',
+        'Grand Theft Auto Online',
         "John Carpenter's Toxic Commando",
-        'Minecraft Bedrock',
+        'Minecraft Bedrock Edition',
         'Monopoly Madness',
         'Mortal Kombat 11',
         'Mortal Kombat X',
-        'Need for Speed Most Wanted',
-        'NEW MONOPOLY',
+        'Need for Speed™ Most Wanted',
+        'NEW MONOPOLY®',
         'OmeTV',
         'Payday 2',
-        'PlayStation',
-        'Red Dead Redemption 2',
+        'PlayStation Party Chat',
+        'Red Dead Online',
         'RustDesk',
         'Sniper Elite 3',
         'Steam',
         'The Division 2',
-        'theHunter: Call of the Wild',
+        'theHunter Call of the Wild™',
         'theHunter Classic',
         'UNO',
-        'Watch Dogs 2',
+        'Watch Dogs® 2',
         'Windows',
         'Xbox',
     ]
@@ -385,14 +385,14 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'GOOGLE_LLC',
             'MICROSOFT',
         },
-        'Call of Duty: Black Ops III': {
+        'Call of Duty®: Black Ops III': {
             'DEMONWARE',
             'DIMENSION_DATA',
             'LATITUDE_SH',
             'THE_CONSTANT_COMPANY',
             'TSEFLOW',
         },
-        'Call of Duty: WWII': {
+        'Call of Duty®: WWII': {
             'DEMONWARE',
             'FRIEND_IT',
             'LATITUDE_SH',
@@ -409,7 +409,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'CLOUDFLARE',
             'DISCORD',
         },
-        'GTA V': {
+        'Grand Theft Auto Online': {
             'BATTLEYE',
             'MICROSOFT',
             'TAKETWO_INTERACTIVE',
@@ -426,7 +426,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'US_DEPARTMENT_OF_DEFENSE',
             'ZENLAYER',
         },
-        'Minecraft Bedrock': {
+        'Minecraft Bedrock Edition': {
             'MICROSOFT',
         },
         'Monopoly Madness': {
@@ -439,12 +439,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
         },
-        'Need for Speed Most Wanted': {
+        'Need for Speed™ Most Wanted': {
             'EA',
             'I3D_NET',
             'MICROSOFT',
         },
-        'NEW MONOPOLY': {
+        'NEW MONOPOLY®': {
             'AMAZON',
         },
         'OmeTV': {
@@ -455,10 +455,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'AMAZON',
             'US_DEPARTMENT_OF_DEFENSE',
         },
-        'PlayStation': {
+        'PlayStation Party Chat': {
             'PLAYSTATION_SONY',
         },
-        'Red Dead Redemption 2': {
+        'Red Dead Online': {
             'MICROSOFT',
             'TAKETWO_INTERACTIVE',
             'UK_MINISTRY_OF_DEFENCE',
@@ -477,7 +477,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'CLOUDFLARE',
             'MICROSOFT',
         },
-        'theHunter: Call of the Wild': {
+        'theHunter Call of the Wild™': {
             'AMAZON',
             'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
@@ -492,7 +492,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
         },
-        'Watch Dogs 2': {
+        'Watch Dogs® 2': {
             'I3D_NET',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
