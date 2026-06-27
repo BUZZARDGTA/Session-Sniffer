@@ -263,6 +263,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'GTA V',
         "John Carpenter's Toxic Commando",
         'Minecraft Bedrock',
+        'Monopoly Madness',
         'Mortal Kombat 11',
         'Mortal Kombat X',
         'Need for Speed Most Wanted',
@@ -427,6 +428,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'Minecraft Bedrock': {
             'MICROSOFT',
+        },
+        'Monopoly Madness': {
+            'AMAZON',
         },
         'Mortal Kombat 11': {
             'US_DEPARTMENT_OF_DEFENSE',
