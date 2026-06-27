@@ -271,6 +271,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'OmeTV',
         'Payday 2',
         'PlayStation Party Chat',
+        'Ready or Not',
         'Red Dead Online',
         'RustDesk',
         'Sniper Elite 3',
@@ -457,6 +458,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'PlayStation Party Chat': {
             'PLAYSTATION_SONY',
+        },
+        'Ready or Not': {
+            'AMAZON',
         },
         'Red Dead Online': {
             'MICROSOFT',
