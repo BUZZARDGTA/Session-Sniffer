@@ -7,6 +7,7 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Self
 
 from session_sniffer.networking.third_party_servers_ranges import (
+    AKAMAI_CONNECTED_CLOUD_RANGES,
     AMAZON_RANGES,
     BATTLEYE_RANGES,
     CLOUDFLARE_RANGES,
@@ -65,6 +66,7 @@ class ThirdPartyServers(enum.Enum):
     value: tuple[str, tuple[NamedRange, ...]]
 
     # Flat, owner-based server ranges
+    AKAMAI_CONNECTED_CLOUD = 'Akamai Connected Cloud', AKAMAI_CONNECTED_CLOUD_RANGES
     AMAZON = 'Amazon.com, Inc.', AMAZON_RANGES
     BATTLEYE = 'BattlEye', BATTLEYE_RANGES
     CLOUDFLARE = 'Cloudflare', CLOUDFLARE_RANGES

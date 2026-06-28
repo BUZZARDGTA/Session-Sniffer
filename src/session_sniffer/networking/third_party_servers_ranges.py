@@ -18,6 +18,13 @@ def create_named_ranges(owner: str, *cidr_ranges: str) -> tuple[NamedRange, ...]
     return tuple(NamedRange(owner, cidr_range) for cidr_range in cidr_ranges)
 
 
+AKAMAI_CONNECTED_CLOUD_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Akamai Connected Cloud',
+    '172.224.0.0/12',
+    '173.255.192.0/18',
+)
+
+
 AMAZON_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Amazon.com, Inc.',
     '1.178.1.0/24',

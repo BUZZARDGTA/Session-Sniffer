@@ -287,6 +287,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'theHunter Call of the Wild™',
         'theHunter Classic',
         'UNO',
+        'Warframe',
         'Watch Dogs® 2',
         'Windows',
         'Xbox',
@@ -542,6 +543,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'I3D_NET',
             'MICROSOFT',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Warframe': {
+            'AKAMAI_CONNECTED_CLOUD',
         },
         'Watch Dogs® 2': {
             'I3D_NET',
