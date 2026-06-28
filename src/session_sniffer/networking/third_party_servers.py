@@ -11,6 +11,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     BATTLEYE_RANGES,
     CLOUDFLARE_RANGES,
     COMNET_INTERNATIONAL_BV_RANGES,
+    COMVIVE_SERVIDORES_RANGES,
     DEMONWARE_RANGES,
     DIMENSION_DATA_RANGES,
     DISCORD_RANGES,
@@ -20,6 +21,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     GOOGLE_LLC_RANGES,
     I3D_NET_RANGES,
     LATITUDE_SH_RANGES,
+    LEVEL_3_PARENT_RANGES,
     LIMESTONE_NETWORKS_RANGES,
     MICROSOFT_RANGES,
     OVH_RANGES,
@@ -67,6 +69,7 @@ class ThirdPartyServers(enum.Enum):
     BATTLEYE = 'BattlEye', BATTLEYE_RANGES
     CLOUDFLARE = 'Cloudflare', CLOUDFLARE_RANGES
     COMNET_INTERNATIONAL_BV = 'Comnet Internetional BV', COMNET_INTERNATIONAL_BV_RANGES
+    COMVIVE_SERVIDORES = 'Comvive Servidores S.L.', COMVIVE_SERVIDORES_RANGES
     DEMONWARE = 'Demonware Limited', DEMONWARE_RANGES
     DIMENSION_DATA = 'Dimension Data', DIMENSION_DATA_RANGES
     DISCORD = 'Discord', DISCORD_RANGES
@@ -76,6 +79,7 @@ class ThirdPartyServers(enum.Enum):
     GOOGLE_LLC = 'Google LLC', GOOGLE_LLC_RANGES
     I3D_NET = 'i3D.net B.V', I3D_NET_RANGES
     LATITUDE_SH = 'Latitude.sh', LATITUDE_SH_RANGES
+    LEVEL_3_PARENT = 'Level 3 Parent, LLC', LEVEL_3_PARENT_RANGES
     LIMESTONE_NETWORKS = 'Limestone Networks, Inc.', LIMESTONE_NETWORKS_RANGES
     MICROSOFT = 'Microsoft', MICROSOFT_RANGES
     OVH = 'OVH', OVH_RANGES

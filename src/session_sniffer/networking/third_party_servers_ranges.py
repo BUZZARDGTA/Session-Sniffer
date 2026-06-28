@@ -1130,6 +1130,11 @@ COMNET_INTERNATIONAL_BV_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '77.72.168.0/21',
 )
 
+COMVIVE_SERVIDORES_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Comvive Servidores S.L.',
+    '93.93.64.0/21',
+)
+
 DEMONWARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Demonware Limited',
     '185.34.104.0/22',
@@ -1319,6 +1324,54 @@ I3D_NET_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Latitude.sh LTDA',
     '189.1.160.0/20',
+)
+
+LEVEL_3_PARENT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Level 3 Parent, LLC',
+    '4.0.0.0/12',
+    '4.16.0.0/15',
+    '4.18.0.0/16',
+    '4.19.0.0/21',
+    '4.19.8.0/22',
+    '4.19.14.0/23',
+    '4.19.16.0/20',
+    '4.19.32.0/19',
+    '4.19.64.0/18',
+    '4.19.128.0/17',
+    '4.20.0.0/14',
+    '4.24.0.0/13',
+    '4.32.0.0/15',
+    '4.34.0.0/16',
+    '4.35.0.0/18',
+    '4.35.64.0/22',
+    '4.35.68.0/24',
+    '4.35.70.0/23',
+    '4.35.72.0/21',
+    '4.35.80.0/20',
+    '4.35.96.0/19',
+    '4.35.128.0/17',
+    '4.36.0.0/15',
+    '4.38.0.0/16',
+    '4.39.0.0/18',
+    '4.39.64.0/19',
+    '4.39.96.0/23',
+    '4.39.98.0/24',
+    '4.39.100.0/22',
+    '4.39.104.0/21',
+    '4.39.112.0/20',
+    '4.39.128.0/17',
+    '4.40.0.0/13',
+    '4.48.0.0/12',
+    '4.64.0.0/10',
+    '195.122.128.0/20',
+    '195.122.144.0/21',
+    '195.122.152.0/23',
+    '195.122.156.0/22',
+    '195.122.160.0/20',
+    '195.122.176.0/21',
+    '195.122.184.0/23',
+    '195.122.187.0/24',
+    '195.122.188.0/22',
 )
 
 LIMESTONE_NETWORKS_RANGES: tuple[NamedRange, ...] = create_named_ranges(

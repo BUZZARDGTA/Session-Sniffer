@@ -401,7 +401,13 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'TSEFLOW',
         },
         'Call of Duty®: Ghosts': {
+            'COMVIVE_SERVIDORES',
             'DEMONWARE',
+            'DIMENSION_DATA',
+            'LATITUDE_SH',
+            'LEVEL_3_PARENT',
+            'THE_CONSTANT_COMPANY',
+            'TSEFLOW',
         },
         'Call of Duty®: Infinite Warfare': {
             'DEMONWARE',
