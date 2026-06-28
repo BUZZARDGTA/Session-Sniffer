@@ -256,6 +256,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_names = [
         'Azar',
+        'Call of Duty®: Black Ops II',
         'Call of Duty®: Black Ops III',
         'Call of Duty®: Infinite Warfare',
         'Call of Duty®: Vanguard',
@@ -387,6 +388,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'CLOUDFLARE',
             'GOOGLE_LLC',
             'MICROSOFT',
+        },
+        'Call of Duty®: Black Ops II': {
+            'DEMONWARE',
         },
         'Call of Duty®: Black Ops III': {
             'DEMONWARE',
