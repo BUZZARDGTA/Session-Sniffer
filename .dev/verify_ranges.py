@@ -1221,10 +1221,20 @@ def run_preflight_checks(
             owner_line_numbers = [line_number for owner_name, _, line_number in ranges if owner_name == owner]
             link_str = f'  •  [blue]{clean_relative_path}:{min(owner_line_numbers)}[/blue]' if (owner_line_numbers and clean_relative_path) else ''
 
-            owner_suggestions = [f"    '{network.with_prefixlen}'," for network in collapsed]
-            collapse_suggestions.append(
-                f'[bold white]{owner}[/bold white] ({len(networks)} ranges → {len(collapsed)}){link_str}\n' + '\n'.join(owner_suggestions),
-            )
+            to_delete = [n for n in networks if n not in collapsed]
+            to_add = [n for n in collapsed if n not in networks]
+
+            lines = [f'[bold white]{owner}[/bold white] ({len(networks)} ranges → {len(collapsed)}){link_str}']
+            if to_delete:
+                lines.append('  [red]❌ Delete these ranges:[/red]')
+                for n in to_delete:
+                    lines.append(f"    '{n.with_prefixlen}',")
+            if to_add:
+                lines.append('  [green]➕ Add these ranges instead:[/green]')
+                for n in to_add:
+                    lines.append(f"    '{n.with_prefixlen}',")
+
+            collapse_suggestions.append('\n'.join(lines))
 
     if collapses:
         table.add_row('Collapsible CIDRs', f'[yellow]⚠ {len(collapses)} collapsible blocks found![/yellow]\n' + '\n'.join(collapses))
@@ -1234,7 +1244,8 @@ def run_preflight_checks(
     renderables: list[Any] = [table]
     if collapse_suggestions:
         renderables.append(Text(''))
-        renderables.append(Rule('[bold white]CIDR Collapse Suggestions[/bold white]'))
+        renderables.append(Rule('[bold yellow]CIDR Collapse Suggestions[/bold yellow]'))
+        renderables.append(Text.from_markup('[yellow]💡 Edit the ranges for the owner in your code by deleting and adding the subnets below:[/yellow]'))
         renderables.append(Text(''))
         renderables.append(Text.from_markup('\n\n'.join(collapse_suggestions)))
 
