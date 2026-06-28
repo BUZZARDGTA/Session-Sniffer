@@ -1482,6 +1482,9 @@ PLAYSTATION_SONY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 
 SERVERS_COM_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Servers.com',
+    '170.23.0.0/18',
+    '170.23.64.0/20',
+    '170.23.80.0/23',
     '172.240.0.0/16',
     '172.241.0.0/21',
 )
