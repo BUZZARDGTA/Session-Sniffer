@@ -24,7 +24,6 @@ AKAMAI_CONNECTED_CLOUD_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '173.255.192.0/18',
 )
 
-
 AMAZON_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Amazon.com, Inc.',
     '1.178.1.0/24',
