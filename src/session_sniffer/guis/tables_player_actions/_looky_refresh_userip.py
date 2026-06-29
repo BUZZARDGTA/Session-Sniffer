@@ -174,7 +174,7 @@ class _LookyRefreshLoadingDialog(QDialog):
 class _PendingEntry:
     """A single new username=IP entry that the Looky System discovered and may be written to a database."""
 
-    __slots__ = ('db_path', 'username', 'ip')
+    __slots__ = ('db_path', 'ip', 'username')
 
     def __init__(self, db_path: Path, username: str, ip: str) -> None:
         self.db_path = db_path
@@ -185,7 +185,7 @@ class _PendingEntry:
 class _IpGroup:
     """All data for one IP address: its database, existing usernames, and new Looky-discovered entries."""
 
-    __slots__ = ('db_path', 'ip', 'existing_usernames', 'new_entries')
+    __slots__ = ('db_path', 'existing_usernames', 'ip', 'new_entries')
 
     def __init__(self, db_path: Path, ip: str, existing_usernames: list[str], new_entries: list[_PendingEntry]) -> None:
         self.db_path = db_path
@@ -437,10 +437,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
             parent_text_ip = parent_item.text(0).lower()
             parent_text_db = parent_item.text(2).lower()
-            
+
             # Check if parent matches
             matches = query in parent_text_ip or query in parent_text_db
-            
+
             # If parent doesn't match, check if any child matches
             if not matches:
                 for j in range(parent_item.childCount()):
@@ -451,7 +451,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
             # Show or hide the entire group based on whether it matched anything
             parent_item.setHidden(not matches)
-            
+
             # Ensure all children remain visible so the full context is shown
             for j in range(parent_item.childCount()):
                 child = parent_item.child(j)

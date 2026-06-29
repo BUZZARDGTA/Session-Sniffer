@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QVBoxLayout,
@@ -176,7 +175,7 @@ def create_bool_or_enum_widget(meta: SettingMeta) -> QComboBox:
 
 
 def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
-    """Create a scrollable multi-column grid of checkboxes for column visibility."""
+    """Create a multi-column grid of checkboxes for column visibility."""
     allowed_attr = meta.allowed_columns_attr or ''
     allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
     default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
@@ -187,9 +186,6 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     group = QGroupBox(title)
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
-
-    scroll = QScrollArea()
-    scroll.setWidgetResizable(True)
 
     inner = QWidget()
     grid = QGridLayout(inner)
@@ -203,9 +199,6 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
         checkbox.setObjectName(column_name)
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
-
-    scroll.setWidget(inner)
-    scroll.setMinimumHeight(inner.sizeHint().height() + 10)
 
     button_select_all = QPushButton('Select All')
     button_deselect_all = QPushButton('Deselect All')
@@ -230,7 +223,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     outer = QVBoxLayout(group)
     outer.setSpacing(4)
     outer.addLayout(button_row)
-    outer.addWidget(scroll, 1)
+    outer.addWidget(inner)
     return group
 
 
@@ -321,15 +314,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     preset_button_row.addWidget(preset_button_reset)
     preset_button_row.addStretch()
 
-    presets_scroll = QScrollArea()
-    presets_scroll.setWidgetResizable(True)
-    presets_scroll.setWidget(presets_grid_container)
-    presets_scroll.setMinimumHeight(presets_grid_container.sizeHint().height() + 10)
-
     presets_layout = QVBoxLayout(presets_group)
     presets_layout.setSpacing(4)
     presets_layout.addLayout(preset_button_row)
-    presets_layout.addWidget(presets_scroll, 1)
+    presets_layout.addWidget(presets_grid_container)
 
     # Checklist container
     title_checklist = meta.display_label
@@ -355,11 +343,6 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
-    scroll = QScrollArea()
-    scroll.setWidgetResizable(True)
-    scroll.setWidget(grid_container)
-    scroll.setMinimumHeight(grid_container.sizeHint().height() + 10)
-
     button_select_all = QPushButton('Select All')
     button_deselect_all = QPushButton('Deselect All')
     button_reset = QPushButton('Reset')
@@ -384,10 +367,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     group_layout = QVBoxLayout(checklist_group)
     group_layout.setSpacing(4)
     group_layout.addLayout(button_row)
-    group_layout.addWidget(scroll, 1)
+    group_layout.addWidget(grid_container)
 
-    layout.addWidget(presets_group, 1)
-    layout.addWidget(checklist_group, 1)
+    layout.addWidget(presets_group)
+    layout.addWidget(checklist_group)
 
     # Preset mappings
     presets_map: dict[str, set[str]] = {
