@@ -1,5 +1,8 @@
 """Looky System → UserIP username refresh: batch-lookup IPs and append new usernames to database files."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from http import HTTPStatus
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
@@ -171,27 +174,23 @@ class _LookyRefreshLoadingDialog(QDialog):
 # Data classes for the review dialog
 # ---------------------------------------------------------------------------
 
+@dataclass(slots=True)
 class _PendingEntry:
     """A single new username=IP entry that the Looky System discovered and may be written to a database."""
 
-    __slots__ = ('db_path', 'ip', 'username')
-
-    def __init__(self, db_path: Path, username: str, ip: str) -> None:
-        self.db_path = db_path
-        self.username = username
-        self.ip = ip
+    db_path: Path
+    ip: str
+    username: str
 
 
+@dataclass(slots=True)
 class _IpGroup:
     """All data for one IP address: its database, existing usernames, and new Looky-discovered entries."""
 
-    __slots__ = ('db_path', 'existing_usernames', 'ip', 'new_entries')
-
-    def __init__(self, db_path: Path, ip: str, existing_usernames: list[str], new_entries: list[_PendingEntry]) -> None:
-        self.db_path = db_path
-        self.ip = ip
-        self.existing_usernames = existing_usernames
-        self.new_entries = new_entries
+    db_path: Path
+    ip: str
+    existing_usernames: list[str]
+    new_entries: list[_PendingEntry]
 
 
 # ---------------------------------------------------------------------------
