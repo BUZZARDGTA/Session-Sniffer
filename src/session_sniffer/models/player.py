@@ -2,7 +2,6 @@
 
 import dataclasses
 from dataclasses import dataclass
-from datetime import datetime as datetime_type  # noqa: TC003
 from threading import Event
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -30,6 +29,8 @@ from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from datetime import datetime as datetime_type
+
     from session_sniffer.player.userip import UserIP
 
 __all__ = [

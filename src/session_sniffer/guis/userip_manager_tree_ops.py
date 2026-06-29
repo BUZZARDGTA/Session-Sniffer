@@ -14,9 +14,7 @@ from PyQt6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFrame, QInputDialo
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.guis.looky_text import (
-    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
-    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
-    LOOKY_MENU_TOOLTIP_DISABLED,
+    configure_looky_action,
 )
 from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
@@ -28,7 +26,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     parse_settings_from_lines,
     read_preserved_sections,
 )
-from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -230,17 +227,7 @@ class TreeOperationsMixin(QDialog):
                     _dir_path = file_path
                     refresh_dir_action = QAction('👁 Add Usernames in Folder (Looky)', self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.ini'))))
-                    if not Settings.looky_enabled:
-                        refresh_dir_action.setEnabled(False)
-                        refresh_dir_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                    elif not Settings.looky_api_key:
-                        refresh_dir_action.setEnabled(False)
-                        refresh_dir_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                    elif not LookyState.api_access:
-                        refresh_dir_action.setEnabled(False)
-                        refresh_dir_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                    else:
-                        refresh_dir_action.setToolTip('Look up all IPs in this folder via Looky System and add any new usernames.')
+                    configure_looky_action(refresh_dir_action, 'Look up all IPs in this folder via Looky System and add any new usernames.')
                     menu.addAction(refresh_dir_action)
 
                 menu.addSeparator()
@@ -280,17 +267,7 @@ class TreeOperationsMixin(QDialog):
                     _file_path = file_path
                     refresh_action = QAction('👁 Add Usernames (Looky)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
-                    if not Settings.looky_enabled:
-                        refresh_action.setEnabled(False)
-                        refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                    elif not Settings.looky_api_key:
-                        refresh_action.setEnabled(False)
-                        refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                    elif not LookyState.api_access:
-                        refresh_action.setEnabled(False)
-                        refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                    else:
-                        refresh_action.setToolTip('Look up all IPs in this database via Looky System and add any new usernames.')
+                    configure_looky_action(refresh_action, 'Look up all IPs in this database via Looky System and add any new usernames.')
                     menu.addAction(refresh_action)
                     menu.addSeparator()
 
@@ -310,17 +287,7 @@ class TreeOperationsMixin(QDialog):
                 menu.addSeparator()
                 refresh_all_action = QAction('👁 Add Usernames in All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))
-                if not Settings.looky_enabled:
-                    refresh_all_action.setEnabled(False)
-                    refresh_all_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                elif not Settings.looky_api_key:
-                    refresh_all_action.setEnabled(False)
-                    refresh_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                elif not LookyState.api_access:
-                    refresh_all_action.setEnabled(False)
-                    refresh_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                else:
-                    refresh_all_action.setToolTip('Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
+                configure_looky_action(refresh_all_action, 'Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
                 menu.addAction(refresh_all_action)
 
             menu.addSeparator()

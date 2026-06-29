@@ -10,10 +10,7 @@ from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIP
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
-    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
-    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
-    LOOKY_MENU_TOOLTIP_DISABLED,
-    LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING,
+    configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
@@ -45,7 +42,6 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename_multi,
 )
 from session_sniffer.networking.ip_range import check_ip_against_ranges
-from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
@@ -390,18 +386,8 @@ class TableContextMenuMixin(QTableView):
                 return
 
             def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
-                if not Settings.looky_enabled:
-                    action.setEnabled(False)
-                    action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                elif not Settings.looky_api_key:
-                    action.setEnabled(False)
-                    action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                elif not LookyState.api_access:
-                    action.setEnabled(False)
-                    action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                elif require_gta5_running and not CaptureState.gta5_is_running:
-                    action.setEnabled(False)
-                    action.setToolTip(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
+                is_gta5_running = CaptureState.gta5_is_running if require_gta5_running else None
+                configure_looky_action(action, is_gta5_running=is_gta5_running)
 
             looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
 
@@ -598,15 +584,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
                     handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
                 )
-                if not Settings.looky_enabled:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                elif not Settings.looky_api_key:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                elif not LookyState.api_access:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
+                configure_looky_action(refresh_action)
             add_action(
                 userip_menu,
                 '✏️ Rename',
@@ -690,15 +668,7 @@ class TableContextMenuMixin(QTableView):
                             tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                             handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
                         )
-                        if not Settings.looky_enabled:
-                            refresh_multi_action.setEnabled(False)
-                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                        elif not Settings.looky_api_key:
-                            refresh_multi_action.setEnabled(False)
-                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                        elif not LookyState.api_access:
-                            refresh_multi_action.setEnabled(False)
-                            refresh_multi_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
+                        configure_looky_action(refresh_multi_action)
 
                 move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(

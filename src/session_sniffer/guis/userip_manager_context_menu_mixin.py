@@ -9,9 +9,7 @@ from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardIt
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
 
 from session_sniffer.guis.looky_text import (
-    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
-    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
-    LOOKY_MENU_TOOLTIP_DISABLED,
+    configure_looky_action,
 )
 from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
@@ -23,7 +21,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
-from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -140,17 +137,7 @@ class EntriesContextMenuMixin(QDialog):
                 _ip = ip_or_range
                 refresh_action = QAction('👁 Add Username (Looky)', self)
                 refresh_action.triggered.connect(lambda _checked=False, d=_db, i=_ip: looky_refresh_userip_entries(self, [(d, [i])]))
-                if not Settings.looky_enabled:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                elif not Settings.looky_api_key:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                elif not LookyState.api_access:
-                    refresh_action.setEnabled(False)
-                    refresh_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                else:
-                    refresh_action.setToolTip('Look up this IP via Looky System and add any new usernames to its UserIP database.')
+                configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                 menu.addAction(refresh_action)
 
         source_row = self._proxy.mapToSource(index).row()
@@ -248,17 +235,7 @@ class EntriesContextMenuMixin(QDialog):
                         _ip_refresh = ip_or_range
                         refresh_gs_action = QAction('👁 Add Username (Looky)', self)
                         refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
-                        if not Settings.looky_enabled:
-                            refresh_gs_action.setEnabled(False)
-                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-                        elif not Settings.looky_api_key:
-                            refresh_gs_action.setEnabled(False)
-                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-                        elif not LookyState.api_access:
-                            refresh_gs_action.setEnabled(False)
-                            refresh_gs_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-                        else:
-                            refresh_gs_action.setToolTip('Look up this IP via Looky System and add any new usernames to its UserIP database.')
+                        configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                         menu.addAction(refresh_gs_action)
 
                 delete_action = QAction(f'🗑 Delete Entry  ({db_path.stem})', self)
