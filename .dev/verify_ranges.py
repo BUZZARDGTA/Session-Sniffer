@@ -1227,12 +1227,10 @@ def run_preflight_checks(
             lines = [f'[bold white]{owner}[/bold white] ({len(networks)} ranges → {len(collapsed)}){link_str}']
             if to_delete:
                 lines.append('  [red]❌ Delete these ranges:[/red]')
-                for n in to_delete:
-                    lines.append(f"    '{n.with_prefixlen}',")
+                lines.extend(f"    '{n.with_prefixlen}'," for n in to_delete)
             if to_add:
-                lines.append('  [green]➕ Add these ranges instead:[/green]')
-                for n in to_add:
-                    lines.append(f"    '{n.with_prefixlen}',")
+                lines.append('  [green]➕ Add these ranges instead:[/green]')  # noqa: RUF001
+                lines.extend(f"    '{n.with_prefixlen}'," for n in to_add)
 
             collapse_suggestions.append('\n'.join(lines))
 
