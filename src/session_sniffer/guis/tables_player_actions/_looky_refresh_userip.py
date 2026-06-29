@@ -474,15 +474,24 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         if parent is None:
             # IP node
             ip_str = item.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy IP Address', lambda: QApplication.clipboard().setText(ip_str))
+            menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
         else:
             # Username node
             username_str = item.text(0).strip()
             ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy Username', lambda: QApplication.clipboard().setText(username_str))
-            menu.addAction('Copy IP Address', lambda: QApplication.clipboard().setText(ip_str))
+            menu.addAction('Copy Username', lambda: self._copy_to_clipboard(username_str))
+            menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
 
-        menu.exec(self._tree.viewport().mapToGlobal(pos))
+        viewport = self._tree.viewport()
+        if viewport is not None:
+            menu.exec(viewport.mapToGlobal(pos))
+
+    @staticmethod
+    def _copy_to_clipboard(text: str) -> None:
+        """Copy the given text to the system clipboard."""
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(text)
 
 
 # ---------------------------------------------------------------------------
