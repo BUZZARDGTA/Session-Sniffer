@@ -14,7 +14,7 @@ dependencies = [
     "psutil==7.2.2",
     "pydantic==2.13.4",
     "pypresence==4.6.1",
-    "PyQt6==6.11.0",
+    "PyQt6==6.8.1",
     "pyqtgraph==0.14.0",
     "pywin32==312; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
