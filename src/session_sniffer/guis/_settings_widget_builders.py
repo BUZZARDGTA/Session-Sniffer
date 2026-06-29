@@ -263,6 +263,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Call of Duty®: Black Ops III',
         'Call of Duty®: Ghosts',
         'Call of Duty®: Infinite Warfare',
+        'Call of Duty®: Modern Warfare® 2 (2009)',
+        'Call of Duty®: Modern Warfare® 3 (2011)',
         'Call of Duty®: Vanguard',
         'Call of Duty®: WWII',
         'Chatspin',
@@ -436,6 +438,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'DEMONWARE',
             'THE_CONSTANT_COMPANY',
             'TSEFLOW',
+        },
+        'Call of Duty®: Modern Warfare® 2 (2009)': {
+            'DEMONWARE',
+        },
+        'Call of Duty®: Modern Warfare® 3 (2011)': {
+            'DEMONWARE',
         },
         'Call of Duty®: Vanguard': {
             'DEMONWARE',
