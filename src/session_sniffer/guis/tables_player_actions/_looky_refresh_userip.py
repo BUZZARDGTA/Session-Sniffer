@@ -1,10 +1,9 @@
 """Looky System → UserIP username refresh: batch-lookup IPs and append new usernames to database files."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from http import HTTPStatus
 from ipaddress import IPv4Address
+from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, override
 
 import requests
@@ -52,8 +51,6 @@ from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import write_lines_to_file
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from session_sniffer.models.looky_system import LookyPlayer
 
 _BATCH_SIZE = 32
