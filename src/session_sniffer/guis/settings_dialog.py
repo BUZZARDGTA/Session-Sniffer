@@ -95,8 +95,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(700, 520)
-        self.resize(780, 600)
+        self.setMinimumSize(830, 650)
+        self.resize(830, 650)
 
         self._capture = capture
         self._widgets: dict[str, QWidget] = {}
