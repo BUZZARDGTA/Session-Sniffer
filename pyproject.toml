@@ -10,11 +10,11 @@ dependencies = [
     "dnspython==2.8.0",
     "geoip2==5.2.0",
     "packaging==26.2",
-    "prettytable==3.17.0",
+    "prettytable==3.18.0",
     "psutil==7.2.2",
     "pydantic==2.13.4",
     "pypresence==4.6.1",
-    "PyQt6==6.8.1",
+    "PyQt6==6.11.0",
     "pyqtgraph==0.14.0",
     "pywin32==312; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
@@ -22,7 +22,7 @@ dependencies = [
     "rich==15.0.0",
     "scapy==2.7.0",
     "sentinel==1.0.0",
-    "tzlocal==5.4.3",
+    "tzlocal==5.4.4",
 
     # Security fixes
     "certifi>=2024.7.4",
