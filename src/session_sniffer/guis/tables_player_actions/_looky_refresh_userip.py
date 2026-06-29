@@ -484,7 +484,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         viewport = self._tree.viewport()
         if viewport is not None:
-            menu.exec(viewport.mapToGlobal(pos))
+            menu.popup(viewport.mapToGlobal(pos))
 
     @staticmethod
     def _copy_to_clipboard(text: str) -> None:

@@ -781,8 +781,7 @@ class SessionsLogTab(QWidget):
         table.field_names = [
             f'{column} ↓' if column == config.sort_column and config.descending else f'{column} ↑' if column == config.sort_column else column for column in column_names
         ]
-        for field_name in table.field_names:
-            table.align[field_name] = 'l'
+        table.align = 'l'
 
         sorted_players = sorted(
             players.items(),

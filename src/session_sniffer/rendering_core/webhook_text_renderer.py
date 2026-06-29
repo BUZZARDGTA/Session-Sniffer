@@ -87,8 +87,7 @@ def build_webhook_table_text(players: list[Player], *, columns: tuple[str, ...],
     table.set_style(TableStyle.SINGLE_BORDER)
     table.title = title
     table.field_names = list(columns)
-    for column in columns:
-        table.align[column] = 'l'
+    table.align = 'l'
     now = datetime.now(tz=LOCAL_TZ)
     for player in players:
         table.add_row([format_player_column_value(player, column, now) for column in columns])
