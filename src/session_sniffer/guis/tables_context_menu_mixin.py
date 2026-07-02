@@ -418,7 +418,7 @@ class TableContextMenuMixin(QTableView):
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
                     )
-                    _apply_looky_gating(crawler_action, require_gta5_running=True)
+                    _apply_looky_gating(crawler_action, require_gta5_running=False)
                 return
 
             def _show_looky_lookup_for_all() -> None:
