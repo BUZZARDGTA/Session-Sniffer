@@ -3,7 +3,7 @@
 import contextlib
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
+from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -38,7 +38,8 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
     setup_table_view_headers,
 )
-from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
+from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, build_leaderboard_baseline, overlay_live_session
+from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -75,6 +76,9 @@ _SEARCH_COLUMNS = (
 )
 _COLUMN_SESSIONS = 3
 _COLUMN_COUNTRY = 6
+
+# How often the displayed leaderboard is re-derived from the live session snapshot while visible.
+_LIVE_REFRESH_INTERVAL_MS = 1000
 
 _flag_icon_cache: dict[str, QIcon | None] = {}
 
@@ -124,6 +128,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
     def __init__(self) -> None:
         super().__init__()
         self._entries: list[LeaderboardEntry] = []
+        self._index_by_ip: dict[str, int] = {}
         self._scope: str = _SCOPE_ALL_TIME
         self._mode: str = _MODE_DAYS
         self._scope_attr: str = 'days_total'
@@ -253,7 +258,35 @@ class _LeaderboardTableModel(QAbstractTableModel):
         """Replace the model data with new leaderboard entries."""
         self.beginResetModel()
         self._entries = entries
+        self._index_by_ip = {entry.ip: i for i, entry in enumerate(entries)}
         self.endResetModel()
+
+    def apply_live_update(self, entries: list[LeaderboardEntry]) -> None:
+        """Refresh in place from a live overlay: update existing rows and append newly-seen players.
+
+        Row positions are kept stable so the sort proxy re-sorts and the user's selection and scroll
+        position survive; only cell values change (plus any appended rows), avoiding a full reset.
+        """
+        updated_by_ip = {entry.ip: entry for entry in entries}
+
+        for ip, row in self._index_by_ip.items():
+            updated = updated_by_ip.get(ip)
+            if updated is not None:
+                self._entries[row] = updated
+
+        new_entries = [entry for entry in entries if entry.ip not in self._index_by_ip]
+        if new_entries:
+            first_new_row = len(self._entries)
+            self.beginInsertRows(QModelIndex(), first_new_row, first_new_row + len(new_entries) - 1)
+            for entry in new_entries:
+                self._index_by_ip[entry.ip] = len(self._entries)
+                self._entries.append(entry)
+            self.endInsertRows()
+
+        if self._entries:
+            top_left = self.index(0, 0)
+            bottom_right = self.index(len(self._entries) - 1, self.columnCount() - 1)
+            self.dataChanged.emit(top_left, bottom_right)
 
     def set_scope(self, scope: str) -> None:
         """Change the active time scope and refresh the model."""
@@ -381,24 +414,24 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     return dialog
 
 
-class _LeaderboardLoadWorker(CrashingQThread):
-    """Background thread that scans session logs and builds the leaderboard.
+class _LeaderboardBaselineWorker(CrashingQThread):
+    """Background thread that scans finished session logs into a reusable leaderboard baseline.
 
-    Emits `finished_ok` with the resulting list of `LeaderboardEntry` objects.
+    Emits `finished_ok` with the resulting `LeaderboardBaseline`.
     """
 
     finished_ok: pyqtSignal = pyqtSignal(object)
 
-    def __init__(self, folder_path: Path, limit: int) -> None:
+    def __init__(self, folder_path: Path, exclude_file: Path) -> None:
         super().__init__()
         self._folder_path = folder_path
-        self._limit = limit
+        self._exclude_file = exclude_file
 
     @override
     def _run(self) -> None:
-        """Build the leaderboard from disk and emit the results."""
-        entries = build_leaderboard(self._folder_path, limit=self._limit)
-        self.finished_ok.emit(entries)
+        """Scan the session logs into a baseline and emit it."""
+        baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file)
+        self.finished_ok.emit(baseline)
 
 
 def _build_loading_dialog(parent: QWidget) -> QDialog:
@@ -511,7 +544,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._cap_spinbox.setSingleStep(50)
         self._cap_spinbox.setValue(1000)
         self._cap_spinbox.setToolTip('Maximum number of players to load from session logs')
-        self._cap_spinbox.editingFinished.connect(self.refresh)
+        self._cap_spinbox.editingFinished.connect(self._on_cap_changed)
         controls_layout.addWidget(self._cap_spinbox)
 
         search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
@@ -567,6 +600,13 @@ class PlayerLeaderboardWindow(QWidget):
 
         # Data is loaded on a background thread by `load_and_show` before the window is revealed
         self._all_entries: list[LeaderboardEntry] = []
+        self._baseline: LeaderboardBaseline | None = None
+        self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+
+        # Periodically re-overlays the live session onto the cached baseline while the window is visible
+        self._live_timer = QTimer(self)
+        self._live_timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
+        self._live_timer.timeout.connect(self._on_live_tick)
 
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
@@ -582,12 +622,12 @@ class PlayerLeaderboardWindow(QWidget):
         `on_ready` runs once the loaded data has been applied; `on_cancel` runs if the
         user closes the loading dialog before the scan completes.
         """
-        worker = _LeaderboardLoadWorker(SESSIONS_LOGGING_DIR_PATH, self._cap_spinbox.value())
+        worker = _LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(worker.deleteLater)
         loading_dialog = _build_loading_dialog(self)
 
-        def _on_finished_ok(entries: list[LeaderboardEntry]) -> None:
-            self._apply_entries(entries)
+        def _on_finished_ok(baseline: LeaderboardBaseline) -> None:
+            self._apply_baseline(baseline)
             loading_dialog.accept()
             if on_ready is not None:
                 on_ready()
@@ -608,12 +648,32 @@ class PlayerLeaderboardWindow(QWidget):
         worker.start()
         loading_dialog.exec()
 
-    def _apply_entries(self, entries: list[LeaderboardEntry]) -> None:
-        """Populate the model and refresh derived UI state from loaded leaderboard entries."""
+    def _apply_baseline(self, baseline: LeaderboardBaseline) -> None:
+        """Store a freshly-scanned baseline, render the initial overlaid leaderboard, and begin live refresh."""
+        self._baseline = baseline
+        entries = overlay_live_session(baseline, self._live_session_file, limit=self._cap_spinbox.value())
         self._all_entries = entries
         self._model.load_data(entries)
         self._proxy.invalidateFilter()
         self._update_count_label()
+        if not self._live_timer.isActive():
+            self._live_timer.start()
+
+    def _on_live_tick(self) -> None:
+        """Merge the latest live session snapshot into the displayed leaderboard without a full reset."""
+        if self._baseline is None or not self.isVisible() or self.isMinimized():
+            return
+        entries = overlay_live_session(self._baseline, self._live_session_file, limit=self._cap_spinbox.value())
+        self._all_entries = entries
+        self._model.apply_live_update(entries)
+        self._update_count_label()
+
+    def _on_cap_changed(self) -> None:
+        """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
+        if self._baseline is None:
+            self.refresh()
+            return
+        self._apply_baseline(self._baseline)
 
     def _on_mode_changed(self, mode: str) -> None:
         self._model.set_mode(mode)
