@@ -118,7 +118,7 @@ class StatsMixin(QMainWindow):
             return
         self._leaderboard_window = PlayerLeaderboardWindow(self)
         self._leaderboard_window.destroyed.connect(self._on_leaderboard_window_destroyed)
-        self._leaderboard_window.show()
+        self._leaderboard_window.load_and_show()
 
     def _on_leaderboard_window_destroyed(self) -> None:
         self._leaderboard_window = None

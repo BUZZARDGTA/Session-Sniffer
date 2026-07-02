@@ -1,8 +1,9 @@
 """Most Seen Players leaderboard window."""
 
+import contextlib
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt
+from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -14,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QTableView,
@@ -26,12 +28,22 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
-from session_sniffer.guis.utils import apply_search_icon, format_player_display, get_screen_size, popup_menu_at_table, resize_window_for_screen, setup_table_view_headers
+from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.utils import (
+    apply_search_icon,
+    format_player_display,
+    get_screen_size,
+    popup_menu_at_table,
+    resize_window_for_screen,
+    set_dialog_window_flags,
+    setup_table_view_headers,
+)
 from session_sniffer.player.seen_stats import LeaderboardEntry, build_leaderboard
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from datetime import datetime
+    from pathlib import Path
 
 
 _SCOPE_TODAY = 'Today'
@@ -369,6 +381,55 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     return dialog
 
 
+class _LeaderboardLoadWorker(CrashingQThread):
+    """Background thread that scans session logs and builds the leaderboard.
+
+    Emits `finished_ok` with the resulting list of `LeaderboardEntry` objects.
+    """
+
+    finished_ok: pyqtSignal = pyqtSignal(object)
+
+    def __init__(self, folder_path: Path, limit: int) -> None:
+        super().__init__()
+        self._folder_path = folder_path
+        self._limit = limit
+
+    @override
+    def _run(self) -> None:
+        """Build the leaderboard from disk and emit the results."""
+        entries = build_leaderboard(self._folder_path, limit=self._limit)
+        self.finished_ok.emit(entries)
+
+
+def _build_loading_dialog(parent: QWidget) -> QDialog:
+    """Build and return a modal dialog shown while the leaderboard is being built in the background."""
+    dialog = QDialog(parent)
+    set_dialog_window_flags(dialog)
+    dialog.setWindowTitle('Most Seen Players')
+    dialog.setMinimumSize(340, 140)
+
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(16, 16, 16, 16)
+    layout.setSpacing(10)
+
+    header = QLabel('🏆  Loading leaderboard...')
+    header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(header)
+
+    status_label = QLabel('Scanning session logs, please wait...')
+    status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    status_label.setWordWrap(True)
+    layout.addWidget(status_label)
+
+    progress_bar = QProgressBar()
+    progress_bar.setRange(0, 0)
+    progress_bar.setTextVisible(False)
+    progress_bar.setFixedHeight(14)
+    layout.addWidget(progress_bar)
+
+    return dialog
+
+
 class PlayerLeaderboardWindow(QWidget):
     """Standalone window showing the most-seen players leaderboard."""
 
@@ -504,14 +565,53 @@ class PlayerLeaderboardWindow(QWidget):
         # Sort by sessions descending by default
         self._proxy.sort(3, Qt.SortOrder.DescendingOrder)
 
-        # Load data
+        # Data is loaded on a background thread by `load_and_show` before the window is revealed
         self._all_entries: list[LeaderboardEntry] = []
-        self.refresh()
+
+    def load_and_show(self) -> None:
+        """Load leaderboard data in the background, then reveal the window once it is ready."""
+        self._start_load(on_ready=self.show, on_cancel=self.close)
 
     def refresh(self) -> None:
-        """Reload leaderboard data from disk and refresh the table."""
-        self._all_entries = build_leaderboard(SESSIONS_LOGGING_DIR_PATH, limit=self._cap_spinbox.value())
-        self._model.load_data(self._all_entries)
+        """Reload leaderboard data from disk on a background thread, showing a loading dialog."""
+        self._start_load(on_ready=None, on_cancel=None)
+
+    def _start_load(self, *, on_ready: Callable[[], object] | None, on_cancel: Callable[[], object] | None) -> None:
+        """Run the leaderboard scan on a worker thread behind a modal loading dialog.
+
+        `on_ready` runs once the loaded data has been applied; `on_cancel` runs if the
+        user closes the loading dialog before the scan completes.
+        """
+        worker = _LeaderboardLoadWorker(SESSIONS_LOGGING_DIR_PATH, self._cap_spinbox.value())
+        worker.finished.connect(worker.deleteLater)
+        loading_dialog = _build_loading_dialog(self)
+
+        def _on_finished_ok(entries: list[LeaderboardEntry]) -> None:
+            self._apply_entries(entries)
+            loading_dialog.accept()
+            if on_ready is not None:
+                on_ready()
+
+        worker.finished_ok.connect(_on_finished_ok)
+
+        def _on_rejected() -> None:
+            # If the user closes the loading dialog before the scan completes,
+            # stop the finished handler from touching the table afterward.
+            with contextlib.suppress(TypeError):
+                worker.finished_ok.disconnect(_on_finished_ok)
+            if on_cancel is not None:
+                on_cancel()
+
+        loading_dialog.rejected.connect(_on_rejected)
+
+        worker.setParent(self)
+        worker.start()
+        loading_dialog.exec()
+
+    def _apply_entries(self, entries: list[LeaderboardEntry]) -> None:
+        """Populate the model and refresh derived UI state from loaded leaderboard entries."""
+        self._all_entries = entries
+        self._model.load_data(entries)
         self._proxy.invalidateFilter()
         self._update_count_label()
 
