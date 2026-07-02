@@ -9,6 +9,7 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -278,18 +279,23 @@ def _copy_entry(entry: LeaderboardEntry) -> LeaderboardEntry:
     return replace(entry, usernames=list(entry.usernames))
 
 
-def build_leaderboard_baseline(folder_path: Path, *, exclude_file: Path | None = None) -> LeaderboardBaseline:
+def build_leaderboard_baseline(folder_path: Path, *, exclude_file: Path | None = None, should_cancel: Callable[[], bool] | None = None) -> LeaderboardBaseline:
     """Scan finished session logs into a reusable baseline, optionally skipping the live session file.
 
     `exclude_file` is the currently-active session snapshot, which is continuously rewritten and is
     instead merged live via `overlay_live_session`. Day counts are left unfinalized so the overlay can
     add today's live encounter before they are computed.
+
+    `should_cancel`, when provided, is polled once per session file; if it returns True the scan stops
+    early and returns whatever was accumulated so far (the caller is expected to discard it).
     """
     entries: dict[str, LeaderboardEntry] = {}
     seen_dates: dict[str, set[date]] = {}
     now = datetime.now(tz=LOCAL_TZ)
 
     for json_file in folder_path.rglob('*.json'):
+        if should_cancel is not None and should_cancel():
+            break
         if not json_file.is_file():
             continue
         if exclude_file is not None and json_file == exclude_file:

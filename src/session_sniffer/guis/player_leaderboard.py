@@ -506,7 +506,9 @@ class _LeaderboardBaselineWorker(CrashingQThread):
     @override
     def _run(self) -> None:
         """Scan the session logs into a baseline and emit it."""
-        baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file)
+        baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file, should_cancel=self.isInterruptionRequested)
+        if self.isInterruptionRequested():
+            return
         self.finished_ok.emit(baseline)
 
 
@@ -751,6 +753,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._all_entries: list[LeaderboardEntry] = []
         self._baseline: LeaderboardBaseline | None = None
         self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+        self._baseline_worker: _LeaderboardBaselineWorker | None = None
         self._overlay_worker: _LeaderboardOverlayWorker | None = None
 
         # Periodically re-overlays the live session onto the cached baseline while the window is visible
@@ -774,6 +777,8 @@ class PlayerLeaderboardWindow(QWidget):
         """
         worker = _LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(self._clear_baseline_worker)
+        self._baseline_worker = worker
         loading_dialog = _build_loading_dialog(self)
 
         def _on_finished_ok(baseline: LeaderboardBaseline) -> None:
@@ -785,10 +790,13 @@ class PlayerLeaderboardWindow(QWidget):
         worker.finished_ok.connect(_on_finished_ok)
 
         def _on_rejected() -> None:
-            # If the user closes the loading dialog before the scan completes,
-            # stop the finished handler from touching the table afterward.
+            # The user closed the loading dialog before the scan completed. Stop the finished handler
+            # from touching the table, ask the worker to stop, and wait for it to actually exit so it
+            # is never destroyed while still running.
             with contextlib.suppress(TypeError):
                 worker.finished_ok.disconnect(_on_finished_ok)
+            worker.requestInterruption()
+            worker.wait()
             if on_cancel is not None:
                 on_cancel()
 
@@ -797,6 +805,10 @@ class PlayerLeaderboardWindow(QWidget):
         worker.setParent(self)
         worker.start()
         loading_dialog.exec()
+
+    def _clear_baseline_worker(self) -> None:
+        """Release the finished baseline worker reference."""
+        self._baseline_worker = None
 
     def _apply_baseline(self, baseline: LeaderboardBaseline) -> None:
         """Store a freshly-scanned baseline, render the initial overlaid leaderboard, and begin live refresh."""
@@ -941,8 +953,11 @@ class PlayerLeaderboardWindow(QWidget):
 
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
-        """Stop live refresh and wait for any in-flight overlay worker before the window is destroyed."""
+        """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
         self._live_timer.stop()
+        if self._baseline_worker is not None and self._baseline_worker.isRunning():
+            self._baseline_worker.requestInterruption()
+            self._baseline_worker.wait()
         if self._overlay_worker is not None and self._overlay_worker.isRunning():
             self._overlay_worker.wait()
         super().closeEvent(a0)
