@@ -498,7 +498,6 @@ AMAZON_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '37.203.157.0/24',
     '40.32.0.0/16',
     '40.35.0.0/16',
-    '40.39.0.0/16',
     '40.138.216.0/22',
     '40.143.64.0/21',
     '40.164.0.0/14',
@@ -1122,6 +1121,8 @@ CLOUDFLARE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Cloudflare',
     '104.16.0.0/12',
     '141.101.64.0/18',
+    '162.159.192.0/20',
+    '162.159.208.0/24',
 )
 
 COMNET_INTERNATIONAL_BV_RANGES: tuple[NamedRange, ...] = create_named_ranges(
