@@ -21,7 +21,7 @@ from session_sniffer.models.looky_system import (
 from session_sniffer.networking.http_session import session
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
 logger = get_logger(__name__)
 
@@ -247,6 +247,9 @@ def watch_instruction_status(
     tracking_id: str,
     api_key: str,
     max_reconnects: int = 10,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    register_response: Callable[[requests.Response | None], None] | None = None,
 ) -> Generator[tuple[LookyInstructionStatus, str | None]]:
     """Stream SSE status updates for a Looky System instruction until a terminal status arrives.
 
@@ -262,6 +265,11 @@ def watch_instruction_status(
         tracking_id: The instruction tracking ID returned by `send_crawler_instruction`.
         api_key: Looky System Bearer API key (sent as the `token` query parameter).
         max_reconnects: Maximum reconnection attempts before raising.
+        should_cancel: Optional predicate polled before each connect and after each event; when it
+            returns True the generator stops immediately without raising.
+        register_response: Optional callback invoked with the active streaming `Response` right after
+            it opens (and with `None` once it closes). A caller can hold onto it and call `close()` from
+            another thread to unblock the blocking read for a prompt cancel.
 
     Raises:
         requests.HTTPError: On a non-2xx response.
@@ -270,6 +278,8 @@ def watch_instruction_status(
     """
     url = f'{LOOKY_SSE_URL}/{tracking_id}'
     for attempt in range(max_reconnects + 1):
+        if should_cancel is not None and should_cancel():
+            return
         if attempt > 0:
             time.sleep(2)
         completed = False
@@ -282,8 +292,12 @@ def watch_instruction_status(
                 stream=True,
                 timeout=(3.0, 300.0),
             ) as response:
+                if register_response is not None:
+                    register_response(response)
                 response.raise_for_status()
                 for raw_line in response.iter_lines():
+                    if should_cancel is not None and should_cancel():
+                        return
                     if not raw_line:
                         continue
                     line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
@@ -298,10 +312,15 @@ def watch_instruction_status(
         except requests.HTTPError:
             raise
         except requests.RequestException as e:
+            if should_cancel is not None and should_cancel():
+                return
             if attempt >= max_reconnects:
                 raise
             logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, e, attempt + 1, max_reconnects)
             continue
+        finally:
+            if register_response is not None:
+                register_response(None)
         if completed:
             return
         if attempt >= max_reconnects:

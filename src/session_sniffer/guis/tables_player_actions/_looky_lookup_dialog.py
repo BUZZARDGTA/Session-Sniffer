@@ -150,5 +150,6 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
     worker.fetch_succeeded.connect(_on_fetch_succeeded)
     worker.fetch_not_found.connect(_on_fetch_not_found)
     worker.fetch_failed.connect(_on_fetch_failed)
+    worker.finished.connect(worker.deleteLater)
     worker.setParent(parent)
     worker.start()

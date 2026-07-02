@@ -87,6 +87,8 @@ class _LookyRefreshWorker(CrashingQThread):
         combined: dict[str, list[LookyPlayer]] = {}
 
         for batch_start in range(0, len(self._ip_addresses), _BATCH_SIZE):
+            if self.isInterruptionRequested():
+                return
             batch = self._ip_addresses[batch_start : batch_start + _BATCH_SIZE]
             try:
                 results = lookup_ip_batch(batch, self._api_key, self._version)
@@ -108,6 +110,8 @@ class _LookyRefreshWorker(CrashingQThread):
 
             combined.update(results)
 
+        if self.isInterruptionRequested():
+            return
         self.finished_ok.emit(combined)
 
 
@@ -611,13 +615,16 @@ def looky_refresh_userip_entries(
     worker.finished_ok.connect(_on_finished_ok)
     worker.finished_error.connect(_on_finished_error)
 
-    # If the user closes the loading dialog, disconnect so we don't pop the review dialog later
+    # If the user closes the loading dialog, disconnect so we don't pop the review dialog later, and
+    # ask the worker to stop then wait for it so it is never destroyed while still running.
     def _on_rejected() -> None:
         try:
             worker.finished_ok.disconnect(_on_finished_ok)
             worker.finished_error.disconnect(_on_finished_error)
         except TypeError:
             pass
+        worker.requestInterruption()
+        worker.wait()
 
     loading_dialog.rejected.connect(_on_rejected)
 

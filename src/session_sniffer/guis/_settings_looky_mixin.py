@@ -30,7 +30,7 @@ from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QKeyEvent
+    from PyQt6.QtGui import QCloseEvent, QKeyEvent
 
     from session_sniffer.models.looky_system import LookyVerifyResponse
 
@@ -235,6 +235,16 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_verify_status_label.setText(f'✗ {error}')
         self._looky_verify_status_label.setVisible(True)
         self._looky_card_forms_container.setVisible(False)
+
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Wait for any in-flight verify worker before the dialog is destroyed."""
+        super().closeEvent(a0)
+        if a0 is not None and not a0.isAccepted():
+            return
+        if self._verify_worker is not None and self._verify_worker.isRunning():
+            self._verify_worker.quit()
+            self._verify_worker.wait()
 
     @override
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:

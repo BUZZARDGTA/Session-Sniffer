@@ -1,5 +1,6 @@
 """Crawler request progress dialog, worker thread, and RID picker for the Looky System."""
 
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -48,6 +49,8 @@ from session_sniffer.text_utils import pluralize
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from PyQt6.QtGui import QCloseEvent
+
     from session_sniffer.models.player import Player
 
 
@@ -95,17 +98,41 @@ class _CrawlerWatchWorker(CrashingQThread):
         super().__init__()
         self._tracking_id = tracking_id
         self._api_key = api_key
+        self._response_lock = threading.Lock()
+        self._active_response: requests.Response | None = None
+
+    def _register_response(self, response: requests.Response | None) -> None:
+        """Track the active streaming response so `cancel` can close it from the GUI thread."""
+        with self._response_lock:
+            self._active_response = response
+            # Handle the race where cancellation was requested before the response opened.
+            if response is not None and self.isInterruptionRequested():
+                response.close()
+
+    def cancel(self) -> None:
+        """Request interruption and close the in-flight SSE connection so the blocking read unblocks."""
+        self.requestInterruption()
+        with self._response_lock:
+            if self._active_response is not None:
+                self._active_response.close()
 
     @override
     def _run(self) -> None:
-        """Stream SSE status events until the instruction completes or fails."""
+        """Stream SSE status events until the instruction completes, fails, or is cancelled."""
         last_status = ''
         failure_message: str | None = None
         try:
-            for status, result in watch_instruction_status(self._tracking_id, self._api_key):
+            for status, result in watch_instruction_status(
+                self._tracking_id,
+                self._api_key,
+                should_cancel=self.isInterruptionRequested,
+                register_response=self._register_response,
+            ):
                 last_status = status
                 self.status_updated.emit(status, result)
         except requests.HTTPError as e:
+            if self.isInterruptionRequested():
+                return
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 message = extract_rate_limit_message(e)
                 wait_seconds = extract_rate_limit_wait_seconds(e)
@@ -114,8 +141,12 @@ class _CrawlerWatchWorker(CrashingQThread):
                 status_code = e.response.status_code if e.response is not None else '?'
                 failure_message = f'API error while watching status: HTTP {status_code}'
         except requests.RequestException as e:
+            if self.isInterruptionRequested():
+                return
             failure_message = f'Connection error while watching status: {e}'
 
+        if self.isInterruptionRequested():
+            return
         if failure_message is not None:
             self.request_failed.emit(failure_message)
             return
@@ -123,6 +154,33 @@ class _CrawlerWatchWorker(CrashingQThread):
             self.request_failed.emit(f'Instruction ended with status: {last_status}')
             return
         self.request_completed.emit()
+
+
+class _CrawlerRequestDialog(QDialog):
+    """Non-modal crawler request dialog that cancels its background workers when closed."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._watch_worker: _CrawlerWatchWorker | None = None
+        self._send_worker: _CrawlerSendWorker | None = None
+
+    def track_watch_worker(self, worker: _CrawlerWatchWorker) -> None:
+        """Register the active SSE watch worker so it can be cancelled on close."""
+        self._watch_worker = worker
+
+    def track_send_worker(self, worker: _CrawlerSendWorker) -> None:
+        """Register the active retry-send worker so it can be waited on close."""
+        self._send_worker = worker
+
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Stop the SSE watch and any send worker before the dialog is destroyed."""
+        if self._send_worker is not None and self._send_worker.isRunning():
+            self._send_worker.wait()
+        if self._watch_worker is not None and self._watch_worker.isRunning():
+            self._watch_worker.cancel()
+            self._watch_worker.wait()
+        super().closeEvent(a0)
 
 
 class _RIDPickerDialog(QDialog):
@@ -204,7 +262,7 @@ def _build_crawler_request_dialog(
     on_completed: Callable[[], None] | None = None,
 ) -> QDialog:
     """Build and wire a non-modal dialog that shows live SSE status updates for a Looky System crawler request."""
-    dialog = QDialog(parent)
+    dialog = _CrawlerRequestDialog(parent)
     set_dialog_window_flags(dialog)
     dialog.setWindowTitle(LOOKY_TITLE)
     dialog.setMinimumSize(500, 360)
@@ -267,11 +325,13 @@ def _build_crawler_request_dialog(
             watch_worker.request_completed.connect(_on_completed)
             watch_worker.request_failed.connect(_on_failed)
             watch_worker.setParent(dialog)
+            dialog.track_watch_worker(watch_worker)
             watch_worker.start()
 
         retry_send_worker.send_failed.connect(_on_retry_send_failed)
         retry_send_worker.send_succeeded.connect(_on_retry_send_succeeded)
         retry_send_worker.setParent(dialog)
+        dialog.track_send_worker(retry_send_worker)
         retry_send_worker.start()
 
     widgets.try_again_button.clicked.connect(_on_try_again)
@@ -281,6 +341,7 @@ def _build_crawler_request_dialog(
     worker.request_completed.connect(_on_completed)
     worker.request_failed.connect(_on_failed)
     worker.setParent(dialog)
+    dialog.track_watch_worker(worker)
     worker.start()
 
     return dialog
@@ -299,6 +360,7 @@ def _start_crawler_send(parent: QWidget, display_name: str, send_fn: Callable[[]
         _build_crawler_request_dialog(parent, display_name, _WatchConfig(tracking_id, api_key), send_fn, on_completed).show()
 
     worker.send_succeeded.connect(_open_dialog)
+    worker.finished.connect(worker.deleteLater)
     worker.start()
 
 
