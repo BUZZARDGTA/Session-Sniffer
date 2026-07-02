@@ -1,5 +1,6 @@
 """Looky System IP-to-player lookup API client."""
 
+import math
 import re
 import time
 from typing import TYPE_CHECKING, ClassVar
@@ -49,6 +50,10 @@ class LookyState:
     api_access: ClassVar[bool] = False
     user_data: ClassVar[LookyVerifyResponse | None] = None
 
+    # Monotonic deadline of the last server-imposed crawler rate limit, so the GUI can show the
+    # remaining cooldown when re-opening the crawler without needlessly re-hitting the API.
+    _crawler_cooldown_until: ClassVar[float] = 0.0
+
     @classmethod
     def reset(cls) -> None:
         """Clear verified state (used when no/invalid API key, on errors, or when Looky is disabled)."""
@@ -60,6 +65,21 @@ class LookyState:
         """Apply a successful token-verification response."""
         cls.api_access = response.userData.apiAccess
         cls.user_data = response
+
+    @classmethod
+    def record_crawler_cooldown(cls, wait_seconds: int) -> None:
+        """Remember a server-imposed crawler rate limit so the UI can show it without re-hitting the API."""
+        cls._crawler_cooldown_until = time.monotonic() + max(0, wait_seconds)
+
+    @classmethod
+    def clear_crawler_cooldown(cls) -> None:
+        """Clear the local crawler rate-limit cooldown (e.g. after a successful send)."""
+        cls._crawler_cooldown_until = 0.0
+
+    @classmethod
+    def crawler_cooldown_remaining(cls) -> int:
+        """Return the whole seconds left on the local crawler rate-limit cooldown (0 if none)."""
+        return max(0, math.ceil(cls._crawler_cooldown_until - time.monotonic()))
 
 
 def _auth_headers(api_key: str) -> dict[str, str]:
@@ -249,7 +269,6 @@ def watch_instruction_status(
     max_reconnects: int = 10,
     *,
     should_cancel: Callable[[], bool] | None = None,
-    register_response: Callable[[requests.Response | None], None] | None = None,
 ) -> Generator[tuple[LookyInstructionStatus, str | None]]:
     """Stream SSE status updates for a Looky System instruction until a terminal status arrives.
 
@@ -266,10 +285,9 @@ def watch_instruction_status(
         api_key: Looky System Bearer API key (sent as the `token` query parameter).
         max_reconnects: Maximum reconnection attempts before raising.
         should_cancel: Optional predicate polled before each connect and after each event; when it
-            returns True the generator stops immediately without raising.
-        register_response: Optional callback invoked with the active streaming `Response` right after
-            it opens (and with `None` once it closes). A caller can hold onto it and call `close()` from
-            another thread to unblock the blocking read for a prompt cancel.
+            returns True the generator stops immediately without raising. Polling only happens between
+            reads, so a cancel takes effect once the next event arrives, the stream drops, or the read
+            times out (whichever comes first).
 
     Raises:
         requests.HTTPError: On a non-2xx response.
@@ -292,8 +310,6 @@ def watch_instruction_status(
                 stream=True,
                 timeout=(3.0, 300.0),
             ) as response:
-                if register_response is not None:
-                    register_response(response)
                 response.raise_for_status()
                 for raw_line in response.iter_lines():
                     if should_cancel is not None and should_cancel():
@@ -318,9 +334,6 @@ def watch_instruction_status(
                 raise
             logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, e, attempt + 1, max_reconnects)
             continue
-        finally:
-            if register_response is not None:
-                register_response(None)
         if completed:
             return
         if attempt >= max_reconnects:

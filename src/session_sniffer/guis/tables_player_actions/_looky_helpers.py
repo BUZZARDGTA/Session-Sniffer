@@ -37,6 +37,7 @@ class LookyProgressWidgets:
     progress_bar: QProgressBar
     status_label: QLabel
     try_again_button: QPushButton
+    button_box: QDialogButtonBox
 
 
 def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyProgressWidgets:
@@ -76,7 +77,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
         close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     layout.addWidget(button_box)
 
-    return LookyProgressWidgets(progress_bar, status_label, try_again_button)
+    return LookyProgressWidgets(progress_bar, status_label, try_again_button, button_box)
 
 
 def check_looky_prerequisites(parent: QWidget) -> str | None:
