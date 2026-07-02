@@ -135,7 +135,7 @@ class EntriesContextMenuMixin(QDialog):
             if is_single_ip:
                 _db = self._current_path
                 _ip = ip_or_range
-                refresh_action = QAction('👁 Add Username (Looky)', self)
+                refresh_action = QAction('👁 Add Username (Looky System)', self)
                 refresh_action.triggered.connect(lambda _checked=False, d=_db, i=_ip: looky_refresh_userip_entries(self, [(d, [i])]))
                 configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                 menu.addAction(refresh_action)
@@ -233,7 +233,7 @@ class EntriesContextMenuMixin(QDialog):
                     if is_single_ip:
                         _db_refresh = db_path
                         _ip_refresh = ip_or_range
-                        refresh_gs_action = QAction('👁 Add Username (Looky)', self)
+                        refresh_gs_action = QAction('👁 Add Username (Looky System)', self)
                         refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
                         configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                         menu.addAction(refresh_gs_action)

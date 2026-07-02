@@ -265,7 +265,7 @@ class TreeOperationsMixin(QDialog):
 
                 if Settings.is_gta5_preset() and file_path.suffix.lower() == '.ini':
                     _file_path = file_path
-                    refresh_action = QAction('👁 Add Usernames (Looky)', self)
+                    refresh_action = QAction('👁 Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
                     configure_looky_action(refresh_action, 'Look up all IPs in this database via Looky System and add any new usernames.')
                     menu.addAction(refresh_action)
@@ -699,6 +699,14 @@ class TreeOperationsMixin(QDialog):
         dest_path.write_text('\n'.join(output_lines), encoding='utf-8')
         return len(new_entries)
 
+    def _is_current_database_file(self, path: Path) -> bool:
+        """Return True if *path* refers to the database currently open in the entries view."""
+        if self._current_path is None or self._global_search_active:
+            return False
+        if not path.is_file() or not self._current_path.is_file():
+            return False
+        return path.samefile(self._current_path)
+
     def _import_database_files(self) -> None:
         """Copy external .ini database files into the databases directory, or merge into the current database."""
         merge_mode = False
@@ -747,6 +755,7 @@ class TreeOperationsMixin(QDialog):
         imported = 0
         merged = 0
         skipped = 0
+        reload_current_view = False
 
         for file_path_str in file_paths:
             src = Path(file_path_str)
@@ -776,6 +785,8 @@ class TreeOperationsMixin(QDialog):
                         skipped += 1
                     else:
                         merged += result
+                        if self._is_current_database_file(dest):
+                            reload_current_view = True
                     continue
                 if clicked is None:
                     skipped += 1
@@ -783,8 +794,13 @@ class TreeOperationsMixin(QDialog):
                 _ = overwrite_button  # suppress unused-variable warning
 
             target_dir.mkdir(parents=True, exist_ok=True)
+            if self._is_current_database_file(dest):
+                reload_current_view = True
             shutil.copy2(str(src), str(dest))
             imported += 1
+
+        if reload_current_view and self._current_path is not None:
+            self._load_database(self._current_path)
 
         parts: list[str] = []
         if imported:
@@ -871,6 +887,7 @@ class TreeOperationsMixin(QDialog):
                 skipped = 0
                 overwrite_all = False
                 merge_all = False
+                reload_current_view = False
 
                 for member in ini_members:
                     dest = USERIP_DATABASES_DIR_PATH / member.filename
@@ -884,6 +901,8 @@ class TreeOperationsMixin(QDialog):
                                 skipped += 1
                             else:
                                 merged += result
+                                if self._is_current_database_file(dest):
+                                    reload_current_view = True
                             continue
 
                         msg_box = QMessageBox(self)
@@ -916,16 +935,23 @@ class TreeOperationsMixin(QDialog):
                                 skipped += 1
                             else:
                                 merged += result
+                                if self._is_current_database_file(dest):
+                                    reload_current_view = True
                             continue
                         _ = overwrite_button  # suppress unused-variable warning
 
                     dest.parent.mkdir(parents=True, exist_ok=True)
+                    if self._is_current_database_file(dest):
+                        reload_current_view = True
                     dest.write_bytes(member_bytes)
                     imported += 1
 
         except zipfile.BadZipFile:
             QMessageBox.critical(self, TITLE, f'"{zip_path.name}" is not a valid ZIP archive.')
             return
+
+        if reload_current_view and self._current_path is not None:
+            self._load_database(self._current_path)
 
         parts: list[str] = []
         if imported:

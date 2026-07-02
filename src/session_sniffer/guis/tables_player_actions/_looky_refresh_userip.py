@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtCore import QPoint, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -325,6 +325,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree.setRootIsDecorated(True)
         self._tree.setSortingEnabled(False)
         self._tree.setIndentation(22)
+        self._tree.setIconSize(QSize(18, 18))
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -342,6 +343,12 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         mono_font = QFont('Consolas')
         bold_font = QFont()
         bold_font.setBold(True)
+
+        # Transparent icon that reserves the same horizontal space as the checkbox
+        # indicator, so existing (non-checkable) usernames align with new checkable ones.
+        checkbox_spacer = QPixmap(18, 18)
+        checkbox_spacer.fill(Qt.GlobalColor.transparent)
+        checkbox_spacer_icon = QIcon(checkbox_spacer)
 
         for group in ip_groups:
             # --- IP parent node ---
@@ -362,7 +369,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             # --- Existing username children (read-only, dimmed) ---
             for existing_name in sorted(group.existing_usernames):
                 child = QTreeWidgetItem(ip_item)
-                child.setText(0, f'     {existing_name}')
+                child.setText(0, existing_name)
+                child.setIcon(0, checkbox_spacer_icon)
                 child.setText(1, 'existing')
                 child.setFont(0, mono_font)
                 child.setForeground(0, QBrush(_COLOR_EXISTING))
@@ -372,7 +380,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             # --- New Looky username children (checkable) ---
             for entry in group.new_entries:
                 child = QTreeWidgetItem(ip_item)
-                child.setText(0, f'     {entry.username}')
+                child.setText(0, entry.username)
                 child.setText(1, '\u2728 NEW')
                 child.setFont(0, mono_font)
                 child.setForeground(0, QBrush(_COLOR_NEW))
@@ -562,7 +570,7 @@ def looky_refresh_userip_entries(
                 seen_new: set[str] = set()
                 for player_entry in players:
                     if player_entry.name not in existing_names_set and player_entry.name not in seen_new:
-                        new_entries.append(_PendingEntry(db_path, player_entry.name, ip))
+                        new_entries.append(_PendingEntry(db_path=db_path, ip=ip, username=player_entry.name))
                         seen_new.add(player_entry.name)
 
                 # Only create a group if there are new entries to show

@@ -580,7 +580,7 @@ class TableContextMenuMixin(QTableView):
             if Settings.is_gta5_preset():
                 refresh_action = add_action(
                     userip_menu,
-                    '👁 Add Username (Looky)',
+                    '👁 Add Username (Looky System)',
                     tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
                     handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
                 )
@@ -664,7 +664,7 @@ class TableContextMenuMixin(QTableView):
                     if _refresh_by_db:
                         refresh_multi_action = add_action(
                             userip_menu,
-                            '👁 Add Usernames (Looky)',
+                            '👁 Add Usernames (Looky System)',
                             tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                             handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
                         )
