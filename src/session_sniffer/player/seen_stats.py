@@ -155,6 +155,12 @@ def _to_str_list(raw: list[object]) -> list[str]:
     return [str(item) for item in raw]
 
 
+# The '...' sentinel is written to session logs when a lookup field has not run yet. Such transient
+# values are skipped so a later half-resolved snapshot can't clobber a previously-resolved value.
+# A resolved 'N/A' (looked up, no data) is kept as-is; the display renders empty values as 'N/A' too.
+_UNRESOLVED_LOOKUP = '...'
+
+
 def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any]) -> None:
     """Update display metadata from a player entry."""
     raw_usernames = player_info.get('Usernames')
@@ -162,15 +168,15 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any])
         entry.usernames = _to_str_list(cast('list[object]', raw_usernames))
 
     raw_country = player_info.get('Country')
-    if isinstance(raw_country, str) and raw_country != 'N/A':
+    if isinstance(raw_country, str) and raw_country != _UNRESOLVED_LOOKUP:
         entry.country = raw_country
 
     raw_country_code = player_info.get('Country Code')
-    if isinstance(raw_country_code, str) and raw_country_code != 'N/A':
+    if isinstance(raw_country_code, str) and raw_country_code != _UNRESOLVED_LOOKUP:
         entry.country_code = raw_country_code
 
     raw_isp = player_info.get('ISP')
-    if isinstance(raw_isp, str) and raw_isp != 'N/A':
+    if isinstance(raw_isp, str) and raw_isp != _UNRESOLVED_LOOKUP:
         entry.isp = raw_isp
 
     raw_mobile = player_info.get('Mobile')

@@ -1,13 +1,15 @@
 """Most Seen Players leaderboard window."""
 
 import contextlib
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
+from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -38,6 +40,7 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
     setup_table_view_headers,
 )
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, build_leaderboard_baseline, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 
@@ -61,6 +64,21 @@ _MODES = (_MODE_DAYS, _MODE_SESSIONS)
 
 _HEADERS = ('Rank', 'Usernames', 'IP Address', 'Sessions', 'First Seen', 'Last Seen', 'Country', 'ISP', 'Mobile', 'VPN', 'Hosting')
 
+# Header tooltips, parallel to `_HEADERS`. The Days/Sessions column (index 3) is described dynamically in `headerData`.
+_HEADER_TOOLTIPS = (
+    'Leaderboard position (row number) for the current sort order, time period and count mode.',
+    'In-game username(s) seen for this player across all recorded sessions.',
+    "The player's IP address.",
+    'How often this player was seen within the selected time period.',
+    'The earliest time this player was ever recorded across all session logs.',
+    'The most recent time this player was recorded across all session logs.',
+    'Country the IP address geolocates to.',
+    'Internet Service Provider that owns the IP address.',
+    'Whether the IP is a mobile/cellular connection.',
+    'Whether the IP is flagged as a VPN or proxy.',
+    'Whether the IP belongs to a hosting/datacenter provider.',
+)
+
 _SEARCH_COLUMN_ALL = 'All Columns'
 _SEARCH_COLUMN_USERNAMES = 'Usernames'
 _SEARCH_COLUMN_IP = 'IP Address'
@@ -74,6 +92,7 @@ _SEARCH_COLUMNS = (
     _SEARCH_COLUMN_COUNTRY,
     _SEARCH_COLUMN_ISP,
 )
+_COLUMN_RANK = 0
 _COLUMN_SESSIONS = 3
 _COLUMN_COUNTRY = 6
 
@@ -95,7 +114,7 @@ def _get_flag_icon(country_code: str) -> QIcon | None:
 def _format_bool(value: bool | None) -> str:  # noqa: FBT001
     """Format an optional boolean for display."""
     if value is None:
-        return ''
+        return 'N/A'
     return 'Yes' if value else 'No'
 
 
@@ -193,12 +212,22 @@ class _LeaderboardTableModel(QAbstractTableModel):
 
     @override
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
-        """Return column header labels."""
-        if role != Qt.ItemDataRole.DisplayRole or orientation != Qt.Orientation.Horizontal:
+        """Return column header labels and tooltips."""
+        if orientation != Qt.Orientation.Horizontal:
             return None
-        if section == _COLUMN_SESSIONS:
-            return 'Days' if self._mode == _MODE_DAYS else 'Sessions'
-        return _HEADERS[section]
+        if role == Qt.ItemDataRole.DisplayRole:
+            if section == _COLUMN_SESSIONS:
+                return 'Days' if self._mode == _MODE_DAYS else 'Sessions'
+            return _HEADERS[section]
+        if role == Qt.ItemDataRole.ToolTipRole:
+            if section == _COLUMN_SESSIONS:
+                return (
+                    'Number of unique calendar days this player was seen within the selected time period.'
+                    if self._mode == _MODE_DAYS
+                    else 'Number of sniffer sessions in which this player was seen within the selected time period.'
+                )
+            return _HEADER_TOOLTIPS[section]
+        return None
 
     # Display helpers --------------------------------------------------------
 
@@ -227,11 +256,11 @@ class _LeaderboardTableModel(QAbstractTableModel):
 
     @staticmethod
     def _display_country(_row: int, entry: LeaderboardEntry) -> str:
-        return entry.country
+        return entry.country or 'N/A'
 
     @staticmethod
     def _display_isp(_row: int, entry: LeaderboardEntry) -> str:
-        return entry.isp
+        return entry.isp or 'N/A'
 
     @staticmethod
     def _display_mobile(_row: int, entry: LeaderboardEntry) -> str:
@@ -262,17 +291,20 @@ class _LeaderboardTableModel(QAbstractTableModel):
         self.endResetModel()
 
     def apply_live_update(self, entries: list[LeaderboardEntry]) -> None:
-        """Refresh in place from a live overlay: update existing rows and append newly-seen players.
+        """Refresh in place from a live overlay: update only changed rows and append newly-seen players.
 
         Row positions are kept stable so the sort proxy re-sorts and the user's selection and scroll
-        position survive; only cell values change (plus any appended rows), avoiding a full reset.
+        position survive. Only rows whose values actually changed emit `dataChanged`, so identical
+        ticks (the common case within a run) cost nothing and never trigger a full re-sort.
         """
         updated_by_ip = {entry.ip: entry for entry in entries}
 
+        changed_rows: list[int] = []
         for ip, row in self._index_by_ip.items():
             updated = updated_by_ip.get(ip)
-            if updated is not None:
+            if updated is not None and updated != self._entries[row]:
                 self._entries[row] = updated
+                changed_rows.append(row)
 
         new_entries = [entry for entry in entries if entry.ip not in self._index_by_ip]
         if new_entries:
@@ -283,9 +315,9 @@ class _LeaderboardTableModel(QAbstractTableModel):
                 self._entries.append(entry)
             self.endInsertRows()
 
-        if self._entries:
-            top_left = self.index(0, 0)
-            bottom_right = self.index(len(self._entries) - 1, self.columnCount() - 1)
+        for row in changed_rows:
+            top_left = self.index(row, 0)
+            bottom_right = self.index(row, self.columnCount() - 1)
             self.dataChanged.emit(top_left, bottom_right)
 
     def set_scope(self, scope: str) -> None:
@@ -316,6 +348,17 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         super().__init__()
         self._search_text: str = ''
         self._search_column: str = _SEARCH_COLUMN_ALL
+        self._hide_servers: bool = False
+        self._server_ips: frozenset[str] = frozenset()
+        self._hide_vpns: bool = False
+        self._hide_hosting: bool = False
+
+    @override
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+        """Render the Rank column as the current visible position; delegate everything else to the source model."""
+        if role == Qt.ItemDataRole.DisplayRole and index.column() == _COLUMN_RANK:
+            return index.row() + 1
+        return super().data(index, role)
 
     def set_search_text(self, text: str) -> None:
         """Update the search filter text and re-evaluate visible rows."""
@@ -325,6 +368,29 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
     def set_search_column(self, column: str) -> None:
         """Update which column is searched and re-evaluate visible rows."""
         self._search_column = column
+        self.invalidateFilter()
+
+    def set_hide_servers(self, hide: bool) -> None:  # noqa: FBT001
+        """Toggle hiding of known third-party game/relay server IPs."""
+        self._hide_servers = hide
+        self.invalidateFilter()
+
+    def set_server_ips(self, server_ips: frozenset[str]) -> None:
+        """Update the set of known server IPs; re-filter only if it changed while hiding is active."""
+        if server_ips == self._server_ips:
+            return
+        self._server_ips = server_ips
+        if self._hide_servers:
+            self.invalidateFilter()
+
+    def set_hide_vpns(self, hide: bool) -> None:  # noqa: FBT001
+        """Toggle hiding of IPs flagged as VPNs/proxies."""
+        self._hide_vpns = hide
+        self.invalidateFilter()
+
+    def set_hide_hosting(self, hide: bool) -> None:  # noqa: FBT001
+        """Toggle hiding of IPs flagged as hosting/datacenter providers."""
+        self._hide_hosting = hide
         self.invalidateFilter()
 
     def _entry_matches_search(self, entry: LeaderboardEntry, text: str) -> bool:
@@ -340,15 +406,25 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         }
         return text in _targets.get(self._search_column, '').lower()
 
+    def _is_hidden(self, entry: LeaderboardEntry) -> bool:
+        """Return True if any active filter (servers/VPNs/hosting) excludes *entry*."""
+        if self._hide_servers and entry.ip in self._server_ips:
+            return True
+        if self._hide_vpns and entry.vpn is True:
+            return True
+        return self._hide_hosting and entry.hosting is True
+
     @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
-        """Reject rows where the session count is zero or they don't match the search text."""
+        """Reject rows with a zero session count, hidden servers/VPNs/hosting, or that don't match the search text."""
         _ = source_parent
         model = self.sourceModel()
         if not isinstance(model, _LeaderboardTableModel):
             return True
         entry = model.entries[source_row]
         if not model.get_session_count(entry):
+            return False
+        if self._is_hidden(entry):
             return False
         if self._search_text:
             return self._entry_matches_search(entry, self._search_text)
@@ -432,6 +508,58 @@ class _LeaderboardBaselineWorker(CrashingQThread):
         """Scan the session logs into a baseline and emit it."""
         baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file)
         self.finished_ok.emit(baseline)
+
+
+# Memoized third-party-server classification, keyed by IP. The CIDR scan is expensive, so each IP is
+# classified at most once and reused across every live refresh.
+_server_ip_classification: dict[str, bool] = {}
+
+
+def _server_ips_for(entries: list[LeaderboardEntry]) -> frozenset[str]:
+    """Return the subset of IPs in *entries* that are known third-party game/relay servers.
+
+    Runs the expensive CIDR classification off the GUI thread (in the overlay worker) or once behind
+    the loading dialog, so toggling the 'Hide game servers' filter is a cheap set-membership test.
+    """
+    server_ips: set[str] = set()
+    for entry in entries:
+        cached = _server_ip_classification.get(entry.ip)
+        if cached is None:
+            cached = is_third_party_server_ip(entry.ip)
+            _server_ip_classification[entry.ip] = cached
+        if cached:
+            server_ips.add(entry.ip)
+    return frozenset(server_ips)
+
+
+@dataclass(frozen=True, slots=True)
+class _OverlayResult:
+    """Result of a background overlay: the sorted leaderboard plus the server IPs found within it."""
+
+    entries: list[LeaderboardEntry]
+    server_ips: frozenset[str]
+
+
+class _LeaderboardOverlayWorker(CrashingQThread):
+    """Background thread that overlays the live session snapshot onto the cached baseline.
+
+    Emits `finished_ok` with an `_OverlayResult` (sorted entries plus their server IPs). Running this
+    off the GUI thread keeps the cursor and event loop responsive even for large baselines.
+    """
+
+    finished_ok: pyqtSignal = pyqtSignal(object)
+
+    def __init__(self, baseline: LeaderboardBaseline, live_file: Path, limit: int) -> None:
+        super().__init__()
+        self._baseline = baseline
+        self._live_file = live_file
+        self._limit = limit
+
+    @override
+    def _run(self) -> None:
+        """Overlay the live session onto the baseline and emit the resulting leaderboard."""
+        entries = overlay_live_session(self._baseline, self._live_file, limit=self._limit)
+        self.finished_ok.emit(_OverlayResult(entries=entries, server_ips=_server_ips_for(entries)))
 
 
 def _build_loading_dialog(parent: QWidget) -> QDialog:
@@ -534,10 +662,38 @@ class PlayerLeaderboardWindow(QWidget):
         self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
         controls_layout.addWidget(self._search_column_combo)
 
-        controls_layout.addSpacing(12)
+        controls_layout.addStretch()
+
+        self._count_label = QLabel()
+        controls_layout.addWidget(self._count_label)
+
+        layout.addLayout(controls_layout)
+
+        search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
+        search_shortcut.activated.connect(self._search_box.setFocus)
+
+        # Second controls row: filters and actions
+        filters_layout = QHBoxLayout()
+
+        self._hide_servers_checkbox = QCheckBox('Hide game servers')
+        self._hide_servers_checkbox.setToolTip('Exclude known third-party game/relay server IPs from the leaderboard')
+        self._hide_servers_checkbox.toggled.connect(self._on_hide_servers_toggled)
+        filters_layout.addWidget(self._hide_servers_checkbox)
+
+        self._hide_vpns_checkbox = QCheckBox('Hide VPNs')
+        self._hide_vpns_checkbox.setToolTip('Exclude IPs flagged as VPNs or proxies from the leaderboard')
+        self._hide_vpns_checkbox.toggled.connect(self._on_hide_vpns_toggled)
+        filters_layout.addWidget(self._hide_vpns_checkbox)
+
+        self._hide_hosting_checkbox = QCheckBox('Hide hosting')
+        self._hide_hosting_checkbox.setToolTip('Exclude IPs flagged as hosting/datacenter providers from the leaderboard')
+        self._hide_hosting_checkbox.toggled.connect(self._on_hide_hosting_toggled)
+        filters_layout.addWidget(self._hide_hosting_checkbox)
+
+        filters_layout.addSpacing(12)
 
         cap_label = QLabel('Show top:')
-        controls_layout.addWidget(cap_label)
+        filters_layout.addWidget(cap_label)
 
         self._cap_spinbox = QSpinBox()
         self._cap_spinbox.setRange(50, 10000)
@@ -545,25 +701,17 @@ class PlayerLeaderboardWindow(QWidget):
         self._cap_spinbox.setValue(1000)
         self._cap_spinbox.setToolTip('Maximum number of players to load from session logs')
         self._cap_spinbox.editingFinished.connect(self._on_cap_changed)
-        controls_layout.addWidget(self._cap_spinbox)
+        filters_layout.addWidget(self._cap_spinbox)
 
-        search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
-        search_shortcut.activated.connect(self._search_box.setFocus)
-
-        controls_layout.addStretch()
+        filters_layout.addStretch()
 
         refresh_button = QPushButton('🔄 Refresh')
         refresh_button.setToolTip('Reload leaderboard data from disk')
         refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_button.clicked.connect(self.refresh)
-        controls_layout.addWidget(refresh_button)
+        filters_layout.addWidget(refresh_button)
 
-        controls_layout.addSpacing(12)
-
-        self._count_label = QLabel()
-        controls_layout.addWidget(self._count_label)
-
-        layout.addLayout(controls_layout)
+        layout.addLayout(filters_layout)
 
         # Table
         self._model = _LeaderboardTableModel()
@@ -595,13 +743,15 @@ class PlayerLeaderboardWindow(QWidget):
 
         layout.addWidget(self._table)
 
-        # Sort by sessions descending by default
-        self._proxy.sort(3, Qt.SortOrder.DescendingOrder)
+        # Sort by the Days/Sessions column descending by default. Sorting through the view (not the proxy
+        # directly) sets the header's sort indicator, so the order survives model resets on data reload.
+        self._table.sortByColumn(_COLUMN_SESSIONS, Qt.SortOrder.DescendingOrder)
 
         # Data is loaded on a background thread by `load_and_show` before the window is revealed
         self._all_entries: list[LeaderboardEntry] = []
         self._baseline: LeaderboardBaseline | None = None
         self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+        self._overlay_worker: _LeaderboardOverlayWorker | None = None
 
         # Periodically re-overlays the live session onto the cached baseline while the window is visible
         self._live_timer = QTimer(self)
@@ -653,6 +803,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._baseline = baseline
         entries = overlay_live_session(baseline, self._live_session_file, limit=self._cap_spinbox.value())
         self._all_entries = entries
+        self._proxy.set_server_ips(_server_ips_for(entries))
         self._model.load_data(entries)
         self._proxy.invalidateFilter()
         self._update_count_label()
@@ -660,13 +811,30 @@ class PlayerLeaderboardWindow(QWidget):
             self._live_timer.start()
 
     def _on_live_tick(self) -> None:
-        """Merge the latest live session snapshot into the displayed leaderboard without a full reset."""
+        """Kick off a background overlay of the live session, unless one is already running."""
         if self._baseline is None or not self.isVisible() or self.isMinimized():
             return
-        entries = overlay_live_session(self._baseline, self._live_session_file, limit=self._cap_spinbox.value())
-        self._all_entries = entries
-        self._model.apply_live_update(entries)
+        if self._overlay_worker is not None:
+            return
+        worker = _LeaderboardOverlayWorker(self._baseline, self._live_session_file, self._cap_spinbox.value())
+        worker.finished_ok.connect(self._on_overlay_ready)
+        worker.finished.connect(self._on_overlay_finished)
+        self._overlay_worker = worker
+        worker.start()
+
+    def _on_overlay_ready(self, result: _OverlayResult) -> None:
+        """Apply a completed background overlay to the model on the GUI thread."""
+        self._all_entries = result.entries
+        self._proxy.set_server_ips(result.server_ips)
+        self._model.apply_live_update(result.entries)
         self._update_count_label()
+
+    def _on_overlay_finished(self) -> None:
+        """Release the finished overlay worker so the next tick can start a fresh one."""
+        worker = self._overlay_worker
+        self._overlay_worker = None
+        if worker is not None:
+            worker.deleteLater()
 
     def _on_cap_changed(self) -> None:
         """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
@@ -694,6 +862,33 @@ class PlayerLeaderboardWindow(QWidget):
     def _on_search_column_changed(self, column: str) -> None:
         self._proxy.set_search_column(column)
         self._update_count_label()
+
+    def _on_hide_servers_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Toggle exclusion of known game/relay server IPs and refresh the count label."""
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            self._proxy.set_hide_servers(checked)
+            self._update_count_label()
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def _on_hide_vpns_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Toggle exclusion of VPN/proxy IPs and refresh the count label."""
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            self._proxy.set_hide_vpns(checked)
+            self._update_count_label()
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def _on_hide_hosting_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Toggle exclusion of hosting/datacenter IPs and refresh the count label."""
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            self._proxy.set_hide_hosting(checked)
+            self._update_count_label()
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self._table.indexAt(pos)
@@ -743,3 +938,11 @@ class PlayerLeaderboardWindow(QWidget):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+
+    @override
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Stop live refresh and wait for any in-flight overlay worker before the window is destroyed."""
+        self._live_timer.stop()
+        if self._overlay_worker is not None and self._overlay_worker.isRunning():
+            self._overlay_worker.wait()
+        super().closeEvent(a0)
