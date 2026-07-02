@@ -237,7 +237,7 @@
                     "value": "--geolite2"
                 }
             ],
-            "default": ""
+            "default": "--geolite2"
         },
         {
             "id": "onlyDetections",
@@ -253,7 +253,7 @@
                     "value": "--only-detections"
                 }
             ],
-            "default": ""
+            "default": "--only-detections"
         },
         {
             "id": "exportDetections",
