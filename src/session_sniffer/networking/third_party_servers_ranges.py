@@ -1725,8 +1725,8 @@ THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '217.69.0.0/20',
 )
 
-TSEFLOW_RANGES: tuple[NamedRange, ...] = create_named_ranges(
-    'TSeflow s.r.l.',
+SEFLOW_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Seflow s.r.l.',
     '95.141.32.0/20',
 )
 

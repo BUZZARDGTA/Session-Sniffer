@@ -32,7 +32,7 @@ from session_sniffer.networking.third_party_servers_ranges import (
     TELLAS_GREECE_RANGES,
     TENCENT_RANGES,
     THE_CONSTANT_COMPANY_RANGES,
-    TSEFLOW_RANGES,
+    SEFLOW_RANGES,
     UK_MINISTRY_OF_DEFENCE_RANGES,
     US_DEPARTMENT_OF_DEFENSE_RANGES,
     VALVE_RANGES,
@@ -92,7 +92,7 @@ class ThirdPartyServers(enum.Enum):
     TELLAS_GREECE = 'Tellas Greece', TELLAS_GREECE_RANGES
     TENCENT = 'Tencent Building, Kejizhongyi Avenue', TENCENT_RANGES
     THE_CONSTANT_COMPANY = 'The Constant Company, LLC', THE_CONSTANT_COMPANY_RANGES
-    TSEFLOW = 'TSeflow s.r.l.', TSEFLOW_RANGES
+    SEFLOW = 'Seflow s.r.l.', SEFLOW_RANGES
     UK_MINISTRY_OF_DEFENCE = 'UK Ministry of Defence', UK_MINISTRY_OF_DEFENCE_RANGES
     US_DEPARTMENT_OF_DEFENSE = 'US Department of Defense', US_DEPARTMENT_OF_DEFENSE_RANGES
     VALVE = 'Valve', VALVE_RANGES

@@ -406,7 +406,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'DIMENSION_DATA',
             'LATITUDE_SH',
             'THE_CONSTANT_COMPANY',
-            'TSEFLOW',
+            'SEFLOW',
         },
         'Call of Duty®: Ghosts': {
             'COMVIVE_SERVIDORES',
@@ -415,12 +415,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'LATITUDE_SH',
             'LEVEL_3_PARENT',
             'THE_CONSTANT_COMPANY',
-            'TSEFLOW',
+            'SEFLOW',
         },
         'Call of Duty®: Infinite Warfare': {
             'DEMONWARE',
             'THE_CONSTANT_COMPANY',
-            'TSEFLOW',
+            'SEFLOW',
         },
         'Call of Duty®: Modern Warfare® 2 (2009)': {
             'DEMONWARE',
@@ -439,7 +439,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'MICROSOFT',
             'TENCENT',
             'THE_CONSTANT_COMPANY',
-            'TSEFLOW',
+            'SEFLOW',
             'US_DEPARTMENT_OF_DEFENSE',
         },
         'Chatspin': {
