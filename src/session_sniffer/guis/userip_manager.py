@@ -6,7 +6,7 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import override
 
-from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QUrl
+from PyQt6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QShowEvent, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -31,6 +31,7 @@ from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
+from session_sniffer.guis.userip_manager_fs_sync_mixin import FileSyncMixin
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -44,6 +45,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     IPRangeBuilderDialog,
     human_readable_size,
+    iter_userip_databases,
     iter_userip_entries,
     parse_settings_from_lines,
     read_preserved_sections,
@@ -56,7 +58,7 @@ from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
 
-class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
+class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
     """Non-modal dialog for managing UserIP database files and their entries."""
 
     def __init__(self, parent: QWidget | None) -> None:
@@ -75,6 +77,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._settings_snapshot: dict[str, str] = {}
         self._global_search_active = False
         self._next_index = 1
+        self._disk_snapshot: str = ''
 
         root_layout = QVBoxLayout(self)
 
@@ -338,6 +341,16 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
 
         root_layout.addWidget(splitter)
 
+        # --- Real-time filesystem sync ---
+        self._fs_watcher = QFileSystemWatcher(self)
+        self._fs_watcher.fileChanged.connect(self._on_fs_changed)
+        self._fs_watcher.directoryChanged.connect(self._on_fs_changed)
+        self._fs_sync_timer = QTimer(self)
+        self._fs_sync_timer.setSingleShot(True)
+        self._fs_sync_timer.setInterval(250)
+        self._fs_sync_timer.timeout.connect(self._sync_from_disk)
+        self._rebuild_fs_watch()
+
         self._refresh_stats()
 
     def _clear_dirty_state(self) -> None:
@@ -396,9 +409,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if not path.is_file():
             self._set_status(f'File not found: {path.name}')
             self._settings_container.setVisible(False)
+            self._disk_snapshot = ''
+            self._rebuild_fs_watch()
             return
 
         content = path.read_text('utf-8')
+        self._disk_snapshot = content
 
         # Load settings panel
         _, settings_lines = read_preserved_sections(path)
@@ -418,6 +434,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         if duplicate_count > 0:
             status += f' ({duplicate_count} duplicate{"s" if duplicate_count != 1 else ""} found)'
         self._set_status(status)
+        self._rebuild_fs_watch()
 
     @override
     def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None:
@@ -520,30 +537,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
         self._entries_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers if self._global_search_active else editable,
         )
-
-    def _load_all_databases(self) -> None:
-        """Parse all .ini files and populate the table with entries from every database."""
-        self._model.removeRows(0, self._model.rowCount())
-
-        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-
-        total_entries = 0
-        total_files = 0
-
-        for ini_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini')):
-            if not ini_path.is_file():
-                continue
-
-            content = ini_path.read_text('utf-8')
-
-            total_files += 1
-            for username, ip in iter_userip_entries(content):
-                total_entries += 1
-                self._append_row(username, ip, index=total_entries, database=(ini_path.stem, ini_path))
-
-        self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
-        self._proxy.setFilterFixedString(self._search_input.text())
-        self._update_entry_counts()
+        self._rebuild_fs_watch()
 
     # ------------------------------------------------------------------
     # Import: merge entries
@@ -851,13 +845,16 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
             output_lines.append(f'{username}={ip}')
         output_lines.append('')  # trailing newline
 
-        self._current_path.write_text('\n'.join(output_lines), encoding='utf-8')
+        written = '\n'.join(output_lines)
+        self._current_path.write_text(written, encoding='utf-8')
+        self._disk_snapshot = written
 
         self._settings_snapshot = settings_values.copy()
         self._clear_dirty_state()
         self._update_file_info(self._current_path)
         self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
         self._refresh_stats()
+        self._rebuild_fs_watch()
         if duplicate_count > 0:
             self._load_database(self._current_path)
 
@@ -951,22 +948,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, SettingsPanelMixin, TreeOp
     @override
     def _refresh_stats(self) -> None:
         """Scan all UserIP databases and update the stats summary label."""
-        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-
         total_files = 0
         total_entries = 0
         unique_ips: set[str] = set()
         unique_usernames: set[str] = set()
 
-        for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
-            if not ini_path.is_file():
-                continue
-
-            content = ini_path.read_text('utf-8')
-
+        for _ini_path, entries in iter_userip_databases():
             total_files += 1
-
-            for username, ip in iter_userip_entries(content):
+            for username, ip in entries:
                 total_entries += 1
                 unique_ips.add(ip)
                 unique_usernames.add(username)

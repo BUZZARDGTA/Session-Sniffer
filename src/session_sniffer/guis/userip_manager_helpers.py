@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
@@ -301,6 +302,15 @@ def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
             continue
 
         yield username, ip
+
+
+def iter_userip_databases() -> Iterator[tuple[Path, list[tuple[str, str]]]]:
+    """Yield `(database_path, entries)` for every UserIP database file, sorted by path."""
+    USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+    for ini_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini')):
+        if not ini_path.is_file():
+            continue
+        yield ini_path, list(iter_userip_entries(ini_path.read_text('utf-8')))
 
 
 def read_preserved_sections(path: Path) -> tuple[list[str], list[str]]:
