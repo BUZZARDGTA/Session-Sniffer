@@ -5,6 +5,7 @@ import ast
 import contextlib
 import ipaddress
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -385,6 +386,23 @@ def normalize(text: str) -> str:
     return text.lower().replace(',', ' ').replace('(', ' ').replace(')', ' ').replace('-', ' ')
 
 
+def _tokenize_owner(owner: str) -> set[str]:
+    """Extract distinctive match tokens from an owner name.
+
+    Unlike ``normalize()``, this also splits on dots so that legal-suffix
+    abbreviations (``S.A.`` → ``s`` ``a``, ``B.V`` → ``b`` ``v``,
+    ``s.r.l.`` → ``s`` ``r`` ``l``) collapse to single-character tokens
+    that are then filtered out by the ``MIN_WORD_LENGTH`` check — no need
+    to enumerate every international company-form abbreviation.
+    """
+    # Replace dots (and other punctuation) with spaces before splitting
+    text = re.sub(r'[.()/]', ' ', owner.lower()).replace(',', ' ').replace('-', ' ')
+    words = {word.strip('.,/') for word in text.split()}
+    words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
+    words -= GENERIC_WORDS
+    return words
+
+
 # Custom exception list: Map an expected owner to a list of exact ISP/Org strings that
 # trigger false positive matches (e.g., 'DXC' matching 'Microsoft' due to the word 'Corporation').
 # These will be explicitly treated as different/unrelated ISPs.
@@ -393,6 +411,10 @@ KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
         'digital highway corporation',
         'dxc us latin america corporation',
         'shanghai blue cloud technology',
+    ],
+    'Amazon.com, Inc.': [
+        'amazon data services',
+        'amazon technologies',
     ],
     'Demonware Limited': [
         'datacamp limited',
@@ -416,24 +438,40 @@ KNOWN_ALIASES: dict[str, list[str]] = {
     'Discord': [
         'i3d.net b.v',
     ],
+    # i3D.net B.V produces empty tokens after dot-splitting (i3d/net/b/v all < 4 chars).
+    # Register its own name fragments as aliases so the alias path handles it.
+    'i3D.net B.V': [
+        'i3d.net',
+        'i3d',
+    ],
 }
 
 GENERIC_WORDS: set[str] = {
+    # English legal / structural words
     'association',
     'avenue',
     'building',
     'communication',
     'communications',
     'company',
+    'corp',           # short form of 'corporation'
     'corporation',
     'group',
     'hosting',
     'inc',
     'incorporated',
     'interactive',
+    'labs',
     'limited',
-    'ltda',
+    'llp',            # Limited Liability Partnership
     'ltd',
+    # Non-English legal suffixes (>= 4 chars; shorter ones like bv/nv/oy/sa/ab/sas/srl
+    # are already excluded by MIN_WORD_LENGTH=4; dot-abbreviations like 's.a.' are
+    # handled by _tokenize_owner() splitting on dots, yielding single-char tokens)
+    'bvba',           # Belgian
+    'gmbh',           # German (Gesellschaft mit beschränkter Haftung)
+    'ltda',           # Brazilian Portuguese
+    # Generic business-domain words
     'network',
     'networks',
     'services',
@@ -462,15 +500,21 @@ def owner_matches(expected: str, data: dict[str, Any]) -> bool:
         if normalize(alias) in actual:
             return True
 
-    words = {word.strip('.,/') for word in normalize(expected).split()}
-    words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
-    words -= GENERIC_WORDS
+    words = _tokenize_owner(expected)
     if not words:
-        # Fallback to original words if everything was generic
-        words = {word.strip('.,/') for word in normalize(expected).split()}
+        # Fallback: include all tokens that survive the length filter, even generic ones
+        text = re.sub(r'[.()/]', ' ', expected.lower()).replace(',', ' ').replace('-', ' ')
+        words = {word.strip('.,/') for word in text.split()}
         words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
 
-    return any(word in actual for word in words)
+    if not words:
+        # Cannot determine ownership from an empty token set — treat as no match
+        return False
+
+    # Use whole-word (word-boundary) matching to avoid substring false-positives.
+    # Example: 'cloud' must NOT match inside 'Cloudflare'; 'take' must NOT match
+    # inside 'Stakelogic'.  re.search with \b anchors enforces this.
+    return any(bool(re.search(r'\b' + re.escape(word) + r'\b', actual)) for word in words)
 
 
 def chunked(list_to_chunk: list[Any], chunk_size: int) -> Generator[list[Any]]:
