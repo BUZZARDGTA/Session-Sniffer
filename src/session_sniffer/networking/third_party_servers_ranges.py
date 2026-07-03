@@ -1333,7 +1333,8 @@ LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Latitude.sh LTDA',
     '154.16.157.0/24',
     '154.16.158.0/24',
-    '189.1.160.0/20',
+    '189.1.164.0/24',
+    '189.1.168.0/21',
 )
 
 LEVEL_3_PARENT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
