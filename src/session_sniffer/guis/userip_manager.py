@@ -353,6 +353,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         self._refresh_stats()
 
+    @override
     def _clear_dirty_state(self) -> None:
         """Reset the aggregate dirty state and its underlying sources."""
         self._entries_dirty = False
