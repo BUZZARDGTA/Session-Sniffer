@@ -432,6 +432,7 @@ GENERIC_WORDS: set[str] = {
     'incorporated',
     'interactive',
     'limited',
+    'ltda',
     'ltd',
     'network',
     'networks',
