@@ -1,10 +1,9 @@
 """Most Seen Players leaderboard window."""
 
 import contextlib
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -29,8 +28,13 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
-from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis._player_leaderboard_workers import (
+    LeaderboardBaselineWorker,
+    LeaderboardOverlayWorker,
+    OverlayResult,
+    SessionFilesScanWorker,
+    server_ips_for,
+)
 from session_sniffer.guis.utils import (
     apply_search_icon,
     format_player_display,
@@ -40,8 +44,7 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
     setup_table_view_headers,
 )
-from session_sniffer.networking.third_party_servers import is_third_party_server_ip
-from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, build_leaderboard_baseline, overlay_live_session
+from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 
 if TYPE_CHECKING:
@@ -98,6 +101,9 @@ _COLUMN_COUNTRY = 6
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
+
+# How often (while visible) the sessions directory is scanned on a background thread for new files.
+_BASELINE_SCAN_INTERVAL_MS = 5000
 
 _flag_icon_cache: dict[str, QIcon | None] = {}
 
@@ -490,80 +496,6 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     return dialog
 
 
-class _LeaderboardBaselineWorker(CrashingQThread):
-    """Background thread that scans finished session logs into a reusable leaderboard baseline.
-
-    Emits `finished_ok` with the resulting `LeaderboardBaseline`.
-    """
-
-    finished_ok: pyqtSignal = pyqtSignal(object)
-
-    def __init__(self, folder_path: Path, exclude_file: Path) -> None:
-        super().__init__()
-        self._folder_path = folder_path
-        self._exclude_file = exclude_file
-
-    @override
-    def _run(self) -> None:
-        """Scan the session logs into a baseline and emit it."""
-        baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file, should_cancel=self.isInterruptionRequested)
-        if self.isInterruptionRequested():
-            return
-        self.finished_ok.emit(baseline)
-
-
-# Memoized third-party-server classification, keyed by IP. The CIDR scan is expensive, so each IP is
-# classified at most once and reused across every live refresh.
-_server_ip_classification: dict[str, bool] = {}
-
-
-def _server_ips_for(entries: list[LeaderboardEntry]) -> frozenset[str]:
-    """Return the subset of IPs in *entries* that are known third-party game/relay servers.
-
-    Runs the expensive CIDR classification off the GUI thread (in the overlay worker) or once behind
-    the loading dialog, so toggling the 'Hide game servers' filter is a cheap set-membership test.
-    """
-    server_ips: set[str] = set()
-    for entry in entries:
-        cached = _server_ip_classification.get(entry.ip)
-        if cached is None:
-            cached = is_third_party_server_ip(entry.ip)
-            _server_ip_classification[entry.ip] = cached
-        if cached:
-            server_ips.add(entry.ip)
-    return frozenset(server_ips)
-
-
-@dataclass(frozen=True, slots=True)
-class _OverlayResult:
-    """Result of a background overlay: the sorted leaderboard plus the server IPs found within it."""
-
-    entries: list[LeaderboardEntry]
-    server_ips: frozenset[str]
-
-
-class _LeaderboardOverlayWorker(CrashingQThread):
-    """Background thread that overlays the live session snapshot onto the cached baseline.
-
-    Emits `finished_ok` with an `_OverlayResult` (sorted entries plus their server IPs). Running this
-    off the GUI thread keeps the cursor and event loop responsive even for large baselines.
-    """
-
-    finished_ok: pyqtSignal = pyqtSignal(object)
-
-    def __init__(self, baseline: LeaderboardBaseline, live_file: Path, limit: int) -> None:
-        super().__init__()
-        self._baseline = baseline
-        self._live_file = live_file
-        self._limit = limit
-
-    @override
-    def _run(self) -> None:
-        """Overlay the live session onto the baseline and emit the resulting leaderboard."""
-        entries = overlay_live_session(self._baseline, self._live_file, limit=self._limit)
-        self.finished_ok.emit(_OverlayResult(entries=entries, server_ips=_server_ips_for(entries)))
-
-
 def _build_loading_dialog(parent: QWidget) -> QDialog:
     """Build and return a modal dialog shown while the leaderboard is being built in the background."""
     dialog = QDialog(parent)
@@ -747,51 +679,61 @@ class PlayerLeaderboardWindow(QWidget):
         self._all_entries: list[LeaderboardEntry] = []
         self._baseline: LeaderboardBaseline | None = None
         self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
-        self._baseline_worker: _LeaderboardBaselineWorker | None = None
-        self._overlay_worker: _LeaderboardOverlayWorker | None = None
+        self._baseline_worker: LeaderboardBaselineWorker | None = None
+        self._overlay_worker: LeaderboardOverlayWorker | None = None
 
         # Periodically re-overlays the live session onto the cached baseline while the window is visible
         self._live_timer = QTimer(self)
         self._live_timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
         self._live_timer.timeout.connect(self._on_live_tick)
 
-        # Auto-rescan the historical baseline when session files are added/removed on disk.
-        self._baseline_dirty = False
-        self._sessions_watcher = DebouncedFileWatcher(self, self._on_sessions_dir_changed)
-        self._known_session_files = self._refresh_sessions_watch()
+        # Auto-rescan the historical baseline when new session files appear on disk. The directory
+        # walk runs on a background thread and only re-parses the baseline when the file set changes,
+        # so frequent live-session writes never stall the GUI.
+        self._known_session_files: frozenset[Path] | None = None
+        self._scan_worker: SessionFilesScanWorker | None = None
+        self._scan_timer = QTimer(self)
+        self._scan_timer.setInterval(_BASELINE_SCAN_INTERVAL_MS)
+        self._scan_timer.timeout.connect(self._scan_session_files)
+        self._scan_timer.start()
 
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
         self._start_load(on_ready=self.show, on_cancel=self.close)
 
-    def _refresh_sessions_watch(self) -> frozenset[Path]:
-        """Re-arm the sessions watcher and return the current set of session JSON files."""
-        directories: list[Path] = [SESSIONS_LOGGING_DIR_PATH]
-        files: set[Path] = set()
-        for path in SESSIONS_LOGGING_DIR_PATH.rglob('*'):
-            if path.is_dir():
-                directories.append(path)
-            elif path.suffix == '.json' and path.is_file():
-                files.add(path)
-        self._sessions_watcher.watch(directories=directories)
-        return frozenset(files)
+    def _scan_session_files(self) -> None:
+        """Kick off a background scan of the sessions directory, unless one is already running."""
+        if self._scan_worker is not None or not self.isVisible() or self.isMinimized():
+            return
+        worker = SessionFilesScanWorker(SESSIONS_LOGGING_DIR_PATH)
+        worker.finished_ok.connect(self._on_session_files_scanned)
+        worker.finished.connect(self._on_scan_finished)
+        self._scan_worker = worker
+        worker.setParent(self)
+        worker.start()
 
-    def _on_sessions_dir_changed(self) -> None:
-        """Rescan the baseline only when session files are added or removed (not on live-file writes)."""
-        current_files = self._refresh_sessions_watch()
-        if current_files == self._known_session_files:
+    def _on_session_files_scanned(self, files: frozenset[Path]) -> None:
+        """Rescan the baseline when the set of session files has changed since the last scan."""
+        if files == self._known_session_files:
             return
-        self._known_session_files = current_files
-        if not self.isVisible() or self.isMinimized():
-            self._baseline_dirty = True
-            return
+        first_scan = self._known_session_files is None
+        self._known_session_files = files
+        if first_scan:
+            return  # The initial baseline already reflects the current file set.
         self._reload_baseline_from_disk()
+
+    def _on_scan_finished(self) -> None:
+        """Release the finished scan worker so the next tick can start a fresh one."""
+        worker = self._scan_worker
+        self._scan_worker = None
+        if worker is not None:
+            worker.deleteLater()
 
     def _reload_baseline_from_disk(self) -> None:
         """Silently rescan the historical baseline on a background thread (no loading dialog)."""
         if self._baseline_worker is not None:
             return
-        worker = _LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
+        worker = LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(self._clear_baseline_worker)
         worker.finished_ok.connect(self._apply_baseline)
@@ -805,7 +747,7 @@ class PlayerLeaderboardWindow(QWidget):
         `on_ready` runs once the loaded data has been applied; `on_cancel` runs if the
         user closes the loading dialog before the scan completes.
         """
-        worker = _LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
+        worker = LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(self._clear_baseline_worker)
         self._baseline_worker = worker
@@ -845,7 +787,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._baseline = baseline
         entries = overlay_live_session(baseline, self._live_session_file, limit=self._cap_spinbox.value())
         self._all_entries = entries
-        self._proxy.set_server_ips(_server_ips_for(entries))
+        self._proxy.set_server_ips(server_ips_for(entries))
         self._model.load_data(entries)
         self._proxy.invalidateFilter()
         self._update_count_label()
@@ -858,13 +800,13 @@ class PlayerLeaderboardWindow(QWidget):
             return
         if self._overlay_worker is not None:
             return
-        worker = _LeaderboardOverlayWorker(self._baseline, self._live_session_file, self._cap_spinbox.value())
+        worker = LeaderboardOverlayWorker(self._baseline, self._live_session_file, self._cap_spinbox.value())
         worker.finished_ok.connect(self._on_overlay_ready)
         worker.finished.connect(self._on_overlay_finished)
         self._overlay_worker = worker
         worker.start()
 
-    def _on_overlay_ready(self, result: _OverlayResult) -> None:
+    def _on_overlay_ready(self, result: OverlayResult) -> None:
         """Apply a completed background overlay to the model on the GUI thread."""
         self._all_entries = result.entries
         self._proxy.set_server_ips(result.server_ips)
@@ -980,15 +922,16 @@ class PlayerLeaderboardWindow(QWidget):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
-        if self._baseline_dirty and self._baseline is not None:
-            self._baseline_dirty = False
-            self._reload_baseline_from_disk()
+        self._scan_session_files()
 
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
-        self._sessions_watcher.stop()
+        self._scan_timer.stop()
         self._live_timer.stop()
+        if self._scan_worker is not None and self._scan_worker.isRunning():
+            self._scan_worker.requestInterruption()
+            self._scan_worker.wait()
         if self._baseline_worker is not None and self._baseline_worker.isRunning():
             self._baseline_worker.requestInterruption()
             self._baseline_worker.wait()
