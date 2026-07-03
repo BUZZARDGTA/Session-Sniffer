@@ -3,7 +3,7 @@
 import contextlib
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
+from PyQt6.QtCore import QAbstractTableModel, QFileSystemWatcher, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -33,6 +33,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
     LeaderboardOverlayWorker,
     OverlayResult,
     SessionFilesScanWorker,
+    SessionScanResult,
     server_ips_for,
 )
 from session_sniffer.guis.utils import (
@@ -102,8 +103,9 @@ _COLUMN_COUNTRY = 6
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
 
-# How often (while visible) the sessions directory is scanned on a background thread for new files.
-_BASELINE_SCAN_INTERVAL_MS = 5000
+# Minimum spacing between background scans of the sessions directory. Filesystem-change events are
+# throttled to this rate so constant live-session writes can't spin the disk walk.
+_SESSIONS_SCAN_COOLDOWN_MS = 3000
 
 _flag_icon_cache: dict[str, QIcon | None] = {}
 
@@ -687,43 +689,81 @@ class PlayerLeaderboardWindow(QWidget):
         self._live_timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
         self._live_timer.timeout.connect(self._on_live_tick)
 
-        # Auto-rescan the historical baseline when new session files appear on disk. The directory
-        # walk runs on a background thread and only re-parses the baseline when the file set changes,
-        # so frequent live-session writes never stall the GUI.
-        self._known_session_files: frozenset[Path] | None = None
+        # Auto-rescan the historical baseline when older session files are added, removed, or edited
+        # on disk. Filesystem-change events trigger a throttled directory walk on a background thread;
+        # the live session file is excluded (it is already overlaid live), so its constant writes never
+        # cause a rescan and the walk itself never runs on the GUI thread.
+        self._known_signature: frozenset[tuple[str, float, int]] | None = None
+        self._watched_dirs: frozenset[str] = frozenset()
         self._scan_worker: SessionFilesScanWorker | None = None
-        self._scan_timer = QTimer(self)
-        self._scan_timer.setInterval(_BASELINE_SCAN_INTERVAL_MS)
-        self._scan_timer.timeout.connect(self._scan_session_files)
-        self._scan_timer.start()
+        self._scan_pending = False
+        self._sessions_watcher = QFileSystemWatcher(self)
+        self._sessions_watcher.directoryChanged.connect(self._on_sessions_changed)
+        self._sessions_watcher.fileChanged.connect(self._on_sessions_changed)
+        self._scan_cooldown = QTimer(self)
+        self._scan_cooldown.setSingleShot(True)
+        self._scan_cooldown.setInterval(_SESSIONS_SCAN_COOLDOWN_MS)
+        self._scan_cooldown.timeout.connect(self._on_scan_cooldown_elapsed)
 
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
         self._start_load(on_ready=self.show, on_cancel=self.close)
 
-    def _scan_session_files(self) -> None:
-        """Kick off a background scan of the sessions directory, unless one is already running."""
-        if self._scan_worker is not None or not self.isVisible() or self.isMinimized():
+    def _on_sessions_changed(self, _path: str) -> None:
+        """Handle a filesystem-change notification, throttled to at most one scan per cooldown."""
+        self._request_scan()
+
+    def _request_scan(self) -> None:
+        """Request a background scan now, or defer it until the cooldown elapses."""
+        if not self.isVisible() or self.isMinimized():
             return
-        worker = SessionFilesScanWorker(SESSIONS_LOGGING_DIR_PATH)
+        if self._scan_cooldown.isActive():
+            self._scan_pending = True
+            return
+        self._scan_cooldown.start()
+        self._scan_session_files()
+
+    def _on_scan_cooldown_elapsed(self) -> None:
+        """Run a deferred scan if changes arrived during the cooldown window."""
+        if self._scan_pending:
+            self._scan_pending = False
+            self._scan_cooldown.start()
+            self._scan_session_files()
+
+    def _scan_session_files(self) -> None:
+        """Kick off a background inventory of the sessions directory, unless one is already running."""
+        if self._scan_worker is not None:
+            return
+        worker = SessionFilesScanWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished_ok.connect(self._on_session_files_scanned)
         worker.finished.connect(self._on_scan_finished)
         self._scan_worker = worker
         worker.setParent(self)
         worker.start()
 
-    def _on_session_files_scanned(self, files: frozenset[Path]) -> None:
-        """Rescan the baseline when the set of session files has changed since the last scan."""
-        if files == self._known_session_files:
+    def _on_session_files_scanned(self, result: SessionScanResult) -> None:
+        """Re-arm the watcher for new directories and rescan the baseline when older files changed."""
+        if result.directories != self._watched_dirs:
+            self._rearm_sessions_watcher(result.directories)
+        if result.signature == self._known_signature:
             return
-        first_scan = self._known_session_files is None
-        self._known_session_files = files
+        first_scan = self._known_signature is None
+        self._known_signature = result.signature
         if first_scan:
-            return  # The initial baseline already reflects the current file set.
+            return  # The initial baseline already reflects the current files.
         self._reload_baseline_from_disk()
 
+    def _rearm_sessions_watcher(self, directories: frozenset[str]) -> None:
+        """Point the filesystem watcher at the current set of session directories."""
+        watched = [*self._sessions_watcher.files(), *self._sessions_watcher.directories()]
+        if watched:
+            self._sessions_watcher.removePaths(watched)
+        if directories:
+            self._sessions_watcher.addPaths(list(directories))
+        self._watched_dirs = directories
+
     def _on_scan_finished(self) -> None:
-        """Release the finished scan worker so the next tick can start a fresh one."""
+        """Release the finished scan worker so the next request can start a fresh one."""
         worker = self._scan_worker
         self._scan_worker = None
         if worker is not None:
@@ -922,12 +962,12 @@ class PlayerLeaderboardWindow(QWidget):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
-        self._scan_session_files()
+        self._request_scan()
 
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
-        self._scan_timer.stop()
+        self._scan_cooldown.stop()
         self._live_timer.stop()
         if self._scan_worker is not None and self._scan_worker.isRunning():
             self._scan_worker.requestInterruption()

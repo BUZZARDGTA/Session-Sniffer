@@ -13,6 +13,18 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+@dataclass(frozen=True, slots=True)
+class SessionScanResult:
+    """Snapshot of the sessions directory: a change-signature plus every directory in the tree.
+
+    `signature` holds a `(path, mtime, size)` tuple for every session file except the live one, so any
+    add/remove/edit of an older file changes it. `directories` is used to (re-)arm the filesystem watcher.
+    """
+
+    signature: frozenset[tuple[str, float, int]]
+    directories: frozenset[str]
+
+
 class LeaderboardBaselineWorker(CrashingQThread):
     """Background thread that scans finished session logs into a reusable leaderboard baseline.
 
@@ -36,25 +48,36 @@ class LeaderboardBaselineWorker(CrashingQThread):
 
 
 class SessionFilesScanWorker(CrashingQThread):
-    """Background thread that lists the current session JSON files without parsing them.
+    """Background thread that inventories the session JSON files without parsing them.
 
-    Emits `finished_ok` with a `frozenset[Path]` of the session files found on disk. Running the
-    directory walk off the GUI thread keeps the cursor and event loop responsive on large archives.
+    Emits `finished_ok` with a `SessionScanResult` describing every session file (path, mtime, size)
+    except the live session file, plus every directory in the tree. Running the directory walk off
+    the GUI thread keeps the cursor and event loop responsive on large session archives.
     """
 
     finished_ok: pyqtSignal = pyqtSignal(object)
 
-    def __init__(self, folder_path: Path) -> None:
+    def __init__(self, folder_path: Path, exclude_file: Path) -> None:
         super().__init__()
         self._folder_path = folder_path
+        self._exclude_file = exclude_file
 
     @override
     def _run(self) -> None:
-        """List the session JSON files on disk and emit the resulting set."""
-        files = frozenset(path for path in self._folder_path.rglob('*.json') if path.is_file())
+        """Inventory the session files/directories on disk and emit the resulting snapshot."""
+        signature: set[tuple[str, float, int]] = set()
+        directories: set[str] = {str(self._folder_path)}
+        for path in self._folder_path.rglob('*'):
+            if self.isInterruptionRequested():
+                return
+            if path.is_dir():
+                directories.add(str(path))
+            elif path.suffix == '.json' and path != self._exclude_file and path.is_file():
+                stat_result = path.stat()
+                signature.add((str(path), stat_result.st_mtime, stat_result.st_size))
         if self.isInterruptionRequested():
             return
-        self.finished_ok.emit(files)
+        self.finished_ok.emit(SessionScanResult(signature=frozenset(signature), directories=frozenset(directories)))
 
 
 # Memoized third-party-server classification, keyed by IP. The CIDR scan is expensive, so each IP is
