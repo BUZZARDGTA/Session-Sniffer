@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS, TITLE
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
     create_log_viewer,
@@ -210,6 +211,9 @@ class SessionsLogTab(QWidget):
         open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(open_location_button)
 
+        # Live-refresh the currently displayed session file when it changes on disk.
+        self._file_watcher = DebouncedFileWatcher(self, self._on_current_file_changed)
+
         # Initial metadata
         self.update_dir_metadata()
 
@@ -255,6 +259,7 @@ class SessionsLogTab(QWidget):
             self._delete_button.setText('🗑️ Delete File')
             self._delete_button.setToolTip('Delete the currently selected session JSON file')
         elif selected.is_dir():
+            self._file_watcher.stop()
             self._current_file = None
             self._current_rendered_text = ''
             self._viewer.setPlainText('')
@@ -274,6 +279,7 @@ class SessionsLogTab(QWidget):
 
     def _load_file(self, file_path: Path) -> None:
         self._current_file = file_path
+        self._file_watcher.watch(files=[file_path])
         text = self._render_session_file(file_path)
         self._current_rendered_text = text
         self._viewer.setPlainText(text)
@@ -284,6 +290,17 @@ class SessionsLogTab(QWidget):
 
         if self._search_input.text():
             self._on_search_changed(self._search_input.text())
+
+    def _on_current_file_changed(self) -> None:
+        """Re-render the displayed session file after it changes on disk."""
+        if self._global_search_active or self._current_file is None or not self._current_file.is_file():
+            return
+        scrollbar = self._viewer.verticalScrollBar()
+        previous_scroll = scrollbar.value() if scrollbar is not None else 0
+        at_bottom = scrollbar is not None and previous_scroll >= scrollbar.maximum() - 5
+        self._load_file(self._current_file)
+        if scrollbar is not None:
+            scrollbar.setValue(scrollbar.maximum() if at_bottom else min(previous_scroll, scrollbar.maximum()))
 
     # ------------------------------------------------------------------
     # Search
@@ -340,6 +357,7 @@ class SessionsLogTab(QWidget):
     def _on_global_search_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Switch between single-file view mode and global search mode."""
         if checked:
+            self._file_watcher.stop()
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
@@ -369,6 +387,7 @@ class SessionsLogTab(QWidget):
             selection_model.clearSelection()
             selection_model.setCurrentIndex(QModelIndex(), QItemSelectionModel.SelectionFlag.Clear)
         self._tree.setCurrentIndex(QModelIndex())
+        self._file_watcher.stop()
         self._selected_path = None
         self._current_file = None
         self._current_rendered_text = ''

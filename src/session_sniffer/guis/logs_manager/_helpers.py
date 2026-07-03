@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 MAX_CSV_ROWS = 50_000
-AUTO_REFRESH_INTERVAL_MS = 2000
 LARGE_TEXT_FILE_LIMIT = 5 * BYTES_PER_UNIT * BYTES_PER_UNIT  # 5 MB
 _DAYS_IN_WEEK = 7
 
@@ -197,15 +196,6 @@ def create_log_viewer() -> QPlainTextEdit:
     viewer.setFont(mono_font)
     viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
     return viewer
-
-
-def create_refresh_button(load_fn: Callable[[], None]) -> QPushButton:
-    """Return a standard Refresh button connected to *load_fn*."""
-    button = QPushButton('🔄 Refresh')
-    button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    button.setToolTip('Reload file contents')
-    button.clicked.connect(load_fn)
-    return button
 
 
 def create_search_input(

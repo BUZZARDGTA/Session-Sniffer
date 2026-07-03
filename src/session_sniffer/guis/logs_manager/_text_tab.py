@@ -2,10 +2,8 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -18,14 +16,13 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
-    AUTO_REFRESH_INTERVAL_MS,
     LARGE_TEXT_FILE_LIMIT,
     LogLevelHighlighter,
     add_purge_and_location_buttons,
     copy_viewer_text_to_clipboard,
     create_log_viewer,
-    create_refresh_button,
     file_metadata_text,
     prepare_search,
     purge_log_file,
@@ -72,15 +69,6 @@ class TextLogTab(QWidget):
         self._match_label = QLabel('')
         top_bar.addWidget(self._match_label)
 
-        refresh_button = create_refresh_button(self.load_data)
-        top_bar.addWidget(refresh_button)
-
-        self._auto_refresh_check = QCheckBox('Auto-refresh')
-        self._auto_refresh_check.setToolTip('Automatically reload the log every 2 seconds')
-        self._auto_refresh_check.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._auto_refresh_check.toggled.connect(self._on_auto_refresh_toggled)
-        top_bar.addWidget(self._auto_refresh_check)
-
         self._line_count_label = QLabel('')
         top_bar.addWidget(self._line_count_label)
 
@@ -110,9 +98,9 @@ class TextLogTab(QWidget):
 
         add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
 
-        # --- Auto-refresh timer ---
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self.load_data)
+        # --- Auto-refresh from disk ---
+        self._watcher = DebouncedFileWatcher(self, self.load_data)
+        self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
 
         # Initial load
         self.load_data()
@@ -227,16 +215,6 @@ class TextLogTab(QWidget):
             self._match_label.setText('No matches')
         else:
             self._match_label.setText(f'{self._current_match_index + 1} / {count}')
-
-    # ------------------------------------------------------------------
-    # Auto-refresh
-    # ------------------------------------------------------------------
-
-    def _on_auto_refresh_toggled(self, checked: bool) -> None:  # noqa: FBT001
-        if checked:
-            self._refresh_timer.start(AUTO_REFRESH_INTERVAL_MS)
-        else:
-            self._refresh_timer.stop()
 
     # ------------------------------------------------------------------
     # Actions

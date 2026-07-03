@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMenu,
     QProgressBar,
-    QPushButton,
     QSpinBox,
     QTableView,
     QTableWidget,
@@ -31,6 +30,7 @@ from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.utils import (
     apply_search_icon,
     format_player_display,
@@ -707,12 +707,6 @@ class PlayerLeaderboardWindow(QWidget):
 
         filters_layout.addStretch()
 
-        refresh_button = QPushButton('🔄 Refresh')
-        refresh_button.setToolTip('Reload leaderboard data from disk')
-        refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        refresh_button.clicked.connect(self.refresh)
-        filters_layout.addWidget(refresh_button)
-
         layout.addLayout(filters_layout)
 
         # Table
@@ -761,13 +755,39 @@ class PlayerLeaderboardWindow(QWidget):
         self._live_timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
         self._live_timer.timeout.connect(self._on_live_tick)
 
+        # Auto-rescan the historical baseline when session files are added/removed on disk.
+        self._baseline_dirty = False
+        self._sessions_watcher = DebouncedFileWatcher(self, self._on_sessions_dir_changed)
+        self._rewatch_sessions_dir()
+
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
         self._start_load(on_ready=self.show, on_cancel=self.close)
 
-    def refresh(self) -> None:
-        """Reload leaderboard data from disk on a background thread, showing a loading dialog."""
-        self._start_load(on_ready=None, on_cancel=None)
+    def _rewatch_sessions_dir(self) -> None:
+        """Point the sessions watcher at the sessions directory and all of its current subdirectories."""
+        directories = [SESSIONS_LOGGING_DIR_PATH, *(path for path in SESSIONS_LOGGING_DIR_PATH.rglob('*') if path.is_dir())]
+        self._sessions_watcher.watch(directories=directories)
+
+    def _on_sessions_dir_changed(self) -> None:
+        """React to session files appearing/disappearing on disk by rescanning the baseline."""
+        self._rewatch_sessions_dir()
+        if not self.isVisible() or self.isMinimized():
+            self._baseline_dirty = True
+            return
+        self._reload_baseline_from_disk()
+
+    def _reload_baseline_from_disk(self) -> None:
+        """Silently rescan the historical baseline on a background thread (no loading dialog)."""
+        if self._baseline_worker is not None:
+            return
+        worker = _LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
+        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(self._clear_baseline_worker)
+        worker.finished_ok.connect(self._apply_baseline)
+        self._baseline_worker = worker
+        worker.setParent(self)
+        worker.start()
 
     def _start_load(self, *, on_ready: Callable[[], object] | None, on_cancel: Callable[[], object] | None) -> None:
         """Run the leaderboard scan on a worker thread behind a modal loading dialog.
@@ -851,7 +871,7 @@ class PlayerLeaderboardWindow(QWidget):
     def _on_cap_changed(self) -> None:
         """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
         if self._baseline is None:
-            self.refresh()
+            self._start_load(on_ready=None, on_cancel=None)
             return
         self._apply_baseline(self._baseline)
 
@@ -950,10 +970,14 @@ class PlayerLeaderboardWindow(QWidget):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+        if self._baseline_dirty and self._baseline is not None:
+            self._baseline_dirty = False
+            self._reload_baseline_from_disk()
 
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
+        self._sessions_watcher.stop()
         self._live_timer.stop()
         if self._baseline_worker is not None and self._baseline_worker.isRunning():
             self._baseline_worker.requestInterruption()

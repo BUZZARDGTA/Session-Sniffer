@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
     DATE_COLUMN_NAME,
     DATE_FILTER_7_DAYS,
@@ -33,7 +34,6 @@ from session_sniffer.guis.logs_manager._helpers import (
     DATE_FILTER_TODAY,
     MAX_CSV_ROWS,
     MultiColumnFilterProxy,
-    create_refresh_button,
     create_search_input,
     file_metadata_text,
     open_file_location,
@@ -75,6 +75,7 @@ class CsvLogTab(QWidget):
         self._column_min_widths = config.column_min_widths
         self._all_rows: list[list[str]] = []
         self._truncated = False
+        self._initial_loaded = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -98,9 +99,6 @@ class CsvLogTab(QWidget):
             self._date_combo.addItem(choice)
         self._date_combo.currentTextChanged.connect(self._on_date_filter_changed)
         top_bar.addWidget(self._date_combo)
-
-        refresh_button = create_refresh_button(self.load_data)
-        top_bar.addWidget(refresh_button)
 
         self._count_label = QLabel('')
         top_bar.addWidget(self._count_label)
@@ -193,6 +191,10 @@ class CsvLogTab(QWidget):
 
         layout.addLayout(button_row)
 
+        # --- Auto-refresh from disk ---
+        self._watcher = DebouncedFileWatcher(self, self.load_data)
+        self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
+
         # Initial load
         self.load_data()
 
@@ -202,6 +204,9 @@ class CsvLogTab(QWidget):
 
     def load_data(self) -> None:
         """Read the CSV file and populate the table model."""
+        scrollbar = self._table.verticalScrollBar()
+        previous_scroll = scrollbar.value() if scrollbar is not None else 0
+
         self._model.removeRows(0, self._model.rowCount())
         self._all_rows.clear()
         self._truncated = False
@@ -209,6 +214,7 @@ class CsvLogTab(QWidget):
         if not self._file_path.exists():
             self._update_counts()
             self._metadata_label.setText(file_metadata_text(self._file_path))
+            self._initial_loaded = True
             return
 
         with self._file_path.open(newline='', encoding='utf-8') as f:
@@ -217,6 +223,7 @@ class CsvLogTab(QWidget):
             if file_headers is None:
                 self._update_counts()
                 self._metadata_label.setText(file_metadata_text(self._file_path))
+                self._initial_loaded = True
                 return
 
             self._model.setHorizontalHeaderLabels(file_headers)
@@ -236,14 +243,20 @@ class CsvLogTab(QWidget):
                 self._model.appendRow(items)
                 self._all_rows.append(row)
 
-            if skipped:
+            # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
+            if skipped and not self._initial_loaded:
                 QMessageBox.warning(
                     self,
                     TITLE,
                     f'Skipped {skipped} malformed row(s) while loading {self._file_path.name}.',
                 )
 
-        self._apply_default_sort()
+        if self._initial_loaded:
+            if scrollbar is not None:
+                scrollbar.setValue(min(previous_scroll, scrollbar.maximum()))
+        else:
+            self._apply_default_sort()
+            self._initial_loaded = True
         self._update_counts()
         self._metadata_label.setText(file_metadata_text(self._file_path))
 
