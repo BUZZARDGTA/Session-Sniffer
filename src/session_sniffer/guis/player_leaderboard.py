@@ -758,20 +758,30 @@ class PlayerLeaderboardWindow(QWidget):
         # Auto-rescan the historical baseline when session files are added/removed on disk.
         self._baseline_dirty = False
         self._sessions_watcher = DebouncedFileWatcher(self, self._on_sessions_dir_changed)
-        self._rewatch_sessions_dir()
+        self._known_session_files = self._refresh_sessions_watch()
 
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
         self._start_load(on_ready=self.show, on_cancel=self.close)
 
-    def _rewatch_sessions_dir(self) -> None:
-        """Point the sessions watcher at the sessions directory and all of its current subdirectories."""
-        directories = [SESSIONS_LOGGING_DIR_PATH, *(path for path in SESSIONS_LOGGING_DIR_PATH.rglob('*') if path.is_dir())]
+    def _refresh_sessions_watch(self) -> frozenset[Path]:
+        """Re-arm the sessions watcher and return the current set of session JSON files."""
+        directories: list[Path] = [SESSIONS_LOGGING_DIR_PATH]
+        files: set[Path] = set()
+        for path in SESSIONS_LOGGING_DIR_PATH.rglob('*'):
+            if path.is_dir():
+                directories.append(path)
+            elif path.suffix == '.json' and path.is_file():
+                files.add(path)
         self._sessions_watcher.watch(directories=directories)
+        return frozenset(files)
 
     def _on_sessions_dir_changed(self) -> None:
-        """React to session files appearing/disappearing on disk by rescanning the baseline."""
-        self._rewatch_sessions_dir()
+        """Rescan the baseline only when session files are added or removed (not on live-file writes)."""
+        current_files = self._refresh_sessions_watch()
+        if current_files == self._known_session_files:
+            return
+        self._known_session_files = current_files
         if not self.isVisible() or self.isMinimized():
             self._baseline_dirty = True
             return
