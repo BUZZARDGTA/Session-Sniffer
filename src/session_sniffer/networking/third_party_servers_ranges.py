@@ -1623,6 +1623,11 @@ PLAYSTATION_SONY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '104.142.128.0/17',
 )
 
+SEFLOW_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Seflow s.r.l.',
+    '95.141.32.0/20',
+)
+
 SERVERS_COM_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Servers.com',
     '170.23.0.0/18',
@@ -1723,11 +1728,6 @@ THE_CONSTANT_COMPANY_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '216.128.128.0/18',
     '216.238.64.0/18',
     '217.69.0.0/20',
-)
-
-SEFLOW_RANGES: tuple[NamedRange, ...] = create_named_ranges(
-    'Seflow s.r.l.',
-    '95.141.32.0/20',
 )
 
 UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
