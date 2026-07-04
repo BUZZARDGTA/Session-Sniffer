@@ -1,8 +1,9 @@
 """Build BPF capture filters and Python display-filter callables from current application settings."""
 
+from ipaddress import AddressValueError, IPv4Address
 from typing import TYPE_CHECKING
 
-from scapy.layers.inet import UDP
+from scapy.layers.inet import IP, UDP
 
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
@@ -11,7 +12,7 @@ from session_sniffer.constants.standalone import (
     SSDPP_PORT,
     UAUDP_PORT,
 )
-from session_sniffer.networking.third_party_servers import ThirdPartyServers
+from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -78,11 +79,13 @@ def _is_dtls(pkt: ScapyPacket) -> bool:
 
 def _build_display_filter_fn(
     excluded_protocols: list[str],
+    blocked_tps_obj_ranges: list[tuple[IPv4Address, IPv4Address]] | None = None,
 ) -> Callable[[ScapyPacket], bool] | None:
     """Build a Python callable that returns `True` when a packet should be forwarded.
 
     Args:
         excluded_protocols: Protocol names that require Python-level inspection.
+        blocked_tps_obj_ranges: Third-party server IP tuple ranges to block.
 
     Returns:
         A callable, or `None` if no Python-level filtering is needed.
@@ -94,6 +97,19 @@ def _build_display_filter_fn(
 
     if 'dtls' in excluded_protocols:
         checks.append(lambda pkt: not _is_dtls(pkt))
+
+    if blocked_tps_obj_ranges:
+        def check_tps(pkt: ScapyPacket) -> bool:
+            if not pkt.haslayer(IP):
+                return False
+            try:
+                src_ip = IPv4Address(pkt[IP].src)
+                dst_ip = IPv4Address(pkt[IP].dst)
+            except AddressValueError:
+                return False
+            return is_ip_in_ranges(src_ip, blocked_tps_obj_ranges) or is_ip_in_ranges(dst_ip, blocked_tps_obj_ranges)
+
+        checks.append(lambda pkt: not check_tps(pkt))
 
     if not checks:
         return None
@@ -148,10 +164,9 @@ def build_capture_filters(
     if Settings.capture_filter_block_dtls:
         python_excluded_protocols.append('dtls')
 
+    blocked_tps_obj_ranges: list[tuple[IPv4Address, IPv4Address]] | None = None
     if Settings.capture_block_third_party_servers:
-        blocked_ip_ranges = ThirdPartyServers.get_ip_ranges_for(Settings.capture_block_third_party_servers)
-        if blocked_ip_ranges:
-            capture_filter.append(f'not (net {" or ".join(blocked_ip_ranges)})')
+        blocked_tps_obj_ranges = ThirdPartyServers.get_ip_obj_ranges_for(Settings.capture_block_third_party_servers)
 
     if Settings.capture_filter_block_ssdp:
         capture_filter.append(f'not port {SSDPP_PORT}')
@@ -181,6 +196,7 @@ def build_capture_filters(
     capture_filter_str = ' and '.join(capture_filter) if capture_filter else None
     display_filter_fn = _build_display_filter_fn(
         python_excluded_protocols,
+        blocked_tps_obj_ranges=blocked_tps_obj_ranges,
     )
 
     return (capture_filter_str, display_filter_fn)

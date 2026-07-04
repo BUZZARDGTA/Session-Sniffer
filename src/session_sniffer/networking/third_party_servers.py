@@ -1,5 +1,5 @@
 """Third-party server IP ranges for traffic filtering."""
-
+import bisect
 import enum
 import ipaddress
 from functools import cached_property
@@ -122,15 +122,55 @@ class ThirdPartyServers(enum.Enum):
         collapsed = list(ipaddress.collapse_addresses(networks))
         return [str(network) for network in collapsed]
 
+    @classmethod
+    def get_ip_obj_ranges_for(cls, server_names: Iterable[str]) -> list[tuple[IPv4Address, IPv4Address]]:
+        """Return a collapsed, minimal list of IPv4Address tuple ranges for the specified server names."""
+        names_set = set(server_names)
+        networks = [
+            network
+            for server in cls
+            if server.name in names_set
+            for network in server.ip_networks
+            if isinstance(network, ipaddress.IPv4Network)
+        ]
+        return _build_ip_obj_ranges(networks)
+
+
+def _build_ip_obj_ranges(networks: Iterable[ipaddress.IPv4Network]) -> list[tuple[IPv4Address, IPv4Address]]:
+    collapsed = list(ipaddress.collapse_addresses(networks))
+    ranges = [(net.network_address, net.broadcast_address) for net in collapsed]
+    ranges.sort()
+    return ranges
+
 
 ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(server.name for server in ThirdPartyServers)
 
 
 _ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
-    dict.fromkeys(network for server in ThirdPartyServers for network in server.ip_networks),
+    ipaddress.collapse_addresses([
+        network
+        for server in ThirdPartyServers
+        for network in server.ip_networks
+        if isinstance(network, ipaddress.IPv4Network)
+    ])
 )
+_ALL_THIRD_PARTY_SERVER_OBJ_RANGES = _build_ip_obj_ranges(_ALL_THIRD_PARTY_SERVER_NETWORKS)
+
+MAX_IPV4 = IPv4Address('255.255.255.255')
+
+
+def is_ip_in_ranges(ip_obj: IPv4Address, ranges: list[tuple[IPv4Address, IPv4Address]]) -> bool:
+    """Check if an IPv4Address falls within any of the given ranges."""
+    if not ranges:
+        return False
+    idx = bisect.bisect_right(ranges, (ip_obj, MAX_IPV4))
+    return bool(idx > 0 and ip_obj <= ranges[idx - 1][1])
 
 
 def is_third_party_server_ip(ip: str) -> bool:
     """Return True if `ip` matches any known third-party server CIDR range."""
-    return any(IPv4Address(ip) in network for network in _ALL_THIRD_PARTY_SERVER_NETWORKS)
+    try:
+        ip_obj = IPv4Address(ip)
+    except ipaddress.AddressValueError:
+        return False
+    return is_ip_in_ranges(ip_obj, _ALL_THIRD_PARTY_SERVER_OBJ_RANGES)
