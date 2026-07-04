@@ -103,3 +103,6 @@ Provide feedback if any section needs deeper detail (e.g., capture filter extens
 
 ## Feature Addition
 When adding or expanding features, make clean replacements. Replace older usage outright and remove obsolete code. See **No Backward Compatibility — Ever** above.
+
+## Documentation
+- **Settings Documentation Sync:** If you edit a default setting, introduce a new setting, or remove an existing setting in the project's configuration (e.g. `src/session_sniffer/settings/defaults.py`), you MUST also verify and reflect those changes in the project's Wiki repository (`d:\Git\Session-Sniffer.wiki`), particularly updating the default values and setting lists in `Configuration-Guide.md` or other relevant documentation pages.
