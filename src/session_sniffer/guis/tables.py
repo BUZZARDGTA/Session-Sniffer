@@ -424,11 +424,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()
 
-        select_all_columns_action = QAction('Select All Columns', choose_columns_menu)
+        select_all_columns_action = QAction('☑️ Select All Columns', choose_columns_menu)
         select_all_columns_action.triggered.connect(self._select_all_columns)
         choose_columns_menu.addAction(select_all_columns_action)
 
-        deselect_all_columns_action = QAction('Deselect All Columns', choose_columns_menu)
+        deselect_all_columns_action = QAction('⬜ Unselect All Columns', choose_columns_menu)
         deselect_all_columns_action.triggered.connect(self._deselect_all_columns)
         choose_columns_menu.addAction(deselect_all_columns_action)
         choose_columns_menu.addSeparator()
@@ -457,14 +457,14 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
             category_menu.setToolTipsVisible(True)
 
-            select_all_action = QAction('Select All', category_menu)
+            select_all_action = QAction('☑️ Select All', category_menu)
 
             def _on_select_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._select_category_columns(cols)
             select_all_action.triggered.connect(_on_select_all)
             category_menu.addAction(select_all_action)
 
-            deselect_all_action = QAction('Deselect All', category_menu)
+            deselect_all_action = QAction('⬜ Unselect All', category_menu)
 
             def _on_deselect_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._deselect_category_columns(cols)

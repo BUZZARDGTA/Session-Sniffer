@@ -299,11 +299,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         controls_bar.addSpacing(10)
 
-        select_all_btn = QPushButton('\u2611 Select All')
+        select_all_btn = QPushButton('☑️ Select All')
         select_all_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
         select_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_all_btn.clicked.connect(self._select_all)
-        deselect_all_btn = QPushButton('\u2610 Deselect All')
+        deselect_all_btn = QPushButton('⬜ Unselect All')
         deselect_all_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
         deselect_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         deselect_all_btn.clicked.connect(self._deselect_all)
