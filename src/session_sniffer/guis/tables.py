@@ -419,7 +419,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         choose_columns_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
         choose_columns_menu.setToolTipsVisible(True)
 
-        reset_columns_action = QAction('↩️ Reset to Default Columns', choose_columns_menu)
+        reset_columns_action = QAction('↩️ Reset to Default', choose_columns_menu)
         reset_columns_action.triggered.connect(self._reset_to_default_columns)
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()

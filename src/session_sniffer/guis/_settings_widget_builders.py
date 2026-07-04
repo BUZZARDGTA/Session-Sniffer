@@ -202,7 +202,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     button_select_all = QPushButton('☑️ Select All')
     button_deselect_all = QPushButton('⬜ Unselect All')
-    button_reset = QPushButton('Reset')
+    button_reset = QPushButton('↩️ Reset to Default')
     button_reset.setToolTip('Reset to default selected columns')
     for button in (button_select_all, button_deselect_all, button_reset):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -299,7 +299,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_button_select_all = QPushButton('☑️ Select All')
     preset_button_deselect_all = QPushButton('⬜ Unselect All')
-    preset_button_reset = QPushButton('Reset')
+    preset_button_reset = QPushButton('↩️ Reset to Default')
     preset_button_reset.setToolTip('Reset to default presets')
     for button in (preset_button_select_all, preset_button_deselect_all, preset_button_reset):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -345,7 +345,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     button_select_all = QPushButton('☑️ Select All')
     button_deselect_all = QPushButton('⬜ Unselect All')
-    button_reset = QPushButton('Reset')
+    button_reset = QPushButton('↩️ Reset to Default')
     button_reset.setToolTip('Reset to default selected options')
     for button in (button_select_all, button_deselect_all, button_reset):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
