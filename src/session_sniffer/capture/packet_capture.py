@@ -4,7 +4,7 @@ import threading
 import time
 from ctypes import byref
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, NamedTuple, Self, final
 
 from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
@@ -76,8 +76,7 @@ def _parse_and_validate_length(length: int, /) -> int:
 
 
 def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
-    dt_utc = datetime.fromtimestamp(time_epoch, tz=UTC)
-    return dt_utc.astimezone(LOCAL_TZ)
+    return datetime.fromtimestamp(time_epoch, tz=LOCAL_TZ)
 
 
 class PacketIP(NamedTuple):
