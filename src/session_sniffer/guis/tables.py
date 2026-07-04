@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.constants.standalone import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    INTERACTIVE_COLUMNS,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
@@ -266,6 +267,13 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
             if header_label in RESIZE_TO_CONTENTS_COLUMNS:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+            elif header_label in INTERACTIVE_COLUMNS:
+                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+
+                # Dynamically calculate the initial width based on the header text to avoid magic numbers,
+                # adding 40px of padding to comfortably accommodate the sort indicator and margins.
+                calculated_width = horizontal_header.fontMetrics().horizontalAdvance(header_label) + 40
+                horizontal_header.resizeSection(column, calculated_width)
             else:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
 
@@ -416,6 +424,15 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()
 
+        select_all_columns_action = QAction('Select All Columns', choose_columns_menu)
+        select_all_columns_action.triggered.connect(self._select_all_columns)
+        choose_columns_menu.addAction(select_all_columns_action)
+
+        deselect_all_columns_action = QAction('Deselect All Columns', choose_columns_menu)
+        deselect_all_columns_action.triggered.connect(self._deselect_all_columns)
+        choose_columns_menu.addAction(deselect_all_columns_action)
+        choose_columns_menu.addSeparator()
+
         # Bucket each toggleable column into its category.
         bucketed: dict[str, list[str]] = {label: [] for label, _ in _COLUMN_CATEGORY_GROUPS}
         bucketed['Other'] = []
@@ -439,6 +456,22 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             category_menu = PersistentMenu(label, choose_columns_menu)
             category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
             category_menu.setToolTipsVisible(True)
+
+            select_all_action = QAction('Select All', category_menu)
+
+            def _on_select_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
+                self._select_category_columns(cols)
+            select_all_action.triggered.connect(_on_select_all)
+            category_menu.addAction(select_all_action)
+
+            deselect_all_action = QAction('Deselect All', category_menu)
+
+            def _on_deselect_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
+                self._deselect_category_columns(cols)
+            deselect_all_action.triggered.connect(_on_deselect_all)
+            category_menu.addAction(deselect_all_action)
+            category_menu.addSeparator()
+
             for column_name in columns:
                 column_action = QAction(column_name, category_menu)
                 column_action.setCheckable(True)
@@ -449,7 +482,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
                 def _on_column_toggled(checked: bool, name: str = column_name) -> None:  # noqa: FBT001
                     self._toggle_column_visibility(name, checked=checked)
-
                 column_action.toggled.connect(_on_column_toggled)
                 category_menu.addAction(column_action)
             choose_columns_menu.addMenu(category_menu)
@@ -512,6 +544,66 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_connected_shown = SETTING_DEFAULTS['gui_columns_connected_shown']
         else:
             Settings.gui_columns_disconnected_shown = SETTING_DEFAULTS['gui_columns_disconnected_shown']
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
+
+    def _select_all_columns(self) -> None:
+        """Show all toggleable columns and persist the change to settings."""
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+        else:
+            Settings.gui_columns_disconnected_shown = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
+
+    def _deselect_all_columns(self) -> None:
+        """Hide all toggleable columns and persist the change to settings."""
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = ()
+        else:
+            Settings.gui_columns_disconnected_shown = ()
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
+
+    def _select_category_columns(self, columns: list[str]) -> None:
+        """Show a specific subset of columns and persist the change to settings."""
+        if self.is_connected_table:
+            shown = set(Settings.gui_columns_connected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+        else:
+            shown = set(Settings.gui_columns_disconnected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+
+        shown.update(columns)
+        new_shown = tuple(column for column in toggleable if column in shown)
+
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = new_shown
+        else:
+            Settings.gui_columns_disconnected_shown = new_shown
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+        self.adjust_username_column_width()
+
+    def _deselect_category_columns(self, columns: list[str]) -> None:
+        """Hide a specific subset of columns and persist the change to settings."""
+        if self.is_connected_table:
+            shown = set(Settings.gui_columns_connected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
+        else:
+            shown = set(Settings.gui_columns_disconnected_shown)
+            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+
+        shown.difference_update(columns)
+        new_shown = tuple(column for column in toggleable if column in shown)
+
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = new_shown
+        else:
+            Settings.gui_columns_disconnected_shown = new_shown
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
