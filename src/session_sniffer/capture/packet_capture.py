@@ -227,6 +227,13 @@ class PacketCapture:
 
         self._terminate_sniffer()
 
+        if (
+            self._state.capture_thread is not None
+            and self._state.capture_thread.is_alive()
+            and self._state.capture_thread is not threading.current_thread()
+        ):
+            self._state.capture_thread.join()
+
     def request_restart(self) -> None:
         """Request an async restart of the packet capture.
 
@@ -279,7 +286,6 @@ class PacketCapture:
                     break
                 raise
 
-        self._state.capture_thread = None
 
     def _capture_and_process(self) -> None:
         """Run one sniffer session until stopped, restarted, or crashed."""
