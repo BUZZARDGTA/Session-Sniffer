@@ -227,6 +227,14 @@ class PacketCapture:
 
         self._terminate_sniffer()
 
+        capture_thread = self._state.capture_thread
+        if (
+            capture_thread is not None
+            and capture_thread.is_alive()
+            and capture_thread is not threading.current_thread()
+        ):
+            capture_thread.join()
+
     def request_restart(self) -> None:
         """Request an async restart of the packet capture.
 
