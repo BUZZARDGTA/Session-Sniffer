@@ -424,11 +424,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()
 
-        select_all_columns_action = QAction('☑️ Select All Columns', choose_columns_menu)
+        select_all_columns_action = QAction('☑️ Select All', choose_columns_menu)
         select_all_columns_action.triggered.connect(self._select_all_columns)
         choose_columns_menu.addAction(select_all_columns_action)
 
-        deselect_all_columns_action = QAction('⬜ Unselect All Columns', choose_columns_menu)
+        deselect_all_columns_action = QAction('⬜ Unselect All', choose_columns_menu)
         deselect_all_columns_action.triggered.connect(self._deselect_all_columns)
         choose_columns_menu.addAction(deselect_all_columns_action)
         choose_columns_menu.addSeparator()
