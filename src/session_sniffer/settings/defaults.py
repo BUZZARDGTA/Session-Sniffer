@@ -615,7 +615,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),
-    'capture_filter_block_rtcp': False,
+    'capture_filter_block_rtcp': True,
     'capture_filter_block_ssdp': True,
     'capture_filter_block_raknet': True,
     'capture_filter_block_dtls': True,
