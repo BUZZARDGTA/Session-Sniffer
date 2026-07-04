@@ -297,15 +297,15 @@ class PacketCapture:
             if not raw_pkt.haslayer(IP) or not raw_pkt.haslayer(UDP):
                 return
 
+            if self.config.display_filter_fn is not None and not self.config.display_filter_fn(raw_pkt):
+                return
+
             try:
                 packet = Packet.from_scapy(raw_pkt)
             except MissingRequiredPacketFieldError:
                 return
             except MalformedPacketError as e:
                 _log_malformed_packet_skip(str(e), raw_pkt=raw_pkt)
-                return
-
-            if self.config.display_filter_fn is not None and not self.config.display_filter_fn(raw_pkt):
                 return
 
             self.config.callback(packet)
