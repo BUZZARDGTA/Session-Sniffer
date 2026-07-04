@@ -222,7 +222,7 @@ class GTA5Mixin(QMainWindow):
                 self._gta5_solo_menu_action.setToolTip('GTA5 is not currently running')
 
     def _refresh_runtime_capability_windows(self) -> None:
-        """Refresh open dialogs that gate controls by preset/interface support."""
+        """Refresh open dialogs that gate controls by feature set / interface support."""
         if self._userip_manager_window is not None and self._userip_manager_window.isVisible():
             self._userip_manager_window.refresh_runtime_capabilities()
 
@@ -230,15 +230,15 @@ class GTA5Mixin(QMainWindow):
             self._detections_manager_window.refresh_detection_availability()
 
     def _update_gta5_toolbar_visibility(self) -> None:
-        """Show or hide the GTA5 menu (and process-bound items inside it) based on preset and capture mode."""
-        gta5_preset = Settings.is_gta5_preset()
+        """Show or hide the GTA5 menu (and process-bound items inside it) based on feature set and capture mode."""
+        gta5_feature_set = Settings.is_gta5_feature_set()
         SessionHost.clear_session_host_data()
         gta5_menu_action = self._gta5_menu.menuAction()
         if gta5_menu_action is not None:
-            gta5_menu_action.setVisible(gta5_preset)
+            gta5_menu_action.setVisible(gta5_feature_set)
 
         # Hide local-process-bound items when capturing traffic from another machine.
-        local_only_visible = gta5_preset and CaptureState.is_local_capture()
+        local_only_visible = gta5_feature_set and CaptureState.is_local_capture()
         self._gta5_status_widget_action.setVisible(local_only_visible)
         self._gta5_menu_status_separator.setVisible(local_only_visible)
         looky_action = self._looky_submenu.menuAction()

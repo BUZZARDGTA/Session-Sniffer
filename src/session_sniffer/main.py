@@ -305,7 +305,7 @@ def main() -> None:
 
         if not matched_player.relay_monitor_started:
             matched_player.relay_monitor_started = True
-            if Settings.is_gta5_preset() and CaptureState.gta5_is_running and is_gta5_relay_ip(matched_player.ip):
+            if Settings.is_gta5_feature_set() and CaptureState.gta5_is_running and is_gta5_relay_ip(matched_player.ip):
                 Thread(
                     target=monitor_gta5_relay_task,
                     name=f'GTA5RelayMonitor-{matched_player.ip}',

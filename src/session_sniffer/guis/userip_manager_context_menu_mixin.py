@@ -125,8 +125,8 @@ class EntriesContextMenuMixin(QDialog):
         if not menu.isEmpty():
             menu.addSeparator()
 
-        # Looky System refresh (only for single IPs in GTA5 preset)
-        if ip_or_range and self._current_path is not None and Settings.is_gta5_preset():
+        # Looky System refresh (only for single IPs in GTA5 feature set)
+        if ip_or_range and self._current_path is not None and Settings.is_gta5_feature_set():
             try:
                 IPv4Address(ip_or_range)
                 is_single_ip = True
@@ -223,8 +223,8 @@ class EntriesContextMenuMixin(QDialog):
             if username and ip_or_range:
                 menu.addSeparator()
 
-                # Looky System refresh (only for single IPs in GTA5 preset)
-                if Settings.is_gta5_preset():
+                # Looky System refresh (only for single IPs in GTA5 feature set)
+                if Settings.is_gta5_feature_set():
                     try:
                         IPv4Address(ip_or_range)
                         is_single_ip = True

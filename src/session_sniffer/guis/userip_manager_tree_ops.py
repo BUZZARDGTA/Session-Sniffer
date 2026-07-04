@@ -144,7 +144,7 @@ class TreeOperationsMixin(QDialog):
             self._export_selected_action.setEnabled(True)
 
     def refresh_runtime_capabilities(self) -> None:
-        """Refresh capability-gated controls after runtime preset/interface changes."""
+        """Refresh capability-gated controls after runtime feature set / interface changes."""
         if self._global_search_active or self._current_path is None:
             return
         self._refresh_protection_visibility()
@@ -222,7 +222,7 @@ class TreeOperationsMixin(QDialog):
                 new_folder_action.triggered.connect(lambda: self._new_folder(parent_dir=file_path))
                 menu.addAction(new_folder_action)
 
-                if Settings.is_gta5_preset():
+                if Settings.is_gta5_feature_set():
                     menu.addSeparator()
                     _dir_path = file_path
                     refresh_dir_action = QAction('👁 Add Usernames in Folder (Looky)', self)
@@ -263,7 +263,7 @@ class TreeOperationsMixin(QDialog):
 
                 menu.addSeparator()
 
-                if Settings.is_gta5_preset() and file_path.suffix.lower() == '.ini':
+                if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.ini':
                     _file_path = file_path
                     refresh_action = QAction('👁 Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
@@ -283,7 +283,7 @@ class TreeOperationsMixin(QDialog):
             new_folder_action.triggered.connect(self._new_folder)
             menu.addAction(new_folder_action)
 
-            if Settings.is_gta5_preset():
+            if Settings.is_gta5_feature_set():
                 menu.addSeparator()
                 refresh_all_action = QAction('👁 Add Usernames in All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))

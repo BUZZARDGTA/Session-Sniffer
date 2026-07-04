@@ -131,7 +131,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self._tabs.addTab(self.create_network_based_tab(), '🌐 Network-Based')
         self._tabs.addTab(self.create_geo_based_tab(), '🌍 Geography-Based')
         self._tabs.addTab(self.create_combo_rules_tab(), '🔗 Combo Rules')
-        if Settings.is_gta5_preset():
+        if Settings.is_gta5_feature_set():
             self._tabs.addTab(self.create_gta5_relays_tab(), '🎮 GTA5 Relays')
         layout.addWidget(self._tabs)
 
@@ -176,13 +176,13 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
     def refresh_detection_availability(self) -> None:
         """Refresh detection action visibility based on current runtime support."""
-        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
+        if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
             self._apply_detection_restrictions()
         else:
             self._remove_detection_restrictions()
 
     def _apply_detection_restrictions(self) -> None:
-        """Hide all detection action widgets when detection is not supported (non-GTA5 preset or neighbour interface)."""
+        """Hide all detection action widgets when detection is not supported (non-GTA5 feature set or neighbour interface)."""
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
             if not hasattr(self, f'{prefix}_detection_section'):
                 continue

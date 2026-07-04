@@ -43,13 +43,13 @@ def _gta5_process_monitor() -> None:
     process actually dies or its PID is reused. Process presence and the suspended state
     stay current; a fresh scan runs only when the cached process is gone.
 
-    Exits as soon as the GTA5 game preset is no longer active, so the thread does
-    not linger when the user switches presets.
+    Exits as soon as the GTA5 feature set is no longer active, so the thread does
+    not linger when the user switches feature sets.
     """
     last_status = GTA5Status(path=None)
     cached_proc: psutil.Process | None = None
     while not gui_closed__event.is_set():
-        if not Settings.is_gta5_preset():
+        if not Settings.is_gta5_feature_set():
             CaptureState.update_gta5_status(GTA5Status(path=None))
             return
         previous_status = last_status
@@ -60,8 +60,8 @@ def _gta5_process_monitor() -> None:
 
 
 def ensure_gta5_process_monitor_running() -> None:
-    """Start the GTA5 process monitor thread if the GTA5 preset is active and it is not already running."""
-    if not Settings.is_gta5_preset():
+    """Start the GTA5 process monitor thread if the GTA5 feature set is active and it is not already running."""
+    if not Settings.is_gta5_feature_set():
         return
     for thread in enumerate_threads():
         if thread.name == _GTA5_PROCESS_MONITOR_THREAD_NAME and thread.is_alive():

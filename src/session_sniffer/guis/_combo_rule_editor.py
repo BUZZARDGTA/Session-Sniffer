@@ -294,7 +294,7 @@ class ComboRuleEditorDialog(QDialog):
             )
 
         action_layout.addWidget(detection_section)
-        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
+        if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
             detection_section.setVisible(False)
 
         action_group.setLayout(action_layout)

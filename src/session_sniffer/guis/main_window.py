@@ -142,7 +142,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         change_interface_action.triggered.connect(on_change_interface)
         capture_menu.addAction(change_interface_action)
 
-        # ----- GTA5 menu (hidden unless GTA5 preset) -----
+        # ----- GTA5 menu (hidden unless GTA5 feature set) -----
         gta5_menu = menu_bar.addMenu('GTA5')
         if gta5_menu is None:
             message = 'Failed to create GTA5 menu'
@@ -152,7 +152,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if gta5_menu_action is None:
             message = 'Failed to get GTA5 menu action'
             raise RuntimeError(message)
-        gta5_menu_action.setVisible(Settings.is_gta5_preset())
+        gta5_menu_action.setVisible(Settings.is_gta5_feature_set())
         self._gta5_menu = gta5_menu
 
         gta5_status_label = QLabel()
@@ -259,7 +259,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_process_detected = False
         self._last_gta5_status_key: tuple[bool, bool, bool, bool] = (False, False, False, False)
 
-        if Settings.is_gta5_preset():
+        if Settings.is_gta5_feature_set():
             self._sync_gta5_process_button()
             self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)

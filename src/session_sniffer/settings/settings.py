@@ -47,7 +47,7 @@ class Settings:
     capture_arp_spoofing: bool = SETTING_DEFAULTS['capture_arp_spoofing']
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
-    capture_game_preset: str | None = SETTING_DEFAULTS['capture_game_preset']
+    capture_feature_set: str | None = SETTING_DEFAULTS['capture_feature_set']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_filter_block_rtcp: bool = SETTING_DEFAULTS['capture_filter_block_rtcp']
@@ -114,7 +114,7 @@ class Settings:
         'CAPTURE_ARP_SPOOFING',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_BLOCKED_IPS',
-        'CAPTURE_GAME_PRESET',
+        'CAPTURE_FEATURE_SET',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
@@ -224,9 +224,9 @@ class Settings:
             yield setting_name, getattr(cls, setting_name.lower())
 
     @classmethod
-    def is_gta5_preset(cls) -> bool:
-        """Return `True` when the active capture game preset is GTA5."""
-        return cls.capture_game_preset == 'GTA5'
+    def is_gta5_feature_set(cls) -> bool:
+        """Return `True` when the active capture feature set is GTA5."""
+        return cls.capture_feature_set == 'GTA5'
 
     @classmethod
     def rebuild_blocked_ip_ranges(cls) -> None:

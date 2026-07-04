@@ -336,11 +336,11 @@ def looky_core() -> None:
         if ScriptControl.has_crashed():
             return
 
-        if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_preset():
+        if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_feature_set():
             if _verified_api_key is not None:
                 _verified_api_key = None
                 LookyState.reset()
-            if not Settings.is_gta5_preset():
+            if not Settings.is_gta5_feature_set():
                 return
             gui_closed__event.wait(5)
             continue
@@ -470,8 +470,8 @@ def looky_core() -> None:
 
 
 def ensure_looky_core_running() -> None:
-    """Start the `looky_core` thread if the GTA5 preset is active and it is not already running."""
-    if not Settings.is_gta5_preset():
+    """Start the `looky_core` thread if the GTA5 feature set is active and it is not already running."""
+    if not Settings.is_gta5_feature_set():
         return
     for thread in enumerate_threads():
         if thread.name == _LOOKY_CORE_THREAD_NAME and thread.is_alive():

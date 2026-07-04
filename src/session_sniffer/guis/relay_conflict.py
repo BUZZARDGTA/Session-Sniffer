@@ -12,7 +12,7 @@ from session_sniffer.settings import Settings
 
 def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context: Literal['settings', 'startup']) -> bool:
     """Ask to disable GTA5 relay detection when the Take-Two Interactive relay IPs are filtered."""
-    if not (Settings.is_gta5_preset() and 'TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers and GUIDetectionSettings.gta5_relay_enabled):
+    if not (Settings.is_gta5_feature_set() and 'TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers and GUIDetectionSettings.gta5_relay_enabled):
         return False
 
     if context == 'settings':

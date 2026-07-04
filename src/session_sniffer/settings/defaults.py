@@ -105,7 +105,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Enable ARP spoofing for packet interception.',
         requires_capture_restart=True,
     ),
-    'capture_game_preset': SettingMeta(
+    'capture_feature_set': SettingMeta(
         category='Capture',
         group='General',
         display_label='Feature Set',
@@ -278,7 +278,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='General',
         display_label='Session Host Detection',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Detect and highlight the session host in the connected-players table (GTA5 preset only).',
+        tooltip='Detect and highlight the session host in the connected-players table (GTA5 feature set only).',
     ),
     'gui_rate_graph_always_on_top': SettingMeta(
         category='Session',
@@ -611,7 +611,7 @@ SETTING_DEFAULTS: dict[str, Any] = {
     'capture_mac_address': None,
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
-    'capture_game_preset': None,
+    'capture_feature_set': None,
     'capture_overflow_timer': 3,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),

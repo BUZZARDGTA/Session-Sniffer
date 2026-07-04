@@ -189,7 +189,7 @@ class DetectionsManagerTabsMixin(QDialog):
         return widget
 
     def create_gta5_relays_tab(self) -> QWidget:
-        """Create the GTA5 Relays detection tab (only shown with the GTA5 preset)."""
+        """Create the GTA5 Relays detection tab (only shown with the GTA5 feature set)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)

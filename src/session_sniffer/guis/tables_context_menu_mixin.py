@@ -382,7 +382,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if not Settings.is_gta5_preset() or not players or any(is_third_party_server_ip(player.ip) for player in players):
+            if not Settings.is_gta5_feature_set() or not players or any(is_third_party_server_ip(player.ip) for player in players):
                 return
 
             def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
@@ -527,7 +527,7 @@ class TableContextMenuMixin(QTableView):
                 _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ip_addresses, per_ip=True)
 
         def add_detections_menu(players: list[Player]) -> None:
-            if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
+            if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
                 return
             if not players:
                 return
@@ -577,7 +577,7 @@ class TableContextMenuMixin(QTableView):
                 tooltip='Add an additional username for this IP address in its UserIP database.',
                 handler=lambda: userip_add_username(self, ip_address, player),
             )
-            if Settings.is_gta5_preset():
+            if Settings.is_gta5_feature_set():
                 refresh_action = add_action(
                     userip_menu,
                     '👁 Add Username (Looky System)',
@@ -655,7 +655,7 @@ class TableContextMenuMixin(QTableView):
                         handler=lambda: userip_rename_multi(self, rename_players),
                     )
 
-                if Settings.is_gta5_preset():
+                if Settings.is_gta5_feature_set():
                     # Group IPs by their UserIP database path for the batch refresh
                     _refresh_by_db: dict[Path, list[str]] = {}
                     for _p in players:
@@ -701,7 +701,7 @@ class TableContextMenuMixin(QTableView):
             add_user_scripts_menu(ip_addresses)
 
         def add_clear_session_host_action(ip_address: str) -> None:
-            if not Settings.is_gta5_preset() or SessionHost.player is None or SessionHost.player.ip != ip_address:
+            if not Settings.is_gta5_feature_set() or SessionHost.player is None or SessionHost.player.ip != ip_address:
                 return
 
             add_action(

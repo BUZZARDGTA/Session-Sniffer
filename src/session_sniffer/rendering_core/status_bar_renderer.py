@@ -46,7 +46,7 @@ class StatusBarCaptureInfo:
     """Capture-related settings for the status bar."""
 
     ip_address: str
-    game_preset: str | None
+    feature_set: str | None
     overflow_timer: int
 
 
@@ -150,7 +150,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
     return StatusBarSnapshot(
         capture=StatusBarCaptureInfo(
             ip_address=capture.config.interface.ip_address,
-            game_preset=Settings.capture_game_preset,
+            feature_set=Settings.capture_feature_set,
             overflow_timer=Settings.capture_overflow_timer,
         ),
         capture_stats=StatusBarCaptureStats(
@@ -214,10 +214,10 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
         )
 
-    if snapshot.capture.game_preset is not None:
+    if snapshot.capture.feature_set is not None:
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Game Preset:</span> '
-            f'<span style="color: {StatusBarColors.SECONDARY_ACCENT};">{snapshot.capture.game_preset}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
+            f'<span style="color: {StatusBarColors.SECONDARY_ACCENT};">{snapshot.capture.feature_set}</span>',
         )
 
     if snapshot.system.discord_presence_enabled and discord_rpc_manager is not None:

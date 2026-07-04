@@ -68,14 +68,14 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_interface_type = QLabel('—')
         self._lbl_arp = QLabel('—')
         self._lbl_vpn = QLabel('—')
-        self._lbl_preset = QLabel('—')
+        self._lbl_feature_set = QLabel('—')
         self._lbl_discord = QLabel('—')
         capture_config_form.addRow('Interface:', self._lbl_interface)
         capture_config_form.addRow('IP:', self._lbl_ip)
         capture_config_form.addRow('Type:', self._lbl_interface_type)
         capture_config_form.addRow('ARP Spoofing:', self._lbl_arp)
         capture_config_form.addRow('VPN Mode:', self._lbl_vpn)
-        capture_config_form.addRow('Game Preset:', self._lbl_preset)
+        capture_config_form.addRow('Feature Set:', self._lbl_feature_set)
         capture_config_form.addRow('Discord RPC:', self._lbl_discord)
         left_column_a.addWidget(capture_config_group)
 
@@ -304,7 +304,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_interface_type.setText(CaptureState.interface_type or '—')
         self._lbl_arp.setText(arp_label)
         self._lbl_vpn.setText('Enabled' if CaptureState.vpn_mode_enabled else 'Disabled')
-        self._lbl_preset.setText(str(Settings.capture_game_preset) if Settings.capture_game_preset else '—')
+        self._lbl_feature_set.setText(str(Settings.capture_feature_set) if Settings.capture_feature_set else '—')
         if Settings.discord_presence:
             self._lbl_discord.setText('Connected' if CaptureState.discord_rpc_connected else 'Waiting')
         else:

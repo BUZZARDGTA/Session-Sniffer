@@ -184,7 +184,7 @@ class StatsMixin(QMainWindow):
             self._session_duration_window.refresh()
 
         # Sync GTA5 process control state every tick
-        if Settings.is_gta5_preset():
+        if Settings.is_gta5_feature_set():
             self._sync_gta5_process_button()
 
     def _open_session_pps_graph(self) -> None:

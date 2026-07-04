@@ -441,7 +441,7 @@ def rendering_core(
 
         # Nudge the GTA5 suspend monitor so reasons waiting on a player 'left' event
         # resume the process immediately instead of waiting for the next poll cycle.
-        if players_to_disconnect and Settings.is_gta5_preset():
+        if players_to_disconnect and Settings.is_gta5_feature_set():
             GTASuspendManager.wake()
 
         _active_threads = threading.active_count()
@@ -498,7 +498,7 @@ def rendering_core(
                 if country_code_value is not None:
                     player.country_flag = get_country_flag(country_code_value)
 
-        if Settings.is_gta5_preset():
+        if Settings.is_gta5_feature_set():
             if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
                 if SessionHost.player or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate:
                     SessionHost.clear_session_host_data()

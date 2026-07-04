@@ -66,7 +66,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_MAC_ADDRESS: str | None
     CAPTURE_ARP_SPOOFING: bool
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
-    CAPTURE_GAME_PRESET: str | None
+    CAPTURE_FEATURE_SET: str | None
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
@@ -323,9 +323,9 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return ()
 
-    @field_validator('CAPTURE_GAME_PRESET', mode='before')
+    @field_validator('CAPTURE_FEATURE_SET', mode='before')
     @classmethod
-    def _parse_game_preset(cls, value: object, info: ValidationInfo) -> str | None:
+    def _parse_feature_set(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:
             return None
         if isinstance(value, str):

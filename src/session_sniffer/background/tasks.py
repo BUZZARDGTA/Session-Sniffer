@@ -332,7 +332,7 @@ def handle_detection_notification(
             duration: int | Literal['Auto'] = getattr(GUIDetectionSettings, f'{prefix}_duration')
 
             # Execute suspension action (only when enabled and suspension is supported)
-            if enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
+            if enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                 GTASuspendManager.request_suspend(
                     reason_key=f'event:{notification_type}:{player.ip}',
                     left_event=player.left_event,
@@ -392,7 +392,7 @@ def handle_detection_notification(
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
                 # Suspension action
-                if rule.protection_enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
+                if rule.protection_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     GTASuspendManager.request_suspend(
                         reason_key=f'combo:{rule.name}:{player.ip}',
                         left_event=player.left_event,
@@ -469,7 +469,7 @@ def process_userip_task(
 
     # We want to run this as fast as possible so it's on top of the function.
     # Protection actions are skipped when protection is not supported.
-    if connection_type == 'connected' and player.userip.settings.protection.enabled and Settings.is_gta5_preset() and CaptureState.is_local_capture():
+    if connection_type == 'connected' and player.userip.settings.protection.enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
         suspend_mode = player.userip.settings.protection.suspend_process_mode
         GTASuspendManager.request_suspend(
             reason_key=f'userip:{player.ip}',
@@ -528,7 +528,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     """Monitor a GTA5 relay IP and suspend the game process when the packet threshold is reached.
 
     Only active when:
-    - The GTA5 game preset is selected.
+    - The GTA5 feature set is selected.
     - The player IP belongs to the Take-Two Interactive / GTA5 relay CIDR ranges.
     - GTA5 relay detection is enabled and a process path is configured.
 
@@ -539,7 +539,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     Args:
         player: The player object to monitor.
     """
-    if not Settings.is_gta5_preset():
+    if not Settings.is_gta5_feature_set():
         return
 
     if not is_gta5_relay_ip(player.ip):
@@ -635,7 +635,7 @@ def check_global_detections(player: Player) -> None:
         suspension_name: str,
     ) -> None:
         """Execute a suspension action."""
-        if not Settings.is_gta5_preset() or not CaptureState.is_local_capture():
+        if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
             return
         GTASuspendManager.request_suspend(
             reason_key=f'global:{suspension_name}:{player.ip}',

@@ -158,11 +158,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         if isinstance(webhook_enabled_widget, QCheckBox):
             webhook_enabled_widget.toggled.emit(webhook_enabled_widget.isChecked())
 
-        # Show/hide Session Host Detection based on Game Preset.
-        preset_widget = self._widgets.get('capture_game_preset')
+        # Show/hide Session Host Detection based on Feature Set.
+        preset_widget = self._widgets.get('capture_feature_set')
         if isinstance(preset_widget, QComboBox):
-            preset_widget.currentTextChanged.connect(self._on_preset_changed)
-            self._on_preset_changed(preset_widget.currentText())
+            preset_widget.currentTextChanged.connect(self._on_feature_set_changed)
+            self._on_feature_set_changed(preset_widget.currentText())
 
         # Show/hide Account Information based on API key presence.
         api_key_widget = self._widgets.get('looky_api_key')
@@ -345,9 +345,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         form.addRow(label, widget)
 
-    def _on_preset_changed(self, preset: str) -> None:
-        """Show or hide preset-dependent rows depending on the active preset."""
-        gta5_only = preset == 'GTA5'
+    def _on_feature_set_changed(self, feature_set: str) -> None:
+        """Show or hide feature-set-dependent rows depending on the active feature set."""
+        gta5_only = feature_set == 'GTA5'
         for key in ('gui_session_host_detection',):
             widget = self._widgets.get(key)
             label = self._labels.get(key)
