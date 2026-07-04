@@ -286,7 +286,6 @@ class PacketCapture:
                     break
                 raise
 
-
     def _capture_and_process(self) -> None:
         """Run one sniffer session until stopped, restarted, or crashed."""
         device_name = self.config.interface.device_name
