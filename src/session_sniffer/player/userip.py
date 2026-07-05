@@ -215,9 +215,6 @@ class UserIPDatabases:
         elif username not in build_state.ip_to_userip[entry].usernames:
             build_state.ip_to_userip[entry].usernames.append(username)
 
-        if matched_player := PlayersRegistry.get_player_by_ip(entry):
-            matched_player.userip = build_state.ip_to_userip[entry]
-
     @staticmethod
     def _process_range_entry(
         entry: str,
@@ -258,44 +255,47 @@ class UserIPDatabases:
         Range entries (CIDR, start-end, wildcard) go into `_range_entries` for iteration.
         """
         with cls._update_userip_database_lock:
-            ips_set: set[str] = set()
-            ip_to_userip: dict[str, UserIP] = {}
-            range_entries: list[_RangeEntry] = []
-            unresolved_conflicts: set[str] = set()
+            # Take a reference to the current databases to avoid holding the lock during building
+            current_databases = cls.userip_databases
 
-            build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, unresolved_conflicts=unresolved_conflicts)
+        ips_set: set[str] = set()
+        ip_to_userip: dict[str, UserIP] = {}
+        range_entries: list[_RangeEntry] = []
+        unresolved_conflicts: set[str] = set()
 
-            for db_entry in cls.userip_databases:
-                for username, ip_addresses in db_entry.single_ips.items():
-                    for ip in ip_addresses:
-                        cls._process_single_ip(ip, username, db_entry, build_state)
-                for username, ranges in db_entry.range_ips.items():
-                    for range_str in ranges:
-                        cls._process_range_entry(range_str, username, db_entry.db_path, db_entry.settings, range_entries)
+        build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, unresolved_conflicts=unresolved_conflicts)
 
-            # Assign or refresh range-matched UserIP for players not covered by single-IP entries.
+        for db_entry in current_databases:
+            for username, ip_addresses in db_entry.single_ips.items():
+                for ip in ip_addresses:
+                    cls._process_single_ip(ip, username, db_entry, build_state)
+            for username, ranges in db_entry.range_ips.items():
+                for range_str in ranges:
+                    cls._process_range_entry(range_str, username, db_entry.db_path, db_entry.settings, range_entries)
+
+        # Strip conflicting IPs from the lookup structures so they are fully ignored.
+        for conflict_ip in unresolved_conflicts:
+            ips_set.discard(conflict_ip)
+            ip_to_userip.pop(conflict_ip, None)
+
+        # Assign or refresh UserIP for all players in a single pass.
+        for player in PlayersRegistry.get_all_players():
+            if player.ip in ip_to_userip:
+                player.userip = ip_to_userip[player.ip]
+                continue
+            player.userip = None
             if range_entries:
-                for player in PlayersRegistry.get_default_sorted_players():
-                    if player.ip in ip_to_userip:
-                        continue
-                    for range_entry in range_entries:
-                        if player.ip in range_entry.ip_range:
-                            player.userip = UserIP(
-                                ip=player.ip,
-                                db_path=range_entry.db_path,
-                                settings=range_entry.settings,
-                                usernames=list(range_entry.usernames),
-                            )
-                            break
+                for range_entry in range_entries:
+                    if player.ip in range_entry.ip_range:
+                        player.userip = UserIP(
+                            ip=player.ip,
+                            db_path=range_entry.db_path,
+                            settings=range_entry.settings,
+                            usernames=list(range_entry.usernames),
+                        )
+                        break
 
-            # Strip conflicting IPs from the lookup structures so they are fully ignored.
-            # Also retroactively clear any player that already has a conflicting userip assigned.
-            for conflict_ip in unresolved_conflicts:
-                ips_set.discard(conflict_ip)
-                ip_to_userip.pop(conflict_ip, None)
-                if matched_player := PlayersRegistry.get_player_by_ip(conflict_ip):
-                    matched_player.userip = None
-
+        with cls._update_userip_database_lock:
             # Remove resolved conflicts and auto-close their dialogs
             resolved_conflicts = cls.notified_ip_conflicts - unresolved_conflicts
             cls.notified_ip_conflicts -= resolved_conflicts
