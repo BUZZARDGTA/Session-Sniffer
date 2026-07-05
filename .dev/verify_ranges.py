@@ -454,7 +454,7 @@ GENERIC_WORDS: set[str] = {
     'communication',
     'communications',
     'company',
-    'corp',           # short form of 'corporation'
+    'corp',  # short form of 'corporation'
     'corporation',
     'group',
     'hosting',
@@ -463,14 +463,14 @@ GENERIC_WORDS: set[str] = {
     'interactive',
     'labs',
     'limited',
-    'llp',            # Limited Liability Partnership
+    'llp',  # Limited Liability Partnership
     'ltd',
     # Non-English legal suffixes (>= 4 chars; shorter ones like bv/nv/oy/sa/ab/sas/srl
     # are already excluded by MIN_WORD_LENGTH=4; dot-abbreviations like 's.a.' are
     # handled by _tokenize_owner() splitting on dots, yielding single-char tokens)
-    'bvba',           # Belgian
-    'gmbh',           # German (Gesellschaft mit beschränkter Haftung)
-    'ltda',           # Brazilian Portuguese
+    'bvba',  # Belgian
+    'gmbh',  # German (Gesellschaft mit beschränkter Haftung)
+    'ltda',  # Brazilian Portuguese
     # Generic business-domain words
     'network',
     'networks',
@@ -599,10 +599,8 @@ def scan_network_geolite2(
             asn = f'AS{record.autonomous_system_number}' if record.autonomous_system_number else ''
             data = {'isp': organization, 'org': organization, 'asname': organization, 'as': asn}
             if not organization:
-                # Not Found/empty organization - treat as matching (or neutral)
-                overlap_start_address = max(current_ip, database_network.network_address)
-                overlap_end_address = min(end_ip, database_network.broadcast_address)
-                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start_address, overlap_end_address))
+                # Not Found/empty organization - treat as neutral (skip) to avoid false positive suggestions
+                pass
             elif owner_matches(owner, data):
                 overlap_start_address = max(current_ip, database_network.network_address)
                 overlap_end_address = min(end_ip, database_network.broadcast_address)
@@ -621,11 +619,6 @@ def scan_network_geolite2(
             current_ip_int = int(current_ip)
             next_24_aligned_ip = ((current_ip_int // 256) + 1) * 256
             database_network = ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
-
-            overlap_start_address = max(current_ip, database_network.network_address)
-            overlap_end_address = min(end_ip, database_network.broadcast_address)
-            # Treat Not Found as matching/neutral to avoid noise
-            matching_ranges.extend(ipaddress.summarize_address_range(overlap_start_address, overlap_end_address))
 
             if database_network.broadcast_address >= end_ip:
                 break
