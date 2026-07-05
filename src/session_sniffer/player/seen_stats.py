@@ -176,9 +176,13 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any])
     if isinstance(raw_country_code, str) and raw_country_code != _UNRESOLVED_LOOKUP:
         entry.country_code = raw_country_code
 
-    raw_isp = player_info.get('ISP')
-    if isinstance(raw_isp, str) and raw_isp != _UNRESOLVED_LOOKUP:
-        entry.isp = raw_isp
+    raw_asn_isp = player_info.get('ASN / ISP')
+    if isinstance(raw_asn_isp, str) and raw_asn_isp not in {_UNRESOLVED_LOOKUP, 'N/A'}:
+        entry.isp = raw_asn_isp
+    else:
+        raw_isp = player_info.get('ISP')
+        if isinstance(raw_isp, str) and raw_isp != _UNRESOLVED_LOOKUP:
+            entry.isp = raw_isp
 
     raw_mobile = player_info.get('Mobile')
     if isinstance(raw_mobile, bool):
