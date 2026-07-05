@@ -1571,6 +1571,7 @@ MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '52.152.0.0/13',
     '52.160.0.0/11',
     '52.224.0.0/11',
+    '130.33.0.0/16',
     '104.40.0.0/13',
     '108.140.0.0/14',
     '135.220.0.0/15',
@@ -1773,7 +1774,8 @@ UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 
 UNITY_TECHNOLOGIES_APS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'Unity Technologies ApS',
-    '85.236.96.0/24',
+    '85.236.96.0/21',
+    '85.236.104.0/23',
 )
 
 US_DEPARTMENT_OF_DEFENSE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
