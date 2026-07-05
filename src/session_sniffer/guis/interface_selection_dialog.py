@@ -306,17 +306,17 @@ class InterfaceSelectionDialog(QDialog):
 
         # Filter controls layout
         options_layout = QHBoxLayout()
-        options_layout.setSpacing(scale(24))
+        options_layout.setSpacing(scale(16))
         options_layout.addStretch()
 
         refresh_arp_button = RefreshARPButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
         refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
-        refresh_arp_button.setMinimumHeight(scale(58))
-        refresh_arp_button.setFixedWidth(scale(320))
-        _refresh_pad = scale(10)
-        _refresh_w, _refresh_h = scale(36), scale(28)
+        refresh_arp_button.setMinimumHeight(scale(52))
+        refresh_arp_button.setFixedWidth(scale(220))
+        _refresh_pad = scale(8)
+        _refresh_w, _refresh_h = scale(28), scale(22)
         self._refresh_arp_icon = make_padded_icon(
             QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')),
             (_refresh_w, _refresh_h),
@@ -504,8 +504,8 @@ class InterfaceSelectionDialog(QDialog):
         dot_count = 1 + (self._arp_refresh_sweep_phase // 5) % 3
         dots = ('.' * dot_count).ljust(3).replace(' ', '\u00a0')
 
-        font_pt_main = max(1, round(14 * self._ui_scale))
-        font_pt_sub = max(1, round(9 * self._ui_scale))
+        font_pt_main = max(1, round(11 * self._ui_scale))
+        font_pt_sub = max(1, round(8 * self._ui_scale))
 
         if total <= 0:
             # No progress yet: indeterminate ping-pong sweep until first ping completes.

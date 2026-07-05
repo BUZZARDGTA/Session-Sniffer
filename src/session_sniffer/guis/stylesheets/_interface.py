@@ -83,7 +83,7 @@ def interface_checkbox_stylesheet(obj_name: str, ui_scale: float) -> str:
     def scale(n: int) -> int:
         return max(1, round(n * ui_scale))
 
-    return f'QCheckBox#{obj_name} {{ font-size: {scale(14)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {scale(20)}px; height: {scale(20)}px; }}'
+    return f'QCheckBox#{obj_name} {{ font-size: {scale(13)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {scale(19)}px; height: {scale(19)}px; }}'
 
 
 def interface_instruction_label_stylesheet(scale: float) -> str:
@@ -122,16 +122,16 @@ def interface_select_button_enabled_style(scale: float) -> str:
 
 def interface_refresh_arp_button_enabled_style(scale: float) -> str:
     """Return the QSS for the Refresh ARP button in its enabled state at the given UI `scale`."""
-    font_size = max(1, round(16 * scale))
-    padding_v = max(1, round(6 * scale))
-    padding_h = max(1, round(14 * scale))
+    font_size = max(1, round(14 * scale))
+    padding_v = max(1, round(4 * scale))
+    padding_h = max(1, round(10 * scale))
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
         ' background-color: #21334C;'
         ' color: #e8f0f8;'
         ' border: 2px solid #1e3f60;'
-        ' border-radius: 10px;'
+        ' border-radius: 8px;'
         f' padding: {padding_v}px {padding_h}px;'
         '}'
         'QPushButton:hover {'
@@ -143,16 +143,16 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
 
 def interface_refresh_arp_button_disabled_style(scale: float) -> str:
     """Return the QSS for the Refresh ARP button in its disabled (greyed-out) state at the given UI `scale`."""
-    font_size = max(1, round(16 * scale))
-    padding_v = max(1, round(6 * scale))
-    padding_h = max(1, round(14 * scale))
+    font_size = max(1, round(14 * scale))
+    padding_v = max(1, round(4 * scale))
+    padding_h = max(1, round(10 * scale))
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
         ' background-color: #555555;'
         ' color: #aaaaaa;'
         ' border: 2px solid #3a3a3a;'
-        ' border-radius: 10px;'
+        ' border-radius: 8px;'
         f' padding: {padding_v}px {padding_h}px;'
         '}'
     )
@@ -180,9 +180,9 @@ def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float
         _track_light = '#1a2738'
     clamped = max(0.0, min(1.0, fraction))
     next_stop = min(1.0, clamped + 0.0001)
-    font_size = max(1, round(14 * ui_scale))
-    padding_v = max(1, round(6 * ui_scale))
-    padding_h = max(1, round(14 * ui_scale))
+    font_size = max(1, round(12 * ui_scale))
+    padding_v = max(1, round(4 * ui_scale))
+    padding_h = max(1, round(10 * ui_scale))
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
@@ -196,7 +196,7 @@ def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float
         ' font-weight: 700;'
         ' letter-spacing: 1px;'
         ' border: 2px solid #2a5888;'
-        ' border-radius: 10px;'
+        ' border-radius: 8px;'
         f' padding: {padding_v}px {padding_h}px;'
         ' }'
     )
