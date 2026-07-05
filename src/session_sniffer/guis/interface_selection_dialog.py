@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QHeaderView,
+    QHeaderView,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -172,6 +173,25 @@ class SafeQTableWidget(QTableWidget):
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
 
+class RefreshARPButton(QPushButton):
+    """A QPushButton that contains a full-size overlay QLabel without using a layout."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.overlay_label = QLabel(self)
+        self.overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.overlay_label.setTextFormat(Qt.TextFormat.RichText)
+        self.overlay_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, on=True)
+        self.overlay_label.setStyleSheet('background: transparent;')
+        self.overlay_label.hide()
+
+    @override
+    def resizeEvent(self, event) -> None:
+        """Resize the overlay label to match the button's size."""
+        super().resizeEvent(event)
+        self.overlay_label.resize(self.size())
+
+
 class InterfaceSelectionDialog(QDialog):
     """Display a dialog to select the capture network interface.
 
@@ -203,12 +223,6 @@ class InterfaceSelectionDialog(QDialog):
 
         hide_inactive_default, hide_neighbours_default, arp_spoofing_default = filter_defaults
 
-        # Set up the window
-        self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
-        # Set a minimum size for the window
-        self.setMinimumSize(940, 620)
-        resize_window_for_screen(self, screen_size)
-
         # UI scale factor - 2K (2560x1440) is the design baseline (1.0).
         # Smaller screens receive proportionally reduced font sizes, row heights and spacings.
         ui_scale = compute_ui_scale(screen_size)
@@ -216,6 +230,12 @@ class InterfaceSelectionDialog(QDialog):
 
         def scale(value: int) -> int:
             return max(1, round(value * ui_scale))
+
+        # Set up the window
+        self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
+        # Set a minimum size for the window
+        self.setMinimumSize(scale(1150), scale(620))
+        resize_window_for_screen(self, screen_size)
 
         # Custom variables
         self.selected_interface: SelectedInterfaceRow | None = None
@@ -286,15 +306,15 @@ class InterfaceSelectionDialog(QDialog):
 
         # Filter controls layout
         options_layout = QHBoxLayout()
-        options_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        options_layout.setSpacing(scale(28))
+        options_layout.setSpacing(scale(24))
+        options_layout.addStretch()
 
-        refresh_arp_button = QPushButton('Refresh ARP Table')
+        refresh_arp_button = RefreshARPButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
         refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(scale(58))
-        refresh_arp_button.setMinimumWidth(scale(280))
+        refresh_arp_button.setFixedWidth(scale(320))
         _refresh_pad = scale(10)
         _refresh_w, _refresh_h = scale(36), scale(28)
         self._refresh_arp_icon = make_padded_icon(
@@ -307,15 +327,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Rich-text overlay shown only during a refresh; lets us style the
         # percentage line and the IP/count line independently inside the button.
-        refresh_arp_overlay = QLabel(refresh_arp_button)
-        refresh_arp_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        refresh_arp_overlay.setTextFormat(Qt.TextFormat.RichText)
-        refresh_arp_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, on=True)
-        refresh_arp_overlay.setStyleSheet('background: transparent;')
-        refresh_arp_overlay_layout = QVBoxLayout(refresh_arp_button)
-        refresh_arp_overlay_layout.setContentsMargins(0, 0, 0, 0)
-        refresh_arp_overlay_layout.addWidget(refresh_arp_overlay)
-        refresh_arp_overlay.hide()
+        refresh_arp_overlay = refresh_arp_button.overlay_label
         self._refresh_arp_overlay = refresh_arp_overlay
 
         options_layout.addWidget(refresh_arp_button)
@@ -389,12 +401,8 @@ class InterfaceSelectionDialog(QDialog):
         container_layout.setContentsMargins(scale(28), scale(18), scale(28), scale(20))
         container_layout.setSpacing(0)
 
-        # Options row - centered using stretches on both sides
-        centered_options_layout = QHBoxLayout()
-        centered_options_layout.addStretch()
-        centered_options_layout.addLayout(options_layout)
-        centered_options_layout.addStretch()
-        container_layout.addLayout(centered_options_layout)
+        options_layout.addStretch()
+        container_layout.addLayout(options_layout)
         container_layout.addSpacing(scale(16))
 
         # Horizontal separator between options row and action row

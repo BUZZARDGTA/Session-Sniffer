@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>.*)')
 
 SECTION_SETTINGS = 'Settings'
@@ -273,8 +273,8 @@ def human_readable_size(size_bytes: int) -> str:
     return f'{value:.1f} TB'
 
 
-def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
-    """Yield `(username, ip)` pairs from the `[UserIP]` section of INI content."""
+def iter_userip_entries_with_metadata(content: str) -> Iterator[tuple[str, str, bool]]:
+    """Yield `(username, ip, is_looky)` tuples from the `[UserIP]` section of INI content."""
     current_section: str | None = None
 
     for raw_line in content.splitlines():
@@ -293,6 +293,7 @@ def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
 
         username_raw = match.group('username')
         ip_raw = match.group('ip')
+        comment_raw = match.group('comment')
         if username_raw is None or ip_raw is None:
             continue
 
@@ -301,6 +302,13 @@ def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
         if not username or not ip:
             continue
 
+        is_looky = bool(comment_raw and comment_raw.strip().lower() == 'looky')
+        yield username, ip, is_looky
+
+
+def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
+    """Yield `(username, ip)` pairs from the `[UserIP]` section of INI content."""
+    for username, ip, _is_looky in iter_userip_entries_with_metadata(content):
         yield username, ip
 
 

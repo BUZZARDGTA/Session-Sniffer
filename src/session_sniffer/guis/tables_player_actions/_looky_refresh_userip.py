@@ -605,7 +605,7 @@ def looky_refresh_userip_entries(
 
         total_added = 0
         for db_path, db_entries in by_db.items():
-            new_lines = [f'{e.username}={e.ip}\n' for e in db_entries]
+            new_lines = [f'{e.username}={e.ip} ; looky\n' for e in db_entries]
             write_lines_to_file(db_path, 'a', new_lines)
             total_added += len(new_lines)
 

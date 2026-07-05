@@ -160,11 +160,11 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
 
     # Resize window to fit available geometry based on breakpoints
     if avail_width >= _BREAKPOINT_2K_WIDTH and avail_height >= _BREAKPOINT_2K_HEIGHT:
-        window.resize(_TARGET_2K_WIDTH, _TARGET_2K_HEIGHT)
+        window.resize(max(_TARGET_2K_WIDTH, min_size.width()), max(_TARGET_2K_HEIGHT, min_size.height()))
     elif avail_width >= _BREAKPOINT_FHD_WIDTH and avail_height >= _BREAKPOINT_FHD_HEIGHT:
-        window.resize(_TARGET_FHD_WIDTH, _TARGET_FHD_HEIGHT)
+        window.resize(max(_TARGET_FHD_WIDTH, min_size.width()), max(_TARGET_FHD_HEIGHT, min_size.height()))
     elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
-        window.resize(_TARGET_HD_WIDTH, _TARGET_HD_HEIGHT)
+        window.resize(max(_TARGET_HD_WIDTH, min_size.width()), max(_TARGET_HD_HEIGHT, min_size.height()))
     else:
         # Fallback: resize to fit available geometry comfortably without going below minimum size
         w = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)

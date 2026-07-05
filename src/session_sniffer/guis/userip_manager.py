@@ -46,7 +46,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     human_readable_size,
     iter_userip_databases,
-    iter_userip_entries,
+    iter_userip_entries_with_metadata,
     parse_settings_from_lines,
     read_preserved_sections,
     rewrite_db_without_entries,
@@ -425,8 +425,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._settings_container.setVisible(True)
 
         entry_count = 0
-        for entry_count, (username, ip) in enumerate(iter_userip_entries(content), start=1):
-            self._append_row(username, ip, index=entry_count)
+        for entry_count, (username, ip, is_looky) in enumerate(iter_userip_entries_with_metadata(content), start=1):
+            self._append_row(username, ip, index=entry_count, is_looky=is_looky)
 
         self._next_index = entry_count + 1
         self._update_file_info(path)
@@ -438,12 +438,17 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._rebuild_fs_watch()
 
     @override
-    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None) -> None:
+    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False) -> None:
         """Add a single row to the entries model."""
         index_item = QStandardItem(str(index))
         index_item.setData(index, Qt.ItemDataRole.UserRole)
         index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         username_item = QStandardItem(username)
+        if is_looky:
+            username_item.setForeground(QBrush(QColor('#a855f7')))
+            username_item.setToolTip("Added automatically by Looky System")
+            username_item.setData(True, Qt.ItemDataRole.UserRole)
+            
         db_item = QStandardItem(database[0] if database else '')
         if database is not None:
             db_item.setData(str(database[1]), Qt.ItemDataRole.UserRole)
@@ -776,7 +781,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         # --- Validate all entries ---
         errors: list[str] = []
-        entries: list[tuple[str, str]] = []
+        entries: list[tuple[str, str, bool]] = []
 
         for row in range(self._model.rowCount()):
             username_item = self._model.item(row, USERNAME_COLUMN)
@@ -797,7 +802,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
 
             if username and ip:
-                entries.append((username, ip))
+                is_looky = bool(username_item.data(Qt.ItemDataRole.UserRole))
+                entries.append((username, ip, is_looky))
 
         if errors:
             QMessageBox.critical(self, TITLE, '\n'.join(errors))
@@ -805,13 +811,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         # --- Deduplicate exact (username, ip) pairs ---
         seen: set[tuple[str, str]] = set()
-        unique_entries: list[tuple[str, str]] = []
+        unique_entries: list[tuple[str, str, bool]] = []
         duplicate_count = 0
         for entry in entries:
-            if entry in seen:
+            base_entry = (entry[0], entry[1])
+            if base_entry in seen:
                 duplicate_count += 1
                 continue
-            seen.add(entry)
+            seen.add(base_entry)
             unique_entries.append(entry)
         entries = unique_entries
 
@@ -842,8 +849,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         output_lines.append('')
 
         output_lines.append('[UserIP]')
-        for username, ip in entries:
-            output_lines.append(f'{username}={ip}')
+        for username, ip, is_looky in entries:
+            suffix = ' ; looky' if is_looky else ''
+            output_lines.append(f'{username}={ip}{suffix}')
         output_lines.append('')  # trailing newline
 
         written = '\n'.join(output_lines)
