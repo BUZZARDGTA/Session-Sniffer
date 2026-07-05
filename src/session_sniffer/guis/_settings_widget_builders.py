@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
@@ -683,6 +684,8 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     list_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     list_widget.setMaximumHeight(250)
     list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
+    list_widget.setWordWrap(False)
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 

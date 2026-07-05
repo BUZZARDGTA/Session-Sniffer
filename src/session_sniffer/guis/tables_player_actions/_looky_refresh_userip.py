@@ -40,7 +40,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
-from session_sniffer.guis.utils import apply_search_icon, set_dialog_window_flags
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -326,6 +326,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree.setSortingEnabled(False)
         self._tree.setIndentation(22)
         self._tree.setIconSize(QSize(18, 18))
+        self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
+        self._tree.setWordWrap(False)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
 

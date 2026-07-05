@@ -44,7 +44,7 @@ from session_sniffer.guis.stylesheets import (
     WARNING_ICON_LABEL_STYLESHEET,
     WARNING_TEXT_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
+from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, ElidedTextTooltipDelegate
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.settings import Settings
 
@@ -285,6 +285,8 @@ class DetectionsManagerTabsMixin(QDialog):
         self._combo_rules_list = QListWidget()
         self._combo_rules_list.setStyleSheet(LIST_WIDGET_STYLE)
         self._combo_rules_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self._combo_rules_list.setItemDelegate(ElidedTextTooltipDelegate(self._combo_rules_list))
+        self._combo_rules_list.setWordWrap(False)
         layout.addWidget(self._combo_rules_list, stretch=1)
 
         # Buttons row
@@ -547,6 +549,8 @@ class DetectionsManagerTabsMixin(QDialog):
 
         list_widget = QListWidget()
         list_widget.setStyleSheet(LIST_WIDGET_STYLE)
+        list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
+        list_widget.setWordWrap(False)
         setattr(self, f'{detection_type}_list', list_widget)
         list_layout.addWidget(list_widget)
 

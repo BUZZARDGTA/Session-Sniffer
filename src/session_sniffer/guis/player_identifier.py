@@ -48,6 +48,7 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
 )
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
@@ -182,6 +183,8 @@ class PlayerIdentifierWidget(QWidget):
         _zscore_header_view.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         self._zscore_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._zscore_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._zscore_table.setItemDelegate(ElidedTextTooltipDelegate(self._zscore_table))
+        self._zscore_table.setWordWrap(False)
         self._zscore_table.setMaximumHeight(150)
         self._zscore_table.setVisible(False)
         layout.addWidget(self._zscore_table)

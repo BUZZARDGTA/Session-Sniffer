@@ -41,7 +41,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
-from session_sniffer.guis.utils import SPINNER_FRAMES
+from session_sniffer.guis.utils import SPINNER_FRAMES, ElidedTextTooltipDelegate
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 
@@ -153,6 +153,8 @@ class SessionsLogTab(QWidget):
         self._tree.setModel(self._fs_model)
         self._tree.setRootIndex(self._fs_model.index(str(self._sessions_dir)))
         self._tree.setHeaderHidden(True)
+        self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
+        self._tree.setWordWrap(False)
         for column in (1, 2, 3):
             self._tree.setColumnHidden(column, True)  # noqa: FBT003
         self._tree.clicked.connect(self._on_tree_clicked)

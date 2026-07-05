@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
 from collections import defaultdict
@@ -41,7 +42,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     SETTINGS_DEFAULTS,
     SETTINGS_KEYS_ORDER,
     USERNAME_COLUMN,
-    ElidedTooltipFilter,
     EntriesSortProxy,
     IPRangeBuilderDialog,
     human_readable_size,
@@ -53,7 +53,13 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
-from session_sniffer.guis.utils import apply_search_icon, get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.guis.utils import (
+    ElidedTextTooltipDelegate,
+    apply_search_icon,
+    get_screen_size,
+    resize_window_for_screen,
+    set_dialog_window_flags,
+)
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
@@ -138,6 +144,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._tree.setRootIndex(self._fs_model.index(str(USERIP_DATABASES_DIR_PATH)))
         self._tree.setHeaderHidden(True)
         self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
+        self._tree.setWordWrap(False)
 
         # Enable drag-and-drop to move files/folders within the tree
         self._tree.setDragEnabled(True)
@@ -245,6 +253,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setRootIsDecorated(False)
         self._entries_table.setAlternatingRowColors(True)
         self._entries_table.setSortingEnabled(True)
+        self._entries_table.setItemDelegate(ElidedTextTooltipDelegate(self._entries_table))
+        self._entries_table.setWordWrap(False)
         self._entries_table.sortByColumn(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)
         self._entries_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._entries_table.setEditTriggers(
@@ -268,11 +278,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         entries_selection = self._entries_table.selectionModel()
         if entries_selection is not None:
             entries_selection.selectionChanged.connect(self._on_entries_selection_changed)
-
-        self._tooltip_filter = ElidedTooltipFilter(self._entries_table)
-        viewport = self._entries_table.viewport()
-        if viewport is not None:
-            viewport.installEventFilter(self._tooltip_filter)
 
         right_layout.addWidget(self._entries_table, stretch=1)
 

@@ -27,7 +27,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
-from session_sniffer.guis.utils import PersistentMenu
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
@@ -123,6 +123,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.setSelectionMode(QTableView.SelectionMode.NoSelection)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
         self.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        self.setItemDelegate(ElidedTextTooltipDelegate(self))
+        self.setWordWrap(False)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
         # Set the sort indicator for the specified column

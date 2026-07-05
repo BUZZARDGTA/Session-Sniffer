@@ -44,7 +44,13 @@ from session_sniffer.guis.stylesheets import (
     interface_select_button_enabled_style,
     interface_table_stylesheet,
 )
-from session_sniffer.guis.utils import compute_ui_scale, make_padded_icon, render_svg_pixmap_from_resource, resize_window_for_screen
+from session_sniffer.guis.utils import (
+    ElidedTextTooltipDelegate,
+    compute_ui_scale,
+    make_padded_icon,
+    render_svg_pixmap_from_resource,
+    resize_window_for_screen,
+)
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
@@ -261,6 +267,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setHorizontalHeaderLabels(
             ['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'],
         )
+        self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
+        self.table.setWordWrap(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)

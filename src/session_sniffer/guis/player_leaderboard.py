@@ -37,6 +37,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
     server_ips_for,
 )
 from session_sniffer.guis.utils import (
+    ElidedTextTooltipDelegate,
     apply_search_icon,
     format_player_display,
     get_screen_size,
@@ -474,6 +475,8 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     if v_header is not None:
         v_header.setVisible(False)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setItemDelegate(ElidedTextTooltipDelegate(table))
+    table.setWordWrap(False)
     table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
     table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -661,15 +664,15 @@ class PlayerLeaderboardWindow(QWidget):
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Usernames
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # IP
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Sessions
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # First Seen
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Last Seen
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Country
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # ISP
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # Mobile
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)  # VPN
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)  # Hosting
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # IP
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Sessions
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)  # First Seen
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Interactive)  # Last Seen
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Interactive)  # Country
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Interactive)  # ISP
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Interactive)  # Mobile
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Interactive)  # VPN
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Interactive)  # Hosting
 
         layout.addWidget(self._table)
 
@@ -707,7 +710,13 @@ class PlayerLeaderboardWindow(QWidget):
 
     def load_and_show(self) -> None:
         """Load leaderboard data in the background, then reveal the window once it is ready."""
-        self._start_load(on_ready=self.show, on_cancel=self.close)
+
+        def _on_ready() -> None:
+            self.show()
+            for col in range(2, 11):
+                self._table.resizeColumnToContents(col)
+
+        self._start_load(on_ready=_on_ready, on_cancel=self.close)
 
     def _on_sessions_changed(self, _path: str) -> None:
         """Handle a filesystem-change notification, throttled to at most one scan per cooldown."""

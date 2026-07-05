@@ -5,10 +5,11 @@ This module provides helper functions to interact with GUI elements.
 
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QByteArray, QPoint, QRectF, Qt
-from PyQt6.QtGui import QIcon, QPainter, QPixmap
+from PyQt6.QtCore import QByteArray, QEvent, QModelIndex, QPoint, QRectF, Qt
+from PyQt6.QtGui import QHelpEvent, QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QDialog,
@@ -17,9 +18,12 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -289,6 +293,29 @@ def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> No
     dialog.setWindowFlags(window_flags)
 
 
+class ElidedTextTooltipDelegate(QStyledItemDelegate):
+    """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
+
+    @override
+    def helpEvent(self, event: QHelpEvent | None, view: QAbstractItemView | None, option: QStyleOptionViewItem, index: QModelIndex) -> bool:  # pylint: disable=invalid-name
+        """Show tooltip for elided cells, let the default handle the rest."""
+        if event is not None and event.type() == QEvent.Type.ToolTip:
+            # Let the model's explicit tooltips take precedence
+            if index.data(Qt.ItemDataRole.ToolTipRole):
+                return super().helpEvent(event, view, option, index)
+
+            text = index.data(Qt.ItemDataRole.DisplayRole)
+            if isinstance(text, str) and text:
+                opt = QStyleOptionViewItem(option)
+                self.initStyleOption(opt, index)
+                # If text is wider than the available rect (minus a small margin for cell padding)
+                if opt.fontMetrics.horizontalAdvance(text) > opt.rect.width() - 6:
+                    QToolTip.showText(event.globalPos(), text, view)
+                    return True
+
+        return super().helpEvent(event, view, option, index)
+
+
 def setup_table_view_headers(table: QTableView) -> QHeaderView:
     """Hide the vertical header of *table* and return the horizontal header.
 
@@ -304,6 +331,10 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
     if h_header is None:
         message = 'Failed to get horizontal header'
         raise RuntimeError(message)
+
+    table.setItemDelegate(ElidedTextTooltipDelegate(table))
+    table.setWordWrap(False)
+
     return h_header
 
 
@@ -346,6 +377,10 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
         message = 'Failed to get vertical header'
         raise RuntimeError(message)
     v_header.setVisible(False)
+
+    table.setItemDelegate(ElidedTextTooltipDelegate(table))
+    table.setWordWrap(False)
+
     layout.addWidget(table)
 
 

@@ -5,25 +5,21 @@ import re
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QEvent, QModelIndex, QObject, QRegularExpression, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QRegularExpressionValidator, QStandardItem, QStandardItemModel
+from PyQt6.QtCore import QModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QBrush, QColor, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QButtonGroup,
     QDialog,
     QDialogButtonBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QListView,
     QPushButton,
     QRadioButton,
     QSlider,
-    QToolTip,
-    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -38,7 +34,7 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import apply_search_icon
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -212,41 +208,6 @@ class EntriesSortProxy(QSortFilterProxyModel):
         return bool(super().lessThan(left, right))
 
 
-class ElidedTooltipFilter(QObject):
-    """Event filter that shows a tooltip only when the cell text is visually truncated."""
-
-    def __init__(self, view: QAbstractItemView) -> None:
-        """Initialize the filter attached to the given item view."""
-        super().__init__(view)
-        self._view = view
-
-    def _get_header(self) -> QHeaderView | None:
-        """Return the horizontal header regardless of view type."""
-        if isinstance(self._view, QTreeView):
-            return self._view.header()
-        return getattr(self._view, 'horizontalHeader', lambda: None)()
-
-    @override
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
-        """Show tooltip for elided cells, hide otherwise."""
-        if a1 is not None and a1.type() == QEvent.Type.ToolTip and isinstance(a1, QHelpEvent):
-            index = self._view.indexAt(a1.pos())
-            if index.isValid():
-                text = index.data(Qt.ItemDataRole.DisplayRole)
-                if text:
-                    header = self._get_header()
-                    column_width = header.sectionSize(index.column()) if header is not None else 0
-                    fm = QFontMetrics(self._view.font())
-                    if fm.horizontalAdvance(str(text)) + 8 > column_width:
-                        QToolTip.showText(a1.globalPos(), str(text), self._view)
-                    else:
-                        QToolTip.hideText()
-                else:
-                    QToolTip.hideText()
-                return True
-        return super().eventFilter(a0, a1)
-
-
 BYTES_PER_UNIT = 1024
 
 NEW_DATABASE_TEMPLATE = """\
@@ -408,6 +369,8 @@ class RenameUsernameDialog(QDialog):
         self._list = QListView()
         self._list.setModel(self._proxy)
         self._list.setAlternatingRowColors(True)
+        self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
+        self._list.setWordWrap(False)
         layout.addWidget(self._list, stretch=1)
 
         self._search.textChanged.connect(self._proxy.setFilterFixedString)
@@ -475,6 +438,8 @@ class RemoveUsernameDialog(QDialog):
         self._list.setModel(self._proxy)
         self._list.setAlternatingRowColors(True)
         self._list.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
+        self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
+        self._list.setWordWrap(False)
         layout.addWidget(self._list, stretch=1)
 
         self._search.textChanged.connect(self._proxy.setFilterFixedString)

@@ -40,7 +40,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.userip_manager_helpers import ElidedTooltipFilter
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -139,10 +139,8 @@ class CsvLogTab(QWidget):
 
         layout.addWidget(self._table, stretch=1)
 
-        self._tooltip_filter = ElidedTooltipFilter(self._table)
-        viewport = self._table.viewport()
-        if viewport is not None:
-            viewport.installEventFilter(self._tooltip_filter)
+        self._table.setItemDelegate(ElidedTextTooltipDelegate(self._table))
+        self._table.setWordWrap(False)
 
         # --- File metadata ---
         self._metadata_label = QLabel('')

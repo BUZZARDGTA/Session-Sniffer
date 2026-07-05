@@ -34,7 +34,7 @@ from session_sniffer.guis.tables_player_actions._looky_helpers import (
     build_looky_progress_widgets,
     check_looky_prerequisites,
 )
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     LookyState,
     extract_rate_limit_message,
@@ -403,6 +403,8 @@ class _RIDPickerDialog(QDialog):
 
         self._list = QListWidget()
         self._list.setStyleSheet(LOOKY_LIST_WIDGET_STYLESHEET)
+        self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
+        self._list.setWordWrap(False)
         for name, rid in entries:
             item = QListWidgetItem(f'{name} (RID: {rid})')
             item.setData(Qt.ItemDataRole.UserRole, rid)
