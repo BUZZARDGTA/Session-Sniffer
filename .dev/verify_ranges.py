@@ -978,6 +978,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     current_index: int = 0,
     total_count: int = 0,
     detections: list[str] | None = None,
+    fallback_client: RateLimitClient | None = None,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
     file_path, line_number = location or ('', None)
@@ -1017,10 +1018,11 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         has_mismatches = False
         mismatch_lines: list[str] = []
         mismatches_raw: list[str] = []
+        active_client = client
 
         if isinstance(client, GeoLite2Client):
             # Thorough 100% offline GeoLite2 validation using tree-jumping
-            mismatches, _ = scan_network_geolite2(client, owner, network)
+            mismatches, matching_networks = scan_network_geolite2(client, owner, network)
             if mismatches:
                 is_valid = False
                 has_mismatches = True
@@ -1031,6 +1033,28 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                     else:
                         mismatch_lines.append(f'[red]✗[/red] [magenta]{start_ip} - {end_ip}[/magenta] → {actual_owner}')
                         mismatches_raw.append(f'✗ {cidr_range} ({start_ip} - {end_ip}) → {actual_owner}')
+            elif not matching_networks:
+                if fallback_client:
+                    status.update(f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] [bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta][bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]')
+                    fallback_results = lookup_ips_batch(fallback_client, all_ip_addresses)
+                    results.update(fallback_results)
+                    active_client = fallback_client
+                    for ip in base_samples:
+                        lookup_result = fallback_results.get(ip) or {}
+                        if lookup_result.get('status') != 'success':
+                            is_valid = False
+                            continue
+
+                        if not owner_matches(owner, lookup_result):
+                            mismatch_lines.append(f'[red]✗[/red] [magenta]{ip}[/magenta] → {lookup_result.get("isp")} / {lookup_result.get("org")}')
+                            mismatches_raw.append(f'✗ {cidr_range} ({ip}) → {lookup_result.get("isp")} / {lookup_result.get("org")}')
+                            is_valid = False
+                            has_mismatches = True
+                else:
+                    is_valid = False
+                    has_mismatches = True
+                    mismatch_lines.append(f'[red]✗[/red] [magenta]{cidr_range}[/magenta] → Unknown (Not Found in GeoLite2 DB)')
+                    mismatches_raw.append(f'✗ {cidr_range} → Unknown (Not Found in GeoLite2 DB)')
         else:
             # Random 20-IP rate-limited online validation (IP-API)
             for ip in base_samples:
@@ -1169,14 +1193,14 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         renderables.append(Text(''))
         renderables.append(Rule('[bold white]Fix Suggestion[/bold white]'))
         renderables.append(Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED))
-        fix_renderable, fix_raw = suggest_fix(client, owner, network, results, status)
+        fix_renderable, fix_raw = suggest_fix(active_client, owner, network, results, status)
         if fix_renderable:
             renderables.append(fix_renderable)
 
     expansion_raw = ''
     if expansion_found:
         context = RangeContext(network, owner_networks)
-        expansion_renderable, expansion_raw = suggest_expansion(client, owner, context, expandable_ip_addresses, status)
+        expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, context, expandable_ip_addresses, status)
         if expansion_renderable:
             renderables.append(Text(''))
             renderables.append(Rule('[bold white]Expansion Available[/bold white]'))
@@ -1337,6 +1361,7 @@ def main() -> None:
         ranges_file=str(parsed_arguments.ranges_file),
     )
 
+    fallback_client: RateLimitClient | None = None
     if parsed_arguments.geolite2:
         application_directory = get_app_dir(scope='local')
         asn_database_path = application_directory / 'GeoLite2 Databases' / 'GeoLite2-ASN.mmdb'
@@ -1347,6 +1372,7 @@ def main() -> None:
             sys.exit(1)
 
         client: GeoLite2Client | RateLimitClient = GeoLite2Client(asn_database_path)
+        fallback_client = RateLimitClient(_ip_api_session)
     else:
         client = RateLimitClient(_ip_api_session)
 
@@ -1451,8 +1477,10 @@ def main() -> None:
                 time.sleep(1)
             progress.update(task_id, description=original_description)
 
-        if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+        if isinstance(client, RateLimitClient):
             client.sleep_callback = verification_sleep_callback
+        if fallback_client:
+            fallback_client.sleep_callback = verification_sleep_callback
 
         for owner, cidr_range, line_number in ranges:
             if should_skip(owner, use_geolite2=parsed_arguments.geolite2):
@@ -1477,14 +1505,17 @@ def main() -> None:
                 current_index=current_index,
                 total_count=total_count,
                 detections=detections,
+                fallback_client=fallback_client,
             )
 
             # Smooth visual progress sweep for cached ranges
             if total_count > 0:
                 time.sleep(min(0.005, 1.0 / total_count))
 
-    if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+    if isinstance(client, RateLimitClient):
         client.sleep_callback = None
+    if fallback_client:
+        fallback_client.sleep_callback = None
 
     if not parsed_arguments.only_detections:
         console.print()
