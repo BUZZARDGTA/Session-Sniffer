@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override
 
 from PyQt6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QShowEvent, QStandardItem, QStandardItemModel
+from PyQt6.QtGui import QBrush, QColor, QDesktopServices, QFileSystemModel, QShowEvent, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -446,9 +446,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         username_item = QStandardItem(username)
         if is_looky:
             username_item.setForeground(QBrush(QColor('#a855f7')))
-            username_item.setToolTip("Added automatically by Looky System")
-            username_item.setData(True, Qt.ItemDataRole.UserRole)
-            
+            username_item.setToolTip('Added automatically by Looky System')
+            username_item.setData(True, Qt.ItemDataRole.UserRole)  # noqa: FBT003
+
         db_item = QStandardItem(database[0] if database else '')
         if database is not None:
             db_item.setData(str(database[1]), Qt.ItemDataRole.UserRole)

@@ -8,16 +8,15 @@ enabled/disabled adapters appear and disappear in real time.
 
 from dataclasses import dataclass, field
 from threading import Thread
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QIcon, QShowEvent
+from PyQt6.QtGui import QCursor, QFont, QIcon, QResizeEvent, QShowEvent
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QHeaderView,
     QLabel,
     QPushButton,
@@ -176,7 +175,8 @@ class SafeQTableWidget(QTableWidget):
 class RefreshARPButton(QPushButton):
     """A QPushButton that contains a full-size overlay QLabel without using a layout."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialize the button and create the full-size transparent overlay label."""
         super().__init__(*args, **kwargs)
         self.overlay_label = QLabel(self)
         self.overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -186,9 +186,9 @@ class RefreshARPButton(QPushButton):
         self.overlay_label.hide()
 
     @override
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, a0: QResizeEvent | None) -> None:
         """Resize the overlay label to match the button's size."""
-        super().resizeEvent(event)
+        super().resizeEvent(a0)
         self.overlay_label.resize(self.size())
 
 
