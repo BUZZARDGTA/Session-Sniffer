@@ -1771,6 +1771,11 @@ UK_MINISTRY_OF_DEFENCE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '25.192.0.0/10',
 )
 
+UNITY_TECHNOLOGIES_APS_RANGES: tuple[NamedRange, ...] = create_named_ranges(
+    'Unity Technologies ApS',
+    '85.236.96.0/24',
+)
+
 US_DEPARTMENT_OF_DEFENSE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'US Department of Defense',
     '21.0.0.0/8',

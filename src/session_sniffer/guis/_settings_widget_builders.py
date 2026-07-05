@@ -250,6 +250,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_names = [
         'Azar',
+        'Borderlands 3',
         'Call of Duty®: Advanced Warfare',
         'Call of Duty®: Black Ops',
         'Call of Duty®: Black Ops Cold War',
@@ -380,6 +381,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'CLOUDFLARE',
             'GOOGLE_LLC',
             'MICROSOFT',
+        },
+        'Borderlands 3': {
+            'UNITY_TECHNOLOGIES_APS',
         },
         'Call of Duty®: Advanced Warfare': {
             'COMVIVE_SERVIDORES',
