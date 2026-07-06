@@ -281,6 +281,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'PlayStation Party Chat',
         'Ready or Not',
         'Red Dead Online',
+        'Risk of Rain 2',
         'RustDesk',
         'Sniper Elite 3',
         'Steam',
@@ -530,6 +531,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             'TAKETWO_INTERACTIVE',
             'UK_MINISTRY_OF_DEFENCE',
             'US_DEPARTMENT_OF_DEFENSE',
+        },
+        'Risk of Rain 2': {
+            'AMAZON',
         },
         'RustDesk': {
             'RUSTDESK',
