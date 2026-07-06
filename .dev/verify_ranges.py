@@ -1251,7 +1251,7 @@ def run_preflight_checks(
         if networks != sorted(networks):
             warnings.append(owner)
     if warnings:
-        table.add_row('CIDR Sorting', f'[yellow]⚠ {len(warnings)} owners have unsorted ranges[/yellow]')
+        table.add_row('CIDR Sorting', f'[yellow]⚠ {len(warnings)} owners have unsorted ranges ({", ".join(warnings)})[/yellow]')
     else:
         table.add_row('CIDR Sorting', '[green]✓ All ranges correctly sorted[/green]')
 
