@@ -288,6 +288,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'The Division 2',
         'theHunter Call of the Wild™',
         'theHunter Classic',
+        "Tom Clancy's Ghost Recon® Breakpoint",
         'UNO',
         'Warframe',
         'Watch Dogs® 2',
@@ -557,6 +558,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'theHunter Classic': {
             'AMAZON',
             'GOOGLE_LLC',
+        },
+        "Tom Clancy's Ghost Recon® Breakpoint": {
+            'I3D_NET',
         },
         'UNO': {
             'AMAZON',
