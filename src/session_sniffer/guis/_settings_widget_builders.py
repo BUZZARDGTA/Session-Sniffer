@@ -534,6 +534,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'Risk of Rain 2': {
             'AMAZON',
+            'US_DEPARTMENT_OF_DEFENSE',
         },
         'RustDesk': {
             'RUSTDESK',
