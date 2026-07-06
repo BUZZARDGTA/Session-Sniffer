@@ -268,6 +268,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Deep Rock Galactic',
         'Discord',
         'Dying Light',
+        'Dying Light 2',
         'Grand Theft Auto Online',
         "John Carpenter's Toxic Commando",
         'Minecraft Bedrock Edition',
@@ -474,6 +475,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Dying Light': {
             'AMAZON',
             'GOOGLE_LLC',
+        },
+        'Dying Light 2': {
+            'AMAZON',
         },
         'Grand Theft Auto Online': {
             'BATTLEYE',
