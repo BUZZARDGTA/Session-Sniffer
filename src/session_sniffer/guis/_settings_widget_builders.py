@@ -265,6 +265,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Call of Duty®: Vanguard',
         'Call of Duty®: WWII',
         'Chatspin',
+        'Deep Rock Galactic',
         'Discord',
         'Dying Light',
         'Grand Theft Auto Online',
@@ -460,6 +461,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'Chatspin': {
             'GOOGLE_LLC',
+        },
+        'Deep Rock Galactic': {
+            'US_DEPARTMENT_OF_DEFENSE',
         },
         'Discord': {
             'CLOUDFLARE',
