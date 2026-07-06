@@ -1327,6 +1327,7 @@ I3D_NET_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'i3D.net B.V',
     '109.200.192.0/19',
     '203.132.16.0/20',
+    '216.98.48.0/20',
 )
 
 LATITUDE_SH_RANGES: tuple[NamedRange, ...] = create_named_ranges(
@@ -1571,9 +1572,9 @@ MICROSOFT_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '52.152.0.0/13',
     '52.160.0.0/11',
     '52.224.0.0/11',
-    '130.33.0.0/16',
     '104.40.0.0/13',
     '108.140.0.0/14',
+    '130.33.0.0/16',
     '135.220.0.0/15',
     '135.222.0.0/16',
     '135.224.0.0/12',
