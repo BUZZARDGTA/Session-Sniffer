@@ -29,7 +29,7 @@ from session_sniffer.guis.tables_player_actions import (
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
-from session_sniffer.networking.third_party_servers import ThirdPartyServers
+from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -41,6 +41,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = get_logger(__name__)
+
+
+_GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
 
 
 class _DetectionSettings(NamedTuple):
@@ -519,9 +522,9 @@ _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
-    """Return True if *ip* belongs to the GTAV Take-Two Interactive relay IP ranges."""
+    """Return True if *ip* belongs to the GTAV Take-Two Interactive or Microsoft relay IP ranges."""
     addr = IPv4Address(ip)
-    return any(addr in network for network in ThirdPartyServers.TAKETWO_INTERACTIVE.ip_networks)
+    return is_ip_in_ranges(addr, _GTA5_RELAY_RANGES)
 
 
 def monitor_gta5_relay_task(player: Player) -> None:
