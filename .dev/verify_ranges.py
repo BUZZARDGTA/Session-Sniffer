@@ -1035,7 +1035,11 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                         mismatches_raw.append(f'✗ {cidr_range} ({start_ip} - {end_ip}) → {actual_owner}')
             elif not matching_networks:
                 if fallback_client:
-                    status.update(f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] [bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta][bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]')
+                    status.update(
+                        f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
+                        f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
+                        f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]'
+                    )
                     fallback_results = lookup_ips_batch(fallback_client, all_ip_addresses)
                     results.update(fallback_results)
                     active_client = fallback_client
