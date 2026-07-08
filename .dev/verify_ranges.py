@@ -1333,6 +1333,7 @@ def should_skip(owner: str, *, use_geolite2: bool) -> bool:
 
 def main() -> None:
     """Main entry point to parse command-line arguments and check ranges."""
+    start_time = time.time()
     if hasattr(sys.stdout, 'reconfigure'):
         cast('Any', sys.stdout).reconfigure(encoding='utf-8')
 
@@ -1463,7 +1464,6 @@ def main() -> None:
         transient=True,
     )
 
-    start_time = time.time()
     with progress:
         task_id = progress.add_task('', total=total_count)
 
