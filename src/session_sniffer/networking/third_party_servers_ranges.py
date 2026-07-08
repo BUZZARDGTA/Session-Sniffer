@@ -1326,6 +1326,7 @@ GOOGLE_LLC_RANGES: tuple[NamedRange, ...] = create_named_ranges(
 I3D_NET_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     'i3D.net B.V',
     '109.200.192.0/19',
+    '162.244.52.0/22',
     '203.132.16.0/20',
     '216.98.48.0/20',
 )
