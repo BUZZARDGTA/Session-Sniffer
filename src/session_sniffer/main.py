@@ -374,7 +374,19 @@ def main() -> None:
             force_dialog=True,
         )
 
-        if new_interface is None:
+        if new_interface is None or (
+            new_interface.name == Settings.capture_interface_name and
+            new_interface.ip_address == Settings.capture_ip_address and
+            new_interface.mac_address == Settings.capture_mac_address
+        ):
+            window.set_change_interface_button_enabled(enabled=True)
+            return
+
+        if (
+            new_interface.name == Settings.capture_interface_name and
+            new_interface.ip_address == Settings.capture_ip_address and
+            new_interface.mac_address == Settings.capture_mac_address
+        ):
             window.set_change_interface_button_enabled(enabled=True)
             return
 
