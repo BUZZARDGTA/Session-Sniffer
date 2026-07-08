@@ -24,6 +24,9 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = 3600
+
 # Add src/ folder to path so it can import session_sniffer
 SOURCE_PATH = str(Path(__file__).resolve().parent.parent / 'src')
 if SOURCE_PATH not in sys.path:
@@ -1527,16 +1530,16 @@ def main() -> None:
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
     skipped_count = len(ranges) - total_count
     elapsed_time = time.time() - start_time
-    if elapsed_time < 60:
-        time_str = f"{elapsed_time:.2f}s"
-    elif elapsed_time < 3600:
-        m, s = divmod(elapsed_time, 60)
-        time_str = f"{int(m)}m {int(s)}s"
+    if elapsed_time < SECONDS_PER_MINUTE:
+        time_str = f'{elapsed_time:.2f}s'
+    elif elapsed_time < SECONDS_PER_HOUR:
+        m, s = divmod(elapsed_time, SECONDS_PER_MINUTE)
+        time_str = f'{int(m)}m {int(s)}s'
     else:
-        h, remainder = divmod(elapsed_time, 3600)
-        m, s = divmod(remainder, 60)
-        time_str = f"{int(h)}h {int(m)}m {int(s)}s"
-        
+        h, remainder = divmod(elapsed_time, SECONDS_PER_HOUR)
+        m, s = divmod(remainder, SECONDS_PER_MINUTE)
+        time_str = f'{int(h)}h {int(m)}m {int(s)}s'
+
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
         console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/dim]')  # noqa: RUF001
