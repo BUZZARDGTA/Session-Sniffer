@@ -1463,6 +1463,7 @@ def main() -> None:
         transient=True,
     )
 
+    start_time = time.time()
     with progress:
         task_id = progress.add_task('', total=total_count)
 
@@ -1525,7 +1526,18 @@ def main() -> None:
         console.print()
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
     skipped_count = len(ranges) - total_count
-    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges.[/green]')
+    elapsed_time = time.time() - start_time
+    if elapsed_time < 60:
+        time_str = f"{elapsed_time:.2f}s"
+    elif elapsed_time < 3600:
+        m, s = divmod(elapsed_time, 60)
+        time_str = f"{int(m)}m {int(s)}s"
+    else:
+        h, remainder = divmod(elapsed_time, 3600)
+        m, s = divmod(remainder, 60)
+        time_str = f"{int(h)}h {int(m)}m {int(s)}s"
+        
+    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
         console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/dim]')  # noqa: RUF001
 
