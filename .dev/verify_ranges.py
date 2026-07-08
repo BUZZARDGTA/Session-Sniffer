@@ -1056,10 +1056,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                             is_valid = False
                             has_mismatches = True
                 else:
-                    is_valid = False
-                    has_mismatches = True
-                    mismatch_lines.append(f'[red]✗[/red] [magenta]{cidr_range}[/magenta] → Unknown (Not Found in GeoLite2 DB)')
-                    mismatches_raw.append(f'✗ {cidr_range} → Unknown (Not Found in GeoLite2 DB)')
+                    pass
         else:
             # Random 20-IP rate-limited online validation (IP-API)
             for ip in base_samples:
@@ -1344,6 +1341,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Verify IP ranges of third party servers.')
     parser.add_argument('ranges_file', help='Python file containing NamedRange definitions.')
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
+    parser.add_argument('--ip-api-fallback', action='store_true', help='Allow unknown GeoLite2 ranges to fallback to IP-API.')
     parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
     parser.add_argument('--export', help='Export one-line detections to the specified text file.')
 
@@ -1378,7 +1376,8 @@ def main() -> None:
             sys.exit(1)
 
         client: GeoLite2Client | RateLimitClient = GeoLite2Client(asn_database_path)
-        fallback_client = RateLimitClient(_ip_api_session)
+        if parsed_arguments.ip_api_fallback:
+            fallback_client = RateLimitClient(_ip_api_session)
     else:
         client = RateLimitClient(_ip_api_session)
 

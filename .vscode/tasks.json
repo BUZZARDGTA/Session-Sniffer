@@ -204,6 +204,7 @@
                 "${workspaceFolder}/.dev/verify_ranges.py",
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
                 "${input:useGeoLite2}",
+                "${input:ipApiFallback}",
                 "${input:onlyDetections}",
                 "${input:exportDetections}"
             ],
@@ -238,6 +239,22 @@
                 }
             ],
             "default": "--geolite2"
+        },
+        {
+            "id": "ipApiFallback",
+            "type": "pickString",
+            "description": "Allow unknown GeoLite2 ranges to fallback to IP-API?",
+            "options": [
+                {
+                    "label": "Yes (Fallback to IP-API)",
+                    "value": "--ip-api-fallback"
+                },
+                {
+                    "label": "No (Do not fallback)",
+                    "value": ""
+                }
+            ],
+            "default": ""
         },
         {
             "id": "onlyDetections",
