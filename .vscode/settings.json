@@ -63,18 +63,6 @@
             "Bypass"
         ]
     },
-    "python.analysis.typeCheckingMode": "strict",
-    "python.analysis.extraPaths": [
-        "src"
-    ],
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportUnknownVariableType": "warning",
-        "reportUnknownMemberType": "warning",
-        "reportUnknownArgumentType": "warning",
-        "reportUnknownLambdaType": "warning",
-        "reportUnknownParameterType": "warning",
-        "reportUnknownReturnType": "warning"
-    },
     "terminal.integrated.scrollback": 10000,
     "python-envs.pythonProjects": [
         {
