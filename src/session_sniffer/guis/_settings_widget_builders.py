@@ -252,6 +252,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         'Azar',
         'Borderlands 2',
         'Borderlands 3',
+        'Borderlands 4',
         'Borderlands: The Pre-Sequel',
         'Call of Duty®: Advanced Warfare',
         'Call of Duty®: Black Ops',
@@ -394,6 +395,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         },
         'Borderlands 3': {
             'MICROSOFT',
+            'UNITY_TECHNOLOGIES_APS',
+        },
+        'Borderlands 4': {
+            'AMAZON',
             'UNITY_TECHNOLOGIES_APS',
         },
         'Borderlands: The Pre-Sequel': {
