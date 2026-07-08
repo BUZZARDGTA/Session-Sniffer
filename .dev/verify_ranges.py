@@ -29,6 +29,7 @@ SOURCE_PATH = str(Path(__file__).resolve().parent.parent / 'src')
 if SOURCE_PATH not in sys.path:
     sys.path.insert(0, SOURCE_PATH)
 
+from session_sniffer.guis.utils import format_duration  # pylint: disable=wrong-import-position  # noqa: E402
 from session_sniffer.networking.http_session import HEADERS  # pylint: disable=wrong-import-position  # noqa: E402
 
 # Dedicated session for ip-api.com with NO automatic retries.
@@ -1527,16 +1528,8 @@ def main() -> None:
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
     skipped_count = len(ranges) - total_count
     elapsed_time = time.time() - start_time
-    if elapsed_time < 60:
-        time_str = f"{elapsed_time:.2f}s"
-    elif elapsed_time < 3600:
-        m, s = divmod(elapsed_time, 60)
-        time_str = f"{int(m)}m {int(s)}s"
-    else:
-        h, remainder = divmod(elapsed_time, 3600)
-        m, s = divmod(remainder, 60)
-        time_str = f"{int(h)}h {int(m)}m {int(s)}s"
-        
+    time_str = format_duration(elapsed_time)
+
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
         console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/dim]')  # noqa: RUF001
