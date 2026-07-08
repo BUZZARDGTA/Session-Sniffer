@@ -15,7 +15,6 @@ dependencies = [
     "pydantic==2.13.4",
     "pypresence==4.6.1",
     "PyQt6==6.8.1",
-    "pyqtgraph==0.14.0",
     "pywin32==312; platform_system == 'Windows'",
     "QDarkStyle==3.2.3",
     "requests==2.34.2",
@@ -121,6 +120,7 @@ good-names = [
     "mouseMoveEvent",
     "mousePressEvent",
     "mouseReleaseEvent",
+    "paintEvent",
     "rowCount",
     "selectionModel",
     "setModel",
@@ -130,7 +130,7 @@ good-names = [
     "SOCKET_ADDRESS",
     "verticalHeader",
 ]
-method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|resizeEvent|rowCount|selectionModel|setModel|showEvent|sizeHint|verticalHeader)$"
+method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|paintEvent|resizeEvent|rowCount|selectionModel|setModel|showEvent|sizeHint|verticalHeader)$"
 
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]

@@ -2,8 +2,6 @@
 
 from typing import override
 
-import numpy as np
-
 from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, DualRateGraphBase
 
 
@@ -22,35 +20,27 @@ class SessionRateGraphWindow(DualRateGraphBase):
     # Auto-scaling hooks — override to track visible maximum ————————————————
 
     @override
-    def _on_pps_rendered(self, pps_data: np.ndarray) -> None:
-        pps_visible_max = float(np.max(pps_data[-VISIBLE_WINDOW:]))
-        self._pps_widget.setYRange(0, max(pps_visible_max * 1.2, 10))
+    def _on_pps_rendered(self, pps_data: list[float]) -> None:
+        pps_visible_max = max(pps_data[-VISIBLE_WINDOW:]) if pps_data else 0.0
+        self._pps_widget.set_y_range(0, max(pps_visible_max * 1.2, 10.0))
 
     @override
-    def _on_bps_rendered(self, bps_data: np.ndarray) -> None:
-        bps_visible_max = float(np.max(bps_data[-VISIBLE_WINDOW:]))
-        self._bps_widget.setYRange(0, max(bps_visible_max * 1.2, 1))
+    def _on_bps_rendered(self, bps_data: list[float]) -> None:
+        bps_visible_max = max(bps_data[-VISIBLE_WINDOW:]) if bps_data else 0.0
+        self._bps_widget.set_y_range(0, max(bps_visible_max * 1.2, 1.0))
 
     # Public API —————————————————————————————————————————————————————————————
 
     def reset(self) -> None:
         """Clear all history buffers and reset both graphs to zero."""
-        self._pps_buffer[:] = 0.0
-        self._bps_buffer[:] = 0.0
-        self._buffer_len = VISIBLE_WINDOW
-        self._pps_running_sum = 0.0
-        self._bps_running_sum = 0.0
-        self._x_cache = np.arange(-VISIBLE_WINDOW + 1, 1, dtype=np.float64)
-        self._x_cache_len = VISIBLE_WINDOW
+        self._setup_history_buffers()
 
-        zeros = np.zeros(VISIBLE_WINDOW, dtype=np.float64)
-        self._pps_curve.setData(self._x_cache, zeros)
-        self._pps_widget.setXRange(-VISIBLE_WINDOW, 0)
-        self._pps_widget.setYRange(0, 10)
-        self._pps_avg_line.setPos(0)
+        zeros = [0.0] * VISIBLE_WINDOW
 
-        self._bps_curve.setData(self._x_cache, zeros)
-        self._bps_widget.setXRange(-VISIBLE_WINDOW, 0)
-        self._bps_widget.setYRange(0, 1)
-        self._bps_avg_line.setPos(0)
-        self._dual_graph_idle = False
+        self._pps_widget.set_data(zeros)
+        self._pps_widget.set_y_range(0, 10.0)
+        self._pps_widget.set_average(0.0)
+
+        self._bps_widget.set_data(zeros)
+        self._bps_widget.set_y_range(0, 1.0)
+        self._bps_widget.set_average(0.0)
