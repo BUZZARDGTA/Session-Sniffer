@@ -442,7 +442,7 @@ class _RIDPickerDialog(QDialog):
         return dialog.selected_rid()
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class _CrawlerRequest:
     """All parameters needed to send a crawler instruction and show its progress dialog."""
 

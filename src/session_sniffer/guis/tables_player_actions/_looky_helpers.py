@@ -30,7 +30,7 @@ from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.settings.settings import Settings
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class LookyProgressWidgets:
     """The three mutable widgets built by `build_looky_progress_widgets`."""
 
