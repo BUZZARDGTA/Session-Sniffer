@@ -25,6 +25,7 @@ from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
+from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
@@ -42,7 +43,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.capture.packet_capture import CaptureHolder
-    from session_sniffer.guis.discord_intro import DiscordIntro
     from session_sniffer.guis.table_model import SessionTableModel
 
 
@@ -565,7 +565,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self.installEventFilter(self)
 
         self._apply_always_on_top()
-
 
     def show_discord_intro(self) -> None:
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
