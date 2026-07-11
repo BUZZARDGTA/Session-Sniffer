@@ -222,7 +222,7 @@ class _SVGColorPickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Choose Color')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.resize(960, 580)
 
         self._chosen: QColor = QColor()

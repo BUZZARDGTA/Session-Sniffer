@@ -345,7 +345,7 @@ class RenameUsernameDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'Rename Username - {TITLE}')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setMinimumSize(320, 400)
         self.resize(360, 460)
 
@@ -410,7 +410,7 @@ class RemoveUsernameDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'Remove Username - {TITLE}')
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setMinimumSize(320, 400)
         self.resize(360, 460)
 
@@ -518,7 +518,7 @@ class IPRangeBuilderDialog(QDialog):
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'IP Range Builder - {TITLE}')
         self.setMinimumWidth(520)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
 
         layout = QVBoxLayout(self)
 

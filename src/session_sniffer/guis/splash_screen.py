@@ -157,5 +157,5 @@ class SplashScreen(QWidget):
     def lower_to_back(self) -> None:
         """Ensure the splash is not marked always-on-top before continuing startup."""
         if self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
             self.show()
