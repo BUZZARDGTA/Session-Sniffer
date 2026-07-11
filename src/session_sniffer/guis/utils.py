@@ -1,7 +1,4 @@
-"""Utility functions for GUI-related operations.
-
-This module provides helper functions to interact with GUI elements.
-"""
+"""Utility functions for GUI-related operations."""
 
 from typing import TYPE_CHECKING, override
 
@@ -45,7 +42,6 @@ if TYPE_CHECKING:
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 
-# Screen resolution resizing thresholds and breakpoints
 _MIN_SCREEN_HEIGHT_WARNING = 768
 _LARGE_WINDOW_MIN_HEIGHT = 500
 
@@ -83,7 +79,7 @@ class PersistentMenu(QMenu):
 
 # ---------------------------------------------------------------------------
 # Suspend-mode tooltip strings — shared between detections_manager and
-# userip_manager_settings_mixin so they stay in sync.
+# userip_manager_settings_mixin.
 # ---------------------------------------------------------------------------
 
 SUSPEND_TOOLTIP_DISABLED = 'Suspension is disabled — no process will be suspended when this detection triggers.'
@@ -154,7 +150,6 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
     min_size = window.minimumSize()
     pad_width = 40
 
-    # Maximize if minimum size doesn't fit, or if screen height is low and window is relatively large
     if (
         (min_size.width() + pad_width) > avail_width
         or min_size.height() > avail_height
@@ -164,7 +159,6 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
         window.setProperty('_should_maximize_on_show', True)  # noqa: FBT003
         return
 
-    # Resize window to fit available geometry based on breakpoints
     if avail_width >= _BREAKPOINT_2K_WIDTH and avail_height >= _BREAKPOINT_2K_HEIGHT:
         window.resize(max(_TARGET_2K_WIDTH, min_size.width()), max(_TARGET_2K_HEIGHT, min_size.height()))
     elif avail_width >= _BREAKPOINT_FHD_WIDTH and avail_height >= _BREAKPOINT_FHD_HEIGHT:
@@ -172,7 +166,6 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
     elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
         window.resize(max(_TARGET_HD_WIDTH, min_size.width()), max(_TARGET_HD_HEIGHT, min_size.height()))
     else:
-        # Fallback: resize to fit available geometry comfortably without going below minimum size
         w = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
         h = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
         window.resize(max(w, min_size.width()), max(h, min_size.height()))
@@ -306,12 +299,18 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
 
 
 def apply_always_on_top(window: QWidget, checked: bool) -> None:  # noqa: FBT001
-    """Apply or remove the always-on-top window flag and re-show the window."""
-    if checked:
-        window.setWindowFlags(window.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-    else:
-        window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-    window.show()
+    """Apply or remove the always-on-top window flag, preserving native decorations.
+
+    Uses `setWindowFlag` (single-flag toggle) instead of a full `setWindowFlags`
+    rewrite: on Windows the latter destroys and recreates the native HWND, which under
+    PySide6 can leave the system menu's Close (X) button rendered as greyed/disabled.
+    Only re-show the window if it was already visible, so this never forces an early
+    show during `__init__` (the reveal is orchestrated separately in `main.py`).
+    """
+    was_visible = window.isVisible()
+    window.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on=checked)
+    if was_visible:
+        window.show()
 
 
 def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> None:
@@ -347,7 +346,6 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             if isinstance(text, str) and text:
                 opt = QStyleOptionViewItem(option)
                 self.initStyleOption(opt, index)
-                # If text is wider than the available rect (minus a small margin for cell padding)
                 if QFontMetrics(opt.font).horizontalAdvance(text) > view.visualRect(index).width() - 6:
                     QToolTip.showText(event.globalPos(), text, view)
                     return True
@@ -474,7 +472,6 @@ def copy_table_widget_selection(table: QTableWidget) -> None:
     if not selected_indexes:
         return
 
-    # Collect unique rows in visual order, preserving column order within each row.
     rows: dict[int, dict[int, str]] = {}
     for index in selected_indexes:
         row = index.row()

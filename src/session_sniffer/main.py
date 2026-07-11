@@ -71,7 +71,6 @@ from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import is_pyinstaller_compiled
 from session_sniffer.webserver import start_webserver_from_settings
 
-# Production-friendly logging: file handlers only (no console output)
 setup_logging(console_level=logging.INFO)
 logger = get_logger(__name__)
 
@@ -95,10 +94,8 @@ def main() -> None:
     if sys.platform != 'win32':
         raise UnsupportedPlatformError(sys.platform)
 
-    # Load settings early to check if user has ignored resolution warning before
     Settings.load_from_settings_file(SETTINGS_PATH)
 
-    # Check minimum screen resolution requirement early to avoid wasting user's time
     try:
         screen_size = get_screen_size()
     except UnsupportedScreenResolutionError as e:
@@ -117,7 +114,7 @@ def main() -> None:
 
     splash = SplashScreen()
     splash.show()
-    # Own all msgboxes shown during splash so they appear above it without being globally topmost
+    # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
     if not is_pyinstaller_compiled():
@@ -174,7 +171,6 @@ def main() -> None:
         if interface is None:
             continue
 
-        # Populate device_name from scapy (the NPF path used by pcap)
         interface.identity.device_name = device_name
 
         if (
@@ -187,7 +183,7 @@ def main() -> None:
 
         available_interfaces.append(interface)
 
-    msgbox.set_owner_hwnd(0)  # Clear owner before handing off z-order to the interface dialog
+    msgbox.set_owner_hwnd(0)
     selected_interface = select_interface(
         available_interfaces,
         screen_size,
@@ -251,7 +247,7 @@ def main() -> None:
                 CaptureStats.restarted_times,
             )
             capture_holder.request_restart()
-            return  # Skip processing this packet
+            return
 
         if packet.ip.src == Settings.capture_ip_address:
             target_ip = packet.ip.dst
@@ -262,10 +258,10 @@ def main() -> None:
             target_port = packet.port.src
             sent_by_local_host = False
         else:
-            return  # Neither source nor destination matches the capture IP address.
+            return
 
         if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
-            return  # IP is blocked; discard packet silently
+            return
 
         matched_player = PlayersRegistry.get_player_by_ip(target_ip)
         if matched_player is None:
@@ -340,7 +336,6 @@ def main() -> None:
             on_capture_lost=_adapter_lost_event.set,
         ),
     )
-    # Wrap in a mutable holder so background threads pick up a new capture on interface switch
     capture_holder = CaptureHolder(capture)
 
     splash.run_with_spinner(capture.start)
@@ -352,16 +347,12 @@ def main() -> None:
     if Settings.capture_arp_spoofing:
         ArpSpoofingController.start(selected_interface)
 
-    # Initialize GUI first - now it has all the data it needs
     def _switch_interface() -> None:
-        # Lock the button immediately to prevent double-clicks
         window.set_change_interface_button_enabled(enabled=False)
 
-        # Build the initial interface list from the current AllInterfaces registry
-        # without calling refresh_available_interfaces(), which blocks the GUI thread
-        # via COM/ICS Windows APIs (win32com.client.Dispatch('HNetCfg.HNetShare')).
-        # The dialog's live-refresh timer will call refresh_available_interfaces()
-        # from within its own event loop a few seconds after the dialog opens.
+        # Build interface list from the existing registry without calling
+        # refresh_available_interfaces(), which blocks the GUI thread via COM/ICS APIs.
+        # The dialog's live-refresh timer handles that from within its own event loop.
         new_available_interfaces: list[Interface] = []
         for _device_name, _friendly_name in get_filtered_scapy_interfaces():
             _interface = AllInterfaces.get_interface_by_name(_friendly_name)
@@ -384,8 +375,7 @@ def main() -> None:
             window.set_change_interface_button_enabled(enabled=True)
             return
 
-        # Stop ARP spoofing before touching capture state: otherwise the old ARP thread
-        # observes the new capture starting and spawns arpspoof.exe on the OLD interface.
+        # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
         ArpSpoofingController.stop()
 
         was_running = capture_holder.is_running()
@@ -393,7 +383,7 @@ def main() -> None:
             capture_holder.stop()
         window.set_interface_switching_mode(switching=True)
 
-        # Run the broadcast/multicast filter probe off the Qt thread so the UI stays responsive.
+        # Run the filter probe off the Qt thread so the UI stays responsive.
         with ThreadPoolExecutor(max_workers=1) as _pool:
             _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
             while not _future.done():
@@ -449,8 +439,7 @@ def main() -> None:
 
     window = MainWindow(screen_size, capture_holder, on_change_interface=_switch_interface)
 
-    # Re-entry guard: adapter-lost and ARP-failed pollers can both fire while the interface
-    # dialog is already open; non-blocking acquire skips the second caller cleanly.
+    # Re-entry guard: adapter-lost and ARP-failed pollers can fire concurrently; non-blocking acquire skips the second.
     _capture_lost_lock = Lock()
 
     def _handle_capture_lost(*, stop_capture: bool, warning_message: str | None) -> None:
@@ -506,7 +495,7 @@ def main() -> None:
 
         current_config = capture_holder.config
         if current_config.interface.ip_address == new_ip:
-            return  # Race: IP was already updated (e.g. manual interface switch ran concurrently)
+            return
 
         was_running = capture_holder.is_running()
         if was_running:
@@ -569,7 +558,6 @@ def main() -> None:
 
         while not gui_closed__event.wait(2.0):
             if not capture_holder.is_running() or not _ip_changed_queue.empty():
-                # Capture stopped or a restart is already queued — reset baseline and wait.
                 last_packet_count = CaptureStats.total_packets_captured
                 last_count_change = time.monotonic()
                 drought_active = False
@@ -582,16 +570,15 @@ def main() -> None:
                 continue
 
             if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECONDS:
-                continue  # Drought not long enough yet
+                continue
 
-            # Packet drought confirmed — check whether the interface IP changed.
             current_interface = capture_holder.config.interface
             if not drought_active:
                 drought_active = True
             if current_interface.is_neighbour:
                 last_count_change = time.monotonic()  # reset so we don't spin
                 drought_active = False
-                continue  # ARP-spoof mode: filter IP is the neighbour's IP, not the adapter's
+                continue  # ARP-spoof mode: filter IP is the neighbour's, not the adapter's
 
             adapter_guid = current_interface.interface.identity.adapter_guid
             if adapter_guid is None:
@@ -616,10 +603,8 @@ def main() -> None:
                     _ip_changed_queue.put(new_ip)
                 break
 
-            # Reset the drought clock only if the adapter had a valid IP.
-            # If the adapter had no IP (VPN reconnecting) or was not found at all,
-            # keep the drought active so we re-check on the very next poll cycle
-            # (~2 s) rather than waiting another full 8 s.
+            # Only reset the drought clock when the adapter has a valid IP;
+            # if it has none (VPN reconnecting), keep drought active to re-check next cycle.
             if adapter_has_ip:
                 last_count_change = time.monotonic()
                 drought_active = False
@@ -635,13 +620,9 @@ def main() -> None:
     splash.finish_loading()
 
     def _reveal_main_window() -> None:
-        # Remove always-on-top from the splash so the main window can rise above it.
-        # With auto-connect the dialog is skipped, so lower_to_back() is never called
-        # via before_dialog; calling it here is idempotent for the manual-connect path.
+        # Lower splash before showing main window so it can rise above it;
+        # show while splash still owns the foreground to avoid activateWindow() being ignored.
         splash.lower_to_back()
-        # Show and activate the main window while the splash still owns the foreground.
-        # Closing the splash first surrenders foreground ownership to whatever Windows
-        # picks next, causing activateWindow() to be silently ignored on the new window.
         window.show()
         window.raise_()
         window.activateWindow()
@@ -655,7 +636,6 @@ def main() -> None:
 
     QTimer.singleShot(2000, _check_startup_relay_conflict)
 
-    # Start background processing threads FIRST
     player_rates_core__thread = Thread(target=player_rates_core, name='player_rates_core', daemon=True)
     player_rates_core__thread.start()
 
@@ -675,7 +655,6 @@ def main() -> None:
     )
     rendering_core__thread.start()
 
-    # Start web server if enabled
     if Settings.webserver_enabled:
         start_webserver_from_settings()
 
@@ -690,11 +669,14 @@ def main() -> None:
 
     ensure_looky_core_running()
 
-    if Settings.show_discord_popup:
-        # Delay the popup opening by 3 seconds
-        QTimer.singleShot(3000, lambda: DiscordIntro().exec())
+    def _show_discord_intro() -> None:
+        # Parentless: an owned Qt.Tool/Dialog window disables the owner's native close (X) button.
+        # Retain the reference so the dialog isn't garbage-collected; WA_DeleteOnClose cleans it up.
+        window._discord_intro_window = DiscordIntro()  # noqa: SLF001
 
-    # Start the application's event loop
+    if Settings.show_discord_popup:
+        QTimer.singleShot(3000, _show_discord_intro)
+
     sys.exit(app.exec())
 
 

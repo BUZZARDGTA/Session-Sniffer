@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.capture.packet_capture import CaptureHolder
+    from session_sniffer.guis.discord_intro import DiscordIntro
     from session_sniffer.guis.table_model import SessionTableModel
 
 
@@ -71,6 +72,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
     _gta5_status_label: QLabel
     _session_host_submenu: QMenu
     _player_resolver_action: QAction
+    _discord_intro_window: DiscordIntro | None
 
     def _update_separator_visibility(self) -> None:
         self._tables_separator.setVisible(
@@ -93,6 +95,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._logs_manager_window: LogsManager | None = None
         self._settings_dialog_window: SettingsDialog | None = None
         self._userip_manager_window: UserIPDatabasesManager | None = None
+        self._discord_intro_window: DiscordIntro | None = None
         self._leaderboard_window = None
         self._session_rate_graph_window = None
         self._session_pps_graph_window = None
@@ -105,25 +108,20 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._session_duration_window = None
         self._capture_statistics_window = None
 
-        # Set up the window
         self.setWindowTitle(TITLE)
         self.setMinimumSize(1024, 768)
         resize_window_for_screen(self, screen_size)
-        # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Layout for the central widget
         main_layout = QVBoxLayout(central_widget)
 
-        # ----- Menu bar -----
         menu_bar = self.menuBar()
         if not menu_bar:
             message = 'Failed to get menu bar'
             raise RuntimeError(message)
         menu_bar.setStyleSheet(MENU_BAR_STYLESHEET)
 
-        # ----- Capture menu -----
         capture_menu = menu_bar.addMenu('Capture')
         if not capture_menu:
             message = 'Failed to create Capture menu'
@@ -142,7 +140,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         change_interface_action.triggered.connect(on_change_interface)
         capture_menu.addAction(change_interface_action)
 
-        # ----- GTA5 menu (hidden unless GTA5 feature set) -----
         gta5_menu = menu_bar.addMenu('GTA5')
         if not gta5_menu:
             message = 'Failed to create GTA5 menu'
@@ -165,8 +162,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_menu.addAction(gta5_status_widget_action)
         self._gta5_status_label = gta5_status_label
         self._gta5_status_widget_action = gta5_status_widget_action
-        # Size the menu to the initial status text; `_update_gta5_status_label` keeps the width in sync
-        # as the process state changes, so `Legacy` renders narrower than `Enhanced`.
         self._resize_gta5_status_label('● GTA V not running')
 
         gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
@@ -268,7 +263,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._update_gta5_toolbar_visibility()
 
-        # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
         if not tools_menu:
             message = 'Failed to create Tools menu'
@@ -297,7 +291,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
 
-        # ----- Statistics menu -----
         statistics_menu = menu_bar.addMenu('Statistics')
         if not statistics_menu:
             message = 'Failed to create Statistics menu'
@@ -343,14 +336,12 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         port_heatmap_action.triggered.connect(self._open_port_heatmap)
         statistics_menu.addAction(port_heatmap_action)
 
-        # ----- Data & Files menu -----
         data_menu = menu_bar.addMenu('Data && Files')
         if not data_menu:
             message = 'Failed to create Data & Files menu'
             raise RuntimeError(message)
         data_menu.setToolTipsVisible(True)
 
-        # --- AppData Roots ---
         open_local_appdata_action = QAction('📂 Open Local AppData Folder', self)
         open_local_appdata_action.setToolTip('Open Local AppData\\Session Sniffer in Windows Explorer')
         open_local_appdata_action.triggered.connect(self._open_local_appdata_folder)
@@ -363,7 +354,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         data_menu.addSeparator()
 
-        # --- Folders ---
         open_userip_databases_action = QAction('🗂️ Open UserIP Databases Folder', self)
         open_userip_databases_action.setToolTip('Open Roaming AppData\\Session Sniffer\\UserIP Databases')
         open_userip_databases_action.triggered.connect(self._open_userip_databases_folder)
@@ -376,7 +366,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         data_menu.addSeparator()
 
-        # --- Debug Logs Submenu ---
         debug_logs_submenu = data_menu.addMenu('🐛 Debug Logs')
         if not debug_logs_submenu:
             message = 'Failed to create Debug Logs submenu'
@@ -396,7 +385,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_debug_log_action.triggered.connect(self._open_debug_log_file)
         debug_logs_submenu.addAction(open_debug_log_action)
 
-        # --- Application Logs Submenu ---
         app_logs_submenu = data_menu.addMenu('📋 Application Logs')
         if not app_logs_submenu:
             message = 'Failed to create Application Logs submenu'
@@ -433,13 +421,11 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         data_menu.addSeparator()
 
-        # --- Configuration ---
         open_settings_ini_action = QAction('📄 Open Settings.ini', self)
         open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
         open_settings_ini_action.triggered.connect(self._open_settings_file)
         data_menu.addAction(open_settings_ini_action)
 
-        # ----- Settings menu -----
         settings_menu = menu_bar.addMenu('Settings')
         if not settings_menu:
             message = 'Failed to create Settings menu'
@@ -451,7 +437,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_settings_action.triggered.connect(self._open_settings_dialog)
         settings_menu.addAction(open_settings_action)
 
-        # ----- Help menu -----
         help_menu = menu_bar.addMenu('Help')
         if not help_menu:
             message = 'Failed to create Help menu'
@@ -509,14 +494,12 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
 
-        # Main title header
         self._header = QLabel()
         self._header.setTextFormat(Qt.TextFormat.RichText)
         self._header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._header.setWordWrap(True)
         self._header.setFont(QFont('Courier', 10, QFont.Weight.Bold))
 
-        # Connected and disconnected table sections
         connected_column_names = [
             column for column in Settings.GUI_ALL_CONNECTED_COLUMNS if column in set(Settings.gui_columns_connected_shown) or column in Settings.GUI_FORCED_COLUMNS
         ]
@@ -542,17 +525,14 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             parent=self,
         )
 
-        # Status bar
         self._status_bar = SessionStatusBar(self)
         self.setStatusBar(self._status_bar)
 
-        # Menu action container
         self._actions = _MenuActions(
             toggle_capture=toggle_capture_action,
             change_interface=change_interface_action,
         )
 
-        # Layout
         main_layout.addSpacing(4)
         main_layout.addWidget(self._header)
         main_layout.addSpacing(14)
@@ -562,15 +542,12 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         main_layout.addWidget(self._connected.expand_button)
         main_layout.addWidget(self._disconnected.expand_button)
 
-        # Update separator when either section expands or collapses
         self._connected.section_toggled.connect(self._update_separator_visibility)
         self._disconnected.section_toggled.connect(self._update_separator_visibility)
 
-        # Raise and activate window to ensure it gets focus
         self.raise_()
         self.activateWindow()
 
-        # Create the worker thread for table updates
         worker_thread = GUIWorkerThread()
         self._state = _WindowState(
             worker_thread=worker_thread,
@@ -580,16 +557,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._state.worker_thread.update_signal.connect(self._update_gui)
         self._state.worker_thread.start()
 
-        # Session rate graph polling timer
         self._stats_timer = QTimer(self)
         self._stats_timer.setInterval(1_000)
         self._stats_timer.timeout.connect(self._tick_stats)
         self._stats_timer.start()
 
-        # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
-        # Apply settings
         self._apply_always_on_top()
 
     @override
@@ -598,11 +572,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         if a0 == self and a1:
             event_type = a1.type()
 
-            # Detect start of window movement/dragging
             if event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange) and not self._state.window_being_moved:
                 self._start_window_move()
 
-            # Detect end of window movement/dragging
             elif (
                 event_type
                 in (
@@ -674,7 +646,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             performance=payload.status_performance_text,
         )
 
-        # Detect column config changes and rebuild tables when needed
         column_config = payload.column_config
         if column_config.connected_column_names != self._connected.table_model.column_names:
             self._connected.update_columns(column_config.connected_column_names)
@@ -738,11 +709,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.table_view.restore_selection()
         self._disconnected.table_view.restore_selection()
 
-        # Refresh selection counts after potential row removals
         self._connected.refresh_selection_count()
         self._disconnected.refresh_selection_count()
 
-        # Sync pagination controls with payload data
         self._connected.sync_paging_from_payload(
             total_count=payload.connected_count,
             rows_per_page=payload.connected_rows_per_page,
@@ -773,7 +742,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         """
         status_font = QFont(self._gta5_status_label.font())
         status_font.setPointSize(10)
-        # `+ 44` covers the `16 + 28` px horizontal padding from `GTA5_STATUS_LABEL_STYLESHEET`,
+        # `+ 44` covers `16 + 28` px horizontal padding from `GTA5_STATUS_LABEL_STYLESHEET`,
         # plus `12` px slack for the rich-text dot glyph.
         self._gta5_status_label.setMinimumWidth(QFontMetrics(status_font).horizontalAdvance(visible_text) + 44 + 12)
 
@@ -911,7 +880,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
         self._update_gta5_toolbar_visibility()
-        # Sync the toggle button text to reflect the running state of the new capture
         if self.capture.is_running():
             self._actions.toggle_capture.setText('⏹️ Stop Capture')
             self._actions.toggle_capture.setToolTip('Stop packet capture')
