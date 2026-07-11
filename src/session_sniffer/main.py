@@ -670,9 +670,7 @@ def main() -> None:
     ensure_looky_core_running()
 
     def _show_discord_intro() -> None:
-        # Parentless: an owned Qt.Tool/Dialog window disables the owner's native close (X) button.
-        # Retain the reference so the dialog isn't garbage-collected; WA_DeleteOnClose cleans it up.
-        window._discord_intro_window = DiscordIntro()  # noqa: SLF001
+        window.show_discord_intro()
 
     if Settings.show_discord_popup:
         QTimer.singleShot(3000, _show_discord_intro)

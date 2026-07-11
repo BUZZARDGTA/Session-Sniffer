@@ -566,6 +566,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._apply_always_on_top()
 
+
+    def show_discord_intro(self) -> None:
+        """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
+        # Parentless: an owned Qt.Tool/Dialog window disables the owner's native close (X) button.
+        # Retain the reference so the dialog isn't garbage-collected; WA_DeleteOnClose cleans it up.
+        self._discord_intro_window = DiscordIntro()
+
     @override
     def eventFilter(self, a0: QObject, a1: QEvent) -> bool:
         """Filter events to detect window movement."""
