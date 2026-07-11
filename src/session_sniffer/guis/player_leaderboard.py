@@ -3,9 +3,9 @@
 import contextlib
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PyQt6.QtCore import QAbstractTableModel, QFileSystemWatcher, QModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
-from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QAbstractTableModel, QFileSystemWatcher, QModelIndex, QPersistentModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QProgressBar,
     QSpinBox,
     QTableView,
     QTableWidget,
@@ -28,6 +27,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
+from session_sniffer.guis._player_leaderboard_loading_dialog import LeaderboardLoadingDialog
 from session_sniffer.guis._player_leaderboard_workers import (
     LeaderboardBaselineWorker,
     LeaderboardOverlayWorker,
@@ -36,6 +36,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
     SessionScanResult,
     server_ips_for,
 )
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import (
     ElidedTextTooltipDelegate,
     apply_search_icon,
@@ -43,11 +44,11 @@ from session_sniffer.guis.utils import (
     get_screen_size,
     popup_menu_at_table,
     resize_window_for_screen,
-    set_dialog_window_flags,
     setup_table_view_headers,
 )
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -177,21 +178,21 @@ class _LeaderboardTableModel(QAbstractTableModel):
         }
 
     @override
-    def rowCount(self, parent: QModelIndex | None = None) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of leaderboard entries."""
         if parent is None:
             parent = QModelIndex()
         return len(self._entries)
 
     @override
-    def columnCount(self, parent: QModelIndex | None = None) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of columns."""
         if parent is None:
             parent = QModelIndex()
         return len(_HEADERS)
 
     @override
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return cell data for the given index and role."""
         if not index.isValid():
             return None
@@ -363,7 +364,7 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         self._hide_hosting: bool = False
 
     @override
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Render the Rank column as the current visible position; delegate everything else to the source model."""
         if role == Qt.ItemDataRole.DisplayRole and index.column() == _COLUMN_RANK:
             return index.row() + 1
@@ -424,7 +425,7 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         return self._hide_hosting and entry.hosting is True
 
     @override
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         """Reject rows with a zero session count, hidden servers/VPNs/hosting, or that don't match the search text."""
         _ = source_parent
         model = self.sourceModel()
@@ -440,10 +441,10 @@ class _LeaderboardSortProxy(QSortFilterProxyModel):
         return True
 
     @override
-    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+    def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
         """Sort integers numerically instead of lexicographically."""
         model = self.sourceModel()
-        if model is None:
+        if not model:
             return super().lessThan(left, right)
         left_data = model.data(left, Qt.ItemDataRole.DisplayRole)
         right_data = model.data(right, Qt.ItemDataRole.DisplayRole)
@@ -472,7 +473,7 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     table = QTableWidget(len(_STATS_PERIODS), 3, dialog)
     table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
     v_header = table.verticalHeader()
-    if v_header is not None:
+    if v_header:
         v_header.setVisible(False)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.setItemDelegate(ElidedTextTooltipDelegate(table))
@@ -491,42 +492,13 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
         table.setItem(row, 2, sessions_item)
 
     h_header = table.horizontalHeader()
-    if h_header is not None:
+    if h_header:
         h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         h_header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
 
     layout = QVBoxLayout(dialog)
     layout.addWidget(table)
-    return dialog
-
-
-def _build_loading_dialog(parent: QWidget) -> QDialog:
-    """Build and return a modal dialog shown while the leaderboard is being built in the background."""
-    dialog = QDialog(parent)
-    set_dialog_window_flags(dialog)
-    dialog.setWindowTitle('Most Seen Players')
-    dialog.setMinimumSize(340, 140)
-
-    layout = QVBoxLayout(dialog)
-    layout.setContentsMargins(16, 16, 16, 16)
-    layout.setSpacing(10)
-
-    header = QLabel('🏆  Loading leaderboard...')
-    header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(header)
-
-    status_label = QLabel('Scanning session logs, please wait...')
-    status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    status_label.setWordWrap(True)
-    layout.addWidget(status_label)
-
-    progress_bar = QProgressBar()
-    progress_bar.setRange(0, 0)
-    progress_bar.setTextVisible(False)
-    progress_bar.setFixedHeight(14)
-    layout.addWidget(progress_bar)
-
     return dialog
 
 
@@ -800,7 +772,9 @@ class PlayerLeaderboardWindow(QWidget):
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(self._clear_baseline_worker)
         self._baseline_worker = worker
-        loading_dialog = _build_loading_dialog(self)
+        loading_dialog = LeaderboardLoadingDialog(self)
+
+        worker.progress.connect(loading_dialog.update_progress)
 
         def _on_finished_ok(baseline: LeaderboardBaseline) -> None:
             self._apply_baseline(baseline)
@@ -930,20 +904,25 @@ class PlayerLeaderboardWindow(QWidget):
         entry = self._model.entries[self._proxy.mapToSource(index).row()]
 
         menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
 
         usernames_text = ', '.join(entry.usernames)
-        copy_usernames_action = QAction(f'Copy Usernames:  {usernames_text}' if usernames_text else 'Copy Usernames (none)', self)
+        copy_usernames_action = QAction(f'📋 Copy Username{pluralize(len(entry.usernames))}', self)
+        copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
         copy_usernames_action.setEnabled(bool(entry.usernames))
         copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
         menu.addAction(copy_usernames_action)
 
-        copy_ip_action = QAction(f'Copy IP:  {entry.ip}', self)
+        copy_ip_action = QAction('📋 Copy IP', self)
+        copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
         copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
         menu.addAction(copy_ip_action)
 
         menu.addSeparator()
 
-        seen_stats_action = QAction('View Seen Stats', self)
+        seen_stats_action = QAction('📊 View Seen Stats', self)
+        seen_stats_action.setToolTip('Show a breakdown of how many days and sessions this player has appeared in.')
         seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
         menu.addAction(seen_stats_action)
 
@@ -951,7 +930,7 @@ class PlayerLeaderboardWindow(QWidget):
 
     def _copy_to_clipboard(self, text: str) -> None:
         clipboard = QApplication.clipboard()
-        if clipboard is None:
+        if not clipboard:
             message = 'Failed to get clipboard'
             raise RuntimeError(message)
         clipboard.setText(text)
@@ -965,7 +944,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._count_label.setText(f'{visible} of {total} players')
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:
@@ -974,7 +953,7 @@ class PlayerLeaderboardWindow(QWidget):
         self._request_scan()
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
         self._scan_cooldown.stop()
         self._live_timer.stop()
@@ -986,4 +965,4 @@ class PlayerLeaderboardWindow(QWidget):
             self._baseline_worker.wait()
         if self._overlay_worker is not None and self._overlay_worker.isRunning():
             self._overlay_worker.wait()
-        super().closeEvent(a0)
+        super().closeEvent(event)

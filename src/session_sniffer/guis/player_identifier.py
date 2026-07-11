@@ -3,9 +3,9 @@
 from math import sqrt
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
@@ -172,7 +172,7 @@ class PlayerIdentifierWidget(QWidget):
         )
         self._zscore_table.setHorizontalHeaderItem(5, _streak_header)
         _zscore_header_view = self._zscore_table.horizontalHeader()
-        if _zscore_header_view is None:
+        if not _zscore_header_view:
             message = 'Failed to get horizontal header view'
             raise RuntimeError(message)
         _zscore_header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

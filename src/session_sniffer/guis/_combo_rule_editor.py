@@ -1,10 +1,10 @@
 """Private helper module: shared styles, widget helpers, and dialogs for combo-rule editing."""
 
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal
 
-from PyQt6.QtCore import QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QIcon, QPixmap, QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSortFilterProxyModel, Qt
+from PySide6.QtGui import QIcon, QPixmap, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QCompleter,
@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import IMAGES_DIR_PATH
+from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import COUNTRY_NAMES
 from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
@@ -40,7 +40,7 @@ def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int 
     """Set duration combo and spin box from a stored duration value."""
     if isinstance(duration, int):
         combo.setCurrentText('Manual')
-        spin.setValue(int(duration))
+        spin.setValue(duration)
         spin.setVisible(True)
     elif duration == 'Disabled':
         combo.setCurrentText('Disabled')
@@ -212,7 +212,7 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container = QVBoxLayout()
         conditions_layout.addLayout(self._conditions_container)
 
-        add_condition_button = QPushButton('➕ Add Condition')  # noqa: RUF001
+        add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Condition')
         add_condition_button.clicked.connect(self._add_condition_row)
         conditions_layout.addWidget(add_condition_button)
 
@@ -393,7 +393,7 @@ class ComboRuleEditorDialog(QDialog):
 
         type_combo.currentTextChanged.connect(on_type_changed)
 
-        remove_button = QPushButton('➖')  # noqa: RUF001
+        remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), '')
         remove_button.setMaximumWidth(40)
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -421,19 +421,19 @@ class ComboRuleEditorDialog(QDialog):
                     break
             # Now set the value
             if preset_key in ('mobile', 'vpn', 'hosting') and isinstance(preset_value, bool):
-                bool_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if bool_combo_widget is not None:
                     index = bool_combo_widget.findData(preset_value)
                     if index >= 0:
                         bool_combo_widget.setCurrentIndex(index)
             elif preset_key == 'event' and isinstance(preset_value, list):
-                events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
+                events_widget: QWidget | None = value_stack.findChild(QWidget)
                 if events_widget is not None:
                     for checkbox in events_widget.findChildren(QCheckBox):
                         event_key = self._EVENT_LABELS.get(checkbox.text(), '')
                         checkbox.setChecked(event_key in preset_value)
             elif preset_key == 'country' and isinstance(preset_value, str):
-                country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                country_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if country_combo_widget is not None:
                     # Find the matching country entry
                     for i in range(country_combo_widget.count()):
@@ -442,7 +442,7 @@ class ComboRuleEditorDialog(QDialog):
                             country_combo_widget.setCurrentIndex(i)
                             break
             elif isinstance(preset_value, str):
-                line_edit_widget: QLineEdit | None = cast('QLineEdit | None', value_stack.findChild(QLineEdit))
+                line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)
                 if line_edit_widget is not None:
                     line_edit_widget.setText(preset_value)
 
@@ -477,7 +477,7 @@ class ComboRuleEditorDialog(QDialog):
                 continue
 
             if key in ('mobile', 'vpn', 'hosting'):
-                bool_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+                bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if bool_combo_widget is not None:
                     conditions[key] = bool(bool_combo_widget.currentData())
             elif key == 'event':
@@ -489,7 +489,7 @@ class ComboRuleEditorDialog(QDialog):
                 if country:
                     conditions[key] = country
             else:
-                line_edit_widget: QLineEdit | None = cast('QLineEdit | None', value_stack.findChild(QLineEdit))
+                line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)
                 if line_edit_widget is not None:
                     val = line_edit_widget.text().strip()
                     if val:
@@ -498,7 +498,7 @@ class ComboRuleEditorDialog(QDialog):
 
     def _read_event_checkboxes(self, value_stack: QWidget) -> list[str]:
         """Read selected event checkboxes from a value stack widget."""
-        events_widget: QWidget | None = cast('QWidget | None', value_stack.findChild(QWidget))
+        events_widget: QWidget | None = value_stack.findChild(QWidget)
         if events_widget is None:
             return []
         selected: list[str] = []
@@ -512,7 +512,7 @@ class ComboRuleEditorDialog(QDialog):
     @staticmethod
     def _read_country_value(value_stack: QWidget) -> str | None:
         """Read the selected country name from a value stack widget."""
-        country_combo_widget: QComboBox | None = cast('QComboBox | None', value_stack.findChild(QComboBox))
+        country_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
         if country_combo_widget is None:
             return None
         index = country_combo_widget.currentIndex()

@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
@@ -72,7 +72,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
     button_box.rejected.connect(dialog.reject)
     close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
-    if close_button is not None:
+    if close_button:
         close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
     layout.addWidget(button_box)

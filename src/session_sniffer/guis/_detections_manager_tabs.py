@@ -2,9 +2,9 @@
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import (
     AVAILABLE_FLAG_CODES,
@@ -213,7 +214,7 @@ class DetectionsManagerTabsMixin(QDialog):
         warning_text_label.setWordWrap(True)
         warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
-        fix_button = QPushButton('Fix It')
+        fix_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Fix It')
         fix_button.setToolTip("Remove 'Take-Two Interactive Software, Inc.' from the blocked servers list and save the setting")
         fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
         fix_button.clicked.connect(self._remove_take_two_interactive_from_blocked_servers)
@@ -292,30 +293,30 @@ class DetectionsManagerTabsMixin(QDialog):
         # Buttons row
         button_layout = QHBoxLayout()
 
-        add_button = QPushButton('➕ Add Rule')  # noqa: RUF001
+        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Rule')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
 
-        self._combo_edit_button = QPushButton('📝 Edit')
+        self._combo_edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Edit')
         self._combo_edit_button.setEnabled(False)
         self._combo_edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_edit_button.clicked.connect(self._edit_combo_rule)
         button_layout.addWidget(self._combo_edit_button)
 
-        self._combo_duplicate_button = QPushButton('📋 Duplicate')
+        self._combo_duplicate_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Duplicate')
         self._combo_duplicate_button.setEnabled(False)
         self._combo_duplicate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_duplicate_button.clicked.connect(self._duplicate_combo_rule)
         button_layout.addWidget(self._combo_duplicate_button)
 
-        self._combo_remove_button = QPushButton('➖ Remove')  # noqa: RUF001
+        self._combo_remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
         self._combo_remove_button.setEnabled(False)
         self._combo_remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_remove_button.clicked.connect(self._remove_combo_rule)
         button_layout.addWidget(self._combo_remove_button)
 
-        self._combo_clear_button = QPushButton('🗑️ Clear All')
+        self._combo_clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
         self._combo_clear_button.setEnabled(False)
         self._combo_clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_clear_button.clicked.connect(self._clear_combo_rules)
@@ -555,19 +556,19 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
-        add_button = QPushButton('➕ Add')  # noqa: RUF001
+        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_callback = getattr(self, f'_add_{detection_type}')
         add_button.clicked.connect(add_callback)
         buttons_layout.addWidget(add_button)
 
-        remove_button = QPushButton('➖ Remove')  # noqa: RUF001
+        remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_callback = getattr(self, f'_remove_{detection_type}')
         remove_button.clicked.connect(remove_callback)
         buttons_layout.addWidget(remove_button)
 
-        clear_button = QPushButton('🗑️ Clear All')
+        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
         clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_button.clicked.connect(list_widget.clear)
         buttons_layout.addWidget(clear_button)
@@ -662,7 +663,7 @@ class DetectionsManagerTabsMixin(QDialog):
         """Return True if *value* already exists in the QListWidget (case-insensitive)."""
         for i in range(list_widget.count()):
             item = list_widget.item(i)
-            if item is not None and item.text().casefold() == value.casefold():
+            if item and item.text().casefold() == value.casefold():
                 return True
         return False
 
@@ -671,7 +672,7 @@ class DetectionsManagerTabsMixin(QDialog):
         existing_countries: set[str] = set()
         for i in range(self.country_list.count()):
             item = self.country_list.item(i)
-            if item is not None:
+            if item:
                 country = item.data(Qt.ItemDataRole.UserRole)
                 if isinstance(country, str):
                     existing_countries.add(country)

@@ -130,7 +130,10 @@ class PlayersRegistry:
             The player object if found, otherwise `None`.
         """
         with cls._registry_lock:
-            return cls._connected_players_registry.get(ip) or cls._disconnected_players_registry.get(ip)
+            player = cls._connected_players_registry.get(ip)
+            if player is None:
+                player = cls._disconnected_players_registry.get(ip)
+            return player
 
     @classmethod
     def get_connected_players(cls) -> list[Player]:

@@ -2,9 +2,9 @@
 
 from typing import override
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCloseEvent, QFont
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent, QFont
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -108,6 +108,6 @@ class PlayerInfoDialogMixin(QDialog):
         return header
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Handle the close event."""
-        super().closeEvent(a0)
+        super().closeEvent(event)

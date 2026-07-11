@@ -73,17 +73,17 @@ jobs:
           pyproject_data = tomllib.loads(pyproject_path.read_text(encoding='utf-8'))
           dependencies = pyproject_data['project']['dependencies']
 
-          pyqt_version = None
+          pyside6_version = None
           for dependency in dependencies:
               requirement = Requirement(dependency)
-              if requirement.name.lower() == 'pyqt6':
+              if requirement.name.lower() == 'pyside6':
                   for specifier in requirement.specifier:
                       if specifier.operator == '==':
-                          pyqt_version = specifier.version
+                          pyside6_version = specifier.version
                           break
                   break
-          if pyqt_version is None:
-              raise RuntimeError(f'PyQt6 dependency is missing from {pyproject_path}.')
+          if pyside6_version is None:
+              raise RuntimeError(f'PySide6 dependency is missing from {pyproject_path}.')
 
           machine = platform.machine()
           arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
@@ -96,7 +96,7 @@ jobs:
               f'RELEASE_DATE: str = {os.environ["RELEASE_DATE"]!r}\n'
               f'COMMIT_SHA: str = {os.environ["COMMIT_SHA"]!r}\n'
               f'COMMIT_DATE: str = {os.environ["COMMIT_DATE"]!r}\n'
-              f'PYQT_VERSION: str = {pyqt_version!r}\n'
+              f'PYSIDE6_VERSION: str = {pyside6_version!r}\n'
               f'OS_INFO: str = {os_info!r}\n',
               encoding='utf-8',
           )
@@ -115,7 +115,7 @@ jobs:
             }
           }
 
-          foreach ($required in @('RELEASE_TAG', 'RELEASE_DATE', 'COMMIT_SHA', 'COMMIT_DATE', 'PYQT_VERSION', 'OS_INFO')) {
+          foreach ($required in @('RELEASE_TAG', 'RELEASE_DATE', 'COMMIT_SHA', 'COMMIT_DATE', 'PYSIDE6_VERSION', 'OS_INFO')) {
             if ($content -notmatch "$required`: str =") {
               throw "Build metadata is missing $required."
             }

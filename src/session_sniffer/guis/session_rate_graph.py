@@ -8,14 +8,12 @@ from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, DualRateGraph
 class SessionRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs for the whole session."""
 
-    def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
+    def __init__(self) -> None:
         """Initialize the session-wide split rate graph window."""
         super().__init__()
 
-        self._max_history = max_history
-
         self.setWindowTitle('Session Rate Graph')
-        self._finish_graph_init(always_on_top=always_on_top)
+        self._finish_graph_init()
 
     # Auto-scaling hooks — override to track visible maximum ————————————————
 

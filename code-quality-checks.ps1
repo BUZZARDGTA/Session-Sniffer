@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 
 # Activate virtual environment
 & "${PSScriptRoot}\.venv\Scripts\Activate.ps1"
@@ -25,9 +25,9 @@ function Invoke-QualityTool {
         $endTime = Get-Date
         $elapsed_duration = $endTime - $startTime
         $elapsedSeconds = [math]::Round($elapsed_duration.TotalSeconds, 1)
-        Write-Host "✓  $ToolName completed in $elapsedSeconds seconds" -ForegroundColor Green
+        Write-Host "[OK] $ToolName completed in $elapsedSeconds seconds" -ForegroundColor Green
     } else {
-        Write-Host "⚠  $ToolName is not installed. Skipping $ToolName check." -ForegroundColor DarkYellow
+        Write-Host "[WARN] $ToolName is not installed. Skipping $ToolName check." -ForegroundColor DarkYellow
         Write-Host "   To install: $InstallCommand" -ForegroundColor Gray
     }
 }
@@ -85,6 +85,13 @@ $QualityTools = @(
         Command = "pyright"
         InstallCommand = "pip install pyright"
         Description = "Microsoft Python type checker"
+        Category = "TYPE CHECKING"
+    },
+    @{
+        ToolName = "pyrefly"
+        Command = "pyrefly check ."
+        InstallCommand = "pip install pyrefly"
+        Description = "Meta's fast Python type checker"
         Category = "TYPE CHECKING"
     },
     @{

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 from session_sniffer.text_utils import parse_suspend_duration_setting
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool

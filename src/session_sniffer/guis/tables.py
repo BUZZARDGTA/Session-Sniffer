@@ -2,9 +2,9 @@
 
 from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
-from PyQt6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
+from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
+from PySide6.QtWidgets import (
     QHeaderView,
     QMenu,
     QSizePolicy,
@@ -24,7 +24,7 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
-from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu
@@ -166,9 +166,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         return ensure_instance(super().horizontalHeader(), QHeaderView)
 
     @override
-    def eventFilter(self, object: QObject | None, event: QEvent | None) -> bool:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         """Show country flag tooltips on hover and forward other events."""
-        if isinstance(object, QObject) and isinstance(event, QHoverEvent):
+        if isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
             if index.isValid():
                 model = self.model()
@@ -179,81 +179,84 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                         if matched_player is not None and matched_player.country_flag is not None:
                             self._show_flag_tooltip(event, index, matched_player)
 
-        return super().eventFilter(object, event)
+        return super().eventFilter(watched, event)
 
     @override
-    def keyPressEvent(self, e: QKeyEvent | None) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
 
         Fall back to default behavior for other key presses.
         """
-        if isinstance(e, QKeyEvent) and e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if e.key() == Qt.Key.Key_A:
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_A:
                 self.select_all_cells()
-            elif e.key() == Qt.Key.Key_C:
+            elif event.key() == Qt.Key.Key_C:
                 self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
             return
 
         # Fall back to default behavior
-        super().keyPressEvent(e)
+        super().keyPressEvent(event)
 
     @override
-    def mousePressEvent(self, e: QMouseEvent | None) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
 
         Fall back to default behavior for non-cell areas.
         """
-        if e is not None:
-            index = self.indexAt(e.pos())  # Determine the index of the clicked item
-            if index.isValid():
-                selection_model = self.selectionModel()
-                selection_flag = None
+        index = self.indexAt(event.pos())  # Determine the index of the clicked item
+        if index.isValid():
+            selection_model = self.selectionModel()
+            selection_flag = None
 
-                if e.button() == Qt.MouseButton.LeftButton:
-                    if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-                        selection_flag = QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select
-                        self._drag_selecting = True
-                        self._previous_cell = index
-                    elif e.modifiers() == Qt.KeyboardModifier.NoModifier:
-                        was_selection_index_selected = selection_model.isSelected(index)
-                        selection_model.clearSelection()
-                        selection_flag = QItemSelectionModel.SelectionFlag.Deselect if was_selection_index_selected else QItemSelectionModel.SelectionFlag.Select
+            if event.button() == Qt.MouseButton.LeftButton:
+                if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                    selection_flag = QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select
+                    self._drag_selecting = True
+                    self._previous_cell = index
+                elif event.modifiers() == Qt.KeyboardModifier.NoModifier:
+                    was_selection_index_selected = selection_model.isSelected(index)
+                    selection_model.clearSelection()
+                    selection_flag = QItemSelectionModel.SelectionFlag.Deselect if was_selection_index_selected else QItemSelectionModel.SelectionFlag.Select
 
-                elif e.button() == Qt.MouseButton.RightButton and not selection_model.isSelected(index):
-                    selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
+            elif event.button() == Qt.MouseButton.RightButton and not selection_model.isSelected(index):
+                selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
 
-                if selection_flag is not None:
-                    selection_model.select(index, selection_flag)
+            if selection_flag is not None:
+                selection_model.select(index, selection_flag)
 
         # Fall back to default behavior
-        super().mousePressEvent(e)
+        super().mousePressEvent(event)
 
     @override
-    def mouseMoveEvent(self, e: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
-        if e is not None:
-            index = self.indexAt(e.pos())  # Get the index under the cursor
-            if index.isValid():
-                selection_model = self.selectionModel()
+        index = self.indexAt(event.pos())  # Get the index under the cursor
+        if index.isValid():
+            selection_model = self.selectionModel()
 
-                if e.buttons() == Qt.MouseButton.LeftButton and e.modifiers() == Qt.KeyboardModifier.ControlModifier and self._drag_selecting and self._previous_cell != index:
-                    self._previous_cell = index
+            if (
+                event.buttons() == Qt.MouseButton.LeftButton
+                and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+                and self._drag_selecting
+                and self._previous_cell != index
+            ):
+                self._previous_cell = index
 
-                    selection_model.select(
-                        index,
-                        (QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select),
-                    )
+                selection_model.select(
+                    index,
+                    (QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select),
+                )
 
-        super().mouseMoveEvent(e)
+        super().mouseMoveEvent(event)
 
     @override
-    def mouseReleaseEvent(self, e: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """Reset dragging state when the mouse button is released."""
-        if e is not None and e.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self._drag_selecting = False
             self._previous_cell = None
 
-        super().mouseReleaseEvent(e)
+        super().mouseReleaseEvent(event)
 
     # --------------------------------------------------------------------------
     # Custom / internal management methods
@@ -274,7 +277,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
                 # Dynamically calculate the initial width based on the header text to avoid magic numbers,
                 # adding 40px of padding to comfortably accommodate the sort indicator and margins.
-                calculated_width = horizontal_header.fontMetrics().horizontalAdvance(header_label) + 40
+                calculated_width = horizontal_header.fontMetrics().horizontalAdvance(header_label or '') + 40
                 horizontal_header.resizeSection(column, calculated_width)
             else:
                 horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
@@ -390,7 +393,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 clicked_column_name = header_label
 
         menu = QMenu(self)
-        menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
         size_column_action = QAction('↔️ Size Column to Fit', menu)
@@ -408,7 +411,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         menu.addSeparator()
 
-        hide_label = f"👁️‍🗨️ Hide Column '{clicked_column_name}'" if clicked_column_name else '👁️‍🗨️ Hide Column'
+        hide_label = f"👁️ Hide Column '{clicked_column_name}'" if clicked_column_name else '👁️ Hide Column'
         hide_column_action = QAction(hide_label, menu)
         hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
         if clicked_column_name is not None:
@@ -418,7 +421,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         menu.addAction(hide_column_action)
 
         choose_columns_menu = PersistentMenu('🧩 Choose Columns', menu)
-        choose_columns_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+        choose_columns_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         choose_columns_menu.setToolTipsVisible(True)
 
         reset_columns_action = QAction('↩️ Reset to Default', choose_columns_menu)
@@ -456,13 +459,14 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             if not columns:
                 continue
             category_menu = PersistentMenu(label, choose_columns_menu)
-            category_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
+            category_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             category_menu.setToolTipsVisible(True)
 
             select_all_action = QAction('☑️ Select All', category_menu)
 
             def _on_select_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._select_category_columns(cols)
+
             select_all_action.triggered.connect(_on_select_all)
             category_menu.addAction(select_all_action)
 
@@ -470,6 +474,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
             def _on_deselect_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._deselect_category_columns(cols)
+
             deselect_all_action.triggered.connect(_on_deselect_all)
             category_menu.addAction(deselect_all_action)
             category_menu.addSeparator()
@@ -484,6 +489,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
                 def _on_column_toggled(checked: bool, name: str = column_name) -> None:  # noqa: FBT001
                     self._toggle_column_visibility(name, checked=checked)
+
                 column_action.toggled.connect(_on_column_toggled)
                 category_menu.addAction(column_action)
             choose_columns_menu.addMenu(category_menu)

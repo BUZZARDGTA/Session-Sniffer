@@ -1,13 +1,13 @@
 """QThread base that crashes the app when `_run()` raises an unhandled exception.
 
-PyQt6's SIP layer silently swallows Python exceptions that escape `QThread.run()`,
+PySide6's SIP layer silently swallows Python exceptions that escape `QThread.run()`,
 preventing `threading.excepthook` from firing. This base class overrides `run()` with
 a try/except wrapper that delegates to `_run()`, which subclasses implement instead.
 """
 
 from typing import override
 
-from PyQt6.QtCore import QThread
+from PySide6.QtCore import QThread
 
 from session_sniffer.core import terminate_on_uncaught_exception
 

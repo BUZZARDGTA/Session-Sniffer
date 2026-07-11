@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from PyQt6.QtGui import QColor
-from qdarkstyle.colorsystem import Gray  # pyright: ignore[reportMissingTypeStubs]
+from PySide6.QtGui import QColor
 
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
@@ -19,7 +18,7 @@ PPS_MAX_THRESHOLD = 10
 PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60
 BPS_MAX_THRESHOLD = 1024
 BPM_MAX_THRESHOLD = BPS_MAX_THRESHOLD * 60
-HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor(Gray.B10)
+HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = QColor('#19232D')
 
 _ONE_MS = timedelta(milliseconds=1)
 _CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
@@ -53,7 +52,7 @@ def format_player_usernames(player: Player) -> str:
 
 def format_player_ip(player_ip: str) -> str:
     """Format player IP with crown emoji if session host."""
-    if SessionHost.player and SessionHost.player.ip == player_ip:
+    if SessionHost.player is not None and SessionHost.player.ip == player_ip:
         return f'{player_ip} 👑'
     return player_ip
 

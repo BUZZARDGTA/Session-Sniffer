@@ -317,7 +317,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
     neighbors_by_if: dict[int, list[tuple[str | None, str | None]]] = {}
 
     for if_index, ip, mac in iterate_ipv4_neighbors():
-        neighbors_by_if.setdefault(int(if_index), []).append((ip, mac))
+        neighbors_by_if.setdefault(if_index, []).append((ip, mac))
 
     size = wintypes.ULONG(WORKING_BUFFER_SIZE)
     while True:

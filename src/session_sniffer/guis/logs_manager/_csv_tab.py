@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QPoint, Qt, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices, QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
@@ -39,7 +40,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     open_file_location,
     purge_log_file,
 )
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 
 if TYPE_CHECKING:
@@ -121,11 +122,11 @@ class CsvLogTab(QWidget):
         self._table.setAlternatingRowColors(True)
 
         v_header = self._table.verticalHeader()
-        if v_header is not None:
+        if v_header:
             v_header.setDefaultSectionSize(24)
 
         h_header = self._table.horizontalHeader()
-        if h_header is not None:
+        if h_header:
             if self._stretch_column is not None:
                 h_header.setStretchLastSection(False)
                 h_header.setSectionResizeMode(self._stretch_column, QHeaderView.ResizeMode.Stretch)
@@ -142,6 +143,9 @@ class CsvLogTab(QWidget):
         self._table.setItemDelegate(ElidedTextTooltipDelegate(self._table))
         self._table.setWordWrap(False)
 
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_table_context_menu)
+
         # --- File metadata ---
         self._metadata_label = QLabel('')
         layout.addWidget(self._metadata_label)
@@ -149,13 +153,13 @@ class CsvLogTab(QWidget):
         # --- Bottom buttons ---
         button_row = QHBoxLayout()
 
-        copy_button = QPushButton('📋 Copy Selected')
+        copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Selected')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_button.setToolTip('Copy selected rows to clipboard')
         copy_button.clicked.connect(self._copy_selected)
         button_row.addWidget(copy_button)
 
-        export_button = QPushButton('💾 Export As...')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export As...')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setToolTip('Export the full log to a new CSV file')
         export_button.clicked.connect(self._export_as)
@@ -163,29 +167,30 @@ class CsvLogTab(QWidget):
 
         button_row.addStretch()
 
-        delete_rows_button = QPushButton('🗑️ Delete Selected Rows')
+        delete_rows_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected Rows')
         delete_rows_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         delete_rows_button.setToolTip('Remove selected rows from the log file')
         delete_rows_button.clicked.connect(self._delete_selected_rows)
         button_row.addWidget(delete_rows_button)
 
-        purge_button = QPushButton('🗑️ Purge File')
+        purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
         purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         purge_button.setToolTip('Clear all entries from this log file (creates a backup first)')
         purge_button.clicked.connect(self._purge_file)
         button_row.addWidget(purge_button)
 
-        open_location_button = QPushButton('📂 Open File Location')
+        label = ' Open Folder Location' if self._file_path.is_dir() else ' Open File Location'
+        open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
         open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         open_location_button.setToolTip('Open the containing folder in Windows Explorer')
         open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
         button_row.addWidget(open_location_button)
 
-        edit_file_button = QPushButton('📝 Edit File')
-        edit_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        edit_file_button.setToolTip('Open the log file in the default text editor')
-        edit_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._file_path))))
-        button_row.addWidget(edit_file_button)
+        open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+        open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        open_file_button.setToolTip('Open the log file in the default text editor')
+        open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._file_path))))
+        button_row.addWidget(open_file_button)
 
         layout.addLayout(button_row)
 
@@ -203,7 +208,7 @@ class CsvLogTab(QWidget):
     def load_data(self) -> None:
         """Read the CSV file and populate the table model."""
         scrollbar = self._table.verticalScrollBar()
-        previous_scroll = scrollbar.value() if scrollbar is not None else 0
+        previous_scroll = scrollbar.value() if scrollbar else 0
 
         self._model.removeRows(0, self._model.rowCount())
         self._all_rows.clear()
@@ -250,7 +255,7 @@ class CsvLogTab(QWidget):
                 )
 
         if self._initial_loaded:
-            if scrollbar is not None:
+            if scrollbar:
                 scrollbar.setValue(min(previous_scroll, scrollbar.maximum()))
         else:
             self._apply_default_sort()
@@ -273,7 +278,7 @@ class CsvLogTab(QWidget):
         # Sync the header sort indicator with the primary sort column.
         if primary_column_index is not None:
             h_header = self._table.horizontalHeader()
-            if h_header is not None:
+            if h_header:
                 h_header.setSortIndicator(primary_column_index, self._default_sort_order)
 
     # ------------------------------------------------------------------
@@ -336,7 +341,7 @@ class CsvLogTab(QWidget):
 
     def _on_header_context_menu(self, pos: QPoint) -> None:
         h_header = self._table.horizontalHeader()
-        if h_header is None:
+        if not h_header:
             return
         menu = QMenu(self)
         for column in range(self._model.columnCount()):
@@ -348,6 +353,53 @@ class CsvLogTab(QWidget):
             action.toggled.connect(self._toggle_column_visibility)
             menu.addAction(action)
         menu.popup(h_header.mapToGlobal(pos))
+
+    def _on_table_context_menu(self, pos: QPoint) -> None:
+        """Show a context menu on a right-clicked table row with quick-access actions."""
+        index = self._table.indexAt(pos)
+        selection_model = self._table.selectionModel()
+        has_selection = bool(selection_model and selection_model.selectedRows())
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
+
+        copy_action = QAction('📝 Copy Selected', menu)
+        copy_action.setShortcut('Ctrl+C')
+        copy_action.setToolTip('Copy selected rows to the clipboard as comma-separated values.')
+        copy_action.setEnabled(has_selection)
+        copy_action.triggered.connect(self._copy_selected)
+        menu.addAction(copy_action)
+
+        menu.addSeparator()
+
+        select_all_action = QAction('☑️ Select All', menu)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all visible rows.')
+        select_all_action.setEnabled(self._proxy.rowCount() > 0)
+        select_all_action.triggered.connect(self._table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction('⬜ Clear Selection', menu)
+        clear_selection_action.setToolTip('Deselect all rows.')
+        clear_selection_action.triggered.connect(self._table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        menu.addSeparator()
+
+        delete_action = QAction('🗑️ Delete Selected Rows', menu)
+        delete_action.setToolTip('Remove selected rows from the log file permanently.')
+        delete_action.setEnabled(has_selection)
+        delete_action.triggered.connect(self._delete_selected_rows)
+        menu.addAction(delete_action)
+
+        if not index.isValid():
+            copy_action.setEnabled(False)
+            delete_action.setEnabled(False)
+
+        viewport = self._table.viewport()
+        if viewport:
+            menu.popup(viewport.mapToGlobal(pos))
 
     def _toggle_column_visibility(self, checked: bool) -> None:  # noqa: FBT001
         action = self.sender()
@@ -361,7 +413,7 @@ class CsvLogTab(QWidget):
 
     def _copy_selected(self) -> None:
         selection_model = self._table.selectionModel()
-        if selection_model is None:
+        if not selection_model:
             return
         indexes = selection_model.selectedRows()
         if not indexes:
@@ -378,7 +430,7 @@ class CsvLogTab(QWidget):
             lines.append(','.join(cells))
 
         clipboard = QApplication.clipboard()
-        if clipboard is not None:
+        if clipboard:
             clipboard.setText('\n'.join(lines))
         self._show_status(f'Copied {len(lines)} row(s) to clipboard.')
 
@@ -396,7 +448,7 @@ class CsvLogTab(QWidget):
 
     def _delete_selected_rows(self) -> None:
         selection_model = self._table.selectionModel()
-        if selection_model is None:
+        if not selection_model:
             return
         indexes = selection_model.selectedRows()
         if not indexes:

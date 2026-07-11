@@ -7,11 +7,11 @@ functionality to update or close the presence. It uses threading to run the upda
 import asyncio
 import sys
 import time
+from enum import Enum, auto
 from queue import SimpleQueue
 from threading import Event, Thread
 from typing import NamedTuple
 
-import sentinel  # pyright: ignore[reportMissingTypeStubs]
 from pypresence import exceptions
 from pypresence.presence import Presence
 
@@ -27,9 +27,14 @@ class _PresenceUpdate(NamedTuple):
     details: str | None
 
 
-type QueueType = SimpleQueue[_PresenceUpdate | object]
+class _ShutdownSignal(Enum):
+    SIGNAL = auto()
 
-SHUTDOWN_SIGNAL = sentinel.create('ShutdownSignal')
+
+type QueueType = SimpleQueue[_PresenceUpdate | _ShutdownSignal]
+
+
+SHUTDOWN_SIGNAL = _ShutdownSignal.SIGNAL
 START_TIME_INT = int(time.time())
 _RECONNECT_COOLDOWN_SECONDS = 60.0
 DISCORD_RPC_BUTTONS = [

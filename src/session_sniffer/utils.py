@@ -3,6 +3,7 @@
 This module contains a variety of helper functions and custom exceptions used across the project.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -10,7 +11,7 @@ import winreg
 from contextlib import suppress
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import psutil
 from win32com.client import Dispatch
@@ -29,6 +30,7 @@ from session_sniffer.utils_exceptions import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from typing import Any
 
     from packaging.version import Version
 
@@ -391,3 +393,164 @@ def run_cmd_command(command: str, args: list[str] | None = None) -> None:
         full_command.extend(args)
 
     subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
+
+
+def is_session_file_empty(file_path: Path) -> bool:
+    """Check if the given session log file has no players found or is invalid.
+
+    Args:
+        file_path: Absolute path to the session JSON file.
+
+    Returns:
+        True if the file has no players (empty 'connected' and 'disconnected' sections) or is unreadable.
+    """
+    try:
+        content = file_path.read_text(encoding='utf-8')
+        if not content.strip():
+            return True
+        parsed_data = json.loads(content)
+    except OSError, json.JSONDecodeError:
+        return True
+
+    if not isinstance(parsed_data, dict):
+        return True
+
+    data = cast('Any', parsed_data)
+    connected = data.get('connected')
+    disconnected = data.get('disconnected')
+
+    has_connected = isinstance(connected, dict) and len(cast('Any', connected)) > 0
+    has_disconnected = isinstance(disconnected, dict) and len(cast('Any', disconnected)) > 0
+
+    return not (has_connected or has_disconnected)
+
+
+def cleanup_session_logs(
+    sessions_dir: Path,
+    *,
+    delete_empty_files: bool,
+    delete_empty_folders: bool,
+    gui_sessions_logging: bool,
+    active_session_path: Path | None = None,
+) -> tuple[int, int]:
+    """Automatically clean up empty session log files and empty directories in the sessions directory.
+
+    Args:
+        sessions_dir: Root directory for session log files.
+        delete_empty_files: If True, delete session files that have no players found.
+        delete_empty_folders: If True, delete empty year, month, or day folders.
+        gui_sessions_logging: If True, prevent scanning the currently running session file.
+        active_session_path: Path to the active session file.
+
+    Returns:
+        A tuple of (files_deleted_count, folders_deleted_count).
+    """
+    files_deleted_count = 0
+    deleted_folders_set: set[Path] = set()
+
+    if not delete_empty_files and not delete_empty_folders:
+        return files_deleted_count, len(deleted_folders_set)
+
+    if not sessions_dir.exists():
+        return files_deleted_count, len(deleted_folders_set)
+
+    json_files = sorted(sessions_dir.rglob('*.json'))
+    if not json_files:
+        if delete_empty_folders:
+            _delete_all_empty_folders(sessions_dir, deleted_folders_set)
+        return files_deleted_count, len(deleted_folders_set)
+
+    files_to_scan = json_files
+    if gui_sessions_logging:
+        if files_to_scan:
+            files_to_scan = files_to_scan[:-1]
+        if active_session_path:
+            try:
+                active_session_path_resolved = active_session_path.resolve()
+                files_to_scan = [file_path for file_path in files_to_scan if file_path.resolve() != active_session_path_resolved]
+            except OSError:
+                files_to_scan = [file_path for file_path in files_to_scan if file_path != active_session_path]
+
+    deleted_parents: set[Path] = set()
+
+    if delete_empty_files:
+        for file_path in files_to_scan:
+            if is_session_file_empty(file_path):
+                parent_dir = file_path.parent
+                try:
+                    file_path.unlink()
+                    files_deleted_count += 1
+                    deleted_parents.add(parent_dir)
+                except OSError:
+                    pass
+
+        for folder in deleted_parents:
+            _clean_upwards_if_empty(folder, sessions_dir, deleted_folders_set)
+
+    if delete_empty_folders:
+        _delete_all_empty_folders(sessions_dir, deleted_folders_set)
+
+    return files_deleted_count, len(deleted_folders_set)
+
+
+def _clean_upwards_if_empty(folder: Path, base_dir: Path, deleted_folders: set[Path]) -> None:
+    """Clean empty directories bottom-up from folder to base_dir, not deleting base_dir itself.
+
+    Args:
+        folder: Subdirectory to start cleaning from.
+        base_dir: Root directory to stop at.
+        deleted_folders: Set to collect deleted folder paths.
+    """
+    current = folder
+    try:
+        base_dir_resolved = base_dir.resolve()
+    except OSError:
+        base_dir_resolved = base_dir
+
+    while True:
+        try:
+            current_resolved = current.resolve()
+        except OSError:
+            current_resolved = current
+
+        if current_resolved == base_dir_resolved or not current.is_relative_to(base_dir):
+            break
+
+        if not current.exists():
+            current = current.parent
+            continue
+
+        try:
+            if not any(current.iterdir()):
+                current.rmdir()
+                deleted_folders.add(current)
+            else:
+                break
+        except OSError:
+            break
+        current = current.parent
+
+
+def _delete_all_empty_folders(base_dir: Path, deleted_folders: set[Path]) -> None:
+    """Recursively delete all empty folders under base_dir bottom-up.
+
+    Args:
+        base_dir: Root directory.
+        deleted_folders: Set to collect deleted folder paths.
+    """
+    for root, dirs, _ in os.walk(base_dir, topdown=False):
+        for dir_name in dirs:
+            dir_path = Path(root) / dir_name
+            try:
+                dir_path_resolved = dir_path.resolve()
+                base_dir_resolved = base_dir.resolve()
+                if dir_path_resolved == base_dir_resolved:
+                    continue
+            except OSError:
+                pass
+            try:
+                if not any(dir_path.iterdir()):
+                    dir_path.rmdir()
+                    deleted_folders.add(dir_path)
+            except OSError:
+                pass

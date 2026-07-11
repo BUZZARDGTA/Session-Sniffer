@@ -6,8 +6,8 @@ from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtGui import QColor
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
@@ -20,7 +20,7 @@ from session_sniffer.text_utils import format_triple_quoted_text
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PyQt6.QtWidgets import QMessageBox
+    from PySide6.QtWidgets import QMessageBox
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 class _GUIThreadDispatcher(QObject):
     """Schedule callables on the GUI thread from any thread via Qt's auto-queued connection."""
 
-    _call: ClassVar[pyqtSignal] = pyqtSignal(object)
+    _call: ClassVar[Signal] = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()

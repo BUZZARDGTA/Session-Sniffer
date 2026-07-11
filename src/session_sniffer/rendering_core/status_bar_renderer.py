@@ -188,7 +188,7 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
     if len(interface_name) > _INTERFACE_NAME_MAX_LEN:
         interface_name = interface_name[:_INTERFACE_NAME_MAX_LEN] + '…'
     return (
-        f'<span style="font-size: 11px;">'
+        f'<span style="font-size: 13px;">'
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">📡 Capture:</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Interface:</span> '
@@ -229,7 +229,7 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
 
     divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
     body = divider.join(parts)
-    return f'<span style="font-size: 11px;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> {body}</span>'
+    return f'<span style="font-size: 13px;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚙️ Config:</span> {body}</span>'
 
 
 def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
@@ -271,7 +271,7 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
     )
 
     return (
-        f'<span style="font-size: 11px;">'
+        f'<span style="font-size: 13px;">'
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">⚡ Performance:</span> '
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Latency:</span> '
         f'<span style="color: {latency_color};">{latency_text}</span>'

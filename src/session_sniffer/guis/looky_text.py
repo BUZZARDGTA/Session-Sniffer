@@ -1,6 +1,6 @@
 """Shared Looky System UI text and small helpers."""
 
-from PyQt6.QtGui import QAction  # noqa: TC002
+from PySide6.QtGui import QAction  # noqa: TC002
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.networking.looky_system import LookyState

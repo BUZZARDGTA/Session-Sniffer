@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import ClassVar, Literal, override
 
-from PyQt6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPixmap
 
 
 @dataclass(kw_only=True, slots=True)
@@ -201,19 +201,19 @@ class PlayerIPAPI:  # pylint: disable=too-many-public-methods
     def mobile(self) -> bool | str:
         """Return the mobile flag from the IP-API lookup result."""
         value = self._values['mobile']
-        return bool(value) if isinstance(value, bool) else str(value)
+        return value if isinstance(value, bool) else str(value)
 
     @property
     def proxy(self) -> bool | str:
         """Return the proxy flag from the IP-API lookup result."""
         value = self._values['proxy']
-        return bool(value) if isinstance(value, bool) else str(value)
+        return value if isinstance(value, bool) else str(value)
 
     @property
     def hosting(self) -> bool | str:
         """Return the hosting flag from the IP-API lookup result."""
         value = self._values['hosting']
-        return bool(value) if isinstance(value, bool) else str(value)
+        return value if isinstance(value, bool) else str(value)
 
 
 class PlayerCountryFlag:

@@ -1,9 +1,9 @@
 """Looky System menu-building and action handlers mixin for `MainWindow`."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QMenu, QMessageBox
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 from session_sniffer.guis.looky_text import (
     LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
+class LookyMixin(QMainWindow):
     """Looky System menu-building and action handlers mixin for `MainWindow`.
 
     Expects these attributes on the concrete class (set in `__init__`):
@@ -39,12 +39,12 @@ class LookyMixin(QMainWindow):  # pylint: disable=too-few-public-methods
 
     def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
         """Build the Looky System submenu and attach it to `gta5_menu`."""
-        looky_submenu = gta5_menu.addMenu('👁 Looky System')
-        if looky_submenu is None:
+        looky_submenu = gta5_menu.addMenu('👁️ Looky System')
+        if not looky_submenu:
             message = 'Failed to create Looky System submenu'
             raise RuntimeError(message)
         looky_submenu.setToolTipsVisible(True)
-        cast('QAction', looky_submenu.menuAction()).setToolTip('Looky System tools and shortcuts for GTA5 sessions')
+        looky_submenu.menuAction().setToolTip('Looky System tools and shortcuts for GTA5 sessions')
         self._looky_submenu = looky_submenu
 
         looky_open_website_action = QAction('🌐 Open Website', self)

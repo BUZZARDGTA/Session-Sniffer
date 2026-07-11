@@ -281,6 +281,7 @@ def hostname_core() -> None:
         worker=reverse_dns_lookup,
         should_submit=should_submit,
         apply_result=apply_result,
+        max_workers=32,
     )
 
 

@@ -3,7 +3,7 @@
 from threading import Event
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QMainWindow, QMenu
+from PySide6.QtWidgets import QMainWindow, QMenu
 
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
@@ -20,7 +20,7 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from PyQt6.QtGui import QAction
+    from PySide6.QtGui import QAction
 
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
@@ -234,7 +234,7 @@ class GTA5Mixin(QMainWindow):
         gta5_feature_set = Settings.is_gta5_feature_set()
         SessionHost.clear_session_host_data()
         gta5_menu_action = self._gta5_menu.menuAction()
-        if gta5_menu_action is not None:
+        if gta5_menu_action:
             gta5_menu_action.setVisible(gta5_feature_set)
 
         # Hide local-process-bound items when capturing traffic from another machine.
@@ -242,11 +242,11 @@ class GTA5Mixin(QMainWindow):
         self._gta5_status_widget_action.setVisible(local_only_visible)
         self._gta5_menu_status_separator.setVisible(local_only_visible)
         looky_action = self._looky_submenu.menuAction()
-        if looky_action is not None:
+        if looky_action:
             looky_action.setVisible(local_only_visible)
         self._gta5_menu_process_separator.setVisible(local_only_visible)
         process_action = self._gta5_process_submenu.menuAction()
-        if process_action is not None:
+        if process_action:
             process_action.setVisible(local_only_visible)
 
         self._refresh_runtime_capability_windows()

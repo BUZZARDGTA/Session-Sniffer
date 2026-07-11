@@ -2,7 +2,7 @@
 
 from typing import override
 
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtCore import Signal
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.guis._crashing_qthread import CrashingQThread
@@ -47,7 +47,7 @@ def _paginate(
 class GUIWorkerThread(CrashingQThread):
     """Emit GUI update payloads compiled by the rendering core."""
 
-    update_signal = pyqtSignal(GUIUpdatePayload)
+    update_signal = Signal(GUIUpdatePayload)
 
     @override
     def _run(self) -> None:

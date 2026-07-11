@@ -57,14 +57,15 @@ class Settings:
     capture_filter_block_uaudp: bool = SETTING_DEFAULTS['capture_filter_block_uaudp']
     capture_filter_block_classicstun: bool = SETTING_DEFAULTS['capture_filter_block_classicstun']
     capture_filter_block_llmnr: bool = SETTING_DEFAULTS['capture_filter_block_llmnr']
+    gui_always_on_top: bool = SETTING_DEFAULTS['gui_always_on_top']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
     gui_interface_selection_hide_inactive: bool = SETTING_DEFAULTS['gui_interface_selection_hide_inactive']
     gui_interface_selection_hide_neighbours: bool = SETTING_DEFAULTS['gui_interface_selection_hide_neighbours']
     gui_sessions_logging: bool = SETTING_DEFAULTS['gui_sessions_logging']
+    gui_sessions_logging_delete_empty_files: bool = SETTING_DEFAULTS['gui_sessions_logging_delete_empty_files']
+    gui_sessions_logging_delete_empty_folders: bool = SETTING_DEFAULTS['gui_sessions_logging_delete_empty_folders']
     gui_reset_ports_on_rejoins: bool = SETTING_DEFAULTS['gui_reset_ports_on_rejoins']
     gui_session_host_detection: bool = SETTING_DEFAULTS['gui_session_host_detection']
-    gui_rate_graph_always_on_top: bool = SETTING_DEFAULTS['gui_rate_graph_always_on_top']
-    gui_rate_graph_max_history: int = SETTING_DEFAULTS['gui_rate_graph_max_history']
     gui_columns_connected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_connected_shown']
     gui_columns_disconnected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_disconnected_shown']
     gui_columns_datetime_show_date: bool = SETTING_DEFAULTS['gui_columns_datetime_show_date']
@@ -122,10 +123,10 @@ class Settings:
         'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
         'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
         'GUI_SESSIONS_LOGGING',
+        'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FILES',
+        'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS',
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_SESSION_HOST_DETECTION',
-        'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
-        'GUI_RATE_GRAPH_MAX_HISTORY',
         'GUI_COLUMNS_CONNECTED_SHOWN',
         'GUI_COLUMNS_DISCONNECTED_SHOWN',
         'GUI_COLUMNS_DATETIME_SHOW_DATE',

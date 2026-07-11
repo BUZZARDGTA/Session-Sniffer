@@ -13,16 +13,16 @@ from packaging.requirements import Requirement
 from session_sniffer.constants.local import PYPROJECT_DATA, PYPROJECT_PATH
 
 
-def _read_pyqt_version() -> str:
+def _read_pyside6_version() -> str:
     for dependency in PYPROJECT_DATA['project']['dependencies']:
         requirement = Requirement(dependency)
 
-        if requirement.name.lower() == 'pyqt6':
+        if requirement.name.lower() == 'pyside6':
             for specifier in requirement.specifier:
                 if specifier.operator == '==':
                     return specifier.version
 
-    message = f'PyQt6 dependency is missing from {PYPROJECT_PATH}.'
+    message = f'PySide6 dependency is missing from {PYPROJECT_PATH}.'
     raise RuntimeError(message)
 
 
@@ -37,5 +37,5 @@ RELEASE_DATE = '-'
 COMMIT_SHA = '-'
 COMMIT_DATE = '-'
 
-PYQT_VERSION = _read_pyqt_version()
+PYSIDE6_VERSION = _read_pyside6_version()
 OS_INFO = _compute_os_info()

@@ -1,11 +1,11 @@
-"""A native PyQt6 widget for drawing rate graphs without pyqtgraph."""
+"""A native PySide6 widget for drawing rate graphs."""
 
 from dataclasses import dataclass
 from typing import override
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
+from PySide6.QtWidgets import QWidget
 
 INTEGER_FORMAT_THRESHOLD = 10
 
@@ -21,10 +21,7 @@ class RateGraphTheme:
 
 
 class RateGraphWidget(QWidget):
-    """A custom widget for drawing live rate graphs.
-
-    Replaces the pyqtgraph PlotWidget.
-    """
+    """A custom widget for drawing live rate graphs."""
 
     def __init__(
         self,
@@ -72,6 +69,34 @@ class RateGraphWidget(QWidget):
         self._y_max = y_max
         self.update()
 
+    @classmethod
+    def create_pps_widget(cls, visible_window: int = 60, parent: QWidget | None = None) -> RateGraphWidget:
+        """Create a RateGraphWidget configured for Packets per Second (PPS)."""
+        return cls(
+            left_label='PPS',
+            theme=RateGraphTheme(
+                line_color='lime',
+                fill_color=QColor(0, 255, 0, 60),
+                avg_color='#388e3c',
+            ),
+            visible_window=visible_window,
+            parent=parent,
+        )
+
+    @classmethod
+    def create_bps_widget(cls, visible_window: int = 60, parent: QWidget | None = None) -> RateGraphWidget:
+        """Create a RateGraphWidget configured for Bytes per Second (BPS in KB/s)."""
+        return cls(
+            left_label='KB/s',
+            theme=RateGraphTheme(
+                line_color='#00bcd4',
+                fill_color=QColor(0, 188, 212, 60),
+                avg_color='#0097a7',
+            ),
+            visible_window=visible_window,
+            parent=parent,
+        )
+
     @override
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         """Paint the graph."""
@@ -83,7 +108,7 @@ class RateGraphWidget(QWidget):
 
         rect = self.rect()
         margin_left = 60
-        margin_bottom = 30
+        margin_bottom = 45
         margin_top = 10
         margin_right = 10
 

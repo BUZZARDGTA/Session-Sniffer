@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from threading import Condition, Lock
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
 from session_sniffer.settings import Settings

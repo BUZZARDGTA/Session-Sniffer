@@ -2,12 +2,21 @@
 
 from datetime import datetime
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QAction, QColor
+from PySide6.QtWidgets import QHeaderView, QMenu, QTableWidget, QTableWidgetItem
 
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, format_duration, format_player_display, setup_stat_table
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.utils import (
+    NumericTableWidgetItem,
+    ToggleAlwaysOnTopMixin,
+    copy_table_widget_selection,
+    format_duration,
+    format_player_display,
+    popup_menu_at_table_widget,
+    setup_stat_table,
+)
 from session_sniffer.player.registry import PlayersRegistry
 
 _COLUMN_PLAYER = 0
@@ -41,7 +50,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
         setup_stat_table(self._table, layout, sorting=True)
 
         h_header = self._table.horizontalHeader()
-        if h_header is None:
+        if not h_header:
             message = 'Failed to get horizontal header'
             raise RuntimeError(message)
         # Use Interactive so column widths are not recalculated on every cell update;
@@ -53,15 +62,68 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
 
         self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._show_context_menu)
+
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
         # Tracks the ordered IP list from the last full repopulate to detect row set changes.
         self._last_player_ips: list[str] = []
+        # Prevents refresh() from clearing the row selection while a context menu is open.
+        self._context_menu_open: bool = False
+
+    # Context menu ——————————————————————————————————————————————————————————
+
+    def _show_context_menu(self, pos: QPoint) -> None:
+        """Show a context menu with copy and selection options for the timeline table."""
+        index = self._table.indexAt(pos)
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
+
+        copy_row_action = QAction('📝 Copy Row', menu)
+        copy_row_action.setToolTip('Copy the selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.setEnabled(index.isValid())
+        copy_row_action.triggered.connect(lambda: copy_table_widget_selection(self._table))
+        menu.addAction(copy_row_action)
+
+        copy_all_action = QAction('📋 Copy All', menu)
+        copy_all_action.setToolTip('Select all rows, then copy them to the clipboard.')
+        copy_all_action.setEnabled(self._table.rowCount() > 0)
+
+        def _copy_all() -> None:
+            self._table.selectAll()
+            copy_table_widget_selection(self._table)
+
+        copy_all_action.triggered.connect(_copy_all)
+        menu.addAction(copy_all_action)
+
+        menu.addSeparator()
+
+        select_all_action = QAction('☑️ Select All', menu)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the table.')
+        select_all_action.setEnabled(self._table.rowCount() > 0)
+        select_all_action.triggered.connect(self._table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction('⬜ Clear Selection', menu)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        popup_menu_at_table_widget(menu, self._table, pos)
+
+        self._context_menu_open = True
+        menu.aboutToHide.connect(lambda: setattr(self, '_context_menu_open', False))
 
     # Public API —————————————————————————————————————————————————————————————
 
     def refresh(self) -> None:
         """Update the table with current player presence data."""
+        if self._context_menu_open:
+            return
         all_players = PlayersRegistry.get_all_players()
         num_players = len(all_players)
 
@@ -121,7 +183,7 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
                     self._table.setItem(row, column, item)
 
             h_header = self._table.horizontalHeader()
-            if h_header is not None:
+            if h_header:
                 h_header.resizeSections(QHeaderView.ResizeMode.ResizeToContents)
             self._last_player_ips = current_ips
             # Re-enable sorting once — triggers a single sort, acceptable after a structural change.

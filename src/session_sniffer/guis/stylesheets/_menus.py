@@ -1,12 +1,25 @@
 """Context menu, menu bar, and status bar QSS."""
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
+
+_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
+
 # =============================================================================
 # CONTEXT MENU STYLES
 # =============================================================================
 
 # TODO(BUZZARDGTA): Implement a better way to retrieve the default background color for table cells.
 # Currently hardcoded to Gray.B10, which should be the same color for everyone.
-CUSTOM_CONTEXT_MENU_STYLESHEET = """
+SHARED_QMENU_RIGHT_ARROW_STYLESHEET = """
+QMenu::right-arrow {
+    image: url("{chevron_right_path}");
+    width: 14px;
+    height: 14px;
+    padding-right: 6px;
+}
+"""
+
+SVG_ICON_CONTEXT_MENU_STYLESHEET = ("""
 QMenu {
     background-color: #1e1e1e;     /* Dark background */
     border: 1px solid #2d2d2d;     /* Subtle border */
@@ -16,8 +29,14 @@ QMenu {
 
 QMenu::item {
     color: #d4d4d4;                /* Light gray text color */
-    padding: 6px 20px;             /* Padding for each item */
+    padding: 5px 20px 5px 8px;    /* top right bottom left — left leaves room for icon column */
     background-color: transparent; /* Default background */
+}
+
+QMenu::icon {
+    width: 16px;                   /* Fix SVG icon width */
+    height: 16px;                  /* Fix SVG icon height */
+    padding-left: 6px;             /* Indent icon from the left edge */
 }
 
 QMenu::item:selected {
@@ -54,102 +73,21 @@ QMenu::separator {
     background: #2d2d2d;           /* Separator color */
     margin: 4px 0;
 }
-""".strip()
+""" + SHARED_QMENU_RIGHT_ARROW_STYLESHEET).strip().replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
 
 
 # =============================================================================
 # STATUS BAR STYLES
 # =============================================================================
 
-MENU_BAR_STYLESHEET = """
-QMenuBar {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #2e3440, stop:1 #3b4252);
-    color: #d8dee9;
-    border-bottom: 2px solid #88c0d0;
-    font-family: 'Segoe UI', 'Roboto', sans-serif;
-    font-size: 10pt;
-    font-weight: 600;
-    padding: 2px 4px;
-    spacing: 2px;
-}
-
-QMenuBar::item {
-    background: transparent;
-    color: #d8dee9;
-    padding: 5px 14px;
-    border-radius: 4px;
-}
-
-QMenuBar::item:selected {
-    background: rgba(136, 192, 208, 0.22);
-    color: #88c0d0;
-}
-
-QMenuBar::item:pressed {
-    background: rgba(136, 192, 208, 0.35);
-    color: #eceff4;
-}
-
-QMenu {
-    background: #2e3440;
-    color: #d8dee9;
-    border: 1px solid #4c566a;
-    border-radius: 4px;
-    padding: 4px 0px;
-}
-
-QMenu::item {
-    background: transparent;
-    color: #d8dee9;
-    padding: 6px 28px 6px 16px;
-    font-size: 10pt;
-}
-
-QMenu::item:selected {
-    background: rgba(136, 192, 208, 0.25);
-    color: #eceff4;
-    border-radius: 3px;
-}
-
-QMenu::item:disabled {
-    color: #4c566a;
-}
-
-QMenu::separator {
-    height: 1px;
-    background: #4c566a;
-    margin: 4px 10px;
-}
-
-QMenu::right-arrow {
-    width: 12px;
-    height: 12px;
-    margin-right: 4px;
-}
-""".strip()
+MENU_BAR_STYLESHEET = ''
 
 
 # =============================================================================
 # STATUS BAR STYLES
 # =============================================================================
 
-STATUS_BAR_STYLESHEET = """
-QStatusBar {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #2e3440, stop:1 #3b4252);
-    color: #d8dee9;
-    border-top: 2px solid #88c0d0;
-    font-family: 'Segoe UI', 'Roboto', sans-serif;
-    font-size: 10pt;
-    font-weight: 500;
-    padding: 4px 8px;
-    min-height: 24px;
-}
-QStatusBar::item {
-    border: none;
-}
-""".strip()
+STATUS_BAR_STYLESHEET = ''
 
 
 STATUS_BAR_CAPTURE_LABEL_STYLESHEET = """

@@ -16,11 +16,10 @@ import re
 import time
 import urllib.parse
 from dataclasses import dataclass
+from enum import Enum, auto
 from queue import Empty, SimpleQueue
 from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, Final, cast
-
-import sentinel  # pyright: ignore[reportMissingTypeStubs]
 
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
@@ -32,7 +31,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-SHUTDOWN_SIGNAL = sentinel.create('WebhookShutdownSignal')
+
+class _WebhookShutdownSignal(Enum):
+    SIGNAL = auto()
+
+
+SHUTDOWN_SIGNAL = _WebhookShutdownSignal.SIGNAL
 
 WEBHOOK_URL_RE: Final = re.compile(
     r'^https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+/?$',
@@ -299,7 +303,7 @@ def _http_request(
         connection.close()
     return (
         response.status,
-        {str(key).lower(): str(value) for key, value in response.getheaders()},
+        {key.lower(): value for key, value in response.getheaders()},
         response_body,
     )
 

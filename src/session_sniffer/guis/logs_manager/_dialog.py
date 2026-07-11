@@ -2,7 +2,8 @@
 
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QMessageBox,
@@ -16,6 +17,7 @@ from session_sniffer.constants.local import (
     DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
     PROTECTION_LOGGING_PATH,
+    RESOURCES_DIR_PATH,
     SESSIONS_LOGGING_DIR_PATH,
     USERIP_LOGGING_PATH,
 )
@@ -26,9 +28,12 @@ from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
+from session_sniffer.settings import Settings
+from session_sniffer.utils import cleanup_session_logs
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QShowEvent
+    from PySide6.QtGui import QShowEvent
 
 
 class LogsManager(QDialog):
@@ -90,19 +95,46 @@ class LogsManager(QDialog):
         button_row = QHBoxLayout()
         button_row.addStretch()
 
-        purge_all_button = QPushButton('🗑️ Purge All Logs')
+        purge_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge All Logs')
         purge_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         purge_all_button.setToolTip('Clear ALL log files at once (creates backups first)')
         purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
 
-        close_button = QPushButton('✖ Close')
+        clean_empty_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'clear_all.svg')), ' Clean Empty Sessions')
+        clean_empty_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        clean_empty_button.setToolTip('Delete empty session logs and empty folders (keeps active session)')
+        clean_empty_button.clicked.connect(self.clean_empty_sessions)
+        button_row.addWidget(clean_empty_button)
+
+        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.setToolTip('Close the Logs Manager')
         close_button.clicked.connect(self.close)
         button_row.addWidget(close_button)
 
         root_layout.addLayout(button_row)
+
+    # ------------------------------------------------------------------
+    # Clean empty sessions
+    # ------------------------------------------------------------------
+
+    def clean_empty_sessions(self) -> None:
+        """Manually clean up empty session log files and empty directories."""
+        files_deleted, folders_deleted = cleanup_session_logs(
+            sessions_dir=SESSIONS_LOGGING_DIR_PATH,
+            delete_empty_files=True,
+            delete_empty_folders=True,
+            gui_sessions_logging=Settings.gui_sessions_logging,
+            active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
+        )
+        QMessageBox.information(
+            self,
+            TITLE,
+            f'Cleaned up empty session logs:\n\n'
+            f'  • Files deleted: {files_deleted}\n'
+            f'  • Folders deleted: {folders_deleted}',
+        )
 
     # ------------------------------------------------------------------
     # Purge all
@@ -151,7 +183,7 @@ class LogsManager(QDialog):
         QMessageBox.information(self, TITLE, '\n'.join(parts))
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:

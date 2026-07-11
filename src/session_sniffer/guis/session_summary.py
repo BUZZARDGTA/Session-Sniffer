@@ -2,7 +2,7 @@
 
 import time
 
-from PyQt6.QtWidgets import QFormLayout, QGroupBox, QLabel
+from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_duration
 from session_sniffer.models.player import PlayerBandwidth

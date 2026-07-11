@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING, cast, override
 
 import pydantic
 import requests
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QGuiApplication, QKeySequence
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QGuiApplication, QKeySequence
+from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
     QFrame,
@@ -30,7 +30,7 @@ from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QCloseEvent, QKeyEvent
+    from PySide6.QtGui import QCloseEvent, QKeyEvent
 
     from session_sniffer.models.looky_system import LookyVerifyResponse
 
@@ -45,8 +45,8 @@ def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: F
 class _LookyVerifyWorker(CrashingQThread):
     """Background thread that verifies a Looky System API key via `/api/whoami`."""
 
-    verified: pyqtSignal = pyqtSignal(object)  # LookyVerifyResponse
-    failed: pyqtSignal = pyqtSignal(str)  # error message
+    verified: Signal = Signal(object)  # LookyVerifyResponse
+    failed: Signal = Signal(str)  # error message
 
     def __init__(self, api_key: str) -> None:
         super().__init__()
@@ -90,7 +90,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _build_looky_info_group(self) -> QGroupBox:
         """Build an informational banner for the Looky System API key setting."""
-        group_box = QGroupBox('🚹 Looky System — GTA IP Lookup')
+        group_box = QGroupBox('Looky System — GTA IP Lookup')
         layout = QVBoxLayout(group_box)
 
         info_label = QLabel(
@@ -119,6 +119,7 @@ class SettingsDialogLookyMixin(QDialog):
         outer.setSpacing(8)
 
         self._looky_account_card = QFrame()
+        self._looky_account_card.setObjectName('lookyAccountCard')
         self._looky_account_card.setStyleSheet(LOOKY_ACCOUNT_CARD_STYLESHEET)
         card_layout = QVBoxLayout(self._looky_account_card)
         card_layout.setContentsMargins(14, 10, 14, 10)
@@ -131,6 +132,7 @@ class SettingsDialogLookyMixin(QDialog):
         card_layout.addWidget(self._looky_verify_status_label)
 
         self._looky_card_forms_container = QWidget()
+        self._looky_card_forms_container.setStyleSheet('background: transparent;')
         forms_row = QHBoxLayout(self._looky_card_forms_container)
         forms_row.setContentsMargins(0, 0, 0, 0)
         forms_row.setSpacing(32)
@@ -238,26 +240,26 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_forms_container.setVisible(False)
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Wait for any in-flight verify worker before the dialog is destroyed."""
-        super().closeEvent(a0)
-        if a0 is not None and not a0.isAccepted():
+        super().closeEvent(event)
+        if event and not event.isAccepted():
             return
         if self._verify_worker is not None and self._verify_worker.isRunning():
             self._verify_worker.quit()
             self._verify_worker.wait()
 
     @override
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         """Detect Ctrl+V on the API key field and trigger immediate verification."""
         api_key_widget = self._widgets.get('looky_api_key')
-        if a0 is api_key_widget and a1 is not None and a1.type() == QEvent.Type.KeyPress and cast('QKeyEvent', a1).matches(QKeySequence.StandardKey.Paste):
+        if watched is api_key_widget and event and event.type() == QEvent.Type.KeyPress and cast('QKeyEvent', event).matches(QKeySequence.StandardKey.Paste):
             clipboard = QGuiApplication.clipboard()
-            clipboard_text = clipboard.text() if clipboard is not None else ''
+            clipboard_text = clipboard.text() if clipboard else ''
             if any(char.isspace() for char in clipboard_text.strip()):
                 return True
             QTimer.singleShot(0, self._on_looky_api_key_pasted)
-        return super().eventFilter(a0, a1)
+        return super().eventFilter(watched, event)
 
     def _on_looky_api_key_pasted(self) -> None:
         """Trigger immediate verification after the pasted text has been inserted."""

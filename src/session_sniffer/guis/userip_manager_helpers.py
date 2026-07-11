@@ -3,11 +3,11 @@
 import ipaddress
 import re
 from ipaddress import IPv4Address
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import QModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QBrush, QColor, QRegularExpressionValidator, QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
+from PySide6.QtGui import QBrush, QColor, QRegularExpressionValidator, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QDialogButtonBox,
@@ -165,10 +165,10 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
 
     @override
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         """Filter rows by Username, IP, and Database columns only (skip the Index column)."""
         model = self.sourceModel()
-        if model is None:
+        if not model:
             return True
         regex = self.filterRegularExpression()
         if not regex.pattern():
@@ -181,10 +181,10 @@ class EntriesSortProxy(QSortFilterProxyModel):
         return False
 
     @override
-    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
+    def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
         """Compare two indexes, sorting IPs numerically and using IP as a tiebreaker."""
         model = self.sourceModel()
-        if model is not None:
+        if model:
             # When sorting the Index column, compare numerically via UserRole.
             if self.sortColumn() == INDEX_COLUMN:
                 left_val = model.data(left, Qt.ItemDataRole.UserRole)
@@ -201,11 +201,11 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 left_data = model.data(left)
                 right_data = model.data(right)
                 if left_data == right_data:
-                    left_ip = model.data(left.siblingAtColumn(IP_COLUMN))
-                    right_ip = model.data(right.siblingAtColumn(IP_COLUMN))
+                    left_ip = model.data(cast('QModelIndex', left).siblingAtColumn(IP_COLUMN))
+                    right_ip = model.data(cast('QModelIndex', right).siblingAtColumn(IP_COLUMN))
                     if left_ip is not None and right_ip is not None:
                         return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
-        return bool(super().lessThan(left, right))
+        return super().lessThan(left, right)
 
 
 BYTES_PER_UNIT = 1024
@@ -607,7 +607,7 @@ class IPRangeBuilderDialog(QDialog):
         # --- Buttons ---
         self._buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self._ok_button = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
-        if self._ok_button is not None:
+        if self._ok_button:
             self._ok_button.setEnabled(False)
         self._buttons.accepted.connect(self.accept)
         self._buttons.rejected.connect(self.reject)
@@ -776,7 +776,7 @@ class IPRangeBuilderDialog(QDialog):
             self._preview.setStyleSheet(IP_RANGE_PREVIEW_VALID_STYLESHEET)
         else:
             self._preview.setStyleSheet(IP_RANGE_PREVIEW_ERROR_STYLESHEET)
-        if self._ok_button is not None:
+        if self._ok_button:
             self._ok_button.setEnabled(valid is True)
 
     def result_entry(self) -> str:

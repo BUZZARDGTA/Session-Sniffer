@@ -2,10 +2,10 @@
 
 from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import QEvent, QObject, QRectF, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QKeySequence, QPainter, QPixmap, QShortcut
-from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -100,7 +100,7 @@ class SessionStatusBar(QStatusBar):
 class SessionTableSection(QWidget):
     """Self-contained collapsible widget containing a session table with header controls."""
 
-    section_toggled = pyqtSignal()
+    section_toggled = Signal()
     table_model: SessionTableModel
     table_view: SessionTableView
 
@@ -123,7 +123,7 @@ class SessionTableSection(QWidget):
         self._rows_keyboard_editing = False
 
         if is_connected:
-            accent = '#198754'
+            accent = '#327546'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the connected players table'
             clear_tooltip = 'Clear all connected players'
@@ -131,7 +131,7 @@ class SessionTableSection(QWidget):
             sort_column_name = 'Last Rejoin'
             sort_order = Qt.SortOrder.DescendingOrder
         else:
-            accent = '#c0392b'
+            accent = '#943b3b'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the disconnected players table'
             clear_tooltip = 'Clear all disconnected players'
@@ -142,8 +142,8 @@ class SessionTableSection(QWidget):
         # Header container
         header_container = QFrame()
         header_container.setObjectName('sectionBar')
+        header_container.setStyleSheet(section_bar_qss(accent))
         header_container.setFixedHeight(46)
-        header_container.setStyleSheet(section_bar_qss(accent, RESOURCES_DIR_PATH))
         header_layout = QHBoxLayout(header_container)
         header_layout.setContentsMargins(10, 4, 10, 8)
         header_layout.setSpacing(8)
@@ -273,6 +273,21 @@ class SessionTableSection(QWidget):
             sort_order,
             is_connected_table=is_connected,
         )
+        self.table_view.setStyleSheet(f"""
+            QTableView {{
+                border-left: 2px solid {accent};
+                border-right: 2px solid {accent};
+                border-bottom: 2px solid {accent};
+                border-top: none;
+                border-bottom-left-radius: 8px;
+                border-bottom-right-radius: 8px;
+                background-color: transparent;
+            }}
+            QTableView::viewport {{
+                border-bottom-left-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }}
+        """)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.table_view.setup_static_column_resizing()
         self.table_model.view = self.table_view
@@ -478,7 +493,7 @@ class SessionTableSection(QWidget):
     def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
         """Attach an event filter that tracks keyboard vs. wheel editing."""
         line_edit = spinbox.lineEdit()
-        if line_edit is None:
+        if not line_edit:
             return
 
         section = self

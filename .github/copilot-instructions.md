@@ -1,7 +1,7 @@
 # Copilot Coding Agent Instructions for Session Sniffer
 
 ## Overview
-Session Sniffer is a Windows‑only (PyQt6) packet sniffer focused on P2P game sessions. The entry point is `src/session_sniffer/main.py` (module execution via `python -m session_sniffer`), which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `src/session_sniffer/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
+Session Sniffer is a Windows‑only (PySide6) packet sniffer focused on P2P game sessions. The entry point is `src/session_sniffer/main.py` (module execution via `python -m session_sniffer`), which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `src/session_sniffer/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
 
 Important import note: even with the `src/` layout, Python imports remain `from session_sniffer...`, not `from src.session_sniffer...`. The `src` directory is a source root on `PYTHONPATH`; it is not part of the package name.
 
@@ -49,9 +49,9 @@ Use VS Code tasks instead of ad‑hoc commands:
 - Run app: task `🚀 Launch Session Sniffer` (ensures `.venv` interpreter).
 - Dependency check: `🔄 Check Project Dependencies` powershell script (read-only updates info).
 - Install dependencies: `📦 Install Dependencies` after editing `pyproject.toml`.
-- Unified quality run: `🔍 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyright, Flake8, Pylint, Vulture, Pip Audit, Safety, Snyk).
+- Unified quality run: `🔍 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyrefly, Pyright, Flake8, Pylint, Vulture, Pip Audit, Safety, Snyk).
 
-Ruff / Pyright / MyPy operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
+Ruff / Pyrefly / Pyright / MyPy operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
 
 ## Dependency & Version Management
 - Pin new dependencies exactly (match existing style) in `pyproject.toml` unless they are security libs (which may use `>=`).

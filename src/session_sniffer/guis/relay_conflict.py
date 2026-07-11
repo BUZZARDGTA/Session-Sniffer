@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from PyQt6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from session_sniffer.constants.local import DETECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE

@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -22,7 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.background import clear_voice_notification_queue
-from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
@@ -35,7 +36,7 @@ from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QKeyEvent, QShowEvent
+    from PySide6.QtGui import QKeyEvent, QShowEvent
 
     from session_sniffer.models.player import Player
 
@@ -138,26 +139,26 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # Bottom buttons
         button_row = QHBoxLayout()
 
-        import_button = QPushButton('📥 Import')
+        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
         import_button.setToolTip('Import detection settings from a JSON file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_detections)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton('📤 Export')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export')
         export_button.setToolTip('Export detection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_detections)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('🔄 Reset all…')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
         reset_button.setToolTip('Reset all detection settings to defaults')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Save all detection settings')
         save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton('❌ Cancel')
+        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
@@ -490,7 +491,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         # Country
         GUIDetectionSettings.country_suspend_enabled = self.country_duration_combo.currentText() != 'Disabled'
         GUIDetectionSettings.country_detection_list = [
-            item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i)) is not None
+            item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))
         ]
         if GUIDetectionSettings.country_suspend_enabled:
             GUIDetectionSettings.country_suspend_duration = self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin)
@@ -500,7 +501,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # ISP
         GUIDetectionSettings.isp_suspend_enabled = self.isp_duration_combo.currentText() != 'Disabled'
-        GUIDetectionSettings.isp_detection_list = [item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i)) is not None]
+        GUIDetectionSettings.isp_detection_list = [item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i))]
         if GUIDetectionSettings.isp_suspend_enabled:
             GUIDetectionSettings.isp_suspend_duration = self._read_duration_widgets(self.isp_duration_combo, self.isp_duration_spin)
         GUIDetectionSettings.isp_voice_notifications = self._read_voice_combo(self.isp_voice_combo)
@@ -509,7 +510,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # ASN
         GUIDetectionSettings.asn_suspend_enabled = self.asn_duration_combo.currentText() != 'Disabled'
-        GUIDetectionSettings.asn_detection_list = [item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i)) is not None]
+        GUIDetectionSettings.asn_detection_list = [item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i))]
         if GUIDetectionSettings.asn_suspend_enabled:
             GUIDetectionSettings.asn_suspend_duration = self._read_duration_widgets(self.asn_duration_combo, self.asn_duration_spin)
         GUIDetectionSettings.asn_voice_notifications = self._read_voice_combo(self.asn_voice_combo)
@@ -569,19 +570,19 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             'hosting_logging': self.hosting_logging_checkbox.isChecked(),
             'hosting_msgbox': self.hosting_msgbox_checkbox.isChecked(),
             'country_enabled': self.country_duration_combo.currentText() != 'Disabled',
-            'country_list': tuple(item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i)) is not None),
+            'country_list': tuple(item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))),
             'country_duration': self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin),
             'country_voice': self._read_voice_combo(self.country_voice_combo),
             'country_logging': self.country_logging_checkbox.isChecked(),
             'country_msgbox': self.country_msgbox_checkbox.isChecked(),
             'isp_enabled': self.isp_duration_combo.currentText() != 'Disabled',
-            'isp_list': tuple(item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i)) is not None),
+            'isp_list': tuple(item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i))),
             'isp_duration': self._read_duration_widgets(self.isp_duration_combo, self.isp_duration_spin),
             'isp_voice': self._read_voice_combo(self.isp_voice_combo),
             'isp_logging': self.isp_logging_checkbox.isChecked(),
             'isp_msgbox': self.isp_msgbox_checkbox.isChecked(),
             'asn_enabled': self.asn_duration_combo.currentText() != 'Disabled',
-            'asn_list': tuple(item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i)) is not None),
+            'asn_list': tuple(item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i))),
             'asn_duration': self._read_duration_widgets(self.asn_duration_combo, self.asn_duration_spin),
             'asn_voice': self._read_voice_combo(self.asn_voice_combo),
             'asn_logging': self.asn_logging_checkbox.isChecked(),
@@ -613,11 +614,11 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         return values
 
     @override
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """Consume Enter/Return when the combo rules list has focus to prevent triggering the default button."""
-        if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._combo_rules_list.hasFocus():
+        if event and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._combo_rules_list.hasFocus():
             return
-        super().keyPressEvent(a0)
+        super().keyPressEvent(event)
 
     def _has_unsaved_changes(self) -> bool:
         """Return True if any widget value differs from the state when the dialog was opened."""
@@ -635,7 +636,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         return True
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:

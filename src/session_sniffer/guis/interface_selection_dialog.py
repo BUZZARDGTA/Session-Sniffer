@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING, Any, override
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor, QFont, QIcon, QResizeEvent, QShowEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QCursor, QFont, QIcon, QResizeEvent, QShowEvent
+from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFrame,
@@ -56,7 +56,7 @@ from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFA
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QKeyEvent
+    from PySide6.QtGui import QKeyEvent
 
 logger = get_logger(__name__)
 
@@ -192,9 +192,9 @@ class RefreshARPButton(QPushButton):
         self.overlay_label.hide()
 
     @override
-    def resizeEvent(self, a0: QResizeEvent | None) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:
         """Resize the overlay label to match the button's size."""
-        super().resizeEvent(a0)
+        super().resizeEvent(event)
         self.overlay_label.resize(self.size())
 
 
@@ -208,8 +208,8 @@ class InterfaceSelectionDialog(QDialog):
     _REFRESH_INTERVAL_MS = 3_000
 
     # Bridges background ARP-refresh worker -> GUI thread (queued connection).
-    _arp_refresh_progress_signal = pyqtSignal(int, int, str)
-    _arp_refresh_done_signal = pyqtSignal()
+    _arp_refresh_progress_signal = Signal(int, int, str)
+    _arp_refresh_done_signal = Signal()
 
     def __init__(
         self,
@@ -238,6 +238,7 @@ class InterfaceSelectionDialog(QDialog):
             return max(1, round(value * ui_scale))
 
         # Set up the window
+        self.setObjectName('InterfaceSelectionDialog')
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
         # Set a minimum size for the window
         self.setMinimumSize(scale(1150), scale(620))
@@ -391,6 +392,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Tracks whether an ARP refresh worker is currently running.
         self._arp_refresh_in_progress: bool = False
+        self._arp_refresh_cancelled: bool = False
         # Updated from worker threads with (completed, total) ping counts. (0, 0) means no ping work yet.
         self._arp_refresh_progress: tuple[int, int] = (0, 0)
         # Most recently completed ping target, shown under the Refresh button.
@@ -554,6 +556,7 @@ class InterfaceSelectionDialog(QDialog):
             return
 
         self._arp_refresh_in_progress = True
+        self._arp_refresh_cancelled = False
         button = self._controls.refresh_arp_button
         self._arp_refresh_original_text = button.text()
         button.setEnabled(False)
@@ -575,15 +578,33 @@ class InterfaceSelectionDialog(QDialog):
         progress_signal = self._arp_refresh_progress_signal
         done_signal = self._arp_refresh_done_signal
 
+        class ARPRefreshCancelledError(Exception):
+            """Internal exception raised to cancel the ARP refresh loop."""
+
         def on_progress(completed: int, total: int, ip: str) -> None:
             # Called from worker threads; emit queued signal to marshal onto GUI thread.
-            progress_signal.emit(completed, total, ip)
+            if self._arp_refresh_cancelled:
+                raise ARPRefreshCancelledError
+            try:
+                progress_signal.emit(completed, total, ip)
+            except RuntimeError as e:
+                if 'Signal source has been deleted' in str(e):
+                    raise ARPRefreshCancelledError from e
+                raise
 
         def worker() -> None:
             try:
                 refresh_arp_table(interfaces_snapshot, on_progress)
+            except ARPRefreshCancelledError:
+                logger.debug('ARP refresh cancelled because dialog was closed/deleted.')
             finally:
-                done_signal.emit()
+                try:
+                    done_signal.emit()
+                except RuntimeError as e:
+                    if 'Signal source has been deleted' in str(e):
+                        logger.debug('Could not emit done signal: dialog was closed/deleted.')
+                    else:
+                        raise
 
         Thread(target=worker, name='ARPRefresh-worker', daemon=True).start()
 
@@ -847,12 +868,12 @@ class InterfaceSelectionDialog(QDialog):
         self.select_interface()
 
     @override
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """Trigger interface selection when Enter/Return is pressed with a row selected."""
-        if a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.table.currentRow() != -1:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.table.currentRow() != -1:
             self.select_interface()
             return
-        super().keyPressEvent(a0)
+        super().keyPressEvent(event)
 
     def select_interface(self) -> None:
         """Persist the current selection and close the dialog as accepted."""
@@ -875,15 +896,25 @@ class InterfaceSelectionDialog(QDialog):
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
     @override
+    def accept(self) -> None:
+        """Accept the dialog and cancel any running ARP refresh."""
+        self._arp_refresh_cancelled = True
+        self._refresh_timer.stop()
+        if self._arp_refresh_progress_timer is not None:
+            self._arp_refresh_progress_timer.stop()
+        super().accept()
+
+    @override
     def reject(self) -> None:
-        """Stop timers and reject the dialog."""
+        """Stop timers, cancel any running ARP refresh, and reject the dialog."""
+        self._arp_refresh_cancelled = True
         self._refresh_timer.stop()
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
         super().reject()
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:

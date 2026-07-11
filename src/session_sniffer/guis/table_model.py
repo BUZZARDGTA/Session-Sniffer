@@ -6,15 +6,16 @@ from datetime import UTC, datetime, timedelta
 from operator import attrgetter
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QAbstractTableModel,
     QItemSelection,
     QItemSelectionModel,
     QModelIndex,
+    QPersistentModelIndex,
     Qt,
 )
-from PyQt6.QtGui import QBrush, QIcon
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QBrush, QIcon
+from PySide6.QtWidgets import (
     QHeaderView,
     QTableView,
 )
@@ -194,21 +195,21 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     # --------------------------------------------------------------------------
 
     @override
-    def rowCount(self, parent: QModelIndex | None = None) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return number of rows in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._data)
 
     @override
-    def columnCount(self, parent: QModelIndex | None = None) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return number of columns in the model."""
         if parent is None:
             parent = QModelIndex()
         return len(self._headers)
 
     @override
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QBrush | QIcon | None:
         """Override data method to customize data retrieval and alignment."""
         if not index.isValid():
             return None
@@ -270,7 +271,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         return None
 
     @override
-    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+    def flags(self, index: QModelIndex | QPersistentModelIndex) -> Qt.ItemFlag:
         """Return Qt flags controlling whether the item is enabled/selectable."""
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags

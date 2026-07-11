@@ -3,9 +3,10 @@
 This module ensures there's only one QApplication instance throughout the application.
 """
 
-import qdarkstyle  # pyright: ignore[reportMissingTypeStubs]
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
+
+from session_sniffer.guis.theme import get_stylesheet
 
 # Create the single QApplication instance for the entire application
 app = QApplication([])  # Passing an empty list for application arguments
-app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt6())
+app.setStyleSheet(get_stylesheet())

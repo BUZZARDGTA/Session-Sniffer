@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QPoint, Qt, QTimer
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QApplication,
     QHeaderView,
     QMenu,
     QPushButton,
@@ -18,11 +19,11 @@ from PyQt6.QtWidgets import (
 )
 
 from session_sniffer.constants.external import LOCAL_TZ
-from session_sniffer.guis.player_rate_graph import PlayerRateGraphWindow
+from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import popup_menu_at_table, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -45,7 +46,7 @@ _KBS_TO_BYTES = 1024
 
 
 def _make_rate_history() -> deque[int]:
-    return deque(maxlen=Settings.gui_rate_graph_max_history)
+    return deque(maxlen=DEFAULT_MAX_HISTORY)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -144,21 +145,21 @@ class _HighRateTableModel(QAbstractTableModel):
     # Qt overrides -----------------------------------------------------------
 
     @override
-    def rowCount(self, parent: QModelIndex | None = None) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of visible high-rate players."""
         if parent is None:
             parent = QModelIndex()
         return len(self._visible)
 
     @override
-    def columnCount(self, parent: QModelIndex | None = None) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of columns."""
         if parent is None:
             parent = QModelIndex()
         return len(self._HEADERS)
 
     @override
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return cell data for the given index."""
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
@@ -307,7 +308,7 @@ class HighRateMonitorWidget(QWidget):
             'Tip: Moving players generate more packets than stationary ones.',
         )
         pps_line_edit = self._pps_threshold_input.lineEdit()
-        if pps_line_edit is not None:
+        if pps_line_edit:
             pps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._pps_threshold_input.valueChanged.connect(self._set_pps_threshold)
         layout.addWidget(self._pps_threshold_input, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -328,7 +329,7 @@ class HighRateMonitorWidget(QWidget):
             'Tip: Moving players generate more bandwidth than stationary ones.',
         )
         bps_line_edit = self._bps_threshold_input.lineEdit()
-        if bps_line_edit is not None:
+        if bps_line_edit:
             bps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._bps_threshold_input.valueChanged.connect(self._set_bps_threshold)
         layout.addWidget(self._bps_threshold_input, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -347,7 +348,7 @@ class HighRateMonitorWidget(QWidget):
             'Lower values detect spikes faster but may flag normal activity.',
         )
         duration_line_edit = self._duration_input.lineEdit()
-        if duration_line_edit is not None:
+        if duration_line_edit:
             duration_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._duration_input.valueChanged.connect(self._set_required_duration)
         layout.addWidget(self._duration_input, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -436,8 +437,6 @@ class HighRateMonitorWidget(QWidget):
             ip=ip,
             initial_pps_threshold=self._model.pps_threshold,
             initial_bps_threshold=self._model.bps_threshold,
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
         )
         data = self._model.get_tracked(ip)
         if data is not None:
@@ -473,16 +472,49 @@ class HighRateMonitorWidget(QWidget):
             return
 
         menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
 
-        blacklist_action = QAction(f'Blacklist IP {data.ip}', self)
+        copy_ip_action = QAction(f'📋 Copy IP ({data.ip})', self)
+        copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
+
+        def _copy_ip() -> None:
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(data.ip)
+
+        copy_ip_action.triggered.connect(_copy_ip)
+        menu.addAction(copy_ip_action)
+
+        usernames_text = ', '.join(data.usernames)
+        copy_usernames_action = QAction('📋 Copy Username(s)', self)
+        copy_usernames_action.setToolTip('Copy associated usernames to the clipboard.')
+        copy_usernames_action.setEnabled(bool(data.usernames))
+
+        def _copy_usernames() -> None:
+            clipboard = QApplication.clipboard()
+            if clipboard:
+                clipboard.setText(usernames_text)
+
+        copy_usernames_action.triggered.connect(_copy_usernames)
+        menu.addAction(copy_usernames_action)
+
+        menu.addSeparator()
+
+        blacklist_action = QAction(f'🚫 Blacklist IP {data.ip}', self)
+        blacklist_action.setToolTip('Exclude this IP from the high-rate scan until the blacklist is cleared.')
         blacklist_action.triggered.connect(lambda: self._blacklist_ip(data.ip))
         menu.addAction(blacklist_action)
 
-        graph_action = QAction(f'Show Rate Graph for {data.ip}', self)
+        graph_action = QAction(f'📈 Show Rate Graph for {data.ip}', self)
+        graph_action.setToolTip('Open a live PPS/BPS rate graph window for this player.')
         graph_action.triggered.connect(lambda: self.open_graph(data.ip))
         menu.addAction(graph_action)
 
         popup_menu_at_table(menu, self._table, pos)
+
+        self._timer.stop()
+        menu.aboutToHide.connect(lambda: self._timer.start(_UPDATE_INTERVAL_MS))
 
     def _blacklist_ip(self, ip: str) -> None:
         self._blacklisted_ips.add(ip)

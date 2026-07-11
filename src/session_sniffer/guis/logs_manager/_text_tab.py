@@ -1,9 +1,10 @@
 """Plain-text log tab — for warnings.log and errors.log."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
+from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -30,6 +31,9 @@ from session_sniffer.guis.logs_manager._helpers import (
     setup_metadata_label,
 )
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 class TextLogTab(QWidget):
@@ -78,7 +82,7 @@ class TextLogTab(QWidget):
         self._viewer = create_log_viewer()
 
         document = self._viewer.document()
-        self._highlighter = LogLevelHighlighter(document) if document is not None else None
+        self._highlighter = LogLevelHighlighter(document) if document else None
 
         layout.addWidget(self._viewer, stretch=1)
 
@@ -135,7 +139,7 @@ class TextLogTab(QWidget):
             prefix = f'[…truncated — showing last {human_readable_size(LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)}…]\n\n' if truncated else ''
             self._viewer.setPlainText(prefix + text)
 
-            if scrollbar is not None:
+            if scrollbar:
                 if old_max > 0 and old_scroll >= old_max - 5:
                     scrollbar.setValue(scrollbar.maximum())
                 else:
@@ -177,13 +181,13 @@ class TextLogTab(QWidget):
         self._update_match_label()
 
     def _highlight_all_matches(self) -> None:
-        selections = []
+        selections: list[Any] = []
         highlight_format = QTextCharFormat()
         highlight_format.setBackground(QColor('#665c00'))
         highlight_format.setForeground(QColor('#ffffff'))
 
         for cursor in self._search_matches:
-            selection = QTextEdit.ExtraSelection()
+            selection = cast('Any', QTextEdit.ExtraSelection())
             selection.cursor = cursor
             selection.format = highlight_format
             selections.append(selection)

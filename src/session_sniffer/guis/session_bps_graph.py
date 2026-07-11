@@ -22,7 +22,7 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
     @override
     def _transform_sample(self, sample: float) -> float:
         """Convert bytes per second into KB/s for display."""
-        return float(sample) / _BYTES_TO_KBS
+        return sample / _BYTES_TO_KBS
 
     # Public API —————————————————————————————————————————————————————————————
 

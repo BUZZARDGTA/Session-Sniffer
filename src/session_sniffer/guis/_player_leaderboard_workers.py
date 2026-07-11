@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtCore import Signal
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
@@ -31,7 +31,8 @@ class LeaderboardBaselineWorker(CrashingQThread):
     Emits `finished_ok` with the resulting `LeaderboardBaseline`.
     """
 
-    finished_ok: pyqtSignal = pyqtSignal(object)
+    finished_ok: Signal = Signal(object)
+    progress: Signal = Signal(int, int)
 
     def __init__(self, folder_path: Path, exclude_file: Path) -> None:
         super().__init__()
@@ -41,7 +42,18 @@ class LeaderboardBaselineWorker(CrashingQThread):
     @override
     def _run(self) -> None:
         """Scan the session logs into a baseline and emit it."""
-        baseline = build_leaderboard_baseline(self._folder_path, exclude_file=self._exclude_file, should_cancel=self.isInterruptionRequested)
+
+        def on_progress(current: int, total: int) -> None:
+            # Throttle emission to avoid flooding the event loop on huge archives
+            if not current % 10 or current == total:
+                self.progress.emit(current, total)
+
+        baseline = build_leaderboard_baseline(
+            self._folder_path,
+            exclude_file=self._exclude_file,
+            should_cancel=self.isInterruptionRequested,
+            progress_callback=on_progress,
+        )
         if self.isInterruptionRequested():
             return
         self.finished_ok.emit(baseline)
@@ -55,7 +67,7 @@ class SessionFilesScanWorker(CrashingQThread):
     the GUI thread keeps the cursor and event loop responsive on large session archives.
     """
 
-    finished_ok: pyqtSignal = pyqtSignal(object)
+    finished_ok: Signal = Signal(object)
 
     def __init__(self, folder_path: Path, exclude_file: Path) -> None:
         super().__init__()
@@ -117,7 +129,7 @@ class LeaderboardOverlayWorker(CrashingQThread):
     off the GUI thread keeps the cursor and event loop responsive even for large baselines.
     """
 
-    finished_ok: pyqtSignal = pyqtSignal(object)
+    finished_ok: Signal = Signal(object)
 
     def __init__(self, baseline: LeaderboardBaseline, live_file: Path, limit: int) -> None:
         super().__init__()

@@ -5,15 +5,19 @@ This module provides helper functions to interact with GUI elements.
 
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QByteArray, QEvent, QModelIndex, QPoint, QRectF, Qt
-from PyQt6.QtGui import QHelpEvent, QIcon, QPainter, QPixmap
-from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRectF, Qt
+from PySide6.QtGui import QBrush, QFontMetrics, QHelpEvent, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QBoxLayout,
     QCheckBox,
+    QComboBox,
     QDialog,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
@@ -36,7 +40,8 @@ from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QMouseEvent
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QMouseEvent
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 
@@ -66,11 +71,8 @@ class PersistentMenu(QMenu):
     """QMenu that stays open when a checkable action is clicked."""
 
     @override
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
         """Prevent auto-closing when a checkable action is triggered."""
-        if a0 is None:
-            super().mouseReleaseEvent(a0)
-            return
         action = self.actionAt(a0.pos())
         if action and action.isCheckable():
             action.trigger()
@@ -121,7 +123,7 @@ def get_screen_size() -> tuple[int, int]:
     min_screen_height = 768
 
     screen = app.primaryScreen()
-    if screen is None:
+    if not screen:
         raise PrimaryScreenNotFoundError
 
     size = screen.size()
@@ -142,7 +144,7 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
         screen_size: Screen dimensions as (width, height) in pixels.
     """
     screen = window.screen() or QApplication.primaryScreen()
-    if screen is not None:
+    if screen:
         avail = screen.availableGeometry()
         avail_width = avail.width()
         avail_height = avail.height()
@@ -258,7 +260,7 @@ class ToggleAlwaysOnTopMixin(QWidget):
         layout.setSpacing(spacing)
         return layout
 
-    def add_always_on_top_checkbox(self, layout: QVBoxLayout, *, always_on_top: bool) -> None:
+    def add_always_on_top_checkbox(self, layout: QBoxLayout, *, always_on_top: bool) -> None:
         """Create and add the standard 'Always on Top' checkbox to *layout*."""
         checkbox = QCheckBox('Always on Top')
         checkbox.setToolTip('Keep this window above all other windows.\nThis toggle does not change the saved default.')
@@ -270,6 +272,37 @@ class ToggleAlwaysOnTopMixin(QWidget):
     def toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
         """Apply or remove the always-on-top window flag based on *checked*."""
         apply_always_on_top(self, checked)
+
+
+class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
+    """Mixin for graph windows providing a unified bottom control bar."""
+
+    def add_rate_graph_controls(self, layout: QBoxLayout, history_options: dict[str, int]) -> None:
+        """Add the bottom controls bar (Always on Top, Max History)."""
+        controls_layout = QHBoxLayout()
+        controls_layout.setContentsMargins(8, 6, 8, 8)
+        self.add_always_on_top_checkbox(controls_layout, always_on_top=True)
+
+        controls_layout.addStretch()
+
+        controls_layout.addWidget(QLabel('Max History:'))
+        history_combo = QComboBox()
+        history_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for text, seconds in history_options.items():
+            history_combo.addItem(text, seconds)
+        history_combo.setCurrentText('1 Hour')
+
+        def on_history_changed(idx: int) -> None:
+            self._on_max_history_changed(int(history_combo.itemData(idx)))
+
+        history_combo.currentIndexChanged.connect(on_history_changed)
+        controls_layout.addWidget(history_combo)
+
+        layout.addLayout(controls_layout)
+
+    def _on_max_history_changed(self, new_max_history: int) -> None:
+        """Handle max history changes. Must be overridden by subclasses if add_rate_graph_controls is used."""
+        raise NotImplementedError
 
 
 def apply_always_on_top(window: QWidget, checked: bool) -> None:  # noqa: FBT001
@@ -297,9 +330,15 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
 
     @override
-    def helpEvent(self, event: QHelpEvent | None, view: QAbstractItemView | None, option: QStyleOptionViewItem, index: QModelIndex) -> bool:  # pylint: disable=invalid-name
+    def helpEvent(
+        self,
+        event: QHelpEvent,
+        view: QAbstractItemView,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
         """Show tooltip for elided cells, let the default handle the rest."""
-        if event is not None and event.type() == QEvent.Type.ToolTip:
+        if event and event.type() == QEvent.Type.ToolTip:
             # Let the model's explicit tooltips take precedence
             if index.data(Qt.ItemDataRole.ToolTipRole):
                 return super().helpEvent(event, view, option, index)
@@ -309,11 +348,23 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 opt = QStyleOptionViewItem(option)
                 self.initStyleOption(opt, index)
                 # If text is wider than the available rect (minus a small margin for cell padding)
-                if opt.fontMetrics.horizontalAdvance(text) > opt.rect.width() - 6:
+                if QFontMetrics(opt.font).horizontalAdvance(text) > view.visualRect(index).width() - 6:
                     QToolTip.showText(event.globalPos(), text, view)
                     return True
 
         return super().helpEvent(event, view, option, index)
+
+    @override
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Manually paint BackgroundRole so it is not overridden by QTableView::item stylesheets."""
+        if painter:
+            bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+            if isinstance(bg_brush, QBrush):
+                painter.save()
+                opt_rect: QRect = option.rect
+                painter.fillRect(opt_rect, bg_brush)
+                painter.restore()
+        super().paint(painter, option, index)
 
 
 def setup_table_view_headers(table: QTableView) -> QHeaderView:
@@ -323,12 +374,12 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
         RuntimeError: If either header is None.
     """
     v_header = table.verticalHeader()
-    if v_header is None:
+    if not v_header:
         message = 'Failed to get vertical header'
         raise RuntimeError(message)
     v_header.setVisible(False)
     h_header = table.horizontalHeader()
-    if h_header is None:
+    if not h_header:
         message = 'Failed to get horizontal header'
         raise RuntimeError(message)
 
@@ -364,7 +415,7 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
         RuntimeError: If either header is None.
     """
     h_header = table.horizontalHeader()
-    if h_header is None:
+    if not h_header:
         message = 'Failed to get horizontal header'
         raise RuntimeError(message)
     h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -373,7 +424,7 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     table.setSortingEnabled(sorting)
     v_header = table.verticalHeader()
-    if v_header is None:
+    if not v_header:
         message = 'Failed to get vertical header'
         raise RuntimeError(message)
     v_header.setVisible(False)
@@ -391,7 +442,7 @@ def setup_stat_table_with_header(table: QTableWidget, layout: QVBoxLayout, *, so
     """
     setup_stat_table(table, layout, sorting=sorting)
     h_header = table.horizontalHeader()
-    if h_header is None:
+    if not h_header:
         message = 'Failed to get horizontal header'
         raise RuntimeError(message)
     return h_header
@@ -403,7 +454,51 @@ def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
     Raises `RuntimeError` if the table viewport cannot be obtained.
     """
     viewport = table.viewport()
-    if viewport is None:
+    if not viewport:
+        message = 'Failed to get table viewport'
+        raise RuntimeError(message)
+    menu.popup(viewport.mapToGlobal(pos))
+
+
+def copy_table_widget_selection(table: QTableWidget) -> None:
+    """Copy the selected rows from *table* to the system clipboard as tab-separated values.
+
+    Each selected row is collected once (deduplication by row index) and its columns are
+    joined with a tab character. Rows are separated by newlines so the result pastes cleanly
+    into spreadsheets and plain-text editors alike.
+    """
+    selection_model = table.selectionModel()
+    if not selection_model:
+        return
+    selected_indexes = selection_model.selectedIndexes()
+    if not selected_indexes:
+        return
+
+    # Collect unique rows in visual order, preserving column order within each row.
+    rows: dict[int, dict[int, str]] = {}
+    for index in selected_indexes:
+        row = index.row()
+        column = index.column()
+        item = table.item(row, column)
+        rows.setdefault(row, {})[column] = item.text() if item else ''
+
+    lines: list[str] = []
+    for row in sorted(rows):
+        column_map = rows[row]
+        lines.append('\t'.join(column_map[column] for column in sorted(column_map)))
+
+    clipboard = QApplication.clipboard()
+    if clipboard:
+        clipboard.setText('\n'.join(lines))
+
+
+def popup_menu_at_table_widget(menu: QMenu, table: QTableWidget, pos: QPoint) -> None:
+    """Pop up *menu* at the viewport-relative position *pos* of a `QTableWidget`.
+
+    Raises `RuntimeError` if the table viewport cannot be obtained.
+    """
+    viewport = table.viewport()
+    if not viewport:
         message = 'Failed to get table viewport'
         raise RuntimeError(message)
     menu.popup(viewport.mapToGlobal(pos))
@@ -442,7 +537,7 @@ def apply_search_icon(line_edit: QLineEdit) -> None:
     search_icon = _svg_to_icon(_SEARCH_ICON_SVG)
     clear_icon = _svg_to_icon(_CLEAR_ICON_SVG)
     action = line_edit.addAction(search_icon, QLineEdit.ActionPosition.TrailingPosition)
-    if action is None:
+    if not action:
         return
 
     def _update(text: str) -> None:
@@ -456,7 +551,7 @@ def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: i
     """Return a QIcon with `right_padding` transparent pixels appended to the right of *source*.
 
     Used to add space between a button's icon and its text label, since
-    PyQt6 no longer exposes `PM_ButtonIconSpacing`.
+    PySide6 no longer exposes `PM_ButtonIconSpacing`.
     """
     width, height = icon_size
     pixmap = QPixmap(width + right_padding, height)
@@ -483,7 +578,7 @@ def render_svg_pixmap_from_resource(filename: str, width: int, height: int) -> Q
 def center_window_on_screen(window: QWidget) -> None:
     """Center *window* on its current screen (or the primary screen as fallback)."""
     screen = window.screen() or QApplication.primaryScreen()
-    if screen is None:
+    if not screen:
         return
     geo = screen.availableGeometry()
     x = geo.x() + (geo.width() - window.width()) // 2

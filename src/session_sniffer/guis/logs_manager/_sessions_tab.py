@@ -7,18 +7,20 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
 from prettytable import PrettyTable, TableStyle
 from pydantic import ValidationError
-from PyQt6.QtCore import QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFileSystemModel, QTextCharFormat, QTextCursor
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QTimer, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QTextCharFormat, QTextCursor
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QFileSystemModel,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -28,6 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS, TITLE
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
@@ -39,11 +42,18 @@ from session_sniffer.guis.logs_manager._helpers import (
     setup_copy_save_button_row,
     setup_metadata_label,
 )
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    DIALOG_BUTTON_STYLESHEET,
+    DIALOG_DANGER_BUTTON_STYLESHEET,
+    SVG_ICON_CONTEXT_MENU_STYLESHEET,
+)
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, ElidedTextTooltipDelegate
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
+
+if TYPE_CHECKING:
+    from typing import Any
 
 _SEARCH_ALL = 'All Searchable Columns'
 _SEARCH_COLUMN_USERNAMES = 'Usernames'
@@ -155,12 +165,14 @@ class SessionsLogTab(QWidget):
         self._tree.setHeaderHidden(True)
         self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
         self._tree.setWordWrap(False)
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         for column in (1, 2, 3):
             self._tree.setColumnHidden(column, True)  # noqa: FBT003
         self._tree.clicked.connect(self._on_tree_clicked)
         self._tree.activated.connect(self._on_tree_activated)
         selection_model = self._tree.selectionModel()
-        if selection_model is not None:
+        if selection_model:
             selection_model.currentChanged.connect(self._on_tree_current_changed)
         self._tree.setMinimumWidth(200)
 
@@ -201,17 +213,24 @@ class SessionsLogTab(QWidget):
 
         button_row.addStretch()
 
-        self._delete_button = QPushButton('🗑️ Delete')
+        self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
         self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._delete_button.setToolTip('Delete the currently selected file or folder')
         self._delete_button.clicked.connect(self._delete_selected)
         button_row.addWidget(self._delete_button)
 
-        open_location_button = QPushButton('📂 Open File Location')
-        open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        open_location_button.setToolTip('Open the containing folder in Windows Explorer')
-        open_location_button.clicked.connect(self._open_location)
-        button_row.addWidget(open_location_button)
+        self._open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' Open Folder Location')
+        self._open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._open_location_button.setToolTip('Open the containing folder in Windows Explorer')
+        self._open_location_button.clicked.connect(self._open_location)
+        button_row.addWidget(self._open_location_button)
+
+        self._open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+        self._open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._open_file_button.setToolTip('Open the selected log file in the default text editor')
+        self._open_file_button.clicked.connect(self._open_file)
+        self._open_file_button.setEnabled(False)
+        button_row.addWidget(self._open_file_button)
 
         # Live-refresh the currently displayed session file when it changes on disk.
         self._file_watcher = DebouncedFileWatcher(self, self._on_current_file_changed)
@@ -248,18 +267,65 @@ class SessionsLogTab(QWidget):
     def _on_tree_activated(self, index: QModelIndex) -> None:
         self._handle_tree_selection(index)
 
+    def _on_tree_context_menu(self, pos: QPoint) -> None:
+        index = self._tree.indexAt(pos)
+        if not index.isValid():
+            return
+
+        self._tree.setCurrentIndex(index)
+
+        path = Path(self._fs_model.filePath(index))
+        is_dir = path.is_dir()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+
+        if not is_dir:
+            open_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open File')
+            if open_action:
+                open_action.triggered.connect(self._open_file)
+
+        location_text = 'Open Folder Location' if is_dir else 'Open File Location'
+        location_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), location_text)
+        if location_action:
+            location_action.triggered.connect(self._open_location)
+
+        menu.addSeparator()
+
+        delete_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete')
+        if delete_action:
+            delete_action.triggered.connect(self._delete_selected)
+
+        viewport = self._tree.viewport()
+        if viewport:
+            menu.exec(viewport.mapToGlobal(pos))  # ty: ignore[invalid-argument-type]
+
     def _on_tree_current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         self._handle_tree_selection(current)
 
     def _handle_tree_selection(self, index: QModelIndex) -> None:
         if not index.isValid():
+            self._selected_path = None
+            self._file_watcher.stop()
+            self._current_file = None
+            self._current_rendered_text = ''
+            self._viewer.setPlainText('')
+            self._file_info_label.setText('')
+            self._match_label.setText('')
+            self._viewer.setExtraSelections([])
+            self._delete_button.setText(' Delete')
+            self._delete_button.setToolTip('Delete the currently selected file or folder')
+            self._open_location_button.setText(' Open Folder Location')
+            self._open_file_button.setEnabled(False)
             return
         selected = Path(self._fs_model.filePath(index))
         self._selected_path = selected
         if selected.is_file():
             self._load_file(selected)
-            self._delete_button.setText('🗑️ Delete File')
+            self._delete_button.setText(' Delete File')
             self._delete_button.setToolTip('Delete the currently selected session JSON file')
+            self._open_location_button.setText(' Open File Location')
+            self._open_file_button.setEnabled(True)
         elif selected.is_dir():
             self._file_watcher.stop()
             self._current_file = None
@@ -276,8 +342,10 @@ class SessionsLogTab(QWidget):
             )
             self._match_label.setText('')
             self._viewer.setExtraSelections([])
-            self._delete_button.setText('🗑️ Delete Folder')
+            self._delete_button.setText(' Delete Folder')
             self._delete_button.setToolTip('Delete the currently selected folder and all its contents')
+            self._open_location_button.setText(' Open Folder Location')
+            self._open_file_button.setEnabled(False)
 
     def _load_file(self, file_path: Path) -> None:
         self._current_file = file_path
@@ -287,7 +355,7 @@ class SessionsLogTab(QWidget):
         self._viewer.setPlainText(text)
         line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
         self._file_info_label.setText(
-            f'{file_path.name}  |  {human_readable_size(int(file_path.stat().st_size))}  |  {line_count:,} rendered lines',
+            f'{file_path.name}  |  {human_readable_size(file_path.stat().st_size)}  |  {line_count:,} rendered lines',
         )
 
         if self._search_input.text():
@@ -298,10 +366,10 @@ class SessionsLogTab(QWidget):
         if self._global_search_active or self._current_file is None or not self._current_file.is_file():
             return
         scrollbar = self._viewer.verticalScrollBar()
-        previous_scroll = scrollbar.value() if scrollbar is not None else 0
-        at_bottom = scrollbar is not None and previous_scroll >= scrollbar.maximum() - 5
+        previous_scroll = scrollbar.value() if scrollbar else 0
+        at_bottom = scrollbar and previous_scroll >= scrollbar.maximum() - 5
         self._load_file(self._current_file)
-        if scrollbar is not None:
+        if scrollbar:
             scrollbar.setValue(scrollbar.maximum() if at_bottom else min(previous_scroll, scrollbar.maximum()))
 
     # ------------------------------------------------------------------
@@ -335,9 +403,9 @@ class SessionsLogTab(QWidget):
         highlight_format.setBackground(QColor('#665c00'))
         highlight_format.setForeground(QColor('#ffffff'))
 
-        selections = []
+        selections: list[Any] = []
         for match_cursor in matched_cursors:
-            selection = QTextEdit.ExtraSelection()
+            selection = cast('Any', QTextEdit.ExtraSelection())
             selection.cursor = match_cursor
             selection.format = highlight_format
             selections.append(selection)
@@ -385,7 +453,7 @@ class SessionsLogTab(QWidget):
 
     def _clear_tree_selection(self) -> None:
         selection_model = self._tree.selectionModel()
-        if selection_model is not None:
+        if selection_model:
             selection_model.clearSelection()
             selection_model.setCurrentIndex(QModelIndex(), QItemSelectionModel.SelectionFlag.Clear)
         self._tree.setCurrentIndex(QModelIndex())
@@ -884,6 +952,10 @@ class SessionsLogTab(QWidget):
         self._selected_path = None
         self._current_rendered_text = ''
         self.update_dir_metadata()
+        self._delete_button.setText(' Delete')
+        self._delete_button.setToolTip('Delete the currently selected file or folder')
+        self._open_location_button.setText(' Open Folder Location')
+        self._open_file_button.setEnabled(False)
 
     def _open_location(self) -> None:
         if self._selected_path and self._selected_path.exists():
@@ -893,3 +965,7 @@ class SessionsLogTab(QWidget):
                 open_file_location(self._selected_path)
         elif self._sessions_dir.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sessions_dir)))
+
+    def _open_file(self) -> None:
+        if self._selected_path and self._selected_path.is_file():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._selected_path)))

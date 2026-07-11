@@ -4,11 +4,11 @@ import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http import HTTPStatus
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING, ClassVar, cast, override
 
 import requests
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
@@ -49,8 +49,9 @@ from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Any
 
-    from PyQt6.QtGui import QCloseEvent
+    from PySide6.QtGui import QCloseEvent
 
     from session_sniffer.models.player import Player
 
@@ -58,9 +59,9 @@ if TYPE_CHECKING:
 class _CrawlerSendWorker(CrashingQThread):
     """Pre-flight thread: sends the crawler instruction and emits the tracking ID, a rate-limit wait, or an error."""
 
-    send_succeeded: pyqtSignal = pyqtSignal(str)  # tracking_id
-    send_rate_limited: pyqtSignal = pyqtSignal(int, str)  # (wait_seconds, message)
-    send_failed: pyqtSignal = pyqtSignal(str)  # error message
+    send_succeeded: Signal = Signal(str)  # tracking_id
+    send_rate_limited: Signal = Signal(int, str)  # (wait_seconds, message)
+    send_failed: Signal = Signal(str)  # error message
 
     def __init__(self, send_fn: Callable[[], str], parent: QWidget) -> None:
         super().__init__(parent)
@@ -90,9 +91,9 @@ class _CrawlerSendWorker(CrashingQThread):
 class _CrawlerWatchWorker(CrashingQThread):
     """Background thread that streams SSE status updates for a known tracking ID."""
 
-    status_updated: pyqtSignal = pyqtSignal(str, object)  # (status, result: str | None)
-    request_completed: pyqtSignal = pyqtSignal()
-    request_failed: pyqtSignal = pyqtSignal(str)  # error message
+    status_updated: Signal = Signal(str, object)  # (status, result: str | None)
+    request_completed: Signal = Signal()
+    request_failed: Signal = Signal(str)  # error message
 
     def __init__(self, tracking_id: str, api_key: str) -> None:
         super().__init__()
@@ -186,12 +187,12 @@ class _CrawlerRequestDialog(QDialog):
         # and add a real "Cancel" button that stops the crawler and closes the window.
         self._widgets.button_box.rejected.disconnect(self.reject)
         minimize_button = self._widgets.button_box.button(QDialogButtonBox.StandardButton.Close)
-        if minimize_button is not None:
+        if minimize_button:
             minimize_button.setText('Minimize')
             minimize_button.setToolTip('Hide this window; the crawler keeps running in the background.')
             minimize_button.clicked.connect(self.showMinimized)
         cancel_button = self._widgets.button_box.addButton('Cancel', QDialogButtonBox.ButtonRole.RejectRole)
-        if cancel_button is not None:
+        if cancel_button:
             cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             cancel_button.setToolTip('Stop the crawler request and close this window.')
@@ -226,7 +227,7 @@ class _CrawlerRequestDialog(QDialog):
         referenced, parent-less, until it finishes on its own, at which point it is scheduled for deletion.
         """
         with contextlib.suppress(TypeError, RuntimeError):
-            worker.disconnect()  # ty: ignore[no-matching-overload]
+            cast('Any', worker).disconnect()
         worker.setParent(None)
         cls._detached_workers.add(worker)
 
@@ -307,8 +308,7 @@ class _CrawlerRequestDialog(QDialog):
         """Refresh the amber rate-limit countdown text."""
         seconds_word = 'second' if self._retry_remaining == 1 else 'seconds'
         self._widgets.status_label.setText(
-            f'<span style="color: #fbbf24; font-weight: 600;">⏳ {self._rate_limit_message} '
-            f'Automatically retrying in {self._retry_remaining} {seconds_word}…</span>',
+            f'<span style="color: #fbbf24; font-weight: 600;">⏳ {self._rate_limit_message} Automatically retrying in {self._retry_remaining} {seconds_word}…</span>',
         )
 
     # ------------------------------------------------------------------
@@ -359,11 +359,11 @@ class _CrawlerRequestDialog(QDialog):
             self._send_worker = None
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Cancel and detach the background workers so the dialog closes instantly without freezing."""
         _CrawlerRequestDialog._open_dialogs.pop(self._registry_key, None)
         self._cancel_and_detach_workers()
-        super().closeEvent(a0)
+        super().closeEvent(event)
 
     @override
     def reject(self) -> None:
@@ -417,11 +417,11 @@ class _RIDPickerDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         ok_button = button_box.button(QDialogButtonBox.StandardButton.Ok)
-        if ok_button is not None:
+        if ok_button:
             ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
             ok_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
         cancel_button = button_box.button(QDialogButtonBox.StandardButton.Cancel)
-        if cancel_button is not None:
+        if cancel_button:
             cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         layout.addWidget(button_box)
@@ -429,7 +429,7 @@ class _RIDPickerDialog(QDialog):
     def selected_rid(self) -> int | None:
         """Return the currently selected RID, or `None` if nothing is selected."""
         item = self._list.currentItem()
-        if item is None:
+        if not item:
             return None
         return int(item.data(Qt.ItemDataRole.UserRole))
 

@@ -109,14 +109,17 @@ QPushButton:disabled {
 # =============================================================================
 
 COMPACT_BUTTON_STYLESHEET = (
-    'QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(236,240,241,0.12), stop:1 rgba(189,195,199,0.18));'
-    ' color: #ecf0f1; border: 1px solid rgba(52,73,94,0.6);'
-    ' border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: bold; }'
-    ' QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(52,152,219,0.25), stop:1 rgba(41,128,185,0.35));'
-    ' border: 1px solid rgba(52,152,219,0.8); color: #ffffff; }'
-    ' QPushButton:pressed { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,'
-    ' stop:0 rgba(41,128,185,0.45), stop:1 rgba(52,152,219,0.55));'
-    ' border: 1px solid rgba(41,128,185,1.0); }'
+    'QPushButton { background-color: #1a1e24; color: #a5b4c4; border: 1px solid #2d3640;'
+    ' border-radius: 6px; padding: 6px 16px; font-size: 11px; font-weight: bold; }'
+    ' QPushButton:hover { background-color: #212830; color: #ffffff; border: 1px solid #4a5968; }'
+    ' QPushButton:pressed { background-color: #14181d; color: #ffffff; border: 1px solid #3d8ec9; }'
+    ' QPushButton:disabled { background-color: #111317; color: #40464f; border: 1px solid #1a1e24; }'
+)
+
+COMPACT_DANGER_BUTTON_STYLESHEET = (
+    'QPushButton { background-color: #2a1618; color: #d67a83; border: 1px solid #422528;'
+    ' border-radius: 6px; padding: 6px 16px; font-size: 11px; font-weight: bold; }'
+    ' QPushButton:hover { background-color: #3b1f22; color: #ffffff; border: 1px solid #5c3237; }'
+    ' QPushButton:pressed { background-color: #1c0e10; color: #ffffff; border: 1px solid #e74c3c; }'
+    ' QPushButton:disabled { background-color: #161111; color: #4d3839; border: 1px solid #21191a; }'
 )

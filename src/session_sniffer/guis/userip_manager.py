@@ -7,12 +7,13 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import override
 
-from PyQt6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PyQt6.QtGui import QBrush, QColor, QDesktopServices, QFileSystemModel, QShowEvent, QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
+from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QShowEvent, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QDialog,
+    QFileSystemModel,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -26,7 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
@@ -99,21 +100,21 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
 
-        new_db_button = QPushButton('📄 New DB')
+        new_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), ' New DB')
         new_db_button.setAutoDefault(False)
         new_db_button.setToolTip('Create a new UserIP database file')
         new_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         new_db_button.clicked.connect(self._new_database)
         tree_buttons.addWidget(new_db_button)
 
-        new_folder_button = QPushButton('📁 New Folder')
+        new_folder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' New Folder')
         new_folder_button.setAutoDefault(False)
         new_folder_button.setToolTip('Create a new folder to organize databases')
         new_folder_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         new_folder_button.clicked.connect(self._new_folder)
         tree_buttons.addWidget(new_folder_button)
 
-        self._delete_tree_button = QPushButton('🗑️ Delete')
+        self._delete_tree_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
         self._delete_tree_button.setAutoDefault(False)
         self._delete_tree_button.setToolTip('Delete the selected database or folder')
         self._delete_tree_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
@@ -121,7 +122,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._delete_tree_button.clicked.connect(self._delete_tree_item)  # reconnected dynamically in _on_tree_selection_changed
         tree_buttons.addWidget(self._delete_tree_button)
 
-        reset_button = QPushButton('🗑️ Reset all…')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
         reset_button.setAutoDefault(False)
         reset_button.setToolTip('Permanently delete all user databases and restore defaults')
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
@@ -161,7 +162,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._tree.customContextMenuRequested.connect(self._show_tree_context_menu)
 
         tree_selection = self._tree.selectionModel()
-        if tree_selection is not None:
+        if tree_selection:
             tree_selection.selectionChanged.connect(self._on_tree_selection_changed)
 
         left_layout.addWidget(self._tree, stretch=1)
@@ -171,13 +172,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         import_menu = QMenu(self)
         import_files_action = import_menu.addAction('📂 Import .ini file(s)…')
-        if import_files_action is not None:
+        if import_files_action:
             import_files_action.triggered.connect(self._import_database_files)
         import_zip_action = import_menu.addAction('📦 Import from ZIP…')
-        if import_zip_action is not None:
+        if import_zip_action:
             import_zip_action.triggered.connect(self._import_from_zip)
 
-        import_button = QPushButton('📥 Import…')
+        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import…')
         import_button.setAutoDefault(False)
         import_button.setMaximumWidth(130)
         import_button.setToolTip('Import database files into the databases directory')
@@ -187,14 +188,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         export_menu = QMenu(self)
         self._export_selected_action = export_menu.addAction('📤 Export selected database…')
-        if self._export_selected_action is not None:
+        if self._export_selected_action:
             self._export_selected_action.triggered.connect(self._export_selected_database)
             self._export_selected_action.setEnabled(False)
         export_zip_action = export_menu.addAction('📦 Export all as ZIP…')
-        if export_zip_action is not None:
+        if export_zip_action:
             export_zip_action.triggered.connect(self._export_all_as_zip)
 
-        export_button = QPushButton('📤 Export…')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export…')
         export_button.setAutoDefault(False)
         export_button.setMaximumWidth(130)
         export_button.setToolTip('Export databases to an external location')
@@ -262,7 +263,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         )
 
         header = self._entries_table.header()
-        if header is not None:
+        if header:
             header.setStretchLastSection(False)
             for column, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
@@ -276,7 +277,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.doubleClicked.connect(self.on_entry_double_clicked)
 
         entries_selection = self._entries_table.selectionModel()
-        if entries_selection is not None:
+        if entries_selection:
             entries_selection.selectionChanged.connect(self._on_entries_selection_changed)
 
         right_layout.addWidget(self._entries_table, stretch=1)
@@ -284,7 +285,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         # Entry action buttons
         entry_buttons = QHBoxLayout()
 
-        self._add_button = QPushButton('➕ Add Entry')  # noqa: RUF001
+        self._add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Entry')
         self._add_button.setAutoDefault(False)
         self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
         self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -292,7 +293,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._edit_ip_button = QPushButton('🔧 Edit IP/Range…')
+        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Edit IP/Range…')
         self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
         self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -300,15 +301,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._edit_ip_button.clicked.connect(self._edit_selected_entry_ip)
         entry_buttons.addWidget(self._edit_ip_button)
 
-        self._delete_button = QPushButton('❌ Delete Selected')
-        self._delete_button.setAutoDefault(False)
-        self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
-        self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        self._delete_button.setEnabled(False)
-        self._delete_button.clicked.connect(self._delete_selected)
-        entry_buttons.addWidget(self._delete_button)
-
-        self._open_db_button = QPushButton('📝 Open DB')
+        self._open_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open DB')
         self._open_db_button.setAutoDefault(False)
         self._open_db_button.setToolTip('Open the current database file in the default text editor')
         self._open_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -316,9 +309,17 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._open_db_button.clicked.connect(self._open_db_in_editor)
         entry_buttons.addWidget(self._open_db_button)
 
+        self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected')
+        self._delete_button.setAutoDefault(False)
+        self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
+        self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._delete_button.setEnabled(False)
+        self._delete_button.clicked.connect(self._delete_selected)
+        entry_buttons.addWidget(self._delete_button)
+
         entry_buttons.addStretch()
 
-        self._save_button = QPushButton('💾 Save')
+        self._save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save')
         self._save_button.setAutoDefault(False)
         self._save_button.setToolTip('Save all changes to the current database file')
         self._save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
@@ -341,7 +342,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         splitter.setHandleWidth(1)
 
         handle = splitter.handle(1)
-        if handle is not None:
+        if handle:
             handle.setDisabled(True)
 
         root_layout.addWidget(splitter)
@@ -395,7 +396,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         """Open the current (or selected row's) database file in the system's default text editor."""
         if self._global_search_active:
             selection = self._entries_table.selectionModel()
-            selected_rows = selection.selectedRows() if selection is not None else []
+            selected_rows = selection.selectedRows() if selection else []
             if len(selected_rows) == 1:
                 source_row = self._proxy.mapToSource(selected_rows[0]).row()
                 db_item = self._model.item(source_row, DATABASE_COLUMN)
@@ -482,7 +483,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     def _on_entries_selection_changed(self) -> None:
         """Update action buttons based on the current entries-table selection."""
         selection = self._entries_table.selectionModel()
-        selected_rows = selection.selectedRows() if selection is not None else []
+        selected_rows = selection.selectedRows() if selection else []
         has_selection = bool(selected_rows)
 
         self._delete_button.setEnabled(has_selection)
@@ -594,7 +595,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     def _edit_selected_entry_ip(self) -> None:
         """Edit the IP/range of the currently selected entry via the builder button."""
         selection = self._entries_table.selectionModel()
-        if selection is None:
+        if not selection:
             return
         selected_rows = selection.selectedRows()
         if len(selected_rows) != 1:
@@ -625,9 +626,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         ip_item = self._model.item(source_row, IP_COLUMN)
         range_item = self._model.item(source_row, RANGE_COLUMN)
-        if ip_item is not None:
+        if ip_item:
             ip_item.setText(new_ip_text if is_single else '')
-        if range_item is not None:
+        if range_item:
             range_item.setText('' if is_single else new_ip_text)
 
         self._mark_entries_dirty()
@@ -659,7 +660,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
         """Move selected rows up (direction=-1) or down (direction=+1) in the source model."""
         selection = self._entries_table.selectionModel()
-        if selection is None:
+        if not selection:
             return
 
         selected_proxy_rows = selection.selectedRows()
@@ -687,7 +688,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         # Reselect the moved rows
         new_source_rows = [row + direction for row in source_rows]
         selection_model = self._entries_table.selectionModel()
-        if selection_model is not None:
+        if selection_model:
             selection_model.clearSelection()
             for src_row in new_source_rows:
                 proxy_index = self._proxy.mapFromSource(self._model.index(src_row, 0))
@@ -705,7 +706,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         """Reassign sequential index numbers (1-based) to all rows in the source model."""
         for row in range(self._model.rowCount()):
             index_item = self._model.item(row, INDEX_COLUMN)
-            if index_item is not None:
+            if index_item:
                 index_item.setText(str(row + 1))
                 index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
         self._next_index = self._model.rowCount() + 1
@@ -713,7 +714,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     def _delete_selected(self) -> None:
         """Delete selected rows after confirmation."""
         selection = self._entries_table.selectionModel()
-        if selection is None:
+        if not selection:
             return
 
         selected_indexes = selection.selectedRows()
@@ -790,7 +791,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         for row in range(self._model.rowCount()):
             username_item = self._model.item(row, USERNAME_COLUMN)
-            if username_item is None:
+            if not username_item:
                 continue
 
             username = username_item.text().strip()
@@ -888,7 +889,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         for row in range(self._model.rowCount()):
             username_item = self._model.item(row, USERNAME_COLUMN)
-            if username_item is None:
+            if not username_item:
                 continue
 
             username = username_item.text().strip()
@@ -908,7 +909,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             for row in range(self._model.rowCount()):
                 for column in range(DATABASE_COLUMN):
                     item = self._model.item(row, column)
-                    if item is None:
+                    if not item:
                         continue
                     if row in duplicate_rows:
                         item.setBackground(DUPLICATE_HIGHLIGHT_BRUSH)
@@ -955,7 +956,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             self._file_info_label.setText('')
             return
         stat = path.stat()
-        size = human_readable_size(int(stat.st_size))
+        size = human_readable_size(stat.st_size)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
         self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}')
 
@@ -994,7 +995,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         return not self._dirty
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:

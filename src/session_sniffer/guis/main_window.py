@@ -1,11 +1,11 @@
 """Main window implementation for Session Sniffer."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QShowEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QShowEvent
+from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QMainWindow,
@@ -118,14 +118,14 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # ----- Menu bar -----
         menu_bar = self.menuBar()
-        if menu_bar is None:
+        if not menu_bar:
             message = 'Failed to get menu bar'
             raise RuntimeError(message)
         menu_bar.setStyleSheet(MENU_BAR_STYLESHEET)
 
         # ----- Capture menu -----
         capture_menu = menu_bar.addMenu('Capture')
-        if capture_menu is None:
+        if not capture_menu:
             message = 'Failed to create Capture menu'
             raise RuntimeError(message)
         capture_menu.setToolTipsVisible(True)
@@ -144,12 +144,12 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # ----- GTA5 menu (hidden unless GTA5 feature set) -----
         gta5_menu = menu_bar.addMenu('GTA5')
-        if gta5_menu is None:
+        if not gta5_menu:
             message = 'Failed to create GTA5 menu'
             raise RuntimeError(message)
         gta5_menu.setToolTipsVisible(True)
         gta5_menu_action = gta5_menu.menuAction()
-        if gta5_menu_action is None:
+        if not gta5_menu_action:
             message = 'Failed to get GTA5 menu action'
             raise RuntimeError(message)
         gta5_menu_action.setVisible(Settings.is_gta5_feature_set())
@@ -170,7 +170,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._resize_gta5_status_label('● GTA V not running')
 
         gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
-        self._gta5_menu_status_separator = cast('QAction', gta5_menu.addSeparator())
+        self._gta5_menu_status_separator = gta5_menu.addSeparator()
 
         player_resolver_action = QAction('🔍 Player Resolver', self)
         player_resolver_action.setToolTip('High Rate Monitor and Player Identifier tools')
@@ -183,11 +183,11 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_menu.addSeparator()
 
         session_host_submenu = gta5_menu.addMenu('👑 Session Host')
-        if session_host_submenu is None:
+        if not session_host_submenu:
             message = 'Failed to create Session Host submenu'
             raise RuntimeError(message)
         session_host_submenu.setToolTipsVisible(True)
-        cast('QAction', session_host_submenu.menuAction()).setToolTip('Session host detection controls for the current GTA5 lobby')
+        session_host_submenu.menuAction().setToolTip('Session host detection controls for the current GTA5 lobby')
         self._session_host_submenu = session_host_submenu
 
         host_status_action = QAction('ℹ️ No host', self)  # noqa: RUF001
@@ -220,20 +220,20 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         session_host_submenu.addSeparator()
         host_history_submenu = session_host_submenu.addMenu('📜 Host History')
-        if host_history_submenu is None:
+        if not host_history_submenu:
             message = 'Failed to create Host History submenu'
             raise RuntimeError(message)
         host_history_submenu.setToolTipsVisible(True)
         host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, self._highlight_ips))
 
-        self._gta5_menu_process_separator = cast('QAction', gta5_menu.addSeparator())
+        self._gta5_menu_process_separator = gta5_menu.addSeparator()
 
         gta5_process_submenu = gta5_menu.addMenu('🎮 GTA5 Process')
-        if gta5_process_submenu is None:
+        if not gta5_process_submenu:
             message = 'Failed to create GTA5 Process submenu'
             raise RuntimeError(message)
         gta5_process_submenu.setToolTipsVisible(True)
-        cast('QAction', gta5_process_submenu.menuAction()).setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
+        gta5_process_submenu.menuAction().setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
         self._gta5_process_submenu = gta5_process_submenu
 
         gta5_menu_solo_action = QAction('🎯 Solo Public Session (~8s)', self)
@@ -270,7 +270,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # ----- Tools menu -----
         tools_menu = menu_bar.addMenu('Tools')
-        if tools_menu is None:
+        if not tools_menu:
             message = 'Failed to create Tools menu'
             raise RuntimeError(message)
         tools_menu.setToolTipsVisible(True)
@@ -299,7 +299,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # ----- Statistics menu -----
         statistics_menu = menu_bar.addMenu('Statistics')
-        if statistics_menu is None:
+        if not statistics_menu:
             message = 'Failed to create Statistics menu'
             raise RuntimeError(message)
         statistics_menu.setToolTipsVisible(True)
@@ -345,7 +345,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # ----- Data & Files menu -----
         data_menu = menu_bar.addMenu('Data && Files')
-        if data_menu is None:
+        if not data_menu:
             message = 'Failed to create Data & Files menu'
             raise RuntimeError(message)
         data_menu.setToolTipsVisible(True)
@@ -360,14 +360,6 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_roaming_appdata_action.setToolTip('Open Roaming AppData\\Session Sniffer in Windows Explorer')
         open_roaming_appdata_action.triggered.connect(self._open_roaming_appdata_folder)
         data_menu.addAction(open_roaming_appdata_action)
-
-        data_menu.addSeparator()
-
-        # --- Configuration ---
-        open_settings_ini_action = QAction('📄 Open Settings.ini', self)
-        open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
-        open_settings_ini_action.triggered.connect(self._open_settings_file)
-        data_menu.addAction(open_settings_ini_action)
 
         data_menu.addSeparator()
 
@@ -386,11 +378,11 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # --- Debug Logs Submenu ---
         debug_logs_submenu = data_menu.addMenu('🐛 Debug Logs')
-        if debug_logs_submenu is None:
+        if not debug_logs_submenu:
             message = 'Failed to create Debug Logs submenu'
             raise RuntimeError(message)
         debug_logs_submenu.setToolTipsVisible(True)
-        cast('QAction', debug_logs_submenu.menuAction()).setToolTip('Open or browse the application debug log files')
+        debug_logs_submenu.menuAction().setToolTip('Open or browse the application debug log files')
 
         open_debug_logs_folder_action = QAction('📂 Open Debug Logs Folder', self)
         open_debug_logs_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug')
@@ -406,11 +398,11 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
 
         # --- Application Logs Submenu ---
         app_logs_submenu = data_menu.addMenu('📋 Application Logs')
-        if app_logs_submenu is None:
+        if not app_logs_submenu:
             message = 'Failed to create Application Logs submenu'
             raise RuntimeError(message)
         app_logs_submenu.setToolTipsVisible(True)
-        cast('QAction', app_logs_submenu.menuAction()).setToolTip('Open or browse CSV application log files (detections, protection, UserIP)')
+        app_logs_submenu.menuAction().setToolTip('Open or browse CSV application log files (detections, protection, UserIP)')
 
         open_logging_folder_action = QAction('📂 Open Logging Folder', self)
         open_logging_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging')
@@ -439,9 +431,17 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_userip_log_action.triggered.connect(self._open_userip_log_file)
         app_logs_submenu.addAction(open_userip_log_action)
 
+        data_menu.addSeparator()
+
+        # --- Configuration ---
+        open_settings_ini_action = QAction('📄 Open Settings.ini', self)
+        open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
+        open_settings_ini_action.triggered.connect(self._open_settings_file)
+        data_menu.addAction(open_settings_ini_action)
+
         # ----- Settings menu -----
         settings_menu = menu_bar.addMenu('Settings')
-        if settings_menu is None:
+        if not settings_menu:
             message = 'Failed to create Settings menu'
             raise RuntimeError(message)
         settings_menu.setToolTipsVisible(True)
@@ -451,18 +451,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         open_settings_action.triggered.connect(self._open_settings_dialog)
         settings_menu.addAction(open_settings_action)
 
-        settings_menu.addSeparator()
-
-        always_on_top_action = QAction('📌 Always on Top', self)
-        always_on_top_action.setToolTip('Keep the main window above all other windows')
-        always_on_top_action.setCheckable(True)
-        always_on_top_action.setChecked(False)
-        always_on_top_action.toggled.connect(self._toggle_main_window_always_on_top)
-        settings_menu.addAction(always_on_top_action)
-
         # ----- Help menu -----
         help_menu = menu_bar.addMenu('Help')
-        if help_menu is None:
+        if not help_menu:
             message = 'Failed to create Help menu'
             raise RuntimeError(message)
         help_menu.setToolTipsVisible(True)
@@ -598,10 +589,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         # Install event filter to detect window movement/dragging
         self.installEventFilter(self)
 
+        # Apply settings
+        self._apply_always_on_top()
+
     @override
-    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+    def eventFilter(self, a0: QObject, a1: QEvent) -> bool:
         """Filter events to detect window movement."""
-        if a0 == self and a1 is not None:
+        if a0 == self and a1:
             event_type = a1.type()
 
             # Detect start of window movement/dragging
@@ -633,7 +627,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._disconnected.set_all_enabled(enabled=False)
         self._tables_separator.setEnabled(False)
         status_bar = self.statusBar()
-        if status_bar is None:
+        if not status_bar:
             return
         status_bar.setEnabled(False)
 
@@ -646,7 +640,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._disconnected.set_all_enabled(enabled=True)
         self._tables_separator.setEnabled(True)
         status_bar = self.statusBar()
-        if status_bar is None:
+        if not status_bar:
             return
         status_bar.setEnabled(True)
 
@@ -664,7 +658,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         terminate_script('EXIT')
 
     @override
-    def showEvent(self, a0: QShowEvent | None) -> None:
+    def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
         if self.property('_should_maximize_on_show') is True:
@@ -820,9 +814,9 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         SessionHost.search_player = True
         SessionHost.manual_redetect = True
 
-    def _toggle_main_window_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
-        """Toggle the always-on-top window flag for this session."""
-        apply_always_on_top(self, checked)
+    def _apply_always_on_top(self) -> None:
+        """Apply the always-on-top setting to the main window."""
+        apply_always_on_top(self, Settings.gui_always_on_top)
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
@@ -832,6 +826,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             return
         self._settings_dialog_window = SettingsDialog(self, self.capture.get())
         self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)
+        self._settings_dialog_window.accepted.connect(self._apply_always_on_top)
         self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))
         self._settings_dialog_window.show()
 
@@ -889,14 +884,14 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
     def set_interface_switching_mode(self, *, switching: bool) -> None:
         """Disable or re-enable the UI while an interface switch is in progress."""
         menu_bar = self.menuBar()
-        if menu_bar is not None:
+        if menu_bar:
             menu_bar.setEnabled(not switching)
         self._actions.change_interface.setEnabled(not switching)
         self._connected.set_all_enabled(enabled=not switching)
         self._disconnected.set_all_enabled(enabled=not switching)
         self._tables_separator.setEnabled(not switching)
         status_bar = self.statusBar()
-        if status_bar is not None:
+        if status_bar:
             status_bar.setEnabled(not switching)
 
     def set_change_interface_button_enabled(self, *, enabled: bool) -> None:

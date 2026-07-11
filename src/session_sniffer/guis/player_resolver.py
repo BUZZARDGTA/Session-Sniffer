@@ -2,8 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QCheckBox,
     QTabWidget,
     QVBoxLayout,
@@ -12,12 +12,11 @@ from PyQt6.QtWidgets import (
 from session_sniffer.guis.high_pps_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
-from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PyQt6.QtWidgets import QWidget
+    from PySide6.QtWidgets import QWidget
 
 
 class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
@@ -29,9 +28,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
         self.setWindowTitle('Player Resolver')
         self.setMinimumSize(700, 400)
-        _base_flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint
-        if Settings.gui_rate_graph_always_on_top:
-            _base_flags |= Qt.WindowType.WindowStaysOnTopHint
+        _base_flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(_base_flags)
 
         layout = QVBoxLayout(self)
@@ -51,7 +48,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         # Always on top checkbox (shared across tabs)
         always_on_top_checkbox = QCheckBox('Always on Top')
         always_on_top_checkbox.setToolTip('Keep this window above all other windows.')
-        always_on_top_checkbox.setChecked(Settings.gui_rate_graph_always_on_top)
+        always_on_top_checkbox.setChecked(True)
         always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(always_on_top_checkbox, alignment=Qt.AlignmentFlag.AlignHCenter)

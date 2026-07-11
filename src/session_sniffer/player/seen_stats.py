@@ -283,7 +283,13 @@ def _copy_entry(entry: LeaderboardEntry) -> LeaderboardEntry:
     return replace(entry, usernames=list(entry.usernames))
 
 
-def build_leaderboard_baseline(folder_path: Path, *, exclude_file: Path | None = None, should_cancel: Callable[[], bool] | None = None) -> LeaderboardBaseline:
+def build_leaderboard_baseline(
+    folder_path: Path,
+    *,
+    exclude_file: Path | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> LeaderboardBaseline:
     """Scan finished session logs into a reusable baseline, optionally skipping the live session file.
 
     `exclude_file` is the currently-active session snapshot, which is continuously rewritten and is
@@ -297,9 +303,16 @@ def build_leaderboard_baseline(folder_path: Path, *, exclude_file: Path | None =
     seen_dates: dict[str, set[date]] = {}
     now = datetime.now(tz=LOCAL_TZ)
 
-    for json_file in folder_path.rglob('*.json'):
+    json_files = list(folder_path.rglob('*.json'))
+    total_files = len(json_files)
+
+    for i, json_file in enumerate(json_files):
         if should_cancel is not None and should_cancel():
             break
+
+        if progress_callback is not None:
+            progress_callback(i, total_files)
+
         if not json_file.is_file():
             continue
         if exclude_file is not None and json_file == exclude_file:
@@ -312,6 +325,9 @@ def build_leaderboard_baseline(folder_path: Path, *, exclude_file: Path | None =
             continue
 
         _accumulate_session(entries, seen_dates, cast('dict[str, Any]', data), now)
+
+    if progress_callback is not None and (should_cancel is None or not should_cancel()):
+        progress_callback(total_files, total_files)
 
     return LeaderboardBaseline(entries=entries, seen_dates=seen_dates)
 

@@ -12,8 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock, Thread
 
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QMessageBox
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QMessageBox
 
 from session_sniffer import msgbox
 from session_sniffer.background import (
@@ -47,6 +47,7 @@ from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.main_window import MainWindow
+from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.utils import get_screen_size
@@ -58,6 +59,7 @@ from session_sniffer.networking.geolite2.service import update_and_initialize_ge
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
+from session_sniffer.networking.reverse_dns import reset_resolver_cache
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -116,7 +118,7 @@ def main() -> None:
     splash = SplashScreen()
     splash.show()
     # Own all msgboxes shown during splash so they appear above it without being globally topmost
-    msgbox.set_owner_hwnd(int(splash.winId()))
+    msgbox.set_owner_hwnd(splash.winId())
 
     if not is_pyinstaller_compiled():
         splash.update_status('Checking Python package versions')
@@ -139,7 +141,7 @@ def main() -> None:
     register_secret_provider(lambda: Settings.looky_api_key)
     register_secret_provider(lambda: Settings.webserver_password)
     Settings.rebuild_blocked_ip_ranges()
-    CaptureStats.resize_history_deques(Settings.gui_rate_graph_max_history)
+    CaptureStats.resize_history_deques(DEFAULT_MAX_HISTORY)
 
     splash.run_with_spinner(GUIDetectionSettings.load_from_file_or_defaults, DETECTIONS_JSON_PATH)
     splash.run_with_spinner(ComboRulesManager.load_from_file, COMBO_RULES_PATH)
@@ -375,9 +377,9 @@ def main() -> None:
         )
 
         if new_interface is None or (
-            new_interface.name == Settings.capture_interface_name and
-            new_interface.ip_address == Settings.capture_ip_address and
-            new_interface.mac_address == Settings.capture_mac_address
+            new_interface.name == Settings.capture_interface_name
+            and new_interface.ip_address == Settings.capture_ip_address
+            and new_interface.mac_address == Settings.capture_mac_address
         ):
             window.set_change_interface_button_enabled(enabled=True)
             return
@@ -419,6 +421,7 @@ def main() -> None:
 
         CaptureState.vpn_mode_enabled = new_vpn_mode
         CaptureStats.reset_on_interface_switch()
+        reset_resolver_cache()
 
         window.reset_players_for_interface_switch()
         window.reset_session_graph()

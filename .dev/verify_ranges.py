@@ -413,10 +413,6 @@ KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
         'dxc us latin america corporation',
         'shanghai blue cloud technology',
     ],
-    'Amazon.com, Inc.': [
-        'amazon data services',
-        'amazon technologies',
-    ],
     'Demonware Limited': [
         'datacamp limited',
         'orbit telekom sanayi',
@@ -429,6 +425,13 @@ KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
 # Custom aliases list: Map an expected owner to a list of exact ISP/Org strings that
 # SHOULD be considered a match (e.g., 'DoD Network Information Center' for 'US Department of Defense').
 KNOWN_ALIASES: dict[str, list[str]] = {
+    'Amazon.com, Inc.': [
+        'Amazon.com, Inc.',
+        'Amazon Technologies Inc',
+        'Amazon.com, Inc. / Amazon Technologies Inc.',
+        'Amazon.com, Inc. / Amazon Technologies Inc',
+        'Amazon Technologies Inc. / AWS EC2',
+    ],
     'The Constant Company, LLC': [
         'vultr',
         'choopa',
@@ -1324,9 +1327,14 @@ def run_preflight_checks(
 
 def should_skip(owner: str, *, use_geolite2: bool) -> bool:
     """Return True if range verification should be skipped for this owner."""
-    if owner in {'BattlEye', 'Tellas Greece'}:
-        return True
-    return not use_geolite2 and owner in {'Google LLC', 'Amazon.com, Inc.'}
+    del use_geolite2
+    return owner in {
+        'BattlEye',
+        'Tellas Greece',
+        'Google LLC',
+        # 'Amazon.com, Inc.',
+        # 'Microsoft Corporation',
+    }
 
 
 def main() -> None:

@@ -10,7 +10,7 @@ from threading import Thread
 from typing import TYPE_CHECKING
 
 import geoip2.errors
-from PyQt6.QtGui import QImage
+from PySide6.QtGui import QImage
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import handle_detection_notification, process_userip_task
@@ -60,7 +60,7 @@ from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_m
 from session_sniffer.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
-from session_sniffer.utils import dedup_preserve_order, get_session_log_path
+from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, get_session_log_path
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -77,6 +77,7 @@ COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
+SESSIONS_CLEANUP_INTERVAL_SECONDS = 60.0
 
 
 def rendering_core(
@@ -159,8 +160,8 @@ def rendering_core(
             except geoip2.errors.AddressNotFoundError:
                 pass
             else:
-                country_name = str(response.country.name) if response.country.name is not None else 'N/A'
-                country_code = str(response.country.iso_code) if response.country.iso_code is not None else 'N/A'
+                country_name = response.country.name if response.country.name is not None else 'N/A'
+                country_code = response.country.iso_code if response.country.iso_code is not None else 'N/A'
 
         return country_name, country_code
 
@@ -173,7 +174,7 @@ def rendering_core(
             except geoip2.errors.AddressNotFoundError:
                 pass
             else:
-                city = str(response.city.name) if response.city.name is not None else 'N/A'
+                city = response.city.name if response.city.name is not None else 'N/A'
 
         return city
 
@@ -186,7 +187,7 @@ def rendering_core(
             except geoip2.errors.AddressNotFoundError:
                 pass
             else:
-                asn = str(response.autonomous_system_organization) if response.autonomous_system_organization is not None else 'N/A'
+                asn = response.autonomous_system_organization if response.autonomous_system_organization is not None else 'N/A'
 
         return asn
 
@@ -354,6 +355,7 @@ def rendering_core(
 
     last_userip_parse_time = None
     last_session_logging_processing_time = None
+    last_sessions_cleanup_time: float | None = None
     last_modmenu_refresh_time: float | None = None
     _has_players_for_poll: bool = False
     _relay_host_logged_ip: str | None = None
@@ -500,7 +502,12 @@ def rendering_core(
 
         if Settings.is_gta5_feature_set():
             if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
-                if SessionHost.player or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate:
+                if (
+                    SessionHost.player is not None
+                    or SessionHost.players_pending_for_disconnection
+                    or SessionHost.search_player
+                    or SessionHost.last_timing_gap_candidate is not None
+                ):
                     SessionHost.clear_session_host_data()
             else:
                 if CaptureState.gta5_just_started:
@@ -510,7 +517,7 @@ def rendering_core(
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                 p2p_session_connected = [player for player in session_connected if not is_third_party_server_ip(player.ip)]
-                if SessionHost.player and SessionHost.player.left_event.is_set():
+                if SessionHost.player is not None and SessionHost.player.left_event.is_set():
                     if SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != SessionHost.player.ip:
                         logger.debug(
                             '[SessionHost] Current host %s disconnected but is relayed (%d packets <= %d), keeping as host until session clears',
@@ -573,7 +580,7 @@ def rendering_core(
                     _session_host_was_active = True
 
                 if not session_connected:
-                    if _session_host_was_active and (SessionHost.player or not SessionHost.search_player):
+                    if _session_host_was_active and (SessionHost.player is not None or not SessionHost.search_player):
                         logger.debug('[SessionHost] No connected players, resetting host and triggering search')
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
@@ -642,6 +649,16 @@ def rendering_core(
         if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
             last_session_logging_processing_time = time.monotonic()
             process_session_logging()
+
+        if last_sessions_cleanup_time is None or (time.monotonic() - last_sessions_cleanup_time) >= SESSIONS_CLEANUP_INTERVAL_SECONDS:
+            last_sessions_cleanup_time = time.monotonic()
+            cleanup_session_logs(
+                sessions_dir=SESSIONS_LOGGING_DIR_PATH,
+                delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
+                delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
+                gui_sessions_logging=Settings.gui_sessions_logging,
+                active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
+            )
 
         # Runtime Discord RPC toggle: create or close based on current setting
         if Settings.discord_presence and discord_rpc_manager is None:

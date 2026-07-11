@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QFileSystemWatcher, QObject, QTimer
+from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable

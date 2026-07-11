@@ -2,9 +2,9 @@
 
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QItemSelectionModel, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices
-from PyQt6.QtWidgets import QMenu, QTableView
+from PySide6.QtCore import QItemSelectionModel, QUrl
+from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
@@ -12,7 +12,6 @@ from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
-from session_sniffer.guis.stylesheets import CUSTOM_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import (
@@ -54,7 +53,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from PyQt6.QtCore import QModelIndex, QPoint
+    from PySide6.QtCore import QModelIndex, QPoint
 
     from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
@@ -120,15 +119,33 @@ class TableContextMenuMixin(QTableView):
     if TYPE_CHECKING:
         is_connected_table: bool
         open_rate_graph_callback: Callable[[str], None] | None
-        handle_menu_hovered: Callable[[QAction], None]
-        copy_selected_cells: Callable[[SessionTableModel, list[QModelIndex]], None]
-        remove_players_by_ip_from_table: Callable[[set[str]], None]
-        select_all_cells: Callable[[], None]
-        unselect_all_cells: Callable[[], None]
-        select_row_cells: Callable[[int], None]
-        unselect_row_cells: Callable[[int], None]
-        select_column_cells: Callable[[int], None]
-        unselect_column_cells: Callable[[int], None]
+
+        def handle_menu_hovered(self, action: QAction) -> None:
+            """Stub."""
+
+        def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
+            """Stub."""
+
+        def remove_players_by_ip_from_table(self, ip_addresses: set[str]) -> None:
+            """Stub."""
+
+        def select_all_cells(self) -> None:
+            """Stub."""
+
+        def unselect_all_cells(self) -> None:
+            """Stub."""
+
+        def select_row_cells(self, row: int) -> None:
+            """Stub."""
+
+        def unselect_row_cells(self, row: int) -> None:
+            """Stub."""
+
+        def select_column_cells(self, column: int) -> None:
+            """Stub."""
+
+        def unselect_column_cells(self, column: int) -> None:
+            """Stub."""
 
     def show_context_menu(self, pos: QPoint) -> None:
         """Show the context menu at the specified position with options to interact with the table's content."""
@@ -160,7 +177,7 @@ class TableContextMenuMixin(QTableView):
             if tooltip:
                 menu.setToolTip(tooltip)
                 menu_action = menu.menuAction()
-                if menu_action is not None:
+                if menu_action:
                     menu_action.setToolTip(tooltip)
 
             return menu
@@ -174,11 +191,19 @@ class TableContextMenuMixin(QTableView):
         ) -> None:
             """Add database entries to *parent_menu*, nesting subfolders as child menus."""
             folder_menus: dict[tuple[str, ...], QMenu] = {}
+            menus_with_folders: set[QMenu] = set()
 
-            for db_path in database_paths:
+            def _sort_key(db_path: Path) -> tuple[tuple[int, str], ...]:
+                rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+                return tuple((0, part.casefold()) if i < len(rel.parts) - 1 else (1, part.casefold()) for i, part in enumerate(rel.parts))
+
+            for db_path in sorted(database_paths, key=_sort_key):
                 rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
                 if len(rel.parts) == 1:
+                    if parent_menu in menus_with_folders:
+                        parent_menu.addSeparator()
+                        menus_with_folders.remove(parent_menu)
                     action = add_action(parent_menu, rel.parts[0], tooltip=tooltip, handler=handler_factory(db_path))
                     if disabled_path is not None and db_path == disabled_path:
                         action.setEnabled(False)
@@ -189,7 +214,12 @@ class TableContextMenuMixin(QTableView):
                         folder_key = rel.parts[: depth + 1]
                         if folder_key not in folder_menus:
                             folder_menus[folder_key] = add_menu(current_menu, rel.parts[depth])
+                            menus_with_folders.add(current_menu)
                         current_menu = folder_menus[folder_key]
+
+                    if current_menu in menus_with_folders:
+                        current_menu.addSeparator()
+                        menus_with_folders.remove(current_menu)
 
                     action = add_action(current_menu, rel.parts[-1], tooltip=tooltip, handler=handler_factory(db_path))
                     if disabled_path is not None and db_path == disabled_path:
@@ -206,7 +236,6 @@ class TableContextMenuMixin(QTableView):
 
         # Create the main context menu
         context_menu = QMenu(self)
-        context_menu.setStyleSheet(CUSTOM_CONTEXT_MENU_STYLESHEET)
         context_menu.setToolTipsVisible(True)
         context_menu.hovered.connect(self.handle_menu_hovered)
 
@@ -302,7 +331,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 context_menu,
-                f'🚫 Exclude {len(ip_addresses)} IPs / Ranges',
+                '🚫 Exclude IPs / Ranges',
                 tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
                 handler=_do_block_multi_ips,
             )
@@ -406,7 +435,7 @@ class TableContextMenuMixin(QTableView):
             if len(players) == 1:
                 lookup_action = add_action(
                     looky_menu,
-                    '🔎 Lookup',
+                    '🔍 Lookup',
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
@@ -427,7 +456,7 @@ class TableContextMenuMixin(QTableView):
 
             lookup_all_action = add_action(
                 looky_menu,
-                '🔎 Lookup (All Selected)',
+                '🔍 Lookup (All Selected)',
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
             )
@@ -442,7 +471,7 @@ class TableContextMenuMixin(QTableView):
             if len(ip_addresses) == 1:
                 add_action(
                     ping_menu,
-                    '🏓 Normal',
+                    '⚡ Normal',
                     tooltip='Checks if selected IP address responds to pings.',
                     handler=lambda: ping_ip(ip_addresses[0]),
                 )
@@ -467,7 +496,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 ping_menu,
-                '🏓 Normal',
+                '⚡ Normal',
                 tooltip='Checks if selected IP addresses respond to pings.',
                 handler=_ping_all,
             )
@@ -511,7 +540,7 @@ class TableContextMenuMixin(QTableView):
             add_scripts_to_menu(menu, user_scripts, ip_addresses, per_ip=per_ip)
 
         def add_user_scripts_menu(ip_addresses: list[str]) -> None:
-            scripts_menu = add_menu(context_menu, '📜 User Scripts')
+            scripts_menu = add_menu(context_menu, '🛠️ User Scripts')
             builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
             user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
@@ -520,10 +549,10 @@ class TableContextMenuMixin(QTableView):
                 return
 
             if builtin_scripts or user_scripts:
-                all_at_once_menu = add_menu(scripts_menu, '📜 All IPs as Args', 'Pass all selected IPs as arguments to the script in one call.')
+                all_at_once_menu = add_menu(scripts_menu, '📚 All IPs as Args', 'Pass all selected IPs as arguments to the script in one call.')
                 _populate_scripts_menu(all_at_once_menu, builtin_scripts, user_scripts, ip_addresses)
 
-                per_ip_menu = add_menu(scripts_menu, '📜 One Process per IP', 'Spawn a separate script process for each selected IP.')
+                per_ip_menu = add_menu(scripts_menu, '📄 One Process per IP', 'Spawn a separate script process for each selected IP.')
                 _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ip_addresses, per_ip=True)
 
         def add_detections_menu(players: list[Player]) -> None:
@@ -539,18 +568,18 @@ class TableContextMenuMixin(QTableView):
             build_detections_menu_multi(detections_menu, add_action, players, self)
 
         def add_userip_single_menu(ip_address: str, player: Player) -> None:
-            userip_menu = add_menu(context_menu, '🗂️ UserIP')
+            userip_menu = add_menu(context_menu, '🗃️ UserIP')
 
             if player.userip is None:
                 database_paths = UserIPDatabases.get_userip_database_filepaths()
-                add_userip_menu = add_menu(userip_menu, '📥 Add', 'Add selected IP address to UserIP database.')
+                add_userip_menu = add_menu(userip_menu, '➕ Add', 'Add selected IP address to UserIP database.')  # noqa: RUF001
                 populate_db_menu(
                     add_userip_menu,
                     database_paths,
                     tooltip='Add selected IP address to this UserIP database.',
                     handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
                 )
-                add_range_userip_menu = add_menu(userip_menu, '📥 Add as Range', 'Add selected IP as a range entry to a UserIP database.')
+                add_range_userip_menu = add_menu(userip_menu, '🗂️ Add as Range', 'Add selected IP as a range entry to a UserIP database.')
                 populate_db_menu(
                     add_range_userip_menu,
                     database_paths,
@@ -573,14 +602,14 @@ class TableContextMenuMixin(QTableView):
             userip_menu.addSeparator()
             add_action(
                 userip_menu,
-                '📥 Add Username',
+                '➕ Add Username',  # noqa: RUF001
                 tooltip='Add an additional username for this IP address in its UserIP database.',
                 handler=lambda: userip_add_username(self, ip_address, player),
             )
             if Settings.is_gta5_feature_set():
                 refresh_action = add_action(
                     userip_menu,
-                    '👁 Add Username (Looky System)',
+                    '👁️ Add Username (Looky System)',
                     tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
                     handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
                 )
@@ -595,7 +624,7 @@ class TableContextMenuMixin(QTableView):
             if entry_desc == 'single IP':
                 add_action(
                     userip_menu,
-                    '🔁 Convert to Range',
+                    '🔄 Convert to Range',
                     tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player.userip.usernames))}.',
                     handler=lambda: userip_convert_to_range(self, ip_address, player),
                 )
@@ -609,11 +638,11 @@ class TableContextMenuMixin(QTableView):
             if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
                 add_action(
                     userip_menu,
-                    '❌ Remove Username',
+                    '➖ Remove Username',  # noqa: RUF001
                     tooltip='Remove selected usernames for this IP address while keeping others.',
                     handler=lambda: userip_remove_username(self, ip_address, player),
                 )
-            move_userip_menu = add_menu(userip_menu, '📦 Move', f'Move this {entry_desc} entry to another UserIP database.')
+            move_userip_menu = add_menu(userip_menu, '🚚 Move', f'Move this {entry_desc} entry to another UserIP database.')
             populate_db_menu(
                 move_userip_menu,
                 UserIPDatabases.get_userip_database_filepaths(),
@@ -630,9 +659,9 @@ class TableContextMenuMixin(QTableView):
 
         def add_userip_multi_menu(ip_addresses: list[str], players: list[Player]) -> None:
             if all(not UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
-                userip_menu = add_menu(context_menu, '🗂️ UserIP')
+                userip_menu = add_menu(context_menu, '🗃️ UserIP')
                 add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
-                add_userip_menu = add_menu(userip_menu, '📥 Add Selected')
+                add_userip_menu = add_menu(userip_menu, '➕ Add Selected')  # noqa: RUF001
                 populate_db_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
@@ -642,7 +671,7 @@ class TableContextMenuMixin(QTableView):
                 return
 
             if all(UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
-                userip_menu = add_menu(context_menu, '🗂️ UserIP')
+                userip_menu = add_menu(context_menu, '🗃️ UserIP')
                 entries_phrase = _describe_selected_userip_entries(ip_addresses)
 
                 rename_players = [player for player in players if player.userip is not None]
@@ -664,13 +693,13 @@ class TableContextMenuMixin(QTableView):
                     if _refresh_by_db:
                         refresh_multi_action = add_action(
                             userip_menu,
-                            '👁 Add Usernames (Looky System)',
+                            '👁️ Add Usernames (Looky System)',
                             tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                             handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
                         )
                         configure_looky_action(refresh_multi_action)
 
-                move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
+                move_userip_menu = add_menu(userip_menu, '🚚 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(
                     move_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
@@ -713,7 +742,7 @@ class TableContextMenuMixin(QTableView):
 
         add_action(
             context_menu,
-            '📋 Copy Selection',
+            '📝 Copy Selection',
             shortcut='Ctrl+C',
             tooltip='Copy selected cells to your clipboard.',
             handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
@@ -726,8 +755,8 @@ class TableContextMenuMixin(QTableView):
 
         select_menu = add_menu(context_menu, '☑️ Select')
         add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
-        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
-        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
+        add_action(select_menu, '🟦 Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
+        add_action(select_menu, '🟦 Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
 
         unselect_menu = add_menu(context_menu, '⬜ Unselect')
         add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)

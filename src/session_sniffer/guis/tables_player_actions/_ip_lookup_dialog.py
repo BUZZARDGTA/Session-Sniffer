@@ -2,8 +2,8 @@
 
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
     QVBoxLayout,
@@ -27,7 +27,7 @@ from session_sniffer.guis.utils import format_player_display, get_screen_size, r
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PyQt6.QtGui import QCloseEvent
+    from PySide6.QtGui import QCloseEvent
 
     from session_sniffer.models.player import Player
 
@@ -168,10 +168,10 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
                 value_widget.setText(text)
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Stop the refresh timer when the dialog is closed."""
         self._timer.stop()
-        super().closeEvent(a0)
+        super().closeEvent(event)
 
 
 def show_detailed_ip_lookup(parent: QWidget, player: Player) -> None:

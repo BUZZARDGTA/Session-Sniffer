@@ -7,10 +7,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFont, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
@@ -60,7 +61,7 @@ def file_metadata_text(file_path: Path) -> str:
     if not file_path.exists():
         return f'{file_path.name}  —  File not found'
     stat = file_path.stat()
-    size = human_readable_size(int(stat.st_size))
+    size = human_readable_size(stat.st_size)
     modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
     return f'{file_path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}'
 
@@ -151,7 +152,7 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         self.invalidateFilter()
 
     @override
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         """Determine whether a source row passes the current text and date filters."""
         _ = source_parent
         source_model = self.sourceModel()
@@ -162,7 +163,7 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         # Date filter
         if self._date_cutoff is not None and self._date_column >= 0:
             date_item = model.item(source_row, self._date_column)
-            if date_item is not None:
+            if date_item:
                 try:
                     row_date = datetime.strptime(date_item.text(), '%Y-%m-%d').replace(tzinfo=UTC)
                     if row_date < self._date_cutoff:
@@ -177,9 +178,9 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
 
         if self._filter_column >= 0:
             item = model.item(source_row, self._filter_column)
-            return item is not None and pattern.match(item.text()).hasMatch()
+            return bool(item and pattern.match(item.text()).hasMatch())
 
-        return any((item := model.item(source_row, column)) is not None and pattern.match(item.text()).hasMatch() for column in range(model.columnCount()))
+        return any((item := model.item(source_row, column)) and pattern.match(item.text()).hasMatch() for column in range(model.columnCount()))
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +194,8 @@ def create_log_viewer() -> QPlainTextEdit:
     viewer.setReadOnly(True)
     mono_font = QFont('Consolas', 9)
     mono_font.setStyleHint(QFont.StyleHint.Monospace)
+    mono_font.setFixedPitch(True)
+    mono_font.setFamilies(['Consolas', 'Courier New', 'Lucida Console', 'monospace'])
     viewer.setFont(mono_font)
     viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
     return viewer
@@ -223,17 +226,24 @@ def add_purge_and_location_buttons(
     """Append addStretch → Purge File → Open File Location buttons to *layout*."""
     layout.addStretch()
 
-    purge_button = QPushButton('🗑️ Purge File')
+    purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     purge_button.setToolTip(purge_tooltip)
     purge_button.clicked.connect(purge_fn)
     layout.addWidget(purge_button)
 
-    open_location_button = QPushButton('📂 Open File Location')
+    label = ' Open Folder Location' if file_path.is_dir() else ' Open File Location'
+    open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
     open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     open_location_button.setToolTip('Open the containing folder in Windows Explorer')
     open_location_button.clicked.connect(lambda: open_file_location(file_path))
     layout.addWidget(open_location_button)
+
+    open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+    open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    open_file_button.setToolTip('Open the log file in the default text editor')
+    open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
+    layout.addWidget(open_file_button)
 
 
 def purge_log_file(
@@ -269,7 +279,7 @@ def copy_viewer_text_to_clipboard(parent: QWidget, viewer: QPlainTextEdit, *, su
         QMessageBox.information(parent, TITLE, 'Nothing to copy.')
         return
     clipboard = QApplication.clipboard()
-    if clipboard is not None:
+    if clipboard:
         clipboard.setText(text)
     QMessageBox.information(parent, TITLE, f'All {success_label} copied to clipboard.')
 
@@ -292,13 +302,13 @@ def setup_copy_save_button_row(
     """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it."""
     button_row = QHBoxLayout()
 
-    copy_button = QPushButton('📋 Copy All')
+    copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy All')
     copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     copy_button.setToolTip(copy_tooltip)
     copy_button.clicked.connect(copy_fn)
     button_row.addWidget(copy_button)
 
-    save_button = QPushButton('💾 Save As...')
+    save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save As...')
     save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     save_button.setToolTip(save_tooltip)
     save_button.clicked.connect(save_fn)
@@ -319,4 +329,4 @@ def prepare_search(text: str, match_label: QLabel, viewer: QPlainTextEdit) -> QT
         viewer.setExtraSelections([])
         return None
     document = viewer.document()
-    return document if document is not None else None
+    return document or None

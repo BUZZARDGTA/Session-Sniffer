@@ -93,7 +93,7 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not isinstance(full_vendor_name, str):
             raise InvalidFullVendorNameError(full_vendor_name)
 
-        prefix_length_bits_int = int(prefix_length_bits) if prefix_length_bits is not None else 24
+        prefix_length_bits_int = int(prefix_length_bits) if isinstance(prefix_length_bits, str) else 24
         prefix_int = _mac_address_block_str_to_int(mac_address_block, prefix_length_bits_int)
 
         entry = ManufEntry(

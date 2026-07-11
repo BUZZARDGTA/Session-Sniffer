@@ -79,14 +79,15 @@ class SettingsIniModel(BaseModel):
     CAPTURE_FILTER_BLOCK_LLMNR: bool
 
     # GUI settings
+    GUI_ALWAYS_ON_TOP: bool
     GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool
     GUI_INTERFACE_SELECTION_HIDE_INACTIVE: bool
     GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS: bool
     GUI_SESSIONS_LOGGING: bool
+    GUI_SESSIONS_LOGGING_DELETE_EMPTY_FILES: bool
+    GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS: bool
     GUI_RESET_PORTS_ON_REJOINS: bool
     GUI_SESSION_HOST_DETECTION: bool
-    GUI_RATE_GRAPH_ALWAYS_ON_TOP: bool
-    GUI_RATE_GRAPH_MAX_HISTORY: int
     GUI_COLUMNS_CONNECTED_SHOWN: tuple[str, ...]
     GUI_COLUMNS_DISCONNECTED_SHOWN: tuple[str, ...]
     GUI_COLUMNS_DATETIME_SHOW_DATE: bool
@@ -148,10 +149,11 @@ class SettingsIniModel(BaseModel):
             'GUI_INTERFACE_SELECTION_AUTO_CONNECT',
             'GUI_INTERFACE_SELECTION_HIDE_INACTIVE',
             'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
-            'GUI_RATE_GRAPH_ALWAYS_ON_TOP',
             'GUI_RESET_PORTS_ON_REJOINS',
             'GUI_SESSION_HOST_DETECTION',
             'GUI_SESSIONS_LOGGING',
+            'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FILES',
+            'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS',
             'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
             'LOOKY_AUTO_RESOLVE',
             'LOOKY_ENABLED',
@@ -453,35 +455,6 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         default = cls._get_default_for_field(info)
         return default if isinstance(default, int) else 0
-
-    @field_validator('GUI_RATE_GRAPH_MAX_HISTORY', mode='before')
-    @classmethod
-    def _parse_rate_graph_max_history(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 60
-        max_val = 7200
-
-        if isinstance(value, (int, float)):
-            int_value = int(value)
-            if min_val <= int_value <= max_val:
-                return int_value
-            cls._set_flag(info, 'should_rewrite', value=True)
-            default = cls._get_default_for_field(info)
-            return default if isinstance(default, int) else 3600
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                default = cls._get_default_for_field(info)
-                return default if isinstance(default, int) else 3600
-            if min_val <= parsed <= max_val:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            default = cls._get_default_for_field(info)
-            return default if isinstance(default, int) else 3600
-        cls._set_flag(info, 'should_rewrite', value=True)
-        default = cls._get_default_for_field(info)
-        return default if isinstance(default, int) else 3600
 
     @field_validator('WEBSERVER_PORT', mode='before')
     @classmethod

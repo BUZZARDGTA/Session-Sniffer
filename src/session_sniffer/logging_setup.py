@@ -344,7 +344,7 @@ def setup_logging(
         # --- Redirect Python warnings to logging ---
         logging.captureWarnings(capture=True)
 
-        # --- Redirect stderr to logging (captures scapy, ctypes, PyQt internal errors) ---
+        # --- Redirect stderr to logging (captures scapy, ctypes, PySide6 internal errors) ---
         if sys.stderr is not None and not isinstance(sys.stderr, _StderrToLogger):
             sys.stderr = _StderrToLogger(logging.getLogger(_STDERR_LOGGER_NAME), logging.ERROR, fallback=cast('TextIO', sys.stderr))
 

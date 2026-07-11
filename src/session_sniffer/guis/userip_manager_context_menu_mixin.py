@@ -4,13 +4,15 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
-from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QMenu, QPushButton, QTreeView
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
+from PySide6.QtWidgets import QApplication, QCheckBox, QDialog, QFileSystemModel, QMenu, QPushButton, QTreeView
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
@@ -72,6 +74,7 @@ class EntriesContextMenuMixin(QDialog):
     def show_entries_context_menu(self, position: QPoint) -> None:
         """Show a right-click context menu for the entries table."""
         menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         index = self._entries_table.indexAt(position)
 
         if self._global_search_active:
@@ -84,11 +87,11 @@ class EntriesContextMenuMixin(QDialog):
             if index.isValid():
                 self._build_entry_context_menu(menu, index)
             else:
-                add_top_action = QAction('+ Add Entry to Top', self)
+                add_top_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Add Entry to Top', self)
                 add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
                 menu.addAction(add_top_action)
 
-                add_end_action = QAction('+ Add Entry to End', self)
+                add_end_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Add Entry to End', self)
                 add_end_action.triggered.connect(self._add_entry)
                 menu.addAction(add_end_action)
 
@@ -96,7 +99,7 @@ class EntriesContextMenuMixin(QDialog):
             return
 
         viewport = self._entries_table.viewport()
-        if viewport is not None:
+        if viewport:
             menu.popup(viewport.mapToGlobal(position))
 
     def _build_entry_context_menu(self, menu: QMenu, index: QModelIndex) -> None:
@@ -108,17 +111,17 @@ class EntriesContextMenuMixin(QDialog):
         ip_or_range = self._get_row_entry_value(row)
 
         if username:
-            copy_user_action = QAction(f'📋 Copy Username  ({username})', self)
+            copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
             copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
             menu.addAction(copy_user_action)
         if ip_or_range:
             range_item = self._model.item(row, RANGE_COLUMN)
-            label = 'Range' if range_item is not None and range_item.text().strip() else 'IP'
-            copy_ip_action = QAction(f'📋 Copy {label}  ({ip_or_range})', self)
+            label = 'Range' if range_item and range_item.text().strip() else 'IP'
+            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
             copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
             menu.addAction(copy_ip_action)
         if username and ip_or_range:
-            copy_both_action = QAction('📋 Copy Username & Entry', self)
+            copy_both_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username & Entry', self)
             copy_both_action.triggered.connect(lambda: self._copy_to_clipboard(f'{username}={ip_or_range}'))
             menu.addAction(copy_both_action)
 
@@ -135,45 +138,45 @@ class EntriesContextMenuMixin(QDialog):
             if is_single_ip:
                 _db = self._current_path
                 _ip = ip_or_range
-                refresh_action = QAction('👁 Add Username (Looky System)', self)
+                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
                 refresh_action.triggered.connect(lambda _checked=False, d=_db, i=_ip: looky_refresh_userip_entries(self, [(d, [i])]))
                 configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                 menu.addAction(refresh_action)
 
         source_row = self._proxy.mapToSource(index).row()
 
-        edit_ip_action = QAction('🔧 Edit IP/Range…', self)
+        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Edit IP/Range…', self)
         edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
         menu.addAction(edit_ip_action)
 
         menu.addSeparator()
 
         if source_row > 0:
-            move_up_action = QAction('🔼 Move Up', self)
+            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
             menu.addAction(move_up_action)
         if source_row < self._model.rowCount() - 1:
-            move_down_action = QAction('🔽 Move Down', self)
+            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Move Down', self)
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
         menu.addSeparator()
 
-        insert_above_action = QAction('⬆ Insert Entry Above', self)
+        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
         menu.addAction(insert_above_action)
 
-        insert_below_action = QAction('⬇ Insert Entry Below', self)
+        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Insert Entry Below', self)
         insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
         menu.addAction(insert_below_action)
 
         menu.addSeparator()
 
-        add_top_action = QAction('+ Add Entry to Top', self)
+        add_top_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Add Entry to Top', self)
         add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
         menu.addAction(add_top_action)
 
-        add_end_action = QAction('+ Add Entry to End', self)
+        add_end_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Add Entry to End', self)
         add_end_action.triggered.connect(self._add_entry)
         menu.addAction(add_end_action)
 
@@ -189,17 +192,17 @@ class EntriesContextMenuMixin(QDialog):
 
         # --- Copy actions ---
         if username:
-            copy_user_action = QAction(f'📋 Copy Username  ({username})', self)
+            copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
             copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
             menu.addAction(copy_user_action)
         if ip_or_range:
             range_item = self._model.item(row, RANGE_COLUMN)
-            label = 'Range' if range_item is not None and range_item.text().strip() else 'IP'
-            copy_ip_action = QAction(f'📋 Copy {label}  ({ip_or_range})', self)
+            label = 'Range' if range_item and range_item.text().strip() else 'IP'
+            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
             copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
             menu.addAction(copy_ip_action)
         if username and ip_or_range:
-            copy_both_action = QAction('📋 Copy Username & Entry', self)
+            copy_both_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username & Entry', self)
             copy_both_action.triggered.connect(lambda: self._copy_to_clipboard(f'{username}={ip_or_range}'))
             menu.addAction(copy_both_action)
 
@@ -208,15 +211,15 @@ class EntriesContextMenuMixin(QDialog):
             db_path = Path(db_path_str)
             menu.addSeparator()
 
-            go_to_db_action = QAction(f'➡️ Go to Database  ({db_path.stem})', self)
+            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_forward.svg')), 'Go to Database', self)
             go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
             menu.addAction(go_to_db_action)
 
-            open_editor_action = QAction(f'📝 Open in Text Editor  ({db_path.stem})', self)
+            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
             open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
             menu.addAction(open_editor_action)
 
-            open_explorer_action = QAction(f'📂 Open in Explorer  ({db_path.stem})', self)
+            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
             open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
             menu.addAction(open_explorer_action)
 
@@ -233,12 +236,12 @@ class EntriesContextMenuMixin(QDialog):
                     if is_single_ip:
                         _db_refresh = db_path
                         _ip_refresh = ip_or_range
-                        refresh_gs_action = QAction('👁 Add Username (Looky System)', self)
+                        refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
                         refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
                         configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                         menu.addAction(refresh_gs_action)
 
-                delete_action = QAction(f'🗑 Delete Entry  ({db_path.stem})', self)
+                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Entry', self)
                 delete_action.triggered.connect(lambda: self._delete_global_search_entry(db_path, username, ip_or_range, row))
                 menu.addAction(delete_action)
 
@@ -278,7 +281,7 @@ class EntriesContextMenuMixin(QDialog):
     def _copy_to_clipboard(text: str) -> None:
         """Copy the given text to the system clipboard."""
         clipboard = QApplication.clipboard()
-        if clipboard is not None:
+        if clipboard:
             clipboard.setText(text)
 
     def _navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
@@ -292,7 +295,7 @@ class EntriesContextMenuMixin(QDialog):
         tree_index = self._fs_model.index(str(db_path))
         if tree_index.isValid():
             selection = self._tree.selectionModel()
-            if selection is not None:
+            if selection:
                 selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
                 self._tree.scrollTo(tree_index)
 
@@ -305,7 +308,7 @@ class EntriesContextMenuMixin(QDialog):
 
         for row in range(self._model.rowCount()):
             username_item = self._model.item(row, USERNAME_COLUMN)
-            if username_item is None:
+            if not username_item:
                 continue
 
             row_username = username_item.text().strip()
@@ -319,7 +322,7 @@ class EntriesContextMenuMixin(QDialog):
                 return
 
             selection = self._entries_table.selectionModel()
-            if selection is not None:
+            if selection:
                 selection.select(proxy_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.scrollTo(proxy_index)
@@ -333,7 +336,7 @@ class EntriesContextMenuMixin(QDialog):
         row = source_index.row()
         username_item = self._model.item(row, USERNAME_COLUMN)
         db_item = self._model.item(source_index.row(), DATABASE_COLUMN)
-        if db_item is None:
+        if not db_item:
             return
         db_path_str = db_item.data(Qt.ItemDataRole.UserRole)
         if db_path_str:

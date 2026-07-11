@@ -2,15 +2,17 @@
 
 import time
 from collections import deque
+from typing import override
 
 import psutil
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon
+from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_duration
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -23,24 +25,24 @@ _BYTES_TO_KBS = 1024
 _MIN_PPM_SAMPLES = 2
 
 
-class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
+class CaptureStatisticsWindow(RateGraphWindowMixin):
     """A standalone window showing capture statistics, latency, and live graphs."""
 
     WINDOW_TITLE = 'Capture Statistics'
 
-    open_packets_latency_graph_requested = pyqtSignal()
-    open_session_pps_graph_requested = pyqtSignal()
-    open_session_bps_graph_requested = pyqtSignal()
+    open_packets_latency_graph_requested = Signal()
+    open_session_pps_graph_requested = Signal()
+    open_session_bps_graph_requested = Signal()
 
-    def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
+    def __init__(self) -> None:
         """Initialize the capture statistics window."""
         super().__init__()
 
-        self._max_history = max_history
+        self._max_history = DEFAULT_MAX_HISTORY
 
         self.setWindowTitle(self.WINDOW_TITLE)
         self.resize(1200, 620)
-        layout = self.setup_window_layout(always_on_top=always_on_top, spacing=6)
+        layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
         body_layout = QHBoxLayout()
         body_layout.setSpacing(6)
@@ -149,7 +151,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         packets_form.addRow('PPS:', self._lbl_pps)
         left_column_b.addWidget(packets_group)
 
-        self._latency_group = QGroupBox('Packet Latency (last 60s)')
+        self._latency_group = QGroupBox('Packet Latency (60s)')
         latency_form = QFormLayout(self._latency_group)
         self._lbl_latest = QLabel('— ms')
         self._lbl_avg = QLabel('— ms')
@@ -174,60 +176,44 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
 
         bps_graph_group = QGroupBox('Bandwidth (KB/s)')
         bps_graph_layout = QVBoxLayout(bps_graph_group)
+        self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW)
+        self._bps_widget.set_y_range(0, _FLOOR_KBS)
         bps_popout_row = QHBoxLayout()
+        bps_popout_row.setContentsMargins(0, 0, 0, 0)
         bps_popout_row.addStretch()
-        bps_popout_button = QPushButton('⤢ Pop Out')
+        bps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
         bps_popout_button.setToolTip('Open BPS Graph in a separate window')
         bps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        bps_popout_button.setStyleSheet(
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+        )
         bps_popout_button.clicked.connect(self.open_session_bps_graph_requested)
         bps_popout_row.addWidget(bps_popout_button)
         bps_graph_layout.addLayout(bps_popout_row)
-        self._bps_widget = RateGraphWidget(
-            left_label='KB/s',
-            theme=RateGraphTheme(
-                line_color='#00bcd4',
-                fill_color=QColor(0, 188, 212, 60),
-                avg_color='#0097a7',
-            ),
-            visible_window=VISIBLE_WINDOW
-        )
-        self._bps_widget.set_y_range(0, _FLOOR_KBS)
         bps_graph_layout.addWidget(self._bps_widget)
         right_column.addWidget(bps_graph_group)
 
         pps_graph_group = QGroupBox('Packets per Second (PPS)')
         pps_graph_layout = QVBoxLayout(pps_graph_group)
+        self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW)
+        self._pps_widget.set_y_range(0, _FLOOR_PPS)
         pps_popout_row = QHBoxLayout()
+        pps_popout_row.setContentsMargins(0, 0, 0, 0)
         pps_popout_row.addStretch()
-        pps_popout_button = QPushButton('⤢ Pop Out')
+        pps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
         pps_popout_button.setToolTip('Open PPS Graph in a separate window')
         pps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        pps_popout_button.setStyleSheet(
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+        )
         pps_popout_button.clicked.connect(self.open_session_pps_graph_requested)
         pps_popout_row.addWidget(pps_popout_button)
         pps_graph_layout.addLayout(pps_popout_row)
-        self._pps_widget = RateGraphWidget(
-            left_label='PPS',
-            theme=RateGraphTheme(
-                line_color='lime',
-                fill_color=QColor(0, 255, 0, 60),
-                avg_color='#388e3c',
-            ),
-            visible_window=VISIBLE_WINDOW
-        )
-        self._pps_widget.set_y_range(0, _FLOOR_PPS)
         pps_graph_layout.addWidget(self._pps_widget)
         right_column.addWidget(pps_graph_group)
 
         latency_graph_group = QGroupBox('Latency (ms/s)')
         latency_graph_layout = QVBoxLayout(latency_graph_group)
-        latency_popout_row = QHBoxLayout()
-        latency_popout_row.addStretch()
-        latency_popout_button = QPushButton('⤢ Pop Out')
-        latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
-        latency_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
-        latency_popout_row.addWidget(latency_popout_button)
-        latency_graph_layout.addLayout(latency_popout_row)
         self._latency_widget = RateGraphWidget(
             left_label='Latency (ms/s)',
             theme=RateGraphTheme(
@@ -235,17 +221,28 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
                 fill_color=QColor(255, 152, 0, 60),
                 avg_color='#e65100',
             ),
-            visible_window=VISIBLE_WINDOW
+            visible_window=VISIBLE_WINDOW,
         )
         self._latency_widget.set_y_range(0, _FLOOR_MS)
+        latency_popout_row = QHBoxLayout()
+        latency_popout_row.setContentsMargins(0, 0, 0, 0)
+        latency_popout_row.addStretch()
+        latency_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
+        latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
+        latency_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        latency_popout_button.setStyleSheet(
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+        )
+        latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
+        latency_popout_row.addWidget(latency_popout_button)
+        latency_graph_layout.addLayout(latency_popout_row)
         latency_graph_layout.addWidget(self._latency_widget)
         right_column.addWidget(latency_graph_group)
 
         body_layout.addLayout(left_column)
         body_layout.addLayout(right_column, 1)
         layout.addLayout(body_layout)
-
-        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
 
         self._latency_buffer: deque[float] = deque(maxlen=self._max_history)
         self._pps_buffer: deque[float] = deque(maxlen=self._max_history)
@@ -256,7 +253,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._bps_buffer.append(0.0)
 
         self._latency_running_sum: float = 0.0
-        self._pps_running_sum: float = 0.0
+        self._pps_running_sum: int = 0
         self._bps_running_sum: float = 0.0
 
         self._last_latency_ms: float = 0.0
@@ -267,6 +264,14 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._graphs_all_zero: bool = False
 
         self._load_history()
+
+    @override
+    def _on_max_history_changed(self, new_max_history: int) -> None:
+        """Re-allocate the sliding buffer when Max History is changed."""
+        self._max_history = new_max_history
+        self._latency_buffer = deque(self._latency_buffer, maxlen=self._max_history)
+        self._pps_buffer = deque(self._pps_buffer, maxlen=self._max_history)
+        self._bps_buffer = deque(self._bps_buffer, maxlen=self._max_history)
 
     # Public API —————————————————————————————————————————————————————————————
 
@@ -288,7 +293,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
         self._lbl_interface_type.setText(CaptureState.interface_type or '—')
         self._lbl_arp.setText(arp_label)
         self._lbl_vpn.setText('Enabled' if CaptureState.vpn_mode_enabled else 'Disabled')
-        self._lbl_feature_set.setText(str(Settings.capture_feature_set) if Settings.capture_feature_set else '—')
+        self._lbl_feature_set.setText(Settings.capture_feature_set or '—')
         if Settings.discord_presence:
             self._lbl_discord.setText('Connected' if CaptureState.discord_rpc_connected else 'Waiting')
         else:
@@ -324,15 +329,15 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
 
         if len(self._latency_buffer) == self._max_history:
             self._latency_running_sum -= self._latency_buffer[0]
-            self._pps_running_sum -= self._pps_buffer[0]
+            self._pps_running_sum -= int(self._pps_buffer[0])
             self._bps_running_sum -= self._bps_buffer[0]
 
-        self._latency_buffer.append(float(CaptureStats.global_avg_latency_ms))
-        self._latency_running_sum += float(CaptureStats.global_avg_latency_ms)
-        self._pps_buffer.append(float(CaptureStats.global_pps_rate))
-        self._pps_running_sum += float(CaptureStats.global_pps_rate)
-        self._bps_buffer.append(float(kbps))
-        self._bps_running_sum += float(kbps)
+        self._latency_buffer.append(CaptureStats.global_avg_latency_ms)
+        self._latency_running_sum += CaptureStats.global_avg_latency_ms
+        self._pps_buffer.append(CaptureStats.global_pps_rate)
+        self._pps_running_sum += CaptureStats.global_pps_rate
+        self._bps_buffer.append(kbps)
+        self._bps_running_sum += kbps
 
         latency_data = list(self._latency_buffer)
         pps_data = list(self._pps_buffer)
@@ -399,7 +404,7 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._bps_buffer.append(0.0)
 
         self._latency_running_sum = 0.0
-        self._pps_running_sum = 0.0
+        self._pps_running_sum = 0
         self._bps_running_sum = 0.0
 
         zeros = [0.0] * VISIBLE_WINDOW
@@ -436,15 +441,15 @@ class CaptureStatisticsWindow(ToggleAlwaysOnTopMixin):
             self._bps_buffer.append(0.0)
 
         for sample in trimmed:
-            self._latency_buffer.append(float(sample[0]))
+            self._latency_buffer.append(sample[0])
             self._pps_buffer.append(float(sample[1]))
             self._bps_buffer.append(float(sample[2]) / _BYTES_TO_KBS)
 
         self._latency_running_sum = sum(self._latency_buffer)
-        self._pps_running_sum = sum(self._pps_buffer)
+        self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
 
     # Internal ————————————————————————————————————————————————————————————————
 
     def _on_all_time_toggled(self, checked: bool) -> None:  # noqa: FBT001
-        self._latency_group.setTitle('Packet Latency (all time)' if checked else 'Packet Latency (last 60s)')
+        self._latency_group.setTitle('Packet Latency (all time)' if checked else 'Packet Latency (60s)')

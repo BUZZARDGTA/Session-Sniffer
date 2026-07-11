@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QVBoxLayout,
@@ -36,9 +36,9 @@ if TYPE_CHECKING:
 class _LookyFetchWorker(CrashingQThread):
     """Background thread that fetches Looky System IP lookup results for a given IP address."""
 
-    fetch_succeeded: pyqtSignal = pyqtSignal()
-    fetch_not_found: pyqtSignal = pyqtSignal()
-    fetch_failed: pyqtSignal = pyqtSignal(str)  # error message
+    fetch_succeeded: Signal = Signal()
+    fetch_not_found: Signal = Signal()
+    fetch_failed: Signal = Signal(str)  # error message
 
     def __init__(self, ip: str, api_key: str) -> None:
         super().__init__()
@@ -113,7 +113,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         button_box.rejected.connect(self.reject)
         button_box.accepted.connect(self.accept)
         close_button = button_box.button(QDialogButtonBox.StandardButton.Close)
-        if close_button is not None:
+        if close_button:
             close_button.setCursor(Qt.CursorShape.PointingHandCursor)
             close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         outer_layout.addWidget(button_box)

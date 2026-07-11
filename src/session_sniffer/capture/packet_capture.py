@@ -5,7 +5,7 @@ import time
 from ctypes import byref
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, NamedTuple, Self, final
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, final
 
 from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
 from scapy.layers.inet import IP, UDP
@@ -124,10 +124,10 @@ class Packet(NamedTuple):
         ip_layer = raw_pkt[IP]
         udp_layer = raw_pkt[UDP]
 
-        src_ip: str = ip_layer.src or ''
-        dst_ip: str = ip_layer.dst or ''
-        src_port: int | None = udp_layer.sport
-        dst_port: int | None = udp_layer.dport
+        src_ip = str(ip_layer.src) if ip_layer.src else ''
+        dst_ip = str(ip_layer.dst) if ip_layer.dst else ''
+        src_port = int(str(udp_layer.sport)) if udp_layer.sport is not None else None
+        dst_port = int(str(udp_layer.dport)) if udp_layer.dport is not None else None
 
         if not all((src_ip, dst_ip)):
             raise MissingRequiredPacketFieldError
@@ -135,8 +135,9 @@ class Packet(NamedTuple):
         if src_port is None or dst_port is None:
             raise MissingPortError
 
+        pkt_time: Any = raw_pkt.time
         return cls(
-            datetime=_convert_epoch_time_to_datetime(float(raw_pkt.time)),
+            datetime=_convert_epoch_time_to_datetime(float(pkt_time)),
             ip=PacketIP(
                 src=_parse_and_validate_ip(src_ip),
                 dst=_parse_and_validate_ip(dst_ip),

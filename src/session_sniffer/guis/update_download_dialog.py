@@ -2,13 +2,14 @@
 
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 import requests
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -23,6 +24,7 @@ from PyQt6.QtWidgets import (
 from session_sniffer.constants.local import CURRENT_VERSION
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.stylesheets import (
+    DIALOG_PRIMARY_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_DIALOG_STYLESHEET,
     UPDATE_DOWNLOAD_DIVIDER_STYLESHEET,
@@ -46,14 +48,14 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QCloseEvent, QMouseEvent
+    from PySide6.QtGui import QCloseEvent, QMouseEvent
 
 
 class _DownloadWorker(CrashingQThread):
     """Background thread that streams an HTTP download and reports progress."""
 
-    progress_signal: pyqtSignal = pyqtSignal(int, int)  # bytes_done, total_bytes
-    finished_signal: pyqtSignal = pyqtSignal(bool, str)  # success, message
+    progress_signal: Signal = Signal(int, int)  # bytes_done, total_bytes
+    finished_signal: Signal = Signal(bool, str)  # success, message
 
     def __init__(self, download_url: str, dest_path: Path) -> None:
         super().__init__()
@@ -94,27 +96,43 @@ class _DownloadWorker(CrashingQThread):
         self.finished_signal.emit(True, '')  # noqa: FBT003
 
 
+@dataclass(frozen=True, slots=True)
+class UpdateTarget:
+    """Target configuration for an update download."""
+
+    download_url: str
+    dest_path: Path
+    version_label: str
+    prompt_mode: bool = False
+    sha256_hash: str | None = None
+
+
 class UpdateDownloadDialog(QDialog):
     """Modal dialog that downloads a file and shows live progress.
 
     Usage:
-        dialog = UpdateDownloadDialog(download_url, dest_path, version_label, parent)
+        target = UpdateTarget(download_url, dest_path, version_label)
+        dialog = UpdateDownloadDialog(target, parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # dest_path now contains the downloaded file
     """
 
-    def __init__(self, download_url: str, dest_path: Path, version_label: str, parent: None = None) -> None:
+    def __init__(self, target: UpdateTarget, parent: QWidget | None = None) -> None:
         """Initialise the dialog and start the background download worker."""
         super().__init__(parent)
-        self._dest_path = dest_path
+        self._target = target
+        self._dest_path = target.dest_path
+        self._prompt_mode = target.prompt_mode
+        self._sha256_hash = target.sha256_hash
         self._success = False
         self._drag_offset: tuple[int, int] | None = None
-        self._new_version_label = version_label
+        self._new_version_label = target.version_label
         self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
+        self._error_message = ''
         self._new_size_label: QLabel | None = None
         self._progress_bar = QProgressBar()
-        self._status_label = QLabel('Preparing download…')
+        self._status_label = QLabel('Ready to download' if self._prompt_mode else 'Preparing download…')
         self._size_label = QLabel(
             '0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>xx.x MB',
         )
@@ -157,10 +175,11 @@ class UpdateDownloadDialog(QDialog):
 
         self._center_on_screen()
 
-        self._worker = _DownloadWorker(download_url, dest_path)
+        self._worker = _DownloadWorker(target.download_url, target.dest_path)
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_finished)
-        self._worker.start()
+        if not self._prompt_mode:
+            self._worker.start()
 
     def _build_header(self) -> QHBoxLayout:
         """Build the icon + title block at the top of the dialog."""
@@ -170,10 +189,10 @@ class UpdateDownloadDialog(QDialog):
 
         header.addWidget(self._create_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
 
-        title_label = QLabel('Downloading Update')
-        title_label.setFont(QFont('Segoe UI', 17, QFont.Weight.Bold))
-        title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
-        header.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._title_label = QLabel('Update Available' if self._prompt_mode else 'Downloading Update')
+        self._title_label.setFont(QFont('Segoe UI', 17, QFont.Weight.Bold))
+        self._title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
+        header.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         header.addStretch(1)
         return header
@@ -184,7 +203,7 @@ class UpdateDownloadDialog(QDialog):
         row.setSpacing(10)
         row.setContentsMargins(0, 2, 0, 2)
 
-        row.addWidget(self._create_version_card('CURRENT', self._current_version_label, self._current_size_text, accent=False), 1)
+        row.addWidget(self._create_version_card('CURRENT', self._current_version_label, self._current_size_text, None, accent=False), 1)
 
         arrow_label = QLabel('→')
         arrow_label.setFont(QFont('Segoe UI', 22, QFont.Weight.Bold))
@@ -193,11 +212,11 @@ class UpdateDownloadDialog(QDialog):
         arrow_label.setFixedWidth(28)
         row.addWidget(arrow_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        row.addWidget(self._create_version_card('DOWNLOADING', self._new_version_label, '', accent=True), 1)
+        row.addWidget(self._create_version_card('DOWNLOADING', self._new_version_label, '', self._sha256_hash, accent=True), 1)
 
         return row
 
-    def _create_version_card(self, label: str, version_label: str, size_text: str, *, accent: bool) -> QFrame:
+    def _create_version_card(self, label: str, version_label: str, size_text: str, sha_hash: str | None, *, accent: bool) -> QFrame:
         """Build a single version comparison card.
 
         `accent=True` styles the card as the highlighted "downloading" target.
@@ -275,6 +294,22 @@ class UpdateDownloadDialog(QDialog):
 
         card_layout.addLayout(size_row)
 
+        if sha_hash:
+            sha_row = QHBoxLayout()
+            sha_row.setSpacing(6)
+            sha_row.setContentsMargins(0, 0, 0, 0)
+
+            sha_row.addWidget(self._svg_label('info.svg', 20, 20), 0, Qt.AlignmentFlag.AlignVCenter)
+
+            sha_widget = QLabel(f'{sha_hash[:16]}...')
+            sha_widget.setFont(QFont('Consolas', 9))
+            sha_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
+            sha_widget.setToolTip(sha_hash)
+            sha_row.addWidget(sha_widget, 0, Qt.AlignmentFlag.AlignVCenter)
+            sha_row.addStretch(1)
+
+            card_layout.addLayout(sha_row)
+
         if accent:
             self._new_size_label = size_widget
 
@@ -350,6 +385,8 @@ class UpdateDownloadDialog(QDialog):
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFixedHeight(30)
         self._progress_bar.setStyleSheet(UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET)
+        if self._prompt_mode:
+            self._progress_bar.hide()
         section.addWidget(self._progress_bar)
 
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -396,7 +433,22 @@ class UpdateDownloadDialog(QDialog):
         cancel_button.clicked.connect(self._on_cancel)
         footer.addWidget(cancel_button)
 
+        if self._prompt_mode:
+            self._update_button = QPushButton('Update')
+            self._update_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._update_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+            self._update_button.clicked.connect(self._on_update_clicked)
+            footer.addWidget(self._update_button)
+
         return footer
+
+    def _on_update_clicked(self) -> None:
+        """Start the download when the Update button is clicked."""
+        self._title_label.setText('Downloading Update')
+        self._update_button.hide()
+        self._progress_bar.show()
+        self._status_label.setText('Preparing download…')
+        self._worker.start()
 
     def _create_download_icon(self) -> QWidget:
         """Create the small circular download badge from an SVG asset."""
@@ -423,23 +475,23 @@ class UpdateDownloadDialog(QDialog):
         center_window_on_screen(self)
 
     @override
-    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
         """Begin dragging the frameless dialog."""
-        if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
+        if a0 and a0.button() == Qt.MouseButton.LeftButton:
             pos = a0.position().toPoint()
             self._drag_offset = (pos.x(), pos.y())
         super().mousePressEvent(a0)
 
     @override
-    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
         """Drag the frameless dialog."""
-        if a0 is not None and self._drag_offset is not None and a0.buttons() & Qt.MouseButton.LeftButton:
+        if a0 and self._drag_offset and a0.buttons() & Qt.MouseButton.LeftButton:
             global_pos = a0.globalPosition().toPoint()
             self.move(global_pos.x() - self._drag_offset[0], global_pos.y() - self._drag_offset[1])
         super().mouseMoveEvent(a0)
 
     @override
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
         """Stop dragging the frameless dialog."""
         self._drag_offset = None
         super().mouseReleaseEvent(a0)
@@ -448,6 +500,11 @@ class UpdateDownloadDialog(QDialog):
     def success(self) -> bool:
         """Whether the download completed successfully."""
         return self._success
+
+    @property
+    def error_message(self) -> str:
+        """The error message if the download failed, or empty if successful/cancelled."""
+        return self._error_message
 
     def _on_progress(self, done: int, total: int) -> None:
         """Update the progress bar and size labels."""
@@ -469,6 +526,7 @@ class UpdateDownloadDialog(QDialog):
             self.accept()
         else:
             if message and message != 'Cancelled':
+                self._error_message = message
                 self._status_label.setText(f'Download failed: {message}')
             self.reject()
 
@@ -481,10 +539,10 @@ class UpdateDownloadDialog(QDialog):
         self.reject()
 
     @override
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Cancel the download if the dialog is closed via the window chrome."""
         self._worker.cancel()
         self._worker.wait()
         if self._dest_path.exists():
             self._dest_path.unlink(missing_ok=True)
-        super().closeEvent(a0)
+        super().closeEvent(event)

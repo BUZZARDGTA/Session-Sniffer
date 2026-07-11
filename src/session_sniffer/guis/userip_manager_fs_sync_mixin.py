@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import iter_userip_databases
@@ -10,14 +10,14 @@ from session_sniffer.guis.userip_manager_helpers import iter_userip_databases
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from PyQt6.QtCore import QFileSystemWatcher, QTimer
-    from PyQt6.QtGui import QStandardItemModel
-    from PyQt6.QtWidgets import QFrame, QLineEdit
+    from PySide6.QtCore import QFileSystemWatcher, QTimer
+    from PySide6.QtGui import QStandardItemModel
+    from PySide6.QtWidgets import QFrame, QLineEdit
 
     from session_sniffer.guis.userip_manager_helpers import EntriesSortProxy
 
 
-class FileSyncMixin(QDialog):  # pylint: disable=too-few-public-methods
+class FileSyncMixin(QDialog):
     """Mixin that keeps the entries view and stats in sync with on-disk database changes.
 
     Expects these attributes on the concrete class:

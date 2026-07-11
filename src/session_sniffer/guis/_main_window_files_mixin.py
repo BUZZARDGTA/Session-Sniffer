@@ -4,8 +4,8 @@ import os
 import webbrowser
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QDialogButtonBox,
@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from session_sniffer.constants._build_info import COMMIT_DATE, COMMIT_SHA, OS_INFO, PYQT_VERSION, RELEASE_DATE, RELEASE_TAG
+from session_sniffer.constants._build_info import COMMIT_DATE, COMMIT_SHA, OS_INFO, PYSIDE6_VERSION, RELEASE_DATE, RELEASE_TAG
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -170,7 +170,7 @@ class FilesMixin(QMainWindow):
                 f'Commit Sha: {COMMIT_SHA}',
                 f'Commit Date: {COMMIT_DATE}',
                 '',
-                f'PyQt Version: {PYQT_VERSION}',
+                f'PySide6 Version: {PYSIDE6_VERSION}',
                 f'OS Info: {OS_INFO}',
             ],
         )
@@ -183,7 +183,7 @@ class FilesMixin(QMainWindow):
         layout.setSpacing(6)
 
         style = dialog.style()
-        if style is not None:
+        if style:
             icon_label = QLabel()
             icon_label.setPixmap(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation).pixmap(32, 32))
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -215,7 +215,7 @@ class FilesMixin(QMainWindow):
             f'<tr><td><b>Commit Sha</b></td><td>&nbsp;&nbsp;{COMMIT_SHA}</td></tr>'
             f'<tr><td><b>Commit Date</b></td><td>&nbsp;&nbsp;{COMMIT_DATE}</td></tr>'
             '<tr><td style="padding-top:0px"></td></tr>'
-            f'<tr><td><b>PyQt Version</b></td><td>&nbsp;&nbsp;{PYQT_VERSION}</td></tr>'
+            f'<tr><td><b>PySide6 Version</b></td><td>&nbsp;&nbsp;{PYSIDE6_VERSION}</td></tr>'
             f'<tr><td><b>OS Info</b></td><td>&nbsp;&nbsp;{OS_INFO}</td></tr>'
             '</table>',
         )
@@ -228,10 +228,10 @@ class FilesMixin(QMainWindow):
         copy_button = button_box.addButton('Copy Details', QDialogButtonBox.ButtonRole.ActionRole)
         button_box.addButton(QDialogButtonBox.StandardButton.Close)
 
-        if copy_button is not None:
+        if copy_button:
             copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
             clipboard = QApplication.clipboard()
-            if clipboard is not None:
+            if clipboard:
                 copy_button.clicked.connect(lambda: clipboard.setText(copy_text))
 
         button_box.rejected.connect(dialog.reject)

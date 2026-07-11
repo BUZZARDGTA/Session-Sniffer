@@ -3,8 +3,8 @@
 import webbrowser
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, pyqtSignal
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, Signal
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.guis.app import app
@@ -17,20 +17,20 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from PyQt6.QtGui import QMouseEvent
+    from PySide6.QtGui import QMouseEvent
 
 
 class ClickableLabel(QLabel):
     """Emit a signal when the label is clicked."""
 
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     @override
-    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         """Emit `clicked` when left mouse button is pressed."""
-        if ev is not None and ev.button() == Qt.MouseButton.LeftButton:
+        if event and event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
-        super().mousePressEvent(ev)
+        super().mousePressEvent(event)
 
 
 class DiscordIntro(QDialog):
@@ -139,10 +139,10 @@ class DiscordIntro(QDialog):
         self._drag_pos: QPoint | None = None
 
     @override
-    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
         """Begin drag when clicking the dialog background."""
         if (
-            a0 is not None
+            a0
             and a0.button() == Qt.MouseButton.LeftButton
             and not self.exit_button.underMouse()
             and not self.join_button.underMouse()
@@ -153,10 +153,10 @@ class DiscordIntro(QDialog):
         super().mousePressEvent(a0)
 
     @override
-    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
         """Move the dialog while dragging."""
         if (
-            a0 is not None and self._drag_pos is not None  # If mouse is pressed, move the window
+            a0 and self._drag_pos  # If mouse is pressed, move the window
         ):
             delta = a0.globalPosition().toPoint() - self._drag_pos
             self.move(self.pos() + delta)
@@ -165,7 +165,7 @@ class DiscordIntro(QDialog):
         super().mouseMoveEvent(a0)
 
     @override
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
         """Stop dragging the dialog on mouse release."""
         self._drag_pos = None  # Reset drag position when mouse is released
 
@@ -174,7 +174,7 @@ class DiscordIntro(QDialog):
     def center_window(self) -> None:
         """Center the dialog on the primary screen."""
         screen = app.primaryScreen()
-        if screen is None:
+        if not screen:
             raise PrimaryScreenNotFoundError
 
         screen_geometry = screen.geometry()

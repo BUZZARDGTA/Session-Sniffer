@@ -2,8 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QItemSelection, QItemSelectionModel
-from PyQt6.QtWidgets import QMainWindow
+from PySide6.QtCore import QItemSelection, QItemSelectionModel
+from PySide6.QtWidgets import QMainWindow
 
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
@@ -144,10 +144,7 @@ class StatsMixin(QMainWindow):
             self._session_rate_graph_window.activateWindow()
             return
 
-        window = SessionRateGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
+        window = SessionRateGraphWindow()
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None))
         self._session_rate_graph_window = window
@@ -195,10 +192,7 @@ class StatsMixin(QMainWindow):
             self._session_pps_graph_window.activateWindow()
             return
 
-        window = SessionPpsGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
+        window = SessionPpsGraphWindow()
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None))
         self._session_pps_graph_window = window
@@ -211,10 +205,7 @@ class StatsMixin(QMainWindow):
             self._session_bps_graph_window.activateWindow()
             return
 
-        window = SessionBpsGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
+        window = SessionBpsGraphWindow()
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None))
         self._session_bps_graph_window = window
@@ -227,10 +218,7 @@ class StatsMixin(QMainWindow):
             self._packets_latency_graph_window.activateWindow()
             return
 
-        window = PacketsLatencyGraphWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
+        window = PacketsLatencyGraphWindow()
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None))
         self._packets_latency_graph_window = window
@@ -243,7 +231,7 @@ class StatsMixin(QMainWindow):
             self._country_breakdown_window.activateWindow()
             return
 
-        window = CountryBreakdownWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = CountryBreakdownWindow(always_on_top=True)
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None))
         self._country_breakdown_window = window
@@ -256,7 +244,7 @@ class StatsMixin(QMainWindow):
             self._reconnect_frequency_window.activateWindow()
             return
 
-        window = ReconnectFrequencyWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = ReconnectFrequencyWindow(always_on_top=True)
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None))
         self._reconnect_frequency_window = window
@@ -269,7 +257,7 @@ class StatsMixin(QMainWindow):
             self._session_timeline_window.activateWindow()
             return
 
-        window = SessionTimelineWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = SessionTimelineWindow(always_on_top=True)
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None))
         self._session_timeline_window = window
@@ -282,7 +270,7 @@ class StatsMixin(QMainWindow):
             self._port_heatmap_window.activateWindow()
             return
 
-        window = PortHeatmapWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = PortHeatmapWindow(always_on_top=True)
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None))
         self._port_heatmap_window = window
@@ -295,7 +283,7 @@ class StatsMixin(QMainWindow):
             self._session_duration_window.activateWindow()
             return
 
-        window = SessionDurationWindow(always_on_top=Settings.gui_rate_graph_always_on_top)
+        window = SessionDurationWindow(always_on_top=True)
         window.show()
         window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None))
         self._session_duration_window = window
@@ -308,10 +296,7 @@ class StatsMixin(QMainWindow):
             self._capture_statistics_window.activateWindow()
             return
 
-        window = CaptureStatisticsWindow(
-            max_history=Settings.gui_rate_graph_max_history,
-            always_on_top=Settings.gui_rate_graph_always_on_top,
-        )
+        window = CaptureStatisticsWindow()
         window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
         window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
         window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)

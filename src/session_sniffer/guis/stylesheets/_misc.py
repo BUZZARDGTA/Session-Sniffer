@@ -38,7 +38,7 @@ SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255,255,255,0.55);
 # MAIN WINDOW STYLES
 # =============================================================================
 
-GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background-color: #2e3440; color: #d8dee9; padding: 6px 28px 6px 16px; font-size: 10pt; }'
+GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background: transparent; padding: 6px 28px 6px 16px; font-size: 10pt; }'
 
 # =============================================================================
 # SETTINGS DIALOG STYLES
@@ -82,7 +82,7 @@ LOOKY_INFO_LABEL_STYLESHEET = (
     '}'
 )
 
-LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
+LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame#lookyAccountCard {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
 
 # =============================================================================
 # SPLASH SCREEN STYLES
@@ -90,11 +90,11 @@ LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame {background: rgba(76, 29, 149, 0.12);bor
 
 SPLASH_SCREEN_STYLESHEET = 'background-color: #19232d;'
 
-SPLASH_TITLE_LABEL_STYLESHEET = 'color: #e0e6ee; background: transparent;'
+SPLASH_TITLE_LABEL_STYLESHEET = 'color: #e0e6ee; background: transparent; font-size: 20pt; font-weight: bold;'
 
-SPLASH_SUBTITLE_LABEL_STYLESHEET = 'color: #667788; background: transparent;'
+SPLASH_SUBTITLE_LABEL_STYLESHEET = 'color: #667788; background: transparent; font-size: 11pt;'
 
-SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent;'
+SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent; font-size: 11pt;'
 
 SPLASH_LOG_AREA_STYLESHEET = 'QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}'
 
@@ -313,12 +313,7 @@ LOOKY_BODY_LABEL_STYLESHEET = 'color: #d4c8f0; font-size: 12pt; padding: 2px;'
 # LOOKY SYSTEM REFRESH REVIEW DIALOG STYLES
 # =============================================================================
 
-LOOKY_REVIEW_DIALOG_STYLESHEET = (
-    'QDialog {'
-    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
-    '        stop:0 #1a0e2e, stop:1 #0f0a1c);'
-    '}'
-)
+LOOKY_REVIEW_DIALOG_STYLESHEET = 'QDialog {    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,        stop:0 #1a0e2e, stop:1 #0f0a1c);}'
 
 LOOKY_REVIEW_TABLE_STYLESHEET = (
     'QTreeWidget {'

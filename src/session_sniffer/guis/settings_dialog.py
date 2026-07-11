@@ -5,8 +5,9 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -27,6 +28,7 @@ from PyQt6.QtWidgets import (
 
 from session_sniffer.background import ensure_looky_core_running
 from session_sniffer.capture.filters import build_capture_filters
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
 from session_sniffer.gta5.monitor import ensure_gta5_process_monitor_running
@@ -48,6 +50,7 @@ from session_sniffer.guis._settings_widget_builders import (
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
+    DIALOG_DANGER_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
@@ -66,7 +69,7 @@ from session_sniffer.webserver import WebServer, start_webserver_from_settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PyQt6.QtWidgets import QDoubleSpinBox, QSpinBox
+    from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
 
     from session_sniffer.capture.packet_capture import PacketCapture
 
@@ -80,7 +83,7 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
     """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
     if isinstance(widget, QLineEdit):
         return widget
-    child = cast('QLineEdit | None', widget.findChild(QLineEdit))
+    child = widget.findChild(QLineEdit)
     if child is None:
         message = f'No QLineEdit child found in {widget!r}'
         raise RuntimeError(message)
@@ -95,8 +98,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(830, 650)
-        self.resize(830, 650)
+        self.setMinimumSize(920, 650)
+        self.resize(920, 650)
 
         self._capture = capture
         self._widgets: dict[str, QWidget] = {}
@@ -123,26 +126,27 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         button_row = QHBoxLayout()
 
-        import_button = QPushButton('📥 Import')
+        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
         import_button.setToolTip('Import settings from a Settings.ini file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton('📤 Export')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export')
         export_button.setToolTip('Export current settings to a Settings.ini file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton('🔄 Reset all…')
-        reset_button.setToolTip('Reset all settings across every tab to their default values (review before saving)')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
+        reset_button.setToolTip('Reset all settings across all tabs to their default values (review before saving)')
+        reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Validate and save all settings to Settings.ini')
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton('❌ Cancel')
+        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
@@ -174,6 +178,19 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     # ------------------------------------------------------------------
     # Tab / widget construction
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _create_standard_form_layout(parent: QWidget | None = None) -> QFormLayout:
+        layout = QFormLayout(parent) if parent else QFormLayout()
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return layout
+
+    @staticmethod
+    def _create_standard_vbox_layout(parent: QWidget | None = None) -> QVBoxLayout:
+        layout = QVBoxLayout(parent) if parent else QVBoxLayout()
+        layout.setSpacing(16)
+        return layout
 
     def _build_tab(self, category: str) -> QWidget:
         """Create one tab page containing all settings for *category*."""
@@ -209,9 +226,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
-            form = QFormLayout()
-            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-            form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            form = self._create_standard_form_layout()
             for key, meta in ungrouped:
                 self._add_setting_row(form, key, meta)
             outer_layout.addLayout(form)
@@ -232,36 +247,28 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                     subgrouped.setdefault(setting_meta.subgroup, []).append((setting_key, setting_meta))
 
             if subgrouped:
-                group_vbox = QVBoxLayout(group_box)
+                group_vbox = self._create_standard_vbox_layout(group_box)
                 if direct_items:
-                    direct_form = QFormLayout()
-                    direct_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-                    direct_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    direct_form = self._create_standard_form_layout()
                     for key, meta in direct_items:
                         self._add_setting_row(direct_form, key, meta)
                     group_vbox.addLayout(direct_form)
                 for sub_name, sub_items in subgrouped.items():
                     sub_box = QGroupBox(sub_name)
-                    sub_form = QFormLayout(sub_box)
-                    sub_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-                    sub_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    sub_form = self._create_standard_form_layout(sub_box)
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
                     group_vbox.addWidget(sub_box)
             elif category == 'Looky System' and group_name == 'Authentication':
-                auth_vbox = QVBoxLayout(group_box)
-                auth_form = QFormLayout()
-                auth_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-                auth_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                auth_vbox = self._create_standard_vbox_layout(group_box)
+                auth_form = self._create_standard_form_layout()
                 for key, meta in items:
                     self._add_setting_row(auth_form, key, meta)
                 auth_vbox.addLayout(auth_form)
                 self._looky_account_info_group = self._build_looky_account_info_group()
                 auth_vbox.addWidget(self._looky_account_info_group)
             else:
-                group_form = QFormLayout(group_box)
-                group_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-                group_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                group_form = self._create_standard_form_layout(group_box)
                 for key, meta in items:
                     self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
@@ -368,9 +375,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         meta_by_key = dict(items)
 
         # Top form: Enabled + Webhook URL row (with Show + Test buttons).
-        top_form = QFormLayout()
-        top_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        top_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        top_form = self._create_standard_form_layout()
 
         # Enabled checkbox
         enabled_meta = meta_by_key.get('discord_webhook_enabled')
@@ -400,14 +405,14 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            show_button = QPushButton('👁 Show')
+            show_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), ' Show')
             show_button.setCheckable(True)
             show_button.setToolTip('Reveal or hide the webhook URL')
             show_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))
             url_row_layout.addWidget(show_button)
 
-            test_button = QPushButton('🔧 Test')
+            test_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Test')
             test_button.setToolTip('Send a one-time test message to this webhook URL')
             test_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             test_button.clicked.connect(partial(self._test_webhook, url_line))
@@ -422,9 +427,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         # Remaining settings (refresh interval, include flags, max rows) in a
         # separate form so we can disable them all when 'Enabled' is unchecked.
         details_widget = QWidget()
-        details_form = QFormLayout(details_widget)
-        details_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        details_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        details_form = self._create_standard_form_layout(details_widget)
         details_form.setContentsMargins(0, 0, 0, 0)
 
         for key, meta in items:
@@ -437,12 +440,12 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         # Reset Stored Messages button (separate row, also gated on enabled).
         reset_messages_row = QHBoxLayout()
         reset_messages_row.addStretch()
-        reset_messages_button = QPushButton('🗑 Reset Stored Messages')
+        reset_messages_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Reset Stored Messages')
         reset_messages_button.setToolTip(
             'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
             'Use this after changing channels or after Wick/automod deletes the old messages.',
         )
-        reset_messages_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        reset_messages_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         reset_messages_button.clicked.connect(self._reset_stored_messages)
         reset_messages_row.addWidget(reset_messages_button)
         outer.addLayout(reset_messages_row)
@@ -619,7 +622,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 value = self._read_column_tuple(meta, widget)
             case SettingType.IP_RANGE_TUPLE:
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)
-                value = () if list_widget is None else tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)) is not None)
+                value = () if not list_widget else tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)))
 
         return value
 

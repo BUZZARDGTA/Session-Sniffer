@@ -4,9 +4,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QTextCursor
-from PyQt6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import (
@@ -49,19 +49,19 @@ class SplashScreen(QWidget):
 
         title_label = QLabel(TITLE)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setFont(QFont('Segoe UI', 20, QFont.Weight.Bold))
+        title_label.setFont(QFont('Segoe UI', 42, QFont.Weight.Bold))
         title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
         self._subtitle = QLabel('Initializing sniffing engine…')
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._subtitle.setFont(QFont('Segoe UI', 10))
+        self._subtitle.setFont(QFont('Segoe UI', 18))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)
         layout.addWidget(self._subtitle)
 
         self._log_area = QTextEdit()
         self._log_area.setReadOnly(True)
-        self._log_area.setFont(QFont('Consolas', 9))
+        self._log_area.setFont(QFont('Consolas', 10))
         self._log_area.setStyleSheet(SPLASH_LOG_AREA_STYLESHEET)
         layout.addWidget(self._log_area)
 
@@ -117,7 +117,7 @@ class SplashScreen(QWidget):
         self._spinner_timer.start()
 
         scrollbar = self._log_area.verticalScrollBar()
-        if scrollbar is not None:
+        if scrollbar:
             scrollbar.setValue(scrollbar.maximum())
         QApplication.processEvents()
 
@@ -144,7 +144,7 @@ class SplashScreen(QWidget):
         self._log_area.append(ready_html)
 
         scrollbar = self._log_area.verticalScrollBar()
-        if scrollbar is not None:
+        if scrollbar:
             scrollbar.setValue(scrollbar.maximum())
         QApplication.processEvents()
 

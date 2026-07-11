@@ -166,7 +166,7 @@ def is_ip_in_ranges(ip_obj: IPv4Address, ranges: list[tuple[IPv4Address, IPv4Add
     if not ranges:
         return False
     idx = bisect.bisect_right(ranges, (ip_obj, MAX_IPV4))
-    return bool(idx > 0 and ip_obj <= ranges[idx - 1][1])
+    return idx > 0 and ip_obj <= ranges[idx - 1][1]
 
 
 def is_third_party_server_ip(ip: str) -> bool:

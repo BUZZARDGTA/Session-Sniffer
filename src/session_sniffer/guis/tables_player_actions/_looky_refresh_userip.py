@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PyQt6.QtCore import QPoint, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QIcon, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPixmap
+from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QFrame,
@@ -72,8 +72,8 @@ class _LookyRefreshWorker(CrashingQThread):
     `LookyPlayer` results, or ``finished_error`` with an error message string.
     """
 
-    finished_ok: pyqtSignal = pyqtSignal(object)  # dict[str, list[LookyPlayer]]
-    finished_error: pyqtSignal = pyqtSignal(str)  # error message
+    finished_ok: Signal = Signal(object)  # dict[str, list[LookyPlayer]]
+    finished_error: Signal = Signal(str)  # error message
 
     def __init__(self, ip_addresses: list[str], api_key: str, version: str) -> None:
         super().__init__()
@@ -331,10 +331,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
 
-        from PyQt6.QtWidgets import QHeaderView  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        from PySide6.QtWidgets import QHeaderView  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
         header = self._tree.header()
-        if header is not None:
+        if header:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
             header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -456,7 +456,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             if not matches:
                 for j in range(parent_item.childCount()):
                     child = parent_item.child(j)
-                    if child is not None and query in child.text(0).lower():
+                    if child and query in child.text(0).lower():
                         matches = True
                         break
 
@@ -466,7 +466,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             # Ensure all children remain visible so the full context is shown
             for j in range(parent_item.childCount()):
                 child = parent_item.child(j)
-                if child is not None:
+                if child:
                     child.setHidden(False)
 
             if query and matches:
@@ -485,7 +485,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         menu = QMenu(self)
 
         parent = item.parent()
-        if parent is None:
+        if not parent:
             # IP node
             ip_str = item.text(0).replace('\U0001f310  ', '').strip()
             menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
@@ -497,14 +497,14 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
 
         viewport = self._tree.viewport()
-        if viewport is not None:
+        if viewport:
             menu.popup(viewport.mapToGlobal(pos))
 
     @staticmethod
     def _copy_to_clipboard(text: str) -> None:
         """Copy the given text to the system clipboard."""
         clipboard = QApplication.clipboard()
-        if clipboard is not None:
+        if clipboard:
             clipboard.setText(text)
 
 

@@ -7,7 +7,7 @@ Module-level orchestration functions that wrap `InterfaceSelectionDialog`:
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog
 
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.networking.interface import Interface, SelectedInterfaceRow

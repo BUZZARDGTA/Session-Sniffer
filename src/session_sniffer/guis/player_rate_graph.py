@@ -3,19 +3,27 @@
 from collections import deque
 from typing import TYPE_CHECKING, override
 
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, format_player_display
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display
 
 if TYPE_CHECKING:
-    from PyQt6.QtWidgets import QVBoxLayout
+    from PySide6.QtWidgets import QVBoxLayout
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
 
+HISTORY_OPTIONS = {
+    '1 Minute': 60,
+    '5 Minutes': 300,
+    '15 Minutes': 900,
+    '30 Minutes': 1800,
+    '1 Hour': 3600,
+}
 
-class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
+
+class SingleRateGraphBase(RateGraphWindowMixin):
     """Base class for single-series sliding-window rate graph windows."""
 
     WINDOW_TITLE: str
@@ -28,16 +36,16 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
     _graph_idle: bool
     _buffer: deque[float]
 
-    def __init__(self, *, max_history: int, always_on_top: bool = True) -> None:
+    def __init__(self) -> None:
         """Initialize the shared single-series graph window."""
         super().__init__()
 
-        self._max_history = max_history
+        self._max_history = DEFAULT_MAX_HISTORY
         self._buffer_running_sum = 0.0
 
         self.setWindowTitle(self.WINDOW_TITLE)
         self.resize(700, 350)
-        layout = self.setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+        layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
 
         self._widget = RateGraphWidget(
             left_label=self.LEFT_LABEL,
@@ -51,8 +59,14 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
         self._widget.set_y_range(0, self.Y_FLOOR)
         layout.addWidget(self._widget)
 
-        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
         self._setup_single_history_buffers()
+
+    @override
+    def _on_max_history_changed(self, new_max_history: int) -> None:
+        """Re-allocate the sliding buffer when Max History is changed."""
+        self._max_history = new_max_history
+        self._buffer = deque(self._buffer, maxlen=self._max_history)
 
     def _setup_single_history_buffers(self) -> None:
         """Initialise pre-allocated sliding-window buffers."""
@@ -64,7 +78,7 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
 
     def _transform_sample(self, sample: float) -> float:
         """Convert an incoming sample into the value stored in the buffer."""
-        return float(sample)
+        return sample
 
     def update_graph(self, sample: float) -> None:
         """Append a new sample and refresh the graph."""
@@ -76,7 +90,7 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
         self._buffer.append(value)
         self._buffer_running_sum += value
 
-        # Skip pyqtgraph draw calls when the graph is already showing a stable
+        # Skip draw calls when the graph is already showing a stable
         # flat zero baseline and the new sample is also zero.
         if not value and self._graph_idle:
             return
@@ -99,7 +113,7 @@ class SingleRateGraphBase(ToggleAlwaysOnTopMixin):
         self._widget.set_average(0)
 
 
-class DualRateGraphBase(ToggleAlwaysOnTopMixin):
+class DualRateGraphBase(RateGraphWindowMixin):
     """Base class for dual PPS+BPS graph windows."""
 
     _max_history: int
@@ -109,34 +123,18 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     _bps_widget: RateGraphWidget
     _pps_buffer: deque[float]
     _bps_buffer: deque[float]
-    _pps_running_sum: float
+    _pps_running_sum: int
     _bps_running_sum: float
 
     def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
         """Create PPS and BPS PlotWidgets and add them to *layout*."""
         # ── PPS graph (top) — lime green tones ──────────────────────────
-        self._pps_widget = RateGraphWidget(
-            left_label='PPS',
-            theme=RateGraphTheme(
-                line_color='lime',
-                fill_color=QColor(0, 255, 0, 60),
-                avg_color='#388e3c',
-            ),
-            visible_window=VISIBLE_WINDOW,
-        )
+        self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW)
         self._configure_pps_widget()
         layout.addWidget(self._pps_widget)
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
-        self._bps_widget = RateGraphWidget(
-            left_label='KB/s',
-            theme=RateGraphTheme(
-                line_color='#00bcd4',
-                fill_color=QColor(0, 188, 212, 60),
-                avg_color='#0097a7',
-            ),
-            visible_window=VISIBLE_WINDOW,
-        )
+        self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW)
         self._configure_bps_widget()
         layout.addWidget(self._bps_widget)
 
@@ -146,13 +144,21 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
     def _configure_bps_widget(self) -> None:
         """Override to add BPS-specific configuration (threshold lines, etc.)."""
 
-    def _finish_graph_init(self, *, always_on_top: bool) -> None:
+    def _finish_graph_init(self) -> None:
         """Initialize the common window layout, widgets, and history buffers."""
+        self._max_history = DEFAULT_MAX_HISTORY
         self.resize(700, 500)
-        layout = self.setup_window_layout(always_on_top=always_on_top, margins=(0, 0, 0, 0), spacing=0)
+        layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
-        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
         self._setup_history_buffers()
+
+    @override
+    def _on_max_history_changed(self, new_max_history: int) -> None:
+        """Re-allocate the sliding buffer when Max History is changed."""
+        self._max_history = new_max_history
+        self._pps_buffer = deque(self._pps_buffer, maxlen=self._max_history)
+        self._bps_buffer = deque(self._bps_buffer, maxlen=self._max_history)
 
     def _setup_history_buffers(self) -> None:
         """Initialise pre-allocated sliding-window buffers."""
@@ -163,7 +169,7 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
             self._pps_buffer.append(0.0)
             self._bps_buffer.append(0.0)
 
-        self._pps_running_sum = 0.0
+        self._pps_running_sum: int = 0
         self._bps_running_sum = 0.0
         self._dual_graph_idle: bool = False
 
@@ -172,11 +178,11 @@ class DualRateGraphBase(ToggleAlwaysOnTopMixin):
         kbps = bps / self._BYTES_TO_KBS
 
         if len(self._pps_buffer) == self._max_history:
-            self._pps_running_sum -= self._pps_buffer[0]
+            self._pps_running_sum -= int(self._pps_buffer[0])
             self._bps_running_sum -= self._bps_buffer[0]
 
-        self._pps_buffer.append(float(pps))
-        self._bps_buffer.append(float(kbps))
+        self._pps_buffer.append(pps)
+        self._bps_buffer.append(kbps)
         self._pps_running_sum += pps
         self._bps_running_sum += kbps
 
@@ -217,19 +223,16 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         ip: str,
         initial_pps_threshold: int,
         initial_bps_threshold: int,
-        max_history: int = DEFAULT_MAX_HISTORY,
-        always_on_top: bool = True,
     ) -> None:
         """Initialize the split rate graph window for the given player IP."""
         super().__init__()
 
         self.ip = ip
-        self._max_history = max_history
         self._initial_pps_threshold = initial_pps_threshold
         self._initial_bps_threshold = initial_bps_threshold
 
         self.setWindowTitle(f'Rate Graph — {ip}')
-        self._finish_graph_init(always_on_top=always_on_top)
+        self._finish_graph_init()
 
     @override
     def _configure_pps_widget(self) -> None:
@@ -268,12 +271,12 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             self._pps_buffer.append(0.0)
             self._bps_buffer.append(0.0)
 
-        for p in pps_trimmed:
-            self._pps_buffer.append(float(p))
-        for b in bps_trimmed:
-            self._bps_buffer.append(float(b) / self._BYTES_TO_KBS)
+        for pps_value in pps_trimmed:
+            self._pps_buffer.append(pps_value)
+        for bps_value in bps_trimmed:
+            self._bps_buffer.append(float(bps_value) / self._BYTES_TO_KBS)
 
-        self._pps_running_sum = sum(self._pps_buffer)
+        self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
 
         pps_list = list(self._pps_buffer)

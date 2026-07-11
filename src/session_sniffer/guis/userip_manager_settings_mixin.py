@@ -1,8 +1,8 @@
 """Database settings panel mixin for the UserIP Databases Manager dialog."""
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QIcon
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import (
     COLOR_BUTTON_EMPTY_STYLESHEET,
     COLOR_SWATCH_GROUP_HEADER_STYLESHEET,
@@ -285,7 +286,7 @@ class _SVGColorPickerDialog(QDialog):
         outer.addWidget(scroll)
 
         bottom = QHBoxLayout()
-        no_color_button = QPushButton('✖ No Color')
+        no_color_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' No Color')
         no_color_button.setAutoDefault(False)
         no_color_button.setCursor(Qt.CursorShape.PointingHandCursor)
         no_color_button.setToolTip('Remove the color for this database')
@@ -370,7 +371,9 @@ class SettingsPanelMixin(QDialog):
         group_outer.setContentsMargins(8, 4, 8, 8)
         group_outer.setSpacing(0)
 
-        self._settings_toggle = QPushButton('▼ ⚙ Database Settings')
+        self._icon_arrow_right = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg'))
+        self._icon_arrow_down = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg'))
+        self._settings_toggle = QPushButton(self._icon_arrow_right, ' Database Settings')
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._settings_toggle.setStyleSheet(USERIP_SETTINGS_TOGGLE_STYLESHEET)
@@ -597,5 +600,4 @@ class SettingsPanelMixin(QDialog):
         """Toggle the settings content visibility and update the arrow indicator."""
         visible = not self._settings_content.isVisible()
         self._settings_content.setVisible(visible)
-        arrow = '▼' if visible else '▶'
-        self._settings_toggle.setText(f'{arrow} ⚙ Database Settings')
+        self._settings_toggle.setIcon(self._icon_arrow_down if visible else self._icon_arrow_right)

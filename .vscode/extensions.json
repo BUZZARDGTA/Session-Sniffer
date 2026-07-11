@@ -2,6 +2,7 @@
     "recommendations": [
         "alefragnani.bookmarks",
         "alefragnani.project-manager",
+        "astral-sh.ty",
         "atishay-jain.all-autocomplete",
         "charliermarsh.ruff",
         "chunsen.bracket-select",
@@ -21,6 +22,7 @@
         "kevinrose.vsc-python-indent",
         "kuone.sequence-number",
         "mechatroner.rainbow-csv",
+        "meta.pyrefly",
         "micnil.vscode-checkpoints",
         "ms-pyright.pyright",
         "ms-python.debugpy",

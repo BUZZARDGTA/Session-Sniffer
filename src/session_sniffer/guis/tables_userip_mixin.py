@@ -3,7 +3,8 @@
 import re
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -19,6 +20,17 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+
+
+def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
+    """Show a modal information message box that stays on top of other windows."""
+    msg_box = QMessageBox(parent)
+    msg_box.setIcon(QMessageBox.Icon.Information)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(text)
+    msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    msg_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
+    msg_box.exec()
 
 
 def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
@@ -46,7 +58,7 @@ def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path
         # Append the username and associated IP(s) to the corresponding database file
         write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in selected_ips])
 
-        QMessageBox.information(
+        _show_modal_info_on_top(
             parent,
             TITLE,
             (
@@ -86,7 +98,7 @@ def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Pat
     write_lines_to_file(selected_database, 'a', [f'{username}={range_input}\n'])
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-    QMessageBox.information(
+    _show_modal_info_on_top(
         parent,
         TITLE,
         f'Range "{range_input}" has been added with username "{username}" to UserIP database "{db_display}".',
@@ -141,11 +153,10 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
     write_lines_to_file(db_path, 'w', new_lines)
 
     db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-    entry_word = 'entry' if converted_count == 1 else 'entries'
-    QMessageBox.information(
+    _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Converted {converted_count} {entry_word} for IP {ip_address} to range "{range_input}" in UserIP database "{db_display}".',
+        f'Converted {converted_count} {"entry" if converted_count == 1 else "entries"} for IP {ip_address} to range "{range_input}" in UserIP database "{db_display}".',
     )
 
 

@@ -132,6 +132,19 @@
             }
         },
         {
+            "label": "🔥 Pyrefly - Static Type Checker",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/Scripts/pyrefly.exe",
+            "args": ["check", "."],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
             "label": "🧪 Ty - Type Checker",
             "type": "shell",
             "command": "${workspaceFolder}/.venv/Scripts/ty.exe",

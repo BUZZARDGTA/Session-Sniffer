@@ -7,15 +7,16 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, Qt, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices, QFileSystemModel, QStandardItemModel
-from PyQt6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
+from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
+from PySide6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFileSystemModel, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     NEW_DATABASE_TEMPLATE,
@@ -92,7 +93,8 @@ class TreeOperationsMixin(QDialog):
 
         if not indexes:
             self._delete_tree_button.setEnabled(False)
-            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
+            self._delete_tree_button.setText(' Delete')
             self._delete_tree_button.setToolTip('Delete the selected database or folder')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
@@ -101,7 +103,8 @@ class TreeOperationsMixin(QDialog):
         file_path_str = self._fs_model.filePath(indexes[0])
         if not file_path_str:
             self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
+            self._delete_tree_button.setText(' Delete')
             self._delete_tree_button.setToolTip('Delete the selected database or folder')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
@@ -110,13 +113,15 @@ class TreeOperationsMixin(QDialog):
         path = Path(file_path_str)
         if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
             self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🔄 Reset')
+            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')))
+            self._delete_tree_button.setText(' Reset')
             self._delete_tree_button.setToolTip('Reset this default database to factory content')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._reset_tree_item)
         else:
             self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setText('🗑️ Delete')
+            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
+            self._delete_tree_button.setText(' Delete')
             self._delete_tree_button.setToolTip('Delete the selected database or folder')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
@@ -138,7 +143,6 @@ class TreeOperationsMixin(QDialog):
         self._load_database(path)
         self._open_db_button.setEnabled(True)
         self._add_button.setEnabled(True)
-        self._delete_button.setEnabled(True)
         self._save_button.setEnabled(True)
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(True)
@@ -155,7 +159,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         selection = self._tree.selectionModel()
-        if selection is None:
+        if not selection:
             return
 
         current_index = self._fs_model.index(str(self._current_path))
@@ -209,55 +213,56 @@ class TreeOperationsMixin(QDialog):
         """Show a right-click context menu for the file tree."""
         index = self._tree.indexAt(position)
         menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
         if index.isValid():
             file_path = Path(self._fs_model.filePath(index))
 
             if file_path.is_dir():
-                new_db_action = QAction('📄 New Database Here', self)
+                new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), 'New Database Here', self)
                 new_db_action.triggered.connect(lambda: self._new_database(parent_dir=file_path))
                 menu.addAction(new_db_action)
 
-                new_folder_action = QAction('📁 New Folder Here', self)
+                new_folder_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'New Folder Here', self)
                 new_folder_action.triggered.connect(lambda: self._new_folder(parent_dir=file_path))
                 menu.addAction(new_folder_action)
 
                 if Settings.is_gta5_feature_set():
                     menu.addSeparator()
                     _dir_path = file_path
-                    refresh_dir_action = QAction('👁 Add Usernames in Folder (Looky)', self)
+                    refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in Folder (Looky)', self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.ini'))))
                     configure_looky_action(refresh_dir_action, 'Look up all IPs in this folder via Looky System and add any new usernames.')
                     menu.addAction(refresh_dir_action)
 
                 menu.addSeparator()
 
-            move_action = QAction('📦 Move to...', self)
+            move_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')), 'Move to...', self)
             move_action.triggered.connect(lambda: self._move_tree_item(file_path))
             menu.addAction(move_action)
 
-            rename_action = QAction('✏️ Rename', self)
+            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), 'Rename', self)
             rename_action.triggered.connect(lambda: self._rename_tree_item(file_path))
             menu.addAction(rename_action)
 
             if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
-                reset_default_action = QAction('🔄 Reset', self)
+                reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reset', self)
                 reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
                 menu.addAction(reset_default_action)
             else:
-                delete_action = QAction('🗑️ Delete', self)
+                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete', self)
                 delete_action.triggered.connect(lambda: self._delete_path(file_path))
                 menu.addAction(delete_action)
 
             menu.addSeparator()
 
             explorer_target = file_path
-            open_explorer_action = QAction('📂 Open in Explorer', self)
+            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
             open_explorer_action.triggered.connect(lambda: self._open_in_explorer(explorer_target))
             menu.addAction(open_explorer_action)
 
             if file_path.is_file():
-                open_editor_action = QAction('📝 Open in Text Editor', self)
+                open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
                 open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
                 menu.addAction(open_editor_action)
 
@@ -265,39 +270,39 @@ class TreeOperationsMixin(QDialog):
 
                 if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.ini':
                     _file_path = file_path
-                    refresh_action = QAction('👁 Add Usernames (Looky System)', self)
+                    refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
                     configure_looky_action(refresh_action, 'Look up all IPs in this database via Looky System and add any new usernames.')
                     menu.addAction(refresh_action)
                     menu.addSeparator()
 
-                export_action = QAction('📤 Export Database…', self)
+                export_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Export Database…', self)
                 export_action.triggered.connect(lambda: self._export_database_file(file_path))
                 menu.addAction(export_action)
         else:
-            new_db_action = QAction('📄 New Database', self)
+            new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), 'New Database', self)
             new_db_action.triggered.connect(self._new_database)
             menu.addAction(new_db_action)
 
-            new_folder_action = QAction('📁 New Folder', self)
+            new_folder_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'New Folder', self)
             new_folder_action.triggered.connect(self._new_folder)
             menu.addAction(new_folder_action)
 
             if Settings.is_gta5_feature_set():
                 menu.addSeparator()
-                refresh_all_action = QAction('👁 Add Usernames in All Databases (Looky)', self)
+                refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))
                 configure_looky_action(refresh_all_action, 'Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
                 menu.addAction(refresh_all_action)
 
             menu.addSeparator()
 
-            import_action = QAction('📥 Import Database Files…', self)
+            import_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), 'Import Database Files…', self)
             import_action.triggered.connect(self._import_database_files)
             menu.addAction(import_action)
 
         viewport = self._tree.viewport()
-        if viewport is not None:
+        if viewport:
             menu.popup(viewport.mapToGlobal(position))
 
     # ------------------------------------------------------------------
@@ -672,7 +677,7 @@ class TreeOperationsMixin(QDialog):
                 _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
-            if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+            if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return None
             if clicked is use_button:
                 chosen_settings = src_settings
@@ -723,7 +728,7 @@ class TreeOperationsMixin(QDialog):
                 _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
-            if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+            if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return
             merge_mode = clicked is merge_button
             _ = import_button  # suppress unused-variable warning
@@ -788,7 +793,7 @@ class TreeOperationsMixin(QDialog):
                         if self._is_current_database_file(dest):
                             reload_current_view = True
                     continue
-                if clicked is None:
+                if not clicked:
                     skipped += 1
                     continue
                 _ = overwrite_button  # suppress unused-variable warning
@@ -838,7 +843,7 @@ class TreeOperationsMixin(QDialog):
                 _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
-            if clicked is None or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+            if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return
             if clicked is use_button:
                 self.populate_settings_widgets(imported_settings)
@@ -920,7 +925,7 @@ class TreeOperationsMixin(QDialog):
                         msg_box.exec()
 
                         clicked = msg_box.clickedButton()
-                        if clicked is None or clicked is cancel_button:
+                        if not clicked or clicked is cancel_button:
                             break
                         if clicked is skip_button:
                             skipped += 1
