@@ -338,7 +338,6 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
     ) -> bool:
         """Show tooltip for elided cells, let the default handle the rest."""
         if event and event.type() == QEvent.Type.ToolTip:
-            # Let the model's explicit tooltips take precedence
             if index.data(Qt.ItemDataRole.ToolTipRole):
                 return super().helpEvent(event, view, option, index)
 

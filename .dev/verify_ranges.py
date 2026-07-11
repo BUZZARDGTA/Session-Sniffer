@@ -144,7 +144,7 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
         """Apply rate limit headers from the API response.
 
         This method does NOT sleep. It records the rate-limit state so that
-        ``_consume`` / ``_wait_for_cooldown`` will pause before the **next**
+        `_consume` / `_wait_for_cooldown` will pause before the **next**
         request, avoiding double-sleeps when recovering from a 429.
         """
         rate_limit_str = headers.get('X-Rl')
@@ -390,10 +390,10 @@ def normalize(text: str) -> str:
 def _tokenize_owner(owner: str) -> set[str]:
     """Extract distinctive match tokens from an owner name.
 
-    Unlike ``normalize()``, this also splits on dots so that legal-suffix
-    abbreviations (``S.A.`` → ``s`` ``a``, ``B.V`` → ``b`` ``v``,
-    ``s.r.l.`` → ``s`` ``r`` ``l``) collapse to single-character tokens
-    that are then filtered out by the ``MIN_WORD_LENGTH`` check — no need
+    Unlike `normalize()`, this also splits on dots so that legal-suffix
+    abbreviations (`S.A.` → `s` `a`, `B.V` → `b` `v`,
+    `s.r.l.` → `s` `r` `l`) collapse to single-character tokens
+    that are then filtered out by the `MIN_WORD_LENGTH` check — no need
     to enumerate every international company-form abbreviation.
     """
     # Replace dots (and other punctuation) with spaces before splitting

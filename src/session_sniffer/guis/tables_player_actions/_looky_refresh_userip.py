@@ -68,8 +68,8 @@ _COLOR_DB_LABEL = QColor('#9ca3af')       # muted for database name
 class _LookyRefreshWorker(CrashingQThread):
     """Background thread that batch-looks up IPs via the Looky System API.
 
-    Emits ``finished_ok`` with a dict mapping each queried IP to its list of
-    `LookyPlayer` results, or ``finished_error`` with an error message string.
+    Emits `finished_ok` with a dict mapping each queried IP to its list of
+    `LookyPlayer` results, or `finished_error` with an error message string.
     """
 
     finished_ok: Signal = Signal(object)  # dict[str, list[LookyPlayer]]
@@ -520,7 +520,7 @@ def looky_refresh_userip_entries(
 
     Args:
         parent: Parent widget for dialogs and message boxes.
-        entries: List of ``(db_path, ip_addresses)`` tuples. Each ``ip_addresses`` list
+        entries: List of `(db_path, ip_addresses)` tuples. Each `ip_addresses` list
                  contains the single-IP entries from that database to look up.
                  Range entries should be pre-filtered out by the caller.
     """
