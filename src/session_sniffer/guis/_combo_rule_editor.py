@@ -86,7 +86,7 @@ class CountrySelectionDialog(QDialog):
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Select Country')
         self.setMinimumWidth(420)
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         layout = QVBoxLayout(self)
 
@@ -181,7 +181,7 @@ class ComboRuleEditorDialog(QDialog):
         self.setWindowTitle('Edit Combo Rule' if rule else 'New Combo Rule')
         self.setMinimumWidth(600)
         self.setMinimumHeight(500)
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         self._condition_rows: list[tuple[QComboBox, QWidget]] = []
         self._editing_rule = rule

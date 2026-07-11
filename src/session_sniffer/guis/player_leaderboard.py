@@ -464,7 +464,7 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     dialog = QDialog(parent)
     dialog.setWindowModality(Qt.WindowModality.WindowModal)
     dialog.setWindowTitle(f'Seen Stats — {format_player_display(entry.ip, entry.usernames)}')
-    dialog.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+    dialog.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
     table = QTableWidget(len(_STATS_PERIODS), 3, dialog)
     table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
