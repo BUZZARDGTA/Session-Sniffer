@@ -180,15 +180,11 @@ class _LeaderboardTableModel(QAbstractTableModel):
     @override
     def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of leaderboard entries."""
-        if parent is None:
-            parent = QModelIndex()
         return len(self._entries)
 
     @override
     def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return the number of columns."""
-        if parent is None:
-            parent = QModelIndex()
         return len(_HEADERS)
 
     @override
