@@ -43,7 +43,6 @@ from session_sniffer.error_messages import format_capture_interrupted_message, f
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.gta5.monitor import ensure_gta5_process_monitor_running
 from session_sniffer.guis.app import app
-from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.main_window import MainWindow
