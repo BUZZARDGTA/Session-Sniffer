@@ -452,49 +452,41 @@ def handle_detection_notification(
 
 def process_userip_task(
     player: Player,
+    userip: UserIP,
     connection_type: Literal['connected', 'disconnected'],
 ) -> None:
-    """Process a queued UserIP task for a player on a background thread."""
+    """Process a queued UserIP task for a player on a background thread.
+
+    Args:
+        player: The player object to process.
+        userip: The resolved UserIP snapshot captured at task-spawn time.
+            Passed directly so this task never depends on `player.userip`,
+            which may be temporarily `None` during a database re-parse.
+        connection_type: Either ``'connected'`` or ``'disconnected'``.
+    """
     if player.userip_detection is None:
         raise TypeError(format_type_error(player.userip_detection, PlayerUserIPDetection))
 
-    timeout = 10
-    start_time = time.monotonic()
-
-    while not isinstance(player.userip, UserIP):
-        if PlayersRegistry.get_player_by_ip(player.ip) is None:
-            return
-
-        if time.monotonic() - start_time > timeout:
-            logger.warning(
-                'Timed out waiting for player.userip to be resolved for ip=%s after %ds'
-                ' (UserIP database may still be re-parsing). Skipping UserIP task.',
-                player.ip, timeout,
-            )
-            return
-
-        gui_closed__event.wait(0.01)  # Wait to prevent high CPU usage
-
     # We want to run this as fast as possible so it's on top of the function.
     # Protection actions are skipped when protection is not supported.
-    if connection_type == 'connected' and player.userip.settings.protection.enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
-        suspend_mode = player.userip.settings.protection.suspend_process_mode
+    if connection_type == 'connected' and userip.settings.protection.enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
+        suspend_mode = userip.settings.protection.suspend_process_mode
         GTASuspendManager.request_suspend(
             reason_key=f'userip:{player.ip}',
             left_event=player.left_event,
             duration=suspend_mode,
         )
 
-    if player.userip.settings.voice_notifications:
-        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(player.userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
+    if userip.settings.voice_notifications:
+        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
     if connection_type == 'connected':
         wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
 
-        relative_database_path = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
-        if player.userip.settings.log:
+        if userip.settings.log:
             with _userip_logging_file_write_lock:
                 USERIP_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                 write_csv_header = not USERIP_LOGGING_PATH.exists() or not USERIP_LOGGING_PATH.stat().st_size
@@ -506,7 +498,7 @@ def process_userip_task(
                     writer.writerow(
                         [
                             str(relative_database_path),
-                            ', '.join(player.userip.usernames),
+                            ', '.join(userip.usernames),
                             player.ip,
                             date_part,
                             time_part,
@@ -514,7 +506,7 @@ def process_userip_task(
                         ],
                     )
 
-        if player.userip.settings.notifications:
+        if userip.settings.notifications:
             wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
             def _show_userip_dialog() -> None:

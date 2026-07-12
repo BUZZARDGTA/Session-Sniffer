@@ -311,16 +311,21 @@ def main() -> None:
                 ).start()
 
         if UserIPDatabases.is_known_ip(matched_player.ip) and (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task):
-            matched_player.userip_detection = PlayerUserIPDetection(
-                time=packet.datetime.strftime('%H:%M:%S'),
-                date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
-            )
-            Thread(
-                target=process_userip_task,
-                name=f'ProcessUserIPTask-{matched_player.ip}-connected',
-                args=(matched_player, 'connected'),
-                daemon=True,
-            ).start()
+            resolved_userip = UserIPDatabases.resolve_userip(matched_player.ip)
+            if resolved_userip is None:
+                # is_known_ip() just returned True, so this should not happen; guard defensively.
+                logger.warning('resolve_userip returned None immediately after is_known_ip for ip=%s — skipping UserIP task', matched_player.ip)
+            else:
+                matched_player.userip_detection = PlayerUserIPDetection(
+                    time=packet.datetime.strftime('%H:%M:%S'),
+                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
+                )
+                Thread(
+                    target=process_userip_task,
+                    name=f'ProcessUserIPTask-{matched_player.ip}-connected',
+                    args=(matched_player, resolved_userip, 'connected'),
+                    daemon=True,
+                ).start()
 
     _adapter_lost_event = Event()
 

@@ -432,12 +432,16 @@ def rendering_core(
 
                 if player.userip_detection and player.userip_detection.as_processed_task:
                     player.userip_detection.as_processed_task = False
-                    Thread(
-                        target=process_userip_task,
-                        name=f'ProcessUserIPTask-{player.ip}-disconnected',
-                        args=(player, 'disconnected'),
-                        daemon=True,
-                    ).start()
+                    disconnected_userip = player.userip or UserIPDatabases.resolve_userip(player.ip)
+                    if disconnected_userip is None:
+                        logger.warning('No UserIP found for disconnecting player ip=%s — skipping disconnected UserIP task', player.ip)
+                    else:
+                        Thread(
+                            target=process_userip_task,
+                            name=f'ProcessUserIPTask-{player.ip}-disconnected',
+                            args=(player, disconnected_userip, 'disconnected'),
+                            daemon=True,
+                        ).start()
 
                 handle_detection_notification(player, 'player_left_session')
 
