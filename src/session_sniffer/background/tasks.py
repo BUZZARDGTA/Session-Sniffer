@@ -466,7 +466,12 @@ def process_userip_task(
             return
 
         if time.monotonic() - start_time > timeout:
-            raise TypeError(format_type_error(player.userip, UserIP))
+            logger.warning(
+                'Timed out waiting for player.userip to be resolved for ip=%s after %ds'
+                ' (UserIP database may still be re-parsing). Skipping UserIP task.',
+                player.ip, timeout,
+            )
+            return
 
         gui_closed__event.wait(0.01)  # Wait to prevent high CPU usage
 
