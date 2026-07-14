@@ -266,9 +266,10 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
 def watch_instruction_status(
     tracking_id: str,
     api_key: str,
-    max_reconnects: int = 10,
+    max_reconnects: int = 3,
     *,
     should_cancel: Callable[[], bool] | None = None,
+    on_reconnect: Callable[[int], None] | None = None,
 ) -> Generator[tuple[LookyInstructionStatus, str | None]]:
     """Stream SSE status updates for a Looky System instruction until a terminal status arrives.
 
@@ -288,6 +289,8 @@ def watch_instruction_status(
             returns True the generator stops immediately without raising. Polling only happens between
             reads, so a cancel takes effect once the next event arrives, the stream drops, or the read
             times out (whichever comes first).
+        on_reconnect: Optional callback invoked just before each reconnect attempt, receiving the
+            1-based attempt number. Called from the streaming thread, not the GUI thread.
 
     Raises:
         requests.HTTPError: On a non-2xx response.
@@ -295,11 +298,15 @@ def watch_instruction_status(
         pydantic.ValidationError: If an SSE event JSON does not match the expected shape.
     """
     url = f'{LOOKY_SSE_URL}/{tracking_id}'
+    reconnect_delay = 0
     for attempt in range(max_reconnects + 1):
         if should_cancel is not None and should_cancel():
             return
         if attempt > 0:
-            time.sleep(2)
+            if on_reconnect is not None:
+                on_reconnect(attempt)
+            time.sleep(reconnect_delay)
+        reconnect_delay = 2
         completed = False
         logger.debug('SSE %s attempt %d/%d', tracking_id, attempt + 1, max_reconnects + 1)
         try:
@@ -326,6 +333,8 @@ def watch_instruction_status(
                         completed = True
                         break
         except requests.HTTPError:
+            if should_cancel is not None and should_cancel():
+                return
             raise
         except requests.RequestException as e:
             if should_cancel is not None and should_cancel():
