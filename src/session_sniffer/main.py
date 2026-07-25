@@ -59,7 +59,7 @@ from session_sniffer.networking.interface import AllInterfaces, Interface, Selec
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.reverse_dns import reset_resolver_cache
-from session_sniffer.networking.windows_adapters import get_adapters_info
+from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry

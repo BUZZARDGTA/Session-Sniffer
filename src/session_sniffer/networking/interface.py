@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
 from session_sniffer.networking.exceptions import InterfaceAlreadyExistsError
-from session_sniffer.networking.windows_adapters import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, NETWORK_ADAPTER_DISABLED
+from session_sniffer.networking.ctypes_adapters_info import IF_OPER_STATUS_NOT_PRESENT, MEDIA_CONNECT_STATE_DISCONNECTED, NETWORK_ADAPTER_DISABLED
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

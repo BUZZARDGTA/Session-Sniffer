@@ -14,7 +14,7 @@ from session_sniffer.networking.interface import (
 )
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.utils import is_valid_private_ipv4
-from session_sniffer.networking.windows_adapters import get_adapters_info
+from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 
 EXCLUDED_CAPTURE_NETWORK_INTERFACES = {
     'Adapter for loopback traffic capture',
