@@ -77,7 +77,6 @@ COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
-SESSIONS_CLEANUP_INTERVAL_SECONDS = 60.0
 
 
 def rendering_core(
@@ -355,7 +354,6 @@ def rendering_core(
 
     last_userip_parse_time = None
     last_session_logging_processing_time = None
-    last_sessions_cleanup_time: float | None = None
     last_modmenu_refresh_time: float | None = None
     _has_players_for_poll: bool = False
     _relay_host_logged_ip: str | None = None
@@ -402,6 +400,15 @@ def rendering_core(
         country_flag = PlayerCountryFlag(image)
         _country_flag_cache[country_code] = country_flag
         return country_flag
+
+    # Perform session log cleanup once at startup
+    cleanup_session_logs(
+        sessions_dir=SESSIONS_LOGGING_DIR_PATH,
+        delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
+        delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
+        gui_sessions_logging=Settings.gui_sessions_logging,
+        active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
+    )
 
     while not gui_closed__event.is_set():
         capture = capture_holder.get()  # Resolve the active capture each iteration
@@ -654,15 +661,6 @@ def rendering_core(
             last_session_logging_processing_time = time.monotonic()
             process_session_logging()
 
-        if last_sessions_cleanup_time is None or (time.monotonic() - last_sessions_cleanup_time) >= SESSIONS_CLEANUP_INTERVAL_SECONDS:
-            last_sessions_cleanup_time = time.monotonic()
-            cleanup_session_logs(
-                sessions_dir=SESSIONS_LOGGING_DIR_PATH,
-                delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
-                delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
-                gui_sessions_logging=Settings.gui_sessions_logging,
-                active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
-            )
 
         # Runtime Discord RPC toggle: create or close based on current setting
         if Settings.discord_presence and discord_rpc_manager is None:
