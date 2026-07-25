@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
 from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, SeenStats, analyze_sessions_logging
 
 if TYPE_CHECKING:
@@ -28,17 +28,17 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, player.ip)
 
         self.setWindowTitle(f'{TITLE} - Seen Stats ({format_player_display(player.ip, player.usernames)})')
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(scale_by_ui(380), scale_by_ui(280))
 
         screen_size = get_screen_size()
 
         if screen_size >= (1920, 1080):
-            self.resize(500, 360)
+            self.resize(scale_by_ui(500), scale_by_ui(340))
         elif screen_size >= (1280, 720):
-            self.resize(460, 340)
+            self.resize(scale_by_ui(460), scale_by_ui(320))
         else:
             resize_window_for_screen(self, screen_size)
-            self.resize(min(self.width(), max(400, screen_size[0] - 80)), min(self.height(), max(300, screen_size[1] - 80)))
+            self.resize(min(self.width(), max(scale_by_ui(380), screen_size[0] - 80)), min(self.height(), max(scale_by_ui(280), screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)

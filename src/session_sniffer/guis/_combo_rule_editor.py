@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QCompleter,
     QDialog,
     QDialogButtonBox,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -25,8 +27,8 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import COUNTRY_NAMES
-from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, SECTION_SEPARATOR_LABEL_STYLESHEET
-from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL
+from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET
+from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, create_section_separator
 from session_sniffer.player.combo_rules import ComboRule
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -179,8 +181,8 @@ class ComboRuleEditorDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Edit Combo Rule' if rule else 'New Combo Rule')
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(500)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(700)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         self._condition_rows: list[tuple[QComboBox, QWidget]] = []
@@ -198,11 +200,6 @@ class ComboRuleEditorDialog(QDialog):
             self._name_edit.setText(rule.name)
         name_layout.addWidget(self._name_edit)
         main_layout.addLayout(name_layout)
-
-        # Enabled checkbox
-        self._enabled_checkbox = QCheckBox('Rule Enabled')
-        self._enabled_checkbox.setChecked(rule.enabled if rule else True)
-        main_layout.addWidget(self._enabled_checkbox)
 
         # Conditions section
         conditions_group = QGroupBox('Conditions (ALL must match)')
@@ -230,9 +227,7 @@ class ComboRuleEditorDialog(QDialog):
         action_layout = QVBoxLayout()
 
         # Notification Settings
-        notification_separator = QLabel('─── Notification Settings ───')
-        notification_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        notification_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        notification_separator = create_section_separator('Notification Settings')
         action_layout.addWidget(notification_separator)
 
         voice_row = QHBoxLayout()
@@ -262,9 +257,7 @@ class ComboRuleEditorDialog(QDialog):
         detection_section_layout = QVBoxLayout(detection_section)
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
 
-        detection_separator = QLabel('─── Detection Settings ───')
-        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_separator = create_section_separator('Detection Settings')
         detection_section_layout.addWidget(detection_separator)
 
         # Duration
@@ -316,13 +309,31 @@ class ComboRuleEditorDialog(QDialog):
 
     def _add_condition_row(
         self,
-        preset_key: str | None = None,
+        preset_key: str | bool | None = None,  # noqa: FBT001
         preset_value: str | bool | list[str] | None = None,  # noqa: FBT001
     ) -> None:
         """Add a new condition row with type selector and value widget."""
-        row_layout = QHBoxLayout()
+        # Handle the case where the clicked signal passes a boolean 'checked' state
+        if isinstance(preset_key, bool):
+            preset_key = None
 
+        if preset_key is None and self._condition_rows:
+            # Validate existing conditions before adding a new row
+            conditions = self._read_conditions()
+            if len(conditions) < len(self._condition_rows):
+                QMessageBox.warning(
+                    self,
+                    'Validation Error',
+                    'Please complete all existing conditions before adding a new one.\n\n'
+                    'Ensure every condition has a type selected, a valid value entered, '
+                    'and there are no duplicate condition types.',
+                )
+                return
+
+        row_layout = QHBoxLayout()
         type_combo = QComboBox()
+        type_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        type_combo.setPlaceholderText('Select condition type...')
         type_combo.addItems(list(self._CONDITION_LABELS.keys()))
         type_combo.setCurrentIndex(-1)
 
@@ -348,19 +359,30 @@ class ComboRuleEditorDialog(QDialog):
 
             if key in ('mobile', 'vpn', 'hosting'):
                 bool_combo = QComboBox()
+                bool_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
                 bool_combo.addItem('Yes', userData=True)
                 bool_combo.addItem('No', userData=False)
                 value_layout.addWidget(bool_combo)
             elif key == 'event':
-                events_widget = QWidget()
+                events_widget = QFrame()
+                events_widget.setObjectName('EventsContainer')
+                events_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+                events_widget.setStyleSheet('#EventsContainer { background-color: #1E1E1E; border: 1px solid #3E3E42; border-radius: 4px; min-height: 32px; }')
                 events_layout = QHBoxLayout(events_widget)
-                events_layout.setContentsMargins(0, 0, 0, 0)
-                for display_name in self._EVENT_LABELS:
+                events_layout.setContentsMargins(15, 6, 15, 6)
+
+                events_layout.addStretch()
+                for i, display_name in enumerate(self._EVENT_LABELS):
                     checkbox = QCheckBox(display_name)
                     events_layout.addWidget(checkbox)
+                    if i < len(self._EVENT_LABELS) - 1:
+                        events_layout.addStretch()
+                events_layout.addStretch()
+
                 value_layout.addWidget(events_widget)
             elif key == 'country':
                 country_combo = QComboBox()
+                country_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
                 country_combo.setEditable(True)
                 country_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
                 model = QStandardItemModel(country_combo)
@@ -525,7 +547,7 @@ class ComboRuleEditorDialog(QDialog):
         """Build a ComboRule from dialog state."""
         return ComboRule(
             name=self._name_edit.text().strip(),
-            enabled=self._enabled_checkbox.isChecked(),
+            enabled=self._editing_rule.enabled if self._editing_rule else True,
             conditions=self._read_conditions(),
             protection_enabled=self._duration_combo.currentText() != 'Disabled',
             duration=read_duration_widgets_helper(self._duration_combo, self._duration_spin),

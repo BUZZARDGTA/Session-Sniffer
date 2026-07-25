@@ -13,7 +13,7 @@ from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
+from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     RANGE_COLUMN,
@@ -24,6 +24,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     handle_ini_section_header,
 )
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,7 +38,7 @@ class EntriesContextMenuMixin(QDialog):
         _global_search_checkbox, _open_db_button, _tree, _fs_model
     And these methods:
         _add_entry, _insert_entry_at, _move_rows, _get_row_entry_value,
-        _load_database, _open_in_explorer
+        _load_database, _open_in_explorer, _delete_selected
     """
 
     # -- Attribute stubs for type checkers --
@@ -53,6 +54,8 @@ class EntriesContextMenuMixin(QDialog):
     _open_in_explorer: Callable[[Path], None]
 
     def _add_entry(self) -> None: ...
+
+    def _delete_selected(self) -> None: ...
 
     def _edit_entry_ip(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
 
@@ -149,6 +152,12 @@ class EntriesContextMenuMixin(QDialog):
         edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
         menu.addAction(edit_ip_action)
 
+        selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
+        delete_label = f'Delete Selected Row{pluralize(selected_count)}'
+        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
+        delete_action.triggered.connect(self._delete_selected)
+        menu.addAction(delete_action)
+
         menu.addSeparator()
 
         if source_row > 0:
@@ -241,8 +250,10 @@ class EntriesContextMenuMixin(QDialog):
                         configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                         menu.addAction(refresh_gs_action)
 
-                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Entry', self)
-                delete_action.triggered.connect(lambda: self._delete_global_search_entry(db_path, username, ip_or_range, row))
+                selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
+                delete_label = f'Delete Selected Row{pluralize(selected_count)}'
+                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
+                delete_action.triggered.connect(self._delete_selected)
                 menu.addAction(delete_action)
 
     def _delete_global_search_entry(self, db_path: Path, username: str, ip_or_range: str, source_row: int) -> None:

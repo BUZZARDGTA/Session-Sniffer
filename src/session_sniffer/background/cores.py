@@ -104,7 +104,7 @@ def iplookup_core() -> None:
                 timeout=3,
             )
             response.raise_for_status()
-        except requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
             # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
             # blocking the connection. Retry a few times in case it is a transient blip, but give up after
             # too many consecutive failures so we surface a warning instead of hammering the network forever.
@@ -361,20 +361,35 @@ def looky_core() -> None:
                 if LookyState.api_access:
                     _verified_api_key = Settings.looky_api_key
                     _failed_verification_api_key = None
+                    server_error_consecutive_failures = 0
             except requests.HTTPError as e:
                 status = e.response.status_code if e.response is not None else '?'
                 reason = e.response.reason if e.response is not None else 'Unknown'
-                if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
-                    logger.warning(LOOKY_LOG_API_KEY_INVALID)
-                else:
-                    logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
                 LookyState.reset()
 
                 if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
+                    logger.warning(LOOKY_LOG_API_KEY_INVALID)
                     _failed_verification_api_key = Settings.looky_api_key
+                elif e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
+                    server_error_consecutive_failures += 1
+                    cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+                    logger.warning(
+                        '[Looky System] Server error during token verification (HTTP %s %s). Entering %ss cooldown.',
+                        status,
+                        reason,
+                        cooldown_duration,
+                    )
+                    gui_closed__event.wait(cooldown_duration)
+                    continue
+                else:
+                    logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
             except requests.RequestException as e:
-                logger.warning('[Looky System] Token verification failed: %s', e)
+                server_error_consecutive_failures += 1
+                cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+                logger.warning('[Looky System] Token verification failed: %s. Entering %ss cooldown.', e, cooldown_duration)
                 LookyState.reset()
+                gui_closed__event.wait(cooldown_duration)
+                continue
 
         if not Settings.looky_auto_resolve or not LookyState.api_access:
             if not LookyState.api_access:

@@ -200,7 +200,7 @@ class CellColor(NamedTuple):
     """Hold foreground and background colors for a table cell."""
 
     foreground: QColor
-    background: QColor
+    background: QColor | None
 
 
 class SessionTableSnapshot(NamedTuple):

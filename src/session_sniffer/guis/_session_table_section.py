@@ -211,6 +211,7 @@ class SessionTableSection(QWidget):
 
         self._rows_per_page_spinbox = QSpinBox()
         self._rows_per_page_spinbox.setRange(0, 5000)
+        self._rows_per_page_spinbox.setMinimumWidth(95)
         self._rows_per_page_spinbox.setSpecialValueText('All')
         self._rows_per_page_spinbox.setValue(initial_rpp)
         self._rows_per_page_spinbox.setToolTip(
@@ -273,6 +274,35 @@ class SessionTableSection(QWidget):
             sort_order,
             is_connected_table=is_connected,
         )
+        arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg').as_posix()
+        arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg').as_posix()
+        arrow_left_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_left.svg').as_posix()
+        arrow_right_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg').as_posix()
+
+        # Dynamic "glassmorphism" tint to match the container's accent color perfectly
+        if is_connected:
+            table_bg = '#0A120E'
+            alt_bg = '#0E1A13'
+            grid_color = '#162B1F'
+            sel_bg = '#1F3D2C'
+            header_bg = '#122418'
+            header_text = '#a8d5ba'
+            sb_track_bg = '#080E0B'
+            sb_handle_bg = '#235231'
+            sb_handle_hover = '#3EA660'
+            sb_handle_pressed = '#4FC877'
+        else:
+            table_bg = '#140A0A'
+            alt_bg = '#1F0E0E'
+            grid_color = '#331616'
+            sel_bg = '#4D2121'
+            header_bg = '#241212'
+            header_text = '#d5a8a8'
+            sb_track_bg = '#0E0707'
+            sb_handle_bg = '#612626'
+            sb_handle_hover = '#B84A4A'
+            sb_handle_pressed = '#D95B5B'
+
         self.table_view.setStyleSheet(f"""
             QTableView {{
                 border-left: 2px solid {accent};
@@ -281,11 +311,173 @@ class SessionTableSection(QWidget):
                 border-top: none;
                 border-bottom-left-radius: 8px;
                 border-bottom-right-radius: 8px;
-                background-color: transparent;
+                background-color: {table_bg};
+                alternate-background-color: {alt_bg};
+                color: #E0E0E0;
+                gridline-color: {grid_color};
+                selection-background-color: {sel_bg};
+                selection-color: #FFFFFF;
             }}
             QTableView::viewport {{
                 border-bottom-left-radius: 6px;
                 border-bottom-right-radius: 6px;
+                background-color: {table_bg};
+            }}
+            QTableView::item {{
+                border-bottom: 1px solid {grid_color};
+                background-color: transparent;
+            }}
+            QTableView::item:selected {{
+                background-color: {sel_bg};
+                color: #ffffff;
+            }}
+            QHeaderView {{
+                background-color: {header_bg};
+                border: none;
+            }}
+            QHeaderView::section {{
+                background-color: {header_bg};
+                color: {header_text};
+                padding: 6px;
+                border: 1px solid {grid_color};
+                border-bottom: 1px solid {accent};
+                font-weight: bold;
+                font-size: 10pt;
+            }}
+            QHeaderView::section:hover {{
+                background-color: {sel_bg};
+            }}
+            QScrollBar:vertical {{
+                background-color: {sb_track_bg};
+                width: 12px;
+                margin: 16px 0px 16px 0px;
+                border: none;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {sb_handle_bg};
+                min-height: 28px;
+                border-radius: 4px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {sb_handle_hover};
+            }}
+            QScrollBar::handle:vertical:pressed {{
+                background-color: {sb_handle_pressed};
+            }}
+            QScrollBar::sub-line:vertical {{
+                subcontrol-position: top;
+                subcontrol-origin: margin;
+                height: 14px;
+                width: 12px;
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::sub-line:vertical:hover {{
+                background-color: rgba(255, 255, 255, 0.08);
+                border-radius: 3px;
+            }}
+            QScrollBar::sub-line:vertical:pressed {{
+                background-color: rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+            }}
+            QScrollBar::add-line:vertical {{
+                subcontrol-position: bottom;
+                subcontrol-origin: margin;
+                height: 14px;
+                width: 12px;
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::add-line:vertical:hover {{
+                background-color: rgba(255, 255, 255, 0.08);
+                border-radius: 3px;
+            }}
+            QScrollBar::add-line:vertical:pressed {{
+                background-color: rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+            }}
+            QScrollBar::up-arrow:vertical {{
+                image: url("{arrow_up_path}");
+                width: 8px;
+                height: 8px;
+            }}
+            QScrollBar::down-arrow:vertical {{
+                image: url("{arrow_down_path}");
+                width: 8px;
+                height: 8px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none;
+            }}
+            QScrollBar:horizontal {{
+                background-color: {sb_track_bg};
+                height: 12px;
+                margin: 0px 16px 0px 16px;
+                border: none;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: {sb_handle_bg};
+                min-width: 28px;
+                border-radius: 4px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: {sb_handle_hover};
+            }}
+            QScrollBar::handle:horizontal:pressed {{
+                background-color: {sb_handle_pressed};
+            }}
+            QScrollBar::sub-line:horizontal {{
+                subcontrol-position: left;
+                subcontrol-origin: margin;
+                width: 14px;
+                height: 12px;
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::sub-line:horizontal:hover {{
+                background-color: rgba(255, 255, 255, 0.08);
+                border-radius: 3px;
+            }}
+            QScrollBar::sub-line:horizontal:pressed {{
+                background-color: rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+            }}
+            QScrollBar::add-line:horizontal {{
+                subcontrol-position: right;
+                subcontrol-origin: margin;
+                width: 14px;
+                height: 12px;
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::add-line:horizontal:hover {{
+                background-color: rgba(255, 255, 255, 0.08);
+                border-radius: 3px;
+            }}
+            QScrollBar::add-line:horizontal:pressed {{
+                background-color: rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+            }}
+            QScrollBar::left-arrow:horizontal {{
+                image: url("{arrow_left_path}");
+                width: 8px;
+                height: 8px;
+            }}
+            QScrollBar::right-arrow:horizontal {{
+                image: url("{arrow_right_path}");
+                width: 8px;
+                height: 8px;
+            }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: none;
+            }}
+            QScrollBar::corner {{
+                background-color: {table_bg};
+                border: none;
             }}
         """)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)

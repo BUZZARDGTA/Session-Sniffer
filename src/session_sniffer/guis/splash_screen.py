@@ -16,7 +16,7 @@ from session_sniffer.guis.stylesheets import (
     SPLASH_SUBTITLE_READY_STYLESHEET,
     SPLASH_TITLE_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SPINNER_FRAMES, center_window_on_screen
+from session_sniffer.guis.utils import SPINNER_FRAMES, center_window_on_screen, scale_by_ui
 
 _P = ParamSpec('_P')
 _T = TypeVar('_T')
@@ -40,7 +40,7 @@ class SplashScreen(QWidget):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint,
         )
-        self.setFixedSize(560, 340)
+        self.setFixedSize(scale_by_ui(560), scale_by_ui(400))
         self.setStyleSheet(SPLASH_SCREEN_STYLESHEET)
 
         layout = QVBoxLayout(self)
@@ -49,19 +49,19 @@ class SplashScreen(QWidget):
 
         title_label = QLabel(TITLE)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setFont(QFont('Segoe UI', 42, QFont.Weight.Bold))
+        title_label.setFont(QFont('Segoe UI', scale_by_ui(42), QFont.Weight.Bold))
         title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
         self._subtitle = QLabel('Initializing sniffing engine…')
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._subtitle.setFont(QFont('Segoe UI', 18))
+        self._subtitle.setFont(QFont('Segoe UI', scale_by_ui(18)))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)
         layout.addWidget(self._subtitle)
 
         self._log_area = QTextEdit()
         self._log_area.setReadOnly(True)
-        self._log_area.setFont(QFont('Consolas', 10))
+        self._log_area.setFont(QFont('Consolas', scale_by_ui(10)))
         self._log_area.setStyleSheet(SPLASH_LOG_AREA_STYLESHEET)
         layout.addWidget(self._log_area)
 

@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
 from session_sniffer.guis.stylesheets import LOOKY_ACTION_BUTTON_STYLESHEET, LOOKY_CRAWLER_HEADER_STYLESHEET
-from session_sniffer.guis.tables_player_actions._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,

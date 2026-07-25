@@ -25,7 +25,7 @@ NodeInfo = list[str]
 PingTuple = list[str | float | int]
 PingHop = list[PingTuple]
 PingSuccess = list[PingHop]
-PingError = list[None | dict[Literal['message'], str]]
+PingError = list[dict[Literal['message'], str] | None]
 PingNodeResult = PingSuccess | PingError | None
 PingCheckResults = dict[str, PingNodeResult]
 

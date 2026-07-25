@@ -22,7 +22,7 @@ from session_sniffer.guis.tables_player_actions._format import (
     userip_database_text,
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -49,17 +49,17 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._rows: list[tuple[QLabel, Callable[[Player], str]]] = []
 
         self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(player.ip, player.usernames)})')
-        self.setMinimumSize(560, 460)
+        self.setMinimumSize(scale_by_ui(560), scale_by_ui(420))
 
         screen_size = get_screen_size()
 
         if screen_size >= (1920, 1080):
-            self.resize(820, 720)
+            self.resize(scale_by_ui(820), scale_by_ui(680))
         elif screen_size >= (1280, 720):
-            self.resize(720, 640)
+            self.resize(scale_by_ui(720), scale_by_ui(600))
         else:
             resize_window_for_screen(self, screen_size)
-            self.resize(min(self.width(), max(560, screen_size[0] - 80)), min(self.height(), max(460, screen_size[1] - 80)))
+            self.resize(min(self.width(), max(scale_by_ui(560), screen_size[0] - 80)), min(self.height(), max(scale_by_ui(420), screen_size[1] - 80)))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)

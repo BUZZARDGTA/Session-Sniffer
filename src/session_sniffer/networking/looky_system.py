@@ -3,6 +3,7 @@
 import math
 import re
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import requests
@@ -13,6 +14,7 @@ from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.looky_system import (
     LookyInstructionStatus,
     LookyInstructionStatusEvent,
+    LookyInstructionStatusInitialResponse,
     LookyIpBatchResult,
     LookyPlayer,
     LookyUserData,
@@ -26,18 +28,33 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-LOOKY_BASE_URL = f'{LOOKY_BASE_HOST}/api/search'
-LOOKY_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
+LOOKY_SEARCH_URL = f'{LOOKY_BASE_HOST}/api/search'
+LOOKY_SEARCH_IP_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
 LOOKY_WHOAMI_URL = f'{LOOKY_BASE_HOST}/api/whoami'
 LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
+LOOKY_INSTRUCTION_STATUS_INITIAL_URL = f'{LOOKY_BASE_HOST}/api/instruction-status-initial'
 LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
-LOOKY_SSE_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
+LOOKY_INSTRUCTION_STATUS_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
 
 _TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'failed', 'canceled'})
 _TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'failed', 'canceled'})
+
+
+@dataclass(frozen=True, slots=True)
+class LookyInstructionContext:
+    """Parameters required to initialize and poll a Looky System instruction stream."""
+
+    tracking_id: str
+    api_key: str
+    version: str
+    rid: int | None = None
+
+
+class _CancelStreamError(Exception):
+    pass
 
 
 class LookyState:
@@ -185,8 +202,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
         requests.RequestException: On connection/timeout errors.
         pydantic.ValidationError: If the response JSON shape is unexpected.
     """
-    url = f'{LOOKY_BASE_URL}/{ip}'
-    response = session.get(url, headers=_auth_headers(api_key), params={'version': version}, timeout=(3.0, 10.0))
+    response = session.get(f'{LOOKY_SEARCH_URL}/{ip}', headers=_auth_headers(api_key), params={'version': version}, timeout=(3.0, 10.0))
     response.raise_for_status()
     return _RESPONSE_ADAPTER.validate_json(response.content)
 
@@ -209,7 +225,7 @@ def lookup_ip_batch(ip_addresses: list[str], api_key: str, version: str = 'both'
         pydantic.ValidationError: If the response JSON shape is unexpected.
     """
     response = session.post(
-        LOOKY_BATCH_URL,
+        LOOKY_SEARCH_IP_BATCH_URL,
         headers=_json_auth_headers(api_key),
         json={'ips': ip_addresses, 'version': version},
         timeout=(3.0, 10.0),
@@ -219,11 +235,12 @@ def lookup_ip_batch(ip_addresses: list[str], api_key: str, version: str = 'both'
     return {item.ip: item.players for item in parsed}
 
 
-def send_crawlme_instruction(api_key: str) -> str:
+def send_crawlme_instruction(api_key: str, version: str) -> str:
     """POST a crawlme instruction to the Looky System API to request the crawler for the current session.
 
     Args:
         api_key: Looky System Bearer API key.
+        version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
 
     Returns:
         The instruction tracking ID (UUID string) for polling status via `watch_instruction_status`.
@@ -233,17 +250,20 @@ def send_crawlme_instruction(api_key: str) -> str:
         requests.RequestException: On connection/timeout errors.
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
-    response = session.post(LOOKY_CRAWLME_URL, headers=_json_auth_headers(api_key), timeout=(3.0, 10.0))
+    headers = _json_auth_headers(api_key)
+    headers['Referer'] = f'https://looky-gta.cc/?version={version}'
+    response = session.post(LOOKY_CRAWLME_URL, headers=headers, timeout=(3.0, 10.0))
     response.raise_for_status()
     return str(response.json()['trackingId'])
 
 
-def send_crawler_instruction(rid: int, api_key: str) -> str:
+def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
     """POST a join instruction to the Looky System API to call the crawler bot for `rid`.
 
     Args:
         rid: The Rockstar player ID to request the crawler for.
         api_key: Looky System Bearer API key.
+        version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
 
     Returns:
         The instruction tracking ID (UUID string) for polling status via `watch_instruction_status`.
@@ -253,9 +273,12 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
         requests.RequestException: On connection/timeout errors.
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
+    headers = _json_auth_headers(api_key)
+    headers['Referer'] = f'https://looky-gta.cc/user/{rid}?version={version}'
+    logger.debug('Sending crawler instruction to %s with headers %r', LOOKY_INSTRUCTION_URL, headers)
     response = session.post(
         LOOKY_INSTRUCTION_URL,
-        headers=_json_auth_headers(api_key),
+        headers=headers,
         json={'type': 'join', 'rid': rid},
         timeout=(3.0, 10.0),
     )
@@ -264,8 +287,7 @@ def send_crawler_instruction(rid: int, api_key: str) -> str:
 
 
 def watch_instruction_status(
-    tracking_id: str,
-    api_key: str,
+    context: LookyInstructionContext,
     max_reconnects: int = 3,
     *,
     should_cancel: Callable[[], bool] | None = None,
@@ -282,8 +304,7 @@ def watch_instruction_status(
     is received (including `ChunkedEncodingError`).
 
     Args:
-        tracking_id: The instruction tracking ID returned by `send_crawler_instruction`.
-        api_key: Looky System Bearer API key (sent as the `token` query parameter).
+        context: The instruction context containing the tracking ID, API key, game version, and optional RID.
         max_reconnects: Maximum reconnection attempts before raising.
         should_cancel: Optional predicate polled before each connect and after each event; when it
             returns True the generator stops immediately without raising. Polling only happens between
@@ -297,54 +318,88 @@ def watch_instruction_status(
         requests.RequestException: On connection/timeout errors after exhausting reconnects.
         pydantic.ValidationError: If an SSE event JSON does not match the expected shape.
     """
-    url = f'{LOOKY_SSE_URL}/{tracking_id}'
-    reconnect_delay = 0
-    for attempt in range(max_reconnects + 1):
+
+    def check_cancel() -> None:
         if should_cancel is not None and should_cancel():
+            raise _CancelStreamError
+
+    try:
+        check_cancel()
+
+        referer = f'https://looky-gta.cc/user/{context.rid}?version={context.version}' if context.rid is not None else f'https://looky-gta.cc/?version={context.version}'
+        headers = _auth_headers(context.api_key)
+        headers['Referer'] = referer
+
+        # The initial status request needs a specific priority and no-cache
+        initial_headers = dict(headers)
+        initial_headers['Priority'] = 'u=4'
+        initial_headers['Pragma'] = 'no-cache'
+        initial_headers['Cache-Control'] = 'no-cache'
+
+        logger.debug('Fetching initial status from %s with headers %r', f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}', initial_headers)
+        initial_response = session.get(
+            f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}',
+            headers=initial_headers,
+            timeout=(3.0, 10.0),
+        )
+        initial_response.raise_for_status()
+        initial_data = LookyInstructionStatusInitialResponse.model_validate(initial_response.json())
+        yield initial_data.instruction.status, initial_data.instruction.result
+        if is_terminal_instruction_status(initial_data.instruction.status):
             return
-        if attempt > 0:
-            if on_reconnect is not None:
-                on_reconnect(attempt)
-            time.sleep(reconnect_delay)
-        reconnect_delay = 2
-        completed = False
-        logger.debug('SSE %s attempt %d/%d', tracking_id, attempt + 1, max_reconnects + 1)
-        try:
-            with session.get(
-                url,
-                headers={'Accept': 'text/event-stream'},
-                params={'token': api_key},
-                stream=True,
-                timeout=(3.0, 300.0),
-            ) as response:
-                response.raise_for_status()
-                for raw_line in response.iter_lines():
-                    if should_cancel is not None and should_cancel():
-                        return
-                    if not raw_line:
-                        continue
-                    line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
-                    if not line.startswith('data: '):
-                        continue
-                    event = LookyInstructionStatusEvent.model_validate_json(line[6:])
-                    logger.debug('SSE %s event status=%r result=%r', tracking_id, event.data.status, event.data.result)
-                    yield event.data.status, event.data.result
-                    if is_terminal_instruction_status(event.data.status):
-                        completed = True
-                        break
-        except requests.HTTPError:
-            if should_cancel is not None and should_cancel():
-                return
-            raise
-        except requests.RequestException as e:
-            if should_cancel is not None and should_cancel():
+
+        reconnect_delay = 0
+        for attempt in range(max_reconnects + 1):
+            check_cancel()
+            if attempt > 0:
+                if on_reconnect is not None:
+                    on_reconnect(attempt)
+                time.sleep(reconnect_delay)
+            reconnect_delay = 2
+            completed = False
+            logger.debug('SSE %s attempt %d/%d', context.tracking_id, attempt + 1, max_reconnects + 1)
+            try:
+                sse_headers = dict(headers)
+                sse_headers['Accept'] = 'text/event-stream'
+                sse_headers['Cache-Control'] = 'no-cache'
+                sse_headers['Pragma'] = 'no-cache'
+                sse_headers['Priority'] = 'u=4'
+
+                logger.debug('Connecting to SSE stream at %s with headers %r', f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}', sse_headers)
+                with session.get(
+                    f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}',
+                    headers=sse_headers,
+                    stream=True,
+                    timeout=(3.0, 300.0),
+                ) as response:
+                    response.raise_for_status()
+                    for raw_line in response.iter_lines():
+                        check_cancel()
+                        if not raw_line:
+                            continue
+                        line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
+                        if not line.startswith('data: '):
+                            continue
+                        event = LookyInstructionStatusEvent.model_validate_json(line[6:])
+                        logger.debug('SSE %s event status=%r result=%r', context.tracking_id, event.data.status, event.data.result)
+                        yield event.data.status, event.data.result
+                        if is_terminal_instruction_status(event.data.status):
+                            completed = True
+                            break
+            except requests.HTTPError:
+                check_cancel()
+                logger.exception('HTTP error on SSE stream %s attempt %d/%d', context.tracking_id, attempt + 1, max_reconnects + 1)
+                raise
+            except requests.RequestException as e:
+                check_cancel()
+                if attempt >= max_reconnects:
+                    raise
+                logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', context.tracking_id, e, attempt + 1, max_reconnects)
+                continue
+            if completed:
                 return
             if attempt >= max_reconnects:
-                raise
-            logger.debug('SSE %s disconnected: %s; reconnecting (attempt %d/%d)', tracking_id, e, attempt + 1, max_reconnects)
-            continue
-        if completed:
-            return
-        if attempt >= max_reconnects:
-            message = f'SSE stream for instruction {tracking_id!r} ended without a terminal status after {max_reconnects} reconnect attempts'
-            raise requests.ConnectionError(message)
+                message = f'SSE stream for instruction {context.tracking_id!r} ended without a terminal status after {max_reconnects} reconnect attempts'
+                raise requests.ConnectionError(message)
+    except _CancelStreamError:
+        return

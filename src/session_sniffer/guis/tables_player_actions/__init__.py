@@ -9,10 +9,6 @@ from session_sniffer.guis.tables_player_actions._actions import (
     tcp_port_ping,
     tcp_port_ping_multi,
 )
-from session_sniffer.guis.tables_player_actions._crawler_request_dialog import (
-    show_crawler_request,
-    show_crawlme_request,
-)
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationDialog,
     DetectionNotificationInfo,
@@ -25,14 +21,6 @@ from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
     IPLookupDetailsDialog,
     show_detailed_ip_lookup,
 )
-from session_sniffer.guis.tables_player_actions._looky_lookup_dialog import (
-    LookyLookupDialog,
-    show_looky_lookup,
-)
-from session_sniffer.guis.tables_player_actions._looky_refresh_userip import (
-    LookyRefreshReviewDialog,
-    looky_refresh_userip_entries,
-)
 from session_sniffer.guis.tables_player_actions._seen_stats_dialog import (
     SeenStatsDialog,
     show_seen_stats,
@@ -40,6 +28,18 @@ from session_sniffer.guis.tables_player_actions._seen_stats_dialog import (
 from session_sniffer.guis.tables_player_actions._userip_dialog import (
     UserIPDetectedDialog,
     show_userip_detected_dialog,
+)
+from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import (
+    show_crawler_request,
+    show_crawlme_request,
+)
+from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import (
+    LookyLookupDialog,
+    show_looky_lookup,
+)
+from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import (
+    LookyRefreshReviewDialog,
+    looky_refresh_userip_entries,
 )
 
 __all__ = [

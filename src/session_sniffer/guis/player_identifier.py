@@ -242,8 +242,20 @@ class PlayerIdentifierWidget(QWidget):
 
         # Parameters control panel
         self._params_box = QGroupBox('⚙ Parameters')
-        params_layout = QFormLayout(self._params_box)
-        params_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        params_layout = QHBoxLayout(self._params_box)
+
+        left_form = QFormLayout()
+        left_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        center_form = QFormLayout()
+        center_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        right_form = QFormLayout()
+        right_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        params_layout.addLayout(left_form)
+        params_layout.addLayout(center_form)
+        params_layout.addLayout(right_form)
 
         self._spike_zscore_input = QDoubleSpinBox()
         self._spike_zscore_input.setRange(1.0, 20.0)
@@ -256,7 +268,7 @@ class PlayerIdentifierWidget(QWidget):
             'Lower = more sensitive but may produce false positives.',
         )
         self._spike_zscore_input.valueChanged.connect(self._set_spike_min_zscore)
-        params_layout.addRow('Spike Z-Score:', self._spike_zscore_input)
+        left_form.addRow('Spike Z-Score:', self._spike_zscore_input)
 
         self._spike_seconds_input = QSpinBox()
         self._spike_seconds_input.setRange(1, 30)
@@ -268,7 +280,7 @@ class PlayerIdentifierWidget(QWidget):
             'Lower = faster confirmation but may match brief coincidental traffic bursts.',
         )
         self._spike_seconds_input.valueChanged.connect(self._set_spike_sustained_seconds)
-        params_layout.addRow('Spike Duration:', self._spike_seconds_input)
+        center_form.addRow('Spike Duration:', self._spike_seconds_input)
 
         self._contam_zscore_input = QDoubleSpinBox()
         self._contam_zscore_input.setRange(3.0, 50.0)
@@ -282,7 +294,7 @@ class PlayerIdentifierWidget(QWidget):
             'Lower = more aggressively detects movement or spectating.',
         )
         self._contam_zscore_input.valueChanged.connect(self._set_contamination_zscore)
-        params_layout.addRow('Contamination Z-Score:', self._contam_zscore_input)
+        right_form.addRow('Contamination Z-Score:', self._contam_zscore_input)
 
         self._contamination_seconds_input = QSpinBox()
         self._contamination_seconds_input.setRange(1, 30)
@@ -294,7 +306,7 @@ class PlayerIdentifierWidget(QWidget):
             'Lower = aborts sooner if any IP stays elevated.',
         )
         self._contamination_seconds_input.valueChanged.connect(self._set_contamination_seconds)
-        params_layout.addRow('Contamination Duration:', self._contamination_seconds_input)
+        left_form.addRow('Contamination Duration:', self._contamination_seconds_input)
 
         self._contam_min_samples_input = QSpinBox()
         self._contam_min_samples_input.setRange(5, 60)
@@ -306,7 +318,7 @@ class PlayerIdentifierWidget(QWidget):
             'Lower = contamination detection activates sooner.',
         )
         self._contam_min_samples_input.valueChanged.connect(self._set_contamination_min_samples)
-        params_layout.addRow('Contam. Grace Period:', self._contam_min_samples_input)
+        center_form.addRow('Contamination Grace Period:', self._contam_min_samples_input)
 
         self._min_samples_input = QSpinBox()
         self._min_samples_input.setRange(5, 120)
@@ -318,7 +330,7 @@ class PlayerIdentifierWidget(QWidget):
             'Fewer = faster lock but potentially less reliable detection.',
         )
         self._min_samples_input.valueChanged.connect(self._set_baseline_min_samples)
-        params_layout.addRow('Min Baseline Samples:', self._min_samples_input)
+        right_form.addRow('Min Baseline Samples:', self._min_samples_input)
 
         self._max_seconds_input = QSpinBox()
         self._max_seconds_input.setRange(10, 300)
@@ -330,7 +342,7 @@ class PlayerIdentifierWidget(QWidget):
             'Increase for very variable or noisy network conditions.',
         )
         self._max_seconds_input.valueChanged.connect(self._set_baseline_max_seconds)
-        params_layout.addRow('Baseline Timeout:', self._max_seconds_input)
+        left_form.addRow('Baseline Timeout:', self._max_seconds_input)
 
         self._drift_threshold_input = QDoubleSpinBox()
         self._drift_threshold_input.setRange(1.0, 30.0)
@@ -344,7 +356,7 @@ class PlayerIdentifierWidget(QWidget):
             'Higher = more tolerant of session-wide traffic shifts.',
         )
         self._drift_threshold_input.valueChanged.connect(self._set_session_drift_threshold)
-        params_layout.addRow('Session Drift Z-Score:', self._drift_threshold_input)
+        center_form.addRow('Session Drift Z-Score:', self._drift_threshold_input)
 
         layout.addWidget(self._params_box)
 

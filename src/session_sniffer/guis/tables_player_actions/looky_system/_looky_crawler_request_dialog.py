@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -30,12 +31,14 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_LIST_WIDGET_STYLESHEET,
     LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
 )
-from session_sniffer.guis.tables_player_actions._looky_helpers import (
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
     build_looky_progress_widgets,
     check_looky_prerequisites,
 )
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_dialog_window_flags
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
+    LookyInstructionContext,
     LookyState,
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -45,6 +48,7 @@ from session_sniffer.networking.looky_system import (
     watch_instruction_status,
 )
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -55,6 +59,8 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.player import Player
 
+logger = get_logger(__name__)
+
 
 class _CrawlerSendWorker(CrashingQThread):
     """Pre-flight thread: sends the crawler instruction and emits the tracking ID, a rate-limit wait, or an error."""
@@ -62,6 +68,7 @@ class _CrawlerSendWorker(CrashingQThread):
     send_succeeded: Signal = Signal(str)  # tracking_id
     send_rate_limited: Signal = Signal(int, str)  # (wait_seconds, message)
     send_failed: Signal = Signal(str)  # error message
+    log_message: Signal = Signal(str, str)  # (icon, text)
 
     def __init__(self, send_fn: Callable[[], str], parent: QWidget) -> None:
         super().__init__(parent)
@@ -78,9 +85,15 @@ class _CrawlerSendWorker(CrashingQThread):
             else:
                 status_code = e.response.status_code if e.response is not None else '?'
                 self.send_failed.emit(f'API error: HTTP {status_code}')
+                if e.response is not None:
+                    logger.debug('HTTP %s Response: %s', status_code, e.response.text)
+                    logger.debug('Response Headers: %s', dict(e.response.headers))
+                    logger.debug('Request Headers: %s', dict(e.request.headers))
             return
         except requests.RequestException as e:
             self.send_failed.emit(f'Connection error: {e}')
+            if hasattr(e, 'request') and e.request is not None:
+                logger.debug('Request Headers: %s', dict(e.request.headers))
             return
         except KeyError:
             self.send_failed.emit('Unexpected API response: missing trackingId.')
@@ -92,28 +105,41 @@ class _CrawlerWatchWorker(CrashingQThread):
     """Background thread that streams SSE status updates for a known tracking ID."""
 
     status_updated: Signal = Signal(str, object)  # (status, result: str | None)
+    reconnect_triggered: Signal = Signal(int)  # attempt number (1-based)
     request_completed: Signal = Signal()
     request_failed: Signal = Signal(str)  # error message
+    instruction_failed: Signal = Signal(str)  # bot failure message
+    log_message: Signal = Signal(str, str)  # (icon, text)
 
-    def __init__(self, tracking_id: str, api_key: str) -> None:
+    def __init__(self, tracking_id: str, api_key: str, version: str, rid: int | None) -> None:
         super().__init__()
         self._tracking_id = tracking_id
         self._api_key = api_key
+        self._version = version
+        self._rid = rid
 
     @override
     def _run(self) -> None:
         """Stream SSE status events until the instruction completes, fails, or is cancelled."""
         last_status = ''
+        last_result: str | None = None
         failure_message: str | None = None
         try:
+            context = LookyInstructionContext(
+                tracking_id=self._tracking_id,
+                api_key=self._api_key,
+                version=self._version,
+                rid=self._rid,
+            )
             for status, result in watch_instruction_status(
-                self._tracking_id,
-                self._api_key,
+                context,
                 should_cancel=self.isInterruptionRequested,
+                on_reconnect=self.reconnect_triggered.emit,
             ):
                 if self.isInterruptionRequested():
                     return
                 last_status = status
+                last_result = result
                 self.status_updated.emit(status, result)
         except requests.HTTPError as e:
             if self.isInterruptionRequested():
@@ -125,10 +151,16 @@ class _CrawlerWatchWorker(CrashingQThread):
             else:
                 status_code = e.response.status_code if e.response is not None else '?'
                 failure_message = f'API error while watching status: HTTP {status_code}'
+                if e.response is not None:
+                    logger.debug('HTTP %s Response: %s', status_code, e.response.text)
+                    logger.debug('Response Headers: %s', dict(e.response.headers))
+                    logger.debug('Request Headers: %s', dict(e.request.headers))
         except requests.RequestException as e:
             if self.isInterruptionRequested():
                 return
             failure_message = f'Connection error while watching status: {e}'
+            if hasattr(e, 'request') and e.request is not None:
+                logger.debug('Request Headers: %s', dict(e.request.headers))
 
         if self.isInterruptionRequested():
             return
@@ -136,7 +168,14 @@ class _CrawlerWatchWorker(CrashingQThread):
             self.request_failed.emit(failure_message)
             return
         if is_terminal_failure_instruction_status(last_status):
-            self.request_failed.emit(f'Instruction ended with status: {last_status}')
+            msg = f'Instruction ended: {last_result}' if last_result else f'Instruction ended with status: {last_status}'
+            if self._rid is None and last_result == 'Unable to join target':
+                msg += (
+                    '<br><br>💡 Tip: Since you used "Crawl Current Session", ensure you are actively '
+                    'playing on the exact Rockstar account that is linked to your Looky account, and '
+                    'that your session is joinable.'
+                )
+            self.instruction_failed.emit(msg)
             return
         self.request_completed.emit()
 
@@ -160,11 +199,14 @@ class _CrawlerRequestDialog(QDialog):
         self._send_worker: _CrawlerSendWorker | None = None
         self._retry_remaining = 0
         self._rate_limit_message = ''
+        self._last_status = ''
+        self._cancel_button: QPushButton | None = None
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
 
         set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
-        self.setMinimumSize(500, 360)
+        self.setMinimumSize(600, 250)
+        self.resize(750, 350)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -177,7 +219,6 @@ class _CrawlerRequestDialog(QDialog):
 
         self._log = QPlainTextEdit()
         self._log.setReadOnly(True)
-        self._log.setPlaceholderText('Sending request...')
         self._log.setStyleSheet(LOOKY_CRAWLER_LOG_STYLESHEET)
         layout.addWidget(self._log)
 
@@ -197,6 +238,7 @@ class _CrawlerRequestDialog(QDialog):
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             cancel_button.setToolTip('Stop the crawler request and close this window.')
             cancel_button.clicked.connect(self.close)
+            self._cancel_button = cancel_button
 
         self._widgets.try_again_button.clicked.connect(self._send_now)
 
@@ -256,27 +298,34 @@ class _CrawlerRequestDialog(QDialog):
         button — which lets the user force a request through even while the local cooldown is active.
         """
         self._retry_timer.stop()
-        self._log.clear()
-        self._log.setPlaceholderText('Sending request...')
+        self._append_log_line('📤', 'Sending request...')
         self._widgets.progress_bar.show()
         self._widgets.status_label.hide()
         self._widgets.try_again_button.hide()
         self._widgets.try_again_button.setText('Try Again')
+        if self._cancel_button is not None:
+            self._cancel_button.setText('Cancel')
+            self._cancel_button.setToolTip('Stop the crawler request and close this window.')
         worker = _CrawlerSendWorker(self._request.send_fn, self)
         worker.send_succeeded.connect(self._on_send_succeeded)
         worker.send_rate_limited.connect(self._on_send_rate_limited)
         worker.send_failed.connect(self._show_failed)
+        worker.log_message.connect(self._append_log_line)
         self._send_worker = worker
         worker.start()
 
     def _on_send_succeeded(self, tracking_id: str) -> None:
         """Send accepted — clear any cooldown and begin streaming SSE status for the returned tracking ID."""
         LookyState.clear_crawler_cooldown()
-        self._log.setPlaceholderText('Waiting for response...')
-        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key)
+        self._append_log_line('🎫', f'Request accepted — tracking ID: {tracking_id}')
+        self._append_log_line('📡', 'Connecting to status stream…')
+        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, self._request.version, self._request.rid)
         worker.status_updated.connect(self._on_status_updated)
+        worker.reconnect_triggered.connect(self._on_reconnect_triggered)
         worker.request_completed.connect(self._on_completed)
-        worker.request_failed.connect(self._show_failed)
+        worker.request_failed.connect(self._show_watch_stream_lost)
+        worker.instruction_failed.connect(self._show_failed)
+        worker.log_message.connect(self._append_log_line)
         worker.setParent(self)
         self._watch_worker = worker
         worker.start()
@@ -308,37 +357,76 @@ class _CrawlerRequestDialog(QDialog):
         """Refresh the amber rate-limit countdown text."""
         seconds_word = 'second' if self._retry_remaining == 1 else 'seconds'
         self._widgets.status_label.setText(
-            f'<span style="color: #fbbf24; font-weight: 600;">⏳ {self._rate_limit_message} Automatically retrying in {self._retry_remaining} {seconds_word}…</span>',
+            f'<span style="color: #fbbf24; font-weight: 600;">⏳ Server rate limit active<br>Automatically retrying in {self._retry_remaining} {seconds_word}…</span>',
         )
 
     # ------------------------------------------------------------------
     # Watch (SSE status stream)
     # ------------------------------------------------------------------
 
+    def _append_log_line(self, icon: str, text: str) -> None:
+        """Append a timestamped log line with `icon` and `text`."""
+        timestamp = datetime.now(tz=UTC).astimezone().strftime('%H:%M:%S')
+        self._log.appendPlainText(f'[{timestamp}]  {icon}  {text}')
+
     def _on_status_updated(self, status: str, result: object) -> None:
-        """Append a timestamped SSE status line to the log."""
-        ts = datetime.now(tz=UTC).astimezone().strftime('%H:%M:%S')
-        line = f'[{ts}]  ● {status}' if result is None else f'[{ts}]  ● {status}: {result}'
-        self._log.appendPlainText(line)
+        """Append a friendly timestamped SSE status line to the log and update the live status label."""
+        status_labels = {
+            'queued': ('⏳', 'Queued — waiting for a bot to pick up the request'),
+            'running': ('🔄', 'Running — crawler is actively working'),
+            'completed': ('✅', 'Completed — instruction finished successfully'),
+            'failed': ('❌', 'Failed — the bot encountered an error'),
+            'canceled': ('🚫', 'Canceled — the request was canceled'),
+        }
+        icon, label = status_labels.get(status.lower(), ('●', status))
+        text = label if result is None else f'{label} — {result}'
+        self._append_log_line(icon, text)
+        self._last_status = status.lower()
+
+    def _on_reconnect_triggered(self, attempt: int) -> None:
+        """Show an amber log line indicating that the stream dropped and we are waiting to reconnect."""
+        self._append_log_line('🔁', f'Stream dropped — reconnecting (attempt {attempt})…')
 
     def _on_completed(self) -> None:
         """The crawler instruction completed successfully."""
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">✓ Completed</span>')
+        if self._cancel_button is not None:
+            self._cancel_button.setText('Close')
+            self._cancel_button.setToolTip('Close this window.')
+        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">✅ Completed</span>')
         self._widgets.status_label.show()
         self._log.setPlaceholderText('')
         if self._request.on_completed is not None:
             self._request.on_completed()
 
     def _show_failed(self, message: str) -> None:
-        """Show a failure with a manual Try Again button (used for both send and watch failures)."""
+        """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">✗ Failed: {message}</span>')
+        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">❌ Failed: {message}</span>')
         self._widgets.status_label.show()
         self._widgets.try_again_button.setText('Try Again')
         self._widgets.try_again_button.show()
+        if self._cancel_button is not None:
+            self._cancel_button.setText('Close')
+            self._cancel_button.setToolTip('Close this window.')
+        self._log.setPlaceholderText('')
+
+    def _show_watch_stream_lost(self, message: str) -> None:
+        """Show a connection loss error with a Try Again button."""
+        self._append_log_line('⚠', f'Status stream lost: {message}')
+        self._retry_timer.stop()
+        self._widgets.progress_bar.hide()
+        self._widgets.status_label.setText(
+            '<span style="color: #fbbf24; font-weight: 600;">⚠ Status stream lost</span>',
+        )
+        self._widgets.status_label.show()
+        self._widgets.try_again_button.setText('Try Again')
+        self._widgets.try_again_button.show()
+        if self._cancel_button is not None:
+            self._cancel_button.setText('Close')
+            self._cancel_button.setToolTip('Close this window.')
         self._log.setPlaceholderText('')
 
     # ------------------------------------------------------------------
@@ -449,6 +537,8 @@ class _CrawlerRequest:
     display_name: str
     api_key: str
     registry_key: str
+    version: str
+    rid: int | None
     send_fn: Callable[[], str]
     on_completed: Callable[[], None] | None = None
 
@@ -496,7 +586,9 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
             display_name=display_name,
             api_key=api_key,
             registry_key=f'crawler:{rid}',
-            send_fn=lambda: send_crawler_instruction(rid, api_key),
+            version=Settings.looky_game_version.lower(),
+            rid=rid,
+            send_fn=lambda: send_crawler_instruction(rid, api_key, Settings.looky_game_version.lower()),
             on_completed=_on_crawl_completed,
         ),
     )
@@ -517,10 +609,12 @@ def show_crawlme_request(parent: QWidget) -> None:
     _start_crawler_send(
         parent,
         _CrawlerRequest(
-            display_name='My Session',
+            display_name='Current Session',
             api_key=api_key,
             registry_key='crawlme',
-            send_fn=lambda: send_crawlme_instruction(api_key),
+            version=Settings.looky_game_version.lower(),
+            rid=None,
+            send_fn=lambda: send_crawlme_instruction(api_key, Settings.looky_game_version.lower()),
             on_completed=_on_crawl_completed,
         ),
     )

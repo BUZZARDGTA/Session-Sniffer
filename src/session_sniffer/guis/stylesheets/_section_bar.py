@@ -24,7 +24,7 @@ def section_bar_qss(accent: str) -> str:
         background: transparent;
     }}
     QLabel#sectionTitle {{
-        font-size: 15px;
+        font-size: 11pt;
         font-weight: 600;
     }}
     QComboBox, QPushButton, QToolButton {{
@@ -105,7 +105,7 @@ QPushButton {{
     border: 1px solid {border};
     border-radius: 4px;
     padding: 6px 16px;
-    font-size: 12px;
+    font-size: 9pt;
     font-weight: bold;
     margin: 5px;
 }}

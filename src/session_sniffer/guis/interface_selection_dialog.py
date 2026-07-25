@@ -241,7 +241,7 @@ class InterfaceSelectionDialog(QDialog):
         self.setObjectName('InterfaceSelectionDialog')
         self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
         # Set a minimum size for the window
-        self.setMinimumSize(scale(1150), scale(620))
+        self.setMinimumSize(scale(1280), scale(760))
         resize_window_for_screen(self, screen_size)
 
         # Custom variables

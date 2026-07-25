@@ -1,9 +1,10 @@
 """Utility functions for GUI-related operations."""
 
-from typing import TYPE_CHECKING, override
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRectF, Qt
-from PySide6.QtGui import QBrush, QFontMetrics, QHelpEvent, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QLinearGradient, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
@@ -38,7 +41,7 @@ from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionE
 
 if TYPE_CHECKING:
     from PySide6.QtCore import QRect
-    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtGui import QFont, QMouseEvent
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 
@@ -47,20 +50,51 @@ _LARGE_WINDOW_MIN_HEIGHT = 500
 
 _BREAKPOINT_2K_WIDTH = 2560
 _BREAKPOINT_2K_HEIGHT = 1400
-_TARGET_2K_WIDTH = 1400
-_TARGET_2K_HEIGHT = 900
+_TARGET_2K_WIDTH = 1300
+_TARGET_2K_HEIGHT = 820
 
 _BREAKPOINT_FHD_WIDTH = 1920
 _BREAKPOINT_FHD_HEIGHT = 1040
-_TARGET_FHD_WIDTH = 1200
-_TARGET_FHD_HEIGHT = 720
+_TARGET_FHD_WIDTH = 1100
+_TARGET_FHD_HEIGHT = 660
 
 _BREAKPOINT_HD_WIDTH = 1024
 _BREAKPOINT_HD_HEIGHT = 720
-_TARGET_HD_WIDTH = 940
-_TARGET_HD_HEIGHT = 680
+_TARGET_HD_WIDTH = 860
+_TARGET_HD_HEIGHT = 620
 
 _FALLBACK_MARGIN = 80
+
+
+# ---------------------------------------------------------------------------
+# UI scale — computed once at startup from the available screen resolution.
+# Call `initialize_ui_scale` early in main() after `get_screen_size` succeeds.
+# ---------------------------------------------------------------------------
+@dataclass(slots=True)
+class _UIState:
+    scale: float = 1.0
+
+
+_UI_STATE = _UIState()
+
+
+def initialize_ui_scale(screen_size: tuple[int, int]) -> None:
+    """Set the module-level UI scale factor from the given screen resolution.
+
+    Must be called once, early in startup (after `get_screen_size` returns),
+    before any dialog or window is constructed.
+    """
+    _UI_STATE.scale = compute_ui_scale(screen_size)
+
+
+def scale_by_ui(value: int) -> int:
+    """Scale *value* by the current UI scale factor, returning at least 1.
+
+    Use this for every hardcoded pixel dimension (minimum sizes, fixed sizes,
+    initial resize values) so the layout shrinks on small/low-DPI screens and
+    expands naturally on high-resolution displays.
+    """
+    return max(1, round(value * _UI_STATE.scale))
 
 
 class PersistentMenu(QMenu):
@@ -105,15 +139,46 @@ def format_player_display(ip: str, usernames: list[str]) -> str:
     return ip
 
 
+def create_section_separator(title: str) -> QWidget:
+    """Create a professional section separator with a label centered between two expanding horizontal lines."""
+    widget = QWidget()
+    layout = QHBoxLayout(widget)
+    layout.setContentsMargins(0, 10, 0, 5)
+
+    left_line = QFrame()
+    left_line.setFrameShape(QFrame.Shape.HLine)
+    left_line.setFrameShadow(QFrame.Shadow.Sunken)
+    left_line.setStyleSheet('background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;')
+    layout.addWidget(left_line, 1)
+
+    label = QLabel(title)
+    label.setStyleSheet('color: #88c0d0; font-weight: bold; font-size: 10pt; padding: 0 5px;')
+    layout.addWidget(label)
+
+    right_line = QFrame()
+    right_line.setFrameShape(QFrame.Shape.HLine)
+    right_line.setFrameShadow(QFrame.Shadow.Sunken)
+    right_line.setStyleSheet('background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;')
+    layout.addWidget(right_line, 1)
+
+    return widget
+
+
 def get_screen_size() -> tuple[int, int]:
-    """Get the current screen size and validate minimum resolution requirements.
+    """Get the available logical screen size and validate minimum resolution requirements.
+
+    Uses `availableSize()` (which excludes the taskbar) rather than `size()` so
+    the reported dimensions reflect the actual usable area.  Qt 6 returns logical
+    pixels here — i.e. the physical pixel count already divided by the display's
+    device-pixel ratio — so the values are directly comparable to widget sizes
+    expressed in logical pixels.
 
     Returns:
-        Screen width and height in pixels.
+        Available screen width and height in logical pixels.
 
     Raises:
         PrimaryScreenNotFoundError: If no primary screen is detected.
-        UnsupportedScreenResolutionError: If screen resolution is below minimum requirements.
+        UnsupportedScreenResolutionError: If the available resolution is below the minimum.
     """
     min_screen_width = 1024
     min_screen_height = 768
@@ -122,9 +187,9 @@ def get_screen_size() -> tuple[int, int]:
     if not screen:
         raise PrimaryScreenNotFoundError
 
-    size = screen.size()
-    screen_width = size.width()
-    screen_height = size.height()
+    available_size = screen.availableSize()
+    screen_width = available_size.width()
+    screen_height = available_size.height()
 
     if (screen_width < min_screen_width or screen_height < min_screen_height) and not getattr(Settings, 'gui_ignore_screen_resolution_warning', False):
         raise UnsupportedScreenResolutionError(screen_width, screen_height, min_screen_width, min_screen_height)
@@ -172,14 +237,16 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
 
 
 def compute_ui_scale(screen_size: tuple[int, int]) -> float:
-    """Return a UI scale factor for the given screen resolution.
+    """Return a UI scale factor for the given available screen resolution.
 
     Uses the same breakpoints as `resize_window_for_screen` so that window
     dimensions and element sizes stay in sync.  2560x1440 is the design
     baseline (scale 1.0); smaller screens receive proportionally reduced values.
+    1920x1080 (FHD) yields 0.85, which keeps the UI comfortable without feeling
+    cramped.  Screens below 1280x800 (common laptops at 1366x768) use 0.70.
 
     Args:
-        screen_size: Screen dimensions as (width, height) in pixels.
+        screen_size: Available screen dimensions as (width, height) in logical pixels.
 
     Returns:
         A float in the range [0.65, 1.00].
@@ -187,9 +254,9 @@ def compute_ui_scale(screen_size: tuple[int, int]) -> float:
     if screen_size >= (2560, 1440):
         return 1.00
     if screen_size >= (1920, 1080):
-        return 0.80
+        return 0.85
     if screen_size >= (1280, 800):
-        return 0.70
+        return 0.75
     return 0.65  # ≥ 1024x768 (minimum supported resolution)
 
 
@@ -345,7 +412,7 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             if isinstance(text, str) and text:
                 opt = QStyleOptionViewItem(option)
                 self.initStyleOption(opt, index)
-                if QFontMetrics(opt.font).horizontalAdvance(text) > view.visualRect(index).width() - 6:
+                if QFontMetrics(cast('QFont', opt.font)).horizontalAdvance(text) > view.visualRect(index).width() - 6:  # type: ignore[redundant-cast]
                     QToolTip.showText(event.globalPos(), text, view)
                     return True
 
@@ -355,12 +422,52 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
         """Manually paint BackgroundRole so it is not overridden by QTableView::item stylesheets."""
         if painter:
-            bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
-            if isinstance(bg_brush, QBrush):
+            is_hovered = bool(cast('QStyle.StateFlag', option.state) & QStyle.StateFlag.State_MouseOver)  # type: ignore[redundant-cast]
+            is_selected = bool(cast('QStyle.StateFlag', option.state) & QStyle.StateFlag.State_Selected)  # type: ignore[redundant-cast]
+
+            if is_hovered:
+                is_connected: bool | None = None
+                view = self.parent()
+                if view is not None and hasattr(view, 'is_connected_table'):
+                    is_connected = getattr(view, 'is_connected_table', None)
+
                 painter.save()
-                opt_rect: QRect = option.rect
-                painter.fillRect(opt_rect, bg_brush)
+                rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
+
+                if is_connected is True:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor(42, 110, 85, 160))
+                        grad.setColorAt(1, QColor(28, 75, 58, 160))
+                    else:
+                        grad.setColorAt(0, QColor(42, 110, 85, 100))
+                        grad.setColorAt(1, QColor(28, 75, 58, 100))
+                elif is_connected is False:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor(130, 45, 45, 160))
+                        grad.setColorAt(1, QColor(85, 28, 28, 160))
+                    else:
+                        grad.setColorAt(0, QColor(130, 45, 45, 100))
+                        grad.setColorAt(1, QColor(85, 28, 28, 100))
+                else:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor('#2F4F64'))
+                        grad.setColorAt(1, QColor('#2F4F64'))
+                    else:
+                        grad.setColorAt(0, QColor('#2D2D30'))
+                        grad.setColorAt(1, QColor('#2D2D30'))
+
+                painter.fillRect(rect, grad)
                 painter.restore()
+            else:
+                bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+                if isinstance(bg_brush, QBrush):
+                    painter.save()
+                    opt_rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
+                    painter.fillRect(opt_rect, bg_brush)
+                    painter.restore()
         super().paint(painter, option, index)
 
 

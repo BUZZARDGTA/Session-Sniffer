@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.utils import scale_by_ui
+
 
 class LeaderboardLoadingDialog(QDialog):
     """Modal dialog shown while the leaderboard is being built in the background."""
@@ -22,7 +24,7 @@ class LeaderboardLoadingDialog(QDialog):
         self.setWindowTitle('Most Seen Players')
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
-        self.setFixedSize(400, 180)
+        self.setFixedSize(scale_by_ui(400), scale_by_ui(180))
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(18, 18, 18, 18)

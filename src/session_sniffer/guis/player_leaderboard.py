@@ -44,6 +44,7 @@ from session_sniffer.guis.utils import (
     get_screen_size,
     popup_menu_at_table,
     resize_window_for_screen,
+    scale_by_ui,
     setup_table_view_headers,
 )
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
@@ -178,12 +179,12 @@ class _LeaderboardTableModel(QAbstractTableModel):
         }
 
     @override
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:  # pylint: disable=unused-argument
         """Return the number of leaderboard entries."""
         return len(self._entries)
 
     @override
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:  # pylint: disable=unused-argument
         """Return the number of columns."""
         return len(_HEADERS)
 
@@ -507,7 +508,7 @@ class PlayerLeaderboardWindow(QWidget):
 
         self.setWindowTitle('Most Seen Players')
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint)
-        self.setMinimumSize(1100, 550)
+        self.setMinimumSize(scale_by_ui(980), scale_by_ui(480))
         screen_size = get_screen_size()
         resize_window_for_screen(self, screen_size)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)

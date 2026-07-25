@@ -37,8 +37,8 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_REVIEW_SUMMARY_STYLESHEET,
     LOOKY_REVIEW_TABLE_STYLESHEET,
 )
-from session_sniffer.guis.tables_player_actions._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
@@ -57,12 +57,12 @@ if TYPE_CHECKING:
 _BATCH_SIZE = 32
 
 # Visual constants for tree item styling
-_COLOR_EXISTING = QColor('#6b6980')       # muted grey-purple for existing usernames
-_COLOR_EXISTING_TAG = QColor('#4a4660')   # dimmer tag color
-_COLOR_NEW = QColor('#a855f7')            # bright purple for new Looky entries
-_COLOR_NEW_TAG = QColor('#22c55e')        # green accent for "NEW" tag
-_COLOR_IP_HEADER = QColor('#d8b4fe')      # light purple for IP header text
-_COLOR_DB_LABEL = QColor('#9ca3af')       # muted for database name
+_COLOR_EXISTING = QColor('#6b6980')  # muted grey-purple for existing usernames
+_COLOR_EXISTING_TAG = QColor('#4a4660')  # dimmer tag color
+_COLOR_NEW = QColor('#a855f7')  # bright purple for new Looky entries
+_COLOR_NEW_TAG = QColor('#22c55e')  # green accent for "NEW" tag
+_COLOR_IP_HEADER = QColor('#d8b4fe')  # light purple for IP header text
+_COLOR_DB_LABEL = QColor('#9ca3af')  # muted for database name
 
 
 class _LookyRefreshWorker(CrashingQThread):
@@ -145,6 +145,7 @@ def _is_single_ipv4(entry: str) -> bool:
 # Loading dialog
 # ---------------------------------------------------------------------------
 
+
 class _LookyRefreshLoadingDialog(QDialog):
     """Modal dialog shown while batch-lookup is running in the background."""
 
@@ -176,6 +177,7 @@ class _LookyRefreshLoadingDialog(QDialog):
 # Data classes for the review dialog
 # ---------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class _PendingEntry:
     """A single new username=IP entry that the Looky System discovered and may be written to a database."""
@@ -198,6 +200,7 @@ class _IpGroup:
 # ---------------------------------------------------------------------------
 # Review dialog
 # ---------------------------------------------------------------------------
+
 
 class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
     """Modal dialog that displays a hierarchical view of existing and new usernames per IP.
@@ -251,11 +254,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             stat_layout.setSpacing(2)
             value_label = QLabel(value_text)
             value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            value_label.setStyleSheet('color: #d8b4fe; font-size: 18px; font-weight: 700; background: transparent;')
+            value_label.setStyleSheet('color: #d8b4fe; font-size: 14pt; font-weight: 700; background: transparent;')
             stat_layout.addWidget(value_label)
             desc_label = QLabel(label_text)
             desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            desc_label.setStyleSheet('color: #9ca3af; font-size: 10px; font-weight: 600; letter-spacing: 1px; background: transparent;')
+            desc_label.setStyleSheet('color: #9ca3af; font-size: 8pt; font-weight: 600; letter-spacing: 1px; background: transparent;')
             stat_layout.addWidget(desc_label)
             summary_layout.addLayout(stat_layout)
 
@@ -267,11 +270,9 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         # Legend
         legend_label = QLabel(
-            '<span style="color: #6b6980;">\u25CF Existing</span>'
-            '&nbsp;&nbsp;&nbsp;'
-            '<span style="color: #22c55e;">\u25CF New (Looky)</span>',
+            '<span style="color: #6b6980;">\u25cf Existing</span>&nbsp;&nbsp;&nbsp;<span style="color: #22c55e;">\u25cf New (Looky)</span>',
         )
-        legend_label.setStyleSheet('font-size: 11px; background: transparent;')
+        legend_label.setStyleSheet('font-size: 8pt; background: transparent;')
         controls_bar.addWidget(legend_label)
 
         controls_bar.addStretch(1)
@@ -286,7 +287,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             '    border: 1px solid #3d2d6e;'
             '    border-radius: 6px;'
             '    padding: 4px 8px;'
-            '    font-size: 12px;'
+            '    font-size: 9pt;'
             '}'
             'QLineEdit:focus {'
             '    border: 1px solid #7c3aed;'
@@ -299,11 +300,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         controls_bar.addSpacing(10)
 
-        select_all_btn = QPushButton('☑️ Select All')
+        select_all_btn = QPushButton('☑ Select All')
         select_all_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
         select_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_all_btn.clicked.connect(self._select_all)
-        deselect_all_btn = QPushButton('⬜ Unselect All')
+        deselect_all_btn = QPushButton('☐ Unselect All')
         deselect_all_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
         deselect_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         deselect_all_btn.clicked.connect(self._deselect_all)
@@ -312,7 +313,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         # Counter label
         self._counter_label = QLabel()
-        self._counter_label.setStyleSheet('color: #9ca3af; font-size: 11px; background: transparent;')
+        self._counter_label.setStyleSheet('color: #9ca3af; font-size: 8pt; background: transparent;')
         controls_bar.addWidget(self._counter_label)
         outer_layout.addLayout(controls_bar)
 
@@ -512,6 +513,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def looky_refresh_userip_entries(
     parent: QWidget,
     entries: list[tuple[Path, list[str]]],
@@ -577,12 +579,14 @@ def looky_refresh_userip_entries(
 
                 # Only create a group if there are new entries to show
                 if new_entries:
-                    ip_groups.append(_IpGroup(
-                        db_path=db_path,
-                        ip=ip,
-                        existing_usernames=existing_names_list,
-                        new_entries=new_entries,
-                    ))
+                    ip_groups.append(
+                        _IpGroup(
+                            db_path=db_path,
+                            ip=ip,
+                            existing_usernames=existing_names_list,
+                            new_entries=new_entries,
+                        )
+                    )
                     total_new += len(new_entries)
 
         if not total_new:

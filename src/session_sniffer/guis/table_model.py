@@ -96,6 +96,7 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Mobile': 'Indicates if the player is using a mobile network (e.g., through a cellular hotspot or mobile data).',
     'VPN': 'Indicates if the player is using a VPN, Proxy, or Tor relay.',
     'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
+    'Pinging': 'Indicates if the player is being actively pinged.',
 }
 
 
@@ -237,7 +238,9 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             output = QBrush(self._compiled_colors[row_index][column_index].foreground)
         elif role == Qt.ItemDataRole.BackgroundRole and row_index < len(self._compiled_colors) and column_index < len(self._compiled_colors[row_index]):
             # Return the cell's background color
-            output = QBrush(self._compiled_colors[row_index][column_index].background)
+            bg_color = self._compiled_colors[row_index][column_index].background
+            if bg_color is not None:
+                output = QBrush(bg_color)
         elif role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
             view = self.view

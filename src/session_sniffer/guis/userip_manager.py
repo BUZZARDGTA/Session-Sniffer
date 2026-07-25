@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFileSystemModel,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -59,6 +60,7 @@ from session_sniffer.guis.utils import (
     apply_search_icon,
     get_screen_size,
     resize_window_for_screen,
+    scale_by_ui,
     set_dialog_window_flags,
 )
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
@@ -73,7 +75,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(1100, 660)
+        self.setMinimumSize(scale_by_ui(980), scale_by_ui(580))
         screen_size = get_screen_size()
         resize_window_for_screen(self, screen_size)
 
@@ -116,6 +118,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         self._delete_tree_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
         self._delete_tree_button.setAutoDefault(False)
+        self._delete_tree_button.setFixedWidth(115)
         self._delete_tree_button.setToolTip('Delete the selected database or folder')
         self._delete_tree_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._delete_tree_button.setEnabled(False)
@@ -124,6 +127,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
         reset_button.setAutoDefault(False)
+        reset_button.setFixedWidth(115)
         reset_button.setToolTip('Permanently delete all user databases and restore defaults')
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         reset_button.clicked.connect(self._reset_all_databases)
@@ -205,10 +209,43 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         left_layout.addLayout(transfer_buttons)
 
-        # Stats summary
+        # Fancy Metadata Container
+        self._metadata_container = QFrame()
+        self._metadata_container.setStyleSheet("""
+            QFrame {
+                background-color: rgba(16, 20, 26, 0.85);
+                border: 1px solid rgba(50, 65, 80, 0.7);
+                border-radius: 6px;
+            }
+            QLabel {
+                background: transparent;
+                border: none;
+                line-height: 1.4;
+            }
+        """)
+        status_row = QHBoxLayout(self._metadata_container)
+        status_row.setContentsMargins(12, 10, 12, 10)
+        status_row.setSpacing(16)
+
         self._stats_label = QLabel('')
         self._stats_label.setWordWrap(True)
-        left_layout.addWidget(self._stats_label)
+        status_row.addWidget(self._stats_label, stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
+
+        right_col = QVBoxLayout()
+        right_col.setSpacing(6)
+
+        self._file_info_label = QLabel('')
+        self._file_info_label.setWordWrap(True)
+        right_col.addWidget(self._file_info_label, alignment=Qt.AlignmentFlag.AlignTop)
+
+        self._status_label = QLabel('')
+        self._status_label.setWordWrap(True)
+        right_col.addWidget(self._status_label, alignment=Qt.AlignmentFlag.AlignTop)
+
+        right_col.addStretch()
+        status_row.addLayout(right_col, stretch=2)
+
+        left_layout.addWidget(self._metadata_container)
 
         splitter.addWidget(left_panel)
 
@@ -265,7 +302,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         header = self._entries_table.header()
         if header:
             header.setStretchLastSection(False)
-            for column, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 160), (RANGE_COLUMN, 180), (DATABASE_COLUMN, 120)):
+            for column, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 120), (RANGE_COLUMN, 210), (DATABASE_COLUMN, 120)):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
                 header.resizeSection(column, width)
             header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
@@ -321,6 +358,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         self._save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save')
         self._save_button.setAutoDefault(False)
+        self._save_button.setMinimumWidth(120)
         self._save_button.setToolTip('Save all changes to the current database file')
         self._save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._save_button.setEnabled(False)
@@ -328,14 +366,6 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         entry_buttons.addWidget(self._save_button)
 
         right_layout.addLayout(entry_buttons)
-
-        # File metadata
-        self._file_info_label = QLabel('')
-        right_layout.addWidget(self._file_info_label)
-
-        # Status bar
-        self._status_label = QLabel('')
-        right_layout.addWidget(self._status_label)
 
         splitter.addWidget(right_panel)
         splitter.setSizes([300, 700])
@@ -711,6 +741,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
         self._next_index = self._model.rowCount() + 1
 
+    @override
     def _delete_selected(self) -> None:
         """Delete selected rows after confirmation."""
         selection = self._entries_table.selectionModel()
@@ -733,7 +764,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'Are you sure you want to delete {count} selected {"entry" if count == 1 else "entries"}?\n\n{consequence}',
+            f'Are you sure you want to delete {count} selected {pluralize(count, "entry", "entries")}?\n\n{consequence}',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -747,7 +778,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 self._model.removeRow(row)
             self._renumber_indexes()
             self._mark_entries_dirty()
-            self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"}. Remember to save.')
+            self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")}. Remember to save.')
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
         """Write deletions directly to database files and remove rows from the global search model."""
@@ -774,7 +805,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         for row in source_rows:
             self._model.removeRow(row)
         self._update_entry_counts()
-        self._set_status(f'Deleted {count} {"entry" if count == 1 else "entries"} from database files.')
+        self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
 
     # ------------------------------------------------------------------
     # Save
@@ -937,28 +968,40 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     @override
     def _set_status(self, text: str) -> None:
         """Update the status label at the bottom of the right panel."""
-        self._status_label.setText(text)
+        self._status_label.setText(f'<i style="color:#50C878;">{text}</i>')
 
     @override
     def _update_entry_counts(self) -> None:
         """Update the status label with visible/total entry counts."""
         total = self._model.rowCount()
         visible = self._proxy.rowCount()
-        parts = [f'{total} entr{"y" if total == 1 else "ies"}']
+
+        # In global search without filters, the total table rows match the global stats block exactly
+        if self._global_search_active and visible == total:
+            self._status_label.setText('<span style="color:#A0B0C0;"><i>Showing all databases</i></span>')
+            return
+
+        text = f'<span style="color:#8A9BAD;">Table Entries:</span> <b style="color:#E0E0E0;">{total}</b>'
         if visible != total:
-            parts.append(f'{visible} visible')
-        self._status_label.setText('  |  '.join(parts))
+            text += f'<br><span style="color:#8A9BAD;">Visible (Filtered):</span> <b style="color:#6DB3F2;">{visible}</b>'
+
+        self._status_label.setText(text)
 
     @override
     def _update_file_info(self, path: Path | None) -> None:
         """Update the file metadata label for the given database file."""
         if path is None or not path.is_file():
-            self._file_info_label.setText('')
+            self._file_info_label.setText('<span style="color:#607080;"><i>No database selected</i></span>')
             return
         stat = path.stat()
         size = human_readable_size(stat.st_size)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
-        self._file_info_label.setText(f'{path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}')
+
+        self._file_info_label.setText(
+            f'<span style="color:#8A9BAD;">File:</span> <b style="color:#6DB3F2;">{path.name}</b><br>'
+            f'<span style="color:#8A9BAD;">Size:</span> <b style="color:#E0E0E0;">{size}</b><br>'
+            f'<span style="color:#8A9BAD;">Modified:</span> <span style="color:#A0B0C0;">{human_readable_timestamp(modified)}</span>'
+        )
 
     @override
     def _refresh_stats(self) -> None:
@@ -976,12 +1019,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 unique_usernames.add(username)
 
         parts = [
-            f'{total_files} database{pluralize(total_files)}',
-            f'{total_entries} entr{"y" if total_entries == 1 else "ies"}',
-            f'{len(unique_usernames)} unique user{pluralize(len(unique_usernames))}',
-            f'{len(unique_ips)} unique IP{pluralize(len(unique_ips))}',
+            f'<span style="color:#8A9BAD;">Databases:</span> <b style="color:#E0E0E0;">{total_files}</b>',
+            f'<span style="color:#8A9BAD;">Entries:</span> <b style="color:#E0E0E0;">{total_entries}</b>',
+            f'<span style="color:#8A9BAD;">Unique Users:</span> <b style="color:#E0E0E0;">{len(unique_usernames)}</b>',
+            f'<span style="color:#8A9BAD;">Unique IPs:</span> <b style="color:#E0E0E0;">{len(unique_ips)}</b>',
         ]
-        self._stats_label.setText('\n'.join(parts))
+        self._stats_label.setText('<br>'.join(parts))
 
     @override
     def _has_unsaved_changes_for_close(self) -> bool:

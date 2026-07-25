@@ -42,6 +42,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -432,7 +433,7 @@ class CsvLogTab(QWidget):
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText('\n'.join(lines))
-        self._show_status(f'Copied {len(lines)} row(s) to clipboard.')
+        self._show_status(f'Copied {len(lines)} row{pluralize(len(lines))} to clipboard.')
 
     def _export_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -458,7 +459,7 @@ class CsvLogTab(QWidget):
         reply = QMessageBox.question(
             self,
             TITLE,
-            f'Delete {count} selected row(s) from {self._file_path.name}?\n\nThis cannot be undone.',
+            f'Delete {count} selected row{pluralize(count)} from {self._file_path.name}?\n\nThis cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:

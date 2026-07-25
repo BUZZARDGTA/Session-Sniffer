@@ -122,12 +122,24 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
     },
 )
 
-# Columns that can be interactively resized by the user and have a fixed initial width.
-INTERACTIVE_COLUMNS: frozenset[str] = frozenset(
-    {
-        'Middle Ports',
-    },
+
+# Columns that absorb remaining table viewport space to eliminate empty right-hand space.
+FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
+    'Usernames',
+    'Hostname',
+    'Middle Ports',
+    'Country',
+    'Region',
+    'City',
+    'District',
+    'Continent',
+    'Organization',
+    'ISP',
+    'ASN / ISP',
+    'AS',
+    'ASN',
 )
+
 
 # Columns omitted from chooser drop-downs because they are either fixed or not useful to search directly.
 SEARCHABLE_COLUMN_EXCLUSIONS: frozenset[str] = frozenset(

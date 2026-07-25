@@ -5,8 +5,7 @@ This module ensures there's only one QApplication instance throughout the applic
 
 from PySide6.QtWidgets import QApplication
 
-from session_sniffer.guis.theme import get_stylesheet
-
-# Create the single QApplication instance for the entire application
+# Create the single QApplication instance for the entire application.
+# The stylesheet is applied later in main() after the screen size and UI scale
+# factor are resolved, so fonts and sizes are correct for every display tier.
 app = QApplication([])  # Passing an empty list for application arguments
-app.setStyleSheet(get_stylesheet())

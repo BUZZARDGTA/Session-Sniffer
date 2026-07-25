@@ -33,7 +33,7 @@ from session_sniffer.guis.session_host_history_window import populate_host_histo
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET, MENU_BAR_STYLESHEET
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen
+from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen, scale_by_ui
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
@@ -109,7 +109,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._capture_statistics_window = None
 
         self.setWindowTitle(TITLE)
-        self.setMinimumSize(1024, 768)
+        self.setMinimumSize(scale_by_ui(1024), scale_by_ui(600))
         resize_window_for_screen(self, screen_size)
         central_widget = QWidget()
         self.setCentralWidget(central_widget)

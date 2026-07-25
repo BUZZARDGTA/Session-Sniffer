@@ -11,8 +11,8 @@ QPushButton {
     color: #ecf0f1;
     border: 1px solid rgba(52, 73, 94, 0.6);
     border-radius: 6px;
-    padding: 6px 18px;
-    font-size: 12px;
+    padding: 4px 10px;
+    font-size: 9pt;
     font-weight: bold;
     min-height: 28px;
 }
@@ -45,8 +45,8 @@ QPushButton {
     color: #ffffff;
     border: 1px solid rgba(52, 152, 219, 0.7);
     border-radius: 6px;
-    padding: 6px 24px;
-    font-size: 12px;
+    padding: 6px 12px;
+    font-size: 9pt;
     font-weight: bold;
     min-height: 28px;
 }
@@ -78,8 +78,8 @@ QPushButton {
     color: #ffffff;
     border: 1px solid rgba(192, 57, 43, 0.6);
     border-radius: 6px;
-    padding: 6px 18px;
-    font-size: 12px;
+    padding: 6px 12px;
+    font-size: 9pt;
     font-weight: bold;
     min-height: 28px;
 }
@@ -110,7 +110,7 @@ QPushButton:disabled {
 
 COMPACT_BUTTON_STYLESHEET = (
     'QPushButton { background-color: #1a1e24; color: #a5b4c4; border: 1px solid #2d3640;'
-    ' border-radius: 6px; padding: 6px 16px; font-size: 11px; font-weight: bold; }'
+    ' border-radius: 6px; padding: 6px 16px; font-size: 8pt; font-weight: bold; }'
     ' QPushButton:hover { background-color: #212830; color: #ffffff; border: 1px solid #4a5968; }'
     ' QPushButton:pressed { background-color: #14181d; color: #ffffff; border: 1px solid #3d8ec9; }'
     ' QPushButton:disabled { background-color: #111317; color: #40464f; border: 1px solid #1a1e24; }'
@@ -118,7 +118,7 @@ COMPACT_BUTTON_STYLESHEET = (
 
 COMPACT_DANGER_BUTTON_STYLESHEET = (
     'QPushButton { background-color: #2a1618; color: #d67a83; border: 1px solid #422528;'
-    ' border-radius: 6px; padding: 6px 16px; font-size: 11px; font-weight: bold; }'
+    ' border-radius: 6px; padding: 6px 16px; font-size: 8pt; font-weight: bold; }'
     ' QPushButton:hover { background-color: #3b1f22; color: #ffffff; border: 1px solid #5c3237; }'
     ' QPushButton:pressed { background-color: #1c0e10; color: #ffffff; border: 1px solid #e74c3c; }'
     ' QPushButton:disabled { background-color: #161111; color: #4d3839; border: 1px solid #21191a; }'

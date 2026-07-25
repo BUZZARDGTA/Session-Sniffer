@@ -185,7 +185,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         bps_popout_button.setToolTip('Open BPS Graph in a separate window')
         bps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
         bps_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
         )
         bps_popout_button.clicked.connect(self.open_session_bps_graph_requested)
         bps_popout_row.addWidget(bps_popout_button)
@@ -204,7 +204,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         pps_popout_button.setToolTip('Open PPS Graph in a separate window')
         pps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
         pps_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
         )
         pps_popout_button.clicked.connect(self.open_session_pps_graph_requested)
         pps_popout_row.addWidget(pps_popout_button)
@@ -231,7 +231,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
         latency_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
         latency_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 11px; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
+            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
         )
         latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
         latency_popout_row.addWidget(latency_popout_button)

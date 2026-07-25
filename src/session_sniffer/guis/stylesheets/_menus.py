@@ -3,6 +3,8 @@
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 
 _CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
+_CHECKBOX_CHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'select_all.svg').as_posix()
+_CHECKBOX_UNCHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg').as_posix()
 
 # =============================================================================
 # CONTEXT MENU STYLES
@@ -19,61 +21,121 @@ QMenu::right-arrow {
 }
 """
 
-SVG_ICON_CONTEXT_MENU_STYLESHEET = ("""
+SVG_ICON_CONTEXT_MENU_STYLESHEET = (
+    (
+        """
 QMenu {
-    background-color: #1e1e1e;     /* Dark background */
-    border: 1px solid #2d2d2d;     /* Subtle border */
-    border-radius: 8px;            /* Rounded corners */
-    padding: 4px;                  /* Space inside the menu */
+    padding: 4px;
+    background-color: #2b2b2b;
+    border: 1px solid #3a3a3a;
 }
 
 QMenu::item {
-    color: #d4d4d4;                /* Light gray text color */
-    padding: 5px 20px 5px 8px;    /* top right bottom left — left leaves room for icon column */
-    background-color: transparent; /* Default background */
-}
-
-QMenu::icon {
-    width: 16px;                   /* Fix SVG icon width */
-    height: 16px;                  /* Fix SVG icon height */
-    padding-left: 6px;             /* Indent icon from the left edge */
+    /* left padding reserves the fixed slot for the icon/indicator */
+    padding: 6px 24px 6px 16px;
+    background-color: transparent;
+    /* no border here — hover must not change the box geometry */
 }
 
 QMenu::item:selected {
-    background: qlineargradient(
-        x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 #4a90e2,           /* Soft blue gradient start */
-        stop: 1 #3c5a9a            /* Muted navy blue gradient end */
-    );
-    color: #ffffff;                /* White text for better contrast */
-    border: 1px solid #5a5a5a;     /* Subtle border for selection */
-    border-radius: 6px;            /* Rounded corners for selection */
-    margin: 2px;                   /* Spacing around the item */
+    /* ONLY the background changes on hover, so nothing shifts */
+    background-color: #3a3a3a;
 }
 
 QMenu::item:disabled {
-    color: #7F7F91;                /* Greyed-out text for disabled items */
-    background-color: transparent; /* No background for disabled items */
+    color: #777777;
+    background-color: transparent;
 }
 
-QMenu::item:disabled:hover,
-QMenu::item:disabled:selected {
-    background-color: transparent; /* Prevent hover or selection color */
-    color: #7F7F91;                /* Ensure text remains greyed-out */
-    border: none;                  /* Remove any border effect */
+QMenu::icon {
+    /* pin the icon with padding (absolute), not a relative 'left' offset */
+    padding-left: 20px;
 }
 
-QMenu::item:pressed {
-    background-color: #36547c;     /* Slightly darker blue when pressed */
-    color: #e0e0e0;                /* Slightly muted text color */
+QMenu::indicator {
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+}
+
+QMenu::indicator:unchecked {
+    image: url("{checkbox_unchecked_path}");
+}
+
+QMenu::indicator:checked {
+    image: url("{checkbox_checked_path}");
 }
 
 QMenu::separator {
     height: 1px;
-    background: #2d2d2d;           /* Separator color */
-    margin: 4px 0;
+    background-color: #3a3a3a;
+    margin: 4px 8px;
 }
-""" + SHARED_QMENU_RIGHT_ARROW_STYLESHEET).strip().replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
+"""
+        + SHARED_QMENU_RIGHT_ARROW_STYLESHEET
+    )
+    .strip()
+    .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
+    .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
+    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
+)
+
+
+CATEGORY_SUBMENU_CHECKBOX_STYLESHEET = (
+    (
+        """
+QMenu {
+    padding: 4px;
+    background-color: #2b2b2b;
+    border: 1px solid #3a3a3a;
+}
+
+QMenu::item {
+    padding: 6px 24px 6px 4px;
+    background-color: transparent;
+}
+
+QMenu::item:selected {
+    background-color: #3a3a3a;
+}
+
+QMenu::item:disabled {
+    color: #777777;
+    background-color: transparent;
+}
+
+QMenu::icon {
+    margin-left: 4px;
+}
+
+QMenu::indicator {
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    margin-right: 6px;
+}
+
+QMenu::indicator:unchecked {
+    image: url("{checkbox_unchecked_path}");
+}
+
+QMenu::indicator:checked {
+    image: url("{checkbox_checked_path}");
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #3a3a3a;
+    margin: 4px 8px;
+}
+"""
+        + SHARED_QMENU_RIGHT_ARROW_STYLESHEET
+    )
+    .strip()
+    .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
+    .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
+    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
+)
 
 
 # =============================================================================

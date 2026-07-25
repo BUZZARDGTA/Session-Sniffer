@@ -27,12 +27,12 @@ jobs:
         shell: pwsh
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v6.3.0
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.14'
           architecture: x64
@@ -195,7 +195,7 @@ jobs:
     name: Update version branch
     steps:
       - name: Checkout version branch
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           ref: version
 
@@ -206,7 +206,7 @@ jobs:
           git show origin/main:.github/workflows/scripts/update_release_versions.py > .github/workflows/scripts/update_release_versions.py
 
       - name: Setup Python
-        uses: actions/setup-python@v6.3.0
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.14'
 

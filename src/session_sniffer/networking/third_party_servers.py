@@ -1,4 +1,5 @@
 """Third-party server IP ranges for traffic filtering."""
+
 import bisect
 import enum
 import ipaddress
@@ -128,13 +129,7 @@ class ThirdPartyServers(enum.Enum):
     def get_ip_obj_ranges_for(cls, server_names: Iterable[str]) -> list[tuple[IPv4Address, IPv4Address]]:
         """Return a collapsed, minimal list of IPv4Address tuple ranges for the specified server names."""
         names_set = set(server_names)
-        networks = [
-            network
-            for server in cls
-            if server.name in names_set
-            for network in server.ip_networks
-            if isinstance(network, ipaddress.IPv4Network)
-        ]
+        networks = [network for server in cls if server.name in names_set for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network)]
         return _build_ip_obj_ranges(networks)
 
 
@@ -149,12 +144,7 @@ ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(server.name for server in 
 
 
 _ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
-    ipaddress.collapse_addresses([
-        network
-        for server in ThirdPartyServers
-        for network in server.ip_networks
-        if isinstance(network, ipaddress.IPv4Network)
-    ])
+    ipaddress.collapse_addresses([network for server in ThirdPartyServers for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network)])
 )
 _ALL_THIRD_PARTY_SERVER_OBJ_RANGES = _build_ip_obj_ranges(_ALL_THIRD_PARTY_SERVER_NETWORKS)
 

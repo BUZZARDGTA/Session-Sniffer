@@ -17,7 +17,7 @@ from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.tables_player_actions._looky_refresh_userip import looky_refresh_userip_entries
+from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     NEW_DATABASE_TEMPLATE,
     SETTINGS_DEFAULTS,

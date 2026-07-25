@@ -99,6 +99,7 @@ def _build_display_filter_fn(
         checks.append(lambda pkt: not _is_dtls(pkt))
 
     if blocked_tps_obj_ranges:
+
         def check_tps(pkt: ScapyPacket) -> bool:
             if not pkt.haslayer(IP):
                 return False

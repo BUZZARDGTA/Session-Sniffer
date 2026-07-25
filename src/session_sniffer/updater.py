@@ -295,6 +295,7 @@ def _handle_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
+
         def _open_browser() -> None:
             webbrowser.open(candidate_info.release_url)
 
@@ -363,6 +364,7 @@ def _handle_prerelease_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
+
         def _open_browser() -> None:
             webbrowser.open(open_info.release_url)
 

@@ -49,16 +49,17 @@ from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
-from session_sniffer.guis.utils import get_screen_size
+from session_sniffer.guis.theme import get_stylesheet
+from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import get_logger, register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
-from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.reverse_dns import reset_resolver_cache
+from session_sniffer.networking.windows_adapters import get_adapters_info
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -110,6 +111,9 @@ def main() -> None:
             screen_size = get_screen_size()
         else:
             sys.exit(1)
+
+    initialize_ui_scale(screen_size)
+    app.setStyleSheet(get_stylesheet(compute_ui_scale(screen_size)))
 
     splash = SplashScreen()
     splash.show()

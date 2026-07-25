@@ -9,6 +9,8 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelInd
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
+    QGroupBox,
+    QHBoxLayout,
     QHeaderView,
     QMenu,
     QPushButton,
@@ -294,6 +296,11 @@ class HighRateMonitorWidget(QWidget):
         self._table.setSortingEnabled(False)
         layout.addWidget(self._table)
 
+        # Parameters control panel
+        params_box = QGroupBox('⚙ Thresholds')
+        params_layout = QHBoxLayout(params_box)
+        params_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         # PPS threshold spinner
         self._pps_threshold_input = QSpinBox()
         self._pps_threshold_input.setFixedWidth(_BUTTON_WIDTH)
@@ -311,7 +318,7 @@ class HighRateMonitorWidget(QWidget):
         if pps_line_edit:
             pps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._pps_threshold_input.valueChanged.connect(self._set_pps_threshold)
-        layout.addWidget(self._pps_threshold_input, alignment=Qt.AlignmentFlag.AlignHCenter)
+        params_layout.addWidget(self._pps_threshold_input)
 
         # BPS threshold spinner (displayed in KB/s, stored as bytes/s)
         self._bps_threshold_input = QSpinBox()
@@ -332,7 +339,7 @@ class HighRateMonitorWidget(QWidget):
         if bps_line_edit:
             bps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._bps_threshold_input.valueChanged.connect(self._set_bps_threshold)
-        layout.addWidget(self._bps_threshold_input, alignment=Qt.AlignmentFlag.AlignHCenter)
+        params_layout.addWidget(self._bps_threshold_input)
 
         # Duration spinner (shared for both PPS and BPS)
         self._duration_input = QSpinBox()
@@ -351,9 +358,14 @@ class HighRateMonitorWidget(QWidget):
         if duration_line_edit:
             duration_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._duration_input.valueChanged.connect(self._set_required_duration)
-        layout.addWidget(self._duration_input, alignment=Qt.AlignmentFlag.AlignHCenter)
+        params_layout.addWidget(self._duration_input)
+
+        layout.addWidget(params_box)
 
         # Buttons
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         open_all_graphs = QPushButton('Open Graphs for All Flagged Players')
         open_all_graphs.setToolTip(
             'Opens a live PPS/BPS rate graph window for every player currently\n'
@@ -362,7 +374,7 @@ class HighRateMonitorWidget(QWidget):
         )
         open_all_graphs.setFixedWidth(_BUTTON_WIDTH)
         open_all_graphs.clicked.connect(self._open_all_graphs)
-        layout.addWidget(open_all_graphs, alignment=Qt.AlignmentFlag.AlignHCenter)
+        buttons_layout.addWidget(open_all_graphs)
 
         reset_button = QPushButton('Reset Scan')
         reset_button.setToolTip(
@@ -370,7 +382,7 @@ class HighRateMonitorWidget(QWidget):
         )
         reset_button.setFixedWidth(_BUTTON_WIDTH)
         reset_button.clicked.connect(self._reset_scan)
-        layout.addWidget(reset_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        buttons_layout.addWidget(reset_button)
 
         clear_bl_button = QPushButton('Clear Blacklist')
         clear_bl_button.setToolTip(
@@ -380,7 +392,9 @@ class HighRateMonitorWidget(QWidget):
         )
         clear_bl_button.setFixedWidth(_BUTTON_WIDTH)
         clear_bl_button.clicked.connect(self._clear_blacklist)
-        layout.addWidget(clear_bl_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        buttons_layout.addWidget(clear_bl_button)
+
+        layout.addLayout(buttons_layout)
 
         # State
         self._blacklisted_ips: set[str] = set()

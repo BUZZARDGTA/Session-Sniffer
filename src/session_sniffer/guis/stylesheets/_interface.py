@@ -29,7 +29,7 @@ def interface_header_label_stylesheet(ui_scale: float) -> str:
     def scale(n: int) -> int:
         return max(1, round(n * ui_scale))
 
-    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {scale(23)}px; font-weight: 700; padding-top: {scale(6)}px; padding-bottom: {scale(6)}px;}}'
+    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {scale(17)}pt; font-weight: 700; padding-top: {scale(6)}px; padding-bottom: {scale(6)}px;}}'
 
 
 def interface_table_stylesheet(ui_scale: float) -> str:
@@ -46,7 +46,7 @@ def interface_table_stylesheet(ui_scale: float) -> str:
         ' outline: none;'
         '}'
         'QTableWidget::item {'
-        f' font-size: {scale(12)}px;'
+        f' font-size: {scale(9)}pt;'
         ' color: #c8ddf0;'
         f' padding: 0px {scale(16)}px;'
         ' border-bottom: 1px solid #1e3048;'
@@ -88,7 +88,7 @@ def interface_checkbox_stylesheet(obj_name: str, ui_scale: float) -> str:
 
 def interface_instruction_label_stylesheet(scale: float) -> str:
     """Return the QSS for the interface selection dialog instruction label at the given UI `scale`."""
-    return f'font-size: {max(1, round(17 * scale))}px;'
+    return f'font-size: {max(1, round(13 * scale))}pt;'
 
 
 # =============================================================================

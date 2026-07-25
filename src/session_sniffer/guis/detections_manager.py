@@ -29,7 +29,12 @@ from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, set_dialog_window_flags
+from session_sniffer.guis.utils import (
+    get_screen_size,
+    resize_window_for_screen,
+    scale_by_ui,
+    set_dialog_window_flags,
+)
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
@@ -49,7 +54,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         super().__init__(parent)
         self.setWindowTitle(f'{TITLE} - Detections Manager')
         set_dialog_window_flags(self)
-        self.setMinimumSize(720, 560)
+        self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
         screen_size = get_screen_size()
         resize_window_for_screen(self, screen_size)
 
@@ -121,7 +126,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         layout.setSpacing(10)
 
         # Header
-        header = QLabel('🛡️ Advanced Detection & Security Manager')
+        header = QLabel('🛡️  Advanced Detection & Security Manager')
         header.setStyleSheet(DETECTIONS_MANAGER_HEADER_STYLESHEET)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -490,9 +495,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Country
         GUIDetectionSettings.country_suspend_enabled = self.country_duration_combo.currentText() != 'Disabled'
-        GUIDetectionSettings.country_detection_list = [
-            item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))
-        ]
+        GUIDetectionSettings.country_detection_list = [item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))]
         if GUIDetectionSettings.country_suspend_enabled:
             GUIDetectionSettings.country_suspend_duration = self._read_duration_widgets(self.country_duration_combo, self.country_duration_spin)
         GUIDetectionSettings.country_voice_notifications = self._read_voice_combo(self.country_voice_combo)

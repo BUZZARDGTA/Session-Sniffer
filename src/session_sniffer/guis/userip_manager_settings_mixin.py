@@ -383,7 +383,7 @@ class SettingsPanelMixin(QDialog):
         self._settings_content = QWidget()
         self._settings_content.setStyleSheet(USERIP_SETTINGS_BODY_STYLESHEET)
         content = QVBoxLayout(self._settings_content)
-        content.setContentsMargins(0, 0, 0, 0)
+        content.setContentsMargins(4, 8, 4, 0)
         content.setSpacing(8)
 
         # ── Row 1: Enabled only ──

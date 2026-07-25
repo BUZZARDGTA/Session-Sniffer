@@ -67,3 +67,17 @@ class LookyInstructionStatusEvent(BaseModel):
     """Top-level shape of a Looky System SSE `status_update` event JSON line."""
 
     data: LookyInstructionStatusEventData
+
+
+class LookyInstructionStatusInitialInstruction(BaseModel):
+    """The instruction object returned by the initial status endpoint."""
+
+    status: LookyInstructionStatus
+    result: str | None = None
+
+
+class LookyInstructionStatusInitialResponse(BaseModel):
+    """Raw response shape returned by `GET /api/instruction-status-initial/...`."""
+
+    success: bool
+    instruction: LookyInstructionStatusInitialInstruction

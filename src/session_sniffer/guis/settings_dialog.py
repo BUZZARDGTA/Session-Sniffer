@@ -55,7 +55,12 @@ from session_sniffer.guis.stylesheets import (
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import (
+    get_screen_size,
+    resize_window_for_screen,
+    scale_by_ui,
+    set_dialog_window_flags,
+)
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
@@ -98,8 +103,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(920, 650)
-        self.resize(920, 650)
+        self.setMinimumSize(scale_by_ui(950), scale_by_ui(750))
+        screen_size = get_screen_size()
+        resize_window_for_screen(self, screen_size)
 
         self._capture = capture
         self._widgets: dict[str, QWidget] = {}

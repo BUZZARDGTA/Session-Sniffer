@@ -228,11 +228,7 @@ class PacketCapture:
 
         self._terminate_sniffer()
 
-        if (
-            self._state.capture_thread is not None
-            and self._state.capture_thread.is_alive()
-            and self._state.capture_thread is not threading.current_thread()
-        ):
+        if self._state.capture_thread is not None and self._state.capture_thread.is_alive() and self._state.capture_thread is not threading.current_thread():
             self._state.capture_thread.join()
 
     def request_restart(self) -> None:

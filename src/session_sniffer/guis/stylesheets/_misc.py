@@ -11,14 +11,14 @@ color: white;
 """.strip()
 
 DISCORD_POPUP_EXIT_BUTTON_STYLESHEET = """
-font-size: 10px;
+font-size: 8pt;
 color: white;
 background-color: #FF4C4C;  /* Light red background */
 border-radius: 15px;        /* Make it circular */
 """.strip()
 
 DISCORD_POPUP_JOIN_BUTTON_STYLESHEET = """
-font-size: 14px;
+font-size: 10pt;
 padding: 7px;
 background-color: #5865F2;  /* Discord blue */
 color: white;
@@ -30,9 +30,9 @@ border: none;
 # SECTION TABLE HEADER STYLES
 # =============================================================================
 
-SECTION_CLEAR_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 12px;'
+SECTION_CLEAR_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 9pt;'
 
-SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255,255,255,0.55); max-width: 1px; min-width: 1px; margin: 6px 6px;'
+SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255,255,255,0.55); border: none; max-width: 1px; min-width: 1px; margin: 6px 6px;'
 
 # =============================================================================
 # MAIN WINDOW STYLES
@@ -68,7 +68,7 @@ WEBSERVER_HELP_LABEL_STYLESHEET = (
     '}'
 )
 
-WEBHOOK_NOTE_LABEL_STYLESHEET = 'color: #888; font-size: 11px;'
+WEBHOOK_NOTE_LABEL_STYLESHEET = 'color: #888; font-size: 8pt;'
 
 LOOKY_INFO_LABEL_STYLESHEET = (
     'QLabel {'
@@ -207,7 +207,7 @@ LOOKY_CARD_VALUE_STYLESHEET = 'color: #d4c8f0; font-size: 10pt;'
 # =============================================================================
 
 LOOKY_CRAWLER_HEADER_STYLESHEET = (
-    'font-size: 15px;'
+    'font-size: 11pt;'
     'font-weight: 700;'
     'padding: 10px 14px;'
     'color: #d8b4fe;'
@@ -224,7 +224,7 @@ LOOKY_CRAWLER_LOG_STYLESHEET = (
     '    border: 1px solid #2d1b6e;'
     '    border-radius: 6px;'
     '    font-family: Consolas, "Courier New", monospace;'
-    '    font-size: 14px;'
+    '    font-size: 10pt;'
     '    padding: 6px;'
     '    selection-background-color: #4c1d95;'
     '}'
@@ -243,7 +243,7 @@ LOOKY_PROGRESS_BAR_STYLESHEET = (
     '}'
 )
 
-LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 13px; padding: 4px;'
+LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 10pt; padding: 4px;'
 
 LOOKY_ACTION_BUTTON_STYLESHEET = (
     'QPushButton {'
@@ -271,7 +271,7 @@ LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET = (
     '    border: 1px solid #7c3aed;'
     '    border-radius: 7px;'
     '    padding: 10px 22px;'
-    '    font-size: 13px;'
+    '    font-size: 10pt;'
     '    font-weight: 700;'
     '}'
     'QPushButton:hover {'
@@ -291,7 +291,7 @@ LOOKY_LIST_WIDGET_STYLESHEET = (
     '    border-radius: 6px;'
     '    padding: 4px;'
     '    font-family: Consolas, "Courier New", monospace;'
-    '    font-size: 12px;'
+    '    font-size: 9pt;'
     '    outline: 0;'
     '}'
     'QListWidget::item {'
@@ -322,7 +322,7 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    border: 1px solid #2d1b6e;'
     '    border-radius: 8px;'
     '    font-family: Consolas, "Courier New", monospace;'
-    '    font-size: 12px;'
+    '    font-size: 9pt;'
     '    padding: 4px;'
     '    outline: 0;'
     '    alternate-background-color: #140f24;'
@@ -368,7 +368,7 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    border: 1px solid #4c1d95;'
     '    padding: 6px 10px;'
     '    font-weight: 700;'
-    '    font-size: 11px;'
+    '    font-size: 8pt;'
     '}'
 )
 
@@ -390,7 +390,7 @@ LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = (
     '    border-radius: 6px;'
     '    padding: 4px 14px;'
     '    font-weight: 600;'
-    '    font-size: 11px;'
+    '    font-size: 8pt;'
     '}'
     'QPushButton:hover {'
     '    background-color: #2d1858;'

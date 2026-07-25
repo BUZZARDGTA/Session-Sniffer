@@ -36,16 +36,14 @@ from session_sniffer.guis._combo_rule_editor import (
 )
 from session_sniffer.guis.country_data import get_country_flag_code
 from session_sniffer.guis.stylesheets import (
-    BOLD_LABEL_STYLESHEET,
     DESC_LABEL_STYLESHEET,
     GROUPBOX_STYLE,
     LIST_WIDGET_STYLE,
     RELAY_FILTER_WARNING_STYLESHEET,
-    SECTION_SEPARATOR_LABEL_STYLESHEET,
     WARNING_ICON_LABEL_STYLESHEET,
     WARNING_TEXT_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, ElidedTextTooltipDelegate
+from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, ElidedTextTooltipDelegate, create_section_separator
 from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
 from session_sniffer.settings import Settings
 
@@ -231,7 +229,7 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.setSpacing(20)
 
         relay_group = self._create_detection_group(
-            '🛡 GTA5 Relay',
+            '🎮  GTA5 Relay',
             'Triggers when a Take-Two Interactive relay IP exceeds the configured packet threshold.',
             'gta5_relay',
         )
@@ -247,7 +245,6 @@ class DetectionsManagerTabsMixin(QDialog):
             'but delaying the response.'
         )
         threshold_label = QLabel('Packet Threshold:')
-        threshold_label.setStyleSheet(BOLD_LABEL_STYLESHEET)
         threshold_label.setToolTip(_threshold_tooltip)
         threshold_layout.addWidget(threshold_label)
         threshold_spin = QSpinBox()
@@ -297,6 +294,13 @@ class DetectionsManagerTabsMixin(QDialog):
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
+
+        self._combo_toggle_button = QPushButton(' Toggle State')
+        self._combo_toggle_button.setEnabled(False)
+        self._combo_toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._combo_toggle_button.setFixedWidth(110)
+        self._combo_toggle_button.clicked.connect(self._toggle_combo_rule)
+        button_layout.addWidget(self._combo_toggle_button)
 
         self._combo_edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Edit')
         self._combo_edit_button.setEnabled(False)
@@ -377,10 +381,20 @@ class DetectionsManagerTabsMixin(QDialog):
         self._combo_edit_button.setEnabled(has_selection)
         self._combo_duplicate_button.setEnabled(has_selection)
         self._combo_remove_button.setEnabled(has_selection)
+        self._combo_toggle_button.setEnabled(has_selection)
         self._combo_clear_button.setEnabled(has_items)
+
+        if has_selection:
+            index = self._get_selected_combo_rule_index()
+            if index is not None:
+                rule = ComboRulesManager.rules[index]
+                self._combo_toggle_button.setText(' Disable Rule' if rule.enabled else ' Enable Rule')
+        else:
+            self._combo_toggle_button.setText(' Toggle State')
 
     def refresh_combo_rules_list(self) -> None:
         """Reload the combo rules QListWidget from ComboRulesManager."""
+        current_row = self._combo_rules_list.currentRow()
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
             conditions_summary = ', '.join(f'{key}={value}' if not isinstance(value, bool) else key for key, value in rule.conditions.items())
@@ -388,6 +402,10 @@ class DetectionsManagerTabsMixin(QDialog):
             item = QListWidgetItem(f'{status} {rule.name}  [{conditions_summary}]')
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
             self._combo_rules_list.addItem(item)
+
+        if 0 <= current_row < self._combo_rules_list.count():
+            self._combo_rules_list.setCurrentRow(current_row)
+
         self._update_combo_rule_buttons()
 
     def _get_selected_combo_rule_index(self) -> int | None:
@@ -419,6 +437,15 @@ class DetectionsManagerTabsMixin(QDialog):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             ComboRulesManager.rules[index] = dialog.get_rule()
             self.refresh_combo_rules_list()
+
+    def _toggle_combo_rule(self) -> None:
+        """Toggle the enabled state of the selected combo rule."""
+        index = self._get_selected_combo_rule_index()
+        if index is None:
+            return
+        rule = ComboRulesManager.rules[index]
+        rule.enabled = not rule.enabled
+        self.refresh_combo_rules_list()
 
     def _duplicate_combo_rule(self) -> None:
         """Duplicate the selected combo rule."""
@@ -492,9 +519,7 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
         setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        detection_separator = QLabel('─── Detection Settings ───')
-        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_separator = create_section_separator('Detection Settings')
         detection_section_layout.addWidget(detection_separator)
 
         # Suspend duration
@@ -583,9 +608,7 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
         setattr(self, f'{detection_type}_detection_section', detection_section)
 
-        detection_separator = QLabel('─── Detection Settings ───')
-        detection_separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        detection_separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        detection_separator = create_section_separator('Detection Settings')
         detection_section_layout.addWidget(detection_separator)
 
         # Suspend duration
@@ -627,9 +650,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _create_notification_controls(self, parent_layout: QVBoxLayout, prefix: str) -> None:
         """Add voice notification, logging, and message box controls to a group layout."""
-        separator = QLabel('─── Notification Settings ───')
-        separator.setStyleSheet(SECTION_SEPARATOR_LABEL_STYLESHEET)
-        separator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        separator = create_section_separator('Notification Settings')
         parent_layout.addWidget(separator)
 
         voice_layout = QHBoxLayout()

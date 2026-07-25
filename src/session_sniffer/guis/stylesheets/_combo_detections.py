@@ -6,23 +6,24 @@
 
 GROUPBOX_STYLE = """
     QGroupBox {
-        font-size: 12pt;
         font-weight: bold;
-        border: 1px solid #2a3f4a;
+        border: 1px solid #3b5064;
         border-radius: 8px;
-        margin-top: 12px;
-        padding-top: 15px;
+        margin-top: 14px;
+        padding-top: 25px;
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 #1a2530, stop:1 #161e26);
+            stop:0 #1a232c, stop:1 #11161d);
     }
     QGroupBox::title {
         subcontrol-origin: margin;
         subcontrol-position: top left;
         left: 15px;
-        padding: 0 8px;
+        top: 0px;
+        padding: 4px 14px;
         color: #88c0d0;
-        background-color: #1a2530;
-        border-radius: 3px;
+        background-color: #212f3d;
+        border: 1px solid #3b5064;
+        border-radius: 6px;
     }
 
     /* Make inner container widgets transparent so the group box gradient shows through */
@@ -32,8 +33,6 @@ GROUPBOX_STYLE = """
 
     /* Re-specify backgrounds for form controls that need them */
     QGroupBox QComboBox,
-    QGroupBox QSpinBox,
-    QGroupBox QDoubleSpinBox,
     QGroupBox QLineEdit,
     QGroupBox QTextEdit,
     QGroupBox QPlainTextEdit {
@@ -42,12 +41,45 @@ GROUPBOX_STYLE = """
         border-radius: 4px;
         color: #E0E0E0;
         padding: 4px 8px;
+        min-height: 24px;
+        font-size: 9pt;
+    }
+    QGroupBox QSpinBox,
+    QGroupBox QDoubleSpinBox {
+        background-color: #1E1E1E;
+        border: 1px solid #3E3E42;
+        border-radius: 4px;
+        color: #E0E0E0;
+        padding: 2px 4px;
+        min-height: 24px;
+        min-width: 100px;
+        font-size: 9pt;
+    }
+    QGroupBox QPushButton {
+        min-height: 26px;
+        background-color: #212f3d;
+        border: 1px solid #3b5064;
+        border-radius: 4px;
+        color: #E0E0E0;
+        font-size: 9pt;
+    }
+    QGroupBox QPushButton:hover {
+        background-color: #2a3f4a;
     }
     QGroupBox QComboBox:focus,
     QGroupBox QSpinBox:focus,
     QGroupBox QDoubleSpinBox:focus,
     QGroupBox QLineEdit:focus {
         border: 1px solid #007ACC;
+    }
+    QGroupBox QComboBox QAbstractItemView {
+        background-color: #1a232c;
+        border: 1px solid #3b5064;
+        selection-background-color: #2a3f4a;
+    }
+    QGroupBox QComboBox QAbstractItemView::item {
+        min-height: 20px;
+        padding: 2px 6px;
     }
     QGroupBox QCheckBox::indicator {
         width: 14px;
@@ -86,7 +118,17 @@ LIST_WIDGET_STYLE = """
     }
 """
 
-SECTION_SEPARATOR_LABEL_STYLESHEET = 'color: #88c0d0; font-size: 9pt; padding: 5px 0;'
+SECTION_SEPARATOR_LABEL_STYLESHEET = """
+    color: #88c0d0;
+    font-size: 9pt;
+    font-weight: bold;
+    padding: 6px 12px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    background-color: #161e26;
+    border: 1px solid #2a3f4a;
+    border-radius: 4px;
+"""
 
 DESC_LABEL_STYLESHEET = 'color: #a0b8c0; font-style: italic; font-size: 10pt; padding: 5px;'
 

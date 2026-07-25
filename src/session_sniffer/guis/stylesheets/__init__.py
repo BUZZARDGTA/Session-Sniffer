@@ -45,6 +45,7 @@ from session_sniffer.guis.stylesheets._interface import (
     interface_table_stylesheet,
 )
 from session_sniffer.guis.stylesheets._menus import (
+    CATEGORY_SUBMENU_CHECKBOX_STYLESHEET,
     MENU_BAR_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
@@ -137,6 +138,7 @@ from session_sniffer.guis.stylesheets._userip import (
 
 __all__ = [
     'BOLD_LABEL_STYLESHEET',
+    'CATEGORY_SUBMENU_CHECKBOX_STYLESHEET',
     'COLOR_BUTTON_EMPTY_STYLESHEET',
     'COLOR_SWATCH_GROUP_HEADER_STYLESHEET',
     'COLOR_SWATCH_SEPARATOR_STYLESHEET',

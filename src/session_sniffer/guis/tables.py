@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
-from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent
+from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QHeaderView,
     QMenu,
@@ -15,16 +15,15 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import (
     BANDWIDTH_RATE_STAT_COLUMNS,
-    INTERACTIVE_COLUMNS,
+    FLEXIBLE_STRETCH_COLUMNS,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
-    RESIZE_TO_CONTENTS_COLUMNS,
     STATUS_COLUMNS,
 )
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
-from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu
@@ -74,6 +73,9 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ('🏢 Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
 
+_MINIMUM_VIEWPORT_WIDTH_THRESHOLD: int = 100
+_HEADER_SORT_PADDING: int = 40
+
 
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
@@ -102,9 +104,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
         self._previous_sort_section_index: int | None = None
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
+        self._saved_h_scroll: int | None = None
+        self._saved_v_scroll: int | None = None
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
+        self.viewport().setMouseTracking(True)
         self.viewport().installEventFilter(self)  # Install event filter
         # Configure table view settings
         vertical_header = self.verticalHeader()
@@ -114,6 +119,10 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setAlternatingRowColors(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Force the empty "void" space to match the slate blue table background via high CSS specificity
+        self.viewport().setObjectName('TableViewport')
+
         horizontal_header = self.horizontalHeader()
         horizontal_header.setSectionsClickable(True)
         horizontal_header.sectionClicked.connect(self._on_section_clicked)
@@ -258,55 +267,72 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         super().mouseReleaseEvent(event)
 
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Re-calculate flexible column widths when the table viewport width changes."""
+        super().resizeEvent(event)
+        if event.oldSize().width() > 0 and event.size().width() != event.oldSize().width():
+            self.setup_static_column_resizing()
+
     # --------------------------------------------------------------------------
     # Custom / internal management methods
     # --------------------------------------------------------------------------
 
     def setup_static_column_resizing(self) -> None:
-        """Set up static column resizing for the table."""
+        """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
         model = self.model()
         horizontal_header = self.horizontalHeader()
+        font_metrics = horizontal_header.fontMetrics()
+
+        viewport_width = self.viewport().width() if self.viewport().width() > _MINIMUM_VIEWPORT_WIDTH_THRESHOLD else self.width()
+
+        total_base_width = 0
+        flex_count = 0
 
         for column in range(model.columnCount()):
+            if horizontal_header.isSectionHidden(column):
+                continue
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
+            base_w = font_metrics.horizontalAdvance(header_label or '') + _HEADER_SORT_PADDING
+            total_base_width += base_w
+            if header_label in FLEXIBLE_STRETCH_COLUMNS:
+                flex_count += 1
 
-            if header_label in RESIZE_TO_CONTENTS_COLUMNS:
-                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-            elif header_label in INTERACTIVE_COLUMNS:
-                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        extra_space = max(0, viewport_width - total_base_width)
+        extra_per_flex = extra_space // flex_count if flex_count > 0 else 0
+        remainder = extra_space % flex_count if flex_count > 0 else 0
 
-                # Dynamically calculate the initial width based on the header text to avoid magic numbers,
-                # adding 40px of padding to comfortably accommodate the sort indicator and margins.
-                calculated_width = horizontal_header.fontMetrics().horizontalAdvance(header_label or '') + 40
-                horizontal_header.resizeSection(column, calculated_width)
+        current_flex_idx = 0
+        for column in range(model.columnCount()):
+            if horizontal_header.isSectionHidden(column):
+                continue
+            header_label = model.headerData(column, Qt.Orientation.Horizontal)
+            horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+
+            base_w = font_metrics.horizontalAdvance(header_label or '') + _HEADER_SORT_PADDING
+            if header_label in FLEXIBLE_STRETCH_COLUMNS:
+                current_flex_idx += 1
+                add_pixels = extra_per_flex + (remainder if current_flex_idx == flex_count else 0)
+                final_w = base_w + add_pixels
             else:
-                horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+                final_w = base_w
+            horizontal_header.resizeSection(column, final_w)
 
     def adjust_username_column_width(self) -> None:
-        """Adjust the 'Usernames' column width based on whether any username is non-empty."""
+        """Ensure the 'Usernames' column section mode remains Interactive."""
         model = self.model()
-        header = self.horizontalHeader()
-
-        if self._has_any_username():
-            header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Stretch)
-        else:
-            header.setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.ResizeToContents)
+        if 0 <= model.username_column_index < model.columnCount():
+            self.horizontalHeader().setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Interactive)
 
     def sort_current_column(self) -> None:
-        """Sort the table by the currently indicated header column and order."""
+        """Sort the table by the currently indicated header column and order, preserving scroll position."""
+        h_scroll = self.horizontalScrollBar().value()
+        v_scroll = self.verticalScrollBar().value()
         model = self.model()
         horizontal_header = self.horizontalHeader()
         model.sort(horizontal_header.sortIndicatorSection(), horizontal_header.sortIndicatorOrder())
-
-    def _has_any_username(self) -> bool:
-        """Return True if any row has a non-empty username value."""
-        model = self.model()
-        column = model.username_column_index
-        for row in range(model.rowCount()):
-            text = model.data(model.index(row, column), Qt.ItemDataRole.DisplayRole)
-            if isinstance(text, str) and text.strip():
-                return True
-        return False
+        self.horizontalScrollBar().setValue(h_scroll)
+        self.verticalScrollBar().setValue(v_scroll)
 
     def _get_sorted_column(self) -> tuple[str, Qt.SortOrder]:
         """Get the currently sorted column and its order for this table view."""
@@ -327,7 +353,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         return sorted_column_name, sort_order
 
     def capture_selection(self) -> None:
-        """Save the current cell selection by player IP for later restoration."""
+        """Save the current cell selection by player IP and scroll positions for later restoration."""
+        self._saved_h_scroll = self.horizontalScrollBar().value()
+        self._saved_v_scroll = self.verticalScrollBar().value()
         selected_indexes = self.selectionModel().selectedIndexes()
         if not selected_indexes:
             self._saved_selection.clear()
@@ -342,7 +370,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 self._saved_selection.append((ip, model_index.column()))
 
     def restore_selection(self) -> None:
-        """Restore cell selection from previously captured player IPs."""
+        """Restore cell selection and scroll positions from previously captured state."""
+        if self._saved_h_scroll is not None:
+            self.horizontalScrollBar().setValue(self._saved_h_scroll)
+        if self._saved_v_scroll is not None:
+            self.verticalScrollBar().setValue(self._saved_v_scroll)
         if not self._saved_selection:
             return
 
@@ -368,6 +400,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _on_section_clicked(self, section_index: int) -> None:
         """Sort the table by the clicked header section."""
+        h_scroll = self.horizontalScrollBar().value()
+        v_scroll = self.verticalScrollBar().value()
         model = self.model()
         horizontal_header = self.horizontalHeader()
 
@@ -378,6 +412,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Sort the model
         model.sort(section_index, horizontal_header.sortIndicatorOrder())
         self._previous_sort_section_index = section_index
+        self.horizontalScrollBar().setValue(h_scroll)
+        self.verticalScrollBar().setValue(v_scroll)
 
     def _show_header_context_menu(self, pos: QPoint) -> None:
         """Show a context menu on the column header with sizing and column-visibility actions."""
@@ -398,14 +434,25 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         size_column_action = QAction('↔️ Size Column to Fit', menu)
         size_column_action.setEnabled(clicked_column >= 0)
+        size_column_action.setToolTip(
+            f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses."
+            if clicked_column_name
+            else 'Resize the selected column so all text is fully visible without truncation or ellipses.',
+        )
         size_column_action.triggered.connect(lambda: self._size_column_to_fit(clicked_column))
         menu.addAction(size_column_action)
 
         size_all_action = QAction('↕️ Size All Columns to Fit', menu)
+        size_all_action.setToolTip(
+            'Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.',
+        )
         size_all_action.triggered.connect(self._size_all_columns_to_fit)
         menu.addAction(size_all_action)
 
         reset_sizes_action = QAction('🔄 Reset Column Sizes', menu)
+        reset_sizes_action.setToolTip(
+            'Reset all column widths back to their initial default layout.',
+        )
         reset_sizes_action.triggered.connect(self._reset_column_sizes)
         menu.addAction(reset_sizes_action)
 
@@ -414,6 +461,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         hide_label = f"👁️ Hide Column '{clicked_column_name}'" if clicked_column_name else '👁️ Hide Column'
         hide_column_action = QAction(hide_label, menu)
         hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
+        hide_column_action.setToolTip(
+            f"Hide the '{clicked_column_name}' column from the table."
+            if clicked_column_name
+            else 'Hide the selected column from the table.',
+        )
         if clicked_column_name is not None:
             hide_column_action.triggered.connect(
                 lambda: self._toggle_column_visibility(clicked_column_name, checked=False),
@@ -423,17 +475,21 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         choose_columns_menu = PersistentMenu('🧩 Choose Columns', menu)
         choose_columns_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         choose_columns_menu.setToolTipsVisible(True)
+        choose_columns_menu.setToolTip('Choose which columns to show or hide in this table.')
 
         reset_columns_action = QAction('↩️ Reset to Default', choose_columns_menu)
+        reset_columns_action.setToolTip('Reset column visibility back to default visible columns.')
         reset_columns_action.triggered.connect(self._reset_to_default_columns)
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()
 
         select_all_columns_action = QAction('☑️ Select All', choose_columns_menu)
+        select_all_columns_action.setToolTip('Show all available columns in the table.')
         select_all_columns_action.triggered.connect(self._select_all_columns)
         choose_columns_menu.addAction(select_all_columns_action)
 
         deselect_all_columns_action = QAction('⬜ Unselect All', choose_columns_menu)
+        deselect_all_columns_action.setToolTip('Hide all optional columns from the table.')
         deselect_all_columns_action.triggered.connect(self._deselect_all_columns)
         choose_columns_menu.addAction(deselect_all_columns_action)
         choose_columns_menu.addSeparator()
@@ -459,10 +515,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             if not columns:
                 continue
             category_menu = PersistentMenu(label, choose_columns_menu)
-            category_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            category_menu.setStyleSheet(CATEGORY_SUBMENU_CHECKBOX_STYLESHEET)
             category_menu.setToolTipsVisible(True)
+            category_menu.setToolTip(f'Toggle columns in the {label} category.')
 
             select_all_action = QAction('☑️ Select All', category_menu)
+            select_all_action.setToolTip(f'Show all columns in the {label} category.')
 
             def _on_select_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._select_category_columns(cols)
@@ -471,6 +529,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             category_menu.addAction(select_all_action)
 
             deselect_all_action = QAction('⬜ Unselect All', category_menu)
+            deselect_all_action.setToolTip(f'Hide all columns in the {label} category.')
 
             def _on_deselect_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
                 self._deselect_category_columns(cols)

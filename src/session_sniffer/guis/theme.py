@@ -3,9 +3,17 @@
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets._menus import SHARED_QMENU_RIGHT_ARROW_STYLESHEET
 
+_SCALE_THRESHOLD_LARGE = 0.85
+_SCALE_THRESHOLD_MEDIUM = 0.75
 
-def get_stylesheet() -> str:
+
+def get_stylesheet(ui_scale: float = 1.0) -> str:
     """Return the custom PySide6 stylesheet.
+
+    Args:
+        ui_scale: The UI scale factor from `compute_ui_scale`. Controls font
+            sizes throughout the stylesheet so the UI reads clearly at every
+            supported screen resolution.
 
     Returns:
         The QSS stylesheet as a string.
@@ -22,6 +30,16 @@ def get_stylesheet() -> str:
     arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg').as_posix()
     check_path = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
 
+    # Scale the base font size proportionally to the screen resolution.
+    # 10pt is the design baseline (2K / 1.0 scale).  Smaller screens get
+    # proportionally smaller text so nothing overflows or clips.
+    if ui_scale >= _SCALE_THRESHOLD_LARGE:
+        base_font_pt = 10
+    elif ui_scale >= _SCALE_THRESHOLD_MEDIUM:
+        base_font_pt = 9
+    else:
+        base_font_pt = 8
+
     css = (
         """
     /* Main Background */
@@ -29,7 +47,7 @@ def get_stylesheet() -> str:
         background-color: #121212;
         color: #E0E0E0;
         font-family: 'Segoe UI', Arial, sans-serif;
-        font-size: 13px;
+        font-size: {base_font_pt}pt;
     }
 
     QDialog#InterfaceSelectionDialog {
@@ -96,9 +114,9 @@ def get_stylesheet() -> str:
         border-radius: 0px;
     }
 
-    QSpinBox, QDoubleSpinBox {
-        max-width: 60px;
-    }
+    /* QSpinBox, QDoubleSpinBox {
+        max-width removed to allow auto-sizing for prefixes/suffixes
+    } */
 
     /* Checkboxes */
     QCheckBox {
@@ -246,9 +264,15 @@ def get_stylesheet() -> str:
         border-bottom: 1px solid #333333;
         background-color: transparent;
     }
+    QTableView::item:hover {
+        background-color: #2D2D30;
+    }
     QTableView::item:selected, QTreeView::item:selected, QListView::item:selected {
         background-color: #284457;
         color: #ffffff;
+    }
+    QTableView::item:selected:hover {
+        background-color: #2F4F64;
     }
 
     QTreeView {
@@ -418,7 +442,7 @@ def get_stylesheet() -> str:
         border-bottom: none;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-        font-size: 14px;
+        font-size: 11pt;
         font-weight: bold;
     }
 
@@ -485,7 +509,7 @@ def get_stylesheet() -> str:
         border-top: 1px solid #88c0d0;
         padding: 4px 8px;
         min-height: 24px;
-        font-size: 13px;
+        font-size: {base_font_pt}pt;
     }
     QStatusBar::item {
         border: none;
@@ -495,7 +519,7 @@ def get_stylesheet() -> str:
     QLabel {
         background-color: transparent;
         color: #E0E0E0;
-        font-size: 13px;
+        font-size: {base_font_pt}pt;
     }
     """
     )
@@ -509,4 +533,5 @@ def get_stylesheet() -> str:
     css = css.replace('{chevron_down_end_path}', chevron_down_end_path)
     css = css.replace('{arrow_up_path}', arrow_up_path)
     css = css.replace('{arrow_down_path}', arrow_down_path)
-    return css.replace('{check_path}', check_path)
+    css = css.replace('{check_path}', check_path)
+    return css.replace('{base_font_pt}', str(base_font_pt))
