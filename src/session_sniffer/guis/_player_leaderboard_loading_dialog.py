@@ -34,7 +34,7 @@ class LeaderboardLoadingDialog(QDialog):
         frame.setStyleSheet("""
             QFrame#loadingFrame {
                 background-color: #1e1e1e;
-                border: 1px solid #3E3E42;
+                border: 1px solid #3e3e42;
                 border-radius: 8px;
             }
         """)
@@ -77,7 +77,7 @@ class LeaderboardLoadingDialog(QDialog):
                 border-radius: 3px;
             }
             QProgressBar::chunk {
-                background-color: #007ACC;
+                background-color: #007acc;
                 border-radius: 3px;
             }
         """)

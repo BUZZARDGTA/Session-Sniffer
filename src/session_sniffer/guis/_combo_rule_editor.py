@@ -367,7 +367,7 @@ class ComboRuleEditorDialog(QDialog):
                 events_widget = QFrame()
                 events_widget.setObjectName('EventsContainer')
                 events_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-                events_widget.setStyleSheet('#EventsContainer { background-color: #1E1E1E; border: 1px solid #3E3E42; border-radius: 4px; min-height: 32px; }')
+                events_widget.setStyleSheet('#EventsContainer { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px; min-height: 32px; }')
                 events_layout = QHBoxLayout(events_widget)
                 events_layout.setContentsMargins(15, 6, 15, 6)
 

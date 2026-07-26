@@ -155,7 +155,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_status_label = QLabel()
         gta5_status_label.setTextFormat(Qt.TextFormat.RichText)
         gta5_status_label.setStyleSheet(GTA5_STATUS_LABEL_STYLESHEET)
-        gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+        gta5_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
         gta5_status_label.setToolTip('GTA V process detection state')
         gta5_status_widget_action = QWidgetAction(self)
         gta5_status_widget_action.setDefaultWidget(gta5_status_label)
@@ -759,15 +759,15 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             path_tooltip = str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state'
             if CaptureState.gta5_is_suspended:
                 visible_text = f'{version} (Suspended)'
-                self._gta5_status_label.setText(f'<span style="color: #FF9800;">●</span> {visible_text}')
+                self._gta5_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
                 self._gta5_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
             else:
                 visible_text = version
-                self._gta5_status_label.setText(f'<span style="color: #4CAF50;">●</span> {visible_text}')
+                self._gta5_status_label.setText(f'<span style="color: #4caf50;">●</span> {visible_text}')
                 self._gta5_status_label.setToolTip(path_tooltip)
         else:
             visible_text = 'GTA V not running'
-            self._gta5_status_label.setText('<span style="color: #F44336;">●</span> GTA V not running')
+            self._gta5_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
             self._gta5_status_label.setToolTip('GTA V process detection state')
         self._resize_gta5_status_label(f'● {visible_text}')
         self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)

@@ -75,7 +75,7 @@ class DiscordIntro(QDialog):
         exit_layout.addWidget(self.exit_button)
         layout.addLayout(exit_layout)
 
-        self.title_label = QLabel(f"<font size='6' color='#5865F2'><b>{window_title}</b></font>", self)
+        self.title_label = QLabel(f"<font size='6' color='#5865f2'><b>{window_title}</b></font>", self)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.title_label)
         layout.addItem(QSpacerItem(0, 4, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
@@ -94,7 +94,7 @@ class DiscordIntro(QDialog):
         button_layout.addStretch(1)
         layout.addLayout(button_layout)
 
-        self.dont_remind_me_label = ClickableLabel("<font size='3' color='#B0B0B0'><u>Don't remind me again</u></font>", self)
+        self.dont_remind_me_label = ClickableLabel("<font size='3' color='#b0b0b0'><u>Don't remind me again</u></font>", self)
         self.dont_remind_me_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.dont_remind_me_label.setToolTip('Disable Discord popup notifications permanently')
         self.dont_remind_me_label.setCursor(Qt.CursorShape.PointingHandCursor)

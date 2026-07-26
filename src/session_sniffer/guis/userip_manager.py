@@ -875,7 +875,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         # --- Validate COLOR ---
         color_value = settings_values.get('COLOR', '')
         if color_value and not QColor(color_value).isValid():
-            QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #FF00FF).')
+            QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
             return
 
         # --- Build new file content ---
@@ -968,7 +968,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     @override
     def _set_status(self, text: str) -> None:
         """Update the status label at the bottom of the right panel."""
-        self._status_label.setText(f'<i style="color:#50C878;">{text}</i>')
+        self._status_label.setText(f'<i style="color:#50c878;">{text}</i>')
 
     @override
     def _update_entry_counts(self) -> None:
@@ -978,12 +978,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         # In global search without filters, the total table rows match the global stats block exactly
         if self._global_search_active and visible == total:
-            self._status_label.setText('<span style="color:#A0B0C0;"><i>Showing all databases</i></span>')
+            self._status_label.setText('<span style="color:#a0b0c0;"><i>Showing all databases</i></span>')
             return
 
-        text = f'<span style="color:#8A9BAD;">Table Entries:</span> <b style="color:#E0E0E0;">{total}</b>'
+        text = f'<span style="color:#8a9bad;">Table Entries:</span> <b style="color:#e0e0e0;">{total}</b>'
         if visible != total:
-            text += f'<br><span style="color:#8A9BAD;">Visible (Filtered):</span> <b style="color:#6DB3F2;">{visible}</b>'
+            text += f'<br><span style="color:#8a9bad;">Visible (Filtered):</span> <b style="color:#6db3f2;">{visible}</b>'
 
         self._status_label.setText(text)
 
@@ -998,9 +998,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
 
         self._file_info_label.setText(
-            f'<span style="color:#8A9BAD;">File:</span> <b style="color:#6DB3F2;">{path.name}</b><br>'
-            f'<span style="color:#8A9BAD;">Size:</span> <b style="color:#E0E0E0;">{size}</b><br>'
-            f'<span style="color:#8A9BAD;">Modified:</span> <span style="color:#A0B0C0;">{human_readable_timestamp(modified)}</span>'
+            f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{path.name}</b><br>'
+            f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
+            f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>'
         )
 
     @override
@@ -1019,10 +1019,10 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 unique_usernames.add(username)
 
         parts = [
-            f'<span style="color:#8A9BAD;">Databases:</span> <b style="color:#E0E0E0;">{total_files}</b>',
-            f'<span style="color:#8A9BAD;">Entries:</span> <b style="color:#E0E0E0;">{total_entries}</b>',
-            f'<span style="color:#8A9BAD;">Unique Users:</span> <b style="color:#E0E0E0;">{len(unique_usernames)}</b>',
-            f'<span style="color:#8A9BAD;">Unique IPs:</span> <b style="color:#E0E0E0;">{len(unique_ips)}</b>',
+            f'<span style="color:#8a9bad;">Databases:</span> <b style="color:#e0e0e0;">{total_files}</b>',
+            f'<span style="color:#8a9bad;">Entries:</span> <b style="color:#e0e0e0;">{total_entries}</b>',
+            f'<span style="color:#8a9bad;">Unique Users:</span> <b style="color:#e0e0e0;">{len(unique_usernames)}</b>',
+            f'<span style="color:#8a9bad;">Unique IPs:</span> <b style="color:#e0e0e0;">{len(unique_ips)}</b>',
         ]
         self._stats_label.setText('<br>'.join(parts))
 
