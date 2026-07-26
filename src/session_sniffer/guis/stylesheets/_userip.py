@@ -45,14 +45,14 @@ USERIP_SETTINGS_TOGGLE_STYLESHEET = """
 QPushButton {
     background: transparent;
     border: none;
-    color: #4A90E2;
+    color: #4a90e2;
     font-size: 11pt;
     font-weight: bold;
     text-align: left;
     padding: 4px 8px;
 }
 QPushButton:hover {
-    color: #6DB3F2;
+    color: #6db3f2;
 }
 """
 
@@ -73,7 +73,7 @@ QComboBox, QLineEdit, QDoubleSpinBox {
     min-height: 22px;
 }
 QComboBox:hover, QLineEdit:hover, QDoubleSpinBox:hover {
-    border-color: #4A90E2;
+    border-color: #4a90e2;
 }
 QComboBox:disabled, QLineEdit:disabled, QDoubleSpinBox:disabled {
     background: #222;
@@ -81,7 +81,7 @@ QComboBox:disabled, QLineEdit:disabled, QDoubleSpinBox:disabled {
     border-color: #3a3a3a;
 }
 QLineEdit:focus {
-    border-color: #4A90E2;
+    border-color: #4a90e2;
     background: #333;
 }
 QPushButton {
@@ -95,9 +95,9 @@ QPushButton {
     padding: 2px 6px;
 }
 QPushButton:hover {
-    background: #4A90E2;
+    background: #4a90e2;
     color: white;
-    border-color: #4A90E2;
+    border-color: #4a90e2;
 }
 """
 

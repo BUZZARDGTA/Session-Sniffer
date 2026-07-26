@@ -108,7 +108,7 @@ def interface_select_button_enabled_style(scale: float) -> str:
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
-        ' background-color: #175BB0;'
+        ' background-color: #175bb0;'
         ' color: #ffffff;'
         ' border: 2px solid #2a6aaa;'
         ' border-radius: 10px;'
@@ -128,7 +128,7 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
     return (
         'QPushButton {'
         f' font-size: {font_size}pt;'
-        ' background-color: #21334C;'
+        ' background-color: #21334c;'
         ' color: #e8f0f8;'
         ' border: 2px solid #1e3f60;'
         ' border-radius: 8px;'
@@ -161,8 +161,8 @@ def interface_refresh_arp_button_disabled_style(scale: float) -> str:
 def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float, *, dimmed: bool = False) -> str:
     """Build a QSS that renders a horizontal gradient progress fill inside the Refresh ARP button.
 
-    Designed to match the dialog's deep-blue palette (Start button `#175BB0`,
-    button base `#21334C`). The fill animates a bright accent gradient over a
+    Designed to match the dialog's deep-blue palette (Start button `#175bb0`,
+    button base `#21334c`). The fill animates a bright accent gradient over a
     darker track to read clearly against the dialog's bottom container.
     When `dimmed` is True, grey colors are used to signal the button will be disabled on completion.
     """

@@ -13,14 +13,14 @@ color: white;
 DISCORD_POPUP_EXIT_BUTTON_STYLESHEET = """
 font-size: 8pt;
 color: white;
-background-color: #FF4C4C;  /* Light red background */
+background-color: #ff4c4c;  /* Light red background */
 border-radius: 15px;        /* Make it circular */
 """.strip()
 
 DISCORD_POPUP_JOIN_BUTTON_STYLESHEET = """
 font-size: 10pt;
 padding: 7px;
-background-color: #5865F2;  /* Discord blue */
+background-color: #5865f2;  /* Discord blue */
 color: white;
 border-radius: 10px;
 border: none;

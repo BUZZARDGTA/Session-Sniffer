@@ -281,27 +281,27 @@ class SessionTableSection(QWidget):
 
         # Dynamic "glassmorphism" tint to match the container's accent color perfectly
         if is_connected:
-            table_bg = '#0A120E'
-            alt_bg = '#0E1A13'
-            grid_color = '#162B1F'
-            sel_bg = '#1F3D2C'
+            table_bg = '#0a120e'
+            alt_bg = '#0e1a13'
+            grid_color = '#162b1f'
+            sel_bg = '#1f3d2c'
             header_bg = '#122418'
             header_text = '#a8d5ba'
-            sb_track_bg = '#080E0B'
+            sb_track_bg = '#080e0b'
             sb_handle_bg = '#235231'
-            sb_handle_hover = '#3EA660'
-            sb_handle_pressed = '#4FC877'
+            sb_handle_hover = '#3ea660'
+            sb_handle_pressed = '#4fc877'
         else:
-            table_bg = '#140A0A'
-            alt_bg = '#1F0E0E'
+            table_bg = '#140a0a'
+            alt_bg = '#1f0e0e'
             grid_color = '#331616'
-            sel_bg = '#4D2121'
+            sel_bg = '#4d2121'
             header_bg = '#241212'
             header_text = '#d5a8a8'
-            sb_track_bg = '#0E0707'
+            sb_track_bg = '#0e0707'
             sb_handle_bg = '#612626'
-            sb_handle_hover = '#B84A4A'
-            sb_handle_pressed = '#D95B5B'
+            sb_handle_hover = '#b84a4a'
+            sb_handle_pressed = '#d95b5b'
 
         self.table_view.setStyleSheet(f"""
             QTableView {{
@@ -313,10 +313,10 @@ class SessionTableSection(QWidget):
                 border-bottom-right-radius: 8px;
                 background-color: {table_bg};
                 alternate-background-color: {alt_bg};
-                color: #E0E0E0;
+                color: #e0e0e0;
                 gridline-color: {grid_color};
                 selection-background-color: {sel_bg};
-                selection-color: #FFFFFF;
+                selection-color: #ffffff;
             }}
             QTableView::viewport {{
                 border-bottom-left-radius: 6px;

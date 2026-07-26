@@ -45,7 +45,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Main Background */
     QMainWindow, QDialog, QWidget {
         background-color: #121212;
-        color: #E0E0E0;
+        color: #e0e0e0;
         font-family: 'Segoe UI', Arial, sans-serif;
         font-size: {base_font_pt}pt;
     }
@@ -56,8 +56,8 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
 
     /* Tooltips */
     QToolTip {
-        background-color: #1E1E1E;
-        color: #E0E0E0;
+        background-color: #1e1e1e;
+        color: #e0e0e0;
         border: 1px solid #333333;
         padding: 4px;
         border-radius: 4px;
@@ -65,24 +65,24 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
 
     /* Buttons */
     QPushButton {
-        background-color: #2D2D30;
-        color: #FFFFFF;
-        border: 1px solid #3E3E42;
+        background-color: #2d2d30;
+        color: #ffffff;
+        border: 1px solid #3e3e42;
         border-radius: 4px;
         padding: 6px 16px;
     }
     QPushButton:hover {
-        background-color: #3E3E42;
-        border-color: #007ACC;
+        background-color: #3e3e42;
+        border-color: #007acc;
     }
     QPushButton:pressed {
-        background-color: #1E1E1E;
-        border-color: #007ACC;
+        background-color: #1e1e1e;
+        border-color: #007acc;
     }
     QPushButton:disabled {
-        background-color: #1A1A1A;
+        background-color: #1a1a1a;
         color: #666666;
-        border-color: #2A2A2A;
+        border-color: #2a2a2a;
     }
 
     QPushButton[danger="true"] {
@@ -101,9 +101,9 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
 
     /* Input Fields */
     QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
-        background-color: #1E1E1E;
-        color: #E0E0E0;
-        border: 1px solid #3E3E42;
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+        border: 1px solid #3e3e42;
         border-radius: 4px;
         padding: 4px 8px;
     }
@@ -121,33 +121,33 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Checkboxes */
     QCheckBox {
         spacing: 8px;
-        color: #E0E0E0;
+        color: #e0e0e0;
     }
     QCheckBox::indicator {
         width: 14px;
         height: 14px;
-        border: 1px solid #3E3E42;
+        border: 1px solid #3e3e42;
         border-radius: 3px;
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
     }
     QCheckBox::indicator:hover {
-        border: 1px solid #007ACC;
+        border: 1px solid #007acc;
     }
     QCheckBox::indicator:checked {
-        background-color: #007ACC;
-        border: 1px solid #007ACC;
+        background-color: #007acc;
+        border: 1px solid #007acc;
         image: url("{check_path}");
     }
     QCheckBox::indicator:disabled {
-        background-color: #2D2D30;
-        border: 1px solid #3E3E42;
+        background-color: #2d2d30;
+        border: 1px solid #3e3e42;
     }
 
     QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
-        selection-background-color: #007ACC;
+        selection-background-color: #007acc;
     }
     QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QTextEdit:focus, QPlainTextEdit:focus {
-        border: 1px solid #007ACC;
+        border: 1px solid #007acc;
     }
     QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {
         background-color: #121212;
@@ -217,10 +217,10 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         height: 7px;
     }
     QComboBox QAbstractItemView {
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
         border: 1px solid #333333;
-        selection-background-color: #007ACC;
-        color: #E0E0E0;
+        selection-background-color: #007acc;
+        color: #e0e0e0;
     }
     QComboBox QAbstractItemView::item {
         min-height: 22px;
@@ -285,10 +285,10 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         outline: none;
     }
     QTreeView::item:hover {
-        background-color: #2D2D30;
+        background-color: #2d2d30;
     }
     QTreeView::item:selected:hover {
-        background-color: #2F4F64;
+        background-color: #2f4f64;
     }
 
     QTreeView::branch {
@@ -298,13 +298,13 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         image: none;
     }
     QTreeView::branch:hover {
-        background-color: #2D2D30;
+        background-color: #2d2d30;
     }
     QTreeView::branch:selected {
         background-color: #284457;
     }
     QTreeView::branch:selected:hover {
-        background-color: #2F4F64;
+        background-color: #2f4f64;
     }
 
     QTreeView::branch:has-siblings:!adjoins-item {
@@ -350,7 +350,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Scrollbars */
     QScrollBar:vertical {
         border: none;
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
         width: 12px;
         margin: 0px;
     }
@@ -374,7 +374,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
 
     QScrollBar:horizontal {
         border: none;
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
         height: 12px;
         margin: 0px;
     }
@@ -399,27 +399,27 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Tab Widget */
     QTabWidget::pane {
         border: 1px solid #333333;
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
     }
     QTabBar::tab {
-        background-color: #2D2D30;
-        color: #C0C0C0;
+        background-color: #2d2d30;
+        color: #c0c0c0;
         padding: 8px 16px;
-        border: 1px solid #3E3E42;
+        border: 1px solid #3e3e42;
         border-bottom: none;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
         margin-right: 2px;
     }
     QTabBar::tab:selected {
-        background-color: #1E1E1E;
-        color: #FFFFFF;
-        border-top: 2px solid #007ACC;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        border-top: 2px solid #007acc;
         font-weight: bold;
     }
     QTabBar::tab:hover:!selected {
-        background-color: #3E3E42;
-        color: #FFFFFF;
+        background-color: #3e3e42;
+        color: #ffffff;
     }
 
     /* Group Box */
@@ -449,7 +449,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Menu Bar */
     QMenuBar {
         background-color: #252526;
-        color: #E0E0E0;
+        color: #e0e0e0;
         border-bottom: 1px solid #88c0d0;
         padding: 2px 4px;
         spacing: 2px;
@@ -460,15 +460,15 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background: transparent;
     }
     QMenuBar::item:selected {
-        background-color: #3E3E42;
+        background-color: #3e3e42;
     }
     QMenuBar::item:pressed {
-        background-color: #55555A;
+        background-color: #55555a;
     }
     QMenu {
         background-color: #252526;
-        color: #E0E0E0;
-        border: 1px solid #3E3E42;
+        color: #e0e0e0;
+        border: 1px solid #3e3e42;
         border-radius: 4px;
         padding: 4px 6px;
     }
@@ -476,7 +476,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         padding: 6px 24px 6px 8px;
     }
     QMenu::item:selected {
-        background-color: #3E3E42;
+        background-color: #3e3e42;
         border-radius: 3px;
     }
     QMenu::separator {
@@ -499,13 +499,13 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         border-radius: 4px;
     }
     QToolButton:hover {
-        background-color: #3E3E42;
+        background-color: #3e3e42;
     }
 
     /* Status Bar */
     QStatusBar {
         background-color: #252526;
-        color: #E0E0E0;
+        color: #e0e0e0;
         border-top: 1px solid #88c0d0;
         padding: 4px 8px;
         min-height: 24px;
@@ -518,7 +518,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     /* Labels */
     QLabel {
         background-color: transparent;
-        color: #E0E0E0;
+        color: #e0e0e0;
         font-size: {base_font_pt}pt;
     }
     """

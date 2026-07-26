@@ -36,20 +36,20 @@ GROUPBOX_STYLE = """
     QGroupBox QLineEdit,
     QGroupBox QTextEdit,
     QGroupBox QPlainTextEdit {
-        background-color: #1E1E1E;
-        border: 1px solid #3E3E42;
+        background-color: #1e1e1e;
+        border: 1px solid #3e3e42;
         border-radius: 4px;
-        color: #E0E0E0;
+        color: #e0e0e0;
         padding: 4px 8px;
         min-height: 24px;
         font-size: 9pt;
     }
     QGroupBox QSpinBox,
     QGroupBox QDoubleSpinBox {
-        background-color: #1E1E1E;
-        border: 1px solid #3E3E42;
+        background-color: #1e1e1e;
+        border: 1px solid #3e3e42;
         border-radius: 4px;
-        color: #E0E0E0;
+        color: #e0e0e0;
         padding: 2px 4px;
         min-height: 24px;
         min-width: 100px;
@@ -60,7 +60,7 @@ GROUPBOX_STYLE = """
         background-color: #212f3d;
         border: 1px solid #3b5064;
         border-radius: 4px;
-        color: #E0E0E0;
+        color: #e0e0e0;
         font-size: 9pt;
     }
     QGroupBox QPushButton:hover {
@@ -70,7 +70,7 @@ GROUPBOX_STYLE = """
     QGroupBox QSpinBox:focus,
     QGroupBox QDoubleSpinBox:focus,
     QGroupBox QLineEdit:focus {
-        border: 1px solid #007ACC;
+        border: 1px solid #007acc;
     }
     QGroupBox QComboBox QAbstractItemView {
         background-color: #1a232c;
@@ -84,16 +84,16 @@ GROUPBOX_STYLE = """
     QGroupBox QCheckBox::indicator {
         width: 14px;
         height: 14px;
-        background-color: #1E1E1E;
-        border: 1px solid #3E3E42;
+        background-color: #1e1e1e;
+        border: 1px solid #3e3e42;
         border-radius: 3px;
     }
     QGroupBox QCheckBox::indicator:hover {
-        border-color: #007ACC;
+        border-color: #007acc;
     }
     QGroupBox QCheckBox::indicator:checked {
-        background-color: #007ACC;
-        border-color: #007ACC;
+        background-color: #007acc;
+        border-color: #007acc;
     }
 """
 
@@ -113,7 +113,7 @@ LIST_WIDGET_STYLE = """
         background: #243040;
     }
     QListWidget::item:selected {
-        background: #007ACC;
+        background: #007acc;
         color: white;
     }
 """
