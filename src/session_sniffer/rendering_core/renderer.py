@@ -661,7 +661,6 @@ def rendering_core(
             last_session_logging_processing_time = time.monotonic()
             process_session_logging()
 
-
         # Runtime Discord RPC toggle: create or close based on current setting
         if Settings.discord_presence and discord_rpc_manager is None:
             discord_rpc_manager = DiscordRPC(client_id=DISCORD_APPLICATION_ID)
