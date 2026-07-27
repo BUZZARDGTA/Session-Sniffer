@@ -331,8 +331,7 @@ class WebServer:
             return
 
         if startup_state.error is not None:
-            exc = startup_state.error
-            if isinstance(exc, OSError) and exc.errno == errno.EADDRINUSE:
+            if isinstance(startup_state.error, OSError) and startup_state.error.errno == errno.EADDRINUSE:
                 logger.error(
                     'Web server failed to start: port %d on %s is already in use by another process. '
                     'Change the Web Server port in Settings or stop the conflicting application.',
@@ -340,7 +339,7 @@ class WebServer:
                     config.host,
                 )
             else:
-                logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, exc)
+                logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, startup_state.error)
             cls.stop_server()
             return
 

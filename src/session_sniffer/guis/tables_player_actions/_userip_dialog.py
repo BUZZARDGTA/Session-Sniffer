@@ -47,21 +47,19 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
     def _build_detection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Detection Details' section to the scroll layout."""
         group, form = self._make_group('🔴  Detection Details', accent='#c53030')
-        detection = player.userip_detection
-        userip = player.userip
-        detection_time = detection.time if detection is not None else 'N/A'
-        usernames = ', '.join(userip.usernames) if userip is not None and userip.usernames else 'N/A'
+        detection_time = player.userip_detection.time if player.userip_detection is not None else 'N/A'
+        usernames = ', '.join(player.userip.usernames) if player.userip is not None and player.userip.usernames else 'N/A'
         ports_str = ', '.join(map(str, reversed(player.ports.all))) if player.ports.all else 'N/A'
-        if userip is not None:
+        if player.userip is not None:
             try:
-                relative_db = str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+                relative_db = str(player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
             except ValueError:
-                relative_db = str(userip.db_path)
+                relative_db = str(player.userip.db_path)
         else:
             relative_db = 'N/A'
-        detection_type = detection.type if detection is not None else 'N/A'
+        detection_type = player.userip_detection.type if player.userip_detection is not None else 'N/A'
         self._add_row(form, 'Detection Time', detection_time)
-        self._add_row(form, f'Username{pluralize(len(userip.usernames) if userip is not None else 0)}', usernames)
+        self._add_row(form, f'Username{pluralize(len(player.userip.usernames) if player.userip is not None else 0)}', usernames)
         self._add_row(form, 'IP Address', player.ip)
         self._add_row(form, 'Hostname', format_text(player.reverse_dns.hostname))
         self._add_row(form, 'Port(s)', ports_str)

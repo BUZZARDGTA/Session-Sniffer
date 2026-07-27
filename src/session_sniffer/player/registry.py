@@ -257,14 +257,11 @@ class SessionHost:
     @classmethod
     def record_host(cls, player: Player) -> None:
         """Snapshot the given player as a detected session host and append to history."""
-        country_code = player.iplookup.geolite2.country_code
-        if country_code in {'...', 'N/A'}:
-            country_code = player.iplookup.ipapi.country_code
         cls._history.append(
             HostHistoryEntry(
                 ip=player.ip,
                 detected_at=datetime.now(tz=LOCAL_TZ),
-                country_code=country_code,
+                country_code=player.iplookup.geolite2.country_code if player.iplookup.geolite2.country_code not in {'...', 'N/A'} else player.iplookup.ipapi.country_code,
             ),
         )
 

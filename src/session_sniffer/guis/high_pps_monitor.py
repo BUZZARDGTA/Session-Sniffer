@@ -195,22 +195,19 @@ class _HighRateTableModel(QAbstractTableModel):
         now = datetime.now(tz=LOCAL_TZ)
         connected_ips: set[str] = set()
         for player in players:
-            ip = player.ip
-            connected_ips.add(ip)
-            pps_rate = player.packets.pps.calculated_rate
-            bps_rate = player.bandwidth.bps.calculated_rate
-            if ip not in self._tracked:
-                self._tracked[ip] = _PlayerRateData(ip=ip, pps=pps_rate, bps=bps_rate)
-            self._tracked[ip].usernames = list(player.usernames)
-            self._tracked[ip].update_pps_stats(
+            connected_ips.add(player.ip)
+            if player.ip not in self._tracked:
+                self._tracked[player.ip] = _PlayerRateData(ip=player.ip, pps=player.packets.pps.calculated_rate, bps=player.bandwidth.bps.calculated_rate)
+            self._tracked[player.ip].usernames = list(player.usernames)
+            self._tracked[player.ip].update_pps_stats(
                 now=now,
-                pps=pps_rate,
+                pps=player.packets.pps.calculated_rate,
                 threshold=self.pps_threshold,
                 required_duration=self.required_duration,
             )
-            self._tracked[ip].update_bps_stats(
+            self._tracked[player.ip].update_bps_stats(
                 now=now,
-                bps=bps_rate,
+                bps=player.bandwidth.bps.calculated_rate,
                 threshold=self.bps_threshold,
                 required_duration=self.required_duration,
             )

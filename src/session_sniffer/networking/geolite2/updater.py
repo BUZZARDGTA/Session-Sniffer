@@ -215,20 +215,18 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
     first_download_error: GeoLite2UpdateResult | None = None
 
     for database_name, database_info in geolite2_databases.items():
-        last_version = database_info.last_version
-        if not last_version:
+        if not database_info.last_version:
             failed_fetching_flag_list.append(database_name)
             continue
 
-        if database_info.current_version == last_version:
+        if database_info.current_version == database_info.last_version:
             continue
 
-        download_url = database_info.download_url
-        if download_url is None:
+        if database_info.download_url is None:
             failed_fetching_flag_list.append(database_name)
             continue
 
-        download_error, file_bytes = _download_geolite2_asset_bytes(download_url)
+        download_error, file_bytes = _download_geolite2_asset_bytes(database_info.download_url)
         if download_error is not None or file_bytes is None:
             if first_download_error is None:
                 first_download_error = download_error if download_error is not None else GeoLite2UpdateResult()
@@ -238,7 +236,7 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
         database_info.current_version = _persist_geolite2_database_bytes(
             database_name=database_name,
             file_bytes=file_bytes,
-            desired_version=last_version,
+            desired_version=database_info.last_version,
             current_version=database_info.current_version,
         )
 

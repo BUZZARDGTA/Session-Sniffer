@@ -501,8 +501,7 @@ def main() -> None:
         except queue.Empty:
             return
 
-        current_config = capture_holder.config
-        if current_config.interface.ip_address == new_ip:
+        if capture_holder.config.interface.ip_address == new_ip:
             return
 
         was_running = capture_holder.is_running()
@@ -511,24 +510,24 @@ def main() -> None:
 
         new_capture_filter, new_display_filter_fn = build_capture_filters(
             capture_ip_address=new_ip,
-            broadcast_support=current_config.broadcast_support,
-            multicast_support=current_config.multicast_support,
+            broadcast_support=capture_holder.config.broadcast_support,
+            multicast_support=capture_holder.config.multicast_support,
         )
 
         Settings.capture_ip_address = new_ip
         Settings.rewrite_settings_file()
 
         new_selected_interface = SelectedInterfaceRow(
-            interface=current_config.interface.interface,
+            interface=capture_holder.config.interface.interface,
             ip_address=new_ip,
-            is_neighbour=current_config.interface.is_neighbour,
+            is_neighbour=capture_holder.config.interface.is_neighbour,
         )
 
         new_capture = PacketCapture(
             CaptureConfig(
                 interface=new_selected_interface,
-                broadcast_support=current_config.broadcast_support,
-                multicast_support=current_config.multicast_support,
+                broadcast_support=capture_holder.config.broadcast_support,
+                multicast_support=capture_holder.config.multicast_support,
                 capture_filter=new_capture_filter,
                 display_filter_fn=new_display_filter_fn,
                 callback=packet_callback,

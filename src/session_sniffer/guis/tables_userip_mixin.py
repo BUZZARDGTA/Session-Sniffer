@@ -115,8 +115,6 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
     if player.userip is None or not player.userip.usernames:
         return
 
-    db_path = player.userip.db_path
-
     range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
     if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
         return
@@ -128,7 +126,7 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
     new_lines: list[str] = []
     converted_count = 0
     in_userip_section = False
-    for raw_line in db_path.read_text('utf-8').splitlines(keepends=True):
+    for raw_line in player.userip.db_path.read_text('utf-8').splitlines(keepends=True):
         line = raw_line.strip()
         if line.startswith('[') and line.endswith(']'):
             in_userip_section = line == '[UserIP]'
@@ -150,9 +148,9 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
         QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
         return
 
-    write_lines_to_file(db_path, 'w', new_lines)
+    write_lines_to_file(player.userip.db_path, 'w', new_lines)
 
-    db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     _show_modal_info_on_top(
         parent,
         TITLE,
@@ -170,8 +168,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
     if player.userip is None:
         return
 
-    db_path = player.userip.db_path
-    content = db_path.read_text('utf-8')
+    content = player.userip.db_path.read_text('utf-8')
 
     # Collect the distinct range strings in this database that cover the player's IP.
     matching_ranges: list[str] = []
@@ -246,9 +243,9 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
         return
 
-    write_lines_to_file(db_path, 'w', new_lines)
+    write_lines_to_file(player.userip.db_path, 'w', new_lines)
 
-    db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     entry_word = 'entry' if edited_count == 1 else 'entries'
     QMessageBox.information(
         parent,
@@ -378,11 +375,10 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
     # Build mapping: db_path → list of (old_username, ip) pairs to rename
     by_db: dict[Path, list[tuple[str, str]]] = {}
     for ip, userip in eligible:
-        db_path = userip.db_path
-        if db_path not in by_db:
-            by_db[db_path] = []
+        if userip.db_path not in by_db:
+            by_db[userip.db_path] = []
         for old_u in userip.usernames:
-            by_db[db_path].append((old_u, ip))
+            by_db[userip.db_path].append((old_u, ip))
 
     total_renamed = 0
     for db_path, pairs in by_db.items():
@@ -401,11 +397,10 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     if player.userip is None or not player.userip.usernames:
         return
 
-    db_path = player.userip.db_path
     ip_usernames = list(player.userip.usernames)
 
     # Read the database content
-    content = db_path.read_text('utf-8')
+    content = player.userip.db_path.read_text('utf-8')
 
     # Step 1: Determine which username to rename
     old_username: str | None
@@ -419,7 +414,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
             return
 
     # Step 2: Prompt for the new username
-    db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     new_username, success = QInputDialog.getText(
         parent,
         'Rename Username',
@@ -459,7 +454,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
         return
 
-    write_lines_to_file(db_path, 'w', new_lines)
+    write_lines_to_file(player.userip.db_path, 'w', new_lines)
 
     entry_word = 'entry' if renamed_count == 1 else 'entries'
     QMessageBox.information(
@@ -606,7 +601,6 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     if player.userip is None or not player.userip.usernames:
         return
 
-    db_path = player.userip.db_path
     ip_usernames = list(player.userip.usernames)
 
     if len(ip_usernames) < MIN_USERNAMES_FOR_REMOVAL:
@@ -633,7 +627,7 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
             userip_delete(parent, [ip_address])
         return
 
-    _rewrite_database_removing_usernames(parent, db_path, ip_address, selected)
+    _rewrite_database_removing_usernames(parent, player.userip.db_path, ip_address, selected)
 
 
 def _rewrite_database_removing_usernames(

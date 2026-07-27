@@ -601,11 +601,10 @@ class PlayerIdentifierWidget(QWidget):
         sampled_ips: set[str] = set()
         player_by_ip: dict[str, Player] = {}
         for player in players:
-            ip = player.ip
-            if ip in baseline_ips:
-                sampled_ips.add(ip)
-                player_by_ip[ip] = player
-                self._baselines[ip].add_sample(
+            if player.ip in baseline_ips:
+                sampled_ips.add(player.ip)
+                player_by_ip[player.ip] = player
+                self._baselines[player.ip].add_sample(
                     player.packets.pps.calculated_rate,
                     player.bandwidth.bps.calculated_rate,
                 )
@@ -765,8 +764,7 @@ class PlayerIdentifierWidget(QWidget):
         # Must run before any abort so a building spike can confirm even if
         # conditions change in the same tick (e.g. everyone leaves at once).
         for player in players:
-            ip = player.ip
-            bl = self._baselines.get(ip)
+            bl = self._baselines.get(player.ip)
             if bl is None:
                 continue
             score = bl.spike_score(
@@ -774,12 +772,19 @@ class PlayerIdentifierWidget(QWidget):
                 player.bandwidth.bps.calculated_rate,
             )
             if score > self._spike_min_zscore:
-                streak = self._spike_streak[ip] = self._spike_streak.get(ip, 0) + 1
+                streak = self._spike_streak[player.ip] = self._spike_streak.get(player.ip, 0) + 1
                 if streak >= self._spike_sustained_seconds:
-                    confirmed_baselined.append(ResolvedIP(ip, zscore_to_confidence(score), f'PPS/BPS spike (z={score:.1f})', player.usernames[0] if player.usernames else ''))
+                    confirmed_baselined.append(
+                        ResolvedIP(
+                            player.ip,
+                            zscore_to_confidence(score),
+                            f'PPS/BPS spike (z={score:.1f})',
+                            player.usernames[0] if player.usernames else '',
+                        ),
+                    )
                 max_streak = max(max_streak, streak)
             else:
-                self._spike_streak.pop(ip, None)
+                self._spike_streak.pop(player.ip, None)
 
         # --- Resolve if any IPs confirmed ---
         all_resolved = sorted(confirmed_baselined, key=lambda resolved_ip: resolved_ip.confidence, reverse=True)

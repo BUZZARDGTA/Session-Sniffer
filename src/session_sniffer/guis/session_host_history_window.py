@@ -31,8 +31,7 @@ def populate_host_history_submenu(menu: QMenu, highlight_ip_callback: Callable[[
         usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else '—'
         elapsed_time_str = format_elapsed_time(now - entry.detected_at)
         act = QAction(f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_str} ago)', menu)
-        ip = entry.ip
-        act.triggered.connect(lambda _checked=False, _ip=ip: highlight_ip_callback([_ip]))
+        act.triggered.connect(lambda _checked=False, _ip=entry.ip: highlight_ip_callback([_ip]))
         country_code = entry.country_code.strip().upper()
         if country_code and country_code in AVAILABLE_FLAG_CODES:
             act.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))

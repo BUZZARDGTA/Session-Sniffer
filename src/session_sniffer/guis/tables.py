@@ -581,12 +581,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""
-        if self.is_connected_table:
-            shown = set(Settings.gui_columns_connected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-        else:
-            shown = set(Settings.gui_columns_disconnected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
 
         if checked:
             shown.add(column_name)
@@ -594,7 +589,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             shown.discard(column_name)
 
         # Preserve ordering from the toggleable columns tuple
-        new_shown = tuple(column for column in toggleable if column in shown)
+        new_shown = tuple(
+            column for column in (
+                Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table
+                else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+            ) if column in shown
+        )
 
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = new_shown
@@ -637,15 +637,15 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _select_category_columns(self, columns: list[str]) -> None:
         """Show a specific subset of columns and persist the change to settings."""
-        if self.is_connected_table:
-            shown = set(Settings.gui_columns_connected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-        else:
-            shown = set(Settings.gui_columns_disconnected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
 
         shown.update(columns)
-        new_shown = tuple(column for column in toggleable if column in shown)
+        new_shown = tuple(
+            column for column in (
+                Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table
+                else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+            ) if column in shown
+        )
 
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = new_shown
@@ -657,21 +657,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _deselect_category_columns(self, columns: list[str]) -> None:
         """Hide a specific subset of columns and persist the change to settings."""
-        if self.is_connected_table:
-            shown = set(Settings.gui_columns_connected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-        else:
-            shown = set(Settings.gui_columns_disconnected_shown)
-            toggleable = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
 
         shown.difference_update(columns)
-        new_shown = tuple(column for column in toggleable if column in shown)
-
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = new_shown
-        else:
-            Settings.gui_columns_disconnected_shown = new_shown
-        Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
 

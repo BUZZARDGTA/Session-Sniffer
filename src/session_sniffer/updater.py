@@ -76,8 +76,7 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
         try:
             versions = _fetch_github_versions()
         except requests.exceptions.RequestException as e:
-            response = e.response
-            http_code = response.status_code if response is not None else None
+            http_code = e.response.status_code if e.response is not None else None
             http_str = str(http_code) if http_code is not None else 'no response'
             logger.warning(
                 'Update check failed (attempt %d/%d): %s (HTTP %s)',
