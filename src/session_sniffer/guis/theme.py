@@ -229,18 +229,18 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
 
     /* Tables */
     QTableView, QTreeView, QListView {
-        background-color: #1E1E1E;
+        background-color: #1e1e1e;
         alternate-background-color: #252526;
-        color: #E0E0E0;
+        color: #e0e0e0;
         gridline-color: #333333;
         border: 1px solid #333333;
-        selection-background-color: #007ACC;
-        selection-color: #FFFFFF;
+        selection-background-color: #007acc;
+        selection-color: #ffffff;
         outline: none;
         show-decoration-selected: 1;
     }
     QHeaderView::section {
-        background-color: #2D2D30;
+        background-color: #2d2d30;
         color: #88c0d0;
         padding: 4px;
         border: 1px solid #333333;
@@ -265,14 +265,14 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background-color: transparent;
     }
     QTableView::item:hover {
-        background-color: #2D2D30;
+        background-color: #2d2d30;
     }
     QTableView::item:selected, QTreeView::item:selected, QListView::item:selected {
         background-color: #284457;
         color: #ffffff;
     }
     QTableView::item:selected:hover {
-        background-color: #2F4F64;
+        background-color: #2f4f64;
     }
 
     QTreeView {

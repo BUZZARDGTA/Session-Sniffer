@@ -453,11 +453,11 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 else:
                     grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
                     if is_selected:
-                        grad.setColorAt(0, QColor('#2F4F64'))
-                        grad.setColorAt(1, QColor('#2F4F64'))
+                        grad.setColorAt(0, QColor('#2f4f64'))
+                        grad.setColorAt(1, QColor('#2f4f64'))
                     else:
-                        grad.setColorAt(0, QColor('#2D2D30'))
-                        grad.setColorAt(1, QColor('#2D2D30'))
+                        grad.setColorAt(0, QColor('#2d2d30'))
+                        grad.setColorAt(1, QColor('#2d2d30'))
 
                 painter.fillRect(rect, grad)
                 painter.restore()
