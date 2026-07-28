@@ -119,15 +119,14 @@ class GTASuspendManager:
             # -------------------------
             # Reuse the PID cached by the GTA5 process monitor instead of rescanning
             # every process; path and PID come from the same validated snapshot.
-            pid = CaptureState.gta5_pid
-            if pid is None:
+            if CaptureState.gta5_pid is None:
                 logger.debug('GTA5 process not running; suspend request ignored for reason: %s', reason_key)
                 return
 
-            if not cls._try_suspend_pid(pid, f'first reason: {reason_key}'):
+            if not cls._try_suspend_pid(CaptureState.gta5_pid, f'first reason: {reason_key}'):
                 return
 
-            cls._state = _ProcessState(pid=pid, suspended=True)
+            cls._state = _ProcessState(pid=CaptureState.gta5_pid, suspended=True)
             cls._state.reasons[reason_key] = reason
 
             cls._publish_snapshot_locked()
@@ -247,10 +246,9 @@ class GTASuspendManager:
         with cls._condition:
             if cls._state is not None:
                 return False
-            pid = CaptureState.gta5_pid
-            if pid is None:
+            if CaptureState.gta5_pid is None:
                 return False
-            return cls._try_resume_pid(pid)
+            return cls._try_resume_pid(CaptureState.gta5_pid)
 
     # ------------------------------------------------------------
     # Monitor lifecycle

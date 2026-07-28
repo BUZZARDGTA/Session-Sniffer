@@ -450,16 +450,15 @@ class DiscordWebhookSender:
             if not Settings.discord_webhook_enabled:
                 continue
 
-            url = Settings.discord_webhook_url
-            if not isinstance(url, str) or not is_valid_webhook_url(url):
+            if not isinstance(Settings.discord_webhook_url, str) or not is_valid_webhook_url(Settings.discord_webhook_url):
                 continue
 
-            if self._auto_disabled_url == url:
+            if self._auto_disabled_url == Settings.discord_webhook_url:
                 # Already failed permanently against this URL; wait for user to change it.
                 continue
 
             try:
-                self._dispatch(url, payload)
+                self._dispatch(Settings.discord_webhook_url, payload)
             except (http.client.HTTPException, OSError) as e:
                 logger.warning('Discord webhook network error: %s', e)
                 self.connection_status.clear()

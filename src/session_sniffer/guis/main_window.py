@@ -652,11 +652,10 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             performance=payload.status_performance_text,
         )
 
-        column_config = payload.column_config
-        if column_config.connected_column_names != self._connected.table_model.column_names:
-            self._connected.update_columns(column_config.connected_column_names)
-        if column_config.disconnected_column_names != self._disconnected.table_model.column_names:
-            self._disconnected.update_columns(column_config.disconnected_column_names)
+        if payload.column_config.connected_column_names != self._connected.table_model.column_names:
+            self._connected.update_columns(payload.column_config.connected_column_names)
+        if payload.column_config.disconnected_column_names != self._disconnected.table_model.column_names:
+            self._disconnected.update_columns(payload.column_config.disconnected_column_names)
 
         connected_count_changed = self._connected.last_count != payload.connected_count
         disconnected_count_changed = self._disconnected.last_count != payload.disconnected_count

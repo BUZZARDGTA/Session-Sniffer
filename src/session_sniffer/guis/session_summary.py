@@ -80,10 +80,8 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         total_download = sum(player.bandwidth.download for player in all_players)
         total_upload = sum(player.bandwidth.upload for player in all_players)
 
-        pps = CaptureStats.global_pps_rate
-        bps = CaptureStats.global_bps_rate
-        self._peak_pps = max(self._peak_pps, pps)
-        self._peak_bps = max(self._peak_bps, bps)
+        self._peak_pps = max(self._peak_pps, CaptureStats.global_pps_rate)
+        self._peak_bps = max(self._peak_bps, CaptureStats.global_bps_rate)
 
         elapsed_seconds = int(time.monotonic() - self._opened_at)
         uptime = format_duration(elapsed_seconds)
@@ -93,8 +91,8 @@ class SessionSummaryWindow(ToggleAlwaysOnTopMixin):
         self._lbl_bandwidth.setText(PlayerBandwidth.format_bytes(total_bandwidth))
         self._lbl_download.setText(PlayerBandwidth.format_bytes(total_download))
         self._lbl_upload.setText(PlayerBandwidth.format_bytes(total_upload))
-        self._lbl_pps.setText(f'{pps} PPS')
-        self._lbl_bps.setText(f'{PlayerBandwidth.format_bytes(bps)}/s')
+        self._lbl_pps.setText(f'{CaptureStats.global_pps_rate} PPS')
+        self._lbl_bps.setText(f'{PlayerBandwidth.format_bytes(CaptureStats.global_bps_rate)}/s')
         self._lbl_peak_pps.setText(f'{self._peak_pps} PPS')
         self._lbl_peak_bps.setText(f'{PlayerBandwidth.format_bytes(self._peak_bps)}/s')
         self._lbl_uptime.setText(uptime)
