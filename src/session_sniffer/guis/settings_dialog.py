@@ -1,6 +1,5 @@
 """Settings dialog for viewing, editing, saving, and resetting all application settings."""
 
-from collections.abc import Callable
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -77,6 +76,8 @@ from session_sniffer.utils_exceptions import ParenthesisMismatchError
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
 
     from session_sniffer.capture.packet_capture import PacketCapture
@@ -759,29 +760,6 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
         return errors, values
 
-    def _warn_interface_name(self, new_values: dict[str, SettingValue]) -> bool:
-        """Show a warning if the interface name does not match any known interface.
-
-        Returns:
-            True if the user chose to continue saving, False to abort.
-        """
-        value = new_values.get('capture_interface_name')
-        if not isinstance(value, str):
-            return True
-        if AllInterfaces.get_interface_by_name(value) is not None:
-            return True
-
-        known_names = sorted(iface.identity.name for iface in AllInterfaces.iterate() if iface.identity.name)
-        names_list = '\n  - '.join(known_names) if known_names else '(no interfaces discovered)'
-        result = QMessageBox.warning(
-            self,
-            TITLE,
-            f'Interface Name "{value}" does not match any known network interface.\n\nKnown interfaces:\n  - {names_list}\n\nSave anyway?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        return result == QMessageBox.StandardButton.Yes
-
     def _save_settings(self) -> None:
         """Validate, apply widget values to Settings, persist, and close."""
         errors, new_values = self._validate()
@@ -797,6 +775,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             else:
                 setattr(Settings, key, value)
 
+        if self._capture.is_running():
+            Settings.capture_interface_name = self._capture.config.interface.name
+            Settings.capture_ip_address = self._capture.config.interface.ip_address
+            Settings.capture_mac_address = self._capture.config.interface.mac_address
+
         Settings.rewrite_settings_file()
         Settings.rebuild_blocked_ip_ranges()
 
@@ -809,10 +792,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             if SETTING_METADATA[key].requires_capture_restart
         )
         if capture_settings_changed and self._capture.is_running():
-            if Settings.capture_ip_address is None:
-                raise RuntimeError('capture_ip_address is None while capture is running')
             capture_filter_str, display_filter_fn = build_capture_filters(
-                capture_ip_address=Settings.capture_ip_address,
+                capture_ip_address=self._capture.config.interface.ip_address,
                 broadcast_support=self._capture.config.broadcast_support,
                 multicast_support=self._capture.config.multicast_support,
             )
@@ -892,6 +873,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         if not file_path:
             return
         Settings.load_from_settings_file(Path(file_path))
+        if self._capture.is_running():
+            Settings.capture_interface_name = self._capture.config.interface.name
+            Settings.capture_ip_address = self._capture.config.interface.ip_address
+            Settings.capture_mac_address = self._capture.config.interface.mac_address
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._load_current_values()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
