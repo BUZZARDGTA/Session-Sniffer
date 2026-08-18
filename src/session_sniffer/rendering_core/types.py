@@ -104,6 +104,8 @@ class SearchState:
 class CaptureState:
     """Runtime state derived from the active capture interface."""
 
+    _lock: ClassVar[Lock] = Lock()
+
     vpn_mode_enabled: ClassVar[bool] = False
     is_neighbour_interface: ClassVar[bool] = False
     interface_name: ClassVar[str] = ''
@@ -121,10 +123,11 @@ class CaptureState:
     @classmethod
     def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str, interface_type: str) -> None:
         """Set the four interface-identity fields atomically."""
-        cls.is_neighbour_interface = is_neighbour
-        cls.interface_name = name
-        cls.interface_ip = ip
-        cls.interface_type = interface_type
+        with cls._lock:
+            cls.is_neighbour_interface = is_neighbour
+            cls.interface_name = name
+            cls.interface_ip = ip
+            cls.interface_type = interface_type
 
     @classmethod
     def is_local_capture(cls) -> bool:
@@ -135,19 +138,21 @@ class CaptureState:
         or the interface is a bridged/sharing adapter (each of which captures another
         machine's traffic). `Shared` is treated as local — it captures this host's traffic.
         """
-        return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
+        with cls._lock:
+            return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
 
     @classmethod
     def update_gta5_status(cls, status: GTA5Status) -> None:
         """Update GTA5 running/suspended state and set `gta5_just_started` on the first detected launch."""
-        if status.is_running and not cls.gta5_is_running:
-            cls.gta5_just_started = True
-        cls.gta5_is_running = status.is_running
-        cls.gta5_is_enhanced = status.is_enhanced
-        cls.gta5_is_legacy = status.is_legacy
-        cls.gta5_path = status.path
-        cls.gta5_pid = status.pid
-        cls.gta5_is_suspended = status.is_suspended
+        with cls._lock:
+            if status.is_running and not cls.gta5_is_running:
+                cls.gta5_just_started = True
+            cls.gta5_is_running = status.is_running
+            cls.gta5_is_enhanced = status.is_enhanced
+            cls.gta5_is_legacy = status.is_legacy
+            cls.gta5_path = status.path
+            cls.gta5_pid = status.pid
+            cls.gta5_is_suspended = status.is_suspended
 
 
 class CaptureStats:
