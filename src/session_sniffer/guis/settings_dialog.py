@@ -1,5 +1,6 @@
 """Settings dialog for viewing, editing, saving, and resetting all application settings."""
 
+from collections.abc import Callable
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
@@ -13,6 +14,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFormLayout,
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -51,7 +54,10 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
+    DIALOG_PRIMARY_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
+    INTERFACE_INFO_CARD_STYLESHEET,
+    INTERFACE_INFO_VALUE_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
@@ -61,7 +67,6 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
-from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
@@ -72,8 +77,6 @@ from session_sniffer.utils_exceptions import ParenthesisMismatchError
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
 
     from session_sniffer.capture.packet_capture import PacketCapture
@@ -98,8 +101,14 @@ def _get_line_edit(widget: QWidget) -> QLineEdit:
 class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     """Non-modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
 
-    def __init__(self, parent: QWidget | None, capture: PacketCapture) -> None:
-        """Build the tabbed settings dialog from setting metadata."""
+    def __init__(self, parent: QWidget | None, capture: PacketCapture, on_change_interface: Callable[[], None]) -> None:
+        """Build the tabbed settings dialog from setting metadata.
+
+        Args:
+            parent: Parent widget, or None for a top-level dialog.
+            capture: The active packet capture instance.
+            on_change_interface: Callback invoked to close this dialog and open the interface selection screen.
+        """
         super().__init__(parent)
         self.setWindowTitle(f'Settings - {TITLE}')
         set_dialog_window_flags(self)
@@ -108,6 +117,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         resize_window_for_screen(self, screen_size)
 
         self._capture = capture
+        self._on_change_interface = on_change_interface
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
         self._old_values: dict[str, SettingValue] = {key: getattr(Settings, key) for key in SETTING_METADATA}
@@ -229,6 +239,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             outer_layout.addWidget(self._build_discord_info_group())
         elif category == 'Looky System':
             outer_layout.addWidget(self._build_looky_info_group())
+        elif category == 'Capture':
+            outer_layout.addWidget(self._build_interface_info_group())
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
@@ -284,6 +296,64 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         page_layout.addWidget(scroll)
 
         return page
+
+    def _build_interface_info_group(self) -> QGroupBox:
+        """Build a styled read-only interface summary panel with a primary action button."""
+        group_box = QGroupBox('Interface')
+        group_box.setStyleSheet(INTERFACE_INFO_CARD_STYLESHEET)
+        layout = QVBoxLayout(group_box)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 6, 10, 10)
+
+        def _make_label(text: str) -> QLabel:
+            label = QLabel(text + ':')
+            label.setStyleSheet('color: #a5b4c4; font-weight: 600; background: transparent;')
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            return label
+
+        def _make_value(value: str | None) -> QLabel:
+            label = QLabel(value if value is not None else '\u2014')
+            label.setStyleSheet(INTERFACE_INFO_VALUE_LABEL_STYLESHEET)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            return label
+
+        arp_state = 'Enabled' if Settings.capture_arp_spoofing else 'Disabled'
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+        grid.setColumnMinimumWidth(2, 20)  # Gap between the two pairs.
+        grid.addWidget(_make_label('Interface Name'), 0, 0)
+        grid.addWidget(_make_value(Settings.capture_interface_name), 0, 1)
+        grid.addWidget(_make_label('ARP Spoofing'), 0, 2)
+        grid.addWidget(_make_value(arp_state), 0, 3)
+        grid.addWidget(_make_label('IP Address'), 1, 0)
+        grid.addWidget(_make_value(Settings.capture_ip_address), 1, 1)
+        grid.addWidget(_make_label('MAC Address'), 1, 2)
+        grid.addWidget(_make_value(Settings.capture_mac_address), 1, 3)
+        layout.addLayout(grid)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;')
+        layout.addWidget(separator)
+
+        change_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Change Interface\u2026')
+        change_button.setToolTip('Close settings and open the network interface selection screen')
+        change_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        change_button.clicked.connect(self._open_interface_selection)
+        layout.addWidget(change_button)
+
+        return group_box
+
+    def _open_interface_selection(self) -> None:
+        """Discard any unsaved settings changes, close this dialog, and trigger interface selection."""
+        self._saved = True  # Suppress the unsaved-changes prompt on close.
+        self.reject()
+        self._on_change_interface()
 
     def _build_discord_info_group(self) -> QGroupBox:
         """Build a Discord server invite header for the Discord settings tab."""
@@ -719,9 +789,6 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             QMessageBox.critical(self, TITLE, '\n\n'.join(errors))
             return
 
-        if not self._warn_interface_name(new_values):
-            return
-
         for key, value in new_values.items():
             if SETTING_METADATA[key].setting_type == SettingType.MAC_ADDRESS and isinstance(value, str):
                 formatted_value: SettingValue = format_mac_address(value)
@@ -736,11 +803,14 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         ensure_gta5_process_monitor_running()
         ensure_looky_core_running()
 
-        capture_settings_changed = any(new_values[key] != self._old_values.get(key) for key, meta in SETTING_METADATA.items() if meta.requires_capture_restart)
+        capture_settings_changed = any(
+            value != self._old_values.get(key)
+            for key, value in new_values.items()
+            if SETTING_METADATA[key].requires_capture_restart
+        )
         if capture_settings_changed and self._capture.is_running():
             if Settings.capture_ip_address is None:
-                message = 'capture_ip_address is None while capture is running'
-                raise RuntimeError(message)
+                raise RuntimeError('capture_ip_address is None while capture is running')
             capture_filter_str, display_filter_fn = build_capture_filters(
                 capture_ip_address=Settings.capture_ip_address,
                 broadcast_support=self._capture.config.broadcast_support,

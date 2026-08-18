@@ -90,6 +90,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         super().__init__()
 
         self.capture = capture_holder
+        self._on_change_interface = on_change_interface
         self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips, self)
         self._detections_manager_window: DetectionsManagerDialog | None = None
         self._logs_manager_window: LogsManager | None = None
@@ -798,7 +799,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._settings_dialog_window.raise_()
             self._settings_dialog_window.activateWindow()
             return
-        self._settings_dialog_window = SettingsDialog(self, self.capture.get())
+        self._settings_dialog_window = SettingsDialog(self, self.capture.get(), self._on_change_interface)
         self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)
         self._settings_dialog_window.accepted.connect(self._apply_always_on_top)
         self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))

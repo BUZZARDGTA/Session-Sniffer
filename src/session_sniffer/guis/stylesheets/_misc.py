@@ -84,6 +84,31 @@ LOOKY_INFO_LABEL_STYLESHEET = (
 
 LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame#lookyAccountCard {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
 
+INTERFACE_INFO_CARD_STYLESHEET = (
+    'QGroupBox {'
+    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+    'border: 1px solid #3b4455;'
+    'border-left: 4px solid #3d8ec9;'
+    'border-radius: 8px;'
+    'margin-top: 14px;'
+    'padding-top: 12px;'
+    '}'
+    'QGroupBox::title {'
+    'subcontrol-origin: margin;'
+    'subcontrol-position: top left;'
+    'left: 10px; padding: 2px 8px;'
+    'background: #3d8ec9;'
+    'color: #ffffff;'
+    'border-radius: 4px;'
+    'font-weight: bold;'
+    '}'
+)
+
+INTERFACE_INFO_VALUE_LABEL_STYLESHEET = (
+    'color: #61afef; font-weight: bold; padding: 2px 6px;'
+    'background: rgba(61, 142, 201, 0.10); border-radius: 3px;'
+)
+
 # =============================================================================
 # SPLASH SCREEN STYLES
 # =============================================================================

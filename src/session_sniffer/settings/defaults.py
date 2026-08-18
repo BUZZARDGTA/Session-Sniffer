@@ -80,6 +80,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.STRING,
         tooltip='Network interface name for packet capture.',
         requires_capture_restart=True,
+        hidden=True,
     ),
     'capture_ip_address': SettingMeta(
         category='Capture',
@@ -88,6 +89,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.IPV4,
         tooltip='Local IP address to bind for capture.',
         requires_capture_restart=True,
+        hidden=True,
     ),
     'capture_mac_address': SettingMeta(
         category='Capture',
@@ -96,6 +98,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.MAC_ADDRESS,
         tooltip='Local MAC address override for capture.',
         requires_capture_restart=True,
+        hidden=True,
     ),
     'capture_arp_spoofing': SettingMeta(
         category='Capture',
@@ -104,6 +107,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Enable ARP spoofing for packet interception.',
         requires_capture_restart=True,
+        hidden=True,
     ),
     'capture_feature_set': SettingMeta(
         category='Capture',
