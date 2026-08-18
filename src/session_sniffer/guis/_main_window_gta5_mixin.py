@@ -46,6 +46,8 @@ class GTA5Mixin(QMainWindow):
     _gta5_status_widget_action: QAction
     _gta5_menu_status_separator: QAction
     _gta5_menu_process_separator: QAction
+    _session_host_submenu: QMenu
+    _player_resolver_action: QAction
     _looky_submenu: QMenu
     _gta5_suspend_resume_action: QAction
     _gta5_solo_menu_action: QAction
@@ -248,5 +250,8 @@ class GTA5Mixin(QMainWindow):
         process_action = self._gta5_process_submenu.menuAction()
         if process_action:
             process_action.setVisible(local_only_visible)
+
+        self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+        self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
 
         self._refresh_runtime_capability_windows()

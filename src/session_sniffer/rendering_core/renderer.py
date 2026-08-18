@@ -512,7 +512,7 @@ def rendering_core(
                     player.country_flag = get_country_flag(country_code_value)
 
         if Settings.is_gta5_feature_set():
-            if not CaptureState.gta5_is_running or not Settings.gui_session_host_detection:
+            if not (CaptureState.gta5_is_running or not CaptureState.is_local_capture()) or not Settings.gui_session_host_detection:
                 if (
                     SessionHost.player is not None
                     or SessionHost.players_pending_for_disconnection

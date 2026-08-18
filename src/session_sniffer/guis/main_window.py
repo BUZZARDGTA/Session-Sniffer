@@ -253,13 +253,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._gta5_process_suspended = False
         self._gta5_externally_suspended = False
         self._gta5_process_detected = False
-        self._last_gta5_status_key: tuple[bool, bool, bool, bool] = (False, False, False, False)
+        self._last_gta5_status_key: tuple[bool, bool, bool, bool, bool] = (False, False, False, False, False)
 
         if Settings.is_gta5_feature_set():
             self._sync_gta5_process_button()
             self._update_gta5_status_label()
-            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
-            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
+            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
             self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
 
         self._update_gta5_toolbar_visibility()
@@ -729,11 +729,17 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             page=payload.disconnected_page,
         )
 
-        status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)
+        status_key = (
+            CaptureState.gta5_is_running,
+            CaptureState.gta5_is_enhanced,
+            CaptureState.gta5_is_legacy,
+            CaptureState.gta5_is_suspended,
+            CaptureState.is_local_capture(),
+        )
         if status_key != self._last_gta5_status_key:
             self._update_gta5_status_label()
-            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running)
-            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running)
+            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
             self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
             self._sync_gta5_process_button()
 
@@ -770,7 +776,13 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._gta5_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
             self._gta5_status_label.setToolTip('GTA V process detection state')
         self._resize_gta5_status_label(f'● {visible_text}')
-        self._last_gta5_status_key = (CaptureState.gta5_is_running, CaptureState.gta5_is_enhanced, CaptureState.gta5_is_legacy, CaptureState.gta5_is_suspended)
+        self._last_gta5_status_key = (
+            CaptureState.gta5_is_running,
+            CaptureState.gta5_is_enhanced,
+            CaptureState.gta5_is_legacy,
+            CaptureState.gta5_is_suspended,
+            CaptureState.is_local_capture(),
+        )
 
     @staticmethod
     def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:
