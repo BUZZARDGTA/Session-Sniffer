@@ -24,7 +24,7 @@ class LeaderboardLoadingDialog(QDialog):
         self.setWindowTitle('Most Seen Players')
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
-        self.setFixedSize(scale_by_ui(400), scale_by_ui(180))
+        self.setFixedSize(scale_by_ui(400), scale_by_ui(190))
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(18, 18, 18, 18)
@@ -59,7 +59,7 @@ class LeaderboardLoadingDialog(QDialog):
 
         layout.addStretch()
 
-        self._status_label = QLabel('Scanning session logs, please wait...')
+        self._status_label = QLabel('Scanning session logs...\nPlease wait...')
         self._status_label.setFont(QFont('Segoe UI', 10))
         self._status_label.setStyleSheet('color: #a0a0a0;')
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -91,6 +91,6 @@ class LeaderboardLoadingDialog(QDialog):
         self._progress_bar.setValue(current)
         if total > 0:
             percentage = int((current / total) * 100)
-            self._status_label.setText(f'Scanning session logs... {percentage}% ({current:,} / {total:,})')
+            self._status_label.setText(f'Scanning session logs...\n{percentage}% ({current:,} / {total:,})')
         else:
-            self._status_label.setText(f'Scanning session logs... ({current:,} found)')
+            self._status_label.setText(f'Scanning session logs...\n({current:,} found)')
