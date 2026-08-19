@@ -41,7 +41,7 @@ _IPAPI_MAX_REQUESTS = 15
 _IPAPI_MAX_THROTTLE_TIME = 60
 _IPAPI_MAX_BATCH_IPS = 100
 # Stop ip-api.com lookups after this many consecutive connection failures (e.g. a VPN/firewall silently blocking it).
-_IPAPI_MAX_CONSECUTIVE_FAILURES = 5
+_IPAPI_MAX_CONSECUTIVE_FAILURES = 3
 _IPAPI_FIELDS = (
     'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 )
@@ -75,6 +75,7 @@ def iplookup_core() -> None:
     requests_remaining = _IPAPI_MAX_REQUESTS
     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
     consecutive_failures = 0
+    unavailability_warning_shown = False
 
     while not gui_closed__event.is_set():
         if ScriptControl.has_crashed():
@@ -106,15 +107,21 @@ def iplookup_core() -> None:
             response.raise_for_status()
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
             # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
-            # blocking the connection. Retry a few times in case it is a transient blip, but give up after
-            # too many consecutive failures so we surface a warning instead of hammering the network forever.
+            # blocking the connection. Retry a few times in case it is a transient blip; after too many
+            # consecutive failures surface a one-time warning, then probe every 60s so the lookup can
+            # recover automatically if the network issue (e.g. a VPN) is resolved later.
+            if unavailability_warning_shown:
+                gui_closed__event.wait(60)
+                continue
             consecutive_failures += 1
             if consecutive_failures >= _IPAPI_MAX_CONSECUTIVE_FAILURES:
+                unavailability_warning_shown = True
                 _notify_ipapi_unavailable(
                     f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts (a VPN, proxy, or firewall may be blocking the connection).',
                 )
-                return
-            gui_closed__event.wait(1)
+                gui_closed__event.wait(60)
+            else:
+                gui_closed__event.wait(1)
             continue
         except requests.exceptions.HTTPError as e:
             if isinstance(e.response, requests.Response):
@@ -148,6 +155,9 @@ def iplookup_core() -> None:
             raise  # Re-raise unexpected HTTP errors (4xx, etc.)
 
         # A successful response means the network path to ip-api.com is working — reset the failure counter.
+        if unavailability_warning_shown:
+            unavailability_warning_shown = False
+            logger.info('[ip-api.com] Connection to ip-api.com has been restored. IP geolocation lookups will resume.')
         consecutive_failures = 0
 
         requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
