@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, NamedTuple, Self, final
 
-from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
 from scapy.layers.inet import IP, UDP
 from scapy.libs.winpcapy import pcap_stat, pcap_stats
 from scapy.sendrecv import AsyncSniffer
@@ -34,6 +33,7 @@ from session_sniffer.networking.utils import is_ipv4_address
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from scapy.arch.libpcap import L2pcapListenSocket
     from scapy.packet import Packet as ScapyPacket
 
     from session_sniffer.networking.interface import SelectedInterfaceRow
@@ -312,11 +312,13 @@ class PacketCapture:
             self.config.callback(packet)
 
         try:
+            from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
+
             listen_socket = L2pcapListenSocket(
                 iface=device_name,
                 filter=self.config.capture_filter or None,
             )
-        except OSError as e:
+        except (ImportError, OSError) as e:
             raise CaptureExitError(e) from e
 
         with self._state.control_lock:
