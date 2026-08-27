@@ -152,7 +152,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        icmp_button = QPushButton('⚡ ICMP Ping')
+        icmp_button = QPushButton('🏓 ICMP Ping')
         icmp_button.setToolTip('Launch continuous ICMP ping command window for this IP.')
         icmp_button.clicked.connect(lambda: ping_ip(self._player.ip))
         buttons_layout.addWidget(icmp_button)

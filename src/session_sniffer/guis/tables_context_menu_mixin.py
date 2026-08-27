@@ -364,20 +364,20 @@ class TableContextMenuMixin(QTableView):
             if not ip_addresses or not self.is_connected_table or self.open_rate_graph_callback is None:
                 return
 
-            rate_graph_callback = self.open_rate_graph_callback
+            open_rate_graph_callback = self.open_rate_graph_callback
 
             if len(ip_addresses) == 1:
                 add_action(
                     context_menu,
                     '📈 Rate Graph',
                     tooltip='Open a live PPS/BPS graph for this player.',
-                    handler=lambda: rate_graph_callback(ip_addresses[0]),
+                    handler=lambda: open_rate_graph_callback(ip_addresses[0]),
                 )
                 return
 
             def _open_multi_graphs() -> None:
                 for ip in ip_addresses:
-                    rate_graph_callback(ip)
+                    open_rate_graph_callback(ip)
 
             add_action(
                 context_menu,
@@ -471,7 +471,7 @@ class TableContextMenuMixin(QTableView):
             if len(ip_addresses) == 1:
                 add_action(
                     ping_menu,
-                    '⚡ Normal',
+                    '🏓 Normal (ICMP)',
                     tooltip='Checks if selected IP address responds to pings.',
                     handler=lambda: ping_ip(ip_addresses[0]),
                 )
@@ -496,7 +496,7 @@ class TableContextMenuMixin(QTableView):
 
             add_action(
                 ping_menu,
-                '⚡ Normal',
+                '🏓 Normal (ICMP)',
                 tooltip='Checks if selected IP addresses respond to pings.',
                 handler=_ping_all,
             )
