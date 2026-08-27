@@ -13,6 +13,12 @@ from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.tables_player_actions import (
+    ping_ip,
+    show_detailed_ip_lookup,
+    tcp_port_ping,
+    tcp_port_ping_multi,
+)
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
@@ -23,6 +29,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -123,28 +130,104 @@ class EntriesContextMenuMixin(QDialog):
             copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
             copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
             menu.addAction(copy_ip_action)
-        if username and ip_or_range:
-            copy_both_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username & Entry', self)
-            copy_both_action.triggered.connect(lambda: self._copy_to_clipboard(f'{username}={ip_or_range}'))
-            menu.addAction(copy_both_action)
 
         if not menu.isEmpty():
             menu.addSeparator()
 
-        # Looky System refresh (only for single IPs in GTA5 feature set)
-        if ip_or_range and self._current_path is not None and Settings.is_gta5_feature_set():
+        # Single IP check & Multi-selected IPs detection
+        is_single_ip = False
+        if ip_or_range:
             try:
                 IPv4Address(ip_or_range)
                 is_single_ip = True
             except ValueError:
                 is_single_ip = False
-            if is_single_ip:
-                _db = self._current_path
-                _ip = ip_or_range
-                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
-                refresh_action.triggered.connect(lambda _checked=False, d=_db, i=_ip: looky_refresh_userip_entries(self, [(d, [i])]))
-                configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
-                menu.addAction(refresh_action)
+
+        selected_ips: list[str] = []
+        if self._entries_table.selectionModel():
+            for sel_index in self._entries_table.selectionModel().selectedRows():
+                src_idx = self._proxy.mapToSource(sel_index)
+                ip_val = self._get_row_entry_value(src_idx.row())
+                try:
+                    IPv4Address(ip_val)
+                    if ip_val not in selected_ips:
+                        selected_ips.append(ip_val)
+                except ValueError:
+                    pass
+
+        # Network / Ping & Lookup actions
+        if is_single_ip or len(selected_ips) > 1:
+            if is_single_ip and len(selected_ips) <= 1:
+                _ip_target = ip_or_range
+                matched_player = PlayersRegistry.get_player_by_ip(_ip_target)
+                if matched_player is not None:
+                    lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+                    lookup_action.triggered.connect(lambda _checked=False, player=matched_player: show_detailed_ip_lookup(self, player))
+                    menu.addAction(lookup_action)
+
+            ping_menu = QMenu('Ping', menu)
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu.setToolTipsVisible(True)
+
+            if len(selected_ips) > 1:
+                _ip_addresses_target = list(selected_ips)
+                normal_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+                normal_ping_action.setToolTip('Checks if selected IP addresses respond to pings.')
+
+                def _do_normal_ping_multi() -> None:
+                    for ip_address in _ip_addresses_target:
+                        ping_ip(ip_address)
+
+                normal_ping_action.triggered.connect(_do_normal_ping_multi)
+                ping_menu.addAction(normal_ping_action)
+
+                tcp_menu = QMenu('TCP Port (paping.exe)', ping_menu)
+                tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
+                tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+                tcp_menu.setToolTipsVisible(True)
+
+                tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
+                tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
+
+                def _do_tcp_ping_multi() -> None:
+                    tcp_port_ping_multi(self, _ip_addresses_target)
+
+                tcp_one_action.triggered.connect(_do_tcp_ping_multi)
+                tcp_menu.addAction(tcp_one_action)
+
+                tcp_indiv_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
+                tcp_indiv_action.setToolTip('Ask for a separate port for each selected IP.')
+
+                def _do_tcp_ping_indiv() -> None:
+                    for ip_address in _ip_addresses_target:
+                        tcp_port_ping(self, ip_address)
+
+                tcp_indiv_action.triggered.connect(_do_tcp_ping_indiv)
+                tcp_menu.addAction(tcp_indiv_action)
+
+                ping_menu.addMenu(tcp_menu)
+            else:
+                _ip_target = ip_or_range
+                normal_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+                normal_ping_action.setToolTip('Checks if selected IP address responds to pings.')
+                normal_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: ping_ip(ip_address))
+                ping_menu.addAction(normal_ping_action)
+
+                tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+                tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
+                tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: tcp_port_ping(self, ip_address))
+                ping_menu.addAction(tcp_ping_action)
+
+            menu.addMenu(ping_menu)
+            menu.addSeparator()
+
+        # Looky System refresh (only for single IPs in GTA5 feature set)
+        if ip_or_range and self._current_path is not None and Settings.is_gta5_feature_set() and is_single_ip:
+            refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
+            refresh_action.triggered.connect(lambda _checked=False, d=self._current_path, i=ip_or_range: looky_refresh_userip_entries(self, [(d, [i])]))
+            configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
+            menu.addAction(refresh_action)
 
         source_row = self._proxy.mapToSource(index).row()
 
@@ -210,10 +293,93 @@ class EntriesContextMenuMixin(QDialog):
             copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
             copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
             menu.addAction(copy_ip_action)
-        if username and ip_or_range:
-            copy_both_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username & Entry', self)
-            copy_both_action.triggered.connect(lambda: self._copy_to_clipboard(f'{username}={ip_or_range}'))
-            menu.addAction(copy_both_action)
+
+        # Single IP check & Multi-selected IPs detection for global search
+        is_single_ip_gs = False
+        if ip_or_range:
+            try:
+                IPv4Address(ip_or_range)
+                is_single_ip_gs = True
+            except ValueError:
+                is_single_ip_gs = False
+
+        selected_ips_gs: list[str] = []
+        if self._entries_table.selectionModel():
+            for sel_index in self._entries_table.selectionModel().selectedRows():
+                src_idx = self._proxy.mapToSource(sel_index)
+                ip_val = self._get_row_entry_value(src_idx.row())
+                try:
+                    IPv4Address(ip_val)
+                    if ip_val not in selected_ips_gs:
+                        selected_ips_gs.append(ip_val)
+                except ValueError:
+                    pass
+
+        # Network / Ping & Lookup actions
+        if is_single_ip_gs or len(selected_ips_gs) > 1:
+            if is_single_ip_gs and len(selected_ips_gs) <= 1:
+                _ip_gs = ip_or_range
+                matched_player_gs = PlayersRegistry.get_player_by_ip(_ip_gs)
+                if matched_player_gs is not None:
+                    lookup_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+                    lookup_gs_action.triggered.connect(lambda _checked=False, player=matched_player_gs: show_detailed_ip_lookup(self, player))
+                    menu.addAction(lookup_gs_action)
+
+            ping_menu_gs = QMenu('Ping', menu)
+            ping_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu_gs.setToolTipsVisible(True)
+
+            if len(selected_ips_gs) > 1:
+                _ip_addresses_gs = list(selected_ips_gs)
+                normal_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+                normal_ping_gs_action.setToolTip('Checks if selected IP addresses respond to pings.')
+
+                def _do_normal_ping_multi_gs() -> None:
+                    for ip_address in _ip_addresses_gs:
+                        ping_ip(ip_address)
+
+                normal_ping_gs_action.triggered.connect(_do_normal_ping_multi_gs)
+                ping_menu_gs.addAction(normal_ping_gs_action)
+
+                tcp_menu_gs = QMenu('TCP Port (paping.exe)', ping_menu_gs)
+                tcp_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
+                tcp_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+                tcp_menu_gs.setToolTipsVisible(True)
+
+                tcp_one_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu_gs)
+                tcp_one_gs_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
+
+                def _do_tcp_ping_multi_gs() -> None:
+                    tcp_port_ping_multi(self, _ip_addresses_gs)
+
+                tcp_one_gs_action.triggered.connect(_do_tcp_ping_multi_gs)
+                tcp_menu_gs.addAction(tcp_one_gs_action)
+
+                tcp_indiv_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu_gs)
+                tcp_indiv_gs_action.setToolTip('Ask for a separate port for each selected IP.')
+
+                def _do_tcp_ping_indiv_gs() -> None:
+                    for ip_address in _ip_addresses_gs:
+                        tcp_port_ping(self, ip_address)
+
+                tcp_indiv_gs_action.triggered.connect(_do_tcp_ping_indiv_gs)
+                tcp_menu_gs.addAction(tcp_indiv_gs_action)
+
+                ping_menu_gs.addMenu(tcp_menu_gs)
+            else:
+                _ip_gs = ip_or_range
+                normal_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+                normal_ping_gs_action.setToolTip('Checks if selected IP address responds to pings.')
+                normal_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: ping_ip(ip_address))
+                ping_menu_gs.addAction(normal_ping_gs_action)
+
+                tcp_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+                tcp_ping_gs_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
+                tcp_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: tcp_port_ping(self, ip_address))
+                ping_menu_gs.addAction(tcp_ping_gs_action)
+
+            menu.addMenu(ping_menu_gs)
 
         # --- Database navigation actions ---
         if db_path_str:

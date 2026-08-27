@@ -149,6 +149,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._tree.setRootIndex(self._fs_model.index(str(USERIP_DATABASES_DIR_PATH)))
         self._tree.setHeaderHidden(True)
         self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
         self._tree.setWordWrap(False)
 
@@ -291,6 +293,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setRootIsDecorated(False)
         self._entries_table.setAlternatingRowColors(True)
         self._entries_table.setSortingEnabled(True)
+        self._entries_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._entries_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setItemDelegate(ElidedTextTooltipDelegate(self._entries_table))
         self._entries_table.setWordWrap(False)
         self._entries_table.sortByColumn(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)
@@ -316,6 +320,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         entries_selection = self._entries_table.selectionModel()
         if entries_selection:
             entries_selection.selectionChanged.connect(self._on_entries_selection_changed)
+
+            def _on_entry_current_changed(_curr: QModelIndex, _prev: QModelIndex) -> None:
+                viewport = self._entries_table.viewport()
+                if viewport:
+                    viewport.update()
+
+            entries_selection.currentChanged.connect(_on_entry_current_changed)
 
         right_layout.addWidget(self._entries_table, stretch=1)
 

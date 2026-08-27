@@ -368,6 +368,8 @@ class RenameUsernameDialog(QDialog):
 
         self._list = QListView()
         self._list.setModel(self._proxy)
+        self._list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list.setAlternatingRowColors(True)
         self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
         self._list.setWordWrap(False)
@@ -436,6 +438,8 @@ class RemoveUsernameDialog(QDialog):
 
         self._list = QListView()
         self._list.setModel(self._proxy)
+        self._list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list.setAlternatingRowColors(True)
         self._list.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
@@ -760,10 +764,11 @@ class IPRangeBuilderDialog(QDialog):
         except ValueError:
             self._set_preview('Enter a valid base IPv4 address', valid=False)
             return
-        host_count = network.num_addresses
-        usable = max(0, host_count - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else host_count
+        usable = max(0, network.num_addresses - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else network.num_addresses
         self._set_preview(
-            f'Network: {network.network_address}/{prefix}\nRange: {network.network_address} - {network.broadcast_address}\nAddresses: {host_count:,} total, {usable:,} usable',
+            f'Network: {network.network_address}/{prefix}\n'
+            f'Range: {network.network_address} - {network.broadcast_address}\n'
+            f'Addresses: {network.num_addresses:,} total, {usable:,} usable',
             valid=True,
         )
 
