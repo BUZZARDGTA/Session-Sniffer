@@ -4,9 +4,10 @@ import csv
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from ipaddress import IPv4Address
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -41,7 +42,9 @@ from session_sniffer.guis.logs_manager._helpers import (
     purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -117,6 +120,11 @@ class CsvLogTab(QWidget):
 
         self._table = QTableView()
         self._table.setModel(self._proxy)
+        self._table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._table.setShowGrid(True)
+        self._table.setGridStyle(Qt.PenStyle.SolidLine)
+        self._table.setCornerButtonEnabled(False)
         self._table.setSortingEnabled(True)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -124,10 +132,12 @@ class CsvLogTab(QWidget):
 
         v_header = self._table.verticalHeader()
         if v_header:
-            v_header.setDefaultSectionSize(24)
+            v_header.setVisible(False)
+            v_header.setDefaultSectionSize(26)
 
         h_header = self._table.horizontalHeader()
         if h_header:
+            h_header.setHighlightSections(False)
             if self._stretch_column is not None:
                 h_header.setStretchLastSection(False)
                 h_header.setSectionResizeMode(self._stretch_column, QHeaderView.ResizeMode.Stretch)
@@ -221,8 +231,8 @@ class CsvLogTab(QWidget):
             self._initial_loaded = True
             return
 
-        with self._file_path.open(newline='', encoding='utf-8') as f:
-            reader = csv.reader(f)
+        with self._file_path.open(newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
             file_headers = next(reader, None)
             if file_headers is None:
                 self._update_counts()
@@ -365,7 +375,7 @@ class CsvLogTab(QWidget):
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        copy_action = QAction('📝 Copy Selected', menu)
+        copy_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Selected', menu)
         copy_action.setShortcut('Ctrl+C')
         copy_action.setToolTip('Copy selected rows to the clipboard as comma-separated values.')
         copy_action.setEnabled(has_selection)
@@ -374,33 +384,135 @@ class CsvLogTab(QWidget):
 
         menu.addSeparator()
 
-        select_all_action = QAction('☑️ Select All', menu)
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', menu)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all visible rows.')
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction('⬜ Clear Selection', menu)
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', menu)
         clear_selection_action.setToolTip('Deselect all rows.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
 
+        selected_ips = self._get_selected_ips(index, selection_model)
+
+        if len(selected_ips) == 1:
+            menu.addSeparator()
+
+            matched_player = PlayersRegistry.get_player_by_ip(selected_ips[0])
+            if matched_player is not None:
+                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', menu)
+                lookup_action.setToolTip('Show detailed IP lookup information for this player.')
+                lookup_action.triggered.connect(lambda _checked=False, p=matched_player: show_detailed_ip_lookup(self, p))
+                menu.addAction(lookup_action)
+
+            # pylint: disable=duplicate-code
+            ping_menu = QMenu('Ping', menu)
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu.setToolTipsVisible(True)
+
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action.setToolTip('Checks if selected IP address responds to pings.')
+            normal_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: ping_ip(ip_address))
+            ping_menu.addAction(normal_action)
+
+            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+            tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
+            tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: tcp_port_ping(self, ip_address))
+            ping_menu.addAction(tcp_ping_action)
+
+            menu.addMenu(ping_menu)
+            # pylint: enable=duplicate-code
+
+        elif len(selected_ips) > 1:
+            menu.addSeparator()
+            _target_ips = list(selected_ips)
+
+            # pylint: disable=duplicate-code
+            ping_menu = QMenu('Ping', menu)
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu.setToolTipsVisible(True)
+
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
+
+            def _ping_all_csv() -> None:
+                for ip_address in _target_ips:
+                    ping_ip(ip_address)
+
+            normal_action.triggered.connect(_ping_all_csv)
+            ping_menu.addAction(normal_action)
+
+            tcp_menu = QMenu('TCP Port (paping.exe)', ping_menu)
+            tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
+            tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            tcp_menu.setToolTipsVisible(True)
+
+            tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
+            tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
+
+            def _do_tcp_ping_multi() -> None:
+                tcp_port_ping_multi(self, _target_ips)
+
+            tcp_one_action.triggered.connect(_do_tcp_ping_multi)
+            tcp_menu.addAction(tcp_one_action)
+
+            tcp_custom_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
+            tcp_custom_action.setToolTip('Ask for a separate port for each selected IP.')
+
+            def _do_tcp_ping_individual() -> None:
+                for ip_address in _target_ips:
+                    tcp_port_ping(self, ip_address)
+
+            tcp_custom_action.triggered.connect(_do_tcp_ping_individual)
+            tcp_menu.addAction(tcp_custom_action)
+
+            ping_menu.addMenu(tcp_menu)
+            menu.addMenu(ping_menu)
+            # pylint: enable=duplicate-code
+
         menu.addSeparator()
 
-        delete_action = QAction('🗑️ Delete Selected Rows', menu)
+        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Selected Rows', menu)
         delete_action.setToolTip('Remove selected rows from the log file permanently.')
         delete_action.setEnabled(has_selection)
         delete_action.triggered.connect(self._delete_selected_rows)
         menu.addAction(delete_action)
 
-        if not index.isValid():
-            copy_action.setEnabled(False)
-            delete_action.setEnabled(False)
-
         viewport = self._table.viewport()
         if viewport:
             menu.popup(viewport.mapToGlobal(pos))
+
+    def _get_selected_ips(self, index: QModelIndex, selection_model: QItemSelectionModel | None) -> list[str]:
+        """Extract unique IPv4 addresses from current table selection or clicked row."""
+        selected_ips: list[str] = []
+        if selection_model:
+            for selected_model_index in selection_model.selectedRows():
+                source_model_index = self._proxy.mapToSource(selected_model_index)
+                self._extract_ips_from_row(source_model_index.row(), selected_ips)
+
+        if not selected_ips and index.isValid():
+            source_index = self._proxy.mapToSource(index)
+            self._extract_ips_from_row(source_index.row(), selected_ips)
+
+        return selected_ips
+
+    def _extract_ips_from_row(self, row: int, target_list: list[str]) -> None:
+        """Helper to scan columns of *row* for IPv4 strings and append to *target_list*."""
+        for column_index in range(self._model.columnCount()):
+            item = self._model.item(row, column_index)
+            if item and item.text():
+                cell_text = item.text().strip()
+                try:
+                    IPv4Address(cell_text)
+                    if cell_text not in target_list:
+                        target_list.append(cell_text)
+                except ValueError:
+                    pass
 
     def _toggle_column_visibility(self, checked: bool) -> None:  # noqa: FBT001
         action = self.sender()
@@ -482,8 +594,8 @@ class CsvLogTab(QWidget):
     def _rewrite_csv_from_model(self) -> None:
         """Rewrite the CSV file from the current model contents."""
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]
-        with self._file_path.open('w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
+        with self._file_path.open('w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
             writer.writerow(headers)
             for row_index in range(self._model.rowCount()):
                 cells: list[str] = []
