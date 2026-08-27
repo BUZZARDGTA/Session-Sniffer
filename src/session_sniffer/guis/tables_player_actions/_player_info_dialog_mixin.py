@@ -32,6 +32,10 @@ class PlayerInfoDialogMixin(QDialog):
     `_make_group` / `_add_row` when building content sections.
     """
 
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the dialog with the top-level parent window."""
+        super().__init__(parent.window() if parent is not None else None)
+
     @staticmethod
     def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
         """Create a styled group box with an attached QFormLayout and return both."""
