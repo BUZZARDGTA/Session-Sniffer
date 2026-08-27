@@ -5,13 +5,16 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
+from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping
 from session_sniffer.guis.tables_player_actions._format import (
     format_bool,
     format_packets_and_stats,
@@ -144,6 +147,22 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         )
         self._add_live_row(form, 'RTT Min/Avg/Max', lambda player: format_rtt_summary(player.ping.rtt_min, player.ping.rtt_avg, player.ping.rtt_max, player.ping.rtt_mdev))
         self._add_live_row(form, 'Per-Packet RTT', lambda player: format_ping_times(player.ping.ping_times))
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 6, 0, 0)
+        buttons_layout.setSpacing(10)
+
+        icmp_button = QPushButton('⚡ ICMP Ping')
+        icmp_button.setToolTip('Launch continuous ICMP ping command window for this IP.')
+        icmp_button.clicked.connect(lambda: ping_ip(self._player.ip))
+        buttons_layout.addWidget(icmp_button)
+
+        tcp_button = QPushButton('🔌 TCP Port Ping (paping.exe)…')
+        tcp_button.setToolTip('Launch TCP port pinger (paping) for this IP.')
+        tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._player.ip))
+        buttons_layout.addWidget(tcp_button)
+
+        form.addRow('', buttons_layout)
         parent_layout.addWidget(group)
 
     def _add_live_row(self, form: QFormLayout, label_text: str, provider: Callable[[Player], str]) -> None:
@@ -156,14 +175,13 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     def _refresh(self) -> None:
         """Re-evaluate every row provider and update the value widget text."""
-        player = self._player
-        display = format_player_display(player.ip, player.usernames)
+        display = format_player_display(self._player.ip, self._player.usernames)
         new_title = f'{TITLE} - IP Lookup Details ({display})'
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
             self._header_label.setText(f'🔎  IP Lookup Details — {display}')
         for value_widget, provider in self._rows:
-            text = provider(player)
+            text = provider(self._player)
             if value_widget.text() != text:
                 value_widget.setText(text)
 
