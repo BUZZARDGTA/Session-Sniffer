@@ -249,9 +249,9 @@ class SessionsLogTab(QWidget):
             return
         total_size = 0
         file_count = 0
-        for f in self._sessions_dir.rglob('*.json'):
-            if f.is_file():
-                total_size += f.stat().st_size
+        for json_file in self._sessions_dir.rglob('*.json'):
+            if json_file.is_file():
+                total_size += json_file.stat().st_size
                 file_count += 1
         self._metadata_label.setText(
             f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
@@ -333,9 +333,9 @@ class SessionsLogTab(QWidget):
             self._viewer.setPlainText('')
             total_size = 0
             file_count = 0
-            for f in selected.rglob('*.json'):
-                if f.is_file():
-                    total_size += f.stat().st_size
+            for json_file in selected.rglob('*.json'):
+                if json_file.is_file():
+                    total_size += json_file.stat().st_size
                     file_count += 1
             self._file_info_label.setText(
                 f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
@@ -635,7 +635,7 @@ class SessionsLogTab(QWidget):
     def _normalize_search_value(value: object) -> str:
         if isinstance(value, list):
             values = cast('list[object]', value)
-            return ', '.join(str(v) for v in values)
+            return ', '.join(str(item) for item in values)
         if value is None:
             return ''
         return str(value)
@@ -926,26 +926,25 @@ class SessionsLogTab(QWidget):
         return f'{connected_table.get_string()}\n{disconnected_table.get_string()}'
 
     def _delete_selected(self) -> None:
-        target = self._selected_path
-        if target is None or not target.exists():
+        if self._selected_path is None or not self._selected_path.exists():
             QMessageBox.information(self, TITLE, 'No file or folder selected.')
             return
 
-        is_dir = target.is_dir()
+        is_dir = self._selected_path.is_dir()
         kind = 'folder' if is_dir else 'file'
         extra = '\n\nAll contents within the folder will be removed.' if is_dir else ''
         reply = QMessageBox.warning(
             self,
             TITLE,
-            f'Delete {kind} "{target.name}"?{extra}\n\nThis cannot be undone.',
+            f'Delete {kind} "{self._selected_path.name}"?{extra}\n\nThis cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
         if is_dir:
-            shutil.rmtree(target)
+            shutil.rmtree(self._selected_path)
         else:
-            target.unlink()
+            self._selected_path.unlink()
         self._viewer.clear()
         self._file_info_label.setText('')
         self._current_file = None

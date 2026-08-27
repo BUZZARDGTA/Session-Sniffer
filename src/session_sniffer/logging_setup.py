@@ -197,9 +197,9 @@ class _StderrToLogger:
         with self._lock:
             if not self._buffer:
                 return
-            line = self._buffer
+            buffered_log_line = self._buffer
             self._buffer = ''
-        self._log_line(line)
+        self._log_line(buffered_log_line)
 
     def isatty(self) -> bool:
         """Return whether the stream is attached to a terminal."""

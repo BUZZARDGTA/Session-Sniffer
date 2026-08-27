@@ -303,11 +303,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     preset_checkboxes: dict[str, QCheckBox] = {}
     presets_num_columns = 3
-    for i, pname in enumerate(preset_names):
-        cb = QCheckBox(pname)
-        cb.setObjectName(pname)
-        preset_checkboxes[pname] = cb
-        presets_grid.addWidget(cb, i // presets_num_columns, i % presets_num_columns)
+    for i, preset_name in enumerate(preset_names):
+        checkbox = QCheckBox(preset_name)
+        checkbox.setObjectName(preset_name)
+        preset_checkboxes[preset_name] = checkbox
+        presets_grid.addWidget(checkbox, i // presets_num_columns, i % presets_num_columns)
     presets_grid.setRowStretch(presets_grid.rowCount(), 1)
 
     preset_button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), ' Select All')
@@ -613,12 +613,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             return
         is_updating = True
         try:
-            checked_ranges = {rname for rname, cb in checkboxes.items() if cb.isChecked()}
-            for pname, preset_set in presets_map.items():
+            checked_ranges = {range_name for range_name, checkbox in checkboxes.items() if checkbox.isChecked()}
+            for preset_name, preset_set in presets_map.items():
                 is_active = preset_set.issubset(checked_ranges)
-                preset_checkboxes[pname].blockSignals(True)  # noqa: FBT003
-                preset_checkboxes[pname].setChecked(is_active)
-                preset_checkboxes[pname].blockSignals(False)  # noqa: FBT003
+                preset_checkboxes[preset_name].blockSignals(True)  # noqa: FBT003
+                preset_checkboxes[preset_name].setChecked(is_active)
+                preset_checkboxes[preset_name].blockSignals(False)  # noqa: FBT003
         finally:
             is_updating = False
 
@@ -642,7 +642,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
                         checkboxes[rname].setChecked(False)
                         checkboxes[rname].blockSignals(False)  # noqa: FBT003
 
-            checked_ranges = {rname for rname, cb in checkboxes.items() if cb.isChecked()}
+            checked_ranges = {range_name for range_name, checkbox in checkboxes.items() if checkbox.isChecked()}
             for other_name, other_set in presets_map.items():
                 is_active = other_set.issubset(checked_ranges)
                 preset_checkboxes[other_name].blockSignals(True)  # noqa: FBT003
@@ -661,10 +661,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         nonlocal is_updating
         is_updating = True
         try:
-            for cb in preset_checkboxes.values():
-                cb.blockSignals(True)  # noqa: FBT003
-                cb.setChecked(True)
-                cb.blockSignals(False)  # noqa: FBT003
+            for checkbox in preset_checkboxes.values():
+                checkbox.blockSignals(True)  # noqa: FBT003
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)  # noqa: FBT003
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
@@ -679,10 +679,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         nonlocal is_updating
         is_updating = True
         try:
-            for cb in preset_checkboxes.values():
-                cb.blockSignals(True)  # noqa: FBT003
-                cb.setChecked(False)
-                cb.blockSignals(False)  # noqa: FBT003
+            for checkbox in preset_checkboxes.values():
+                checkbox.blockSignals(True)  # noqa: FBT003
+                checkbox.setChecked(False)
+                checkbox.blockSignals(False)  # noqa: FBT003
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
@@ -700,11 +700,11 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     preset_button_deselect_all.clicked.connect(deselect_all_presets)
     preset_button_reset.clicked.connect(reset_presets)
 
-    for pname, p_cb in preset_checkboxes.items():
-        p_cb.clicked.connect(make_handler(pname))
+    for preset_name, preset_checkbox in preset_checkboxes.items():
+        preset_checkbox.clicked.connect(make_handler(preset_name))
 
-    for cb in checkboxes.values():
-        cb.toggled.connect(update_presets_from_ranges)
+    for checkbox in checkboxes.values():
+        checkbox.toggled.connect(update_presets_from_ranges)
 
     update_presets_from_ranges()
 

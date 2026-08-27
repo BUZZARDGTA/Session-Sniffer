@@ -68,8 +68,8 @@ class ModMenuLogsParser:
                 continue
 
             # Parse file line by line
-            with path.open(encoding='utf-8') as f:
-                for line in f:
+            with path.open(encoding='utf-8') as file:
+                for line in file:
                     match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
                     if not match:
                         continue

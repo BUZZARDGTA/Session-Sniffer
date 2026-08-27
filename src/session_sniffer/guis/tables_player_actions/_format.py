@@ -95,7 +95,7 @@ def format_ping_times(value: object) -> str:
     times = cast('list[object]', value)
     if not times:
         return 'No samples yet'
-    formatted = ', '.join(f'{t:.1f}' for t in times if isinstance(t, (int, float)))
+    formatted = ', '.join(f'{sample_time:.1f}' for sample_time in times if isinstance(sample_time, (int, float)))
     if not formatted:
         return 'N/A'
     return f'{formatted} ms'

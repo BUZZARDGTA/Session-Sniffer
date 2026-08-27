@@ -199,9 +199,9 @@ class TreeOperationsMixin(QDialog):
                 content = db_path.read_text('utf-8')
             except OSError:
                 continue
-            ips = [ip for _, ip in iter_userip_entries(content)]
-            if ips:
-                entries.append((db_path, ips))
+            ip_addresses = [ip_address for _, ip_address in iter_userip_entries(content)]
+            if ip_addresses:
+                entries.append((db_path, ip_addresses))
 
         if not entries:
             QMessageBox.information(self, TITLE, 'No IPs found in the selected database(s).')
@@ -716,12 +716,11 @@ class TreeOperationsMixin(QDialog):
         """Copy external .ini database files into the databases directory, or merge into the current database."""
         merge_mode = False
         if self._current_path is not None:
-            current_name = self._current_path.stem
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
             msg_box.setText('How would you like to import the file(s)?')
-            import_button = msg_box.addButton('Import as new database(s)', QMessageBox.ButtonRole.AcceptRole)
-            merge_button = msg_box.addButton(f'Merge into "{current_name}"', QMessageBox.ButtonRole.AcceptRole)
+            msg_box.addButton('Import as new database(s)', QMessageBox.ButtonRole.AcceptRole)
+            merge_button = msg_box.addButton(f'Merge into "{self._current_path.stem}"', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
                 _button.setMinimumWidth(200)
@@ -731,7 +730,6 @@ class TreeOperationsMixin(QDialog):
             if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return
             merge_mode = clicked is merge_button
-            _ = import_button  # suppress unused-variable warning
 
         if merge_mode:
             src_path_str, _ = QFileDialog.getOpenFileName(

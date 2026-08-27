@@ -353,7 +353,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         all_time = self._chk_all_time.isChecked()
         window = latency_data if all_time else latency_data[-VISIBLE_WINDOW:]
 
-        nonzero = [v for v in window if v > 0]
+        nonzero_latencies = [latency_value for latency_value in window if latency_value > 0]
         if CaptureStats.global_avg_latency_ms > 0:
             self._last_latency_ms = CaptureStats.global_avg_latency_ms
             self._last_latency_ts = time.monotonic()
@@ -361,10 +361,10 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
             self._lbl_latest.setText(f'{self._last_latency_ms:.2f} ms')
         else:
             self._lbl_latest.setText('— ms')
-        if nonzero:
-            self._lbl_avg.setText(f'{sum(nonzero) / len(nonzero):.2f} ms')
-            self._lbl_min.setText(f'{min(nonzero):.2f} ms')
-            self._lbl_max.setText(f'{max(nonzero):.2f} ms')
+        if nonzero_latencies:
+            self._lbl_avg.setText(f'{sum(nonzero_latencies) / len(nonzero_latencies):.2f} ms')
+            self._lbl_min.setText(f'{min(nonzero_latencies):.2f} ms')
+            self._lbl_max.setText(f'{max(nonzero_latencies):.2f} ms')
         else:
             self._lbl_avg.setText('— ms')
             self._lbl_min.setText('— ms')

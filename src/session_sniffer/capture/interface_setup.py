@@ -32,8 +32,7 @@ def populate_network_interfaces_info() -> None:
     classification = get_adapter_classification()
 
     for adapter in adapters:
-        adapter_guid = adapter.identity.adapter_guid
-        classification_value = classification.get(adapter_guid) if adapter_guid else None
+        classification_value = classification.get(adapter.identity.adapter_guid) if adapter.identity.adapter_guid else None
         if classification_value == 'bridged':
             interface_type = INTERFACE_TYPE_BRIDGED
         elif classification_value == 'shared':
@@ -52,7 +51,7 @@ def populate_network_interfaces_info() -> None:
                     mac_address=adapter.identity.mac_address,
                     device_name=None,
                     vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
-                    adapter_guid=adapter_guid,
+                    adapter_guid=adapter.identity.adapter_guid,
                 ),
                 traffic=InterfaceTraffic(
                     packets_sent=adapter.traffic.packets_sent,
@@ -103,15 +102,13 @@ def get_filtered_scapy_interfaces() -> list[tuple[str, str]]:
     """
     result: list[tuple[str, str]] = []
     for interface in AllInterfaces.iterate():
-        guid = interface.identity.adapter_guid
-        if guid is None:
+        if interface.identity.adapter_guid is None:
             continue
         # Strip enclosing braces if present, then rebuild to normalise form.
-        clean_guid = guid.strip('{}')
+        clean_guid = interface.identity.adapter_guid.strip('{}')
         device_name = f'\\Device\\NPF_{{{clean_guid}}}'
-        friendly_name = interface.identity.name
-        if friendly_name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES:
-            result.append((device_name, friendly_name))
+        if interface.identity.name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES:
+            result.append((device_name, interface.identity.name))
     return result
 
 

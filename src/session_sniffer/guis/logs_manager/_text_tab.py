@@ -125,11 +125,11 @@ class TextLogTab(QWidget):
             file_size = self._file_path.stat().st_size
             truncated = file_size > LARGE_TEXT_FILE_LIMIT
 
-            with self._file_path.open(encoding='utf-8', errors='replace') as f:
+            with self._file_path.open(encoding='utf-8', errors='replace') as file:
                 if truncated:
-                    f.seek(max(0, file_size - LARGE_TEXT_FILE_LIMIT))
-                    f.readline()  # Skip partial first line
-                text = f.read()
+                    file.seek(max(0, file_size - LARGE_TEXT_FILE_LIMIT))
+                    file.readline()  # Skip partial first line
+                text = file.read()
 
             # Preserve scroll position
             scrollbar = self._viewer.verticalScrollBar()

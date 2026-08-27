@@ -80,12 +80,12 @@ class _DownloadWorker(CrashingQThread):
 
             self._dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with self._dest_path.open('wb') as f:
+            with self._dest_path.open('wb') as file:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if self._cancel_event.is_set():
                         self.finished_signal.emit(False, 'Cancelled')  # noqa: FBT003
                         return
-                    f.write(chunk)
+                    file.write(chunk)
                     done += len(chunk)
                     self.progress_signal.emit(done, total)
 

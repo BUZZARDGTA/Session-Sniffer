@@ -64,7 +64,29 @@ def format_player_middle_ports(player: Player) -> str:
     return ''
 
 
-def _format_player_gui_datetime(player_datetime: datetime) -> str:
+def format_player_continent(player: Player) -> str:
+    """Format player continent with optional alpha-2 code."""
+    if Settings.gui_columns_geo_continent_append_alpha2:
+        return f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})'
+    return player.iplookup.ipapi.continent
+
+
+def format_player_country(player: Player) -> str:
+    """Format player country, preferring GeoLite2 over IPAPI when valid."""
+    if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
+        country_name = player.iplookup.geolite2.country
+        country_code = player.iplookup.geolite2.country_code
+    else:
+        country_name = player.iplookup.ipapi.country
+        country_code = player.iplookup.ipapi.country_code
+
+    if Settings.gui_columns_geo_country_append_alpha2:
+        return f'{country_name} ({country_code})'
+    return country_name
+
+
+def format_player_gui_datetime(player_datetime: datetime) -> str:
+    """Format player datetime according to GUI datetime column settings."""
     formatted_elapsed_time = None
 
     if Settings.gui_columns_datetime_show_elapsed_time:
@@ -90,20 +112,27 @@ def _format_player_gui_datetime(player_datetime: datetime) -> str:
     return formatted_datetime
 
 
-def _format_player_time_zone(time_zone_value: object) -> str:
+def format_player_time_zone(time_zone_value: object) -> str:
     """Format the Time Zone cell according to the configured display mode."""
     tz_text = str(time_zone_value)
-    mode = Settings.gui_columns_timezone_display
-    if mode == 'Timezone' or tz_text in {'', '...'}:
+    timezone_display_mode = Settings.gui_columns_timezone_display
+    if timezone_display_mode == 'Timezone' or tz_text in {'', '...'}:
         return tz_text
     try:
         tz = ZoneInfo(tz_text)
-    except ZoneInfoNotFoundError, ValueError:
+    except (ZoneInfoNotFoundError, ValueError):
         return tz_text
     local_time = datetime.now(tz=tz).strftime('%H:%M')
-    if mode == 'Local Time':
+    if timezone_display_mode == 'Local Time':
         return local_time
     return f'{tz_text} · {local_time}'
+
+
+def format_player_boolean(value: object, *, is_initialized: bool) -> str:
+    """Format an initialized boolean lookup field as 'Yes', 'No', or '...'."""
+    if not is_initialized:
+        return '...'
+    return 'Yes' if value else 'No'
 
 
 def _get_rate_gradient_color(default_color: QColor, rate: int, threshold: int, *, is_first_calculation: bool = False) -> QColor:
@@ -111,8 +140,8 @@ def _get_rate_gradient_color(default_color: QColor, rate: int, threshold: int, *
     if is_first_calculation:
         return default_color
 
-    val = min(max(rate, 0), threshold) * 0xFF // threshold
-    return QColor(0xFF - val, val, 0)
+    scaled_rate_value = min(max(rate, 0), threshold) * 0xFF // threshold
+    return QColor(0xFF - scaled_rate_value, scaled_rate_value, 0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,8 +179,8 @@ def build_session_table_snapshot(
 
         connected_row_texts: list[str] = []
         connected_row_texts.append(format_player_usernames(player))
-        connected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
-        connected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
+        connected_row_texts.append(format_player_gui_datetime(player.datetime.first_seen))
+        connected_row_texts.append(format_player_gui_datetime(player.datetime.last_rejoin))
         if 'T. Session Time' in context.connected_shown_columns:
             connected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
         if 'Session Time' in context.connected_shown_columns:
@@ -243,20 +272,9 @@ def build_session_table_snapshot(
         if 'First Port' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.ports.first}')
         if 'Continent' in context.connected_shown_columns:
-            if Settings.gui_columns_geo_continent_append_alpha2:
-                connected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
-            else:
-                connected_row_texts.append(f'{player.iplookup.ipapi.continent}')
+            connected_row_texts.append(format_player_continent(player))
         if 'Country' in context.connected_shown_columns:
-            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
-                if Settings.gui_columns_geo_country_append_alpha2:
-                    connected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
-                else:
-                    connected_row_texts.append(player.iplookup.geolite2.country)
-            elif Settings.gui_columns_geo_country_append_alpha2:
-                connected_row_texts.append(f'{player.iplookup.ipapi.country} ({player.iplookup.ipapi.country_code})')
-            else:
-                connected_row_texts.append(player.iplookup.ipapi.country)
+            connected_row_texts.append(format_player_country(player))
         if 'Region' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in context.connected_shown_columns:
@@ -272,7 +290,7 @@ def build_session_table_snapshot(
         if 'Lon' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in context.connected_shown_columns:
-            connected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
+            connected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone))
         if 'Offset' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in context.connected_shown_columns:
@@ -288,13 +306,13 @@ def build_session_table_snapshot(
         if 'ASN' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
         if 'Mobile' in context.connected_shown_columns:
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'VPN' in context.connected_shown_columns:
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'Hosting' in context.connected_shown_columns:
-            connected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'Pinging' in context.connected_shown_columns:
-            connected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
+            connected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized))
 
         session_connected_table__processed_data.append(connected_row_texts)
         session_connected_table__compiled_colors.append(row_colors)
@@ -312,9 +330,9 @@ def build_session_table_snapshot(
 
         disconnected_row_texts: list[str] = []
         disconnected_row_texts.append(format_player_usernames(player))
-        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.first_seen))
-        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_rejoin))
-        disconnected_row_texts.append(_format_player_gui_datetime(player.datetime.last_seen))
+        disconnected_row_texts.append(format_player_gui_datetime(player.datetime.first_seen))
+        disconnected_row_texts.append(format_player_gui_datetime(player.datetime.last_rejoin))
+        disconnected_row_texts.append(format_player_gui_datetime(player.datetime.last_seen))
         if 'T. Session Time' in context.disconnected_shown_columns:
             disconnected_row_texts.append(format_elapsed_time(player.datetime.get_total_session_time()))
         if 'Session Time' in context.disconnected_shown_columns:
@@ -366,20 +384,9 @@ def build_session_table_snapshot(
         if 'First Port' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.ports.first}')
         if 'Continent' in context.disconnected_shown_columns:
-            if Settings.gui_columns_geo_continent_append_alpha2:
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})')
-            else:
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.continent}')
+            disconnected_row_texts.append(format_player_continent(player))
         if 'Country' in context.disconnected_shown_columns:
-            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
-                if Settings.gui_columns_geo_country_append_alpha2:
-                    disconnected_row_texts.append(f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})')
-                else:
-                    disconnected_row_texts.append(player.iplookup.geolite2.country)
-            elif Settings.gui_columns_geo_country_append_alpha2:
-                disconnected_row_texts.append(f'{player.iplookup.ipapi.country} ({player.iplookup.ipapi.country_code})')
-            else:
-                disconnected_row_texts.append(player.iplookup.ipapi.country)
+            disconnected_row_texts.append(format_player_country(player))
         if 'Region' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.region}')
         if 'R. Code' in context.disconnected_shown_columns:
@@ -395,7 +402,7 @@ def build_session_table_snapshot(
         if 'Lon' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in context.disconnected_shown_columns:
-            disconnected_row_texts.append(_format_player_time_zone(player.iplookup.ipapi.time_zone))
+            disconnected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone))
         if 'Offset' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in context.disconnected_shown_columns:
@@ -411,13 +418,13 @@ def build_session_table_snapshot(
         if 'ASN' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
         if 'Mobile' in context.disconnected_shown_columns:
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No')
+            disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'VPN' in context.disconnected_shown_columns:
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No')
+            disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'Hosting' in context.disconnected_shown_columns:
-            disconnected_row_texts.append('...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No')
+            disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized))
         if 'Pinging' in context.disconnected_shown_columns:
-            disconnected_row_texts.append('...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No')
+            disconnected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized))
 
         session_disconnected_table__processed_data.append(disconnected_row_texts)
         session_disconnected_table__compiled_colors.append(row_colors)

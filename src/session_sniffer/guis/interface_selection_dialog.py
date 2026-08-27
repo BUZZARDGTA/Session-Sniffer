@@ -271,6 +271,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
         self.table.setWordWrap(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
@@ -336,8 +338,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Rich-text overlay shown only during a refresh; lets us style the
         # percentage line and the IP/count line independently inside the button.
-        refresh_arp_overlay = refresh_arp_button.overlay_label
-        self._refresh_arp_overlay = refresh_arp_overlay
+        self._refresh_arp_overlay = refresh_arp_button.overlay_label
 
         options_layout.addWidget(refresh_arp_button)
 
@@ -502,7 +503,6 @@ class InterfaceSelectionDialog(QDialog):
 
     def _refresh_arp_progress_tick(self) -> None:
         """GUI-thread tick: render current ARP-refresh progress on the button."""
-        button = self._controls.refresh_arp_button
         completed, total = self._arp_refresh_progress
         hide_neighbours = self._controls.hide_neighbours_checkbox.isChecked()
 
@@ -520,13 +520,11 @@ class InterfaceSelectionDialog(QDialog):
         if total <= 0:
             # No progress yet: indeterminate ping-pong sweep until first ping completes.
             half = sweep_period // 2
-            phase = self._arp_refresh_sweep_phase
-            fraction = phase / (half - 1) if phase < half else (sweep_period - 1 - phase) / (half - 1)
+            fraction = self._arp_refresh_sweep_phase / (half - 1) if self._arp_refresh_sweep_phase < half else (sweep_period - 1 - self._arp_refresh_sweep_phase) / (half - 1)
             main_text = f'Pinging{dots}'
             sub_text = 'Resolving subnets…'
         else:
             fraction = completed / total
-            last_ip = self._arp_refresh_last_ip
             pct = f'{int(fraction * 100):>3}'.replace(' ', '\u00a0')
             main_text = f'Pinging\u00a0{pct}%\u00a0{dots}'
             # Pad IP to 15 chars (max IPv4 length) and counters to total's width
@@ -535,16 +533,16 @@ class InterfaceSelectionDialog(QDialog):
             # regular whitespace.
             total_width = len(f'{total:,}')
             counters = f'{completed:,}'.rjust(total_width).replace(' ', '\u00a0')
-            ip_text = (last_ip or '').ljust(15).replace(' ', '\u00a0')
+            ip_text = (self._arp_refresh_last_ip or '').ljust(15).replace(' ', '\u00a0')
             sub_text = f'{ip_text}\u00a0\u00a0\u00a0({counters} / {total:,})'
 
-        button.setText('')
+        self._controls.refresh_arp_button.setText('')
         main_style = f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
         sub_style = f'color:#ffd166; font-family:Consolas,monospace; font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
         self._refresh_arp_overlay.setText(
             f'<div style="{main_style}">{main_text}</div><div style="{sub_style}">{sub_text}</div>',
         )
-        button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction, dimmed=hide_neighbours))
+        self._controls.refresh_arp_button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction, dimmed=hide_neighbours))
 
     def _on_refresh_arp_clicked(self) -> None:
         """Ping the local subnet via ICMP to repopulate the ARP neighbour cache.
@@ -557,10 +555,9 @@ class InterfaceSelectionDialog(QDialog):
 
         self._arp_refresh_in_progress = True
         self._arp_refresh_cancelled = False
-        button = self._controls.refresh_arp_button
-        self._arp_refresh_original_text = button.text()
-        button.setEnabled(False)
-        button.setIcon(QIcon())
+        self._arp_refresh_original_text = self._controls.refresh_arp_button.text()
+        self._controls.refresh_arp_button.setEnabled(False)
+        self._controls.refresh_arp_button.setIcon(QIcon())
         self._refresh_arp_overlay.show()
 
         # Reset progress state and start the GUI-side animation timer.
@@ -575,8 +572,6 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_progress_timer.start()
 
         interfaces_snapshot = list(self._data.all_interfaces)
-        progress_signal = self._arp_refresh_progress_signal
-        done_signal = self._arp_refresh_done_signal
 
         class ARPRefreshCancelledError(Exception):
             """Internal exception raised to cancel the ARP refresh loop."""
@@ -586,7 +581,7 @@ class InterfaceSelectionDialog(QDialog):
             if self._arp_refresh_cancelled:
                 raise ARPRefreshCancelledError
             try:
-                progress_signal.emit(completed, total, ip)
+                self._arp_refresh_progress_signal.emit(completed, total, ip)
             except RuntimeError as e:
                 if 'Signal source has been deleted' in str(e):
                     raise ARPRefreshCancelledError from e
@@ -599,7 +594,7 @@ class InterfaceSelectionDialog(QDialog):
                 logger.debug('ARP refresh cancelled because dialog was closed/deleted.')
             finally:
                 try:
-                    done_signal.emit()
+                    self._arp_refresh_done_signal.emit()
                 except RuntimeError as e:
                     if 'Signal source has been deleted' in str(e):
                         logger.debug('Could not emit done signal: dialog was closed/deleted.')
@@ -619,11 +614,10 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_in_progress = False
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
-        button = self._controls.refresh_arp_button
         self._refresh_arp_overlay.hide()
         self._refresh_arp_overlay.clear()
-        button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
-        button.setIcon(self._refresh_arp_icon)
+        self._controls.refresh_arp_button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
+        self._controls.refresh_arp_button.setIcon(self._refresh_arp_icon)
         self.enforce_spoofing_constraints()
         self._live_refresh_interfaces()
 
@@ -736,8 +730,6 @@ class InterfaceSelectionDialog(QDialog):
             # Get display values
             mac_address = interface.identity.mac_address or 'N/A'
             vendor_name = interface.identity.vendor_name or 'N/A'
-            packets_sent = interface.traffic.packets_sent
-            packets_recv = interface.traffic.packets_recv
 
             # For neighbour entries, get the specific neighbour data
             if is_neighbour:
@@ -748,8 +740,8 @@ class InterfaceSelectionDialog(QDialog):
                 packets_sent_str = 'N/A'
                 packets_recv_str = 'N/A'
             else:
-                packets_sent_str = f'{packets_sent:,}'
-                packets_recv_str = f'{packets_recv:,}'
+                packets_sent_str = f'{interface.traffic.packets_sent:,}'
+                packets_recv_str = f'{interface.traffic.packets_recv:,}'
 
             # Name column
             item = QTableWidgetItem(interface.identity.name)

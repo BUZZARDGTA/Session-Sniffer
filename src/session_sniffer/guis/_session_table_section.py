@@ -616,8 +616,7 @@ class SessionTableSection(QWidget):
         self._update_header_label()
 
     def _finalize_rows_edit(self) -> None:
-        val = self._rows_per_page_spinbox.value()
-        self._handle_rows_per_page_changed(val)
+        self._handle_rows_per_page_changed(self._rows_per_page_spinbox.value())
         self._rows_per_page_spinbox.clearFocus()
 
     def _push_pagination_state(self) -> None:

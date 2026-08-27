@@ -117,16 +117,15 @@ class GTASuspendManager:
             # -------------------------
             # first suspend
             # -------------------------
-            # Reuse the PID cached by the GTA5 process monitor instead of rescanning
-            # every process; path and PID come from the same validated snapshot.
-            if CaptureState.gta5_pid is None:
+            target_gta5_process_id = CaptureState.gta5_pid
+            if target_gta5_process_id is None:
                 logger.debug('GTA5 process not running; suspend request ignored for reason: %s', reason_key)
                 return
 
-            if not cls._try_suspend_pid(CaptureState.gta5_pid, f'first reason: {reason_key}'):
+            if not cls._try_suspend_pid(target_gta5_process_id, f'first reason: {reason_key}'):
                 return
 
-            cls._state = _ProcessState(pid=CaptureState.gta5_pid, suspended=True)
+            cls._state = _ProcessState(pid=target_gta5_process_id, suspended=True)
             cls._state.reasons[reason_key] = reason
 
             cls._publish_snapshot_locked()
@@ -193,11 +192,9 @@ class GTASuspendManager:
             cls._publish_snapshot_locked()
             cls._condition.notify_all()
 
-        thread = cls._monitor_thread
-        if thread:
-            thread.join(timeout=2.0)
-
-        cls._monitor_thread = None
+        if cls._monitor_thread is not None:
+            cls._monitor_thread.join(timeout=2.0)
+            cls._monitor_thread = None
 
     @classmethod
     def is_suspended(cls) -> bool:
@@ -246,9 +243,10 @@ class GTASuspendManager:
         with cls._condition:
             if cls._state is not None:
                 return False
-            if CaptureState.gta5_pid is None:
+            target_gta5_process_id = CaptureState.gta5_pid
+            if target_gta5_process_id is None:
                 return False
-            return cls._try_resume_pid(CaptureState.gta5_pid)
+            return cls._try_resume_pid(target_gta5_process_id)
 
     # ------------------------------------------------------------
     # Monitor lifecycle
@@ -257,9 +255,7 @@ class GTASuspendManager:
     @classmethod
     def _ensure_monitor_running_locked(cls) -> None:
         """Start monitor thread if not alive."""
-        thread = cls._monitor_thread
-
-        if thread is None or not thread.is_alive():
+        if cls._monitor_thread is None or not cls._monitor_thread.is_alive():
             cls._monitor_thread = Thread(
                 target=cls._monitor,
                 name='SuspendMonitor-GTA5',
@@ -275,30 +271,28 @@ class GTASuspendManager:
                     if cls._shutdown_event.is_set() or cls._state is None:
                         return
 
-                    state = cls._state
-
                     # Stale-PID check (process exited -> None, or restarted -> new PID).
                     # Reads the PID cached by the GTA5 process monitor to avoid a full
                     # `process_iter` scan on every monitor iteration while holding the lock.
-                    pid = CaptureState.gta5_pid
-                    if pid != state.pid:
-                        logger.warning('GTA5 PID changed (%s -> %s); clearing suspend state', state.pid, pid)
+                    current_gta5_process_id = CaptureState.gta5_pid
+                    if current_gta5_process_id != cls._state.pid:
+                        logger.warning('GTA5 PID changed (%s -> %s); clearing suspend state', cls._state.pid, current_gta5_process_id)
                         cls._state = None
                         cls._publish_snapshot_locked()
                         return
 
                     # all reasons satisfied
                     now = time.monotonic()
-                    if all(cls._reason_ok(reason, now) for reason in state.reasons.values()):
-                        pid_to_resume = state.pid
+                    if all(cls._reason_ok(reason, now) for reason in cls._state.reasons.values()):
+                        process_id_to_resume = cls._state.pid
                         cls._state = None
                         cls._publish_snapshot_locked()
                     else:
-                        timeout = cls._next_timeout(state, now)
+                        timeout = cls._next_timeout(cls._state, now)
                         cls._condition.wait(timeout=timeout)
                         continue
 
-                cls._try_resume_pid(pid_to_resume)
+                cls._try_resume_pid(process_id_to_resume)
                 return
 
         finally:
@@ -316,14 +310,13 @@ class GTASuspendManager:
         Must be called while holding `_condition`. Rebinds `_snapshot` to a fresh
         immutable object so lock-free GUI readers always observe a consistent view.
         """
-        state = cls._state
-        if state is None:
+        if cls._state is None:
             cls._snapshot = GTASuspendSnapshot()
             return
         cls._snapshot = GTASuspendSnapshot(
-            is_suspended=state.suspended,
-            manual_active='manual:toolbar' in state.reasons,
-            solo_active='solo:toolbar' in state.reasons,
+            is_suspended=cls._state.suspended,
+            manual_active='manual:toolbar' in cls._state.reasons,
+            solo_active='solo:toolbar' in cls._state.reasons,
         )
 
     @staticmethod

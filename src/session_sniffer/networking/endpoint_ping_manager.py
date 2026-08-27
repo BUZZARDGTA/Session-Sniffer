@@ -97,7 +97,7 @@ class PingResult(NamedTuple):
     def is_invalid(self, ping_response: str) -> bool:
         """Return whether the ping data is invalid (missing critical information)."""
         return ping_response.strip() == 'null' or any(
-            getattr(self, attr) is None for attr in ('packets_transmitted', 'packets_received', 'packet_duplicates', 'packet_loss', 'packet_errors')
+            getattr(self, attribute_name) is None for attribute_name in ('packets_transmitted', 'packets_received', 'packet_duplicates', 'packet_loss', 'packet_errors')
         )
 
 

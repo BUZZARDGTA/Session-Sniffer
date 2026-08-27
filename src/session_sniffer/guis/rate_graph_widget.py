@@ -122,13 +122,13 @@ class RateGraphWidget(QWidget):
         painter.setPen(QPen(QColor(50, 50, 50), 1, Qt.PenStyle.SolidLine))
         num_x_lines = 6
         for i in range(num_x_lines + 1):
-            x = margin_left + i * graph_width / num_x_lines
-            painter.drawLine(int(x), margin_top, int(x), margin_top + graph_height)
+            x_position = margin_left + i * graph_width / num_x_lines
+            painter.drawLine(int(x_position), margin_top, int(x_position), margin_top + graph_height)
 
         num_y_lines = 4
         for i in range(num_y_lines + 1):
-            y = margin_top + i * graph_height / num_y_lines
-            painter.drawLine(margin_left, int(y), margin_left + graph_width, int(y))
+            y_position = margin_top + i * graph_height / num_y_lines
+            painter.drawLine(margin_left, int(y_position), margin_left + graph_width, int(y_position))
 
         # Y-axis labels
         painter.setPen(QPen(self.line_color, 1))
@@ -136,18 +136,18 @@ class RateGraphWidget(QWidget):
         font.setPointSize(8)
         painter.setFont(font)
         for i in range(num_y_lines + 1):
-            y_val = self._y_min + (self._y_max - self._y_min) * (num_y_lines - i) / num_y_lines
-            y = margin_top + i * graph_height / num_y_lines
-            text = f'{int(y_val)}' if y_val >= INTEGER_FORMAT_THRESHOLD else f'{y_val:.1f}'
-            painter.drawText(0, int(y) - 10, margin_left - 5, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
+            y_value = self._y_min + (self._y_max - self._y_min) * (num_y_lines - i) / num_y_lines
+            y_position = margin_top + i * graph_height / num_y_lines
+            text = f'{int(y_value)}' if y_value >= INTEGER_FORMAT_THRESHOLD else f'{y_value:.1f}'
+            painter.drawText(0, int(y_position) - 10, margin_left - 5, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
 
         # X-axis labels
         painter.setPen(QPen(QColor(200, 200, 200), 1))
         for i in range(num_x_lines + 1):
-            x_val = self.visible_window * (num_x_lines - i) / num_x_lines
-            x = margin_left + i * graph_width / num_x_lines
-            text = f'{int(x_val)}'
-            painter.drawText(int(x) - 20, margin_top + graph_height + 5, 40, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, text)
+            x_value = self.visible_window * (num_x_lines - i) / num_x_lines
+            x_position = margin_left + i * graph_width / num_x_lines
+            text = f'{int(x_value)}'
+            painter.drawText(int(x_position) - 20, margin_top + graph_height + 5, 40, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, text)
 
         # Axis titles
         painter.save()
@@ -164,11 +164,11 @@ class RateGraphWidget(QWidget):
         if not self._data:
             return
 
-        def value_to_y(val: float) -> float:
+        def value_to_y(value: float) -> float:
             span = self._y_max - self._y_min
             if not span:
                 span = 1
-            normalized = (val - self._y_min) / span
+            normalized = (value - self._y_min) / span
             return margin_top + graph_height * (1 - normalized)
 
         path = QPainterPath()
@@ -176,16 +176,16 @@ class RateGraphWidget(QWidget):
         dx = graph_width / (self.visible_window - 1) if self.visible_window > 1 else 0
 
         line_path = QPainterPath()
-        for i, val in enumerate(self._data):
-            x = margin_left + graph_width - (num_points - 1 - i) * dx
-            y = value_to_y(val)
+        for i, rate_value in enumerate(self._data):
+            x_position = margin_left + graph_width - (num_points - 1 - i) * dx
+            y_position = value_to_y(rate_value)
             if i:
-                line_path.lineTo(x, y)
-                path.lineTo(x, y)
+                line_path.lineTo(x_position, y_position)
+                path.lineTo(x_position, y_position)
             else:
-                line_path.moveTo(x, y)
-                path.moveTo(x, margin_top + graph_height)
-                path.lineTo(x, y)
+                line_path.moveTo(x_position, y_position)
+                path.moveTo(x_position, margin_top + graph_height)
+                path.lineTo(x_position, y_position)
 
         if num_points > 0:
             last_x = margin_left + graph_width
@@ -205,16 +205,16 @@ class RateGraphWidget(QWidget):
 
         # Average line
         if self._average > 0:
-            y = value_to_y(self._average)
-            if margin_top <= y <= margin_top + graph_height:
+            y_position = value_to_y(self._average)
+            if margin_top <= y_position <= margin_top + graph_height:
                 pen = QPen(self.avg_color, 1.5, Qt.PenStyle.DotLine)
                 painter.setPen(pen)
-                painter.drawLine(margin_left, int(y), margin_left + graph_width, int(y))
+                painter.drawLine(margin_left, int(y_position), margin_left + graph_width, int(y_position))
 
         # Threshold line
         if self._threshold is not None and self.threshold_color:
-            y = value_to_y(self._threshold)
-            if margin_top <= y <= margin_top + graph_height:
+            y_position = value_to_y(self._threshold)
+            if margin_top <= y_position <= margin_top + graph_height:
                 pen = QPen(self.threshold_color, 1.5, Qt.PenStyle.DashLine)
                 painter.setPen(pen)
-                painter.drawLine(margin_left, int(y), margin_left + graph_width, int(y))
+                painter.drawLine(margin_left, int(y_position), margin_left + graph_width, int(y_position))

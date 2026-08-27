@@ -168,14 +168,14 @@ class _CrawlerWatchWorker(CrashingQThread):
             self.request_failed.emit(failure_message)
             return
         if is_terminal_failure_instruction_status(last_status):
-            msg = f'Instruction ended: {last_result}' if last_result else f'Instruction ended with status: {last_status}'
+            error_message = f'Instruction ended: {last_result}' if last_result else f'Instruction ended with status: {last_status}'
             if self._rid is None and last_result == 'Unable to join target':
-                msg += (
+                error_message += (
                     '<br><br>💡 Tip: Since you used "Crawl Current Session", ensure you are actively '
                     'playing on the exact Rockstar account that is linked to your Looky account, and '
                     'that your session is joinable.'
                 )
-            self.instruction_failed.emit(msg)
+            self.instruction_failed.emit(error_message)
             return
         self.request_completed.emit()
 
@@ -574,7 +574,7 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
     if rid is None:
         return
 
-    display_name = next((name for name, r in entries if r == rid), player.ip)
+    display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
 
     def _on_crawl_completed() -> None:
         with player.looky_system.lock:

@@ -579,32 +579,30 @@ def main() -> None:
             if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECONDS:
                 continue
 
-            current_interface = capture_holder.config.interface
             if not drought_active:
                 drought_active = True
-            if current_interface.is_neighbour:
+            if capture_holder.config.interface.is_neighbour:
                 last_count_change = time.monotonic()  # reset so we don't spin
                 drought_active = False
                 continue  # ARP-spoof mode: filter IP is the neighbour's, not the adapter's
 
-            adapter_guid = current_interface.interface.identity.adapter_guid
-            if adapter_guid is None:
+            if capture_holder.config.interface.interface.identity.adapter_guid is None:
                 last_count_change = time.monotonic()
                 drought_active = False
                 continue
 
             adapter_has_ip = False
             for adapter in get_adapters_info():
-                if adapter.identity.adapter_guid != adapter_guid:
+                if adapter.identity.adapter_guid != capture_holder.config.interface.interface.identity.adapter_guid:
                     continue
                 if not adapter.ipv4_addresses:
                     break  # Adapter found but no IP yet (VPN reconnecting)
                 adapter_has_ip = True
                 new_ip = adapter.ipv4_addresses[0]
-                if new_ip != current_interface.ip_address:
+                if new_ip != capture_holder.config.interface.ip_address:
                     logger.warning(
                         'Capture interface IP changed from %s to %s — restarting capture.',
-                        current_interface.ip_address,
+                        capture_holder.config.interface.ip_address,
                         new_ip,
                     )
                     _ip_changed_queue.put(new_ip)

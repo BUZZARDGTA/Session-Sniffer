@@ -243,17 +243,16 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 output = QBrush(bg_color)
         elif role == Qt.ItemDataRole.ToolTipRole:
             # Return the tooltip text for the cell
-            view = self.view
-            horizontal_header = view.horizontalHeader()
+            horizontal_header = self.view.horizontalHeader()
             resize_mode = horizontal_header.sectionResizeMode(index.column())
 
             # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
             if resize_mode == QHeaderView.ResizeMode.Stretch:
                 cell_text = self._data[row_index][column_index]
 
-                font_metrics = view.fontMetrics()
+                font_metrics = self.view.fontMetrics()
                 text_width = font_metrics.horizontalAdvance(cell_text)
-                column_width = view.columnWidth(index.column())
+                column_width = self.view.columnWidth(index.column())
 
                 if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
                     output = cell_text
@@ -575,8 +574,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             row_index: The index of the row to delete.
         """
         if 0 <= row_index < self.rowCount():
-            view = self.view
-            selection_model = view.selectionModel()
+            selection_model = self.view.selectionModel()
 
             # Adjust selection for the deleted row
             for model_index in selection_model.selection().indexes():

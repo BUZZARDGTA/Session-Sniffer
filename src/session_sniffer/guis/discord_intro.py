@@ -159,9 +159,9 @@ class DiscordIntro(QDialog):
             raise PrimaryScreenNotFoundError
 
         screen_geometry = screen.geometry()
-        x = (screen_geometry.width() - self.width()) // 2
-        y = (screen_geometry.height() - self.height()) // 2
-        self.move(x, y)
+        x_position = (screen_geometry.width() - self.width()) // 2
+        y_position = (screen_geometry.height() - self.height()) // 2
+        self.move(x_position, y_position)
 
     def open_discord(self) -> None:
         """Open the Discord invite URL and disable future popup reminders."""

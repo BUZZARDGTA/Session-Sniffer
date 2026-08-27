@@ -513,9 +513,9 @@ class ComboRuleEditorDialog(QDialog):
             else:
                 line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)
                 if line_edit_widget is not None:
-                    val = line_edit_widget.text().strip()
-                    if val:
-                        conditions[key] = val
+                    trimmed_text = line_edit_widget.text().strip()
+                    if trimmed_text:
+                        conditions[key] = trimmed_text
         return conditions
 
     def _read_event_checkboxes(self, value_stack: QWidget) -> list[str]:

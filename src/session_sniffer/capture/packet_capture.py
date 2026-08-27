@@ -285,8 +285,7 @@ class PacketCapture:
 
     def _capture_and_process(self) -> None:
         """Run one sniffer session until stopped, restarted, or crashed."""
-        device_name = self.config.interface.device_name
-        if not device_name:
+        if not self.config.interface.device_name:
             message = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
             raise CaptureError(message)
 
@@ -312,10 +311,10 @@ class PacketCapture:
             self.config.callback(packet)
 
         try:
-            from scapy.arch.libpcap import L2pcapListenSocket  # ty: ignore[possibly-missing-import]
+            from scapy.arch.libpcap import L2pcapListenSocket  # noqa: PLC0415  # ty: ignore[possibly-missing-import]
 
             listen_socket = L2pcapListenSocket(
-                iface=device_name,
+                iface=self.config.interface.device_name,
                 filter=self.config.capture_filter or None,
             )
         except (ImportError, OSError) as e:
@@ -397,11 +396,10 @@ class PacketCapture:
         The counters reset each time a new pcap handle is opened (i.e. on every capture restart).
         """
         with self._state.control_lock:
-            socket = self._state.pcap_socket
-            if socket is None:
+            if self._state.pcap_socket is None:
                 return None
             stat = pcap_stat()
-            if pcap_stats(socket.pcap_fd.pcap, byref(stat)):
+            if pcap_stats(self._state.pcap_socket.pcap_fd.pcap, byref(stat)):
                 return None
             return int(stat.ps_drop) + int(stat.ps_ifdrop)
 

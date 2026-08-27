@@ -597,11 +597,10 @@ class PlayerIdentifierWidget(QWidget):
     def _tick_baseline(self, players: list[Player]) -> None:
         self._sample_count += 1
         # Build a lookup of only the players we're tracking (avoids full dict rebuild)
-        baseline_ips = self._baseline_ips
         sampled_ips: set[str] = set()
         player_by_ip: dict[str, Player] = {}
         for player in players:
-            if player.ip in baseline_ips:
+            if player.ip in self._baseline_ips:
                 sampled_ips.add(player.ip)
                 player_by_ip[player.ip] = player
                 self._baselines[player.ip].add_sample(
@@ -609,9 +608,9 @@ class PlayerIdentifierWidget(QWidget):
                     player.bandwidth.bps.calculated_rate,
                 )
         # Remove any IPs that disconnected
-        disconnected = baseline_ips - sampled_ips
+        disconnected = self._baseline_ips - sampled_ips
         if disconnected:
-            baseline_ips -= disconnected
+            self._baseline_ips -= disconnected
             for ip in disconnected:
                 self._baselines.pop(ip, None)
 

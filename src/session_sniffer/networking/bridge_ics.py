@@ -115,11 +115,11 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
             return result
 
         try:
-            connections = manager.EnumEveryConnection
+            ics_connections = manager.EnumEveryConnection
         except pythoncom.com_error, AttributeError:
             return result
 
-        for connection in connections:
+        for connection in ics_connections:
             try:
                 config = manager.INetSharingConfigurationForINetConnection(connection)
                 if not config.SharingEnabled:

@@ -74,14 +74,14 @@ def build_detections_menu(
                 menu,
                 f'➖ Remove ISP ({isp})',  # noqa: RUF001
                 tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, isp, add=False),
+                handler=lambda _isp=isp: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, _isp, add=False),
             )
         else:
             add_action(
                 menu,
                 f'➕ Add ISP ({isp})',  # noqa: RUF001
                 tooltip=f'Add ISP "{isp}" to the ISP detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, isp, add=True),
+                handler=lambda _isp=isp: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, _isp, add=True),
             )
 
     # --- ASN ---

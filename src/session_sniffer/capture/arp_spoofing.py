@@ -177,17 +177,16 @@ def arp_spoofing_task(
             except subprocess.TimeoutExpired:
                 pass  # Process continues to run
             else:
-                exit_code = proc.returncode
                 stdout_data, stderr_data = proc.communicate()
                 error_output = (stderr_data or stdout_data or '').strip() or None
-                proc = None
                 report_failure(
                     'startup failure',
-                    exit_code=exit_code,
+                    exit_code=proc.returncode,
                     error_output=error_output,
                     msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
                     spawn_msgbox_thread=False,
                 )
+                proc = None
                 on_failed()
                 return
 
@@ -198,22 +197,22 @@ def arp_spoofing_task(
             except subprocess.TimeoutExpired:
                 continue  # Process still healthy; keep monitoring
 
-            exit_code = proc.returncode
             stdout_data, stderr_data = proc.communicate()
             error_output = (stderr_data or stdout_data or '').strip() or None
-            proc = None
 
-            if exit_code:
+            if proc.returncode:
                 report_failure(
                     'unexpected process exit',
-                    exit_code=exit_code,
+                    exit_code=proc.returncode,
                     error_output=error_output,
                     msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
                     spawn_msgbox_thread=False,
                 )
+                proc = None
                 on_failed()
                 return
 
+            proc = None
             logger.info('Process died unexpectedly, respawning...')
             break
 

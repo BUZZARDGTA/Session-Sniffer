@@ -173,9 +173,9 @@ def is_file_need_newline_ending(file: Path) -> bool:
     if not file.exists() or not file.stat().st_size:
         return False
 
-    with file.open('rb') as f:
-        f.seek(-1, os.SEEK_END)
-        return f.read(1) != b'\n'
+    with file.open('rb') as opened_file:
+        opened_file.seek(-1, os.SEEK_END)
+        return opened_file.read(1) != b'\n'
 
 
 def write_lines_to_file(file: Path, mode: Literal['w', 'x', 'a'], lines: list[str]) -> None:
@@ -204,8 +204,8 @@ def write_lines_to_file(file: Path, mode: Literal['w', 'x', 'a'], lines: list[st
         content = lines
 
     # Write content to the file
-    with file.open(mode, encoding='utf-8') as f:
-        f.writelines(content)
+    with file.open(mode, encoding='utf-8') as opened_file:
+        opened_file.writelines(content)
 
 
 def terminate_process_tree(pid: int | None = None) -> None:
@@ -476,11 +476,10 @@ def cleanup_session_logs(
     if delete_empty_files:
         for file_path in files_to_scan:
             if is_session_file_empty(file_path):
-                parent_dir = file_path.parent
                 try:
                     file_path.unlink()
                     files_deleted_count += 1
-                    deleted_parents.add(parent_dir)
+                    deleted_parents.add(file_path.parent)
                 except OSError:
                     pass
 

@@ -26,8 +26,8 @@ INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = 'QFrame#bottomSeparator { background-col
 def interface_header_label_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection dialog title label at the given UI `scale`."""
 
-    def scale(n: int) -> int:
-        return max(1, round(n * ui_scale))
+    def scale(value: int) -> int:
+        return max(1, round(value * ui_scale))
 
     return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {scale(17)}pt; font-weight: 700; padding-top: {scale(6)}px; padding-bottom: {scale(6)}px;}}'
 
@@ -35,8 +35,8 @@ def interface_header_label_stylesheet(ui_scale: float) -> str:
 def interface_table_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection table widget at the given UI `scale`."""
 
-    def scale(n: int) -> int:
-        return max(1, round(n * ui_scale))
+    def scale(value: int) -> int:
+        return max(1, round(value * ui_scale))
 
     return (
         'QTableWidget {'
@@ -80,8 +80,8 @@ def interface_table_stylesheet(ui_scale: float) -> str:
 def interface_checkbox_stylesheet(obj_name: str, ui_scale: float) -> str:
     """Return the QSS for an interface selection dialog checkbox at the given UI `scale`."""
 
-    def scale(n: int) -> int:
-        return max(1, round(n * ui_scale))
+    def scale(value: int) -> int:
+        return max(1, round(value * ui_scale))
 
     return f'QCheckBox#{obj_name} {{ font-size: {scale(13)}pt; }} QCheckBox#{obj_name}::indicator {{ width: {scale(19)}px; height: {scale(19)}px; }}'
 

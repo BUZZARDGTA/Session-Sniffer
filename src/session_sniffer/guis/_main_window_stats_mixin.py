@@ -57,16 +57,14 @@ class StatsMixin(QMainWindow):
 
     def _highlight_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
-        model = self._connected.table_model
-        view = self._connected.table_view
         selection = QItemSelection()
         first_index = None
         for ip in ip_addresses:
-            row = model.get_row_index_by_ip(ip)
+            row = self._connected.table_model.get_row_index_by_ip(ip)
             if row is None:
                 continue
-            top_left = model.index(row, 0)
-            bottom_right = model.index(row, model.columnCount() - 1)
+            top_left = self._connected.table_model.index(row, 0)
+            bottom_right = self._connected.table_model.index(row, self._connected.table_model.columnCount() - 1)
             selection.select(top_left, bottom_right)
             if first_index is None:
                 first_index = top_left
@@ -74,8 +72,8 @@ class StatsMixin(QMainWindow):
             return
         if not self._connected.is_expanded:
             self._connected.expand()
-        view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-        view.scrollTo(first_index)
+        self._connected.table_view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        self._connected.table_view.scrollTo(first_index)
 
     def _highlight_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP, checking connected first then disconnected."""

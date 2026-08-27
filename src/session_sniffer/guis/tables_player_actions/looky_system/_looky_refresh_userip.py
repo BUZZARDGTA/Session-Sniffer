@@ -234,9 +234,9 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         ).setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
 
         # --- Summary card ---
-        total_new = sum(len(g.new_entries) for g in ip_groups)
-        total_existing = sum(len(g.existing_usernames) for g in ip_groups)
-        unique_dbs = {g.db_path for g in ip_groups}
+        total_new = sum(len(group.new_entries) for group in ip_groups)
+        total_existing = sum(len(group.existing_usernames) for group in ip_groups)
+        unique_dbs = {group.db_path for group in ip_groups}
 
         summary_frame = QFrame()
         summary_frame.setStyleSheet(LOOKY_REVIEW_SUMMARY_STYLESHEET)

@@ -7,8 +7,8 @@
 
 def section_bar_qss(accent: str) -> str:
     """Return the QSS for a session table section header bar with the given `accent` color."""
-    r, g, b = int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16)
-    dark = f'#{int(r * 0.6):02x}{int(g * 0.6):02x}{int(b * 0.6):02x}'
+    red, green, blue = int(accent[1:3], 16), int(accent[3:5], 16), int(accent[5:7], 16)
+    dark = f'#{int(red * 0.6):02x}{int(green * 0.6):02x}{int(blue * 0.6):02x}'
     return f"""
     QFrame#sectionBar {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -96,13 +96,19 @@ def section_bar_qss(accent: str) -> str:
     """.strip()
 
 
-def get_expand_button_stylesheet(bg: str, border: str, hover_bg: str, hover_border: str, pressed_bg: str) -> str:
+def get_expand_button_stylesheet(
+    background_color: str,
+    border_color: str,
+    hover_background_color: str,
+    hover_border_color: str,
+    pressed_background_color: str,
+) -> str:
     """Generate a stylesheet for an expand button with the given colors."""
     return f"""
 QPushButton {{
-    background-color: {bg};
+    background-color: {background_color};
     color: #e0e0e0;
-    border: 1px solid {border};
+    border: 1px solid {border_color};
     border-radius: 4px;
     padding: 6px 16px;
     font-size: 9pt;
@@ -111,28 +117,28 @@ QPushButton {{
 }}
 
 QPushButton:hover {{
-    background-color: {hover_bg};
-    border-color: {hover_border};
+    background-color: {hover_background_color};
+    border-color: {hover_border_color};
 }}
 
 QPushButton:pressed {{
-    background-color: {pressed_bg};
+    background-color: {pressed_background_color};
 }}
 """.strip()
 
 
 CONNECTED_EXPAND_BUTTON_STYLESHEET = get_expand_button_stylesheet(
-    bg='#2b663d',
-    border='#1d4d2b',
-    hover_bg='#327546',
-    hover_border='#235932',
-    pressed_bg='#1f4f2e',
+    background_color='#2b663d',
+    border_color='#1d4d2b',
+    hover_background_color='#327546',
+    hover_border_color='#235932',
+    pressed_background_color='#1f4f2e',
 )
 
 DISCONNECTED_EXPAND_BUTTON_STYLESHEET = get_expand_button_stylesheet(
-    bg='#823232',
-    border='#5c2323',
-    hover_bg='#943b3b',
-    hover_border='#732a2a',
-    pressed_bg='#632525',
+    background_color='#823232',
+    border_color='#5c2323',
+    hover_background_color='#943b3b',
+    hover_border_color='#732a2a',
+    pressed_background_color='#632525',
 )

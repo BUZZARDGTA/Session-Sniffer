@@ -302,7 +302,7 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
         ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
 
         # Format MAC if present
-        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{b:02X}' for b in row.bPhysAddr[: row.dwPhysAddrLen])
+        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[: row.dwPhysAddrLen])
 
         yield int(row.dwIndex), ipv4, mac_address
 
@@ -340,7 +340,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         addr = adapter.contents
 
         # Handle multiple MAC addresses (if any)
-        mac_address = None if not addr.PhysicalAddressLength else ':'.join(f'{b:02X}' for b in addr.PhysicalAddress[: addr.PhysicalAddressLength])
+        mac_address = None if not addr.PhysicalAddressLength else ':'.join(f'{byte:02X}' for byte in addr.PhysicalAddress[: addr.PhysicalAddressLength])
         ipv4_list: list[str] = []
 
         # Handle multiple IPv4 addresses

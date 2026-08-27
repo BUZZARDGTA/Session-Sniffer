@@ -333,11 +333,11 @@ def send_test_message(url: str) -> tuple[bool, str]:
 
 def _load_message_ids() -> dict[str, str]:
     """Return persisted {connected, disconnected} message IDs (or empty dict)."""
-    raw = Settings.discord_webhook_message_ids
-    if not isinstance(raw, str) or not raw:
+    discord_webhook_message_ids_raw = Settings.discord_webhook_message_ids
+    if not isinstance(discord_webhook_message_ids_raw, str) or not discord_webhook_message_ids_raw:
         return {}
     try:
-        parsed: object = json.loads(raw)
+        parsed: object = json.loads(discord_webhook_message_ids_raw)
     except json.JSONDecodeError:
         return {}
     if not isinstance(parsed, dict):
@@ -450,15 +450,16 @@ class DiscordWebhookSender:
             if not Settings.discord_webhook_enabled:
                 continue
 
-            if not isinstance(Settings.discord_webhook_url, str) or not is_valid_webhook_url(Settings.discord_webhook_url):
+            current_discord_webhook_url = Settings.discord_webhook_url
+            if not isinstance(current_discord_webhook_url, str) or not is_valid_webhook_url(current_discord_webhook_url):
                 continue
 
-            if self._auto_disabled_url == Settings.discord_webhook_url:
+            if self._auto_disabled_url == current_discord_webhook_url:
                 # Already failed permanently against this URL; wait for user to change it.
                 continue
 
             try:
-                self._dispatch(Settings.discord_webhook_url, payload)
+                self._dispatch(current_discord_webhook_url, payload)
             except (http.client.HTTPException, OSError) as e:
                 logger.warning('Discord webhook network error: %s', e)
                 self.connection_status.clear()

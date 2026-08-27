@@ -135,7 +135,7 @@ class ThirdPartyServers(enum.Enum):
 
 def _build_ip_obj_ranges(networks: Iterable[ipaddress.IPv4Network]) -> list[tuple[IPv4Address, IPv4Address]]:
     collapsed = list(ipaddress.collapse_addresses(networks))
-    ranges = [(net.network_address, net.broadcast_address) for net in collapsed]
+    ranges = [(network.network_address, network.broadcast_address) for network in collapsed]
     ranges.sort()
     return ranges
 
@@ -155,8 +155,8 @@ def is_ip_in_ranges(ip_obj: IPv4Address, ranges: list[tuple[IPv4Address, IPv4Add
     """Check if an IPv4Address falls within any of the given ranges."""
     if not ranges:
         return False
-    idx = bisect.bisect_right(ranges, (ip_obj, MAX_IPV4))
-    return idx > 0 and ip_obj <= ranges[idx - 1][1]
+    index = bisect.bisect_right(ranges, (ip_obj, MAX_IPV4))
+    return index > 0 and ip_obj <= ranges[index - 1][1]
 
 
 def is_third_party_server_ip(ip: str) -> bool:

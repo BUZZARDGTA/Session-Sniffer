@@ -355,8 +355,8 @@ def handle_detection_notification(
                     now = datetime.now(tz=LOCAL_TZ)
                     DETECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                     write_csv_header = not DETECTION_LOGGING_PATH.exists() or not DETECTION_LOGGING_PATH.stat().st_size
-                    with DETECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
-                        writer = csv.writer(f)
+                    with DETECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+                        writer = csv.writer(file)
                         if write_csv_header:
                             writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
                         writer.writerow(
@@ -413,8 +413,8 @@ def handle_detection_notification(
                         now = datetime.now(tz=LOCAL_TZ)
                         PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                         write_header = not PROTECTION_LOGGING_PATH.exists() or not PROTECTION_LOGGING_PATH.stat().st_size
-                        with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
-                            writer = csv.writer(f)
+                        with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+                            writer = csv.writer(file)
                             if write_header:
                                 writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
                             writer.writerow(
@@ -470,11 +470,10 @@ def process_userip_task(
     # We want to run this as fast as possible so it's on top of the function.
     # Protection actions are skipped when protection is not supported.
     if connection_type == 'connected' and userip.settings.protection.enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
-        suspend_mode = userip.settings.protection.suspend_process_mode
         GTASuspendManager.request_suspend(
             reason_key=f'userip:{player.ip}',
             left_event=player.left_event,
-            duration=suspend_mode,
+            duration=userip.settings.protection.suspend_process_mode,
         )
 
     if userip.settings.voice_notifications:
@@ -490,8 +489,8 @@ def process_userip_task(
             with _userip_logging_file_write_lock:
                 USERIP_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                 write_csv_header = not USERIP_LOGGING_PATH.exists() or not USERIP_LOGGING_PATH.stat().st_size
-                with USERIP_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
+                with USERIP_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
                     if write_csv_header:
                         writer.writerow(['Database', 'Username', 'IP', 'Date', 'Time', 'Country'])
                     date_part, time_part = player.userip_detection.date_time.split('_', maxsplit=1)
@@ -587,8 +586,8 @@ def monitor_gta5_relay_task(player: Player) -> None:
             now = datetime.now(tz=LOCAL_TZ)
             PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
             write_csv_header = not PROTECTION_LOGGING_PATH.exists() or not PROTECTION_LOGGING_PATH.stat().st_size
-            with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
+            with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
                 if write_csv_header:
                     writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
                 writer.writerow(
@@ -660,8 +659,8 @@ def check_global_detections(player: Player) -> None:
                 now = datetime.now(tz=LOCAL_TZ)
                 PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                 write_csv_header = not PROTECTION_LOGGING_PATH.exists() or not PROTECTION_LOGGING_PATH.stat().st_size
-                with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
+                with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
                     if write_csv_header:
                         writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
                     writer.writerow(
