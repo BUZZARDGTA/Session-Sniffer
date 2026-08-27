@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QLinearGradient, QPainter, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -33,13 +33,15 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import FLEXIBLE_STRETCH_COLUMNS, TITLE
 from session_sniffer.settings.settings import Settings
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtCore import QRect
     from PySide6.QtGui import QFont, QMouseEvent
 
@@ -64,6 +66,9 @@ _TARGET_HD_WIDTH = 860
 _TARGET_HD_HEIGHT = 620
 
 _FALLBACK_MARGIN = 80
+
+MINIMUM_VIEWPORT_WIDTH_THRESHOLD: int = 100
+HEADER_SORT_PADDING: int = 40
 
 
 # ---------------------------------------------------------------------------
@@ -231,9 +236,9 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
     elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
         window.resize(max(_TARGET_HD_WIDTH, min_size.width()), max(_TARGET_HD_HEIGHT, min_size.height()))
     else:
-        w = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
-        h = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
-        window.resize(max(w, min_size.width()), max(h, min_size.height()))
+        fallback_width = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
+        fallback_height = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
+        window.resize(max(fallback_width, min_size.width()), max(fallback_height, min_size.height()))
 
 
 def compute_ui_scale(screen_size: tuple[int, int]) -> float:
@@ -276,9 +281,9 @@ class NumericTableWidgetItem(QTableWidgetItem):
 
     def numeric_value(self) -> float | None:
         """Return the item's value as a float for sorting, or `None` if it cannot be parsed as a number."""
-        val = self.data(Qt.ItemDataRole.UserRole)
-        if isinstance(val, (int, float)):
-            return float(val)
+        stored_value = self.data(Qt.ItemDataRole.UserRole)
+        if isinstance(stored_value, (int, float)):
+            return float(stored_value)
         try:
             return float(self.text())
         except ValueError:
@@ -287,17 +292,17 @@ class NumericTableWidgetItem(QTableWidgetItem):
     @override
     def __lt__(self, other: QTableWidgetItem) -> bool:
         """Compare numerically using UserRole data if available, falling back to text then string comparison."""
-        self_val = self.numeric_value()
+        self_numeric_value = self.numeric_value()
         other_raw = other.data(Qt.ItemDataRole.UserRole)
         if isinstance(other_raw, (int, float)):
-            other_val: float | None = float(other_raw)
+            other_numeric_value: float | None = float(other_raw)
         else:
             try:
-                other_val = float(other.text())
+                other_numeric_value = float(other.text())
             except ValueError:
-                other_val = None
-        if self_val is not None and other_val is not None:
-            return self_val < other_val
+                other_numeric_value = None
+        if self_numeric_value is not None and other_numeric_value is not None:
+            return self_numeric_value < other_numeric_value
         return super().__lt__(other)
 
 
@@ -352,8 +357,8 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
             history_combo.addItem(text, seconds)
         history_combo.setCurrentText('1 Hour')
 
-        def on_history_changed(idx: int) -> None:
-            self._on_max_history_changed(int(history_combo.itemData(idx)))
+        def on_history_changed(index: int) -> None:
+            self._on_max_history_changed(int(history_combo.itemData(index)))
 
         history_combo.currentIndexChanged.connect(on_history_changed)
         controls_layout.addWidget(history_combo)
@@ -420,55 +425,28 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
 
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
-        """Manually paint BackgroundRole so it is not overridden by QTableView::item stylesheets."""
+        """Paint table cell while ensuring custom ForegroundRole and BackgroundRole are preserved across selection changes."""
         if painter:
-            is_hovered = bool(cast('QStyle.StateFlag', option.state) & QStyle.StateFlag.State_MouseOver)  # type: ignore[redundant-cast]
-            is_selected = bool(cast('QStyle.StateFlag', option.state) & QStyle.StateFlag.State_Selected)  # type: ignore[redundant-cast]
-
-            if is_hovered:
-                is_connected: bool | None = None
-                view = self.parent()
-                if view is not None and hasattr(view, 'is_connected_table'):
-                    is_connected = getattr(view, 'is_connected_table', None)
-
+            bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+            if isinstance(bg_brush, QBrush) and not bool(option.state & QStyle.StateFlag.State_Selected):
                 painter.save()
-                rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
-
-                if is_connected is True:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, QColor(42, 110, 85, 160))
-                        grad.setColorAt(1, QColor(28, 75, 58, 160))
-                    else:
-                        grad.setColorAt(0, QColor(42, 110, 85, 100))
-                        grad.setColorAt(1, QColor(28, 75, 58, 100))
-                elif is_connected is False:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, QColor(130, 45, 45, 160))
-                        grad.setColorAt(1, QColor(85, 28, 28, 160))
-                    else:
-                        grad.setColorAt(0, QColor(130, 45, 45, 100))
-                        grad.setColorAt(1, QColor(85, 28, 28, 100))
-                else:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, QColor('#2f4f64'))
-                        grad.setColorAt(1, QColor('#2f4f64'))
-                    else:
-                        grad.setColorAt(0, QColor('#2d2d30'))
-                        grad.setColorAt(1, QColor('#2d2d30'))
-
-                painter.fillRect(rect, grad)
+                painter.fillRect(cast('QRect', option.rect), bg_brush)  # type: ignore[redundant-cast]
                 painter.restore()
-            else:
-                bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
-                if isinstance(bg_brush, QBrush):
-                    painter.save()
-                    opt_rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
-                    painter.fillRect(opt_rect, bg_brush)
-                    painter.restore()
-        super().paint(painter, option, index)
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        # Clear HasFocus so that global stylesheet focus rules do not force white text onto unselected cells
+        opt.state &= ~QStyle.StateFlag.State_HasFocus
+        if not bool(opt.state & QStyle.StateFlag.State_Selected):
+            fg_brush = index.data(Qt.ItemDataRole.ForegroundRole)
+            if isinstance(fg_brush, QBrush):
+                opt.palette.setBrush(QPalette.ColorRole.Text, fg_brush)
+                opt.palette.setBrush(QPalette.ColorRole.WindowText, fg_brush)
+        else:
+            opt.palette.setColor(QPalette.ColorRole.Text, QColor('#ffffff'))
+            opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor('#ffffff'))
+
+        super().paint(painter, opt, index)
 
 
 def setup_table_view_headers(table: QTableView) -> QHeaderView:
@@ -491,6 +469,67 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
     table.setWordWrap(False)
 
     return h_header
+
+
+def setup_static_table_column_resizing(
+    table: QTableView,
+    compute_base_width: Callable[[QFontMetrics, str], int] | None = None,
+) -> None:
+    """Set up initial column resizing for a QTableView, fitting columns and distributing extra space to flexible columns."""
+    table_model = table.model()
+    if not table_model:
+        return
+
+    horizontal_header = table.horizontalHeader()
+    if not horizontal_header:
+        return
+
+    font_metrics = horizontal_header.fontMetrics()
+    viewport = table.viewport()
+    viewport_width = viewport.width() if viewport and viewport.width() > MINIMUM_VIEWPORT_WIDTH_THRESHOLD else table.width()
+
+    total_base_width = 0
+    flex_count = 0
+
+    for column in range(table_model.columnCount()):
+        if horizontal_header.isSectionHidden(column):
+            continue
+        header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
+        base_width = (
+            compute_base_width(font_metrics, header_label)
+            if compute_base_width is not None
+            else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
+        )
+        total_base_width += base_width
+        if header_label in FLEXIBLE_STRETCH_COLUMNS:
+            flex_count += 1
+
+    extra_space = max(0, viewport_width - total_base_width)
+    extra_per_flex = extra_space // flex_count if flex_count > 0 else 0
+    remainder = extra_space % flex_count if flex_count > 0 else 0
+
+    current_flex_index = 0
+    for column in range(table_model.columnCount()):
+        if horizontal_header.isSectionHidden(column):
+            continue
+        header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
+        horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+
+        base_width = (
+            compute_base_width(font_metrics, header_label)
+            if compute_base_width is not None
+            else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
+        )
+
+        if header_label in FLEXIBLE_STRETCH_COLUMNS:
+            current_flex_index += 1
+            add_pixels = extra_per_flex + (remainder if current_flex_index == flex_count else 0)
+            final_width = base_width + add_pixels
+        else:
+            final_width = base_width
+
+        if horizontal_header.sectionSize(column) != final_width:
+            horizontal_header.resizeSection(column, final_width)
 
 
 def find_main_window() -> QMainWindow | None:
@@ -533,6 +572,8 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
         raise RuntimeError(message)
     v_header.setVisible(False)
 
+    table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+    table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
     table.setItemDelegate(ElidedTextTooltipDelegate(table))
     table.setWordWrap(False)
 
@@ -683,10 +724,10 @@ def center_window_on_screen(window: QWidget) -> None:
     screen = window.screen() or QApplication.primaryScreen()
     if not screen:
         return
-    geo = screen.availableGeometry()
-    x = geo.x() + (geo.width() - window.width()) // 2
-    y = geo.y() + (geo.height() - window.height()) // 2
-    window.move(x, y)
+    available_geometry = screen.availableGeometry()
+    x_position = available_geometry.x() + (available_geometry.width() - window.width()) // 2
+    y_position = available_geometry.y() + (available_geometry.height() - window.height()) // 2
+    window.move(x_position, y_position)
 
 
 def format_duration(total_seconds: float) -> str:

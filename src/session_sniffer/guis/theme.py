@@ -234,10 +234,10 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         color: #e0e0e0;
         gridline-color: #333333;
         border: 1px solid #333333;
-        selection-background-color: #007acc;
+        selection-background-color: rgba(0, 120, 215, 0.18);
         selection-color: #ffffff;
         outline: none;
-        show-decoration-selected: 1;
+        show-decoration-selected: 0;
     }
     QHeaderView::section {
         background-color: #2d2d30;
@@ -260,19 +260,44 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         margin-left: -7px;
         margin-right: 6px;
     }
-    QTableView::item {
+    QTableView::item, QTreeView::item, QListView::item {
         border-bottom: 1px solid #333333;
         background-color: transparent;
+        padding-left: 0px;
+        padding-right: 0px;
+        margin-left: 0px;
+        margin-right: 0px;
+        text-indent: 0px;
     }
     QTableView::item:hover {
-        background-color: #2d2d30;
+        background-color: rgba(255, 255, 255, 0.05);
+        padding-left: 0px;
+        margin-left: 0px;
     }
     QTableView::item:selected, QTreeView::item:selected, QListView::item:selected {
-        background-color: #284457;
+        background-color: rgba(0, 120, 215, 0.18);
         color: #ffffff;
+        padding-left: 0px;
+        padding-right: 0px;
+        margin-left: 0px;
+        margin-right: 0px;
+        text-indent: 0px;
     }
     QTableView::item:selected:hover {
-        background-color: #2f4f64;
+        background-color: rgba(0, 120, 215, 0.35);
+        padding-left: 0px;
+        margin-left: 0px;
+    }
+    QTableView::item:focus, QTreeView::item:focus, QListView::item:focus {
+        background-color: rgba(0, 120, 215, 0.45);
+        border: none;
+        outline: none;
+        color: #ffffff;
+        padding-left: 0px;
+        padding-right: 0px;
+        margin-left: 0px;
+        margin-right: 0px;
+        text-indent: 0px;
     }
 
     QTreeView {

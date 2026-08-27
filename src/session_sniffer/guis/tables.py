@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import (
     BANDWIDTH_RATE_STAT_COLUMNS,
-    FLEXIBLE_STRETCH_COLUMNS,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
@@ -26,7 +25,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu, setup_static_table_column_resizing
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
@@ -72,9 +71,6 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ),
     ('🏢 Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
-
-_MINIMUM_VIEWPORT_WIDTH_THRESHOLD: int = 100
-_HEADER_SORT_PADDING: int = 40
 
 
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
@@ -212,7 +208,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         Fall back to default behavior for non-cell areas.
         """
-        index = self.indexAt(event.pos())  # Determine the index of the clicked item
+        index = self.indexAt(event.position().toPoint())  # Determine the index of the clicked item
         if index.isValid():
             selection_model = self.selectionModel()
             selection_flag = None
@@ -231,7 +227,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
 
             if selection_flag is not None:
+                selection_model.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
                 selection_model.select(index, selection_flag)
+                return
 
         # Fall back to default behavior
         super().mousePressEvent(event)
@@ -239,7 +237,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
     @override
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         """Handle mouse movement during Ctrl + Left-Click drag to toggle the selection of multiple cells."""
-        index = self.indexAt(event.pos())  # Get the index under the cursor
+        index = self.indexAt(event.position().toPoint())  # Get the index under the cursor
         if index.isValid():
             selection_model = self.selectionModel()
 
@@ -250,11 +248,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 and self._previous_cell != index
             ):
                 self._previous_cell = index
-
+                selection_model.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
                 selection_model.select(
                     index,
                     (QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select),
                 )
+                return
 
         super().mouseMoveEvent(event)
 
@@ -280,43 +279,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def setup_static_column_resizing(self) -> None:
         """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
-        model = self.model()
-        horizontal_header = self.horizontalHeader()
-        font_metrics = horizontal_header.fontMetrics()
-
-        viewport_width = self.viewport().width() if self.viewport().width() > _MINIMUM_VIEWPORT_WIDTH_THRESHOLD else self.width()
-
-        total_base_width = 0
-        flex_count = 0
-
-        for column in range(model.columnCount()):
-            if horizontal_header.isSectionHidden(column):
-                continue
-            header_label = model.headerData(column, Qt.Orientation.Horizontal)
-            base_w = font_metrics.horizontalAdvance(header_label or '') + _HEADER_SORT_PADDING
-            total_base_width += base_w
-            if header_label in FLEXIBLE_STRETCH_COLUMNS:
-                flex_count += 1
-
-        extra_space = max(0, viewport_width - total_base_width)
-        extra_per_flex = extra_space // flex_count if flex_count > 0 else 0
-        remainder = extra_space % flex_count if flex_count > 0 else 0
-
-        current_flex_idx = 0
-        for column in range(model.columnCount()):
-            if horizontal_header.isSectionHidden(column):
-                continue
-            header_label = model.headerData(column, Qt.Orientation.Horizontal)
-            horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-
-            base_w = font_metrics.horizontalAdvance(header_label or '') + _HEADER_SORT_PADDING
-            if header_label in FLEXIBLE_STRETCH_COLUMNS:
-                current_flex_idx += 1
-                add_pixels = extra_per_flex + (remainder if current_flex_idx == flex_count else 0)
-                final_w = base_w + add_pixels
-            else:
-                final_w = base_w
-            horizontal_header.resizeSection(column, final_w)
+        setup_static_table_column_resizing(self)
 
     def adjust_username_column_width(self) -> None:
         """Ensure the 'Usernames' column section mode remains Interactive."""
