@@ -1,10 +1,13 @@
 """Most Seen Players leaderboard window."""
 
+# pylint: disable=too-many-lines
+
 import contextlib
+from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QAbstractTableModel, QFileSystemWatcher, QModelIndex, QPersistentModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QPixmap, QShortcut, QShowEvent
+from PySide6.QtGui import QAction, QCloseEvent, QFontMetrics, QIcon, QKeySequence, QPixmap, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -24,7 +27,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
+from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
 from session_sniffer.guis._player_leaderboard_loading_dialog import LeaderboardLoadingDialog
@@ -37,7 +41,9 @@ from session_sniffer.guis._player_leaderboard_workers import (
     server_ips_for,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
 from session_sniffer.guis.utils import (
+    HEADER_SORT_PADDING,
     ElidedTextTooltipDelegate,
     apply_search_icon,
     format_player_display,
@@ -45,15 +51,16 @@ from session_sniffer.guis.utils import (
     popup_menu_at_table,
     resize_window_for_screen,
     scale_by_ui,
+    setup_static_table_column_resizing,
     setup_table_view_headers,
 )
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from datetime import datetime
     from pathlib import Path
 
 
@@ -101,6 +108,8 @@ _SEARCH_COLUMNS = (
 )
 _COLUMN_RANK = 0
 _COLUMN_SESSIONS = 3
+_COLUMN_FIRST_SEEN = 4
+_COLUMN_LAST_SEEN = 5
 _COLUMN_COUNTRY = 6
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
@@ -109,6 +118,12 @@ _LIVE_REFRESH_INTERVAL_MS = 1000
 # Minimum spacing between background scans of the sessions directory. Filesystem-change events are
 # throttled to this rate so constant live-session writes can't spin the disk walk.
 _SESSIONS_SCAN_COOLDOWN_MS = 3000
+
+_COLUMN_SAMPLE_TEXTS: dict[str, str] = {
+    'First Seen': '3 days ago',
+    'Last Seen': '3 days ago',
+    'IP Address': '255.255.255.255',
+}
 
 _flag_icon_cache: dict[str, QIcon | None] = {}
 
@@ -134,6 +149,39 @@ def _format_datetime(dt: datetime | None) -> str:
     if dt is None:
         return ''
     return dt.strftime('%m/%d/%Y %H:%M')
+
+
+_SECONDS_PER_MINUTE: int = 60
+_SECONDS_PER_DAY: int = 86400
+_SECONDS_PER_TWO_DAYS: int = 172800
+
+_TIME_UNITS: tuple[tuple[int, str, int], ...] = (
+    (31536000, 'year', 31536000),
+    (2592000, 'month', 2592000),
+    (604800, 'week', 604800),
+    (_SECONDS_PER_DAY, 'day', _SECONDS_PER_DAY),
+    (3600, 'hour', 3600),
+    (_SECONDS_PER_MINUTE, 'min', _SECONDS_PER_MINUTE),
+)
+
+
+def _format_relative_datetime(dt: datetime | None) -> str:
+    """Format a datetime as a natural relative time string (e.g., '2 days ago', '3 months ago')."""
+    if dt is None:
+        return ''
+    now = datetime.now(tz=dt.tzinfo if dt.tzinfo is not None else LOCAL_TZ)
+    if dt.tzinfo is None:
+        now = now.replace(tzinfo=None)
+    seconds = int((now - dt).total_seconds())
+    if seconds < _SECONDS_PER_MINUTE:
+        return 'Just now'
+    if _SECONDS_PER_DAY <= seconds < _SECONDS_PER_TWO_DAYS:
+        return 'Yesterday'
+    for threshold, unit, unit_seconds in _TIME_UNITS:
+        if seconds >= threshold:
+            unit_count = seconds // unit_seconds
+            return f'{unit_count} {unit}{pluralize(unit_count)} ago'
+    return 'Just now'
 
 
 class _LeaderboardTableModel(QAbstractTableModel):
@@ -162,6 +210,7 @@ class _LeaderboardTableModel(QAbstractTableModel):
         self._scope: str = _SCOPE_ALL_TIME
         self._mode: str = _MODE_DAYS
         self._scope_attr: str = 'days_total'
+        self._relative_dates: bool = True
         self._username_cache: dict[str, str] = {}
         # Bound method dispatch — avoids per-cell getattr() overhead
         self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {
@@ -207,15 +256,25 @@ class _LeaderboardTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.UserRole and column == _COLUMN_SESSIONS:
             return self.get_session_count(entry)
 
-        if role == Qt.ItemDataRole.ToolTipRole and column == _COLUMN_SESSIONS:
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return self._tooltip_data(column, entry)
+
+        return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and column == _COLUMN_COUNTRY else None
+
+    def _tooltip_data(self, column: int, entry: LeaderboardEntry) -> object:
+        if column in (_COLUMN_FIRST_SEEN, _COLUMN_LAST_SEEN):
+            dt_val = entry.first_seen if column == _COLUMN_FIRST_SEEN else entry.last_seen
+            if dt_val is None:
+                return None
+            return f'Exact time: {_format_datetime(dt_val)}' if self._relative_dates else _format_relative_datetime(dt_val)
+        if column == _COLUMN_SESSIONS:
             count = self.get_session_count(entry)
             return (
                 f'{count} unique calendar day(s) this player was seen within the selected time period'
                 if self._mode == _MODE_DAYS
                 else f'{count} sniffer session(s) in which this player was seen within the selected time period'
             )
-
-        return _get_flag_icon(entry.country_code) if role == Qt.ItemDataRole.DecorationRole and column == _COLUMN_COUNTRY else None
+        return None
 
     @override
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
@@ -253,13 +312,11 @@ class _LeaderboardTableModel(QAbstractTableModel):
     def _display_sessions(self, _row: int, entry: LeaderboardEntry) -> int:
         return self.get_session_count(entry)
 
-    @staticmethod
-    def _display_first_seen(_row: int, entry: LeaderboardEntry) -> str:
-        return _format_datetime(entry.first_seen)
+    def _display_first_seen(self, _row: int, entry: LeaderboardEntry) -> str:
+        return _format_relative_datetime(entry.first_seen) if self._relative_dates else _format_datetime(entry.first_seen)
 
-    @staticmethod
-    def _display_last_seen(_row: int, entry: LeaderboardEntry) -> str:
-        return _format_datetime(entry.last_seen)
+    def _display_last_seen(self, _row: int, entry: LeaderboardEntry) -> str:
+        return _format_relative_datetime(entry.last_seen) if self._relative_dates else _format_datetime(entry.last_seen)
 
     @staticmethod
     def _display_country(_row: int, entry: LeaderboardEntry) -> str:
@@ -341,6 +398,14 @@ class _LeaderboardTableModel(QAbstractTableModel):
         self.beginResetModel()
         self.endResetModel()
         self.headerDataChanged.emit(Qt.Orientation.Horizontal, _COLUMN_SESSIONS, _COLUMN_SESSIONS)
+
+    def set_relative_dates(self, relative: bool) -> None:  # noqa: FBT001
+        """Toggle relative date formatting for First Seen and Last Seen columns."""
+        if self._relative_dates == relative:
+            return
+        self._relative_dates = relative
+        self.beginResetModel()
+        self.endResetModel()
 
     def _refresh_scope_attr(self) -> None:
         scope_map = self._SCOPE_ATTR_DAYS if self._mode == _MODE_DAYS else self._SCOPE_ATTR_SESSIONS
@@ -473,6 +538,8 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     if v_header:
         v_header.setVisible(False)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+    table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
     table.setItemDelegate(ElidedTextTooltipDelegate(table))
     table.setWordWrap(False)
     table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -497,6 +564,40 @@ def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = N
     layout = QVBoxLayout(dialog)
     layout.addWidget(table)
     return dialog
+
+
+class _LeaderboardTableView(QTableView):
+    """Custom QTableView for the leaderboard that distributes extra viewport space to flexible columns."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+        self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+        self._is_resizing_columns = False
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Re-calculate flexible column widths when the table viewport width changes."""
+        super().resizeEvent(event)
+        if event.oldSize().width() > 0 and event.size().width() != event.oldSize().width():
+            self.setup_static_column_resizing()
+
+    def _compute_column_base_width(self, font_metrics: QFontMetrics, header_label: str) -> int:
+        header_width = font_metrics.horizontalAdvance(header_label)
+        sample_text = _COLUMN_SAMPLE_TEXTS.get(header_label, '')
+        cell_width = font_metrics.horizontalAdvance(sample_text) + 8 if sample_text else 0
+        padding = 24 if header_label in ('First Seen', 'Last Seen') else HEADER_SORT_PADDING
+        return max(header_width, cell_width) + padding
+
+    def setup_static_column_resizing(self) -> None:
+        """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
+        if self._is_resizing_columns:
+            return
+        self._is_resizing_columns = True
+        try:
+            setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
+        finally:
+            self._is_resizing_columns = False
 
 
 class PlayerLeaderboardWindow(QWidget):
@@ -598,6 +699,12 @@ class PlayerLeaderboardWindow(QWidget):
         self._hide_hosting_checkbox.toggled.connect(self._on_hide_hosting_toggled)
         filters_layout.addWidget(self._hide_hosting_checkbox)
 
+        self._relative_dates_checkbox = QCheckBox('Relative dates')
+        self._relative_dates_checkbox.setChecked(True)
+        self._relative_dates_checkbox.setToolTip('Display First Seen and Last Seen as natural relative times (e.g., 2 days ago)')
+        self._relative_dates_checkbox.toggled.connect(self._on_relative_dates_toggled)
+        filters_layout.addWidget(self._relative_dates_checkbox)
+
         filters_layout.addSpacing(12)
 
         cap_label = QLabel('Show top:')
@@ -620,10 +727,10 @@ class PlayerLeaderboardWindow(QWidget):
         self._proxy = _LeaderboardSortProxy()
         self._proxy.setSourceModel(self._model)
 
-        self._table = QTableView()
+        self._table = _LeaderboardTableView()
         self._table.setModel(self._proxy)
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
+        self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self._table.setSortingEnabled(True)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -631,17 +738,8 @@ class PlayerLeaderboardWindow(QWidget):
 
         header = setup_table_view_headers(self._table)
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Rank
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Usernames
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # IP
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Sessions
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)  # First Seen
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Interactive)  # Last Seen
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Interactive)  # Country
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Interactive)  # ISP
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Interactive)  # Mobile
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Interactive)  # VPN
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Interactive)  # Hosting
+        for col in range(len(_HEADERS)):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
 
         layout.addWidget(self._table)
 
@@ -682,8 +780,7 @@ class PlayerLeaderboardWindow(QWidget):
 
         def _on_ready() -> None:
             self.show()
-            for col in range(2, 11):
-                self._table.resizeColumnToContents(col)
+            self._table.setup_static_column_resizing()
 
         self._start_load(on_ready=_on_ready, on_cancel=self.close)
 
@@ -742,10 +839,9 @@ class PlayerLeaderboardWindow(QWidget):
 
     def _on_scan_finished(self) -> None:
         """Release the finished scan worker so the next request can start a fresh one."""
-        worker = self._scan_worker
+        if self._scan_worker is not None:
+            self._scan_worker.deleteLater()
         self._scan_worker = None
-        if worker is not None:
-            worker.deleteLater()
 
     def _reload_baseline_from_disk(self) -> None:
         """Silently rescan the historical baseline on a background thread (no loading dialog)."""
@@ -835,10 +931,9 @@ class PlayerLeaderboardWindow(QWidget):
 
     def _on_overlay_finished(self) -> None:
         """Release the finished overlay worker so the next tick can start a fresh one."""
-        worker = self._overlay_worker
+        if self._overlay_worker is not None:
+            self._overlay_worker.deleteLater()
         self._overlay_worker = None
-        if worker is not None:
-            worker.deleteLater()
 
     def _on_cap_changed(self) -> None:
         """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
@@ -894,34 +989,141 @@ class PlayerLeaderboardWindow(QWidget):
         finally:
             QApplication.restoreOverrideCursor()
 
+    def _on_relative_dates_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Toggle relative date formatting for First Seen and Last Seen columns."""
+        self._model.set_relative_dates(checked)
+
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self._table.indexAt(pos)
         if not index.isValid():
             return
-        entry = self._model.entries[self._proxy.mapToSource(index).row()]
+
+        selected_rows = self._table.selectionModel().selectedRows() if self._table.selectionModel() else []
+        if not selected_rows:
+            selected_rows = [index]
+
+        selected_entries: list[LeaderboardEntry] = []
+        for model_index in selected_rows:
+            source_row = self._proxy.mapToSource(model_index).row()
+            if 0 <= source_row < len(self._model.entries):
+                selected_entries.append(self._model.entries[source_row])
+
+        if not selected_entries:
+            return
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        usernames_text = ', '.join(entry.usernames)
-        copy_usernames_action = QAction(f'📋 Copy Username{pluralize(len(entry.usernames))}', self)
-        copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
-        copy_usernames_action.setEnabled(bool(entry.usernames))
-        copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
-        menu.addAction(copy_usernames_action)
+        if len(selected_entries) == 1:
+            entry = selected_entries[0]
+            usernames_text = ', '.join(entry.usernames)
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
+            copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
+            copy_usernames_action.setEnabled(bool(entry.usernames))
+            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
+            menu.addAction(copy_usernames_action)
 
-        copy_ip_action = QAction('📋 Copy IP', self)
-        copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
-        copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
-        menu.addAction(copy_ip_action)
+            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy IP', self)
+            copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
+            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
+            menu.addAction(copy_ip_action)
 
-        menu.addSeparator()
+            menu.addSeparator()
 
-        seen_stats_action = QAction('📊 View Seen Stats', self)
-        seen_stats_action.setToolTip('Show a breakdown of how many days and sessions this player has appeared in.')
-        seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
-        menu.addAction(seen_stats_action)
+            # pylint: disable=duplicate-code
+            matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
+            if matched_player is not None:
+                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+                lookup_action.setToolTip('Show detailed IP lookup information for this player.')
+                lookup_action.triggered.connect(lambda _checked=False, player=matched_player: show_detailed_ip_lookup(self, player))
+                menu.addAction(lookup_action)
+
+            ping_menu = QMenu('Ping', menu)
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu.setToolTipsVisible(True)
+
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action.setToolTip('Checks if selected IP address responds to pings.')
+            normal_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: ping_ip(ip_address))
+            ping_menu.addAction(normal_action)
+
+            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+            tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
+            tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: tcp_port_ping(self, ip_address))
+            ping_menu.addAction(tcp_ping_action)
+
+            menu.addMenu(ping_menu)
+            # pylint: enable=duplicate-code
+
+            menu.addSeparator()
+
+            seen_stats_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'View Seen Stats', self)
+            seen_stats_action.setToolTip('Show a breakdown of how many days and sessions this player has appeared in.')
+            seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
+            menu.addAction(seen_stats_action)
+        else:
+            all_usernames = [username for entry in selected_entries for username in entry.usernames]
+            all_ips = [entry.ip for entry in selected_entries]
+
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
+            copy_usernames_action.setToolTip('Copy all usernames for the selected players.')
+            copy_usernames_action.setEnabled(bool(all_usernames))
+            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+            menu.addAction(copy_usernames_action)
+
+            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
+            copy_ips_action.setToolTip('Copy all IP addresses for the selected players.')
+            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
+            menu.addAction(copy_ips_action)
+
+            menu.addSeparator()
+
+            # pylint: disable=duplicate-code
+            ip_list = list(all_ips)
+            ping_menu = QMenu('Ping', menu)
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            ping_menu.setToolTipsVisible(True)
+
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
+
+            def _ping_all_leaderboard() -> None:
+                for ip_address in ip_list:
+                    ping_ip(ip_address)
+
+            normal_action.triggered.connect(_ping_all_leaderboard)
+            ping_menu.addAction(normal_action)
+
+            tcp_menu = QMenu('TCP Port (paping.exe)', ping_menu)
+            tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
+            tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            tcp_menu.setToolTipsVisible(True)
+
+            tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
+            tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
+
+            def _do_tcp_ping_multi() -> None:
+                tcp_port_ping_multi(self, ip_list)
+
+            tcp_one_action.triggered.connect(_do_tcp_ping_multi)
+            tcp_menu.addAction(tcp_one_action)
+
+            tcp_custom_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
+            tcp_custom_action.setToolTip('Ask for a separate port for each selected IP.')
+
+            def _do_tcp_ping_individual() -> None:
+                for ip_address in ip_list:
+                    tcp_port_ping(self, ip_address)
+
+            tcp_custom_action.triggered.connect(_do_tcp_ping_individual)
+            tcp_menu.addAction(tcp_custom_action)
+
+            ping_menu.addMenu(tcp_menu)
+            menu.addMenu(ping_menu)
+            # pylint: enable=duplicate-code
 
         popup_menu_at_table(menu, self._table, pos)
 
