@@ -6,6 +6,7 @@ from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
+    from session_sniffer.player.userip import UserIP
 
 _UNSET_SENTINEL = '...'
 
@@ -110,9 +111,16 @@ def format_ping_status(value: object) -> str:
     return str(value)
 
 
-def userip_database_text(player: Player) -> str:
+def format_userip_database(userip: UserIP | None) -> str:
     """Return the relative UserIP database path or 'No' when not present."""
+    if userip is None:
+        return 'No'
+    relative_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    return str(relative_path)
+
+
+def userip_database_text(player: Player) -> str:
+    """Return the relative UserIP database path or 'No' for a Player."""
     if player.userip_detection is None or player.userip is None:
         return 'No'
-    relative = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-    return str(relative)
+    return format_userip_database(player.userip)

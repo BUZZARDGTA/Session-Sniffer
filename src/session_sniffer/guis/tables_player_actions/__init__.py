@@ -19,6 +19,7 @@ from session_sniffer.guis.tables_player_actions._detection_dialogs import (
 )
 from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
     IPLookupDetailsDialog,
+    StandaloneIPLookup,
     show_detailed_ip_lookup,
 )
 from session_sniffer.guis.tables_player_actions._seen_stats_dialog import (
@@ -51,6 +52,7 @@ __all__ = [
     'PlayerDetectionDialog',
     'PlayerDetectionInfo',
     'SeenStatsDialog',
+    'StandaloneIPLookup',
     'UserIPDetectedDialog',
     'block_ip_as_range',
     'build_discord_player_report',

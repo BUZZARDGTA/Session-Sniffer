@@ -44,7 +44,6 @@ from session_sniffer.guis.logs_manager._helpers import (
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -401,12 +400,10 @@ class CsvLogTab(QWidget):
         if len(selected_ips) == 1:
             menu.addSeparator()
 
-            matched_player = PlayersRegistry.get_player_by_ip(selected_ips[0])
-            if matched_player is not None:
-                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', menu)
-                lookup_action.setToolTip('Show detailed IP lookup information for this player.')
-                lookup_action.triggered.connect(lambda _checked=False, p=matched_player: show_detailed_ip_lookup(self, p))
-                menu.addAction(lookup_action)
+            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', menu)
+            lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
+            lookup_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: show_detailed_ip_lookup(self, ip_address))
+            menu.addAction(lookup_action)
 
             # pylint: disable=duplicate-code
             ping_menu = QMenu('Ping', menu)

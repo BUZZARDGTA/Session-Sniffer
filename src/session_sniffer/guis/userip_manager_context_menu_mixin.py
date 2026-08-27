@@ -29,7 +29,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -159,11 +158,9 @@ class EntriesContextMenuMixin(QDialog):
         if is_single_ip or len(selected_ips) > 1:
             if is_single_ip and len(selected_ips) <= 1:
                 _ip_target = ip_or_range
-                matched_player = PlayersRegistry.get_player_by_ip(_ip_target)
-                if matched_player is not None:
-                    lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
-                    lookup_action.triggered.connect(lambda _checked=False, player=matched_player: show_detailed_ip_lookup(self, player))
-                    menu.addAction(lookup_action)
+                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+                lookup_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: show_detailed_ip_lookup(self, ip_address))
+                menu.addAction(lookup_action)
 
             ping_menu = QMenu('Ping', menu)
             ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
@@ -319,11 +316,9 @@ class EntriesContextMenuMixin(QDialog):
         if is_single_ip_gs or len(selected_ips_gs) > 1:
             if is_single_ip_gs and len(selected_ips_gs) <= 1:
                 _ip_gs = ip_or_range
-                matched_player_gs = PlayersRegistry.get_player_by_ip(_ip_gs)
-                if matched_player_gs is not None:
-                    lookup_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
-                    lookup_gs_action.triggered.connect(lambda _checked=False, player=matched_player_gs: show_detailed_ip_lookup(self, player))
-                    menu.addAction(lookup_gs_action)
+                lookup_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+                lookup_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: show_detailed_ip_lookup(self, ip_address))
+                menu.addAction(lookup_gs_action)
 
             ping_menu_gs = QMenu('Ping', menu)
             ping_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))

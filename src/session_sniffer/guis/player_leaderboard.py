@@ -54,7 +54,6 @@ from session_sniffer.guis.utils import (
     setup_static_table_column_resizing,
     setup_table_view_headers,
 )
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.text_utils import pluralize
@@ -1032,12 +1031,10 @@ class PlayerLeaderboardWindow(QWidget):
             menu.addSeparator()
 
             # pylint: disable=duplicate-code
-            matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
-            if matched_player is not None:
-                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
-                lookup_action.setToolTip('Show detailed IP lookup information for this player.')
-                lookup_action.triggered.connect(lambda _checked=False, player=matched_player: show_detailed_ip_lookup(self, player))
-                menu.addAction(lookup_action)
+            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+            lookup_action.setToolTip('Show detailed IP lookup information for this player.')
+            lookup_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: show_detailed_ip_lookup(self, ip_address))
+            menu.addAction(lookup_action)
 
             ping_menu = QMenu('Ping', menu)
             ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))

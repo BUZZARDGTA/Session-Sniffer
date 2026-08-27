@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QMenu
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import (
     ping_ip,
+    show_detailed_ip_lookup,
     tcp_port_ping,
     tcp_port_ping_multi,
 )
@@ -94,6 +95,13 @@ class TableContextMenuManager:
 
         selected_ip_addresses = extract_ip_addresses_from_table_selection(self._table)
         if selected_ip_addresses:
+            if len(selected_ip_addresses) == 1:
+                target_ip = selected_ip_addresses[0]
+                lookup_action = QAction('🔎 IP Lookup Details…', menu)
+                lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
+                lookup_action.triggered.connect(lambda _checked=False, ip_address=target_ip: show_detailed_ip_lookup(self._parent, ip_address))
+                menu.addAction(lookup_action)
+
             # pylint: disable=duplicate-code
             ping_menu = QMenu('📡 Ping', menu)
             ping_menu.setToolTipsVisible(True)
