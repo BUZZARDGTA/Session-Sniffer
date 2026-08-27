@@ -311,7 +311,7 @@ class PacketCapture:
             self.config.callback(packet)
 
         try:
-            from scapy.arch.libpcap import L2pcapListenSocket  # noqa: PLC0415  # ty: ignore[possibly-missing-import]
+            from scapy.arch.libpcap import L2pcapListenSocket  # noqa: PLC0415  # pylint: disable=import-outside-toplevel  # ty: ignore[possibly-missing-import]
 
             listen_socket = L2pcapListenSocket(
                 iface=self.config.interface.device_name,

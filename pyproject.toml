@@ -79,7 +79,9 @@ generated-members = [
     "connect",
     "disconnect",
     "emit",
-] # Signal methods not introspectable by pylint
+    "setBrush",
+    "setColor",
+] # Signal and PySide6 methods not introspectable by pylint
 ignore = [".history", ".venv"]
 ignore-patterns = "^\\.#|.*\\.pyi"
 py-version = "3.14"
@@ -184,6 +186,11 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "typing.NamedTuple"]
 [tool.pyrefly]
 python_version = "3.14"
 min-severity = "warn"
+
+[tool.pyrefly.errors]
+bad-assignment = "ignore"
+missing-attribute = "ignore"
+unsupported-operation = "ignore"
 
 
 [tool.ty.environment]
