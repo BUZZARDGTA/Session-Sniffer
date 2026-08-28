@@ -1,6 +1,9 @@
 """GeoLite2 module - database readers, updater, and orchestration."""
 
 from session_sniffer.networking.geolite2.readers import (
+    extract_asn_info,
+    extract_city_info,
+    extract_country_info,
     initialize_geolite2_readers,
     query_geolite2_asn,
     query_geolite2_city,
@@ -10,6 +13,9 @@ from session_sniffer.networking.geolite2.service import update_and_initialize_ge
 from session_sniffer.networking.geolite2.updater import update_geolite2_databases
 
 __all__ = [
+    'extract_asn_info',
+    'extract_city_info',
+    'extract_country_info',
     'initialize_geolite2_readers',
     'query_geolite2_asn',
     'query_geolite2_city',

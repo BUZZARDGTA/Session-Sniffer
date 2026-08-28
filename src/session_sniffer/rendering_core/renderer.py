@@ -9,7 +9,6 @@ from operator import attrgetter
 from threading import Thread
 from typing import TYPE_CHECKING
 
-import geoip2.errors
 from PySide6.QtGui import QImage
 
 from session_sniffer.background.events import gui_closed__event
@@ -24,6 +23,7 @@ from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
+from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import (
     MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
@@ -150,45 +150,16 @@ def rendering_core(
         return time.monotonic(), True
 
     def get_country_info(ip_address: str) -> tuple[str, str]:
-        country_name = 'N/A'
-        country_code = 'N/A'
-
-        if geoip2_readers.enabled and geoip2_readers.country_reader is not None:
-            try:
-                response = geoip2_readers.country_reader.country(ip_address)
-            except geoip2.errors.AddressNotFoundError:
-                pass
-            else:
-                country_name = response.country.name if response.country.name is not None else 'N/A'
-                country_code = response.country.iso_code if response.country.iso_code is not None else 'N/A'
-
-        return country_name, country_code
+        reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
+        return extract_country_info(reader, ip_address)
 
     def get_city_info(ip_address: str) -> str:
-        city = 'N/A'
-
-        if geoip2_readers.enabled and geoip2_readers.city_reader is not None:
-            try:
-                response = geoip2_readers.city_reader.city(ip_address)
-            except geoip2.errors.AddressNotFoundError:
-                pass
-            else:
-                city = response.city.name if response.city.name is not None else 'N/A'
-
-        return city
+        reader = geoip2_readers.city_reader if geoip2_readers.enabled else None
+        return extract_city_info(reader, ip_address)
 
     def get_asn_info(ip_address: str) -> str:
-        asn = 'N/A'
-
-        if geoip2_readers.enabled and geoip2_readers.asn_reader is not None:
-            try:
-                response = geoip2_readers.asn_reader.asn(ip_address)
-            except geoip2.errors.AddressNotFoundError:
-                pass
-            else:
-                asn = response.autonomous_system_organization if response.autonomous_system_organization is not None else 'N/A'
-
-        return asn
+        reader = geoip2_readers.asn_reader if geoip2_readers.enabled else None
+        return extract_asn_info(reader, ip_address)
 
     def process_session_logging() -> None:
         # JSON session snapshots are the canonical persisted format.
