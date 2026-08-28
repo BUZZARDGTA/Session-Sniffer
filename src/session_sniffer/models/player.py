@@ -3,7 +3,7 @@
 import dataclasses
 from dataclasses import dataclass
 from threading import Event
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING
 
 from session_sniffer.models.player_lookup import (
     PlayerCountryFlag,
@@ -16,8 +16,6 @@ from session_sniffer.models.player_lookup import (
     PlayerReverseDNS,
     PlayerUserIPDetection,
 )
-
-# Re-export classes for backward compatibility
 from session_sniffer.models.player_traffic import (
     PacketInfo,
     PlayerBandwidth,
@@ -100,40 +98,8 @@ class _PlayerOptionalState:
     looky_system: PlayerLooky = dataclasses.field(default_factory=PlayerLooky)
 
 
-class Player:
+class Player:  # pylint: disable=too-many-public-methods
     """Represent a remote player identified by IP and derived session metadata."""
-
-    ip: str
-    left_event: Event
-    usernames: list[str]
-    detection_checked: bool
-    relay_monitor_started: bool
-    packets: PlayerPackets
-    bandwidth: PlayerBandwidth
-    ports: PlayerPorts
-    reverse_dns: PlayerReverseDNS
-    iplookup: PlayerIPLookup
-    ping: PlayerPing
-    country_flag: PlayerCountryFlag | None
-    userip: UserIP | None
-    userip_detection: PlayerUserIPDetection | None
-    mod_menus: PlayerModMenus | None
-    looky_system: PlayerLooky
-
-    _LIFECYCLE_FIELDS: ClassVar[frozenset[str]] = frozenset(
-        {
-            'left_event',
-            'rejoins',
-            'detection_checked',
-            'relay_monitor_started',
-            'usernames',
-            'userip_check_version',
-            'userip_check_positive',
-        },
-    )
-    _TRAFFIC_FIELDS: ClassVar[frozenset[str]] = frozenset({'datetime', 'packets', 'bandwidth', 'ports'})
-    _LOOKUP_FIELDS: ClassVar[frozenset[str]] = frozenset({'reverse_dns', 'iplookup', 'ping'})
-    _OPTIONAL_FIELDS: ClassVar[frozenset[str]] = frozenset({'country_flag', 'userip', 'userip_detection', 'mod_menus', 'looky_system'})
 
     def __init__(self, *, ip: str, packet: PacketInfo) -> None:
         """Initialize a `Player` from the first observed packet.
@@ -142,7 +108,7 @@ class Player:
             ip: The player's IP address.
             packet: The first observed packet's metadata.
         """
-        self.ip = ip
+        self._ip = ip
         self._lifecycle = _PlayerLifecycleState()
         self._traffic = _PlayerTrafficState(
             datetime=PlayerDateTime.from_packet_datetime(packet.datetime),
@@ -153,37 +119,60 @@ class Player:
         self._lookup = _PlayerLookupState()
         self._optional = _PlayerOptionalState()
 
-    def __getattr__(self, name: str) -> object:
-        """Provide backward-compatible attribute access for grouped state fields."""
-        if name in self._LIFECYCLE_FIELDS:
-            return getattr(self._lifecycle, name)
-        if name in self._TRAFFIC_FIELDS:
-            return getattr(self._traffic, name)
-        if name in self._LOOKUP_FIELDS:
-            return getattr(self._lookup, name)
-        if name in self._OPTIONAL_FIELDS:
-            return getattr(self._optional, name)
-        raise AttributeError(name)
+    @property
+    def ip(self) -> str:
+        """The player's IP address."""
+        return self._ip
 
-    @override
-    def __setattr__(self, name: str, value: object) -> None:
-        """Provide backward-compatible assignment for grouped state fields."""
-        if name in {'ip', '_lifecycle', '_traffic', '_lookup', '_optional'}:
-            object.__setattr__(self, name, value)
-            return
-        if name in self._LIFECYCLE_FIELDS:
-            setattr(self._lifecycle, name, value)
-            return
-        if name in self._TRAFFIC_FIELDS:
-            setattr(self._traffic, name, value)
-            return
-        if name in self._LOOKUP_FIELDS:
-            setattr(self._lookup, name, value)
-            return
-        if name in self._OPTIONAL_FIELDS:
-            setattr(self._optional, name, value)
-            return
-        object.__setattr__(self, name, value)
+    @property
+    def left_event(self) -> Event:
+        """Disconnect event for this player."""
+        return self._lifecycle.left_event
+
+    @property
+    def usernames(self) -> list[str]:
+        """Known usernames associated with this player."""
+        return self._lifecycle.usernames
+
+    @usernames.setter
+    def usernames(self, value: list[str]) -> None:
+        self._lifecycle.usernames = value
+
+    @property
+    def detection_checked(self) -> bool:
+        """Whether detection check has been performed."""
+        return self._lifecycle.detection_checked
+
+    @detection_checked.setter
+    def detection_checked(self, value: bool) -> None:
+        self._lifecycle.detection_checked = value
+
+    @property
+    def relay_monitor_started(self) -> bool:
+        """Whether relay monitor thread was started."""
+        return self._lifecycle.relay_monitor_started
+
+    @relay_monitor_started.setter
+    def relay_monitor_started(self, value: bool) -> None:
+        self._lifecycle.relay_monitor_started = value
+
+    @property
+    def userip_check_version(self) -> int:
+        """UserIP database version when last checked."""
+        return self._lifecycle.userip_check_version
+
+    @userip_check_version.setter
+    def userip_check_version(self, value: int) -> None:
+        self._lifecycle.userip_check_version = value
+
+    @property
+    def userip_check_positive(self) -> bool:
+        """Whether the last UserIP check was positive."""
+        return self._lifecycle.userip_check_positive
+
+    @userip_check_positive.setter
+    def userip_check_positive(self, value: bool) -> None:
+        self._lifecycle.userip_check_positive = value
 
     @property
     def datetime(self) -> PlayerDateTime:
@@ -194,6 +183,105 @@ class Player:
     def datetime(self, value: PlayerDateTime) -> None:
         """Set packet datetime tracking state."""
         self._traffic.datetime = value
+
+    @property
+    def packets(self) -> PlayerPackets:
+        """Packet tracking counters for this player."""
+        return self._traffic.packets
+
+    @packets.setter
+    def packets(self, value: PlayerPackets) -> None:
+        self._traffic.packets = value
+
+    @property
+    def bandwidth(self) -> PlayerBandwidth:
+        """Bandwidth tracking counters for this player."""
+        return self._traffic.bandwidth
+
+    @bandwidth.setter
+    def bandwidth(self, value: PlayerBandwidth) -> None:
+        self._traffic.bandwidth = value
+
+    @property
+    def ports(self) -> PlayerPorts:
+        """Observed ports for this player."""
+        return self._traffic.ports
+
+    @ports.setter
+    def ports(self, value: PlayerPorts) -> None:
+        self._traffic.ports = value
+
+    @property
+    def reverse_dns(self) -> PlayerReverseDNS:
+        """Reverse DNS lookup metadata for this player."""
+        return self._lookup.reverse_dns
+
+    @reverse_dns.setter
+    def reverse_dns(self, value: PlayerReverseDNS) -> None:
+        self._lookup.reverse_dns = value
+
+    @property
+    def iplookup(self) -> PlayerIPLookup:
+        """IP lookup metadata (GeoLite2, IP-API) for this player."""
+        return self._lookup.iplookup
+
+    @iplookup.setter
+    def iplookup(self, value: PlayerIPLookup) -> None:
+        self._lookup.iplookup = value
+
+    @property
+    def ping(self) -> PlayerPing:
+        """Ping measurement metadata for this player."""
+        return self._lookup.ping
+
+    @ping.setter
+    def ping(self, value: PlayerPing) -> None:
+        self._lookup.ping = value
+
+    @property
+    def country_flag(self) -> PlayerCountryFlag | None:
+        """Country flag emoji/rendering data for this player."""
+        return self._optional.country_flag
+
+    @country_flag.setter
+    def country_flag(self, value: PlayerCountryFlag | None) -> None:
+        self._optional.country_flag = value
+
+    @property
+    def userip(self) -> UserIP | None:
+        """Resolved UserIP database entry."""
+        return self._optional.userip
+
+    @userip.setter
+    def userip(self, value: UserIP | None) -> None:
+        self._optional.userip = value
+
+    @property
+    def userip_detection(self) -> PlayerUserIPDetection | None:
+        """UserIP detection tracking state."""
+        return self._optional.userip_detection
+
+    @userip_detection.setter
+    def userip_detection(self, value: PlayerUserIPDetection | None) -> None:
+        self._optional.userip_detection = value
+
+    @property
+    def mod_menus(self) -> PlayerModMenus | None:
+        """Detected mod menus for this player."""
+        return self._optional.mod_menus
+
+    @mod_menus.setter
+    def mod_menus(self, value: PlayerModMenus | None) -> None:
+        self._optional.mod_menus = value
+
+    @property
+    def looky_system(self) -> PlayerLooky:
+        """Looky system tracking state."""
+        return self._optional.looky_system
+
+    @looky_system.setter
+    def looky_system(self, value: PlayerLooky) -> None:
+        self._optional.looky_system = value
 
     @property
     def rejoins(self) -> int:
