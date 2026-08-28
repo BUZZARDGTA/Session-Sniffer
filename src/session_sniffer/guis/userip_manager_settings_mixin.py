@@ -377,6 +377,7 @@ class SettingsPanelMixin(QDialog):
         # ── Row 1: Enabled only ──
         row1 = QHBoxLayout()
         row1.setSpacing(14)
+        row1.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._setting_enabled = QCheckBox('Enabled')
         self._setting_enabled.setToolTip('Whether this database is active for detection')
@@ -395,12 +396,14 @@ class SettingsPanelMixin(QDialog):
         # ── Color · Log · Notifications ──
         row_cln = QHBoxLayout()
         row_cln.setSpacing(14)
+        row_cln.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         color_lbl = QLabel('Color:')
         row_cln.addWidget(color_lbl)
 
         self._current_color = QColor()
         self._setting_color = QPushButton()
+        self._setting_color.setObjectName('DatabaseColorButton')
         self._setting_color.setFixedSize(52, 26)
         self._setting_color.setToolTip('Click to choose a display color for entries from this database')
         self._setting_color.setAutoDefault(False)
@@ -446,6 +449,7 @@ class SettingsPanelMixin(QDialog):
         protection_section_layout.addWidget(separator)
 
         suspend_row = QHBoxLayout()
+        suspend_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         suspend_row.addWidget(QLabel('Suspend Mode:'))
         self._setting_suspend_mode = QComboBox()
         self._setting_suspend_mode.addItems(['Disabled', 'Auto', 'Manual'])
