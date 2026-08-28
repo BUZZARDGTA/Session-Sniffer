@@ -4,7 +4,7 @@ import functools
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMenu
 
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
@@ -61,6 +61,8 @@ class TableContextMenuManager:
 
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self.show_context_menu)
+        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(lambda: copy_table_widget_selection(self._table))
+        QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
 
     def is_menu_open(self) -> bool:
         """Return whether the context menu is currently open."""
@@ -69,14 +71,23 @@ class TableContextMenuManager:
     def show_context_menu(self, pos: QPoint) -> None:
         """Show a context menu with copy, selection, and ping options for the table."""
         index = self._table.indexAt(pos)
+        if index.isValid():
+            item = self._table.item(index.row(), index.column())
+            if item is not None and not item.isSelected():
+                self._table.clearSelection()
+                self._table.selectRow(index.row())
+
+        selected_row_count = len({item.row() for item in self._table.selectedItems()})
 
         menu = QMenu(self._parent)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        copy_row_action = QAction('📋 Copy Row', menu)
+        copy_label = f'📋 Copy Rows ({selected_row_count})' if selected_row_count > 1 else '📋 Copy Row'
+        copy_row_action = QAction(copy_label, menu)
+        copy_row_action.setShortcut('Ctrl+C')
         copy_row_action.setToolTip('Copy the selected row(s) to the clipboard as tab-separated text.')
-        copy_row_action.setEnabled(index.isValid())
+        copy_row_action.setEnabled(selected_row_count > 0)
         copy_row_action.triggered.connect(lambda: copy_table_widget_selection(self._table))
         menu.addAction(copy_row_action)
 
@@ -93,8 +104,22 @@ class TableContextMenuManager:
 
         menu.addSeparator()
 
+        select_all_action = QAction('⬛ Select All', menu)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the table.')
+        select_all_action.setEnabled(self._table.rowCount() > 0)
+        select_all_action.triggered.connect(self._table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction('⬜ Clear Selection', menu)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._table.clearSelection)
+        menu.addAction(clear_selection_action)
+
         selected_ip_addresses = extract_ip_addresses_from_table_selection(self._table)
         if selected_ip_addresses:
+            menu.addSeparator()
+
             if len(selected_ip_addresses) == 1:
                 target_ip = selected_ip_addresses[0]
                 lookup_action = QAction('🔎 IP Lookup Details…', menu)
@@ -154,19 +179,6 @@ class TableContextMenuManager:
 
             menu.addMenu(ping_menu)
             # pylint: enable=duplicate-code
-            menu.addSeparator()
-
-        select_all_action = QAction('⬛ Select All', menu)
-        select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all rows in the table.')
-        select_all_action.setEnabled(self._table.rowCount() > 0)
-        select_all_action.triggered.connect(self._table.selectAll)
-        menu.addAction(select_all_action)
-
-        clear_selection_action = QAction('⬜ Clear Selection', menu)
-        clear_selection_action.setToolTip('Deselect all currently selected rows.')
-        clear_selection_action.triggered.connect(self._table.clearSelection)
-        menu.addAction(clear_selection_action)
 
         popup_menu_at_table_widget(menu, self._table, pos)
 

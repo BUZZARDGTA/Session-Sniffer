@@ -225,7 +225,7 @@ class TextLogTab(QWidget):
     # ------------------------------------------------------------------
 
     def _copy_all(self) -> None:
-        copy_viewer_text_to_clipboard(self, self._viewer, success_label='log contents')
+        copy_viewer_text_to_clipboard(self._viewer)
 
     def _save_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

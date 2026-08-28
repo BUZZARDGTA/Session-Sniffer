@@ -272,16 +272,14 @@ def purge_log_file(
     return message
 
 
-def copy_viewer_text_to_clipboard(parent: QWidget, viewer: QPlainTextEdit, *, success_label: str = 'text') -> None:
-    """Copy the plain text from *viewer* to the clipboard and show a result dialog."""
+def copy_viewer_text_to_clipboard(viewer: QPlainTextEdit) -> None:
+    """Copy the plain text from *viewer* to the clipboard."""
     text = viewer.toPlainText()
     if not text:
-        QMessageBox.information(parent, TITLE, 'Nothing to copy.')
         return
     clipboard = QApplication.clipboard()
     if clipboard:
         clipboard.setText(text)
-    QMessageBox.information(parent, TITLE, f'All {success_label} copied to clipboard.')
 
 
 def setup_metadata_label(layout: QVBoxLayout) -> QLabel:

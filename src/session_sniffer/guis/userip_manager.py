@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QShowEvent, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QKeySequence, QShortcut, QShowEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -316,6 +316,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._entries_table.customContextMenuRequested.connect(self.show_entries_context_menu)
         self._entries_table.doubleClicked.connect(self.on_entry_double_clicked)
+        QShortcut(QKeySequence('Ctrl+C'), self._entries_table).activated.connect(self._copy_selected_entries)
+        QShortcut(QKeySequence('Ctrl+A'), self._entries_table).activated.connect(self._entries_table.selectAll)
 
         entries_selection = self._entries_table.selectionModel()
         if entries_selection:

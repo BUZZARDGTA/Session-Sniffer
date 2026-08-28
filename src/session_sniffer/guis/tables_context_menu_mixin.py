@@ -750,9 +750,6 @@ class TableContextMenuMixin(QTableView):
         add_copy_for_discord_action(selected_players)
         context_menu.addSeparator()
 
-        add_remove_players_action(selected_ips)
-        context_menu.addSeparator()
-
         select_menu = add_menu(context_menu, '☑️ Select')
         add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
         add_action(select_menu, '🟦 Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
@@ -762,6 +759,9 @@ class TableContextMenuMixin(QTableView):
         add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
         add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self.unselect_row_cells(index.row()))
         add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self.unselect_column_cells(index.column()))
+        context_menu.addSeparator()
+
+        add_remove_players_action(selected_ips)
         context_menu.addSeparator()
 
         is_single_player_selection = selected_cell_count == 1 and len(selected_ips) == 1 and len(selected_players) == 1

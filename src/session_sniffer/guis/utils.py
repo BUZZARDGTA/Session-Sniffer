@@ -607,6 +607,7 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     h_header.setStretchLastSection(True)
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
     table.setSortingEnabled(sorting)
     v_header = table.verticalHeader()
     if not v_header:

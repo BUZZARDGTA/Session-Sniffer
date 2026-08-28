@@ -8,7 +8,7 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -126,8 +126,12 @@ class CsvLogTab(QWidget):
         self._table.setCornerButtonEnabled(False)
         self._table.setSortingEnabled(True)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setAlternatingRowColors(True)
+
+        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected)
+        QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
 
         v_header = self._table.verticalHeader()
         if v_header:
@@ -368,18 +372,29 @@ class CsvLogTab(QWidget):
         """Show a context menu on a right-clicked table row with quick-access actions."""
         index = self._table.indexAt(pos)
         selection_model = self._table.selectionModel()
-        has_selection = bool(selection_model and selection_model.selectedRows())
+        if selection_model and index.isValid() and not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
+        selected_rows = selection_model.selectedRows() if selection_model else []
+        has_selection = bool(selected_rows)
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        copy_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Selected', menu)
+        copy_label = f'Copy Selected Rows ({len(selected_rows)})' if len(selected_rows) > 1 else 'Copy Selected Row'
+        copy_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_label, menu)
         copy_action.setShortcut('Ctrl+C')
         copy_action.setToolTip('Copy selected rows to the clipboard as comma-separated values.')
         copy_action.setEnabled(has_selection)
         copy_action.triggered.connect(self._copy_selected)
         menu.addAction(copy_action)
+
+        copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', menu)
+        copy_all_action.setToolTip('Copy all visible rows to the clipboard as comma-separated values.')
+        copy_all_action.setEnabled(self._proxy.rowCount() > 0)
+        copy_all_action.triggered.connect(self._copy_all)
+        menu.addAction(copy_all_action)
 
         menu.addSeparator()
 
@@ -527,7 +542,6 @@ class CsvLogTab(QWidget):
             return
         indexes = selection_model.selectedRows()
         if not indexes:
-            QMessageBox.information(self, TITLE, 'No rows selected.')
             return
         lines: list[str] = []
         column_count = self._model.columnCount()
@@ -542,7 +556,25 @@ class CsvLogTab(QWidget):
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText('\n'.join(lines))
-        self._show_status(f'Copied {len(lines)} row{pluralize(len(lines))} to clipboard.')
+
+    def _copy_all(self) -> None:
+        lines: list[str] = []
+        column_count = self._model.columnCount()
+        row_count = self._proxy.rowCount()
+        for row_index in range(row_count):
+            source_row = self._proxy.mapToSource(self._proxy.index(row_index, 0)).row()
+            cells: list[str] = []
+            for column_index in range(column_count):
+                item = self._model.item(source_row, column_index)
+                cells.append(item.text() if item else '')
+            lines.append(','.join(cells))
+
+        if not lines:
+            return
+
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText('\n'.join(lines))
 
     def _export_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

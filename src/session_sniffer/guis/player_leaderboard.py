@@ -6,8 +6,29 @@ import contextlib
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import QAbstractTableModel, QFileSystemWatcher, QModelIndex, QPersistentModelIndex, QPoint, QSortFilterProxyModel, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QFontMetrics, QIcon, QKeySequence, QPixmap, QResizeEvent, QShortcut, QShowEvent
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QFileSystemWatcher,
+    QItemSelectionModel,
+    QModelIndex,
+    QPersistentModelIndex,
+    QPoint,
+    QSortFilterProxyModel,
+    Qt,
+    QTimer,
+)
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QFontMetrics,
+    QIcon,
+    QKeyEvent,
+    QKeySequence,
+    QPixmap,
+    QResizeEvent,
+    QShortcut,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -575,6 +596,48 @@ class _LeaderboardTableView(QTableView):
         self._is_resizing_columns = False
 
     @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle Ctrl+C to copy selected rows and Ctrl+A to select all rows."""
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_C:
+                self.copy_selection()
+                return
+            if event.key() == Qt.Key.Key_A:
+                self.selectAll()
+                return
+
+        super().keyPressEvent(event)
+
+    # pylint: disable=duplicate-code
+    def copy_selection(self) -> None:
+        """Copy selected rows from the leaderboard table to the clipboard as tab-separated text."""
+        selection_model = self.selectionModel()
+        if not selection_model:
+            return
+        selected_indexes = selection_model.selectedIndexes()
+        if not selected_indexes:
+            return
+
+        rows: dict[int, dict[int, str]] = {}
+        for model_index in selected_indexes:
+            row_index = model_index.row()
+            column_index = model_index.column()
+            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
+            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
+
+        lines: list[str] = []
+        for row_index in sorted(rows):
+            column_map = rows[row_index]
+            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
+
+        clipboard = QApplication.clipboard()
+        if not clipboard:
+            message = 'Failed to get clipboard'
+            raise RuntimeError(message)
+        clipboard.setText('\n'.join(lines))
+    # pylint: enable=duplicate-code
+
+    @override
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Re-calculate flexible column widths when the table viewport width changes."""
         super().resizeEvent(event)
@@ -997,7 +1060,11 @@ class PlayerLeaderboardWindow(QWidget):
         if not index.isValid():
             return
 
-        selected_rows = self._table.selectionModel().selectedRows() if self._table.selectionModel() else []
+        selection_model = self._table.selectionModel()
+        if selection_model and not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
+        selected_rows = selection_model.selectedRows() if selection_model else []
         if not selected_rows:
             selected_rows = [index]
 
@@ -1016,6 +1083,20 @@ class PlayerLeaderboardWindow(QWidget):
 
         if len(selected_entries) == 1:
             entry = selected_entries[0]
+            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
+            copy_row_action.setShortcut('Ctrl+C')
+            copy_row_action.setToolTip('Copy the selected player row to the clipboard as tab-separated text.')
+            copy_row_action.triggered.connect(self._table.copy_selection)
+            menu.addAction(copy_row_action)
+
+            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
+            copy_all_action.setEnabled(self._proxy.rowCount() > 0)
+            copy_all_action.triggered.connect(self._copy_all_rows)
+            menu.addAction(copy_all_action)
+
+            menu.addSeparator()
+
             usernames_text = ', '.join(entry.usernames)
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
             copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
@@ -1027,8 +1108,53 @@ class PlayerLeaderboardWindow(QWidget):
             copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
             copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
             menu.addAction(copy_ip_action)
+        else:
+            all_usernames = [username for entry in selected_entries for username in entry.usernames]
+            all_ips = [entry.ip for entry in selected_entries]
+
+            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_entries)})', self)
+            copy_rows_action.setShortcut('Ctrl+C')
+            copy_rows_action.setToolTip('Copy the selected player rows to the clipboard as tab-separated text.')
+            copy_rows_action.triggered.connect(self._table.copy_selection)
+            menu.addAction(copy_rows_action)
+
+            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
+            copy_all_action.setEnabled(self._proxy.rowCount() > 0)
+            copy_all_action.triggered.connect(self._copy_all_rows)
+            menu.addAction(copy_all_action)
 
             menu.addSeparator()
+
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
+            copy_usernames_action.setToolTip('Copy all usernames for the selected players.')
+            copy_usernames_action.setEnabled(bool(all_usernames))
+            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+            menu.addAction(copy_usernames_action)
+
+            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
+            copy_ips_action.setToolTip('Copy all IP addresses for the selected players.')
+            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
+            menu.addAction(copy_ips_action)
+
+        menu.addSeparator()
+
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the leaderboard.')
+        select_all_action.setEnabled(self._proxy.rowCount() > 0)
+        select_all_action.triggered.connect(self._table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        menu.addSeparator()
+
+        if len(selected_entries) == 1:
+            entry = selected_entries[0]
 
             # pylint: disable=duplicate-code
             lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
@@ -1061,21 +1187,7 @@ class PlayerLeaderboardWindow(QWidget):
             seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
             menu.addAction(seen_stats_action)
         else:
-            all_usernames = [username for entry in selected_entries for username in entry.usernames]
             all_ips = [entry.ip for entry in selected_entries]
-
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
-            copy_usernames_action.setToolTip('Copy all usernames for the selected players.')
-            copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
-            menu.addAction(copy_usernames_action)
-
-            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
-            copy_ips_action.setToolTip('Copy all IP addresses for the selected players.')
-            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
-            menu.addAction(copy_ips_action)
-
-            menu.addSeparator()
 
             # pylint: disable=duplicate-code
             ip_list = list(all_ips)
@@ -1123,6 +1235,24 @@ class PlayerLeaderboardWindow(QWidget):
             # pylint: enable=duplicate-code
 
         popup_menu_at_table(menu, self._table, pos)
+
+    def _copy_all_rows(self) -> None:
+        """Copy all visible rows in the leaderboard to clipboard as tab-separated text."""
+        lines: list[str] = []
+        column_count = self._proxy.columnCount()
+        row_count = self._proxy.rowCount()
+        for row_index in range(row_count):
+            cells: list[str] = []
+            for column_index in range(column_count):
+                index = self._proxy.index(row_index, column_index)
+                cell_data = self._proxy.data(index, Qt.ItemDataRole.DisplayRole)
+                cells.append(str(cell_data) if cell_data is not None else '')
+            lines.append('\t'.join(cells))
+
+        if not lines:
+            return
+
+        self._copy_to_clipboard('\n'.join(lines))
 
     def _copy_to_clipboard(self, text: str) -> None:
         clipboard = QApplication.clipboard()

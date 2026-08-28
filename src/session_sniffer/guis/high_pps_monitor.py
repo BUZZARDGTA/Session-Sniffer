@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QGroupBox,
@@ -21,11 +21,13 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import popup_menu_at_table, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -277,8 +279,11 @@ class HighRateMonitorWidget(QWidget):
         self._table = QTableView()
         self._table.setModel(self._model)
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_context_menu)
+        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_rows)
+        QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
         self._table.setToolTip(
             'Players currently exceeding both PPS and BPS thresholds.\n'
             'Right-click a row to blacklist the IP or open a live rate graph.\n\n'
@@ -473,59 +478,195 @@ class HighRateMonitorWidget(QWidget):
 
     # Context menu -----------------------------------------------------------
 
+    def _copy_to_clipboard(self, text: str) -> None:
+        clipboard = QApplication.clipboard()
+        if not clipboard:
+            message = 'Failed to get clipboard'
+            raise RuntimeError(message)
+        clipboard.setText(text)
+
+    # pylint: disable=duplicate-code
+    def _copy_selected_rows(self) -> None:
+        """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
+        selection_model = self._table.selectionModel()
+        if not selection_model:
+            return
+        selected_indexes = selection_model.selectedIndexes()
+        if not selected_indexes:
+            return
+
+        rows: dict[int, dict[int, str]] = {}
+        for model_index in selected_indexes:
+            row_index = model_index.row()
+            column_index = model_index.column()
+            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
+            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
+
+        lines: list[str] = []
+        for row_index in sorted(rows):
+            column_map = rows[row_index]
+            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
+
+        self._copy_to_clipboard('\n'.join(lines))
+
+    def _copy_all_rows(self) -> None:
+        """Copy all rows in the high-rate monitor table to clipboard as tab-separated text."""
+        lines: list[str] = []
+        column_count = self._model.columnCount()
+        row_count = self._model.rowCount()
+        for row_index in range(row_count):
+            cells: list[str] = []
+            for column_index in range(column_count):
+                index = self._model.index(row_index, column_index)
+                cell_data = self._model.data(index, Qt.ItemDataRole.DisplayRole)
+                cells.append(str(cell_data) if cell_data is not None else '')
+            lines.append('\t'.join(cells))
+
+        if not lines:
+            return
+
+        self._copy_to_clipboard('\n'.join(lines))
+    # pylint: enable=duplicate-code
+
+    # pylint: disable=duplicate-code
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self._table.indexAt(pos)
         if not index.isValid():
             return
 
-        data = self._model.get_visible_player(index.row())
-        if data is None:
+        selection_model = self._table.selectionModel()
+        if selection_model and not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
+        selected_rows = selection_model.selectedRows() if selection_model else []
+        if not selected_rows:
+            selected_rows = [index]
+
+        selected_players: list[_PlayerRateData] = []
+        for model_index in selected_rows:
+            player_data = self._model.get_visible_player(model_index.row())
+            if player_data is not None:
+                selected_players.append(player_data)
+
+        if not selected_players:
             return
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        copy_ip_action = QAction(f'📋 Copy IP ({data.ip})', self)
-        copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
+        if len(selected_players) == 1:
+            data = selected_players[0]
+            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
+            copy_row_action.setShortcut('Ctrl+C')
+            copy_row_action.setToolTip('Copy the selected row to the clipboard as tab-separated text.')
+            copy_row_action.triggered.connect(self._copy_selected_rows)
+            menu.addAction(copy_row_action)
 
-        def _copy_ip() -> None:
-            clipboard = QApplication.clipboard()
-            if clipboard:
-                clipboard.setText(data.ip)
+            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action.setToolTip('Copy all visible rows to the clipboard as tab-separated text.')
+            copy_all_action.setEnabled(self._model.rowCount() > 0)
+            copy_all_action.triggered.connect(self._copy_all_rows)
+            menu.addAction(copy_all_action)
 
-        copy_ip_action.triggered.connect(_copy_ip)
-        menu.addAction(copy_ip_action)
+            menu.addSeparator()
 
-        usernames_text = ', '.join(data.usernames)
-        copy_usernames_action = QAction('📋 Copy Username(s)', self)
-        copy_usernames_action.setToolTip('Copy associated usernames to the clipboard.')
-        copy_usernames_action.setEnabled(bool(data.usernames))
+            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IP ({data.ip})', self)
+            copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
+            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(data.ip))
+            menu.addAction(copy_ip_action)
 
-        def _copy_usernames() -> None:
-            clipboard = QApplication.clipboard()
-            if clipboard:
-                clipboard.setText(usernames_text)
+            usernames_text = ', '.join(data.usernames)
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(data.usernames))}', self)
+            copy_usernames_action.setToolTip('Copy associated usernames to the clipboard.')
+            copy_usernames_action.setEnabled(bool(data.usernames))
+            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
+            menu.addAction(copy_usernames_action)
+        else:
+            all_ips = [player_data.ip for player_data in selected_players]
+            all_usernames = [username for player_data in selected_players for username in player_data.usernames]
 
-        copy_usernames_action.triggered.connect(_copy_usernames)
-        menu.addAction(copy_usernames_action)
+            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_players)})', self)
+            copy_rows_action.setShortcut('Ctrl+C')
+            copy_rows_action.setToolTip('Copy selected rows to the clipboard as tab-separated text.')
+            copy_rows_action.triggered.connect(self._copy_selected_rows)
+            menu.addAction(copy_rows_action)
+
+            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action.setToolTip('Copy all visible rows to the clipboard as tab-separated text.')
+            copy_all_action.setEnabled(self._model.rowCount() > 0)
+            copy_all_action.triggered.connect(self._copy_all_rows)
+            menu.addAction(copy_all_action)
+
+            menu.addSeparator()
+
+            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
+            copy_ips_action.setToolTip('Copy all selected IP addresses.')
+            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
+            menu.addAction(copy_ips_action)
+
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
+            copy_usernames_action.setToolTip('Copy all selected usernames.')
+            copy_usernames_action.setEnabled(bool(all_usernames))
+            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+            menu.addAction(copy_usernames_action)
 
         menu.addSeparator()
 
-        blacklist_action = QAction(f'🚫 Blacklist IP {data.ip}', self)
-        blacklist_action.setToolTip('Exclude this IP from the high-rate scan until the blacklist is cleared.')
-        blacklist_action.triggered.connect(lambda: self._blacklist_ip(data.ip))
-        menu.addAction(blacklist_action)
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the monitor.')
+        select_all_action.setEnabled(self._model.rowCount() > 0)
+        select_all_action.triggered.connect(self._table.selectAll)
+        menu.addAction(select_all_action)
 
-        graph_action = QAction(f'📈 Show Rate Graph for {data.ip}', self)
-        graph_action.setToolTip('Open a live PPS/BPS rate graph window for this player.')
-        graph_action.triggered.connect(lambda: self.open_graph(data.ip))
-        menu.addAction(graph_action)
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        menu.addSeparator()
+
+        if len(selected_players) == 1:
+            data = selected_players[0]
+
+            blacklist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f'Blacklist IP {data.ip}', self)
+            blacklist_action.setToolTip('Exclude this IP from the high-rate scan until the blacklist is cleared.')
+            blacklist_action.triggered.connect(lambda: self._blacklist_ip(data.ip))
+            menu.addAction(blacklist_action)
+
+            graph_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), f'Show Rate Graph for {data.ip}', self)
+            graph_action.setToolTip('Open a live PPS/BPS rate graph window for this player.')
+            graph_action.triggered.connect(lambda: self.open_graph(data.ip))
+            menu.addAction(graph_action)
+        else:
+            all_ips = [player_data.ip for player_data in selected_players]
+
+            blacklist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f'Blacklist Selected IPs ({len(all_ips)})', self)
+            blacklist_action.setToolTip('Exclude selected IPs from the high-rate scan until the blacklist is cleared.')
+
+            def _blacklist_multi() -> None:
+                for ip_address in all_ips:
+                    self._blacklist_ip(ip_address)
+
+            blacklist_action.triggered.connect(_blacklist_multi)
+            menu.addAction(blacklist_action)
+
+            graph_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), f'Show Rate Graphs ({len(all_ips)})', self)
+            graph_action.setToolTip('Open live PPS/BPS rate graph windows for all selected players.')
+
+            def _open_graphs_multi() -> None:
+                for ip_address in all_ips:
+                    self.open_graph(ip_address)
+
+            graph_action.triggered.connect(_open_graphs_multi)
+            menu.addAction(graph_action)
 
         popup_menu_at_table(menu, self._table, pos)
 
         self._timer.stop()
         menu.aboutToHide.connect(lambda: self._timer.start(_UPDATE_INTERVAL_MS))
+    # pylint: enable=duplicate-code
 
     def _blacklist_ip(self, ip: str) -> None:
         self._blacklisted_ips.add(ip)

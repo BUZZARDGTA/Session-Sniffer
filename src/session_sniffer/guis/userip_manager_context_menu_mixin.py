@@ -86,6 +86,10 @@ class EntriesContextMenuMixin(QDialog):
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         index = self._entries_table.indexAt(position)
 
+        selection_model = self._entries_table.selectionModel()
+        if selection_model and index.isValid() and not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
         if self._global_search_active:
             if not index.isValid():
                 return
@@ -119,19 +123,71 @@ class EntriesContextMenuMixin(QDialog):
         username = username_item.text() if username_item else ''
         ip_or_range = self._get_row_entry_value(row)
 
-        if username:
-            copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
-            copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
-            menu.addAction(copy_user_action)
-        if ip_or_range:
-            range_item = self._model.item(row, RANGE_COLUMN)
-            label = 'Range' if range_item and range_item.text().strip() else 'IP'
-            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
-            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
-            menu.addAction(copy_ip_action)
+        selected_rows = self._entries_table.selectionModel().selectedRows() if self._entries_table.selectionModel() else []
+        selected_count = len(selected_rows) if selected_rows else 1
 
-        if not menu.isEmpty():
-            menu.addSeparator()
+        copy_row_label = f'Copy Rows ({selected_count})' if selected_count > 1 else 'Copy Row'
+        copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_row_label, self)
+        copy_row_action.setShortcut('Ctrl+C')
+        copy_row_action.setToolTip('Copy selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.triggered.connect(self._copy_selected_entries)
+        menu.addAction(copy_row_action)
+
+        copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+        copy_all_action.setToolTip('Copy all visible entries to the clipboard as tab-separated text.')
+        copy_all_action.setEnabled(self._proxy.rowCount() > 0)
+        copy_all_action.triggered.connect(self._copy_all_entries)
+        menu.addAction(copy_all_action)
+
+        menu.addSeparator()
+
+        if selected_count <= 1:
+            if username:
+                copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
+                copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
+                menu.addAction(copy_user_action)
+            if ip_or_range:
+                range_item = self._model.item(row, RANGE_COLUMN)
+                label = 'Range' if range_item and range_item.text().strip() else 'IP'
+                copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
+                copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
+                menu.addAction(copy_ip_action)
+        else:
+            all_usernames: list[str] = []
+            all_ips_or_ranges: list[str] = []
+            for sel_index in selected_rows:
+                src_idx = self._proxy.mapToSource(sel_index)
+                u_item = self._model.item(src_idx.row(), USERNAME_COLUMN)
+                if u_item and u_item.text():
+                    all_usernames.append(u_item.text())
+                val = self._get_row_entry_value(src_idx.row())
+                if val:
+                    all_ips_or_ranges.append(val)
+
+            if all_usernames:
+                copy_users_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
+                copy_users_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+                menu.addAction(copy_users_action)
+            if all_ips_or_ranges:
+                copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs / Ranges ({len(all_ips_or_ranges)})', self)
+                copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips_or_ranges)))
+                menu.addAction(copy_ips_action)
+
+        menu.addSeparator()
+
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the database.')
+        select_all_action.setEnabled(self._proxy.rowCount() > 0)
+        select_all_action.triggered.connect(self._entries_table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._entries_table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        menu.addSeparator()
 
         # Single IP check & Multi-selected IPs detection
         is_single_ip = False
@@ -280,16 +336,71 @@ class EntriesContextMenuMixin(QDialog):
         db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
 
         # --- Copy actions ---
-        if username:
-            copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
-            copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
-            menu.addAction(copy_user_action)
-        if ip_or_range:
-            range_item = self._model.item(row, RANGE_COLUMN)
-            label = 'Range' if range_item and range_item.text().strip() else 'IP'
-            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
-            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
-            menu.addAction(copy_ip_action)
+        selected_rows_gs = self._entries_table.selectionModel().selectedRows() if self._entries_table.selectionModel() else []
+        selected_count_gs = len(selected_rows_gs) if selected_rows_gs else 1
+
+        copy_row_label = f'Copy Rows ({selected_count_gs})' if selected_count_gs > 1 else 'Copy Row'
+        copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_row_label, self)
+        copy_row_action.setShortcut('Ctrl+C')
+        copy_row_action.setToolTip('Copy selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.triggered.connect(self._copy_selected_entries)
+        menu.addAction(copy_row_action)
+
+        copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+        copy_all_action.setToolTip('Copy all visible entries to the clipboard as tab-separated text.')
+        copy_all_action.setEnabled(self._proxy.rowCount() > 0)
+        copy_all_action.triggered.connect(self._copy_all_entries)
+        menu.addAction(copy_all_action)
+
+        menu.addSeparator()
+
+        if selected_count_gs <= 1:
+            if username:
+                copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
+                copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
+                menu.addAction(copy_user_action)
+            if ip_or_range:
+                range_item = self._model.item(row, RANGE_COLUMN)
+                label = 'Range' if range_item and range_item.text().strip() else 'IP'
+                copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
+                copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
+                menu.addAction(copy_ip_action)
+        else:
+            all_usernames_gs: list[str] = []
+            all_ips_or_ranges_gs: list[str] = []
+            for sel_index in selected_rows_gs:
+                src_idx = self._proxy.mapToSource(sel_index)
+                u_item = self._model.item(src_idx.row(), USERNAME_COLUMN)
+                if u_item and u_item.text():
+                    all_usernames_gs.append(u_item.text())
+                val = self._get_row_entry_value(src_idx.row())
+                if val:
+                    all_ips_or_ranges_gs.append(val)
+
+            if all_usernames_gs:
+                copy_users_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames_gs)})', self)
+                copy_users_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames_gs)))
+                menu.addAction(copy_users_action)
+            if all_ips_or_ranges_gs:
+                copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs / Ranges ({len(all_ips_or_ranges_gs)})', self)
+                copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips_or_ranges_gs)))
+                menu.addAction(copy_ips_action)
+
+        menu.addSeparator()
+
+        select_all_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_gs_action.setShortcut('Ctrl+A')
+        select_all_gs_action.setToolTip('Select all rows in search results.')
+        select_all_gs_action.setEnabled(self._proxy.rowCount() > 0)
+        select_all_gs_action.triggered.connect(self._entries_table.selectAll)
+        menu.addAction(select_all_gs_action)
+
+        clear_selection_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_gs_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_gs_action.triggered.connect(self._entries_table.clearSelection)
+        menu.addAction(clear_selection_gs_action)
+
+        menu.addSeparator()
 
         # Single IP check & Multi-selected IPs detection for global search
         is_single_ip_gs = False
@@ -455,6 +566,56 @@ class EntriesContextMenuMixin(QDialog):
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText(text)
+
+    # pylint: disable=duplicate-code
+    def _copy_selected_entries(self) -> None:
+        """Copy selected rows from the UserIP entries table to the clipboard as tab-separated text."""
+        selection_model = self._entries_table.selectionModel()
+        if not selection_model:
+            return
+        selected_indexes = selection_model.selectedIndexes()
+        if not selected_indexes:
+            return
+
+        rows: dict[int, dict[int, str]] = {}
+        for model_index in selected_indexes:
+            if self._entries_table.isColumnHidden(model_index.column()):
+                continue
+            row_index = model_index.row()
+            column_index = model_index.column()
+            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
+            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
+
+        lines: list[str] = []
+        for row_index in sorted(rows):
+            column_map = rows[row_index]
+            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
+
+        if not lines:
+            return
+
+        self._copy_to_clipboard('\n'.join(lines))
+
+    def _copy_all_entries(self) -> None:
+        """Copy all visible rows from the UserIP entries table to the clipboard as tab-separated text."""
+        lines: list[str] = []
+        column_count = self._proxy.columnCount()
+        row_count = self._proxy.rowCount()
+        for row_index in range(row_count):
+            cells: list[str] = []
+            for column_index in range(column_count):
+                if self._entries_table.isColumnHidden(column_index):
+                    continue
+                index = self._proxy.index(row_index, column_index)
+                cell_data = self._proxy.data(index, Qt.ItemDataRole.DisplayRole)
+                cells.append(str(cell_data) if cell_data is not None else '')
+            lines.append('\t'.join(cells))
+
+        if not lines:
+            return
+
+        self._copy_to_clipboard('\n'.join(lines))
+    # pylint: enable=duplicate-code
 
     def _navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
         """Exit global search mode, open the given database, and select the matching entry when available."""
