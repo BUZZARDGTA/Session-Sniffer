@@ -551,7 +551,7 @@ def _check_block_owner(
     results = lookup_ips_batch(client, [ip])
     lookup_result = results.get(ip) or {}
 
-    is_match = lookup_result.get('status') == 'success' and owner_matches(owner, lookup_result)
+    is_match = bool(lookup_result.get('status') == 'success' and owner_matches(owner, lookup_result))
     cache[block_index] = is_match
     return is_match
 

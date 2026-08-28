@@ -33,8 +33,8 @@ from session_sniffer.networking.utils import is_ipv4_address
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from scapy.arch.libpcap import L2pcapListenSocket
     from scapy.packet import Packet as ScapyPacket
+    from scapy.supersocket import SuperSocket
 
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
@@ -194,7 +194,7 @@ class _CaptureState:
     restart_requested: threading.Event = field(default_factory=threading.Event)
     capture_thread: threading.Thread | None = None
     sniffer: AsyncSniffer | None = None
-    pcap_socket: L2pcapListenSocket | None = None
+    pcap_socket: SuperSocket | None = None
 
 
 class PacketCapture:
@@ -398,8 +398,11 @@ class PacketCapture:
         with self._state.control_lock:
             if self._state.pcap_socket is None:
                 return None
+            pcap_fd = getattr(self._state.pcap_socket, 'pcap_fd', None)
+            if pcap_fd is None:
+                return None
             stat = pcap_stat()
-            if pcap_stats(self._state.pcap_socket.pcap_fd.pcap, byref(stat)):
+            if pcap_stats(pcap_fd.pcap, byref(stat)):
                 return None
             return int(stat.ps_drop) + int(stat.ps_ifdrop)
 

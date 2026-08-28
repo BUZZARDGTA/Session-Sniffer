@@ -9,6 +9,7 @@ immutable `GTA5Status` snapshot.
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import psutil
 
@@ -105,7 +106,7 @@ def find_running_gta5_path(
 
     # Slow path: cheap scan by process name only.
     for process in psutil.process_iter(['name']):
-        process_name: str | None = process.info.get('name')
+        process_name = cast('str | None', process.info.get('name'))
 
         if not process_name or process_name.lower() not in _GTA5_PROCESS_NAMES:
             continue

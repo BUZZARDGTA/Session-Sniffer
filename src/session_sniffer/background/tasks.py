@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict
+from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
 from session_sniffer.background.events import gui_closed__event
@@ -317,10 +317,10 @@ def handle_detection_notification(
         config = _NOTIFICATION_CONFIGS[notification_type]
         prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
 
-        enabled: bool = getattr(GUIDetectionSettings, f'{prefix}_enabled')
-        voice_setting: Literal['Male', 'Female'] | bool = getattr(GUIDetectionSettings, f'{prefix}_voice_notifications')
-        logging_setting: bool = getattr(GUIDetectionSettings, f'{prefix}_logging')
-        msgbox_setting: bool = getattr(GUIDetectionSettings, f'{prefix}_message_box')
+        enabled = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_enabled'))
+        voice_setting = cast('Literal["Male", "Female"] | bool', getattr(GUIDetectionSettings, f'{prefix}_voice_notifications'))
+        logging_setting = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_logging'))
+        msgbox_setting = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_message_box'))
 
         # Check if there are combo rules with event conditions that might need evaluation
         has_event_combo_rules = any(rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
@@ -332,7 +332,7 @@ def handle_detection_notification(
         data_ready = False
 
         if standalone_active:
-            duration: int | Literal['Auto'] = getattr(GUIDetectionSettings, f'{prefix}_duration')
+            duration = cast('int | Literal["Auto"]', getattr(GUIDetectionSettings, f'{prefix}_duration'))
 
             # Execute suspension action (only when enabled and suspension is supported)
             if enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
