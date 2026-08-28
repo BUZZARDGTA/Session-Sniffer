@@ -75,10 +75,27 @@ GROUPBOX_STYLE = """
     QGroupBox QComboBox QAbstractItemView {
         background-color: #1a232c;
         border: 1px solid #3b5064;
+        border-radius: 4px;
+        padding: 2px 1px;
         selection-background-color: #2a3f4a;
+        outline: none;
     }
     QGroupBox QComboBox QAbstractItemView::item {
         min-height: 20px;
+        padding: 2px 6px;
+        margin: 1px 0px;
+        border-radius: 3px;
+        border: none;
+    }
+    QGroupBox QComboBox QAbstractItemView::item:hover {
+        background-color: #243040;
+        border-radius: 3px;
+        padding: 2px 6px;
+    }
+    QGroupBox QComboBox QAbstractItemView::item:selected {
+        background-color: #007acc;
+        color: white;
+        border-radius: 3px;
         padding: 2px 6px;
     }
     QGroupBox QCheckBox::indicator {
