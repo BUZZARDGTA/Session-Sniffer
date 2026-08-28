@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QLinearGradient, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -425,13 +425,55 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
 
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
-        """Paint table cell while ensuring custom ForegroundRole and BackgroundRole are preserved across selection changes."""
+        """Paint table cell with hover gradient and preserve custom ForegroundRole/BackgroundRole."""
         if painter:
-            bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
-            if isinstance(bg_brush, QBrush) and not bool(option.state & QStyle.StateFlag.State_Selected):
+            is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+            is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+
+            if is_hovered:
+                is_connected: bool | None = None
+                view = self.parent()
+                if view is not None and hasattr(view, 'is_connected_table'):
+                    raw_is_connected = getattr(view, 'is_connected_table', None)
+                    if isinstance(raw_is_connected, bool):
+                        is_connected = raw_is_connected
+
                 painter.save()
-                painter.fillRect(cast('QRect', option.rect), bg_brush)  # type: ignore[redundant-cast]
+                rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
+
+                if is_connected is True:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor(42, 110, 85, 160))
+                        grad.setColorAt(1, QColor(28, 75, 58, 160))
+                    else:
+                        grad.setColorAt(0, QColor(42, 110, 85, 100))
+                        grad.setColorAt(1, QColor(28, 75, 58, 100))
+                elif is_connected is False:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor(130, 45, 45, 160))
+                        grad.setColorAt(1, QColor(85, 28, 28, 160))
+                    else:
+                        grad.setColorAt(0, QColor(130, 45, 45, 100))
+                        grad.setColorAt(1, QColor(85, 28, 28, 100))
+                else:
+                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+                    if is_selected:
+                        grad.setColorAt(0, QColor('#2f4f64'))
+                        grad.setColorAt(1, QColor('#2f4f64'))
+                    else:
+                        grad.setColorAt(0, QColor('#2d2d30'))
+                        grad.setColorAt(1, QColor('#2d2d30'))
+
+                painter.fillRect(rect, grad)
                 painter.restore()
+            else:
+                bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+                if isinstance(bg_brush, QBrush) and not is_selected:
+                    painter.save()
+                    painter.fillRect(cast('QRect', option.rect), bg_brush)  # type: ignore[redundant-cast]
+                    painter.restore()
 
         opt = QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
