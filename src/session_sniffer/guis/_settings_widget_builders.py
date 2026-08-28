@@ -1,7 +1,7 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
 import re
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QRegularExpression, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QRegularExpressionValidator
@@ -178,8 +178,8 @@ def create_bool_or_enum_widget(meta: SettingMeta) -> QComboBox:
 def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     """Create a multi-column grid of checkboxes for column visibility."""
     allowed_attr = meta.allowed_columns_attr or ''
-    allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
-    default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
+    allowed_columns = cast('tuple[str, ...]', getattr(Settings, allowed_attr, ()))
+    default_columns = cast('tuple[str, ...]', SETTING_DEFAULTS.get(key, ()))
 
     title = meta.display_label
     if meta.requires_capture_restart:
@@ -234,8 +234,8 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWidget:
     """Create a widget with checkable presets and a single list of server checkboxes."""
     allowed_attr = meta.allowed_columns_attr or ''
-    allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
-    default_columns: tuple[str, ...] = tuple(SETTING_DEFAULTS.get(key, ()))
+    allowed_columns = cast('tuple[str, ...]', getattr(Settings, allowed_attr, ()))
+    default_columns = cast('tuple[str, ...]', SETTING_DEFAULTS.get(key, ()))
     display_labels = meta.display_labels or {}
 
     container = QWidget()

@@ -35,7 +35,9 @@ from session_sniffer.settings import Settings
 
 COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
 # Pre-scan available flag codes once to avoid per-country filesystem checks
-AVAILABLE_FLAG_CODES: frozenset[str] = frozenset(path.stem for path in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset()
+AVAILABLE_FLAG_CODES: frozenset[str] = (
+    frozenset(path.stem for path in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset[str]()
+)
 
 
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:

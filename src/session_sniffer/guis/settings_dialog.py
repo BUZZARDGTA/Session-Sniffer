@@ -616,7 +616,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         self._loading_settings = True
         try:
             for key, widget in self._widgets.items():
-                value: SettingValue = getattr(Settings, key)
+                value = cast('SettingValue', getattr(Settings, key))
                 self._set_widget_value(key, widget, value)
         finally:
             self._loading_settings = False
@@ -706,7 +706,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     def _read_column_tuple(self, meta: SettingMeta, widget: QWidget) -> tuple[str, ...]:
         """Read checked column names from the column-tuple group box."""
         allowed_attr = meta.allowed_columns_attr or ''
-        allowed_columns: tuple[str, ...] = getattr(Settings, allowed_attr, ())
+        allowed_columns = cast('tuple[str, ...]', getattr(Settings, allowed_attr, ()))
         checkboxes = {checkbox.objectName(): checkbox for checkbox in widget.findChildren(QCheckBox)}
         return tuple(column_name for column_name in allowed_columns if (checkbox := checkboxes.get(column_name)) is not None and checkbox.isChecked())
 
@@ -831,9 +831,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
     def _reset_tab_to_defaults(self, category: str) -> None:
         """Populate widgets belonging to *category* with default values without saving."""
+        defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
         for key, widget in self._widgets.items():
-            if key in SETTING_DEFAULTS and SETTING_METADATA[key].category == category:
-                self._set_widget_value(key, widget, SETTING_DEFAULTS[key])
+            if key in defaults_dict and SETTING_METADATA[key].category == category:
+                self._set_widget_value(key, widget, defaults_dict[key])
 
     def _reset_current_tab(self) -> None:
         """Reset the current tab's settings to their default values."""
@@ -842,9 +843,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
     def _reset_to_defaults(self) -> None:
         """Populate all widgets with default values without saving."""
+        defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
         for key, widget in self._widgets.items():
-            if key in SETTING_DEFAULTS:
-                self._set_widget_value(key, widget, SETTING_DEFAULTS[key])
+            if key in defaults_dict:
+                self._set_widget_value(key, widget, defaults_dict[key])
 
     def _export_settings(self) -> None:
         """Export current in-memory settings to a user-chosen Settings.ini file."""

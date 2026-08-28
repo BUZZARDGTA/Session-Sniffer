@@ -192,7 +192,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
             if not hasattr(self, f'{prefix}_detection_section'):
                 continue
-            detection_section: QWidget = getattr(self, f'{prefix}_detection_section')
+            detection_section = cast('QWidget', getattr(self, f'{prefix}_detection_section'))
             detection_section.setVisible(False)
 
     def _remove_detection_restrictions(self) -> None:
@@ -200,7 +200,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
             if not hasattr(self, f'{prefix}_detection_section'):
                 continue
-            detection_section: QWidget = getattr(self, f'{prefix}_detection_section')
+            detection_section = cast('QWidget', getattr(self, f'{prefix}_detection_section'))
             detection_section.setVisible(True)
 
     # ------------------------------------------------------------------
