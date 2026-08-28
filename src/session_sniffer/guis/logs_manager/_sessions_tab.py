@@ -298,7 +298,7 @@ class SessionsLogTab(QWidget):
 
         viewport = self._tree.viewport()
         if viewport:
-            menu.exec(viewport.mapToGlobal(pos))  # ty: ignore[invalid-argument-type]
+            menu.exec(viewport.mapToGlobal(pos))
 
     def _on_tree_current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         self._handle_tree_selection(current)
