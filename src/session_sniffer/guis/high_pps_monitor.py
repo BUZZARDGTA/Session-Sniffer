@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -24,7 +23,7 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.utils import popup_menu_at_table, setup_table_view_headers
+from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
@@ -478,13 +477,6 @@ class HighRateMonitorWidget(QWidget):
 
     # Context menu -----------------------------------------------------------
 
-    def _copy_to_clipboard(self, text: str) -> None:
-        clipboard = QApplication.clipboard()
-        if not clipboard:
-            message = 'Failed to get clipboard'
-            raise RuntimeError(message)
-        clipboard.setText(text)
-
     # pylint: disable=duplicate-code
     def _copy_selected_rows(self) -> None:
         """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
@@ -507,7 +499,7 @@ class HighRateMonitorWidget(QWidget):
             column_map = rows[row_index]
             lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
 
-        self._copy_to_clipboard('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
 
     def _copy_all_rows(self) -> None:
         """Copy all rows in the high-rate monitor table to clipboard as tab-separated text."""
@@ -525,7 +517,7 @@ class HighRateMonitorWidget(QWidget):
         if not lines:
             return
 
-        self._copy_to_clipboard('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
     # pylint: enable=duplicate-code
 
     # pylint: disable=duplicate-code
@@ -573,14 +565,14 @@ class HighRateMonitorWidget(QWidget):
 
             copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IP ({data.ip})', self)
             copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
-            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(data.ip))
+            copy_ip_action.triggered.connect(lambda: set_clipboard_text(data.ip))
             menu.addAction(copy_ip_action)
 
             usernames_text = ', '.join(data.usernames)
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(data.usernames))}', self)
             copy_usernames_action.setToolTip('Copy associated usernames to the clipboard.')
             copy_usernames_action.setEnabled(bool(data.usernames))
-            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
+            copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
             menu.addAction(copy_usernames_action)
         else:
             all_ips = [player_data.ip for player_data in selected_players]
@@ -602,13 +594,13 @@ class HighRateMonitorWidget(QWidget):
 
             copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
             copy_ips_action.setToolTip('Copy all selected IP addresses.')
-            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
+            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
             menu.addAction(copy_ips_action)
 
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
             copy_usernames_action.setToolTip('Copy all selected usernames.')
             copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
             menu.addAction(copy_usernames_action)
 
         menu.addSeparator()

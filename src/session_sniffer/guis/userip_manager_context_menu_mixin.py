@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
-from PySide6.QtWidgets import QApplication, QCheckBox, QDialog, QFileSystemModel, QMenu, QPushButton, QTreeView
+from PySide6.QtWidgets import QCheckBox, QDialog, QFileSystemModel, QMenu, QPushButton, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
@@ -29,6 +29,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     handle_ini_section_header,
 )
+from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -144,13 +145,13 @@ class EntriesContextMenuMixin(QDialog):
         if selected_count <= 1:
             if username:
                 copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
-                copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
+                copy_user_action.triggered.connect(lambda: set_clipboard_text(username))
                 menu.addAction(copy_user_action)
             if ip_or_range:
                 range_item = self._model.item(row, RANGE_COLUMN)
                 label = 'Range' if range_item and range_item.text().strip() else 'IP'
                 copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
-                copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
+                copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip_or_range))
                 menu.addAction(copy_ip_action)
         else:
             all_usernames: list[str] = []
@@ -166,11 +167,11 @@ class EntriesContextMenuMixin(QDialog):
 
             if all_usernames:
                 copy_users_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
-                copy_users_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+                copy_users_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
                 menu.addAction(copy_users_action)
             if all_ips_or_ranges:
                 copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs / Ranges ({len(all_ips_or_ranges)})', self)
-                copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips_or_ranges)))
+                copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips_or_ranges)))
                 menu.addAction(copy_ips_action)
 
         menu.addSeparator()
@@ -357,13 +358,13 @@ class EntriesContextMenuMixin(QDialog):
         if selected_count_gs <= 1:
             if username:
                 copy_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
-                copy_user_action.triggered.connect(lambda: self._copy_to_clipboard(username))
+                copy_user_action.triggered.connect(lambda: set_clipboard_text(username))
                 menu.addAction(copy_user_action)
             if ip_or_range:
                 range_item = self._model.item(row, RANGE_COLUMN)
                 label = 'Range' if range_item and range_item.text().strip() else 'IP'
                 copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
-                copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(ip_or_range))
+                copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip_or_range))
                 menu.addAction(copy_ip_action)
         else:
             all_usernames_gs: list[str] = []
@@ -379,11 +380,11 @@ class EntriesContextMenuMixin(QDialog):
 
             if all_usernames_gs:
                 copy_users_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames_gs)})', self)
-                copy_users_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames_gs)))
+                copy_users_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames_gs)))
                 menu.addAction(copy_users_action)
             if all_ips_or_ranges_gs:
                 copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs / Ranges ({len(all_ips_or_ranges_gs)})', self)
-                copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips_or_ranges_gs)))
+                copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips_or_ranges_gs)))
                 menu.addAction(copy_ips_action)
 
         menu.addSeparator()
@@ -560,13 +561,6 @@ class EntriesContextMenuMixin(QDialog):
         self._model.removeRow(source_row)
         self._update_entry_counts()
 
-    @staticmethod
-    def _copy_to_clipboard(text: str) -> None:
-        """Copy the given text to the system clipboard."""
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText(text)
-
     # pylint: disable=duplicate-code
     def _copy_selected_entries(self) -> None:
         """Copy selected rows from the UserIP entries table to the clipboard as tab-separated text."""
@@ -594,7 +588,7 @@ class EntriesContextMenuMixin(QDialog):
         if not lines:
             return
 
-        self._copy_to_clipboard('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
 
     def _copy_all_entries(self) -> None:
         """Copy all visible rows from the UserIP entries table to the clipboard as tab-separated text."""
@@ -614,7 +608,7 @@ class EntriesContextMenuMixin(QDialog):
         if not lines:
             return
 
-        self._copy_to_clipboard('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
     # pylint: enable=duplicate-code
 
     def _navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:

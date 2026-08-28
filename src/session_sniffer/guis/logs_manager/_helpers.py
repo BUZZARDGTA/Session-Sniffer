@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
-from session_sniffer.guis.utils import apply_search_icon
+from session_sniffer.guis.utils import apply_search_icon, set_clipboard_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -277,9 +277,7 @@ def copy_viewer_text_to_clipboard(viewer: QPlainTextEdit) -> None:
     text = viewer.toPlainText()
     if not text:
         return
-    clipboard = QApplication.clipboard()
-    if clipboard:
-        clipboard.setText(text)
+    set_clipboard_text(text)
 
 
 def setup_metadata_label(layout: QVBoxLayout) -> QLabel:

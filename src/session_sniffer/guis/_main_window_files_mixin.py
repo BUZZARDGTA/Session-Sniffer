@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QApplication,
     QDialog,
     QDialogButtonBox,
     QFrame,
@@ -44,6 +43,7 @@ from session_sniffer.constants.standalone import (
     LOOKY_BASE_HOST,
     TITLE,
 )
+from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -230,9 +230,7 @@ class FilesMixin(QMainWindow):
 
         if copy_button:
             copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            clipboard = QApplication.clipboard()
-            if clipboard:
-                copy_button.clicked.connect(lambda: clipboard.setText(copy_text))
+            copy_button.clicked.connect(lambda: set_clipboard_text(copy_text))
 
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)

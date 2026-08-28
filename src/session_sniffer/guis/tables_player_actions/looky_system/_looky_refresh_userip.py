@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from PySide6.QtCore import QPoint, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -40,7 +39,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon, set_dialog_window_flags
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon, set_clipboard_text, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -489,24 +488,17 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         if not parent:
             # IP node
             ip_str = item.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
+            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
         else:
             # Username node
             username_str = item.text(0).strip()
             ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy Username', lambda: self._copy_to_clipboard(username_str))
-            menu.addAction('Copy IP Address', lambda: self._copy_to_clipboard(ip_str))
+            menu.addAction('Copy Username', lambda: set_clipboard_text(username_str))
+            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
 
         viewport = self._tree.viewport()
         if viewport:
             menu.popup(viewport.mapToGlobal(pos))
-
-    @staticmethod
-    def _copy_to_clipboard(text: str) -> None:
-        """Copy the given text to the system clipboard."""
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText(text)
 
 
 # ---------------------------------------------------------------------------

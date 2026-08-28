@@ -72,6 +72,7 @@ from session_sniffer.guis.utils import (
     popup_menu_at_table,
     resize_window_for_screen,
     scale_by_ui,
+    set_clipboard_text,
     setup_static_table_column_resizing,
     setup_table_view_headers,
 )
@@ -630,11 +631,7 @@ class _LeaderboardTableView(QTableView):
             column_map = rows[row_index]
             lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
 
-        clipboard = QApplication.clipboard()
-        if not clipboard:
-            message = 'Failed to get clipboard'
-            raise RuntimeError(message)
-        clipboard.setText('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
     # pylint: enable=duplicate-code
 
     @override
@@ -1101,12 +1098,12 @@ class PlayerLeaderboardWindow(QWidget):
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
             copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
             copy_usernames_action.setEnabled(bool(entry.usernames))
-            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard(usernames_text))
+            copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
             menu.addAction(copy_usernames_action)
 
             copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy IP', self)
             copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
-            copy_ip_action.triggered.connect(lambda: self._copy_to_clipboard(entry.ip))
+            copy_ip_action.triggered.connect(lambda: set_clipboard_text(entry.ip))
             menu.addAction(copy_ip_action)
         else:
             all_usernames = [username for entry in selected_entries for username in entry.usernames]
@@ -1129,12 +1126,12 @@ class PlayerLeaderboardWindow(QWidget):
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
             copy_usernames_action.setToolTip('Copy all usernames for the selected players.')
             copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_usernames)))
+            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
             menu.addAction(copy_usernames_action)
 
             copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
             copy_ips_action.setToolTip('Copy all IP addresses for the selected players.')
-            copy_ips_action.triggered.connect(lambda: self._copy_to_clipboard('\n'.join(all_ips)))
+            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
             menu.addAction(copy_ips_action)
 
         menu.addSeparator()
@@ -1252,14 +1249,7 @@ class PlayerLeaderboardWindow(QWidget):
         if not lines:
             return
 
-        self._copy_to_clipboard('\n'.join(lines))
-
-    def _copy_to_clipboard(self, text: str) -> None:
-        clipboard = QApplication.clipboard()
-        if not clipboard:
-            message = 'Failed to get clipboard'
-            raise RuntimeError(message)
-        clipboard.setText(text)
+        set_clipboard_text('\n'.join(lines))
 
     def _show_seen_stats_for_entry(self, entry: LeaderboardEntry) -> None:
         _build_seen_stats_dialog(entry, self).exec()

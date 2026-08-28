@@ -11,7 +11,6 @@ from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
@@ -43,7 +42,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -553,9 +552,7 @@ class CsvLogTab(QWidget):
                 cells.append(item.text() if item else '')
             lines.append(','.join(cells))
 
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
 
     def _copy_all(self) -> None:
         lines: list[str] = []
@@ -572,9 +569,7 @@ class CsvLogTab(QWidget):
         if not lines:
             return
 
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText('\n'.join(lines))
+        set_clipboard_text('\n'.join(lines))
 
     def _export_as(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

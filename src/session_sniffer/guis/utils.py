@@ -674,9 +674,20 @@ def copy_table_widget_selection(table: QTableWidget) -> None:
         column_map = rows[row]
         lines.append('\t'.join(column_map[column] for column in sorted(column_map)))
 
+    set_clipboard_text('\n'.join(lines))
+
+
+def set_clipboard_text(text: str) -> None:
+    """Copy *text* to the system clipboard.
+
+    Raises:
+        RuntimeError: If the clipboard instance cannot be obtained.
+    """
     clipboard = QApplication.clipboard()
-    if clipboard:
-        clipboard.setText('\n'.join(lines))
+    if not clipboard:
+        message = 'Failed to get clipboard'
+        raise RuntimeError(message)
+    clipboard.setText(text)
 
 
 def popup_menu_at_table_widget(menu: QMenu, table: QTableWidget, pos: QPoint) -> None:
