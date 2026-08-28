@@ -286,12 +286,6 @@ class _SVGColorPickerDialog(QDialog):
         outer.addWidget(scroll)
 
         bottom = QHBoxLayout()
-        no_color_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' No Color')
-        no_color_button.setAutoDefault(False)
-        no_color_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        no_color_button.setToolTip('Remove the color for this database')
-        no_color_button.clicked.connect(self._clear)
-        bottom.addWidget(no_color_button)
         bottom.addStretch()
         cancel_button = QPushButton('Cancel')
         cancel_button.setAutoDefault(False)
@@ -305,18 +299,12 @@ class _SVGColorPickerDialog(QDialog):
         self._chosen_name = name
         self.accept()
 
-    def _clear(self) -> None:
-        self._chosen = QColor()
-        self._chosen_name = ''
-        self.accept()
-
     @classmethod
     def get_color(cls, initial: QColor, parent: QWidget | None = None) -> tuple[bool, QColor, str]:
         """Show the SVG color palette.
 
         Returns `(accepted, color, svg_name)`.
         `accepted=False` means the user cancelled — keep the existing color.
-        An invalid *color* with an empty *svg_name* means the user cleared the color.
         """
         dlg = cls(initial, parent)
         if dlg.exec() == QDialog.DialogCode.Accepted:
