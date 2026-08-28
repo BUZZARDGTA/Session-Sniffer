@@ -528,17 +528,18 @@ def rendering_core(
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                 p2p_session_connected = [player for player in session_connected if not is_third_party_server_ip(player.ip)]
-                if SessionHost.player is not None and SessionHost.player.left_event.is_set():
-                    if SessionHost.player.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != SessionHost.player.ip:
+                current_session_host = SessionHost.player
+                if current_session_host is not None and current_session_host.left_event.is_set():
+                    if current_session_host.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != current_session_host.ip:
                         logger.debug(
                             '[SessionHost] Current host %s disconnected but is relayed (%d packets <= %d), keeping as host until session clears',
-                            SessionHost.player.ip,
-                            SessionHost.player.packets.exchanged,
+                            current_session_host.ip,
+                            current_session_host.packets.exchanged,
                             MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         )
-                        _relay_host_logged_ip = SessionHost.player.ip
-                    elif SessionHost.player.packets.exchanged > MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
-                        logger.debug('[SessionHost] Current host %s left_event is set, clearing host', SessionHost.player.ip)
+                        _relay_host_logged_ip = current_session_host.ip
+                    elif current_session_host.packets.exchanged > MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+                        logger.debug('[SessionHost] Current host %s left_event is set, clearing host', current_session_host.ip)
                         _relay_host_logged_ip = None
                         SessionHost.player = None
                         SessionHost.search_player = False
@@ -650,11 +651,11 @@ def rendering_core(
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
 
-        _current_host = SessionHost.player
-        if _current_host is not None and _current_host.ip != _last_recorded_host_ip:
-            SessionHost.record_host(_current_host)
-            _last_recorded_host_ip = _current_host.ip
-        elif _current_host is None and _last_recorded_host_ip is not None:
+        current_session_host = SessionHost.player
+        if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
+            SessionHost.record_host(current_session_host)
+            _last_recorded_host_ip = current_session_host.ip
+        elif current_session_host is None and _last_recorded_host_ip is not None:
             _last_recorded_host_ip = None
 
         if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):

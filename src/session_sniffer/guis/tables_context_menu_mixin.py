@@ -730,7 +730,8 @@ class TableContextMenuMixin(QTableView):
             add_user_scripts_menu(ip_addresses)
 
         def add_clear_session_host_action(ip_address: str) -> None:
-            if not Settings.is_gta5_feature_set() or SessionHost.player is None or SessionHost.player.ip != ip_address:
+            current_session_host = SessionHost.player
+            if not Settings.is_gta5_feature_set() or current_session_host is None or current_session_host.ip != ip_address:
                 return
 
             add_action(

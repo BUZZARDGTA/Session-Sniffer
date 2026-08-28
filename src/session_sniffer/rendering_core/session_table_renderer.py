@@ -52,7 +52,8 @@ def format_player_usernames(player: Player) -> str:
 
 def format_player_ip(player_ip: str) -> str:
     """Format player IP with crown emoji if session host."""
-    if SessionHost.player is not None and SessionHost.player.ip == player_ip:
+    current_session_host = SessionHost.player
+    if current_session_host is not None and current_session_host.ip == player_ip:
         return f'{player_ip} 👑'
     return player_ip
 

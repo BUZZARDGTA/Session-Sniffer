@@ -299,7 +299,7 @@ class SessionHost:
                 player.packets.exchanged,
             )
 
-        potential_session_host_player = None
+        potential_session_host_player: Player | None = None
 
         if len(connected_players) == 1:
             logger.debug('[SessionHost] Single candidate, selecting as potential host')
