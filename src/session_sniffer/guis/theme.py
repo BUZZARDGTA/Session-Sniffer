@@ -143,6 +143,34 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         border: 1px solid #3e3e42;
     }
 
+    /* Radio Buttons */
+    QRadioButton {
+        spacing: 8px;
+        color: #e0e0e0;
+    }
+    QRadioButton::indicator {
+        width: 14px;
+        height: 14px;
+        border: 1px solid #3e3e42;
+        border-radius: 8px;
+        background-color: #1e1e1e;
+    }
+    QRadioButton::indicator:hover {
+        border: 1px solid #007acc;
+    }
+    QRadioButton::indicator:checked {
+        border: 1px solid #007acc;
+        background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.45, fx:0.5, fy:0.5, stop:0 #007acc, stop:0.55 #007acc, stop:0.56 #1e1e1e, stop:1 #1e1e1e);
+    }
+    QRadioButton::indicator:checked:hover {
+        border: 1px solid #0098ff;
+        background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.45, fx:0.5, fy:0.5, stop:0 #0098ff, stop:0.55 #0098ff, stop:0.56 #1e1e1e, stop:1 #1e1e1e);
+    }
+    QRadioButton::indicator:disabled {
+        background-color: #2d2d30;
+        border: 1px solid #3e3e42;
+    }
+
     QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {
         selection-background-color: #007acc;
     }
