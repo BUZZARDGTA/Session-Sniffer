@@ -407,7 +407,7 @@ class CsvLogTab(QWidget):
 
             # pylint: disable=duplicate-code
             ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu.setToolTipsVisible(True)
 
@@ -430,7 +430,7 @@ class CsvLogTab(QWidget):
 
             # pylint: disable=duplicate-code
             ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu.setToolTipsVisible(True)
 

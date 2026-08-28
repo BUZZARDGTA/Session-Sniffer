@@ -163,7 +163,7 @@ class EntriesContextMenuMixin(QDialog):
                 menu.addAction(lookup_action)
 
             ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu.setToolTipsVisible(True)
 
@@ -321,7 +321,7 @@ class EntriesContextMenuMixin(QDialog):
                 menu.addAction(lookup_gs_action)
 
             ping_menu_gs = QMenu('Ping', menu)
-            ping_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu_gs.setToolTipsVisible(True)
 
