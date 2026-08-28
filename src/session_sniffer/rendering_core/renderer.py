@@ -514,7 +514,7 @@ def rendering_core(
         if Settings.is_gta5_feature_set():
             if not (CaptureState.gta5_is_running or not CaptureState.is_local_capture()) or not Settings.gui_session_host_detection:
                 if (
-                    SessionHost.player is not None
+                    SessionHost.has_player()
                     or SessionHost.players_pending_for_disconnection
                     or SessionHost.search_player
                     or SessionHost.last_timing_gap_candidate is not None
@@ -528,7 +528,7 @@ def rendering_core(
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                 p2p_session_connected = [player for player in session_connected if not is_third_party_server_ip(player.ip)]
-                current_session_host = SessionHost.player
+                current_session_host = SessionHost.get_player()
                 if current_session_host is not None and current_session_host.left_event.is_set():
                     if current_session_host.packets.exchanged <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST and _relay_host_logged_ip != current_session_host.ip:
                         logger.debug(
@@ -541,11 +541,11 @@ def rendering_core(
                     elif current_session_host.packets.exchanged > MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         logger.debug('[SessionHost] Current host %s left_event is set, clearing host', current_session_host.ip)
                         _relay_host_logged_ip = None
-                        SessionHost.player = None
+                        SessionHost.set_player(None)
                         SessionHost.search_player = False
                 # TODO(BUZZARDGTA): We should also potentially needs to check that not more then 1s passed before each disconnected
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                    if SessionHost.player:
+                    if SessionHost.has_player():
                         logger.debug(
                             '[SessionHost] All %d pending disconnection players have left, clearing host and triggering search',
                             len(SessionHost.players_pending_for_disconnection),
@@ -556,7 +556,7 @@ def rendering_core(
                             len(SessionHost.players_pending_for_disconnection),
                         )
                     _relay_host_logged_ip = None
-                    SessionHost.player = None
+                    SessionHost.set_player(None)
                     SessionHost.search_player = True
                     SessionHost.search_start_time = None
                     SessionHost.players_pending_for_disconnection.clear()
@@ -592,11 +592,11 @@ def rendering_core(
                     _session_host_was_active = True
 
                 if not session_connected:
-                    if _session_host_was_active and (SessionHost.player is not None or not SessionHost.search_player):
+                    if _session_host_was_active and (SessionHost.has_player() or not SessionHost.search_player):
                         logger.debug('[SessionHost] No connected players, resetting host and triggering search')
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
-                    SessionHost.player = None
+                    SessionHost.set_player(None)
                     SessionHost.search_player = True
                     SessionHost.players_pending_for_disconnection.clear()
                 elif not p2p_session_connected:
@@ -631,7 +631,7 @@ def rendering_core(
                             len(p2p_session_connected),
                         )
                         SessionHost.get_host_player(p2p_session_connected)
-                elif not SessionHost.player and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
+                elif not SessionHost.has_player() and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
                     top2 = sorted(p2p_session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
                     current_pair = (top2[0].ip, top2[1].ip)
                     if current_pair != SessionHost.last_timing_gap_candidate:
@@ -651,7 +651,7 @@ def rendering_core(
                         SessionHost.last_timing_gap_candidate = None
                         SessionHost.search_player = True
 
-        current_session_host = SessionHost.player
+        current_session_host = SessionHost.get_player()
         if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
             SessionHost.record_host(current_session_host)
             _last_recorded_host_ip = current_session_host.ip

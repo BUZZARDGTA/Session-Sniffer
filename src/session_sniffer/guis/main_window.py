@@ -193,7 +193,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         self._host_status_action = host_status_action
 
         def _update_host_status_label() -> None:
-            current_session_host = SessionHost.player
+            current_session_host = SessionHost.get_player()
             if current_session_host is not None:
                 self._host_status_action.setText(f'ℹ️ Detected: {current_session_host.ip}')  # noqa: RUF001
             elif SessionHost.search_player:

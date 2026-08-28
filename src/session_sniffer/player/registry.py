@@ -236,7 +236,7 @@ class PlayersRegistry:
 class SessionHost:
     """Track the inferred session host and pending disconnections."""
 
-    player: ClassVar[Player | None] = None
+    _player: ClassVar[Player | None] = None
     search_player: ClassVar[bool] = False
     manual_redetect: ClassVar[bool] = False
     search_start_time: ClassVar[float | None] = None
@@ -245,13 +245,33 @@ class SessionHost:
     _history: ClassVar[list[HostHistoryEntry]] = []
 
     @classmethod
+    def get_player(cls) -> Player | None:
+        """Return the currently detected session host player."""
+        return cls._player
+
+    @classmethod
+    def set_player(cls, player: Player | None) -> None:
+        """Set the currently detected session host player."""
+        cls._player = player
+
+    @classmethod
+    def has_player(cls) -> bool:
+        """Return True if a session host player is currently detected."""
+        return cls._player is not None
+
+    @classmethod
+    def is_host(cls, player_ip: str) -> bool:
+        """Return True if player_ip is the currently detected session host."""
+        return cls._player is not None and cls._player.ip == player_ip
+
+    @classmethod
     def clear_session_host_data(cls) -> None:
         """Clear all session host data including pending disconnections."""
         cls.players_pending_for_disconnection.clear()
         cls.search_player = False
         cls.manual_redetect = False
         cls.search_start_time = None
-        cls.player = None
+        cls._player = None
         cls.last_timing_gap_candidate = None
 
     @classmethod
@@ -389,7 +409,7 @@ class SessionHost:
             return None
 
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
-        SessionHost.player = potential_session_host_player
+        SessionHost.set_player(potential_session_host_player)
         SessionHost.search_player = False
         SessionHost.manual_redetect = False
         SessionHost.search_start_time = None
