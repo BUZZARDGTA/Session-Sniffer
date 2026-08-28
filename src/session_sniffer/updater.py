@@ -123,7 +123,7 @@ def _fetch_github_versions() -> GithubVersionsResponse:
 
 def _is_frozen() -> bool:
     """Return True when running as a PyInstaller-compiled executable."""
-    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+    return bool(getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
 
 def _remove_file_if_possible(path: Path) -> None:

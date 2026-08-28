@@ -44,7 +44,7 @@ def get_repo_root_from_package_path() -> Path:
 
 def is_pyinstaller_compiled() -> bool:
     """Check if the script is running as a PyInstaller compiled executable."""
-    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')  # https://pyinstaller.org/en/stable/runtime-information.html
+    return bool(getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))  # https://pyinstaller.org/en/stable/runtime-information.html
 
 
 def get_working_directory_to_script_location() -> Path:
