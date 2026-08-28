@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import TypedDict
 
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
@@ -613,7 +613,74 @@ SETTING_METADATA: dict[str, SettingMeta] = {
 }
 
 
-SETTING_DEFAULTS: dict[str, Any] = {
+class SettingDefaults(TypedDict):
+    """Strongly-typed structure for all application setting default values."""
+
+    capture_interface_name: str | None
+    capture_ip_address: str | None
+    capture_mac_address: str | None
+    capture_arp_spoofing: bool
+    capture_block_third_party_servers: tuple[str, ...]
+    capture_feature_set: str | None
+    capture_overflow_timer: int
+    capture_prepend_custom_capture_filter: str | None
+    capture_blocked_ips: tuple[str, ...]
+    capture_filter_block_rtcp: bool
+    capture_filter_block_ssdp: bool
+    capture_filter_block_raknet: bool
+    capture_filter_block_dtls: bool
+    capture_filter_block_uaudp: bool
+    capture_filter_block_classicstun: bool
+    capture_filter_block_llmnr: bool
+    gui_always_on_top: bool
+    gui_interface_selection_auto_connect: bool
+    gui_interface_selection_hide_inactive: bool
+    gui_interface_selection_hide_neighbours: bool
+    gui_sessions_logging: bool
+    gui_sessions_logging_delete_empty_files: bool
+    gui_sessions_logging_delete_empty_folders: bool
+    gui_reset_ports_on_rejoins: bool
+    gui_session_host_detection: bool
+    gui_columns_connected_shown: tuple[str, ...]
+    gui_columns_disconnected_shown: tuple[str, ...]
+    gui_columns_datetime_show_date: bool
+    gui_columns_datetime_show_time: bool
+    gui_columns_datetime_show_elapsed_time: bool
+    gui_columns_timezone_display: str
+    gui_columns_geo_country_append_alpha2: bool
+    gui_columns_geo_continent_append_alpha2: bool
+    gui_connected_table_rows_per_page: int
+    gui_disconnected_table_rows_per_page: int
+    gui_disconnected_players_timer: int
+    gui_ignore_screen_resolution_warning: bool
+    discord_presence: bool
+    discord_presence_title: str
+    show_discord_popup: bool
+    discord_webhook_enabled: bool
+    discord_webhook_url: str | None
+    discord_webhook_refresh_interval: int
+    discord_webhook_include_connected: bool
+    discord_webhook_include_disconnected: bool
+    discord_webhook_max_rows_per_table: int
+    discord_webhook_max_connected_players: int
+    discord_webhook_max_disconnected_players: int
+    discord_webhook_format: str
+    discord_webhook_columns_connected: tuple[str, ...]
+    discord_webhook_columns_disconnected: tuple[str, ...]
+    discord_webhook_message_ids: str | None
+    webserver_enabled: bool
+    webserver_host: str
+    webserver_port: int
+    webserver_username: str | None
+    webserver_password: str | None
+    updater_channel: str | None
+    looky_enabled: bool
+    looky_auto_resolve: bool
+    looky_game_version: str
+    looky_api_key: str | None
+
+
+SETTING_DEFAULTS: SettingDefaults = {
     'capture_interface_name': None,
     'capture_ip_address': None,
     'capture_mac_address': None,
