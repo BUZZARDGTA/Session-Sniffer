@@ -122,18 +122,17 @@ Grab the latest stable release and get started instantly, or build it yourself f
 
 ## 🔐 About Usernames Decryption/Resolving
 
-The script **does not decrypt or resolve usernames automatically** across all platforms\*.  
-This functionality was historically available on legacy consoles (PS3 and Xbox 360) but is patched on current-gen platforms.  
-However, it allows for manual assignment using [UserIP INI databases Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration) files.
+Session Sniffer supports resolving and displaying player usernames through several methods:
 
-\*_Supported username resolution methods:_
-- _**PlayStation 3 (PS3)**: Direct packet payload extraction via the built-in **PS3 Name Resolver** setting (see [PS3 Name Resolver Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#capture-settings)). Note: This works only on supported PS3 games that broadcast unencrypted PSN usernames in packet payloads (see the [Officially Tested and Supported P2P Video Games](#-officially-tested-and-supported-p2p-video-games) table for supported titles)._
+- **PlayStation 3 (PS3)**: Direct packet payload extraction via the built-in **PS3 Name Resolver** setting. Note: This works only on supported PS3 games that broadcast unencrypted PSN usernames in packet payloads (see the [Officially Tested and Supported P2P Video Games](#-officially-tested-and-supported-p2p-video-games) table for supported titles).
+- **GTA Online (PC) Mod Menus**: Automatic username logging via these Lua plugins:
+  - [Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)
+  - [Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)
+  - [Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)
+- **GTA Online (PC) Looky System**: Cloud-based IP lookup via [**Looky System**](https://looky-gta.cc/).
+- **UserIP INI Databases**: Manual assignment of custom usernames to IP addresses using UserIP databases.
 
-- _**GTA Online (PC) Mod Menus**: Automatic username logging via these Lua plugins:_
-  - _[Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)_
-  - _[Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)_
-  - _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)_
-- _**GTA Online (PC) Looky System**: Cloud-based IP lookup via [**Looky System**](https://looky-gta.cc/) (see [Looky System Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration))._
+> _Note_: On current-gen consoles (PS4/PS5, Xbox One/Series X|S) and modern PC games, peer-to-peer network packets no longer expose unencrypted player usernames as this functionality has been patched on modern platforms. Packet-based automatic username extraction is therefore only possible on supported legacy console titles.
 
 ---
 
