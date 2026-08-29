@@ -129,7 +129,7 @@ Session Sniffer supports resolving and displaying player usernames through sever
   - [Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)
   - [Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)
   - [Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)
-- **GTA Online (PC) Looky System**: Cloud-based IP lookup via [**Looky System**](https://looky-gta.cc/).
+- **GTA Online (PC) Looky System**: Cloud-based username resolving via [**Looky System**](https://looky-gta.cc/).
 - **UserIP INI Databases**: Manual assignment of custom usernames to IP addresses using UserIP databases.
 
 > _Note_: On current-gen consoles (PS4/PS5, Xbox One/Series X|S) and modern PC games, peer-to-peer network packets no longer expose unencrypted player usernames as this functionality has been patched on modern platforms. Packet-based automatic username extraction is therefore only possible on supported legacy console titles.
