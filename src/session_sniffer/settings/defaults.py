@@ -143,6 +143,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         step=1,
         special_value_text='Disabled',
     ),
+    'capture_ps3_name_resolver': SettingMeta(
+        category='Capture',
+        group='General',
+        display_label='PS3 Name Resolver',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Extract and resolve PSN usernames directly from PS3 game packet payloads and display them in the Usernames column.',
+        requires_capture_restart=True,
+    ),
     'capture_block_third_party_servers': SettingMeta(
         category='Capture',
         group='IP Filters',
@@ -623,6 +631,7 @@ class SettingDefaults(TypedDict):
     capture_block_third_party_servers: tuple[str, ...]
     capture_feature_set: str | None
     capture_overflow_timer: int
+    capture_ps3_name_resolver: bool
     capture_prepend_custom_capture_filter: str | None
     capture_blocked_ips: tuple[str, ...]
     capture_filter_block_rtcp: bool
@@ -688,6 +697,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_feature_set': None,
     'capture_overflow_timer': 3,
+    'capture_ps3_name_resolver': False,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),
     'capture_filter_block_rtcp': True,

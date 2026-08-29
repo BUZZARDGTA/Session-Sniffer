@@ -59,6 +59,7 @@ from session_sniffer.networking.geolite2.service import update_and_initialize_ge
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
+from session_sniffer.networking.ps3_resolver import extract_ps3_username
 from session_sniffer.networking.reverse_dns import reset_resolver_cache
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
@@ -300,6 +301,9 @@ def main() -> None:
                 sent_by_local_host=sent_by_local_host,
             )
 
+        if packet.payload is not None and (resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host)):
+            matched_player.ps3_username = resolved_ps3_username
+
         if not matched_player.detection_checked:
             matched_player.detection_checked = True
             submit_global_detections_check(matched_player)
@@ -340,6 +344,7 @@ def main() -> None:
             multicast_support=multicast_support,
             capture_filter=capture_filter_str,
             display_filter_fn=display_filter_fn,
+            include_payload=Settings.capture_ps3_name_resolver,
             callback=packet_callback,
             on_capture_lost=_adapter_lost_event.set,
         ),
@@ -431,6 +436,7 @@ def main() -> None:
                 multicast_support=new_multicast,
                 capture_filter=new_capture_filter,
                 display_filter_fn=new_display_filter_fn,
+                include_payload=Settings.capture_ps3_name_resolver,
                 callback=packet_callback,
                 on_capture_lost=_adapter_lost_event.set,
             ),
@@ -530,6 +536,7 @@ def main() -> None:
                 multicast_support=capture_holder.config.multicast_support,
                 capture_filter=new_capture_filter,
                 display_filter_fn=new_display_filter_fn,
+                include_payload=Settings.capture_ps3_name_resolver,
                 callback=packet_callback,
                 on_capture_lost=_adapter_lost_event.set,
             ),

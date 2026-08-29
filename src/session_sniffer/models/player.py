@@ -96,6 +96,7 @@ class _PlayerOptionalState:
     userip_detection: PlayerUserIPDetection | None = None
     mod_menus: PlayerModMenus | None = None
     looky_system: PlayerLooky = dataclasses.field(default_factory=PlayerLooky)
+    ps3_username: str | None = None
 
 
 class Player:  # pylint: disable=too-many-public-methods
@@ -273,6 +274,15 @@ class Player:  # pylint: disable=too-many-public-methods
     @mod_menus.setter
     def mod_menus(self, value: PlayerModMenus | None) -> None:
         self._optional.mod_menus = value
+
+    @property
+    def ps3_username(self) -> str | None:
+        """PSN username resolved from PS3 packet capture, if any."""
+        return self._optional.ps3_username
+
+    @ps3_username.setter
+    def ps3_username(self, value: str | None) -> None:
+        self._optional.ps3_username = value
 
     @property
     def looky_system(self) -> PlayerLooky:

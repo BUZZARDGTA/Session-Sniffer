@@ -49,6 +49,7 @@ class Settings:
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     capture_feature_set: str | None = SETTING_DEFAULTS['capture_feature_set']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
+    capture_ps3_name_resolver: bool = SETTING_DEFAULTS['capture_ps3_name_resolver']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
     capture_filter_block_rtcp: bool = SETTING_DEFAULTS['capture_filter_block_rtcp']
     capture_filter_block_ssdp: bool = SETTING_DEFAULTS['capture_filter_block_ssdp']
@@ -117,6 +118,7 @@ class Settings:
         'CAPTURE_BLOCKED_IPS',
         'CAPTURE_FEATURE_SET',
         'CAPTURE_OVERFLOW_TIMER',
+        'CAPTURE_PS3_NAME_RESOLVER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',

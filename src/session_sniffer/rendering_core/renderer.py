@@ -460,6 +460,7 @@ def rendering_core(
                 player.mod_menus = None
 
             player.usernames = dedup_preserve_order(
+                [player.ps3_username] if player.ps3_username else [],
                 player.userip.usernames if player.userip else [],
                 player.mod_menus.usernames if player.mod_menus else [],
                 player.looky_system.usernames if player.looky_system.is_initialized else [],

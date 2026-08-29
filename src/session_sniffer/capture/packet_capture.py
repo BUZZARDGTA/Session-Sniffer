@@ -100,13 +100,15 @@ class Packet(NamedTuple):
     ip: PacketIP
     port: Port
     length: int
+    payload: bytes | None = None
 
     @classmethod
-    def from_scapy(cls, raw_pkt: ScapyPacket) -> Self:
+    def from_scapy(cls, raw_pkt: ScapyPacket, *, include_payload: bool = False) -> Self:
         """Create a `Packet` from a scapy packet object.
 
         Args:
             raw_pkt: A scapy packet that must contain IP and UDP layers.
+            include_payload: Whether to extract and include raw UDP payload bytes.
 
         Returns:
             A `Packet` containing the parsed fields.
@@ -147,6 +149,7 @@ class Packet(NamedTuple):
                 dst=_parse_and_validate_port(dst_port),
             ),
             length=_parse_and_validate_length(len(raw_pkt)),
+            payload=bytes(udp_layer.payload) if include_payload else None,
         )
 
 
@@ -165,6 +168,7 @@ class CaptureConfig:
         capture_filter: An optional BPF capture filter string.
         display_filter_fn: An optional Python callable applied to each scapy packet before
             invoking `callback`. Return `True` to forward the packet, `False` to drop it.
+        include_payload: Whether to extract UDP payload bytes in captured packets.
         on_capture_lost: An optional callback invoked when the sniffer exits unexpectedly.
     """
 
@@ -174,6 +178,7 @@ class CaptureConfig:
     multicast_support: bool
     capture_filter: str | None = None
     display_filter_fn: Callable[[ScapyPacket], bool] | None = None
+    include_payload: bool = False
     on_capture_lost: Callable[[], None] | None = None
 
 
@@ -301,7 +306,7 @@ class PacketCapture:
                 return
 
             try:
-                packet = Packet.from_scapy(raw_pkt)
+                packet = Packet.from_scapy(raw_pkt, include_payload=self.config.include_payload)
             except MissingRequiredPacketFieldError:
                 return
             except MalformedPacketError as e:

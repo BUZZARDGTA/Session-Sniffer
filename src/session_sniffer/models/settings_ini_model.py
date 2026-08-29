@@ -68,6 +68,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
     CAPTURE_FEATURE_SET: str | None
     CAPTURE_OVERFLOW_TIMER: int
+    CAPTURE_PS3_NAME_RESOLVER: bool
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
     CAPTURE_FILTER_BLOCK_RTCP: bool
@@ -135,6 +136,7 @@ class SettingsIniModel(BaseModel):
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset(
         {
             'CAPTURE_ARP_SPOOFING',
+            'CAPTURE_PS3_NAME_RESOLVER',
             *CAPTURE_FILTER_BLOCK_SETTINGS,
             'DISCORD_PRESENCE',
             'DISCORD_WEBHOOK_ENABLED',
