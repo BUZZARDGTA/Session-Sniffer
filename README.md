@@ -120,16 +120,17 @@ Grab the latest stable release and get started instantly, or build it yourself f
 
 ## 🔐 About Usernames Decryption/Resolving
 
-The script **does not decrypt or resolve usernames automatically**\*.  
-This functionality was available on PS3 and Xbox 360 but is patched on current-gen platforms.  
-However, it does allow for manual assignment using [UserIP INI databases Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration) files.
+The script **does not decrypt or resolve usernames automatically** across all platforms\*.  
+This functionality was historically available on legacy consoles (PS3 and Xbox 360) but is patched on current-gen platforms.  
+However, it allows for manual assignment using [UserIP INI databases Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration) files.
 
-\*_As of v1.1.4, username detection for GTA Online (PC) is supported via these **mod menu** plugins:_
-- _[Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)_
-- _[Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)_
-- _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)_
-
-\*_As of v1.5.0, username detection for GTA Online (PC) is supported via [**Looky System**](https://looky-gta.cc/) — a paid third-party IP-to-player lookup service (see [Looky System Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration))._
+\*_Supported username resolution methods:_
+- _**PlayStation 3 (PS3)**: Direct packet payload extraction via the built-in **PS3 Name Resolver** setting (see [PS3 Name Resolver Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#capture-settings))._
+- _**GTA Online (PC) Mod Menus**: Automatic username logging via these Lua plugins:_
+  - _[Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)_
+  - _[Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)_
+  - _[Session Sniffer Stand Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)_
+- _**GTA Online (PC) Looky System**: Cloud-based IP lookup via [**Looky System**](https://looky-gta.cc/) (see [Looky System Configuration](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration))._
 
 ---
 
