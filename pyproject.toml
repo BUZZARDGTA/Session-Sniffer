@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "session_sniffer"
-version = "v1.5.0rc.28+20260828.1948"
+version = "v1.5.0rc.29+20260829.0258"
 dependencies = [
     "aiohttp==3.14.3",
     "dnspython==2.8.0",
