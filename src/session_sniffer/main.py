@@ -114,6 +114,7 @@ def main() -> None:
             sys.exit(1)
 
     initialize_ui_scale(screen_size)
+    app.setStyle('Fusion')
     app.setStyleSheet(get_stylesheet(compute_ui_scale(screen_size)))
 
     splash = SplashScreen()
