@@ -106,8 +106,7 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
         *CONNECTED_RATE_STAT_COLUMNS,
         *BANDWIDTH_RATE_STAT_COLUMNS,
         'IP Address',
-        'First Port',
-        'Last Port',
+        *PORT_COLUMNS,
         'Mobile',
         'VPN',
         'Hosting',
@@ -127,7 +126,6 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
 FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',
     'Hostname',
-    'Middle Ports',
     'Country',
     'Region',
     'City',
