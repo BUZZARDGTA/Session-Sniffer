@@ -752,8 +752,8 @@ class TableContextMenuMixin(QTableView):
 
         select_menu = add_menu(context_menu, '☑️ Select')
         add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
-        add_action(select_menu, '🟦 Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
-        add_action(select_menu, '🟦 Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
+        add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
+        add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
 
         unselect_menu = add_menu(context_menu, '⬜ Unselect')
         add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
