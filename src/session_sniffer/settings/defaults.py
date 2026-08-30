@@ -606,7 +606,10 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='General',
         display_label='Game Version',
         setting_type=SettingType.ENUM,
-        tooltip='Version filter applied to all Looky System API queries. Affects both background auto-resolve and manual Looky System Lookup.',
+        tooltip=(
+            'Version filter applied to Looky System database queries (background auto-resolve and manual lookups). '
+            'Crawler requests automatically target the active running game edition.'
+        ),
         allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
     'looky_api_key': SettingMeta(

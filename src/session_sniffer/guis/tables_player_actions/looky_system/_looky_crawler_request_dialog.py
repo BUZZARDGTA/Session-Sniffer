@@ -48,6 +48,7 @@ from session_sniffer.networking.looky_system import (
     watch_instruction_status,
 )
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -168,6 +169,7 @@ class _CrawlerWatchWorker(CrashingQThread):
             self.request_failed.emit(failure_message)
             return
         if is_terminal_failure_instruction_status(last_status):
+            logger.debug('Looky instruction %s ended with failure status=%r result=%r', self._tracking_id, last_status, last_result)
             error_message = f'Instruction ended: {last_result}' if last_result else f'Instruction ended with status: {last_status}'
             if self._rid is None and last_result == 'Unable to join target':
                 error_message += (
@@ -319,7 +321,7 @@ class _CrawlerRequestDialog(QDialog):
         LookyState.clear_crawler_cooldown()
         self._append_log_line('🎫', f'Request accepted — tracking ID: {tracking_id}')
         self._append_log_line('📡', 'Connecting to status stream…')
-        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, self._request.version, self._request.rid)
+        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, get_crawler_game_version(), self._request.rid)
         worker.status_updated.connect(self._on_status_updated)
         worker.reconnect_triggered.connect(self._on_reconnect_triggered)
         worker.request_completed.connect(self._on_completed)
@@ -555,6 +557,17 @@ def _start_crawler_send(parent: QWidget, request: _CrawlerRequest) -> None:
     _CrawlerRequestDialog(parent, request).show()
 
 
+def get_crawler_game_version() -> str:
+    """Return 'enhanced' or 'legacy' depending on the currently running GTA5 game edition, falling back to settings."""
+    if CaptureState.gta5_is_enhanced:
+        return 'enhanced'
+    if CaptureState.gta5_is_legacy:
+        return 'legacy'
+    if Settings.looky_game_version.lower() in ('enhanced', 'legacy'):
+        return Settings.looky_game_version.lower()
+    return 'legacy'
+
+
 def show_crawler_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
     api_key = check_looky_prerequisites(parent)
@@ -580,15 +593,16 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
         with player.looky_system.lock:
             player.looky_system.needs_refresh = True
 
+    version = get_crawler_game_version()
     _start_crawler_send(
         parent,
         _CrawlerRequest(
             display_name=display_name,
             api_key=api_key,
             registry_key=f'crawler:{rid}',
-            version=Settings.looky_game_version.lower(),
+            version=version,
             rid=rid,
-            send_fn=lambda: send_crawler_instruction(rid, api_key, Settings.looky_game_version.lower()),
+            send_fn=lambda: send_crawler_instruction(rid, api_key, get_crawler_game_version()),
             on_completed=_on_crawl_completed,
         ),
     )
@@ -606,15 +620,16 @@ def show_crawlme_request(parent: QWidget) -> None:
                 with player.looky_system.lock:
                     player.looky_system.needs_refresh = True
 
+    version = get_crawler_game_version()
     _start_crawler_send(
         parent,
         _CrawlerRequest(
             display_name='Current Session',
             api_key=api_key,
             registry_key='crawlme',
-            version=Settings.looky_game_version.lower(),
+            version=version,
             rid=None,
-            send_fn=lambda: send_crawlme_instruction(api_key, Settings.looky_game_version.lower()),
+            send_fn=lambda: send_crawlme_instruction(api_key, get_crawler_game_version()),
             on_completed=_on_crawl_completed,
         ),
     )

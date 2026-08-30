@@ -251,10 +251,24 @@ def send_crawlme_instruction(api_key: str, version: str) -> str:
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
     headers = _json_auth_headers(api_key)
-    headers['Referer'] = f'https://looky-gta.cc/?version={version}'
-    response = session.post(LOOKY_CRAWLME_URL, headers=headers, timeout=(3.0, 10.0))
-    response.raise_for_status()
-    return str(response.json()['trackingId'])
+    headers['Referer'] = 'https://looky-gta.cc/'
+    try:
+        response = session.post(
+            LOOKY_CRAWLME_URL,
+            headers=headers,
+            json={'target': version},
+            timeout=(3.0, 10.0),
+        )
+        response.raise_for_status()
+        return str(response.json()['trackingId'])
+    except requests.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else '?'
+        text = e.response.text if e.response is not None else ''
+        logger.debug('Looky crawlme HTTP error for target=%s: HTTP %s (response: %s)', version, status_code, text)
+        raise
+    except Exception as e:
+        logger.debug('Looky crawlme request error for target=%s: %s', version, e)
+        raise
 
 
 def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
@@ -274,15 +288,24 @@ def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
     headers = _json_auth_headers(api_key)
-    headers['Referer'] = f'https://looky-gta.cc/user/{rid}?version={version}'
-    response = session.post(
-        LOOKY_INSTRUCTION_URL,
-        headers=headers,
-        json={'type': 'join', 'rid': rid},
-        timeout=(3.0, 10.0),
-    )
-    response.raise_for_status()
-    return str(response.json()['trackingId'])
+    headers['Referer'] = f'https://looky-gta.cc/user/{rid}'
+    try:
+        response = session.post(
+            LOOKY_INSTRUCTION_URL,
+            headers=headers,
+            json={'type': 'join', 'rid': rid, 'target': version},
+            timeout=(3.0, 10.0),
+        )
+        response.raise_for_status()
+        return str(response.json()['trackingId'])
+    except requests.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else '?'
+        text = e.response.text if e.response is not None else ''
+        logger.debug('Looky crawler HTTP error for rid=%s target=%s: HTTP %s (response: %s)', rid, version, status_code, text)
+        raise
+    except Exception as e:
+        logger.debug('Looky crawler request error for rid=%s target=%s: %s', rid, version, e)
+        raise
 
 
 def watch_instruction_status(
@@ -325,7 +348,7 @@ def watch_instruction_status(
     try:
         check_cancel()
 
-        referer = f'https://looky-gta.cc/user/{context.rid}?version={context.version}' if context.rid is not None else f'https://looky-gta.cc/?version={context.version}'
+        referer = f'https://looky-gta.cc/user/{context.rid}' if context.rid is not None else 'https://looky-gta.cc/'
         headers = _auth_headers(context.api_key)
         headers['Referer'] = referer
 
@@ -335,12 +358,22 @@ def watch_instruction_status(
         initial_headers['Pragma'] = 'no-cache'
         initial_headers['Cache-Control'] = 'no-cache'
 
-        initial_response = session.get(
-            f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}',
-            headers=initial_headers,
-            timeout=(3.0, 10.0),
-        )
-        initial_response.raise_for_status()
+        try:
+            initial_response = session.get(
+                f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}',
+                headers=initial_headers,
+                timeout=(3.0, 10.0),
+            )
+            initial_response.raise_for_status()
+        except requests.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else '?'
+            text = e.response.text if e.response is not None else ''
+            logger.debug('Looky initial status HTTP error for %s: HTTP %s (response: %s)', context.tracking_id, status_code, text)
+            raise
+        except Exception as e:
+            logger.debug('Looky initial status request error for %s: %s', context.tracking_id, e)
+            raise
+
         initial_data = LookyInstructionStatusInitialResponse.model_validate(initial_response.json())
         yield initial_data.instruction.status, initial_data.instruction.result
         if is_terminal_instruction_status(initial_data.instruction.status):
@@ -365,6 +398,7 @@ def watch_instruction_status(
                 with session.get(
                     f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}',
                     headers=sse_headers,
+                    params={'token': context.api_key},
                     stream=True,
                     timeout=(3.0, 300.0),
                 ) as response:

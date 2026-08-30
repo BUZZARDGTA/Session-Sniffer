@@ -440,7 +440,7 @@ class TableContextMenuMixin(QTableView):
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
                 _apply_looky_gating(lookup_action, require_gta5_running=False)
-                if not CaptureState.gta5_is_enhanced and players[0].looky_system.rockstarids:
+                if players[0].looky_system.rockstarids:
                     crawler_action = add_action(
                         looky_menu,
                         '🤖 Request Crawler',
