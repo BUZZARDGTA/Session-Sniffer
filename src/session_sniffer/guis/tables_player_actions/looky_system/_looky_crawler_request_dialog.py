@@ -321,7 +321,7 @@ class _CrawlerRequestDialog(QDialog):
         LookyState.clear_crawler_cooldown()
         self._append_log_line('🎫', f'Request accepted — tracking ID: {tracking_id}')
         self._append_log_line('📡', 'Connecting to status stream…')
-        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, get_crawler_game_version(), self._request.rid)
+        worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, self._request.version, self._request.rid)
         worker.status_updated.connect(self._on_status_updated)
         worker.reconnect_triggered.connect(self._on_reconnect_triggered)
         worker.request_completed.connect(self._on_completed)
@@ -602,7 +602,7 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
             registry_key=f'crawler:{rid}',
             version=version,
             rid=rid,
-            send_fn=lambda: send_crawler_instruction(rid, api_key, get_crawler_game_version()),
+            send_fn=lambda: send_crawler_instruction(rid, api_key, version),
             on_completed=_on_crawl_completed,
         ),
     )
@@ -629,7 +629,7 @@ def show_crawlme_request(parent: QWidget) -> None:
             registry_key='crawlme',
             version=version,
             rid=None,
-            send_fn=lambda: send_crawlme_instruction(api_key, get_crawler_game_version()),
+            send_fn=lambda: send_crawlme_instruction(api_key, version),
             on_completed=_on_crawl_completed,
         ),
     )
