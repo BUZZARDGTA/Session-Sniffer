@@ -642,7 +642,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Remove selected usernames for this IP address while keeping others.',
                     handler=lambda: userip_remove_username(self, ip_address, player),
                 )
-            move_userip_menu = add_menu(userip_menu, '🚚 Move', f'Move this {entry_desc} entry to another UserIP database.')
+            move_userip_menu = add_menu(userip_menu, '📦 Move', f'Move this {entry_desc} entry to another UserIP database.')
             populate_db_menu(
                 move_userip_menu,
                 UserIPDatabases.get_userip_database_filepaths(),
@@ -699,7 +699,7 @@ class TableContextMenuMixin(QTableView):
                         )
                         configure_looky_action(refresh_multi_action)
 
-                move_userip_menu = add_menu(userip_menu, '🚚 Move Selected', f'Move {entries_phrase} to another UserIP database.')
+                move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(
                     move_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
