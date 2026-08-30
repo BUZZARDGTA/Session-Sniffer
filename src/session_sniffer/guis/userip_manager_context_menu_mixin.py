@@ -282,6 +282,7 @@ class EntriesContextMenuMixin(QDialog):
             refresh_action.triggered.connect(lambda _checked=False, d=self._current_path, i=ip_or_range: looky_refresh_userip_entries(self, [(d, [i])]))
             configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
             menu.addAction(refresh_action)
+            menu.addSeparator()
 
         source_row = self._proxy.mapToSource(index).row()
 
@@ -522,6 +523,7 @@ class EntriesContextMenuMixin(QDialog):
                         refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
                         configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
                         menu.addAction(refresh_gs_action)
+                        menu.addSeparator()
 
                 selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
                 delete_label = f'Delete Selected Row{pluralize(selected_count)}'

@@ -607,6 +607,7 @@ class TableContextMenuMixin(QTableView):
                 handler=lambda: userip_add_username(self, ip_address, player),
             )
             if Settings.is_gta5_feature_set():
+                userip_menu.addSeparator()
                 refresh_action = add_action(
                     userip_menu,
                     '👁️ Add Username (Looky System)',
@@ -614,6 +615,7 @@ class TableContextMenuMixin(QTableView):
                     handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
                 )
                 configure_looky_action(refresh_action)
+                userip_menu.addSeparator()
             add_action(
                 userip_menu,
                 '✏️ Rename',
@@ -691,6 +693,8 @@ class TableContextMenuMixin(QTableView):
                         if _p.userip is not None:
                             _refresh_by_db.setdefault(_p.userip.db_path, []).append(_p.ip)
                     if _refresh_by_db:
+                        if rename_players:
+                            userip_menu.addSeparator()
                         refresh_multi_action = add_action(
                             userip_menu,
                             '👁️ Add Usernames (Looky System)',
@@ -698,6 +702,7 @@ class TableContextMenuMixin(QTableView):
                             handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
                         )
                         configure_looky_action(refresh_multi_action)
+                        userip_menu.addSeparator()
 
                 move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')
                 populate_db_menu(
