@@ -286,18 +286,6 @@ class EntriesContextMenuMixin(QDialog):
 
         source_row = self._proxy.mapToSource(index).row()
 
-        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Edit IP/Range…', self)
-        edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
-        menu.addAction(edit_ip_action)
-
-        selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
-        delete_label = f'Delete Selected Row{pluralize(selected_count)}'
-        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
-        delete_action.triggered.connect(self._delete_selected)
-        menu.addAction(delete_action)
-
-        menu.addSeparator()
-
         if source_row > 0:
             move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
@@ -307,7 +295,8 @@ class EntriesContextMenuMixin(QDialog):
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
-        menu.addSeparator()
+        if source_row > 0 or source_row < self._model.rowCount() - 1:
+            menu.addSeparator()
 
         insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
@@ -326,6 +315,18 @@ class EntriesContextMenuMixin(QDialog):
         add_end_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Add Entry to End', self)
         add_end_action.triggered.connect(self._add_entry)
         menu.addAction(add_end_action)
+
+        menu.addSeparator()
+
+        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Edit IP/Range…', self)
+        edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
+        menu.addAction(edit_ip_action)
+
+        selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
+        delete_label = f'Delete Selected Row{pluralize(selected_count)}'
+        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
+        delete_action.triggered.connect(self._delete_selected)
+        menu.addAction(delete_action)
 
     def _build_global_search_context_menu(self, menu: QMenu, index: QModelIndex) -> None:
         """Populate context menu actions for a row in global search (read-only) mode."""
