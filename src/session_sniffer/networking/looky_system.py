@@ -275,7 +275,6 @@ def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
     """
     headers = _json_auth_headers(api_key)
     headers['Referer'] = f'https://looky-gta.cc/user/{rid}?version={version}'
-    logger.debug('Sending crawler instruction to %s with headers %r', LOOKY_INSTRUCTION_URL, headers)
     response = session.post(
         LOOKY_INSTRUCTION_URL,
         headers=headers,
@@ -336,7 +335,6 @@ def watch_instruction_status(
         initial_headers['Pragma'] = 'no-cache'
         initial_headers['Cache-Control'] = 'no-cache'
 
-        logger.debug('Fetching initial status from %s with headers %r', f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}', initial_headers)
         initial_response = session.get(
             f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}',
             headers=initial_headers,
@@ -357,7 +355,6 @@ def watch_instruction_status(
                 time.sleep(reconnect_delay)
             reconnect_delay = 2
             completed = False
-            logger.debug('SSE %s attempt %d/%d', context.tracking_id, attempt + 1, max_reconnects + 1)
             try:
                 sse_headers = dict(headers)
                 sse_headers['Accept'] = 'text/event-stream'
@@ -365,7 +362,6 @@ def watch_instruction_status(
                 sse_headers['Pragma'] = 'no-cache'
                 sse_headers['Priority'] = 'u=4'
 
-                logger.debug('Connecting to SSE stream at %s with headers %r', f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}', sse_headers)
                 with session.get(
                     f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}',
                     headers=sse_headers,
@@ -381,7 +377,6 @@ def watch_instruction_status(
                         if not line.startswith('data: '):
                             continue
                         event = LookyInstructionStatusEvent.model_validate_json(line[6:])
-                        logger.debug('SSE %s event status=%r result=%r', context.tracking_id, event.data.status, event.data.result)
                         yield event.data.status, event.data.result
                         if is_terminal_instruction_status(event.data.status):
                             completed = True
