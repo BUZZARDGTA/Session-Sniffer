@@ -168,8 +168,8 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
         gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
         self._gta5_menu_status_separator = gta5_menu.addSeparator()
 
-        player_resolver_action = QAction('🔍 Player Resolver', self)
-        player_resolver_action.setToolTip('High Rate Monitor and Player Identifier tools')
+        player_resolver_action = QAction('🔎 Player Resolver', self)
+        player_resolver_action.setToolTip('Find the exact IP of a player in your current GTA5 session.')
         player_resolver_action.triggered.connect(self._open_player_resolver)
         gta5_menu.addAction(player_resolver_action)
         self._player_resolver_action = player_resolver_action

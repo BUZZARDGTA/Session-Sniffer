@@ -25,7 +25,7 @@
             }
         },
         {
-            "label": "🔍 Run All Quality Checks",
+            "label": "🔎 Run All Quality Checks",
             "type": "shell",
             "command": "powershell.exe",
             "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/code-quality-checks.ps1"],

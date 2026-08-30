@@ -418,7 +418,7 @@ class TableContextMenuMixin(QTableView):
                 is_gta5_running = CaptureState.gta5_is_running if require_gta5_running else None
                 configure_looky_action(action, is_gta5_running=is_gta5_running)
 
-            looky_menu = add_menu(parent_menu, '👁 Looky System', 'Looky System tools and shortcuts.')
+            looky_menu = add_menu(parent_menu, '👁️ Looky System', 'Looky System tools and shortcuts.')
 
             def _open_looky_website() -> None:
                 QDesktopServices.openUrl(QUrl(LOOKY_BASE_HOST))
@@ -435,7 +435,7 @@ class TableContextMenuMixin(QTableView):
             if len(players) == 1:
                 lookup_action = add_action(
                     looky_menu,
-                    '🔍 Lookup',
+                    '🔎 Lookup',
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
@@ -456,7 +456,7 @@ class TableContextMenuMixin(QTableView):
 
             lookup_all_action = add_action(
                 looky_menu,
-                '🔍 Lookup (All Selected)',
+                '🔎 Lookup (All Selected)',
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
             )
@@ -579,7 +579,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Add selected IP address to this UserIP database.',
                     handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
                 )
-                add_range_userip_menu = add_menu(userip_menu, '🗂️ Add as Range', 'Add selected IP as a range entry to a UserIP database.')
+                add_range_userip_menu = add_menu(userip_menu, '➕ Add as Range', 'Add selected IP as a range entry to a UserIP database.')  # noqa: RUF001
                 populate_db_menu(
                     add_range_userip_menu,
                     database_paths,
@@ -747,7 +747,7 @@ class TableContextMenuMixin(QTableView):
 
         add_action(
             context_menu,
-            '📝 Copy Selection',
+            '📋 Copy Selection',
             shortcut='Ctrl+C',
             tooltip='Copy selected cells to your clipboard.',
             handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),

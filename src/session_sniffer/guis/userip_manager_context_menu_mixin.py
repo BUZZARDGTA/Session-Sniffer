@@ -211,8 +211,48 @@ class EntriesContextMenuMixin(QDialog):
                 except ValueError:
                     pass
 
+        source_row = self._proxy.mapToSource(index).row()
+
+        if source_row > 0:
+            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Move Up', self)
+            move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
+            menu.addAction(move_up_action)
+        if source_row < self._model.rowCount() - 1:
+            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Move Down', self)
+            move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
+            menu.addAction(move_down_action)
+
+        if source_row > 0 or source_row < self._model.rowCount() - 1:
+            menu.addSeparator()
+
+        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Insert Entry Above', self)
+        insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
+        menu.addAction(insert_above_action)
+
+        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Insert Entry Below', self)
+        insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
+        menu.addAction(insert_below_action)
+
+        menu.addSeparator()
+
+        add_top_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Add Entry to Top', self)
+        add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
+        menu.addAction(add_top_action)
+
+        add_end_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Add Entry to End', self)
+        add_end_action.triggered.connect(self._add_entry)
+        menu.addAction(add_end_action)
+
+        menu.addSeparator()
+
+        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Edit IP/Range…', self)
+        edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
+        menu.addAction(edit_ip_action)
+
         # Network / Ping & Lookup actions
         if is_single_ip or len(selected_ips) > 1:
+            menu.addSeparator()
+
             if is_single_ip and len(selected_ips) <= 1:
                 _ip_target = ip_or_range
                 lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
@@ -274,58 +314,20 @@ class EntriesContextMenuMixin(QDialog):
                 ping_menu.addAction(tcp_ping_action)
 
             menu.addMenu(ping_menu)
-            menu.addSeparator()
 
         # Looky System refresh (only for single IPs in GTA5 feature set)
         if ip_or_range and self._current_path is not None and Settings.is_gta5_feature_set() and is_single_ip:
+            menu.addSeparator()
             refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
             refresh_action.triggered.connect(lambda _checked=False, d=self._current_path, i=ip_or_range: looky_refresh_userip_entries(self, [(d, [i])]))
             configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
             menu.addAction(refresh_action)
-            menu.addSeparator()
-
-        source_row = self._proxy.mapToSource(index).row()
-
-        if source_row > 0:
-            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Move Up', self)
-            move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
-            menu.addAction(move_up_action)
-        if source_row < self._model.rowCount() - 1:
-            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Move Down', self)
-            move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
-            menu.addAction(move_down_action)
-
-        if source_row > 0 or source_row < self._model.rowCount() - 1:
-            menu.addSeparator()
-
-        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Insert Entry Above', self)
-        insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
-        menu.addAction(insert_above_action)
-
-        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Insert Entry Below', self)
-        insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
-        menu.addAction(insert_below_action)
-
-        menu.addSeparator()
-
-        add_top_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Add Entry to Top', self)
-        add_top_action.triggered.connect(lambda: self._insert_entry_at(0))
-        menu.addAction(add_top_action)
-
-        add_end_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Add Entry to End', self)
-        add_end_action.triggered.connect(self._add_entry)
-        menu.addAction(add_end_action)
-
-        menu.addSeparator()
-
-        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Edit IP/Range…', self)
-        edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
-        menu.addAction(edit_ip_action)
 
         selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
         delete_label = f'Delete Selected Row{pluralize(selected_count)}'
         delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
         delete_action.triggered.connect(self._delete_selected)
+        menu.addSeparator()
         menu.addAction(delete_action)
 
     def _build_global_search_context_menu(self, menu: QMenu, index: QModelIndex) -> None:
@@ -405,6 +407,22 @@ class EntriesContextMenuMixin(QDialog):
 
         menu.addSeparator()
 
+        # --- Database navigation actions ---
+        if db_path_str:
+            db_path = Path(db_path_str)
+
+            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_forward.svg')), 'Go to Database', self)
+            go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
+            menu.addAction(go_to_db_action)
+
+            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
+            open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
+            menu.addAction(open_editor_action)
+
+            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
+            open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
+            menu.addAction(open_explorer_action)
+
         # Single IP check & Multi-selected IPs detection for global search
         is_single_ip_gs = False
         if ip_or_range:
@@ -428,6 +446,8 @@ class EntriesContextMenuMixin(QDialog):
 
         # Network / Ping & Lookup actions
         if is_single_ip_gs or len(selected_ips_gs) > 1:
+            menu.addSeparator()
+
             if is_single_ip_gs and len(selected_ips_gs) <= 1:
                 _ip_gs = ip_or_range
                 lookup_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
@@ -490,47 +510,23 @@ class EntriesContextMenuMixin(QDialog):
 
             menu.addMenu(ping_menu_gs)
 
-        # --- Database navigation actions ---
-        if db_path_str:
-            db_path = Path(db_path_str)
+        # Looky System refresh (only for single IPs in GTA5 feature set)
+        if db_path_str and username and ip_or_range and Settings.is_gta5_feature_set() and is_single_ip_gs:
+            _db_refresh = Path(db_path_str)
+            _ip_refresh = ip_or_range
             menu.addSeparator()
+            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
+            refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
+            configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
+            menu.addAction(refresh_gs_action)
 
-            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_forward.svg')), 'Go to Database', self)
-            go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
-            menu.addAction(go_to_db_action)
-
-            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
-            open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
-            menu.addAction(open_editor_action)
-
-            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
-            open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
-            menu.addAction(open_explorer_action)
-
-            if username and ip_or_range:
-                menu.addSeparator()
-
-                # Looky System refresh (only for single IPs in GTA5 feature set)
-                if Settings.is_gta5_feature_set():
-                    try:
-                        IPv4Address(ip_or_range)
-                        is_single_ip = True
-                    except ValueError:
-                        is_single_ip = False
-                    if is_single_ip:
-                        _db_refresh = db_path
-                        _ip_refresh = ip_or_range
-                        refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
-                        refresh_gs_action.triggered.connect(lambda _checked=False, d=_db_refresh, i=_ip_refresh: looky_refresh_userip_entries(self, [(d, [i])]))
-                        configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
-                        menu.addAction(refresh_gs_action)
-                        menu.addSeparator()
-
-                selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
-                delete_label = f'Delete Selected Row{pluralize(selected_count)}'
-                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
-                delete_action.triggered.connect(self._delete_selected)
-                menu.addAction(delete_action)
+        if username and ip_or_range:
+            selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
+            delete_label = f'Delete Selected Row{pluralize(selected_count)}'
+            delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
+            delete_action.triggered.connect(self._delete_selected)
+            menu.addSeparator()
+            menu.addAction(delete_action)
 
     def _delete_global_search_entry(self, db_path: Path, username: str, ip_or_range: str, source_row: int) -> None:
         """Remove a single entry from the database file and from the search results table."""

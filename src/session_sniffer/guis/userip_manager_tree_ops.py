@@ -245,15 +245,6 @@ class TreeOperationsMixin(QDialog):
             rename_action.triggered.connect(lambda: self._rename_tree_item(file_path))
             menu.addAction(rename_action)
 
-            if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
-                reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reset', self)
-                reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
-                menu.addAction(reset_default_action)
-            else:
-                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete', self)
-                delete_action.triggered.connect(lambda: self._delete_path(file_path))
-                menu.addAction(delete_action)
-
             menu.addSeparator()
 
             explorer_target = file_path
@@ -279,6 +270,17 @@ class TreeOperationsMixin(QDialog):
                 export_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Export Database…', self)
                 export_action.triggered.connect(lambda: self._export_database_file(file_path))
                 menu.addAction(export_action)
+
+            menu.addSeparator()
+
+            if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+                reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reset', self)
+                reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
+                menu.addAction(reset_default_action)
+            else:
+                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete', self)
+                delete_action.triggered.connect(lambda: self._delete_path(file_path))
+                menu.addAction(delete_action)
         else:
             new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), 'New Database', self)
             new_db_action.triggered.connect(self._new_database)
