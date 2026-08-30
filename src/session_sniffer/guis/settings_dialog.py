@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.background import ensure_looky_core_running
+from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
@@ -318,7 +319,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             return label
 
-        arp_state = 'Enabled' if Settings.capture_arp_spoofing else 'Disabled'
+        arp_state = ('Running' if ArpSpoofingController.is_process_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)

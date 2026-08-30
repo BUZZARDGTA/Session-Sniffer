@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import psutil
 
+from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.guis.colors import StatusBarColors, ThresholdColors
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureStats
@@ -79,6 +80,7 @@ class StatusBarInterfaceInfo:
     name: str
     is_neighbour_interface: bool
     arp_spoofing: bool
+    arp_spoofing_running: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +173,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             name=capture.config.interface.name,
             is_neighbour_interface=capture.config.interface.is_neighbour,
             arp_spoofing=Settings.capture_arp_spoofing,
+            arp_spoofing_running=ArpSpoofingController.is_process_running(),
         ),
         system=StatusBarSystemInfo(
             memory_mb=CaptureStats.app_memory_mb,
@@ -203,10 +206,15 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
 def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool, discord_rpc_manager: DiscordRPC | None) -> str:
     parts: list[str] = []
 
-    if snapshot.interface.is_neighbour_interface:
-        arp_label = 'Enabled (Spoofing)' if snapshot.interface.arp_spoofing else 'Enabled'
+    if snapshot.interface.arp_spoofing:
+        spoofing_status = 'Running' if snapshot.interface.arp_spoofing_running else 'Stopped'
+        spoofing_color = StatusBarColors.ENABLED if snapshot.interface.arp_spoofing_running else StatusBarColors.DISABLED
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">{arp_label}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP Spoofing:</span> <span style="color: {spoofing_color};">{spoofing_status}</span>',
+        )
+    elif snapshot.interface.is_neighbour_interface:
+        parts.append(
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
         )
 
     if vpn_mode_enabled:

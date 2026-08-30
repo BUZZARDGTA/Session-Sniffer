@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
+from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
@@ -287,7 +288,12 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._lbl_cpu.setText(f'{CaptureStats.app_cpu_percent:.1f}%')
         self._lbl_ram.setText(f'{int(CaptureStats.app_memory_mb)} MB')
 
-        arp_label = ('Enabled' if Settings.capture_arp_spoofing else 'Disabled') if CaptureState.is_neighbour_interface else 'Disabled'
+        if Settings.capture_arp_spoofing:
+            arp_label = 'Running' if ArpSpoofingController.is_process_running() else 'Stopped'
+        elif CaptureState.is_neighbour_interface:
+            arp_label = 'Enabled'
+        else:
+            arp_label = 'Disabled'
         self._lbl_interface.setText(CaptureState.interface_name or '—')
         self._lbl_ip.setText(CaptureState.interface_ip or '—')
         self._lbl_interface_type.setText(CaptureState.interface_type or '—')

@@ -42,6 +42,7 @@ class ArpSpoofingController:
     _config: ClassVar[_ArpControllerConfig | None] = None
     _stop_event: ClassVar[Event] = Event()
     _thread: ClassVar[Thread | None] = None
+    _process: ClassVar[subprocess.Popen[str] | None] = None
 
     @classmethod
     def configure(cls, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
@@ -52,6 +53,16 @@ class ArpSpoofingController:
     def is_running(cls) -> bool:
         """Return True if the ARP spoofing thread is active."""
         return cls._thread is not None and cls._thread.is_alive()
+
+    @classmethod
+    def is_process_running(cls) -> bool:
+        """Return True if the actual arpspoof.exe child process is active."""
+        return cls._process is not None and cls._process.poll() is None
+
+    @classmethod
+    def set_process(cls, process: subprocess.Popen[str] | None) -> None:
+        """Update the running arpspoof.exe child process reference."""
+        cls._process = process
 
     @classmethod
     def start(cls, interface: SelectedInterfaceRow) -> None:
@@ -81,6 +92,7 @@ class ArpSpoofingController:
         cls._stop_event.set()
         cls._thread.join()
         cls._thread = None
+        cls._process = None
 
 
 def arp_spoofing_task(
@@ -154,82 +166,88 @@ def arp_spoofing_task(
     def _should_exit() -> bool:
         return gui_closed__event.is_set() or stop_event.is_set()
 
-    while not _should_exit():
-        # Wait for capture to be running
-        while not capture_holder.is_running() and not _should_exit():
-            time.sleep(0.5)
+    try:
+        while not _should_exit():
+            # Wait for capture to be running
+            while not capture_holder.is_running() and not _should_exit():
+                time.sleep(0.5)
 
-        if _should_exit():
-            break
+            if _should_exit():
+                break
 
-        # Start arpspoof process
-        if proc is None or proc.poll() is not None:
-            cmd: list[str] = [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address]
-            if selected_interface.gateway_ip is not None:
-                cmd.append(selected_interface.gateway_ip)
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            log_message = f'Started spoofing on interface {selected_interface.ip_address}'
-            if selected_interface.gateway_ip:
-                log_message += f' (gateway: {selected_interface.gateway_ip})'
-            logger.info(log_message)
+            # Start arpspoof process
+            if proc is None or proc.poll() is not None:
+                cmd: list[str] = [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address]
+                if selected_interface.gateway_ip is not None:
+                    cmd.append(selected_interface.gateway_ip)
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                ArpSpoofingController.set_process(proc)
+                log_message = f'Started spoofing on interface {selected_interface.ip_address}'
+                if selected_interface.gateway_ip:
+                    log_message += f' (gateway: {selected_interface.gateway_ip})'
+                logger.info(log_message)
 
-            try:
-                proc.wait(timeout=startup_probe_timeout)
-            except subprocess.TimeoutExpired:
-                pass  # Process continues to run
-            else:
+                try:
+                    proc.wait(timeout=startup_probe_timeout)
+                except subprocess.TimeoutExpired:
+                    pass  # Process continues to run
+                else:
+                    stdout_data, stderr_data = proc.communicate()
+                    error_output = (stderr_data or stdout_data or '').strip() or None
+                    ArpSpoofingController.set_process(None)
+                    report_failure(
+                        'startup failure',
+                        exit_code=proc.returncode,
+                        error_output=error_output,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=False,
+                    )
+                    proc = None
+                    on_failed()
+                    return
+
+            # Wait for capture to stop or process to die
+            while proc and capture_holder.is_running() and not _should_exit():
+                try:
+                    proc.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    continue  # Process still healthy; keep monitoring
+
                 stdout_data, stderr_data = proc.communicate()
                 error_output = (stderr_data or stdout_data or '').strip() or None
-                report_failure(
-                    'startup failure',
-                    exit_code=proc.returncode,
-                    error_output=error_output,
-                    msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
-                    spawn_msgbox_thread=False,
-                )
+                ArpSpoofingController.set_process(None)
+
+                if proc.returncode:
+                    report_failure(
+                        'unexpected process exit',
+                        exit_code=proc.returncode,
+                        error_output=error_output,
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=False,
+                    )
+                    proc = None
+                    on_failed()
+                    return
+
                 proc = None
-                on_failed()
-                return
+                logger.info('Process died unexpectedly, respawning...')
+                break
 
-        # Wait for capture to stop or process to die
-        while proc and capture_holder.is_running() and not _should_exit():
-            try:
-                proc.wait(timeout=0.5)
-            except subprocess.TimeoutExpired:
-                continue  # Process still healthy; keep monitoring
-
-            stdout_data, stderr_data = proc.communicate()
-            error_output = (stderr_data or stdout_data or '').strip() or None
-
-            if proc.returncode:
-                report_failure(
-                    'unexpected process exit',
-                    exit_code=proc.returncode,
-                    error_output=error_output,
-                    msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
-                    spawn_msgbox_thread=False,
-                )
+            # Stop the process if capture stopped
+            if proc and proc.poll() is None:
+                terminate_process(proc)
+                logger.info('Stopped spoofing.')
                 proc = None
-                on_failed()
-                return
-
-            proc = None
-            logger.info('Process died unexpectedly, respawning...')
-            break
-
-        # Stop the process if capture stopped
+                ArpSpoofingController.set_process(None)
+    finally:
+        # Final cleanup
         if proc and proc.poll() is None:
             terminate_process(proc)
-            logger.info('Stopped spoofing.')
-            proc = None
-
-    # Final cleanup
-    if proc and proc.poll() is None:
-        terminate_process(proc)
-    logger.info('Task terminated.')
+        ArpSpoofingController.set_process(None)
+        logger.info('Task terminated.')
