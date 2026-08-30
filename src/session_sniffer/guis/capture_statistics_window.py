@@ -5,7 +5,7 @@ from collections import deque
 from typing import override
 
 import psutil
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
@@ -13,6 +13,11 @@ from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
+from session_sniffer.guis.stylesheets import (
+    GRAPH_BPS_POPOUT_BUTTON_STYLESHEET,
+    GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET,
+    GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
+)
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -185,9 +190,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         bps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
         bps_popout_button.setToolTip('Open BPS Graph in a separate window')
         bps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        bps_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
-        )
+        bps_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        bps_popout_button.setIconSize(QSize(13, 13))
+        bps_popout_button.setStyleSheet(GRAPH_BPS_POPOUT_BUTTON_STYLESHEET)
         bps_popout_button.clicked.connect(self.open_session_bps_graph_requested)
         bps_popout_row.addWidget(bps_popout_button)
         bps_graph_layout.addLayout(bps_popout_row)
@@ -204,9 +209,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         pps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
         pps_popout_button.setToolTip('Open PPS Graph in a separate window')
         pps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        pps_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
-        )
+        pps_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        pps_popout_button.setIconSize(QSize(13, 13))
+        pps_popout_button.setStyleSheet(GRAPH_PPS_POPOUT_BUTTON_STYLESHEET)
         pps_popout_button.clicked.connect(self.open_session_pps_graph_requested)
         pps_popout_row.addWidget(pps_popout_button)
         pps_graph_layout.addLayout(pps_popout_row)
@@ -231,9 +236,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         latency_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Pop Out')
         latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
         latency_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        latency_popout_button.setStyleSheet(
-            'QPushButton { background-color: transparent; border: none; color: #88c0d0; font-size: 8pt; text-decoration: underline; } QPushButton:hover { color: #ffffff; }'
-        )
+        latency_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        latency_popout_button.setIconSize(QSize(13, 13))
+        latency_popout_button.setStyleSheet(GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET)
         latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
         latency_popout_row.addWidget(latency_popout_button)
         latency_graph_layout.addLayout(latency_popout_row)

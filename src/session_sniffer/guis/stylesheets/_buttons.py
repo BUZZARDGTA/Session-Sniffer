@@ -123,3 +123,85 @@ COMPACT_DANGER_BUTTON_STYLESHEET = (
     ' QPushButton:pressed { background-color: #1c0e10; color: #ffffff; border: 1px solid #e74c3c; }'
     ' QPushButton:disabled { background-color: #161111; color: #4d3839; border: 1px solid #21191a; }'
 )
+
+# =============================================================================
+# GRAPH POPOUT BUTTON STYLES
+# =============================================================================
+
+GRAPH_BPS_POPOUT_BUTTON_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 188, 212, 0.15),
+        stop:1 rgba(0, 151, 167, 0.25));
+    color: #80deea;
+    border: 1px solid rgba(0, 188, 212, 0.45);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 229, 255, 0.35),
+        stop:1 rgba(0, 188, 212, 0.50));
+    border: 1px solid #00e5ff;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background: rgba(0, 151, 167, 0.65);
+    border: 1px solid #0097a7;
+    color: #ffffff;
+}
+""".strip()
+
+GRAPH_PPS_POPOUT_BUTTON_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(76, 175, 80, 0.15),
+        stop:1 rgba(56, 142, 60, 0.25));
+    color: #a5d6a7;
+    border: 1px solid rgba(76, 175, 80, 0.45);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(105, 240, 174, 0.35),
+        stop:1 rgba(76, 175, 80, 0.50));
+    border: 1px solid #69f0ae;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background: rgba(56, 142, 60, 0.65);
+    border: 1px solid #388e3c;
+    color: #ffffff;
+}
+""".strip()
+
+GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET = """
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(255, 152, 0, 0.15),
+        stop:1 rgba(230, 81, 0, 0.25));
+    color: #ffcc80;
+    border: 1px solid rgba(255, 152, 0, 0.45);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(255, 171, 64, 0.35),
+        stop:1 rgba(255, 152, 0, 0.50));
+    border: 1px solid #ffab40;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background: rgba(230, 81, 0, 0.65);
+    border: 1px solid #e65100;
+    color: #ffffff;
+}
+""".strip()
