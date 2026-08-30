@@ -184,7 +184,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     title = meta.display_label
     if meta.requires_capture_restart:
         title += RESTART_INDICATOR
-    group = QGroupBox(title)
+    group = QGroupBox(title.replace('&', '&&'))
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
 
@@ -244,7 +244,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     layout.setSpacing(10)
 
     # Presets group box
-    presets_group = QGroupBox('App & Game Presets')
+    presets_group = QGroupBox('App && Game Presets')
     presets_group.setToolTip('Select presets to automatically block their required IP ranges. You can check multiple presets.')
     presets_grid_container = QWidget()
     presets_grid = QGridLayout(presets_grid_container)
@@ -340,7 +340,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     if meta.requires_capture_restart:
         title_checklist += RESTART_INDICATOR
 
-    checklist_group = QGroupBox(title_checklist)
+    checklist_group = QGroupBox(title_checklist.replace('&', '&&'))
     if meta.tooltip:
         checklist_group.setToolTip(meta.tooltip)
 
@@ -728,7 +728,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     title = meta.display_label
     if meta.requires_capture_restart:
         title += RESTART_INDICATOR
-    group = QGroupBox(title)
+    group = QGroupBox(title.replace('&', '&&'))
     if meta.tooltip:
         group.setToolTip(meta.tooltip)
 

@@ -259,7 +259,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 outer_layout.addWidget(self._build_discord_webhook_group(items))
                 continue
 
-            group_box = QGroupBox(group_name)
+            group_box = QGroupBox(group_name.replace('&', '&&'))
             direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
             for setting_key, setting_meta in items:
@@ -274,7 +274,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                         self._add_setting_row(direct_form, key, meta)
                     group_vbox.addLayout(direct_form)
                 for sub_name, sub_items in subgrouped.items():
-                    sub_box = QGroupBox(sub_name)
+                    sub_box = QGroupBox(sub_name.replace('&', '&&'))
                     sub_form = self._create_standard_form_layout(sub_box)
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
