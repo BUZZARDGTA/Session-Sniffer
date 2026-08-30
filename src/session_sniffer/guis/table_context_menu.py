@@ -104,7 +104,7 @@ class TableContextMenuManager:
 
         menu.addSeparator()
 
-        select_all_action = QAction('⬛ Select All', menu)
+        select_all_action = QAction('☑️ Select All', menu)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all rows in the table.')
         select_all_action.setEnabled(self._table.rowCount() > 0)
