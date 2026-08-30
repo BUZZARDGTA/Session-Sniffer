@@ -49,14 +49,21 @@ class ArpSpoofingController:
         cls._config = _ArpControllerConfig(capture_holder=capture_holder, on_failed=on_failed)
 
     @classmethod
+    def is_running(cls) -> bool:
+        """Return True if the ARP spoofing thread is active."""
+        return cls._thread is not None and cls._thread.is_alive()
+
+    @classmethod
     def start(cls, interface: SelectedInterfaceRow) -> None:
         """Start ARP spoofing on `interface`. Caller must ensure no thread is currently active."""
         if cls._config is None:
             message = 'ArpSpoofingController.start() called before configure()'
             raise RuntimeError(message)
-        if cls._thread is not None:
+        if cls.is_running():
             message = 'ArpSpoofingController.start() called while a previous thread is still alive'
             raise RuntimeError(message)
+        if cls._thread is not None and not cls._thread.is_alive():
+            cls._thread = None
         cls._stop_event.clear()
         cls._thread = Thread(
             target=arp_spoofing_task,

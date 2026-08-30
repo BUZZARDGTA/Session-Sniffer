@@ -380,11 +380,21 @@ def main() -> None:
             force_dialog=True,
         )
 
-        if new_interface is None or (
+        if new_interface is None:
+            window.set_change_interface_button_enabled(enabled=True)
+            return
+
+        if (
             new_interface.name == Settings.capture_interface_name
             and new_interface.ip_address == Settings.capture_ip_address
             and new_interface.mac_address == Settings.capture_mac_address
+            and capture_holder.is_running()
         ):
+            if Settings.capture_arp_spoofing:
+                if not ArpSpoofingController.is_running():
+                    ArpSpoofingController.start(new_interface)
+            else:
+                ArpSpoofingController.stop()
             window.set_change_interface_button_enabled(enabled=True)
             return
 
@@ -545,6 +555,11 @@ def main() -> None:
         new_capture.start()
         CaptureStats.capture_started_at = time.monotonic()
         capture_holder.set(new_capture)
+
+        if Settings.capture_arp_spoofing:
+            ArpSpoofingController.stop()
+            ArpSpoofingController.start(new_selected_interface)
+
         window.on_interface_switched()
 
     _ip_changed_timer = QTimer()
