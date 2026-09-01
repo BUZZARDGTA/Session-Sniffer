@@ -133,11 +133,7 @@ UPDATE_DOWNLOAD_FRAME_STYLESHEET = (
     'QFrame#updateDownloadFrame {  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,      stop:0 #232f3e, stop:1 #18212c);  border: 1px solid #3a4a5c;  border-radius: 14px;}'
 )
 
-UPDATE_DOWNLOAD_APP_TITLE_STYLESHEET = 'color: #8aa0b8;background: transparent;letter-spacing: 3px;font-weight: 600;'
-
 UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = 'color: #f0f4fa;background: transparent;letter-spacing: 0.5px;'
-
-UPDATE_DOWNLOAD_VERSION_LABEL_STYLESHEET = 'color: #5fb4f5;background: transparent;font-weight: 600;'
 
 UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = 'background: rgba(255, 255, 255, 0.07);min-height: 1px;max-height: 1px;border: none;'
 

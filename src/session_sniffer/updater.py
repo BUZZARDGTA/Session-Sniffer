@@ -24,7 +24,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
-from session_sniffer.guis.update_download_dialog import UpdateDownloadDialog, UpdateTarget
+from session_sniffer.guis.update_download_dialog import UpdateDownloadDialog
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
@@ -219,14 +219,12 @@ def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
     with tempfile.NamedTemporaryFile(suffix='.exe', prefix='Session_Sniffer_', delete=False) as tmp:
         dest = Path(tmp.name)
 
-    target = UpdateTarget(
+    dialog = UpdateDownloadDialog(
         download_url=candidate_info.download_url,
         dest_path=dest,
         version_label=version_str,
-        prompt_mode=True,
-        sha256_hash=candidate_info.sha256,
+        new_sha256_hash=candidate_info.sha256,
     )
-    dialog = UpdateDownloadDialog(target)
     dialog.exec()
     if not dialog.success:
         _remove_file_if_possible(dest)
@@ -278,10 +276,7 @@ def _handle_update_decision(
     label = 'pre-release' if is_rc_updater_channel else 'stable release'
 
     pending: Callable[[], None] | None = None
-    if _is_frozen():
-        version_str = format_project_version(candidate)
-        pending = functools.partial(_download_and_apply, candidate_info, version_str)
-    elif (
+    if (
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(f"""
@@ -294,11 +289,14 @@ def _handle_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
+        if _is_frozen():
+            version_str = format_project_version(candidate)
+            pending = functools.partial(_download_and_apply, candidate_info, version_str)
+        else:
+            def _open_browser() -> None:
+                webbrowser.open(candidate_info.release_url)
 
-        def _open_browser() -> None:
-            webbrowser.open(candidate_info.release_url)
-
-        pending = _open_browser
+            pending = _open_browser
 
     return (UpdateCheckOutcome.PROCEED, pending)
 
@@ -352,10 +350,7 @@ def _handle_prerelease_update_decision(
         open_info = latest_prerelease_info
 
     pending: Callable[[], None] | None = None
-    if _is_frozen():
-        version_str = format_project_version(Version(open_info.version))
-        pending = functools.partial(_download_and_apply, open_info, version_str)
-    elif (
+    if (
         msgbox.show(
             title=TITLE,
             text=message,
@@ -363,10 +358,13 @@ def _handle_prerelease_update_decision(
         )
         == msgbox.ReturnValues.IDYES
     ):
+        if _is_frozen():
+            version_str = format_project_version(Version(open_info.version))
+            pending = functools.partial(_download_and_apply, open_info, version_str)
+        else:
+            def _open_browser() -> None:
+                webbrowser.open(open_info.release_url)
 
-        def _open_browser() -> None:
-            webbrowser.open(open_info.release_url)
-
-        pending = _open_browser
+            pending = _open_browser
 
     return (UpdateCheckOutcome.PROCEED, pending)

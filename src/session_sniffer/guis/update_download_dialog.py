@@ -1,8 +1,8 @@
 """Qt dialog for downloading a Session Sniffer update with a live progress bar."""
 
+import hashlib
 import sys
 import threading
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import CURRENT_VERSION
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.stylesheets import (
-    DIALOG_PRIMARY_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_DIALOG_STYLESHEET,
     UPDATE_DOWNLOAD_DIVIDER_STYLESHEET,
@@ -43,12 +42,14 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET,
 )
-from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent, QMouseEvent
+
+_SHA_SPLIT_THRESHOLD: int = 32
 
 
 class _DownloadWorker(CrashingQThread):
@@ -96,43 +97,37 @@ class _DownloadWorker(CrashingQThread):
         self.finished_signal.emit(True, '')  # noqa: FBT003
 
 
-@dataclass(frozen=True, slots=True)
-class UpdateTarget:
-    """Target configuration for an update download."""
-
-    download_url: str
-    dest_path: Path
-    version_label: str
-    prompt_mode: bool = False
-    sha256_hash: str | None = None
-
-
 class UpdateDownloadDialog(QDialog):
     """Modal dialog that downloads a file and shows live progress.
 
     Usage:
-        target = UpdateTarget(download_url, dest_path, version_label)
-        dialog = UpdateDownloadDialog(target, parent)
+        dialog = UpdateDownloadDialog(download_url, dest_path, version_label, new_sha256_hash, parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # dest_path now contains the downloaded file
     """
 
-    def __init__(self, target: UpdateTarget, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        download_url: str,
+        dest_path: Path,
+        version_label: str,
+        new_sha256_hash: str | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         """Initialise the dialog and start the background download worker."""
         super().__init__(parent)
-        self._target = target
-        self._dest_path = target.dest_path
-        self._prompt_mode = target.prompt_mode
-        self._sha256_hash = target.sha256_hash
+        self._dest_path = dest_path
         self._success = False
         self._drag_offset: tuple[int, int] | None = None
-        self._new_version_label = target.version_label
+        self._new_version_label = version_label
+        self._new_sha256_hash = new_sha256_hash
         self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
+        self._current_sha256_hash = self._compute_current_build_sha256()
         self._error_message = ''
         self._new_size_label: QLabel | None = None
         self._progress_bar = QProgressBar()
-        self._status_label = QLabel('Ready to download' if self._prompt_mode else 'Preparing download…')
+        self._status_label = QLabel('Preparing download…')
         self._size_label = QLabel(
             '0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>xx.x MB',
         )
@@ -140,7 +135,7 @@ class UpdateDownloadDialog(QDialog):
         self.setWindowTitle('Downloading Update')
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
-        self.setFixedSize(scale_by_ui(620), scale_by_ui(460))
+        self.setFixedSize(640, 500)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setStyleSheet(UPDATE_DOWNLOAD_DIALOG_STYLESHEET)
 
@@ -175,11 +170,10 @@ class UpdateDownloadDialog(QDialog):
 
         self._center_on_screen()
 
-        self._worker = _DownloadWorker(target.download_url, target.dest_path)
+        self._worker = _DownloadWorker(download_url, dest_path)
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_finished)
-        if not self._prompt_mode:
-            self._worker.start()
+        self._worker.start()
 
     def _build_header(self) -> QHBoxLayout:
         """Build the icon + title block at the top of the dialog."""
@@ -189,10 +183,10 @@ class UpdateDownloadDialog(QDialog):
 
         header.addWidget(self._create_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self._title_label = QLabel('Update Available' if self._prompt_mode else 'Downloading Update')
-        self._title_label.setFont(QFont('Segoe UI', 17, QFont.Weight.Bold))
-        self._title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
-        header.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_label = QLabel('Downloading Update')
+        title_label.setFont(QFont('Segoe UI', 17, QFont.Weight.Bold))
+        title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
+        header.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         header.addStretch(1)
         return header
@@ -203,7 +197,16 @@ class UpdateDownloadDialog(QDialog):
         row.setSpacing(10)
         row.setContentsMargins(0, 2, 0, 2)
 
-        row.addWidget(self._create_version_card('CURRENT', self._current_version_label, self._current_size_text, None, accent=False), 1)
+        row.addWidget(
+            self._create_version_card(
+                'CURRENT',
+                self._current_version_label,
+                self._current_size_text,
+                self._current_sha256_hash,
+                accent=False,
+            ),
+            1,
+        )
 
         arrow_label = QLabel('→')
         arrow_label.setFont(QFont('Segoe UI', 22, QFont.Weight.Bold))
@@ -212,11 +215,28 @@ class UpdateDownloadDialog(QDialog):
         arrow_label.setFixedWidth(28)
         row.addWidget(arrow_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        row.addWidget(self._create_version_card('DOWNLOADING', self._new_version_label, '', self._sha256_hash, accent=True), 1)
+        row.addWidget(
+            self._create_version_card(
+                'DOWNLOADING',
+                self._new_version_label,
+                '',
+                self._new_sha256_hash,
+                accent=True,
+            ),
+            1,
+        )
 
         return row
 
-    def _create_version_card(self, label: str, version_label: str, size_text: str, sha_hash: str | None, *, accent: bool) -> QFrame:
+    def _create_version_card(
+        self,
+        label: str,
+        version_label: str,
+        size_text: str,
+        sha_hash: str | None,
+        *,
+        accent: bool,
+    ) -> QFrame:
         """Build a single version comparison card.
 
         `accent=True` styles the card as the highlighted "downloading" target.
@@ -224,6 +244,7 @@ class UpdateDownloadDialog(QDialog):
         version_text, date_text = self._split_version_label(version_label)
 
         card = QFrame()
+        card.setFixedWidth(252)
         if accent:
             card.setObjectName('updateDownloadVersionCardNew')
             card.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET)
@@ -236,8 +257,8 @@ class UpdateDownloadDialog(QDialog):
             value_qss = UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 10, 16, 8)
-        card_layout.setSpacing(0)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+        card_layout.setSpacing(5)
 
         # Top row: optional accent dot + label
         label_row = QHBoxLayout()
@@ -268,9 +289,9 @@ class UpdateDownloadDialog(QDialog):
         if date_text:
             date_row = QHBoxLayout()
             date_row.setSpacing(6)
-            date_row.setContentsMargins(0, 2, 0, 0)
+            date_row.setContentsMargins(0, 0, 0, 0)
 
-            date_row.addWidget(self._svg_label('calendar.svg', 20, 20), 0, Qt.AlignmentFlag.AlignVCenter)
+            date_row.addWidget(self._svg_label('calendar.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
             date_widget = QLabel(date_text)
             date_widget.setFont(QFont('Consolas', 9))
@@ -284,7 +305,7 @@ class UpdateDownloadDialog(QDialog):
         size_row.setSpacing(6)
         size_row.setContentsMargins(0, 0, 0, 0)
 
-        size_row.addWidget(self._svg_label('size.svg', 20, 20), 0, Qt.AlignmentFlag.AlignVCenter)
+        size_row.addWidget(self._svg_label('size.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
         size_widget = QLabel(size_text or 'xx.x MB')
         size_widget.setFont(QFont('Consolas', 9))
@@ -294,26 +315,36 @@ class UpdateDownloadDialog(QDialog):
 
         card_layout.addLayout(size_row)
 
-        if sha_hash:
-            sha_row = QHBoxLayout()
-            sha_row.setSpacing(6)
-            sha_row.setContentsMargins(0, 0, 0, 0)
+        sha_row = QHBoxLayout()
+        sha_row.setSpacing(6)
+        sha_row.setContentsMargins(0, 0, 0, 0)
 
-            sha_row.addWidget(self._svg_label('info.svg', 20, 20), 0, Qt.AlignmentFlag.AlignVCenter)
+        sha_row.addWidget(self._svg_label('info.svg', 16, 16), 0, Qt.AlignmentFlag.AlignTop)
 
-            sha_widget = QLabel(f'{sha_hash[:16]}...')
-            sha_widget.setFont(QFont('Consolas', 9))
-            sha_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
-            sha_widget.setToolTip(sha_hash)
-            sha_row.addWidget(sha_widget, 0, Qt.AlignmentFlag.AlignVCenter)
-            sha_row.addStretch(1)
+        sha_widget = QLabel(self._format_sha_display(sha_hash))
+        sha_widget.setFont(QFont('Consolas', 8))
+        sha_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
+        sha_widget.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        sha_widget.setMinimumHeight(28)
+        sha_row.addWidget(sha_widget, 0, Qt.AlignmentFlag.AlignTop)
+        sha_row.addStretch(1)
 
-            card_layout.addLayout(sha_row)
+        card_layout.addLayout(sha_row)
 
         if accent:
             self._new_size_label = size_widget
 
         return card
+
+    @staticmethod
+    def _format_sha_display(sha_hash: str | None) -> str:
+        """Format a SHA hash split onto multiple lines if long, or return fallback."""
+        if not sha_hash:
+            return 'Dev Build'
+        if len(sha_hash) > _SHA_SPLIT_THRESHOLD:
+            mid = len(sha_hash) // 2
+            return f'{sha_hash[:mid]}\n{sha_hash[mid:]}'
+        return sha_hash
 
     @staticmethod
     def _split_version_label(label: str) -> tuple[str, str]:
@@ -366,6 +397,15 @@ class UpdateDownloadDialog(QDialog):
 
         return cls._format_size_mb(total)
 
+    @classmethod
+    def _compute_current_build_sha256(cls) -> str | None:
+        """Return the SHA-256 hash of the running executable if compiled."""
+        if is_pyinstaller_compiled():
+            executable_path = Path(sys.executable)
+            if executable_path.is_file():
+                return hashlib.sha256(executable_path.read_bytes()).hexdigest()
+        return None
+
     def _build_divider(self) -> QFrame:
         """Build a thin horizontal divider line."""
         divider = QFrame()
@@ -385,8 +425,6 @@ class UpdateDownloadDialog(QDialog):
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFixedHeight(30)
         self._progress_bar.setStyleSheet(UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET)
-        if self._prompt_mode:
-            self._progress_bar.hide()
         section.addWidget(self._progress_bar)
 
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -433,22 +471,7 @@ class UpdateDownloadDialog(QDialog):
         cancel_button.clicked.connect(self._on_cancel)
         footer.addWidget(cancel_button)
 
-        if self._prompt_mode:
-            self._update_button = QPushButton('Update')
-            self._update_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._update_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-            self._update_button.clicked.connect(self._on_update_clicked)
-            footer.addWidget(self._update_button)
-
         return footer
-
-    def _on_update_clicked(self) -> None:
-        """Start the download when the Update button is clicked."""
-        self._title_label.setText('Downloading Update')
-        self._update_button.hide()
-        self._progress_bar.show()
-        self._status_label.setText('Preparing download…')
-        self._worker.start()
 
     def _create_download_icon(self) -> QWidget:
         """Create the small circular download badge from an SVG asset."""
@@ -546,3 +569,4 @@ class UpdateDownloadDialog(QDialog):
         if self._dest_path.exists():
             self._dest_path.unlink(missing_ok=True)
         super().closeEvent(event)
+
