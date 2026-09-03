@@ -119,6 +119,7 @@ class CaptureState:
     gta5_path: ClassVar[Path | None] = None
     gta5_pid: ClassVar[int | None] = None
     gta5_is_suspended: ClassVar[bool] = False
+    gta5_udp_ports: ClassVar[frozenset[int]] = frozenset()
 
     @classmethod
     def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str, interface_type: str) -> None:
@@ -153,6 +154,7 @@ class CaptureState:
             cls.gta5_path = status.path
             cls.gta5_pid = status.pid
             cls.gta5_is_suspended = status.is_suspended
+            cls.gta5_udp_ports = status.udp_ports
 
 
 class CaptureStats:

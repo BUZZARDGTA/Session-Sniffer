@@ -23,16 +23,22 @@ _GTA5_PROCESS_MONITOR_THREAD_NAME = 'GTA5ProcessMonitor'
 
 
 def _log_gta5_status_transition(previous: GTA5Status, current: GTA5Status) -> None:
-    """Info-log the meaningful GTA5 state changes (detect/exit/PID change/suspend), never steady-state polls."""
+    """Info-log the meaningful GTA5 state changes (detect/exit/PID change/suspend/ports), never steady-state polls."""
     if current.is_running != previous.is_running:
         if current.is_running:
             logger.info('[GTA5Monitor] GTA5 process detected: "%s" (PID: %s)', current.path, current.pid)
+            if current.udp_ports:
+                logger.info('[GTA5Monitor] GTA5 UDP ports bound (PID %s): %s', current.pid, sorted(current.udp_ports))
         else:
             logger.info('[GTA5Monitor] GTA5 process exited (was PID: %s)', previous.pid)
     elif current.pid != previous.pid:
         logger.info('[GTA5Monitor] GTA5 process changed (PID: %s -> %s)', previous.pid, current.pid)
+        if current.udp_ports:
+            logger.info('[GTA5Monitor] GTA5 UDP ports bound (PID %s): %s', current.pid, sorted(current.udp_ports))
     elif current.is_suspended != previous.is_suspended:
         logger.info('[GTA5Monitor] GTA5 process (PID: %s) %s', current.pid, 'suspended' if current.is_suspended else 'resumed')
+    elif current.udp_ports != previous.udp_ports:
+        logger.info('[GTA5Monitor] GTA5 UDP ports updated (PID %s): %s', current.pid, sorted(current.udp_ports))
 
 
 def _gta5_process_monitor() -> None:

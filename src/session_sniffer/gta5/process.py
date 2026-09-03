@@ -35,6 +35,7 @@ class GTA5Status:
         pid: PID of the running GTA5 process, or `None` if not running.
         is_suspended: `True` if the running GTA5 process is currently suspended at the
             OS level (its threads are stopped), regardless of what suspended it.
+        udp_ports: Set of local UDP socket ports currently bound by the GTA5 process.
         is_running: `True` if a GTA5 process was detected.
         is_enhanced: `True` if the running version is GTA V Enhanced (`GTA5_Enhanced.exe`).
         is_legacy: `True` if the running version is GTA V Legacy (`GTA5.exe`).
@@ -43,6 +44,7 @@ class GTA5Status:
     path: Path | None
     pid: int | None = None
     is_suspended: bool = False
+    udp_ports: frozenset[int] = frozenset()
     is_running: bool = field(init=False)
     is_enhanced: bool = field(init=False)
     is_legacy: bool = field(init=False)
@@ -54,6 +56,18 @@ class GTA5Status:
         object.__setattr__(self, 'is_running', self.path is not None)
         object.__setattr__(self, 'is_enhanced', stem == 'gta5_enhanced')
         object.__setattr__(self, 'is_legacy', stem == 'gta5')
+
+
+def _get_process_udp_ports(process: psutil.Process) -> frozenset[int]:
+    """Return the set of local UDP ports currently bound by the process."""
+    try:
+        return frozenset(
+            connection.laddr.port
+            for connection in process.net_connections(kind='udp')
+            if connection.laddr and connection.laddr.port
+        )
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        return frozenset()
 
 
 def find_running_gta5_path(
@@ -100,6 +114,7 @@ def find_running_gta5_path(
                         path=cached_status.path,
                         pid=cached_proc.pid,
                         is_suspended=cached_proc.status() == psutil.STATUS_STOPPED,
+                        udp_ports=_get_process_udp_ports(cached_proc),
                     ),
                     cached_proc,
                 )
@@ -130,6 +145,7 @@ def find_running_gta5_path(
                     path=resolved_path,
                     pid=process.pid,
                     is_suspended=process.status() == psutil.STATUS_STOPPED,
+                    udp_ports=_get_process_udp_ports(process),
                 ),
                 process,
             )

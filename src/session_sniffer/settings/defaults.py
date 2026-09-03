@@ -121,6 +121,21 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'GTA5',
         ),
     ),
+    'capture_filter_exclusive_gta5_process': SettingMeta(
+        category='Capture',
+        group='General',
+        display_label='Exclusive GTA5 Process Traffic',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'When the GTA5 feature set is active and running locally on this PC, restrict\n'
+            'the packet sniffer to only capture network traffic belonging directly to the\n'
+            'detected GTA5 process PID by matching its active local UDP socket ports.\n\n'
+            'All background noise and other applications on your computer (such as Discord,\n'
+            'browsers, Steam, or other games) will be completely ignored.\n\n'
+            'When GTA5 is not running, no player traffic is captured until GTA5 is launched.'
+        ),
+        requires_capture_restart=False,
+    ),
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         group='General',
@@ -128,7 +143,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.INTEGER_OR_ALL,
         tooltip=(
             'When the capture falls behind real time (e.g. during a sudden spike of incoming packets),\n'
-            'scapy buffers the backlog and delivers packets with increasing latency —\n'
+            'the capture engine buffers the backlog and delivers packets with increasing latency —\n'
             'meaning you are processing old traffic instead of live sessions.\n\n'
             'This threshold defines the maximum allowed packet latency (in seconds).\n'
             'If a packet arrives more than this many seconds late, the capture is automatically\n'
@@ -633,6 +648,7 @@ class SettingDefaults(TypedDict):
     capture_arp_spoofing: bool
     capture_block_third_party_servers: tuple[str, ...]
     capture_feature_set: str | None
+    capture_filter_exclusive_gta5_process: bool
     capture_overflow_timer: int
     capture_ps3_name_resolver: bool
     capture_prepend_custom_capture_filter: str | None
@@ -699,6 +715,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_feature_set': None,
+    'capture_filter_exclusive_gta5_process': True,
     'capture_overflow_timer': 3,
     'capture_ps3_name_resolver': False,
     'capture_prepend_custom_capture_filter': None,

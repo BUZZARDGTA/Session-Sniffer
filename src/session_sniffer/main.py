@@ -31,7 +31,7 @@ from session_sniffer.background import (
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.interface_setup import get_filtered_scapy_interfaces, populate_network_interfaces_info
+from session_sniffer.capture.interface_setup import get_filtered_capture_interfaces, populate_network_interfaces_info
 from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
@@ -169,7 +169,7 @@ def main() -> None:
     splash.run_with_spinner(populate_network_interfaces_info)
 
     available_interfaces: list[Interface] = []
-    capture_interfaces = splash.run_with_spinner(get_filtered_scapy_interfaces)
+    capture_interfaces = splash.run_with_spinner(get_filtered_capture_interfaces)
 
     for device_name, friendly_name in capture_interfaces:
         interface = AllInterfaces.get_interface_by_name(friendly_name)
@@ -257,12 +257,22 @@ def main() -> None:
         if packet.ip.src == Settings.capture_ip_address:
             target_ip = packet.ip.dst
             target_port = packet.port.dst
+            local_port = packet.port.src
             sent_by_local_host = True
         elif packet.ip.dst == Settings.capture_ip_address:
             target_ip = packet.ip.src
             target_port = packet.port.src
+            local_port = packet.port.dst
             sent_by_local_host = False
         else:
+            return
+
+        if (
+            Settings.capture_filter_exclusive_gta5_process
+            and Settings.is_gta5_feature_set()
+            and CaptureState.is_local_capture()
+            and (not CaptureState.gta5_is_running or local_port not in CaptureState.gta5_udp_ports)
+        ):
             return
 
         if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
@@ -368,7 +378,7 @@ def main() -> None:
         # refresh_available_interfaces(), which blocks the GUI thread via COM/ICS APIs.
         # The dialog's live-refresh timer handles that from within its own event loop.
         new_available_interfaces: list[Interface] = []
-        for _device_name, _friendly_name in get_filtered_scapy_interfaces():
+        for _device_name, _friendly_name in get_filtered_capture_interfaces():
             _interface = AllInterfaces.get_interface_by_name(_friendly_name)
             if _interface is None:
                 continue
