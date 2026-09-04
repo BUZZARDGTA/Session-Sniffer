@@ -44,18 +44,10 @@ _SUPPRESSED_URLLIB3_SUBSTRINGS = (
     'ConnectionResetError',
 )
 
-# --- Suppress benign Scapy datalink-type warning for virtual/VPN adapters ---
-_SUPPRESSED_SCAPY_SUBSTRINGS = ('Unable to guess datalink type',)
-
 
 def _urllib3_noise_filter(record: logging.LogRecord) -> bool:
     """Suppress noisy third-party retry warnings."""
     return not (record.name.startswith('urllib3.') and any(substring in record.getMessage() for substring in _SUPPRESSED_URLLIB3_SUBSTRINGS))
-
-
-def _scapy_noise_filter(record: logging.LogRecord) -> bool:
-    """Suppress benign Scapy datalink-type warnings captured via stderr redirection."""
-    return not (record.name == _STDERR_LOGGER_NAME and any(substring in record.getMessage() for substring in _SUPPRESSED_SCAPY_SUBSTRINGS))
 
 
 def _app_only_filter(record: logging.LogRecord) -> bool:
@@ -279,7 +271,6 @@ def _configure_common_filters(handler: logging.Handler) -> None:
     """Install filters shared by all managed handlers."""
     _add_filter_once(handler, _SECRET_REDACT_FILTER)
     _add_filter_once(handler, _urllib3_noise_filter)
-    _add_filter_once(handler, _scapy_noise_filter)
 
 
 def _register_shutdown_once() -> None:
@@ -344,7 +335,7 @@ def setup_logging(
         # --- Redirect Python warnings to logging ---
         logging.captureWarnings(capture=True)
 
-        # --- Redirect stderr to logging (captures scapy, ctypes, PySide6 internal errors) ---
+        # --- Redirect stderr to logging (captures ctypes, PySide6 internal errors) ---
         if sys.stderr is not None and not isinstance(sys.stderr, _StderrToLogger):
             sys.stderr = _StderrToLogger(logging.getLogger(_STDERR_LOGGER_NAME), logging.ERROR, fallback=cast('TextIO', sys.stderr))
 

@@ -1,20 +1,14 @@
-"""Module for checking BPF filter support on a network interface using scapy."""
+"""Module for checking BPF filter support on a network interface using Npcap/WinPcap."""
 
-from scapy.error import Scapy_Exception
-from scapy.sendrecv import sniff
-
-
-def _stop_immediately(_pkt: object) -> bool:
-    """Stop Scapy sniffing as soon as the callback is evaluated."""
-    return True
+from session_sniffer.capture.exceptions import PcapOpenError
+from session_sniffer.capture.pcap import PcapHandle
 
 
 def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
     r"""Check if the given network interface supports `broadcast` and `multicast` BPF filters.
 
     Opens a pcap handle on the interface and attempts to compile each filter.
-    If the filter is invalid or unsupported the underlying pcap library raises an
-    exception before any packets are read.
+    If the filter is invalid or unsupported the underlying pcap library returns an error.
 
     Args:
         device_name: The pcap device name, e.g. `\Device\NPF_{GUID}`.
@@ -23,19 +17,19 @@ def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
         A tuple where the first value indicates support for `broadcast` and the
         second indicates support for `multicast` BPF filters.
     """
+    try:
+        pcap_handle = PcapHandle.open_live(
+            device_name,
+            snaplen=64,
+            promiscuous=False,
+            timeout_milliseconds=50,
+        )
+    except (PcapOpenError, OSError):
+        return (False, False)
 
-    def _test_filter(filter_str: str) -> bool:
-        try:
-            sniff(
-                iface=device_name,
-                filter=filter_str,
-                count=0,
-                stop_filter=_stop_immediately,
-                timeout=0.5,
-                store=False,
-            )
-        except Scapy_Exception, OSError:
-            return False
-        return True
-
-    return (_test_filter('broadcast'), _test_filter('multicast'))
+    try:
+        broadcast_supported = pcap_handle.test_filter_compilation('broadcast')
+        multicast_supported = pcap_handle.test_filter_compilation('multicast')
+        return (broadcast_supported, multicast_supported)
+    finally:
+        pcap_handle.close()

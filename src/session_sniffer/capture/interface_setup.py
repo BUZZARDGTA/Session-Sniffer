@@ -1,4 +1,4 @@
-"""Network interface population, scapy interface discovery, and interface refresh logic."""
+"""Network interface population, capture interface discovery, and interface refresh logic."""
 
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
@@ -87,13 +87,12 @@ def populate_network_interfaces_info() -> None:
             )
 
 
-def get_filtered_scapy_interfaces() -> list[tuple[str, str]]:
+def get_filtered_capture_interfaces() -> list[tuple[str, str]]:
     r"""Build the list of capture-capable interfaces from Windows API data.
 
     Uses the GUID already stored in `AllInterfaces` (populated by
     `populate_network_interfaces_info`) to construct the NPF device path
-    (`\Device\NPF_{GUID}`) directly, avoiding a dependency on scapy's own
-    interface enumeration which requires elevated privileges to succeed.
+    (`\Device\NPF_{GUID}`) directly.
 
     Returns:
         A list of `(device_name, friendly_name)` tuples where `device_name` is
@@ -116,7 +115,7 @@ def refresh_available_interfaces() -> list[Interface]:
     """Re-query the OS for network adapters and return capture-capable interfaces.
 
     Clears the AllInterfaces registry, re-populates it from the Windows API,
-    then matches against scapy-discoverable interfaces and populates device names.
+    then populates device names.
 
     Returns:
         The updated list of capture-capable Interface objects.
@@ -125,7 +124,7 @@ def refresh_available_interfaces() -> list[Interface]:
     populate_network_interfaces_info()
 
     available: list[Interface] = []
-    for device_name, friendly_name in get_filtered_scapy_interfaces():
+    for device_name, friendly_name in get_filtered_capture_interfaces():
         interface = AllInterfaces.get_interface_by_name(friendly_name)
         if interface is None:
             continue

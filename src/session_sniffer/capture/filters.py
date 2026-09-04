@@ -3,8 +3,6 @@
 from ipaddress import AddressValueError, IPv4Address
 from typing import TYPE_CHECKING
 
-from scapy.layers.inet import IP, UDP
-
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
     LLMNR_PORT,
@@ -18,7 +16,7 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from scapy.packet import Packet as ScapyPacket
+    from session_sniffer.capture.packet_capture import Packet
 
 # https://en.wikipedia.org/wiki/Reserved_IP_addresses
 _RESERVED_NETWORK_RANGES = (
@@ -50,37 +48,33 @@ _DTLS_CONTENT_TYPE_MIN = 20
 _DTLS_CONTENT_TYPE_MAX = 23
 
 
-def _is_rtcp(pkt: ScapyPacket) -> bool:
-    """Return `True` if the scapy packet looks like an RTCP packet.
+def _is_rtcp(packet: Packet) -> bool:
+    """Return `True` if the packet payload looks like an RTCP packet.
 
     RTCP is identified by: RTP version == 2 (top 2 bits of first payload byte),
     and payload type (PT) in the range 200-204.
     """
-    if not pkt.haslayer(UDP):
+    if packet.payload is None or len(packet.payload) < _RTCP_MIN_PAYLOAD:
         return False
-    payload = bytes(pkt[UDP].payload)
-    if len(payload) < _RTCP_MIN_PAYLOAD:
-        return False
-    version = (payload[0] >> 6) & 0x3
-    pt = payload[1] & 0x7F  # strip marker bit
+    version = (packet.payload[0] >> 6) & 0x3
+    pt = packet.payload[1] & 0x7F  # strip marker bit
     return version == _RTCP_RTP_VERSION and _RTCP_PT_MIN <= pt <= _RTCP_PT_MAX
 
 
-def _is_dtls(pkt: ScapyPacket) -> bool:
-    """Return `True` if the scapy packet looks like a DTLS record.
+def _is_dtls(packet: Packet) -> bool:
+    """Return `True` if the packet payload looks like a DTLS record.
 
     DTLS content-type bytes (first byte of UDP payload): 20-23.
     """
-    if not pkt.haslayer(UDP):
+    if packet.payload is None or not packet.payload:
         return False
-    payload = bytes(pkt[UDP].payload)
-    return bool(payload) and _DTLS_CONTENT_TYPE_MIN <= payload[0] <= _DTLS_CONTENT_TYPE_MAX
+    return _DTLS_CONTENT_TYPE_MIN <= packet.payload[0] <= _DTLS_CONTENT_TYPE_MAX
 
 
 def _build_display_filter_fn(
     excluded_protocols: list[str],
     blocked_tps_obj_ranges: list[tuple[IPv4Address, IPv4Address]] | None = None,
-) -> Callable[[ScapyPacket], bool] | None:
+) -> Callable[[Packet], bool] | None:
     """Build a Python callable that returns `True` when a packet should be forwarded.
 
     Args:
@@ -90,7 +84,7 @@ def _build_display_filter_fn(
     Returns:
         A callable, or `None` if no Python-level filtering is needed.
     """
-    checks: list[Callable[[ScapyPacket], bool]] = []
+    checks: list[Callable[[Packet], bool]] = []
 
     if 'rtcp' in excluded_protocols:
         checks.append(lambda pkt: not _is_rtcp(pkt))
@@ -100,12 +94,10 @@ def _build_display_filter_fn(
 
     if blocked_tps_obj_ranges:
 
-        def check_tps(pkt: ScapyPacket) -> bool:
-            if not pkt.haslayer(IP):
-                return False
+        def check_tps(pkt: Packet) -> bool:
             try:
-                src_ip = IPv4Address(pkt[IP].src)
-                dst_ip = IPv4Address(pkt[IP].dst)
+                src_ip = IPv4Address(pkt.ip.src)
+                dst_ip = IPv4Address(pkt.ip.dst)
             except AddressValueError:
                 return False
             return is_ip_in_ranges(src_ip, blocked_tps_obj_ranges) or is_ip_in_ranges(dst_ip, blocked_tps_obj_ranges)
@@ -115,7 +107,7 @@ def _build_display_filter_fn(
     if not checks:
         return None
 
-    def display_filter_fn(pkt: ScapyPacket) -> bool:
+    def display_filter_fn(pkt: Packet) -> bool:
         return all(check(pkt) for check in checks)
 
     return display_filter_fn
@@ -126,11 +118,11 @@ def build_capture_filters(
     capture_ip_address: str,
     broadcast_support: bool,
     multicast_support: bool,
-) -> tuple[str | None, Callable[[ScapyPacket], bool] | None]:
+) -> tuple[str | None, Callable[[Packet], bool] | None]:
     """Build a BPF capture filter string and an optional Python display-filter callable.
 
     Protocol exclusions that map cleanly to fixed port numbers are added directly
-    to the BPF capture filter (strategy A).  Protocols requiring payload inspection
+    to the BPF capture filter (strategy A). Protocols requiring payload inspection
     (rtcp, dtls) are returned as a Python callable (strategy B).
 
     Args:
@@ -139,7 +131,7 @@ def build_capture_filters(
         multicast_support: Whether the interface supports the `multicast` BPF term.
 
     Returns:
-        A `(capture_filter_str, display_filter_fn)` tuple.  Either element may be
+        A `(capture_filter_str, display_filter_fn)` tuple. Either element may be
         `None` when no filters of that kind are needed.
     """
     capture_filter: list[str] = ['ip', 'udp']

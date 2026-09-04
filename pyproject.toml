@@ -18,7 +18,6 @@ dependencies = [
     "pywin32==312; platform_system == 'Windows'",
     "requests==2.34.2",
     "rich==15.0.0",
-    "scapy==2.7.0",
     "tzlocal==5.4.4",
 
     # Security fixes

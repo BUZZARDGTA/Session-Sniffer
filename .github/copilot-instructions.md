@@ -25,7 +25,7 @@ If a user's saved data (e.g. `Settings.ini`) contains a stale key, it is treated
 - Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Uncaught exceptions in threads are handled automatically via `threading.excepthook` (installed in `src/session_sniffer/core/control.py`).
 
 ## Key Directories & Responsibilities
-- `src/session_sniffer/capture/`: Interface selection, scapy/npcap checks, filter helpers.
+- `src/session_sniffer/capture/`: Interface selection, npcap checks, ARP spoofing, filter helpers.
 - `src/session_sniffer/guis/`: Qt app bootstrap (`app.py`), size/util functions (`utils.py`), custom widgets, exceptions, stylesheets.
 - `src/session_sniffer/networking/`: DNS, reverse DNS, MAC vendor (Wireshark `manuf`) lookup, ping management.
 - `src/session_sniffer/rendering_core/`: Transforms registry + lookup results into GUI payloads.

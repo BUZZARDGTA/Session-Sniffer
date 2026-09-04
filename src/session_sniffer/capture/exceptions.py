@@ -39,6 +39,46 @@ class MalformedPacketError(CaptureError):
             return self.message_template
 
 
+class MalformedEthernetFrameTooShortError(MalformedPacketError):
+    """Raised when frame length is less than Ethernet header size."""
+
+    message_template = 'Frame too short for Ethernet header'
+
+
+class MalformedVlanFrameTooShortError(MalformedPacketError):
+    """Raised when frame length is less than 802.1Q VLAN header size."""
+
+    message_template = 'Frame too short for 802.1Q VLAN header'
+
+
+class MalformedLoopbackFrameTooShortError(MalformedPacketError):
+    """Raised when frame length is less than loopback header size."""
+
+    message_template = 'Frame too short for loopback header'
+
+
+class MalformedEtherTypeError(MalformedPacketError):
+    """Raised when link frame EtherType is not IPv4."""
+
+    message_template = 'Expected IPv4 frame, got EtherType: {value}'
+
+    def __init__(self, ethertype: int) -> None:
+        """Initialize with hex-formatted EtherType."""
+        super().__init__(f'0x{ethertype:04x}')
+
+
+class MalformedIPVersionError(MalformedPacketError):
+    """Raised when IP header version is not 4."""
+
+    message_template = 'Expected IPv4 packet, got version {value}'
+
+
+class MalformedProtocolError(MalformedPacketError):
+    """Raised when IP protocol is not UDP."""
+
+    message_template = 'Expected UDP protocol (17), got {value}'
+
+
 class MissingRequiredPacketFieldError(MalformedPacketError):
     """Raised when a required packet field is missing/empty."""
 
@@ -131,3 +171,54 @@ class CaptureThreadAlreadyRunningError(CaptureError):
     def __init__(self) -> None:
         """Initialize the exception."""
         super().__init__('Capture thread is already running')
+
+
+class PcapError(CaptureError):
+    """Base exception for all pcap driver operations."""
+
+
+class PcapOpenError(PcapError):
+    """Exception raised when opening a pcap capture adapter fails."""
+
+    def __init__(self, device_name: str, error_message: str) -> None:
+        """Initialize the exception with the device name and driver error message."""
+        self.device_name = device_name
+        self.error_message = error_message
+        super().__init__(f'Failed to open pcap adapter "{device_name}": {error_message}')
+
+
+class PcapClosedError(PcapError):
+    """Exception raised when an operation is attempted on a closed pcap handle."""
+
+    def __init__(self) -> None:
+        """Initialize the exception."""
+        super().__init__('Pcap handle is already closed')
+
+
+class PcapFilterError(PcapError):
+    """Exception raised when compiling or applying a BPF filter fails."""
+
+    def __init__(self, filter_string: str, error_message: str) -> None:
+        """Initialize the exception with the filter string and driver error message."""
+        self.filter_string = filter_string
+        self.error_message = error_message
+        super().__init__(f'Failed to apply BPF filter "{filter_string}": {error_message}')
+
+
+class PcapReadError(PcapError):
+    """Exception raised when a non-recoverable error occurs while reading packets."""
+
+    def __init__(self, error_message: str) -> None:
+        """Initialize the exception with the driver error message."""
+        self.error_message = error_message
+        super().__init__(f'Pcap read error: {error_message}')
+
+
+class PcapSendError(PcapError):
+    """Exception raised when injecting a packet via pcap fails."""
+
+    def __init__(self, error_message: str) -> None:
+        """Initialize the exception with the driver error message."""
+        self.error_message = error_message
+        super().__init__(f'Pcap send error: {error_message}')
+

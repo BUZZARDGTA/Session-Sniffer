@@ -1,15 +1,10 @@
-"""Module for packet capture using scapy, including packet processing and capture lifecycle management."""
+"""Module for packet capture using Npcap/WinPcap, including packet parsing and lifecycle management."""
 
+import struct
 import threading
-import time
-from ctypes import byref
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, NamedTuple, Self, final
-
-from scapy.layers.inet import IP, UDP
-from scapy.libs.winpcapy import pcap_stat, pcap_stats
-from scapy.sendrecv import AsyncSniffer
+from datetime import datetime as datetime_type
+from typing import TYPE_CHECKING, NamedTuple, Self, final
 
 from session_sniffer.capture.exceptions import (
     CaptureAlreadyRunningError,
@@ -21,11 +16,17 @@ from session_sniffer.capture.exceptions import (
     InvalidIPv4AddressMultipleError,
     InvalidLengthNumericError,
     InvalidPortNumberError,
+    MalformedEthernetFrameTooShortError,
+    MalformedEtherTypeError,
+    MalformedIPVersionError,
+    MalformedLoopbackFrameTooShortError,
     MalformedPacketError,
+    MalformedProtocolError,
+    MalformedVlanFrameTooShortError,
     MissingPortError,
     MissingRequiredPacketFieldError,
 )
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.utils import is_ipv4_address
@@ -33,25 +34,34 @@ from session_sniffer.networking.utils import is_ipv4_address
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from scapy.packet import Packet as ScapyPacket
-    from scapy.supersocket import SuperSocket
-
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
 logger = get_logger(__name__)
+
+# Protocol numbers and header sizes
+_ETHERTYPE_IPV4 = 0x0800
+_ETHERTYPE_VLAN = 0x8100
+_IP_PROTOCOL_UDP = 17
+_IPV4_VERSION = 4
+
+_ETHERNET_HEADER_LENGTH = 14
+_VLAN_HEADER_LENGTH = 18
+_NULL_HEADER_LENGTH = 4
+_IPV4_MIN_HEADER_LENGTH = 20
+_UDP_HEADER_LENGTH = 8
 
 
 def _log_malformed_packet_skip(
     reason: str,
     /,
     *,
-    raw_pkt: ScapyPacket,
+    raw_length: int,
 ) -> None:
-    """Log a malformed packet including reason and full debug info."""
+    """Log a malformed packet including reason and length."""
     logger.warning(
-        '%s (Packet skipped). raw_pkt=%r',
+        '%s (Packet skipped). length=%d',
         reason,
-        raw_pkt.summary(),
+        raw_length,
     )
 
 
@@ -75,10 +85,6 @@ def _parse_and_validate_length(length: int, /) -> int:
     return length
 
 
-def _convert_epoch_time_to_datetime(time_epoch: float, /) -> datetime:
-    return datetime.fromtimestamp(time_epoch, tz=LOCAL_TZ)
-
-
 class PacketIP(NamedTuple):
     """Hold source and destination IP addresses for a packet."""
 
@@ -96,50 +102,104 @@ class Port(NamedTuple):
 class Packet(NamedTuple):
     """Represent a parsed packet emitted by the capture pipeline."""
 
-    datetime: datetime
+    datetime: datetime_type
     ip: PacketIP
     port: Port
     length: int
     payload: bytes | None = None
 
     @classmethod
-    def from_scapy(cls, raw_pkt: ScapyPacket, *, include_payload: bool = False) -> Self:
-        """Create a `Packet` from a scapy packet object.
+    def from_raw_frame(
+        cls,
+        raw_bytes: bytes,
+        packet_time: datetime_type,
+        datalink_type: int = DLT_EN10MB,
+        *,
+        include_payload: bool = False,
+    ) -> Self:
+        """Parse raw link-layer frame bytes into a `Packet` structure.
 
         Args:
-            raw_pkt: A scapy packet that must contain IP and UDP layers.
-            include_payload: Whether to extract and include raw UDP payload bytes.
+            raw_bytes: The raw packet bytes captured from the adapter.
+            packet_time: Timestamp when packet was captured.
+            datalink_type: Datalink header type (e.g. DLT_EN10MB, DLT_NULL, DLT_RAW).
+            include_payload: Whether to extract UDP payload bytes.
 
         Returns:
-            A `Packet` containing the parsed fields.
+            A `Packet` instance.
 
         Raises:
-            MissingRequiredPacketFieldError: If required IP or time fields are absent.
-            MissingPortError: If UDP src or dst port is absent.
-            InvalidIPv4AddressError: If an IP field is not a valid IPv4 address.
-            InvalidPortNumberError: If a port is out of the valid range.
-            InvalidLengthNumericError: If frame length is invalid.
+            MissingRequiredPacketFieldError: If required fields or headers are truncated.
+            MissingPortError: If port values are invalid.
+            MalformedPacketError: If packet is not a valid IPv4/UDP packet.
         """
-        if not raw_pkt.haslayer(IP) or not raw_pkt.haslayer(UDP):
+        frame_length = len(raw_bytes)
+
+        if datalink_type == DLT_EN10MB:
+            if frame_length < _ETHERNET_HEADER_LENGTH:
+                raise MalformedEthernetFrameTooShortError
+
+            ethertype = struct.unpack_from('!H', raw_bytes, 12)[0]
+            ip_offset = _ETHERNET_HEADER_LENGTH
+
+            if ethertype == _ETHERTYPE_VLAN:
+                if frame_length < _VLAN_HEADER_LENGTH:
+                    raise MalformedVlanFrameTooShortError
+                ethertype = struct.unpack_from('!H', raw_bytes, 16)[0]
+                ip_offset = _VLAN_HEADER_LENGTH
+
+            if ethertype != _ETHERTYPE_IPV4:
+                raise MalformedEtherTypeError(ethertype)
+
+        elif datalink_type == DLT_NULL:
+            if frame_length < _NULL_HEADER_LENGTH:
+                raise MalformedLoopbackFrameTooShortError
+            ip_offset = _NULL_HEADER_LENGTH
+
+        elif datalink_type == DLT_RAW:
+            ip_offset = 0
+
+        elif frame_length >= _ETHERNET_HEADER_LENGTH:
+            ethertype = struct.unpack_from('!H', raw_bytes, 12)[0]
+            ip_offset = _ETHERNET_HEADER_LENGTH if ethertype == _ETHERTYPE_IPV4 else 0
+        else:
+            ip_offset = 0
+
+        if frame_length < ip_offset + _IPV4_MIN_HEADER_LENGTH:
             raise MissingRequiredPacketFieldError
 
-        ip_layer = raw_pkt[IP]
-        udp_layer = raw_pkt[UDP]
+        version_and_ihl = raw_bytes[ip_offset]
+        version = version_and_ihl >> 4
+        if version != _IPV4_VERSION:
+            raise MalformedIPVersionError(version)
 
-        src_ip = str(ip_layer.src) if ip_layer.src else ''
-        dst_ip = str(ip_layer.dst) if ip_layer.dst else ''
-        src_port = int(str(udp_layer.sport)) if udp_layer.sport is not None else None
-        dst_port = int(str(udp_layer.dport)) if udp_layer.dport is not None else None
-
-        if not all((src_ip, dst_ip)):
+        ip_header_length = (version_and_ihl & 0x0F) * 4
+        if ip_header_length < _IPV4_MIN_HEADER_LENGTH or frame_length < ip_offset + ip_header_length + _UDP_HEADER_LENGTH:
             raise MissingRequiredPacketFieldError
 
-        if src_port is None or dst_port is None:
+        protocol = raw_bytes[ip_offset + 9]
+        if protocol != _IP_PROTOCOL_UDP:
+            raise MalformedProtocolError(protocol)
+
+        src_ip_bytes = raw_bytes[ip_offset + 12 : ip_offset + 16]
+        dst_ip_bytes = raw_bytes[ip_offset + 16 : ip_offset + 20]
+        src_ip = f'{src_ip_bytes[0]}.{src_ip_bytes[1]}.{src_ip_bytes[2]}.{src_ip_bytes[3]}'
+        dst_ip = f'{dst_ip_bytes[0]}.{dst_ip_bytes[1]}.{dst_ip_bytes[2]}.{dst_ip_bytes[3]}'
+
+        udp_offset = ip_offset + ip_header_length
+        src_port, dst_port, udp_length = struct.unpack_from('!HHH', raw_bytes, udp_offset)
+
+        if not src_port or not dst_port:
             raise MissingPortError
 
-        pkt_time: Any = raw_pkt.time
+        payload: bytes | None = None
+        if include_payload:
+            payload_offset = udp_offset + _UDP_HEADER_LENGTH
+            payload_end = udp_offset + max(_UDP_HEADER_LENGTH, udp_length)
+            payload = raw_bytes[payload_offset:payload_end]
+
         return cls(
-            datetime=_convert_epoch_time_to_datetime(float(pkt_time)),
+            datetime=packet_time,
             ip=PacketIP(
                 src=_parse_and_validate_ip(src_ip),
                 dst=_parse_and_validate_ip(dst_ip),
@@ -148,8 +208,8 @@ class Packet(NamedTuple):
                 src=_parse_and_validate_port(src_port),
                 dst=_parse_and_validate_port(dst_port),
             ),
-            length=_parse_and_validate_length(len(raw_pkt)),
-            payload=bytes(udp_layer.payload) if include_payload else None,
+            length=_parse_and_validate_length(frame_length),
+            payload=payload,
         )
 
 
@@ -158,7 +218,7 @@ type PacketCallback = Callable[[Packet], None]
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class CaptureConfig:
-    """Configuration for packet capture using scapy.
+    """Configuration for packet capture.
 
     Attributes:
         interface: The selected network interface to capture packets from.
@@ -166,10 +226,10 @@ class CaptureConfig:
         broadcast_support: Whether the interface supports the `broadcast` capture filter.
         multicast_support: Whether the interface supports the `multicast` capture filter.
         capture_filter: An optional BPF capture filter string.
-        display_filter_fn: An optional Python callable applied to each scapy packet before
+        display_filter_fn: An optional Python callable applied to each packet before
             invoking `callback`. Return `True` to forward the packet, `False` to drop it.
         include_payload: Whether to extract UDP payload bytes in captured packets.
-        on_capture_lost: An optional callback invoked when the sniffer exits unexpectedly.
+        on_capture_lost: An optional callback invoked when capture exits unexpectedly.
     """
 
     interface: SelectedInterfaceRow
@@ -177,33 +237,24 @@ class CaptureConfig:
     broadcast_support: bool
     multicast_support: bool
     capture_filter: str | None = None
-    display_filter_fn: Callable[[ScapyPacket], bool] | None = None
+    display_filter_fn: Callable[[Packet], bool] | None = None
     include_payload: bool = False
     on_capture_lost: Callable[[], None] | None = None
 
 
 @dataclass(kw_only=True, slots=True)
 class _CaptureState:
-    """Internal state for managing the packet capture.
-
-    Attributes:
-        control_lock: A lock to synchronize access to the capture state.
-        running_event: Set while capture is active; cleared on stop.
-        restart_requested: Set to request an async restart of the sniffer.
-        capture_thread: The background thread running the capture loop.
-        sniffer: The active scapy `AsyncSniffer` instance.
-    """
+    """Internal state for managing the packet capture."""
 
     control_lock: threading.Lock = field(default_factory=threading.Lock)
     running_event: threading.Event = field(default_factory=threading.Event)
     restart_requested: threading.Event = field(default_factory=threading.Event)
     capture_thread: threading.Thread | None = None
-    sniffer: AsyncSniffer | None = None
-    pcap_socket: SuperSocket | None = None
+    pcap_handle: PcapHandle | None = None
 
 
 class PacketCapture:
-    """Manage a background scapy sniffer and emit parsed packets via callback."""
+    """Manage background packet capture and emit parsed packets via callback."""
 
     def __init__(self, config: CaptureConfig, /) -> None:
         """Initialize the `PacketCapture` class.
@@ -215,7 +266,7 @@ class PacketCapture:
         self._state = _CaptureState()
 
     def start(self) -> None:
-        """Start packet capture by launching a new scapy `AsyncSniffer`."""
+        """Start packet capture by launching the background capture thread."""
         with self._state.control_lock:
             if self._state.running_event.is_set():
                 raise CaptureAlreadyRunningError
@@ -224,14 +275,14 @@ class PacketCapture:
             self._start_thread()
 
     def stop(self) -> None:
-        """Stop packet capture and join the underlying sniffer thread."""
+        """Stop packet capture and join the capture thread."""
         with self._state.control_lock:
             if not self._state.running_event.is_set():
                 raise CaptureNotRunningError
 
             self._state.running_event.clear()
 
-        self._terminate_sniffer()
+        self._terminate_handle()
 
         if self._state.capture_thread is not None and self._state.capture_thread.is_alive() and self._state.capture_thread is not threading.current_thread():
             self._state.capture_thread.join()
@@ -247,18 +298,27 @@ class PacketCapture:
         """Return whether packet capture is currently active."""
         return self._state.running_event.is_set()
 
-    def _terminate_sniffer(self) -> None:
-        """Stop the scapy sniffer if one is active."""
-        sniffer = self._state.sniffer
-        if sniffer is None:
-            return
+    def is_restart_requested(self) -> bool:
+        """Return whether a restart of the packet capture has been requested."""
+        return self._state.restart_requested.is_set()
 
-        if sniffer.running:
-            sniffer.stop(join=True)
+    def get_pcap_drop_count(self) -> int | None:
+        """Return cumulative npcap drop count (`ps_drop` + `ps_ifdrop`) for the current capture session.
 
+        Returns `None` when no active capture handle is available (e.g. between restarts).
+        The counters reset each time a new pcap handle is opened (i.e. on every capture restart).
+        """
         with self._state.control_lock:
-            if self._state.sniffer is sniffer:
-                self._state.sniffer = None
+            if self._state.pcap_handle is None:
+                return None
+            return self._state.pcap_handle.get_drop_count()
+
+    def _terminate_handle(self) -> None:
+        """Break the pcap read loop and close the handle."""
+        with self._state.control_lock:
+            handle = self._state.pcap_handle
+            if handle is not None:
+                handle.break_loop()
 
     def _start_thread(self) -> None:
         """Create and start a new capture thread."""
@@ -273,7 +333,7 @@ class PacketCapture:
         self._state.capture_thread.start()
 
     def _run_capture_loop(self) -> None:
-        """Main capture loop — restarts the sniffer after each restart request."""
+        """Main capture loop — restarts the capture handle after each restart request."""
         while self._state.running_event.is_set():
             self._state.restart_requested.clear()
 
@@ -289,127 +349,56 @@ class PacketCapture:
                 raise
 
     def _capture_and_process(self) -> None:
-        """Run one sniffer session until stopped, restarted, or crashed."""
+        """Run one packet capture session until stopped, restarted, or crashed."""
         if not self.config.interface.device_name:
             message = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
             raise CaptureError(message)
 
-        def prn(raw_pkt: ScapyPacket) -> None:
-            # NPcap on Windows applies BPF in userspace for some adapter types
-            # (loopback, VPN/TAP, certain Wi-Fi drivers).  Raw frames that
-            # scapy cannot parse as IP/UDP arrive here before the filter rejects
-            # them.  Bail out cheaply rather than paying exception overhead.
-            if not raw_pkt.haslayer(IP) or not raw_pkt.haslayer(UDP):
-                return
-
-            if self.config.display_filter_fn is not None and not self.config.display_filter_fn(raw_pkt):
-                return
-
-            try:
-                packet = Packet.from_scapy(raw_pkt, include_payload=self.config.include_payload)
-            except MissingRequiredPacketFieldError:
-                return
-            except MalformedPacketError as e:
-                _log_malformed_packet_skip(str(e), raw_pkt=raw_pkt)
-                return
-
-            self.config.callback(packet)
-
         try:
-            from scapy.arch.libpcap import L2pcapListenSocket  # noqa: PLC0415  # pylint: disable=import-outside-toplevel  # ty: ignore[possibly-missing-import]
-
-            listen_socket = L2pcapListenSocket(
-                iface=self.config.interface.device_name,
-                filter=self.config.capture_filter or None,
+            pcap_handle = PcapHandle.open_live(
+                self.config.interface.device_name,
+                snaplen=65535,
+                promiscuous=True,
+                timeout_milliseconds=100,
             )
-        except (ImportError, OSError) as e:
+            if self.config.capture_filter:
+                pcap_handle.set_filter(self.config.capture_filter)
+        except Exception as e:
             raise CaptureExitError(e) from e
 
         with self._state.control_lock:
-            self._state.pcap_socket = listen_socket
+            self._state.pcap_handle = pcap_handle
 
-        sniffer = AsyncSniffer(
-            opened_socket=listen_socket,
-            prn=prn,
-            store=False,
-        )
-        sniffer.start()
+        need_payload = self.config.include_payload or (self.config.display_filter_fn is not None)
 
-        with self._state.control_lock:
-            self._state.sniffer = sniffer
-
-        # Scapy's start() returns immediately after spawning the sniffer thread;
-        # sniffer.running is set to True at the very beginning of _run(), but the
-        # thread may not have been scheduled yet.  Without this wait, the monitoring
-        # loop below can observe running=False on its first iteration and incorrectly
-        # conclude the sniffer died unexpectedly.
-        _startup_deadline = time.monotonic() + 10.0
-        while not sniffer.running:
-            if sniffer.thread is not None and not sniffer.thread.is_alive():
-                # Thread exited before ever becoming active.  This happens when an
-                # exception is raised during pcap/socket setup (code that runs before
-                # the try-block in scapy's _run(), so self.running = False is never
-                # reached and the exception is silently stored in sniffer.exception).
-                raise CaptureExitError(sniffer.exception)
-            if time.monotonic() > _startup_deadline:
-                raise CaptureExitError(None)
-            time.sleep(0.05)
-
-        died_unexpectedly = False
         try:
             while self._state.running_event.is_set() and not self._state.restart_requested.is_set():
-                if not sniffer.running:
-                    died_unexpectedly = True
-                    break
-                if sniffer.thread is not None and not sniffer.thread.is_alive():
-                    # Thread died without clearing sniffer.running.  Scapy sets
-                    # self.running = False only after the main sniffing loop exits
-                    # cleanly; an unhandled exception before that point leaves
-                    # running=True while the thread is dead.  Detect that here.
-                    died_unexpectedly = True
-                    break
-                time.sleep(0.05)
+                captured_packet = pcap_handle.next_packet()
+                if captured_packet is None:
+                    continue
+
+                try:
+                    packet = Packet.from_raw_frame(
+                        captured_packet.data,
+                        captured_packet.timestamp,
+                        captured_packet.datalink_type,
+                        include_payload=need_payload,
+                    )
+                except MissingRequiredPacketFieldError:
+                    continue
+                except MalformedPacketError as e:
+                    _log_malformed_packet_skip(str(e), raw_length=len(captured_packet.data))
+                    continue
+
+                if self.config.display_filter_fn is not None and not self.config.display_filter_fn(packet):
+                    continue
+
+                self.config.callback(packet)
         finally:
             with self._state.control_lock:
-                if self._state.pcap_socket is listen_socket:
-                    self._state.pcap_socket = None
-            if sniffer.running:
-                sniffer.stop(join=True)
-            with self._state.control_lock:
-                if self._state.sniffer is sniffer:
-                    self._state.sniffer = None
-
-        if died_unexpectedly:
-            logger.debug(
-                'Scapy sniffer stopped. died_unexpectedly=%r, exception=%r',
-                died_unexpectedly,
-                sniffer.exception,
-            )
-
-        with self._state.control_lock:
-            if died_unexpectedly and self._state.running_event.is_set() and not self._state.restart_requested.is_set():
-                raise CaptureExitError(sniffer.exception)
-
-    def is_restart_requested(self) -> bool:
-        """Return whether a restart of the packet capture has been requested."""
-        return self._state.restart_requested.is_set()
-
-    def get_pcap_drop_count(self) -> int | None:
-        """Return cumulative npcap drop count (`ps_drop` + `ps_ifdrop`) for the current capture session.
-
-        Returns `None` when no active capture socket is available (e.g. between restarts).
-        The counters reset each time a new pcap handle is opened (i.e. on every capture restart).
-        """
-        with self._state.control_lock:
-            if self._state.pcap_socket is None:
-                return None
-            pcap_fd = getattr(self._state.pcap_socket, 'pcap_fd', None)
-            if pcap_fd is None:
-                return None
-            stat = pcap_stat()
-            if pcap_stats(pcap_fd.pcap, byref(stat)):
-                return None
-            return int(stat.ps_drop) + int(stat.ps_ifdrop)
+                if self._state.pcap_handle is pcap_handle:
+                    self._state.pcap_handle = None
+            pcap_handle.close()
 
 
 @final
