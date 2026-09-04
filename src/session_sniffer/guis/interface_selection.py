@@ -82,86 +82,58 @@ def select_interface(
         if not Settings.gui_interface_selection_auto_connect:
             return False
 
-        return any(
-            setting is not None
-            for setting in (
-                Settings.capture_interface_name,
-                Settings.capture_mac_address,
-                Settings.capture_ip_address,
-            )
+        return (
+            Settings.capture_interface_name is not None
+            and Settings.capture_ip_address is not None
+            and Settings.capture_ip_address not in ('', 'N/A', '127.0.0.1')
         )
 
     def _auto_select_best_interface() -> SelectedInterfaceRow | None:
-        """Return the best matching interface, or `None` if ambiguous or no match."""
+        """Return the exactly matching saved interface row, or `None` if ambiguous, obsolete, or not found."""
         if not _can_auto_select_interface():
             return None
 
-        def calculate_score(interface: Interface, ip_address: str, *, is_neighbour: bool) -> int:
-            """Calculate the score of an interface based on matching criteria.
+        matching_rows: list[SelectedInterfaceRow] = []
 
-            Args:
-                interface: The interface to calculate the score for
-                ip_address: The IP address for this row
-                is_neighbour: Whether this is a neighbour entry
-            """
-            score = 0
-            if Settings.capture_interface_name is not None and interface.identity.name == Settings.capture_interface_name:
-                score += 4
-
-            # Get the MAC address for this specific row
-            mac_address = (
-                next((neighbour.mac_address for neighbour in interface.neighbour_entries if neighbour.ip_address == ip_address), None)
-                if is_neighbour
-                else interface.identity.mac_address
-            )
-
-            if Settings.capture_mac_address is not None and mac_address == Settings.capture_mac_address:
-                score += 2
-            if Settings.capture_ip_address is not None and ip_address == Settings.capture_ip_address:
-                score += 1
-            return score
-
-        best_score = 0
-        best_match: tuple[Interface, str, bool] | None = None
-        ambiguous = False
-
-        # Check all possible rows (interface IPs + neighbour entries)
         for interface in interfaces:
-            # Check regular IP addresses
-            if interface.ip_addresses:
-                for ip_address in interface.ip_addresses:
-                    score = calculate_score(interface, ip_address, is_neighbour=False)
-                    if score > best_score:
-                        best_score = score
-                        best_match = (interface, ip_address, False)
-                        ambiguous = False
-                    elif score == best_score and score > 0:
-                        ambiguous = True
+            if Settings.gui_interface_selection_hide_inactive and interface.is_interface_inactive():
+                continue
+
+            if not interface.ip_addresses:
+                continue
+
+            if interface.identity.name != Settings.capture_interface_name:
+                continue
+
+            if Settings.capture_arp_spoofing:
+                for neighbour_entry in interface.neighbour_entries:
+                    if neighbour_entry.ip_address != Settings.capture_ip_address:
+                        continue
+                    if Settings.capture_mac_address is not None and neighbour_entry.mac_address != Settings.capture_mac_address:
+                        continue
+                    matching_rows.append(
+                        SelectedInterfaceRow(
+                            interface=interface,
+                            ip_address=neighbour_entry.ip_address,
+                            is_neighbour=True,
+                        ),
+                    )
             else:
-                # No IP addresses case
-                score = calculate_score(interface, 'N/A', is_neighbour=False)
-                if score > best_score:
-                    best_score = score
-                    best_match = (interface, 'N/A', False)
-                    ambiguous = False
-                elif score == best_score and score > 0:
-                    ambiguous = True
+                if Settings.capture_mac_address is not None and interface.identity.mac_address != Settings.capture_mac_address:
+                    continue
+                if Settings.capture_ip_address in interface.ip_addresses and Settings.capture_ip_address != '127.0.0.1':
+                    matching_rows.append(
+                        SelectedInterfaceRow(
+                            interface=interface,
+                            ip_address=Settings.capture_ip_address,
+                            is_neighbour=False,
+                        ),
+                    )
 
-            # Check neighbour entries
-            for neighbour_entry in interface.neighbour_entries:
-                score = calculate_score(interface, neighbour_entry.ip_address, is_neighbour=True)
-                if score > best_score:
-                    best_score = score
-                    best_match = (interface, neighbour_entry.ip_address, True)
-                    ambiguous = False
-                elif score == best_score and score > 0:
-                    ambiguous = True
+        if len(matching_rows) == 1:
+            return matching_rows[0]
 
-        if best_match is None or ambiguous:
-            return None
-
-        interface, ip_address, is_neighbour = best_match
-        return SelectedInterfaceRow(interface=interface, ip_address=ip_address, is_neighbour=is_neighbour)
+        return None
 
     if not force_dialog:
         auto_selected = _auto_select_best_interface()
