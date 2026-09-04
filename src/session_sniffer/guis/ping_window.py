@@ -350,16 +350,10 @@ class PingTabWidget(QWidget):
             else:
                 message = f'Reply from {result.target_host} ({result.target_ip}): time={round_trip_time:.2f}ms'
 
-            html_line = (
-                f'<span style="color: #7f8c8d;">{sequence_prefix}</span> '
-                f'<span style="color: {rtt_color}; font-weight: 500;">{html.escape(message)}</span>'
-            )
+            html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: {rtt_color}; font-weight: 500;">{html.escape(message)}</span>'
         else:
             failure_message = f'Target {result.target_ip}: {result.status_message}'
-            html_line = (
-                f'<span style="color: #7f8c8d;">{sequence_prefix}</span> '
-                f'<span style="color: #e74c3c; font-weight: bold;">{html.escape(failure_message)}</span>'
-            )
+            html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: #e74c3c; font-weight: bold;">{html.escape(failure_message)}</span>'
 
         self._append_log_line(html_line)
 
@@ -377,8 +371,7 @@ class PingTabWidget(QWidget):
         if stats.minimum_rtt_ms is not None and stats.average_rtt_ms is not None and stats.maximum_rtt_ms is not None:
             jitter_string = f', Jitter = {stats.jitter_ms:.2f} ms' if stats.jitter_ms is not None else ''
             summary_parts.append(
-                f'<b>RTT:</b> Min = {stats.minimum_rtt_ms:.2f} ms, Avg = {stats.average_rtt_ms:.2f} ms, '
-                f'Max = {stats.maximum_rtt_ms:.2f} ms{jitter_string}',
+                f'<b>RTT:</b> Min = {stats.minimum_rtt_ms:.2f} ms, Avg = {stats.average_rtt_ms:.2f} ms, Max = {stats.maximum_rtt_ms:.2f} ms{jitter_string}',
             )
 
         self._stats_label.setText(' | '.join(summary_parts))
@@ -536,7 +529,7 @@ class PingWindow(QWidget):
         if isinstance(tab, PingTabWidget):
             tab.stop_ping()
         self._tab_widget.removeTab(index)
-        if self._tab_widget.count() == 0:
+        if not self._tab_widget.count():
             self.close()
 
     def _prompt_add_target(self) -> None:

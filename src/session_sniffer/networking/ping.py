@@ -3,15 +3,19 @@
 import ctypes
 import ctypes.wintypes
 import enum
+import math
 import socket
 import time
 from dataclasses import dataclass, field
-from typing import Final, Self, cast
+from typing import TYPE_CHECKING, Final, Self, cast
 
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.http_session import session
 from session_sniffer.settings import Settings
+
+if TYPE_CHECKING:
+    from types import TracebackType
 
 logger = get_logger(__name__)
 
@@ -102,7 +106,7 @@ class PingStatistics:
     @property
     def packet_loss_percentage(self) -> float:
         """Calculate packet loss percentage."""
-        if self.total_sent == 0:
+        if not self.total_sent:
             return 0.0
         return (self.total_failed / self.total_sent) * 100.0
 
@@ -164,7 +168,12 @@ class IcmpEchoEngine:
         """Support context manager entry."""
         return self
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
         """Support context manager exit by closing the native ICMP handle."""
         self.close()
 
@@ -232,7 +241,7 @@ class IcmpEchoEngine:
         status_code = int(reply.Status)
         status_description = _IP_STATUS_DESCRIPTIONS.get(status_code, f'Error {status_code}')
 
-        if return_value > 0 and status_code == 0:
+        if return_value > 0 and not status_code:
             return PingProbeResult(
                 sequence=sequence,
                 target_host=target_ip,
@@ -256,7 +265,7 @@ class IcmpEchoEngine:
         )
 
 
-class TcpPortProbeEngine:
+class TcpPortProbeEngine:  # pylint: disable=too-few-public-methods
     """TCP port connectivity probe using standard Python sockets."""
 
     @staticmethod
@@ -322,7 +331,7 @@ class TcpPortProbeEngine:
             tcp_socket.close()
 
 
-class CheckHostPingEngine:
+class CheckHostPingEngine:  # pylint: disable=too-few-public-methods
     """Remote multi-vantage ping probe using the Check-Host.net API."""
 
     CHECK_HOST_API: Final = 'https://check-host.net'
@@ -377,11 +386,7 @@ class CheckHostPingEngine:
                 node_result = result_data.get(node_name)
                 if isinstance(node_result, list) and node_result and isinstance(node_result[0], list):
                     sample_hops = cast('list[list[object]]', node_result[0])
-                    successful_rtts = [
-                        float(hop[1]) * 1000.0
-                        for hop in sample_hops
-                        if len(hop) >= cls.MIN_HOP_FIELDS and hop[0] == 'OK' and isinstance(hop[1], (float, int))
-                    ]
+                    successful_rtts = [float(hop[1]) * 1000.0 for hop in sample_hops if len(hop) >= cls.MIN_HOP_FIELDS and hop[0] == 'OK' and isinstance(hop[1], (float, int))]
 
                     if successful_rtts:
                         average_rtt = sum(successful_rtts) / len(successful_rtts)
@@ -471,7 +476,7 @@ def ping_locally(
     rtt_mdev: float | None = None
     if len(ping_times) >= _MIN_SAMPLES_FOR_MDEV and rtt_avg is not None:
         variance = sum((time_ms - rtt_avg) ** 2 for time_ms in ping_times) / len(ping_times)
-        rtt_mdev = variance ** 0.5
+        rtt_mdev = math.sqrt(variance)
 
     return PingResult(
         ping_times=ping_times,

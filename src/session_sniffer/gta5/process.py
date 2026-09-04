@@ -101,7 +101,7 @@ def _get_process_udp_ports(target_pid: int) -> frozenset[int]:
         if result == _ERROR_SUCCESS:
             number_of_entries = ctypes.cast(buffer, ctypes.POINTER(wintypes.DWORD)).contents.value
             if not number_of_entries:
-                return frozenset()
+                return frozenset[int]()
             table_offset = ctypes.sizeof(wintypes.DWORD)
             row_array = (_MIB_UDPROW_OWNER_PID * number_of_entries).from_buffer(buffer, table_offset)
             return frozenset(
@@ -110,7 +110,7 @@ def _get_process_udp_ports(target_pid: int) -> frozenset[int]:
                 if row.dwOwningPid == target_pid
             )
 
-    return frozenset()
+    return frozenset[int]()
 
 
 def find_running_gta5_path(

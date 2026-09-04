@@ -121,7 +121,11 @@ def select_interface(
             else:
                 if Settings.capture_mac_address is not None and interface.identity.mac_address != Settings.capture_mac_address:
                     continue
-                if Settings.capture_ip_address in interface.ip_addresses and Settings.capture_ip_address != '127.0.0.1':
+                if (
+                    Settings.capture_ip_address is not None
+                    and Settings.capture_ip_address in interface.ip_addresses
+                    and Settings.capture_ip_address != '127.0.0.1'
+                ):
                     matching_rows.append(
                         SelectedInterfaceRow(
                             interface=interface,
