@@ -191,7 +191,7 @@ class SettingsDialogLookyMixin(QDialog):
             self._make_card_label('Username'), 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._looky_card_grid.addWidget(
-            username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            username_widget, 0, 1, Qt.AlignmentFlag.AlignVCenter
         )
         self._looky_card_grid.addWidget(
             self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -208,7 +208,7 @@ class SettingsDialogLookyMixin(QDialog):
             self._make_card_label('Rockstar ID'), 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._looky_card_grid.addWidget(
-            rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            rid_widget, 1, 1, Qt.AlignmentFlag.AlignVCenter
         )
         self._looky_card_grid.addWidget(
             self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter

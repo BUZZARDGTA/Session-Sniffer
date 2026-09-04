@@ -2,11 +2,8 @@
 
 from typing import TYPE_CHECKING, Final, override
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QMouseEvent
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
+from PySide6.QtGui import QFont, QIcon, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsBlurEffect,
@@ -17,7 +14,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 _SENSITIVE_BLUR_RADIUS: Final[float] = 10.0
+_MIN_SENSITIVE_CONTAINER_WIDTH: Final[int] = 240
 
 _REDACTED_PILL_STYLESHEET_BLURRED: Final[str] = (
     'QWidget#sensitive_container {'
@@ -44,18 +47,13 @@ _REDACTED_PILL_STYLESHEET_REVEALED: Final[str] = (
 _SENSITIVE_ACTION_BUTTON_STYLESHEET: Final[str] = (
     'QPushButton {'
     '    background-color: rgba(124, 58, 237, 0.3);'
-    '    color: #d8b4fe;'
     '    border: 1px solid rgba(167, 139, 250, 0.45);'
     '    border-radius: 4px;'
-    '    padding: 3px 12px;'
-    '    font-size: 13px;'
-    '    font-weight: 700;'
-    '    letter-spacing: 0.5px;'
+    '    padding: 2px;'
     '}'
     'QPushButton:hover {'
     '    background-color: rgba(139, 92, 246, 0.55);'
     '    border-color: rgba(216, 180, 254, 0.8);'
-    '    color: #ffffff;'
     '}'
     'QPushButton:pressed {'
     '    background-color: #7c3aed;'
@@ -79,17 +77,21 @@ class SensitiveValueWidget(QWidget):
         self._revealed = False
         self._on_toggled = on_toggled
 
+        icons_directory = RESOURCES_DIR_PATH / 'icons'
+        self._icon_copy = QIcon(str(icons_directory / 'copy.svg'))
+        self._icon_check = QIcon(str(icons_directory / 'check.svg'))
+
         outer_layout = QHBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(6)
 
         self._container = QWidget(self)
         self._container.setObjectName('sensitive_container')
-        self._container.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._container.setMinimumWidth(_MIN_SENSITIVE_CONTAINER_WIDTH)
 
         container_layout = QHBoxLayout(self._container)
         container_layout.setContentsMargins(10, 4, 8, 4)
-        container_layout.setSpacing(10)
+        container_layout.setSpacing(8)
 
         self._label = QLabel(text, self._container)
         font = QFont('Consolas', 13)
@@ -101,33 +103,62 @@ class SensitiveValueWidget(QWidget):
         self._blur_effect.setBlurRadius(_SENSITIVE_BLUR_RADIUS)
         self._label.setGraphicsEffect(self._blur_effect)
 
-        self._copy_button = QPushButton('Copy', self._container)
+        self._copy_button = QPushButton(self._container)
         self._copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._copy_button.setIcon(self._icon_copy)
+        self._copy_button.setIconSize(QSize(16, 16))
+        self._copy_button.setFixedSize(26, 26)
         self._copy_button.setStyleSheet(_SENSITIVE_ACTION_BUTTON_STYLESHEET)
         self._copy_button.setToolTip('Copy to clipboard')
         self._copy_button.clicked.connect(self._copy_to_clipboard)
 
-        self._toggle_button = QPushButton('Reveal', self._container)
-        self._toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._toggle_button.setStyleSheet(_SENSITIVE_ACTION_BUTTON_STYLESHEET)
-        self._toggle_button.clicked.connect(self.toggle)
-
         container_layout.addWidget(self._label)
         container_layout.addWidget(self._copy_button)
-        container_layout.addWidget(self._toggle_button)
 
         outer_layout.addWidget(self._container)
-        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+
+        self._container.installEventFilter(self)
+        self._label.installEventFilter(self)
 
         self._apply_state()
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """Clicking on the blurred container or label reveals the value."""
+        target_widgets = (getattr(self, '_container', None), getattr(self, '_label', None))
+        if not getattr(self, '_revealed', False) and watched in target_widgets:
+            is_left_click = (
+                isinstance(event, QMouseEvent)
+                and event.type() == QEvent.Type.MouseButtonPress
+                and event.button() == Qt.MouseButton.LeftButton
+            )
+            if is_left_click:
+                self.set_revealed(revealed=True)
+                return True
+        return super().eventFilter(watched, event)
+
+    @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Clicking on the widget when blurred reveals the value."""
+        if not self._revealed and event.button() == Qt.MouseButton.LeftButton:
+            self.set_revealed(revealed=True)
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def _copy_to_clipboard(self) -> None:
         """Copy the underlying text to clipboard and briefly acknowledge."""
         clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText(self._text)
-        self._copy_button.setText('Copied')
-        QTimer.singleShot(1200, lambda: self._copy_button.setText('Copy'))
+        clipboard.setText(self._text)
+        self._copy_button.setIcon(self._icon_check)
+        self._copy_button.setToolTip('Copied!')
+        QTimer.singleShot(1200, self, self._reset_copy_button)
+
+    def _reset_copy_button(self) -> None:
+        """Reset copy button icon and tooltip after acknowledgment timeout."""
+        self._copy_button.setIcon(self._icon_copy)
+        self._copy_button.setToolTip('Copy to clipboard')
 
     @property
     def is_revealed(self) -> bool:
@@ -151,27 +182,16 @@ class SensitiveValueWidget(QWidget):
         if self._revealed:
             self._container.setStyleSheet(_REDACTED_PILL_STYLESHEET_REVEALED)
             self._container.setCursor(Qt.CursorShape.ArrowCursor)
+            self._container.setToolTip('')
             self._label.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
             )
             self._label.setCursor(Qt.CursorShape.IBeamCursor)
             self._label.setToolTip('Select text to copy, or click Copy')
-            self._toggle_button.setText('Hide')
-            self._copy_button.show()
         else:
             self._container.setStyleSheet(_REDACTED_PILL_STYLESHEET_BLURRED)
             self._container.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._container.setToolTip('Click to reveal')
             self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             self._label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._label.setToolTip('Click anywhere to reveal')
-            self._toggle_button.setText('Reveal')
-            self._copy_button.hide()
-
-    @override
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Clicking on the container when blurred automatically unblurs it."""
-        if event.button() == Qt.MouseButton.LeftButton and not self._revealed:
-            self.toggle()
-            event.accept()
-            return
-        super().mousePressEvent(event)
+            self._label.setToolTip('Click to reveal')
