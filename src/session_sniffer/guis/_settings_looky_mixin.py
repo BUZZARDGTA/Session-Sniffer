@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -135,22 +134,15 @@ class SettingsDialogLookyMixin(QDialog):
 
         self._looky_card_forms_container = QWidget()
         self._looky_card_forms_container.setStyleSheet('background: transparent;')
-        forms_row = QHBoxLayout(self._looky_card_forms_container)
-        forms_row.setContentsMargins(0, 0, 0, 0)
-        forms_row.setSpacing(0)
-
-        self._looky_card_grid = QGridLayout()
+        self._looky_card_grid = QGridLayout(self._looky_card_forms_container)
+        self._looky_card_grid.setContentsMargins(0, 0, 0, 0)
         self._looky_card_grid.setHorizontalSpacing(16)
         self._looky_card_grid.setVerticalSpacing(10)
-        self._looky_card_grid.setColumnMinimumWidth(2, 108)
-
-        forms_row.addStretch(1)
-        forms_row.addLayout(self._looky_card_grid)
-        forms_row.addStretch(1)
+        self._looky_card_grid.setColumnMinimumWidth(2, 32)
         self._looky_card_forms_container.setVisible(False)
         card_layout.addWidget(self._looky_card_forms_container)
 
-        outer.addWidget(self._looky_account_card)
+        outer.addWidget(self._looky_account_card, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         if LookyState.user_data is not None:
             self._populate_looky_account_card(LookyState.user_data)
@@ -187,15 +179,9 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_account_sensitive_widgets.extend([username_widget, rid_widget])
 
         # Row 0: Username & API Access (aligned on the exact same horizontal line)
-        self._looky_card_grid.addWidget(
-            self._make_card_label('Username'), 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        self._looky_card_grid.addWidget(
-            username_widget, 0, 1, Qt.AlignmentFlag.AlignVCenter
-        )
-        self._looky_card_grid.addWidget(
-            self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._looky_card_grid.addWidget(self._make_card_label('Username'), 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._looky_card_grid.addWidget(username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._looky_card_grid.addWidget(self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
             self._make_card_value(_bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled')),
             0,
@@ -204,15 +190,9 @@ class SettingsDialogLookyMixin(QDialog):
         )
 
         # Row 1: Rockstar ID & Status (aligned on the exact same horizontal line)
-        self._looky_card_grid.addWidget(
-            self._make_card_label('Rockstar ID'), 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        self._looky_card_grid.addWidget(
-            rid_widget, 1, 1, Qt.AlignmentFlag.AlignVCenter
-        )
-        self._looky_card_grid.addWidget(
-            self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._looky_card_grid.addWidget(self._make_card_label('Rockstar ID'), 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._looky_card_grid.addWidget(rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._looky_card_grid.addWidget(self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
             self._make_card_value(_bool_badge(data.userData.status, 'Active', 'Inactive')),
             1,

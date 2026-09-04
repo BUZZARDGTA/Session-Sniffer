@@ -51,6 +51,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_third_party_servers_split_widget,
 )
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
+from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
@@ -282,10 +283,30 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                     group_vbox.addWidget(sub_box)
             elif category == 'Looky System' and group_name == 'Authentication':
                 auth_vbox = self._create_standard_vbox_layout(group_box)
-                auth_form = self._create_standard_form_layout()
+                auth_row = QHBoxLayout()
+                auth_row.setContentsMargins(0, 0, 0, 0)
+                auth_row.setSpacing(10)
+                auth_row.addStretch(1)
                 for key, meta in items:
-                    self._add_setting_row(auth_form, key, meta)
-                auth_vbox.addLayout(auth_form)
+                    widget = self._create_widget(key, meta)
+                    if meta.min_width is not None:
+                        widget.setMinimumWidth(meta.min_width)
+                    if meta.max_width is not None:
+                        widget.setMaximumWidth(meta.max_width)
+                    self._widgets[key] = widget
+
+                    label_text = meta.display_label
+                    if meta.requires_capture_restart:
+                        label_text += RESTART_INDICATOR
+                    label = QLabel(label_text + ':')
+                    self._labels[key] = label
+                    if meta.tooltip:
+                        label.setToolTip(meta.tooltip)
+
+                    auth_row.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
+                    auth_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+                auth_row.addStretch(1)
+                auth_vbox.addLayout(auth_row)
                 self._looky_account_info_group = self._build_looky_account_info_group()
                 auth_vbox.addWidget(self._looky_account_info_group)
             else:
@@ -409,6 +430,10 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
         widget = self._create_widget(key, meta)
+        if meta.min_width is not None:
+            widget.setMinimumWidth(meta.min_width)
+        if meta.max_width is not None:
+            widget.setMaximumWidth(meta.max_width)
         self._widgets[key] = widget
 
         # COLUMN_TUPLE, IP_RANGE_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
@@ -470,8 +495,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         url_meta = meta_by_key.get('discord_webhook_url')
         url_line: QLineEdit | None = None
         if url_meta is not None:
-            url_line = QLineEdit()
-            url_line.setEchoMode(QLineEdit.EchoMode.Password)
+            url_line = SecretLineEdit()
             url_line.setPlaceholderText('https://discord.com/api/webhooks/<id>/<token>')
             url_line.setToolTip(
                 url_meta.tooltip or 'Discord channel webhook URL. Treat this like a password — anyone with it can post to the channel.',
@@ -553,12 +577,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
     def _toggle_url_visibility(self, url_line: QLineEdit, show_button: QPushButton, checked: bool) -> None:  # noqa: FBT001
         """Toggle masked/plain echo for the webhook URL."""
-        if checked:
-            url_line.setEchoMode(QLineEdit.EchoMode.Normal)
-            show_button.setText('🙈 Hide')
+        if isinstance(url_line, SecretLineEdit):
+            url_line.set_revealed(revealed=checked)
         else:
-            url_line.setEchoMode(QLineEdit.EchoMode.Password)
-            show_button.setText('👁 Show')
+            url_line.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
+        show_button.setText('🙈 Hide' if checked else '👁 Show')
 
     def _reset_stored_messages(self) -> None:
         """Clear persisted Discord webhook message IDs so the next post creates new messages."""
@@ -788,11 +811,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         ensure_gta5_process_monitor_running()
         ensure_looky_core_running()
 
-        capture_settings_changed = any(
-            value != self._old_values.get(key)
-            for key, value in new_values.items()
-            if SETTING_METADATA[key].requires_capture_restart
-        )
+        capture_settings_changed = any(value != self._old_values.get(key) for key, value in new_values.items() if SETTING_METADATA[key].requires_capture_restart)
         if capture_settings_changed and self._capture.is_running():
             capture_filter_str, display_filter_fn = build_capture_filters(
                 capture_ip_address=self._capture.config.interface.ip_address,
@@ -915,6 +934,8 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 act = widget.property('secret_action')
                 if isinstance(act, QAction) and act.isChecked():
                     act.setChecked(False)
+                elif isinstance(widget, SecretLineEdit) and widget.is_revealed:
+                    widget.set_revealed(revealed=False)
 
     def _on_tab_changed(self, _index: int) -> None:
         """Handle tab switching; automatically re-blurs Looky System sensitive fields and masks passwords."""

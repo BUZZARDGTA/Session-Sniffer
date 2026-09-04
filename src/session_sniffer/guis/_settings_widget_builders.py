@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET, COMPACT_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
@@ -49,7 +50,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
     For secret fields (`meta.secret=True`) a reveal toggle action is embedded
     as a trailing icon inside the `QLineEdit` itself.
     """
-    le = QLineEdit()
+    le = SecretLineEdit() if meta.secret else QLineEdit()
     if meta.setting_type == SettingType.IPV4:
         le.setPlaceholderText('e.g. 192.168.1.100')
         le.setMaxLength(15)
@@ -96,8 +97,11 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         le.textEdited.connect(_filter_chars)
     if meta.tooltip:
         le.setToolTip(meta.tooltip)
+    if meta.min_width is not None:
+        le.setMinimumWidth(meta.min_width)
+    if meta.max_width is not None:
+        le.setMaximumWidth(meta.max_width)
     if meta.secret:
-        le.setEchoMode(QLineEdit.EchoMode.Password)
         _icons_dir = RESOURCES_DIR_PATH / 'icons'
         icon_show = QIcon(str(_icons_dir / 'eye_show.svg'))
         icon_hide = QIcon(str(_icons_dir / 'eye_hide.svg'))
@@ -110,7 +114,10 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         _act.setToolTip('Show')
 
         def _toggle_echo(checked: bool, _le: QLineEdit = le, _show: QIcon = icon_show, _hide: QIcon = icon_hide, _a: QAction = _act) -> None:  # noqa: FBT001
-            _le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
+            if isinstance(_le, SecretLineEdit):
+                _le.set_revealed(revealed=checked)
+            else:
+                _le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
             _a.setIcon(_show if checked else _hide)
             _a.setToolTip('Hide' if checked else 'Show')
 

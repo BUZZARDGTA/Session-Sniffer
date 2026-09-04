@@ -57,6 +57,8 @@ class SettingMeta:
     special_value_text: str = 'All'
     max_length: int | None = None
     min_length: int | None = None
+    min_width: int | None = None
+    max_width: int | None = None
     validator_pattern: str | None = None
     secret: bool = False
 
@@ -663,6 +665,8 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Your Looky System Bearer token. Required for all Looky System features — auto-resolve, manual lookups, and crawler requests.',
         validator_pattern=r'[A-Za-z0-9._\-]',
         secret=True,
+        min_width=600,
+        max_width=600,
     ),
 }
 
