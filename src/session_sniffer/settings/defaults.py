@@ -130,9 +130,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'When the GTA5 feature set is active and running locally on this PC, restrict\n'
             'the packet sniffer to only capture network traffic belonging directly to the\n'
             'detected GTA5 process PID by matching its active local UDP socket ports.\n\n'
+            'Supports both GTA V Legacy (GTA5.exe) and Enhanced (GTA5_Enhanced.exe).\n\n'
             'All background noise and other applications on your computer (such as Discord,\n'
             'browsers, Steam, or other games) will be completely ignored.\n\n'
-            'When GTA5 is not running, no player traffic is captured until GTA5 is launched.'
+            'When GTA5 is not running locally, no player traffic is captured until GTA5 is launched.\n\n'
+            'Note: This setting only applies to local PC captures. When scanning an external\n'
+            'device (such as a console via ARP spoofing or a secondary adapter), external process\n'
+            'inspection is not possible, so this restriction is automatically bypassed.'
         ),
         requires_capture_restart=False,
     ),
@@ -630,8 +634,12 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip=(
             'Only perform Looky System auto-resolve queries when the GTA5 process is actively\n'
-            'detected, and restrict lookups exclusively to player IP addresses communicating\n'
-            'with the GTA5 process.\n\n'
+            'detected on this PC (Legacy GTA5.exe or Enhanced GTA5_Enhanced.exe), and restrict\n'
+            'lookups exclusively to player IP addresses communicating with the GTA5 process.\n\n'
+            'Note: This setting only applies to local PC captures. When scanning an external\n'
+            'device (such as a console via ARP spoofing), external process inspection is not\n'
+            'possible, so this restriction is automatically bypassed and queries run for all\n'
+            'captured non-third-party player IPs.\n\n'
             'When disabled, queries run continuously regardless of GTA5 process status and include\n'
             'all captured non-third-party player IPs.'
         ),
