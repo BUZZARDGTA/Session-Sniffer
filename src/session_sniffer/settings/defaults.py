@@ -310,9 +310,9 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'gui_reset_ports_on_rejoins': SettingMeta(
         category='Session',
         group='General',
-        display_label='Reset Ports on Rejoins',
+        display_label='Reset Player Ports on Rejoin',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Clear recorded ports when a player rejoins.',
+        tooltip='Clear recorded player ports when a player rejoins the session.',
     ),
     'gui_session_host_detection': SettingMeta(
         category='Session',

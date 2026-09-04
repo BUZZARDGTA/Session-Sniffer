@@ -16,7 +16,10 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
-from session_sniffer.guis.stylesheets import LOOKY_ACTION_BUTTON_STYLESHEET, LOOKY_CRAWLER_HEADER_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    LOOKY_ACTION_BUTTON_STYLESHEET,
+    LOOKY_CRAWLER_HEADER_STYLESHEET,
+)
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import set_dialog_window_flags
@@ -89,7 +92,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         self._add_header_label(
             outer_layout,
-            f'🔎  Lookup — {player.ip}',
+            f'Lookup — {player.ip}',
             '#1c0a38',
             '#2e1065',
         ).setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
@@ -97,7 +100,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         for entry in results:
-            group, form = self._make_group(f'🎮  {entry.name}', accent='#4c1d95')
+            group, form = self._make_group(entry.name, accent='#4c1d95')
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))
             self._add_row(form, 'Username', entry.name)
             self._add_row(form, 'Last Seen', entry.lastSeen.strftime('%Y-%m-%d %H:%M:%S UTC'))

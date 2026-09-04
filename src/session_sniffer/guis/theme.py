@@ -29,6 +29,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg').as_posix()
     arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg').as_posix()
     check_path = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
+    close_path = (RESOURCES_DIR_PATH / 'icons' / 'close.svg').as_posix()
 
     # Scale the base font size proportionally to the screen resolution.
     # 10pt is the design baseline (2K / 1.0 scale).  Smaller screens get
@@ -518,6 +519,21 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background-color: #3e3e42;
         color: #ffffff;
     }
+    QTabBar::close-button {
+        image: url("{close_path}");
+        subcontrol-position: right;
+        subcontrol-origin: padding;
+        width: 14px;
+        height: 14px;
+        margin-right: 4px;
+        border-radius: 3px;
+    }
+    QTabBar::close-button:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+    QTabBar::close-button:pressed {
+        background-color: rgba(235, 75, 75, 0.45);
+    }
 
     /* Group Box */
     QGroupBox {
@@ -631,4 +647,5 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{arrow_up_path}', arrow_up_path)
     css = css.replace('{arrow_down_path}', arrow_down_path)
     css = css.replace('{check_path}', check_path)
+    css = css.replace('{close_path}', close_path)
     return css.replace('{base_font_pt}', str(base_font_pt))

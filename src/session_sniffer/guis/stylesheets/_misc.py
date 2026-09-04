@@ -219,9 +219,9 @@ UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET = (
 # LOOKY SYSTEM ACCOUNT CARD STYLES
 # =============================================================================
 
-LOOKY_CARD_LABEL_STYLESHEET = 'color: #9ca3af; font-size: 10pt;'
+LOOKY_CARD_LABEL_STYLESHEET = 'color: #c4b5fd; font-size: 10.5pt;'
 
-LOOKY_CARD_VALUE_STYLESHEET = 'color: #d4c8f0; font-size: 10pt;'
+LOOKY_CARD_VALUE_STYLESHEET = 'color: #d4c8f0; font-size: 10.5pt;'
 
 # =============================================================================
 # LOOKY SYSTEM CRAWLER DIALOG STYLES
