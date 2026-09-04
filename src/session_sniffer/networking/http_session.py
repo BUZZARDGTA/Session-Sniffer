@@ -7,7 +7,7 @@ from urllib3.util.retry import Retry
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:140.0) Gecko/20100101 Firefox/140.0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:155.0) Gecko/20100101 Firefox/155.0',
 }
 
 _RETRY_STRATEGY = Retry(

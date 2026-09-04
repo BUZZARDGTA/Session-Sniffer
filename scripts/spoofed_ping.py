@@ -408,7 +408,7 @@ def main() -> None:
         with requests.Session() as session:
             session.headers.update(
                 {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:135.0) Gecko/20100101 Firefox/135.0',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:155.0) Gecko/20100101 Firefox/155.0',
                     'Accept': 'application/json',
                 },
             )

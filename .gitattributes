@@ -15,6 +15,7 @@ code-quality-checks.ps1 linguist-vendored
 *.txt text eol=crlf
 *.ini text eol=crlf
 *.flake8 text eol=crlf
+*.svg text eol=crlf
 
 # Documentation
 *.md text eol=crlf

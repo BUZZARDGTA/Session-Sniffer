@@ -1,5 +1,7 @@
 # Ignore everything
 *
 
-# But not this file
+# But not these files
+!.gitignore
 !spoofed_ping.py
+

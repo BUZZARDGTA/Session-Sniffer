@@ -569,4 +569,3 @@ class UpdateDownloadDialog(QDialog):
         if self._dest_path.exists():
             self._dest_path.unlink(missing_ok=True)
         super().closeEvent(event)
-
