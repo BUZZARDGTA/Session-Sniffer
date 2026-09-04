@@ -137,7 +137,7 @@ class TableContextMenuManager:
                 normal_action.triggered.connect(lambda _checked=False, ip_address=target_ip: ping_ip(ip_address))
                 ping_menu.addAction(normal_action)
 
-                tcp_action = QAction('🔌 TCP Port (paping.exe)', ping_menu)
+                tcp_action = QAction('🔌 TCP Port Ping', ping_menu)
                 tcp_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
                 tcp_action.triggered.connect(lambda _checked=False, ip_address=target_ip: tcp_port_ping(self._parent, ip_address))
                 ping_menu.addAction(tcp_action)
@@ -147,13 +147,12 @@ class TableContextMenuManager:
                 normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
 
                 def _ping_all() -> None:
-                    for ip_address in ip_list:
-                        ping_ip(ip_address)
+                    ping_ip(ip_list)
 
                 normal_action.triggered.connect(_ping_all)
                 ping_menu.addAction(normal_action)
 
-                tcp_menu = QMenu('🔌 TCP Port (paping.exe)', ping_menu)
+                tcp_menu = QMenu('🔌 TCP Port Ping', ping_menu)
                 tcp_menu.setToolTipsVisible(True)
 
                 tcp_one_action = QAction('🔌 One Port for All', tcp_menu)

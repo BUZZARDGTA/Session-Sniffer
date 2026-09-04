@@ -10,10 +10,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import BIN_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
+from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.tables_player_actions._format import (
     format_bool,
     format_loss_pct,
@@ -22,14 +22,12 @@ from session_sniffer.guis.tables_player_actions._format import (
     userip_database_text,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.networking.ping import PingMode
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import run_cmd_command, run_cmd_script
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
-
-PAPING_PATH = BIN_DIR_PATH / 'paping.exe'
 
 
 def build_discord_player_report(player: Player) -> str:
@@ -118,54 +116,53 @@ def copy_players_info_for_discord(players: list[Player]) -> None:
     clipboard.setText(separator.join(build_discord_player_report(player) for player in players))
 
 
-def ping_ip(ip: str) -> None:
-    """Run a continuous ping to a specified IP address in a new terminal window."""
-    run_cmd_command('ping', [ip, '-t'])
+def ping_ip(target: str | list[str]) -> None:
+    """Run a continuous ICMP ping to the specified target host(s) in the Ping Diagnostics window."""
+    PingWindow.open_window(target, mode=PingMode.ICMP)
 
 
 def tcp_port_ping(parent: QWidget, ip: str) -> None:
-    """Run paping to check TCP connectivity to a host on a user-specified port indefinitely."""
-    port_str, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+    """Run a TCP port connectivity check to a host on a user-specified port indefinitely."""
+    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
 
     if not success:
         return
 
-    port_str = port_str.strip()
+    port_string = port_string.strip()
 
-    if not port_str.isdigit():
+    if not port_string.isdigit():
         QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
         return
 
-    port = int(port_str)
+    port = int(port_string)
 
     if not MIN_PORT <= port <= MAX_PORT:
         QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
         return
 
-    run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
+    PingWindow.open_window(ip, mode=PingMode.TCP, port=port, parent=parent)
 
 
 def tcp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
-    """Ask for a port once, then run paping for each IP on that same port."""
-    port_str, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+    """Ask for a port once, then run a TCP port connectivity check for each IP on that same port."""
+    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
 
     if not success:
         return
 
-    port_str = port_str.strip()
+    port_string = port_string.strip()
 
-    if not port_str.isdigit():
+    if not port_string.isdigit():
         QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
         return
 
-    port = int(port_str)
+    port = int(port_string)
 
     if not MIN_PORT <= port <= MAX_PORT:
         QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
         return
 
-    for ip in ip_addresses:
-        run_cmd_script(PAPING_PATH, [ip, '-p', str(port)])
+    PingWindow.open_window(ip_addresses, mode=PingMode.TCP, port=port, parent=parent)
 
 
 def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:

@@ -416,6 +416,20 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=3,
         step=1,
     ),
+    'pinger_local': SettingMeta(
+        category='Session',
+        group='Player Pinging',
+        display_label='Direct Ping (Fast)',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Choose whether to send ping requests directly from your PC or\n'
+            'through third-party web servers.\n\n'
+            'Direct Ping provides significantly faster response times with no\n'
+            'third-party rate limits, but your public IP may be visible to the target.\n'
+            'When disabled, ping requests are routed through external servers to help\n'
+            'hide your IP, but may be slower and subject to server rate limits or downtime.'
+        ),
+    ),
     'gui_always_on_top': SettingMeta(
         category='Session',
         group='Application Window',
@@ -681,6 +695,7 @@ class SettingDefaults(TypedDict):
     gui_disconnected_table_rows_per_page: int
     gui_disconnected_players_timer: int
     gui_ignore_screen_resolution_warning: bool
+    pinger_local: bool
     discord_presence: bool
     discord_presence_title: str
     show_discord_popup: bool
@@ -776,6 +791,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_disconnected_table_rows_per_page': 0,
     'gui_disconnected_players_timer': 10,
     'gui_ignore_screen_resolution_warning': False,
+    'pinger_local': True,
     'discord_presence': True,
     'discord_presence_title': 'Sniffing session traffic',
     'show_discord_popup': True,

@@ -131,6 +131,7 @@ class SettingsIniModel(BaseModel):
     LOOKY_AUTO_RESOLVE: bool
     LOOKY_GAME_VERSION: str
     LOOKY_API_KEY: str | None
+    PINGER_LOCAL: bool
 
     # --- Internal context helpers ---
 
@@ -161,6 +162,7 @@ class SettingsIniModel(BaseModel):
             'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
             'LOOKY_AUTO_RESOLVE',
             'LOOKY_ENABLED',
+            'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
         },
     )

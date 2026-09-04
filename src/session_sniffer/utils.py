@@ -385,16 +385,6 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
 
 
-def run_cmd_command(command: str, args: list[str] | None = None) -> None:
-    """Executes a command with the given arguments in a new CMD terminal window."""
-    full_command = [str(CMD_EXE), '/K', command]
-
-    if args is not None:
-        full_command.extend(args)
-
-    subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
-
-
 def is_session_file_empty(file_path: Path) -> bool:
     """Check if the given session log file has no players found or is invalid.
 

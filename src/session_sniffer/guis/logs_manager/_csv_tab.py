@@ -430,7 +430,7 @@ class CsvLogTab(QWidget):
             normal_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: ping_ip(ip_address))
             ping_menu.addAction(normal_action)
 
-            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port Ping', self)
             tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
             tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: tcp_port_ping(self, ip_address))
             ping_menu.addAction(tcp_ping_action)
@@ -452,13 +452,12 @@ class CsvLogTab(QWidget):
             normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
 
             def _ping_all_csv() -> None:
-                for ip_address in _target_ips:
-                    ping_ip(ip_address)
+                ping_ip(_target_ips)
 
             normal_action.triggered.connect(_ping_all_csv)
             ping_menu.addAction(normal_action)
 
-            tcp_menu = QMenu('TCP Port (paping.exe)', ping_menu)
+            tcp_menu = QMenu('TCP Port Ping', ping_menu)
             tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
             tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             tcp_menu.setToolTipsVisible(True)

@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QItemSelectionModel, QUrl
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
@@ -153,15 +153,14 @@ class TableContextMenuMixin(QTableView):
         def add_action(
             menu: QMenu,
             label: str,
-            shortcut: str | None = None,
+            *,
             tooltip: str | None = None,
             handler: Callable[..., None] | None = None,
+            icon: QIcon | None = None,
         ) -> QAction:
             """Helper to create and configure a QAction."""
-            action = ensure_instance(menu.addAction(label), QAction)
+            action = ensure_instance(menu.addAction(icon, label), QAction) if icon is not None else ensure_instance(menu.addAction(label), QAction)
 
-            if shortcut:
-                action.setShortcut(shortcut)
             if tooltip:
                 action.setToolTip(tooltip)
             if handler:
@@ -169,9 +168,14 @@ class TableContextMenuMixin(QTableView):
 
             return action
 
-        def add_menu(parent_menu: QMenu, label: str, tooltip: str | None = None) -> QMenu:
+        def add_menu(
+            parent_menu: QMenu,
+            label: str,
+            tooltip: str | None = None,
+            icon: QIcon | None = None,
+        ) -> QMenu:
             """Helper to create and configure a QMenu."""
-            menu = ensure_instance(parent_menu.addMenu(label), QMenu)
+            menu = ensure_instance(parent_menu.addMenu(icon, label), QMenu) if icon is not None else ensure_instance(parent_menu.addMenu(label), QMenu)
             menu.setToolTipsVisible(True)
 
             if tooltip:
@@ -477,15 +481,14 @@ class TableContextMenuMixin(QTableView):
                 )
                 add_action(
                     ping_menu,
-                    '🔌 TCP Port (paping.exe)',
+                    '🔌 TCP Port Ping',
                     tooltip='Checks if selected IP address responds to TCP pings on a given port.',
                     handler=lambda: tcp_port_ping(self, ip_addresses[0]),
                 )
                 return
 
             def _ping_all() -> None:
-                for ip in ip_addresses:
-                    ping_ip(ip)
+                ping_ip(ip_addresses)
 
             def _tcp_ping_all_one_port() -> None:
                 tcp_port_ping_multi(self, ip_addresses)
@@ -500,7 +503,7 @@ class TableContextMenuMixin(QTableView):
                 tooltip='Checks if selected IP addresses respond to pings.',
                 handler=_ping_all,
             )
-            tcp_menu = add_menu(ping_menu, '🔌 TCP Port (paping.exe)')
+            tcp_menu = add_menu(ping_menu, '🔌 TCP Port Ping')
             add_action(
                 tcp_menu,
                 '🔌 One Port for All',
@@ -745,18 +748,19 @@ class TableContextMenuMixin(QTableView):
                 handler=SessionHost.clear_session_host_data,
             )
 
-        add_action(
+        copy_selection_action = add_action(
             context_menu,
             '📋 Copy Selection',
-            shortcut='Ctrl+C',
             tooltip='Copy selected cells to your clipboard.',
             handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
         )
+        copy_selection_action.setShortcut('Ctrl+C')
         add_copy_for_discord_action(selected_players)
         context_menu.addSeparator()
 
         select_menu = add_menu(context_menu, '☑️ Select')
-        add_action(select_menu, '☑️ Select All', shortcut='Ctrl+A', tooltip='Select all cells in the table.', handler=self.select_all_cells)
+        select_all_action = add_action(select_menu, '☑️ Select All', tooltip='Select all cells in the table.', handler=self.select_all_cells)
+        select_all_action.setShortcut('Ctrl+A')
         add_action(select_menu, '➡️ Select Row', tooltip='Select all cells in this row.', handler=lambda: self.select_row_cells(index.row()))
         add_action(select_menu, '⬇️ Select Column', tooltip='Select all cells in this column.', handler=lambda: self.select_column_cells(index.column()))
 

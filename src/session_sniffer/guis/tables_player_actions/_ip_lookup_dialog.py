@@ -10,6 +10,7 @@ import dns.exception
 import requests
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping
@@ -39,7 +41,6 @@ from session_sniffer.models.player_lookup import (
     PlayerPing,
     PlayerReverseDNS,
 )
-from session_sniffer.networking.endpoint_ping_manager import fetch_and_parse_ping
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.geolite2 import (
     query_geolite2_asn,
@@ -47,6 +48,7 @@ from session_sniffer.networking.geolite2 import (
     query_geolite2_country,
 )
 from session_sniffer.networking.http_session import session
+from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases
@@ -138,7 +140,7 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
     # 5. Ping
     if not lookup.ping.is_initialized:
         try:
-            ping_result = fetch_and_parse_ping(lookup.ip)
+            ping_result = ping_player(lookup.ip)
             lookup.ping.update_fields(ping_result._asdict())
             lookup.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
             lookup.ping.is_initialized = True
@@ -217,7 +219,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         """Continuously perform background pings to update ping stats live while dialog is open."""
         while not self._is_closed:
             try:
-                ping_result = fetch_and_parse_ping(self._target.ip)
+                ping_result = ping_player(self._target.ip)
                 self._target.ping.update_fields(ping_result._asdict())
                 self._target.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
                 self._target.ping.is_initialized = True
@@ -293,13 +295,13 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        icmp_button = QPushButton('🏓 ICMP Ping')
-        icmp_button.setToolTip('Launch continuous ICMP ping command window for this IP.')
+        icmp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' ICMP Ping')
+        icmp_button.setToolTip('Launch continuous ICMP ping diagnostics window for this IP.')
         icmp_button.clicked.connect(lambda: ping_ip(self._target.ip))
         buttons_layout.addWidget(icmp_button)
 
-        tcp_button = QPushButton('🔌 TCP Port Ping (paping.exe)…')
-        tcp_button.setToolTip('Launch TCP port pinger (paping) for this IP.')
+        tcp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' TCP Port Ping…')
+        tcp_button.setToolTip('Launch TCP port ping diagnostics window for this IP.')
         tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._target.ip))
         buttons_layout.addWidget(tcp_button)
 

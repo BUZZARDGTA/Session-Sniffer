@@ -7,7 +7,6 @@ a = Analysis(
     binaries=[],
     datas=[
         ('..\\..\\pyproject.toml', '.'),
-        ('..\\..\\bin', 'bin'),
         ('..\\..\\resources', 'resources'),
         ('..\\..\\scripts', 'scripts'),
         ('..\\..\\src\\session_sniffer\\webserver\\static', 'session_sniffer\\webserver\\static'),

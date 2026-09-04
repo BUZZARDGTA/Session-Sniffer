@@ -80,6 +80,7 @@ class Settings:
     gui_disconnected_table_rows_per_page: int = SETTING_DEFAULTS['gui_disconnected_table_rows_per_page']
     gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
+    pinger_local: bool = SETTING_DEFAULTS['pinger_local']
     discord_presence: bool = SETTING_DEFAULTS['discord_presence']
     discord_presence_title: str = SETTING_DEFAULTS['discord_presence_title']
     show_discord_popup: bool = SETTING_DEFAULTS['show_discord_popup']
@@ -168,6 +169,7 @@ class Settings:
         'LOOKY_AUTO_RESOLVE',
         'LOOKY_GAME_VERSION',
         'LOOKY_API_KEY',
+        'PINGER_LOCAL',
     )
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)

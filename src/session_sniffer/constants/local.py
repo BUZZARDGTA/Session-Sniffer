@@ -10,7 +10,6 @@ from session_sniffer.utils import format_project_version, get_app_dir, get_worki
 
 SCRIPT_DIR: Path = get_working_directory_to_script_location()
 
-BIN_DIR_PATH: Path = resource_path(Path('bin'))
 PYPROJECT_PATH: Path = resource_path(Path('pyproject.toml'))
 RESOURCES_DIR_PATH: Path = resource_path(Path('resources'))
 IMAGES_DIR_PATH: Path = RESOURCES_DIR_PATH / 'images'

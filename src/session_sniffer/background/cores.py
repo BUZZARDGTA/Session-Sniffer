@@ -17,7 +17,7 @@ from session_sniffer.core import ScriptControl
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
-from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
+from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import LookyState, extract_rate_limit_wait_seconds
@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.models.player import Player
+    from session_sniffer.networking.endpoint_ping_manager import PingResult
 
 logger = get_logger(__name__)
 
@@ -321,7 +322,7 @@ def pinger_core() -> None:
         return False
 
     _run_player_future_core(
-        worker=fetch_and_parse_ping,
+        worker=ping_player,
         should_submit=should_submit,
         apply_result=apply_result,
         handle_exception=handle_exception,

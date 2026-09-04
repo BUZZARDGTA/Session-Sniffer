@@ -270,13 +270,12 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_action.setToolTip('Checks if selected IP addresses respond to pings.')
 
                 def _do_normal_ping_multi() -> None:
-                    for ip_address in _ip_addresses_target:
-                        ping_ip(ip_address)
+                    ping_ip(_ip_addresses_target)
 
                 normal_ping_action.triggered.connect(_do_normal_ping_multi)
                 ping_menu.addAction(normal_ping_action)
 
-                tcp_menu = QMenu('TCP Port (paping.exe)', ping_menu)
+                tcp_menu = QMenu('TCP Port Ping', ping_menu)
                 tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
                 tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
                 tcp_menu.setToolTipsVisible(True)
@@ -308,7 +307,7 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: ping_ip(ip_address))
                 ping_menu.addAction(normal_ping_action)
 
-                tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+                tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port Ping', self)
                 tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
                 tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: tcp_port_ping(self, ip_address))
                 ping_menu.addAction(tcp_ping_action)
@@ -465,13 +464,12 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_gs_action.setToolTip('Checks if selected IP addresses respond to pings.')
 
                 def _do_normal_ping_multi_gs() -> None:
-                    for ip_address in _ip_addresses_gs:
-                        ping_ip(ip_address)
+                    ping_ip(_ip_addresses_gs)
 
                 normal_ping_gs_action.triggered.connect(_do_normal_ping_multi_gs)
                 ping_menu_gs.addAction(normal_ping_gs_action)
 
-                tcp_menu_gs = QMenu('TCP Port (paping.exe)', ping_menu_gs)
+                tcp_menu_gs = QMenu('TCP Port Ping', ping_menu_gs)
                 tcp_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
                 tcp_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
                 tcp_menu_gs.setToolTipsVisible(True)
@@ -503,7 +501,7 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: ping_ip(ip_address))
                 ping_menu_gs.addAction(normal_ping_gs_action)
 
-                tcp_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port (paping.exe)', self)
+                tcp_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port Ping', self)
                 tcp_ping_gs_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
                 tcp_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: tcp_port_ping(self, ip_address))
                 ping_menu_gs.addAction(tcp_ping_gs_action)
