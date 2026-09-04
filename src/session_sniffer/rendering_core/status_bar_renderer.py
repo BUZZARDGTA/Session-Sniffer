@@ -173,7 +173,7 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             name=capture.config.interface.name,
             is_neighbour_interface=capture.config.interface.is_neighbour,
             arp_spoofing=Settings.capture_arp_spoofing,
-            arp_spoofing_running=ArpSpoofingController.is_process_running(),
+            arp_spoofing_running=ArpSpoofingController.is_running(),
         ),
         system=StatusBarSystemInfo(
             memory_mb=CaptureStats.app_memory_mb,

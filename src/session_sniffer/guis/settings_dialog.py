@@ -319,7 +319,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             return label
 
-        arp_state = ('Running' if ArpSpoofingController.is_process_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
+        arp_state = ('Running' if ArpSpoofingController.is_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)

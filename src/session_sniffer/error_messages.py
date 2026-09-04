@@ -209,7 +209,6 @@ def format_userip_ip_conflict_message(
 
 def format_arp_spoofing_failed_message(
     selected_interface: SelectedInterfaceRow,
-    exit_code: int | None,
     error_details: str | None,
 ) -> str:
     """Format an ARP spoofing failure message for display in a message box.
@@ -218,7 +217,6 @@ def format_arp_spoofing_failed_message(
         A formatted error message string ready for display.
     """
     interface_vendor_name = 'N/A' if selected_interface.vendor_name is None else selected_interface.vendor_name
-    exit_code_output = f'{exit_code}' if exit_code is not None else ''
     error_details_output = f'\n{error_details}' if error_details else ''
 
     return (
@@ -235,8 +233,7 @@ def format_arp_spoofing_failed_message(
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'DIAGNOSTICS:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'Exit code: {exit_code_output}\n'
-        f'Error output: {error_details_output}\n\n'
+        f'Error: {error_details_output}\n\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
         f'COMMON CAUSES:\n'
         f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'

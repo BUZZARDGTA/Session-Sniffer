@@ -295,7 +295,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._label_ram.setText(f'{int(CaptureStats.app_memory_mb)} MB')
 
         if Settings.capture_arp_spoofing:
-            arp_label = 'Running' if ArpSpoofingController.is_process_running() else 'Stopped'
+            arp_label = 'Running' if ArpSpoofingController.is_running() else 'Stopped'
         elif CaptureState.is_neighbour_interface:
             arp_label = 'Enabled'
         else:

@@ -1,6 +1,5 @@
 """ARP spoofing background task utilities."""
 
-import subprocess
 import time
 from dataclasses import dataclass
 from threading import Event, Thread
@@ -8,7 +7,9 @@ from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer import msgbox
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.local import BIN_DIR_PATH
+from session_sniffer.capture.arp import resolve_mac_address, send_arp_spoof_packets
+from session_sniffer.capture.exceptions import ArpResolutionError, PcapOpenError, PcapSendError
+from session_sniffer.capture.pcap import PcapHandle
 from session_sniffer.error_messages import format_arp_spoofing_failed_message
 from session_sniffer.logging_setup import get_logger
 
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-ARPSPOOF_PATH = BIN_DIR_PATH / 'arpspoof.exe'
+_ARP_SPOOF_INTERVAL_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +33,7 @@ class _ArpControllerConfig:
 
 
 class ArpSpoofingController:
-    """App-wide owner of the single ARP spoofing thread + arpspoof.exe process.
+    """App-wide owner of the single ARP spoofing thread.
 
     Class-level service: there is at most one ARP thread alive at any time.
     Call `configure()` once at startup, then `start()` / `stop()` as needed.
@@ -42,7 +43,6 @@ class ArpSpoofingController:
     _config: ClassVar[_ArpControllerConfig | None] = None
     _stop_event: ClassVar[Event] = Event()
     _thread: ClassVar[Thread | None] = None
-    _process: ClassVar[subprocess.Popen[str] | None] = None
 
     @classmethod
     def configure(cls, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
@@ -53,16 +53,6 @@ class ArpSpoofingController:
     def is_running(cls) -> bool:
         """Return True if the ARP spoofing thread is active."""
         return cls._thread is not None and cls._thread.is_alive()
-
-    @classmethod
-    def is_process_running(cls) -> bool:
-        """Return True if the actual arpspoof.exe child process is active."""
-        return cls._process is not None and cls._process.poll() is None
-
-    @classmethod
-    def set_process(cls, process: subprocess.Popen[str] | None) -> None:
-        """Update the running arpspoof.exe child process reference."""
-        cls._process = process
 
     @classmethod
     def start(cls, interface: SelectedInterfaceRow) -> None:
@@ -86,13 +76,12 @@ class ArpSpoofingController:
 
     @classmethod
     def stop(cls) -> None:
-        """Signal the running thread to exit and wait for it (and `arpspoof.exe`) to die."""
+        """Signal the running thread to exit and wait for it to die."""
         if cls._thread is None:
             return
         cls._stop_event.set()
         cls._thread.join()
         cls._thread = None
-        cls._process = None
 
 
 def arp_spoofing_task(
@@ -101,49 +90,37 @@ def arp_spoofing_task(
     stop_event: Event,
     on_failed: Callable[[], None],
 ) -> None:
-    """Manage ARP spoofing process lifecycle synchronized with packet capture state.
+    """Manage ARP spoofing lifecycle synchronized with packet capture state.
 
-    Exits when *stop_event* is set (interface switch) or *gui_closed__event* is set (app close).
+    Opens a dedicated pcap handle on the interface, resolves the gateway MAC,
+    and continuously sends spoofed ARP replies while the capture is running.
 
-    Credit: https://github.com/alandau/arpspoof
+    Exits when `stop_event` is set (interface switch) or `gui_closed__event` is set (app close).
     """
-    if not ARPSPOOF_PATH.is_file():
-        logger.warning('Executable not found at: %s', ARPSPOOF_PATH)
-        return
-
     # Validate required interface fields
     if selected_interface.device_name is None:
         logger.error('ARP spoofing cannot start: device_name is None')
         return
 
-    proc: subprocess.Popen[str] | None = None
-    startup_probe_timeout = 3.0
-
-    def terminate_process(proc: subprocess.Popen[str]) -> None:
-        """Terminate the ARP spoofing process."""
-        proc.terminate()
-        proc.wait()
+    if selected_interface.mac_address is None:
+        logger.error('ARP spoofing cannot start: interface MAC address is None')
+        return
 
     def report_failure(
         stage: str,
         *,
-        exit_code: int | None,
-        error_output: str | None,
+        error_details: str | None,
         msgbox_style: msgbox.Style,
         spawn_msgbox_thread: bool,
     ) -> None:
         """Log, notify, and terminate the ARP spoofing task on failure."""
-        if exit_code is not None:
-            logger.error('%s. Exit code: %s.', stage.capitalize(), exit_code)
-        else:
-            logger.error('%s.', stage.capitalize())
-        if error_output:
-            logger.error('Error: %s', error_output)
+        logger.error('%s.', stage.capitalize())
+        if error_details:
+            logger.error('Error: %s', error_details)
 
         message = format_arp_spoofing_failed_message(
             selected_interface=selected_interface,
-            exit_code=exit_code,
-            error_details=error_output,
+            error_details=error_details,
         )
 
         def show_msgbox() -> None:
@@ -166,6 +143,8 @@ def arp_spoofing_task(
     def _should_exit() -> bool:
         return gui_closed__event.is_set() or stop_event.is_set()
 
+    pcap_handle: PcapHandle | None = None
+
     try:
         while not _should_exit():
             # Wait for capture to be running
@@ -175,79 +154,84 @@ def arp_spoofing_task(
             if _should_exit():
                 break
 
-            # Start arpspoof process
-            if proc is None or proc.poll() is not None:
-                cmd: list[str] = [str(ARPSPOOF_PATH), '-i', selected_interface.device_name, selected_interface.ip_address]
-                if selected_interface.gateway_ip is not None:
-                    cmd.append(selected_interface.gateway_ip)
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-                ArpSpoofingController.set_process(proc)
-                log_message = f'Started spoofing on interface {selected_interface.ip_address}'
-                if selected_interface.gateway_ip:
-                    log_message += f' (gateway: {selected_interface.gateway_ip})'
-                logger.info(log_message)
-
+            # Open a dedicated pcap handle for sending ARP packets
+            if pcap_handle is None:
                 try:
-                    proc.wait(timeout=startup_probe_timeout)
-                except subprocess.TimeoutExpired:
-                    pass  # Process continues to run
-                else:
-                    stdout_data, stderr_data = proc.communicate()
-                    error_output = (stderr_data or stdout_data or '').strip() or None
-                    ArpSpoofingController.set_process(None)
+                    pcap_handle = PcapHandle.open_live(
+                        selected_interface.device_name,
+                        snaplen=64,
+                        promiscuous=False,
+                        timeout_milliseconds=100,
+                        buffer_size=0,
+                    )
+                except (PcapOpenError, OSError) as exception:
                     report_failure(
                         'startup failure',
-                        exit_code=proc.returncode,
-                        error_output=error_output,
+                        error_details=str(exception),
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
                         spawn_msgbox_thread=False,
                     )
-                    proc = None
                     on_failed()
                     return
 
-            # Wait for capture to stop or process to die
-            while proc and capture_holder.is_running() and not _should_exit():
+            # Resolve gateway MAC address
+            gateway_ip = selected_interface.gateway_ip
+            if gateway_ip is None:
+                logger.info('No gateway IP available, sending broadcast ARP spoofing only')
+
+            gateway_mac: str | None = None
+            if gateway_ip is not None:
                 try:
-                    proc.wait(timeout=0.5)
-                except subprocess.TimeoutExpired:
-                    continue  # Process still healthy; keep monitoring
-
-                stdout_data, stderr_data = proc.communicate()
-                error_output = (stderr_data or stdout_data or '').strip() or None
-                ArpSpoofingController.set_process(None)
-
-                if proc.returncode:
+                    gateway_mac = resolve_mac_address(gateway_ip)
+                    logger.info('Resolved gateway MAC: %s -> %s', gateway_ip, gateway_mac)
+                except ArpResolutionError as exception:
                     report_failure(
-                        'unexpected process exit',
-                        exit_code=proc.returncode,
-                        error_output=error_output,
+                        'gateway MAC resolution failure',
+                        error_details=str(exception),
+                        msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
+                        spawn_msgbox_thread=False,
+                    )
+                    on_failed()
+                    return
+
+            logger.info(
+                'Started spoofing on interface %s%s',
+                selected_interface.ip_address,
+                f' (gateway: {gateway_ip})' if gateway_ip else '',
+            )
+
+            # Send spoofed ARP replies while capture is running
+            while capture_holder.is_running() and not _should_exit():
+                try:
+                    if gateway_ip is not None and gateway_mac is not None:
+                        send_arp_spoof_packets(
+                            pcap_handle,
+                            interface_mac=selected_interface.mac_address,
+                            interface_ip=selected_interface.ip_address,
+                            gateway_ip=gateway_ip,
+                            gateway_mac=gateway_mac,
+                        )
+                except PcapSendError as exception:
+                    report_failure(
+                        'unexpected packet injection error',
+                        error_details=str(exception),
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
                         spawn_msgbox_thread=False,
                     )
-                    proc = None
                     on_failed()
                     return
 
-                proc = None
-                logger.info('Process died unexpectedly, respawning...')
-                break
+                # Wait before sending the next round of spoofed packets
+                elapsed = 0.0
+                while elapsed < _ARP_SPOOF_INTERVAL_SECONDS and not _should_exit() and capture_holder.is_running():
+                    time.sleep(0.1)
+                    elapsed += 0.1
 
-            # Stop the process if capture stopped
-            if proc and proc.poll() is None:
-                terminate_process(proc)
-                logger.info('Stopped spoofing.')
-                proc = None
-                ArpSpoofingController.set_process(None)
+            # Capture stopped; close handle and wait for next capture start
+            pcap_handle.close()
+            pcap_handle = None
+            logger.info('Stopped spoofing.')
     finally:
-        # Final cleanup
-        if proc and proc.poll() is None:
-            terminate_process(proc)
-        ArpSpoofingController.set_process(None)
+        if pcap_handle is not None:
+            pcap_handle.close()
         logger.info('Task terminated.')

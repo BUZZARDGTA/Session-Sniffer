@@ -222,3 +222,12 @@ class PcapSendError(PcapError):
         self.error_message = error_message
         super().__init__(f'Pcap send error: {error_message}')
 
+
+class ArpResolutionError(CaptureError):
+    """Exception raised when resolving a MAC address via the Windows SendARP API fails."""
+
+    def __init__(self, ip_address: str, reason: str) -> None:
+        """Initialize the exception with the target IP and failure reason."""
+        self.ip_address = ip_address
+        self.reason = reason
+        super().__init__(f'Failed to resolve MAC for {ip_address}: {reason}')
