@@ -2,7 +2,6 @@
 
 # pylint: disable=too-many-lines
 
-import contextlib
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -41,6 +40,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QSpinBox,
+    QStackedWidget,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
@@ -52,7 +52,7 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
-from session_sniffer.guis._player_leaderboard_loading_dialog import LeaderboardLoadingDialog
+from session_sniffer.guis._player_leaderboard_loading_widget import LeaderboardLoadingWidget
 from session_sniffer.guis._player_leaderboard_workers import (
     LeaderboardBaselineWorker,
     LeaderboardOverlayWorker,
@@ -806,7 +806,13 @@ class PlayerLeaderboardWindow(QWidget):
 
         setup_table_header_context_menu(self._table, on_reset=self._table.setup_static_column_resizing)
 
-        layout.addWidget(self._table)
+        self._stacked_widget = QStackedWidget(self)
+        self._loading_widget = LeaderboardLoadingWidget(self)
+        self._loading_widget.cancelled.connect(self.close)
+        self._stacked_widget.addWidget(self._loading_widget)
+        self._stacked_widget.addWidget(self._table)
+
+        layout.addWidget(self._stacked_widget)
 
         # Sort by the Days/Sessions column descending by default. Sorting through the view (not the proxy
         # directly) sets the header's sort indicator, so the order survives model resets on data reload.
@@ -841,13 +847,9 @@ class PlayerLeaderboardWindow(QWidget):
         self._scan_cooldown.timeout.connect(self._on_scan_cooldown_elapsed)
 
     def load_and_show(self) -> None:
-        """Load leaderboard data in the background, then reveal the window once it is ready."""
-
-        def _on_ready() -> None:
-            self.show()
-            self._table.setup_static_column_resizing()
-
-        self._start_load(on_ready=_on_ready, on_cancel=self.close)
+        """Reveal the window immediately and load baseline data in the background."""
+        self.show()
+        self._start_load()
 
     def _on_sessions_changed(self, _path: str) -> None:
         """Handle a filesystem-change notification, throttled to at most one scan per cooldown."""
@@ -920,44 +922,46 @@ class PlayerLeaderboardWindow(QWidget):
         worker.setParent(self)
         worker.start()
 
-    def _start_load(self, *, on_ready: Callable[[], object] | None, on_cancel: Callable[[], object] | None) -> None:
-        """Run the leaderboard scan on a worker thread behind a modal loading dialog.
+    def _set_controls_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable header and filter controls while loading baseline data."""
+        self._scope_combo.setEnabled(enabled)
+        self._mode_combo.setEnabled(enabled)
+        self._search_box.setEnabled(enabled)
+        self._search_column_combo.setEnabled(enabled)
+        self._hide_servers_checkbox.setEnabled(enabled)
+        self._hide_vpns_checkbox.setEnabled(enabled)
+        self._hide_hosting_checkbox.setEnabled(enabled)
+        self._relative_dates_checkbox.setEnabled(enabled)
+        self._cap_spinbox.setEnabled(enabled)
 
-        `on_ready` runs once the loaded data has been applied; `on_cancel` runs if the
-        user closes the loading dialog before the scan completes.
-        """
+    def _start_load(self, *, on_ready: Callable[[], object] | None = None) -> None:
+        """Run the leaderboard scan on a worker thread behind an in-window loading view."""
+        if self._baseline_worker is not None and self._baseline_worker.isRunning():
+            return
+
+        self._set_controls_enabled(enabled=False)
+        self._stacked_widget.setCurrentWidget(self._loading_widget)
+        self._loading_widget.reset_progress()
+        self._count_label.setText('Loading...')
+
         worker = LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(self._clear_baseline_worker)
         self._baseline_worker = worker
-        loading_dialog = LeaderboardLoadingDialog(self)
 
-        worker.progress.connect(loading_dialog.update_progress)
+        worker.progress.connect(self._loading_widget.update_progress)
 
         def _on_finished_ok(baseline: LeaderboardBaseline) -> None:
             self._apply_baseline(baseline)
-            loading_dialog.accept()
+            self._stacked_widget.setCurrentWidget(self._table)
+            self._set_controls_enabled(enabled=True)
+            self._table.setup_static_column_resizing()
             if on_ready is not None:
                 on_ready()
 
         worker.finished_ok.connect(_on_finished_ok)
-
-        def _on_rejected() -> None:
-            # The user closed the loading dialog before the scan completed. Stop the finished handler
-            # from touching the table, ask the worker to stop, and wait for it to actually exit so it
-            # is never destroyed while still running.
-            with contextlib.suppress(TypeError):
-                worker.finished_ok.disconnect(_on_finished_ok)
-            worker.requestInterruption()
-            worker.wait()
-            if on_cancel is not None:
-                on_cancel()
-
-        loading_dialog.rejected.connect(_on_rejected)
-
         worker.setParent(self)
         worker.start()
-        loading_dialog.exec()
 
     def _clear_baseline_worker(self) -> None:
         """Release the finished baseline worker reference."""
@@ -1003,7 +1007,7 @@ class PlayerLeaderboardWindow(QWidget):
     def _on_cap_changed(self) -> None:
         """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
         if self._baseline is None:
-            self._start_load(on_ready=None, on_cancel=None)
+            self._start_load()
             return
         self._apply_baseline(self._baseline)
 

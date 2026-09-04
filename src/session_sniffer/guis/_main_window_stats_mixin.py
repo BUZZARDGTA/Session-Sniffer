@@ -110,7 +110,8 @@ class StatsMixin(QMainWindow):
 
     def _open_player_leaderboard(self) -> None:
         """Open the Most Seen Players leaderboard, or focus the existing one."""
-        if self._leaderboard_window is not None and self._leaderboard_window.isVisible():
+        if self._leaderboard_window is not None:
+            self._leaderboard_window.show()
             self._leaderboard_window.raise_()
             self._leaderboard_window.activateWindow()
             return
