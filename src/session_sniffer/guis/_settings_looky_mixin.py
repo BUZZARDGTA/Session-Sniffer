@@ -8,8 +8,8 @@ from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
-    QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.sensitive_value_widget import SensitiveValueWidget
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACCOUNT_CARD_STYLESHEET,
     LOOKY_CARD_LABEL_STYLESHEET,
@@ -38,8 +39,8 @@ if TYPE_CHECKING:
 def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
     """Return an HTML-coloured badge string: green for `True`, red for `False`."""
     if value:
-        return f'<span style="color:#4ade80; font-weight:600;">✓ {true_text}</span>'
-    return f'<span style="color:#f87171; font-weight:600;">✗ {false_text}</span>'
+        return f'<span style="color:#4ade80; font-size:10.5pt; font-weight:600;">✓ {true_text}</span>'
+    return f'<span style="color:#f87171; font-size:10.5pt; font-weight:600;">✗ {false_text}</span>'
 
 
 class _LookyVerifyWorker(CrashingQThread):
@@ -77,10 +78,10 @@ class SettingsDialogLookyMixin(QDialog):
     # -- Attribute stubs (Looky System widgets, set during _build_tab) --
     _looky_account_card: QFrame
     _looky_account_info_group: QGroupBox
-    _looky_card_form_left: QFormLayout
-    _looky_card_form_right: QFormLayout
+    _looky_card_grid: QGridLayout
     _looky_verify_status_label: QLabel
     _looky_card_forms_container: QWidget
+    _looky_account_sensitive_widgets: list[SensitiveValueWidget]
 
     # -- Attribute stubs (set in SettingsDialog.__init__) --
     _widgets: dict[str, QWidget]
@@ -114,6 +115,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _build_looky_account_info_group(self) -> QGroupBox:
         """Build the Account Information panel for the Looky System tab."""
+        self._looky_account_sensitive_widgets = []
         group_box = QGroupBox('Account Information')
         outer = QVBoxLayout(group_box)
         outer.setSpacing(8)
@@ -135,22 +137,16 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_forms_container.setStyleSheet('background: transparent;')
         forms_row = QHBoxLayout(self._looky_card_forms_container)
         forms_row.setContentsMargins(0, 0, 0, 0)
-        forms_row.setSpacing(32)
+        forms_row.setSpacing(0)
 
-        self._looky_card_form_left = QFormLayout()
-        self._looky_card_form_left.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        self._looky_card_form_left.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._looky_card_form_left.setHorizontalSpacing(16)
-        self._looky_card_form_left.setVerticalSpacing(6)
+        self._looky_card_grid = QGridLayout()
+        self._looky_card_grid.setHorizontalSpacing(16)
+        self._looky_card_grid.setVerticalSpacing(10)
+        self._looky_card_grid.setColumnMinimumWidth(2, 108)
 
-        self._looky_card_form_right = QFormLayout()
-        self._looky_card_form_right.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        self._looky_card_form_right.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._looky_card_form_right.setHorizontalSpacing(16)
-        self._looky_card_form_right.setVerticalSpacing(6)
-
-        forms_row.addLayout(self._looky_card_form_left)
-        forms_row.addLayout(self._looky_card_form_right)
+        forms_row.addStretch(1)
+        forms_row.addLayout(self._looky_card_grid)
+        forms_row.addStretch(1)
         self._looky_card_forms_container.setVisible(False)
         card_layout.addWidget(self._looky_card_forms_container)
 
@@ -177,24 +173,59 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _populate_looky_account_card(self, data: LookyVerifyResponse) -> None:
         """Fill the account info card with `data` and make it visible."""
-        # Clear previous rows from both columns
-        while self._looky_card_form_left.rowCount() > 0:
-            self._looky_card_form_left.removeRow(0)
-        while self._looky_card_form_right.rowCount() > 0:
-            self._looky_card_form_right.removeRow(0)
+        # Clear previous items from grid
+        while self._looky_card_grid.count() > 0:
+            item = self._looky_card_grid.takeAt(0)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
-        def add_left(label: str, html: str) -> None:
-            self._looky_card_form_left.addRow(self._make_card_label(label), self._make_card_value(html))
+        self._looky_account_sensitive_widgets.clear()
+        username_widget = SensitiveValueWidget(data.userData.username)
+        rid_widget = SensitiveValueWidget(str(data.userData.rid))
+        self._looky_account_sensitive_widgets.extend([username_widget, rid_widget])
 
-        def add_right(label: str, html: str) -> None:
-            self._looky_card_form_right.addRow(self._make_card_label(label), self._make_card_value(html))
+        # Row 0: Username & API Access (aligned on the exact same horizontal line)
+        self._looky_card_grid.addWidget(
+            self._make_card_label('Username'), 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            self._make_card_value(_bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled')),
+            0,
+            4,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
 
-        add_left('Username', f'<b style="color:#b09fe0; font-size:10pt;">{data.userData.username}</b>')
-        add_left('Rockstar ID', f'<b style="color:#b09fe0; font-size:10pt;">{data.userData.rid}</b>')
-        add_right('API Access', _bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled'))
-        add_right('Status', _bool_badge(data.userData.status, 'Active', 'Inactive'))
+        # Row 1: Rockstar ID & Status (aligned on the exact same horizontal line)
+        self._looky_card_grid.addWidget(
+            self._make_card_label('Rockstar ID'), 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._looky_card_grid.addWidget(
+            self._make_card_value(_bool_badge(data.userData.status, 'Active', 'Inactive')),
+            1,
+            4,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
 
         self._looky_card_forms_container.setVisible(True)
+
+    def _hide_looky_account_sensitive_values(self) -> None:
+        """Re-blur any revealed sensitive values in the account info card."""
+        for widget in getattr(self, '_looky_account_sensitive_widgets', []):
+            widget.set_revealed(revealed=False)
 
     def _on_looky_api_key_changed(self, text: str) -> None:
         """Show/hide Account Information and schedule a debounced verify when the key changes."""

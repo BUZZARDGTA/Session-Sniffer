@@ -115,6 +115,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             _a.setToolTip('Hide' if checked else 'Show')
 
         _act.toggled.connect(_toggle_echo)
+        le.setProperty('secret_action', _act)
     return le
 
 

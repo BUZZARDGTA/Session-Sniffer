@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -140,6 +140,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             self._tabs.addTab(tab_widget, category)
             if category == 'Looky System':
                 self._looky_tab_index = i
+        self._tabs.currentChanged.connect(self._on_tab_changed)
         root_layout.addWidget(self._tabs)
 
         button_row = QHBoxLayout()
@@ -906,3 +907,16 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         """Save settings; return `True` if save succeeded."""
         self._save_settings()
         return self._saved
+
+    def _hide_secret_fields(self) -> None:
+        """Reset any revealed password / secret QLineEdits back to hidden."""
+        for widget in self._widgets.values():
+            if isinstance(widget, QLineEdit):
+                act = widget.property('secret_action')
+                if isinstance(act, QAction) and act.isChecked():
+                    act.setChecked(False)
+
+    def _on_tab_changed(self, _index: int) -> None:
+        """Handle tab switching; automatically re-blurs Looky System sensitive fields and masks passwords."""
+        self._hide_looky_account_sensitive_values()
+        self._hide_secret_fields()
