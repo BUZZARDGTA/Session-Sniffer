@@ -109,6 +109,7 @@ disable = [
 const-rgx = "(^[A-Z_][A-Z0-9_]*$|^_atexit_registered$)"
 good-names = [
     "_atexit_registered",
+    "_MIB_UDPROW_OWNER_PID",
     "_OPER_STATUS_FLAGS",
     "InterfaceIndex",
     "IP_ADAPTER_ADDRESSES",
@@ -120,6 +121,9 @@ good-names = [
     "SOCKET_ADDRESS",
 ]
 method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|helpEvent|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|paintEvent|resizeEvent|rowCount|selectionModel|setModel|showEvent|sizeHint|verticalHeader)$"
+
+[tool.pylint.design]
+exclude-too-few-public-methods = [".*Structure.*"]
 
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]
@@ -174,6 +178,19 @@ section-order = [
     "third-party",
     "first-party",
     "local-folder",
+]
+
+[tool.ruff.lint.pep8-naming]
+ignore-names = [
+    "_MIB_UDPROW_OWNER_PID",
+    "_OPER_STATUS_FLAGS",
+    "IP_ADAPTER_ADDRESSES",
+    "IP_ADAPTER_GATEWAY_ADDRESS",
+    "IP_ADAPTER_UNICAST_ADDRESS",
+    "MIB_IF_ROW2",
+    "MIB_IPNETROW",
+    "SOCKADDR_IN",
+    "SOCKET_ADDRESS",
 ]
 
 [tool.ruff.lint.pydocstyle]

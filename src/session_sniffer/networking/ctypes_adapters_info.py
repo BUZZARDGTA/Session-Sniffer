@@ -42,20 +42,19 @@ NETWORK_ADAPTER_DISABLED = 3
 
 
 # Structures
-# pylint: disable=too-few-public-methods
-class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):  # noqa: N801
+class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_UNICAST_ADDRESS structure."""
 
 
-class IP_ADAPTER_GATEWAY_ADDRESS(ctypes.Structure):  # noqa: N801
+class IP_ADAPTER_GATEWAY_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_GATEWAY_ADDRESS_LH structure."""
 
 
-class IP_ADAPTER_ADDRESSES(ctypes.Structure):  # noqa: N801
+class IP_ADAPTER_ADDRESSES(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_ADDRESSES structure."""
 
 
-class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801
+class _OPER_STATUS_FLAGS(ctypes.Structure):
     _fields_ = [
         ('HardwareInterface', ctypes.c_ubyte, 1),
         ('FilterInterface', ctypes.c_ubyte, 1),
@@ -68,16 +67,13 @@ class _OPER_STATUS_FLAGS(ctypes.Structure):  # noqa: N801
     ]
 
 
-class SOCKET_ADDRESS(ctypes.Structure):  # noqa: N801
+class SOCKET_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows SOCKET_ADDRESS structure."""
 
     _fields_ = [
         ('lpSockaddr', ctypes.c_void_p),
         ('iSockaddrLength', ctypes.c_int),
     ]
-
-
-# pylint: enable=too-few-public-methods
 
 
 LP_IP_ADAPTER_UNICAST_ADDRESS = ctypes.POINTER(IP_ADAPTER_UNICAST_ADDRESS)
@@ -133,8 +129,7 @@ IP_ADAPTER_ADDRESSES._fields_ = [
 # pylint: enable=protected-access
 
 
-# pylint: disable=too-few-public-methods
-class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801
+class MIB_IF_ROW2(ctypes.Structure):
     """ctypes definition for a Windows MIB_IF_ROW2 structure."""
 
     _fields_ = [
@@ -182,7 +177,7 @@ class MIB_IF_ROW2(ctypes.Structure):  # noqa: N801
     ]
 
 
-class SOCKADDR_IN(ctypes.Structure):  # noqa: N801
+class SOCKADDR_IN(ctypes.Structure):
     """ctypes definition for a Windows IPv4 sockaddr_in structure."""
 
     _fields_ = [
@@ -191,9 +186,6 @@ class SOCKADDR_IN(ctypes.Structure):  # noqa: N801
         ('sin_addr', ctypes.c_uint32),
         ('sin_zero', ctypes.c_char * 8),
     ]
-
-
-# pylint: enable=too-few-public-methods
 
 
 # Windows API
@@ -217,7 +209,7 @@ GetIfEntry2.restype = wintypes.ULONG
 # =========================
 
 
-class MIB_IPNETROW(ctypes.Structure):  # pylint: disable=too-few-public-methods  # noqa: N801
+class MIB_IPNETROW(ctypes.Structure):
     """IPv4 neighbor table row (classic ARP style for IPv4)."""
 
     _fields_ = [

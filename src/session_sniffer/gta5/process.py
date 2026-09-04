@@ -29,8 +29,7 @@ _GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
 )
 
 
-# pylint: disable=too-few-public-methods,invalid-name
-class _MIB_UDPROW_OWNER_PID(ctypes.Structure):  # noqa: N801
+class _MIB_UDPROW_OWNER_PID(ctypes.Structure):
     """ctypes definition for MIB_UDPROW_OWNER_PID structure."""
 
     _fields_ = [

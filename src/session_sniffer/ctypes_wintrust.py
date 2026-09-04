@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-# pylint: disable=too-few-public-methods
 class _Guid(ctypes.Structure):
     _fields_ = [
         ('Data1', ctypes.c_ulong),
@@ -68,9 +67,6 @@ class _WintrustData(ctypes.Structure):
         self.dwProvFlags = 0
         self.dwUIContext = 0
         # pylint: enable=invalid-name
-
-
-# pylint: enable=too-few-public-methods
 
 
 _WTD_UI_NONE = 2
