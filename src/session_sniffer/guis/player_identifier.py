@@ -48,6 +48,7 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
 )
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -175,12 +176,11 @@ class PlayerIdentifierWidget(QWidget):
         if not _zscore_header_view:
             message = 'Failed to get horizontal header view'
             raise RuntimeError(message)
-        _zscore_header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        _zscore_header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        _zscore_header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        _zscore_header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        _zscore_header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        _zscore_header_view.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        for column_index in range(6):
+            _zscore_header_view.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+        _zscore_header_view.setStretchLastSection(False)
+        self._reset_zscore_column_sizes()
+        setup_table_header_context_menu(self._zscore_table, on_reset=self._reset_zscore_column_sizes)
         self._zscore_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._zscore_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self._zscore_table.setItemDelegate(ElidedTextTooltipDelegate(self._zscore_table))
@@ -363,6 +363,16 @@ class PlayerIdentifierWidget(QWidget):
         # Timer
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+
+    def _reset_zscore_column_sizes(self) -> None:
+        """Reset z-score table column widths back to their initial default layout."""
+        for column_index in (1, 2, 3, 4, 5):
+            self._zscore_table.resizeColumnToContents(column_index)
+        other_widths = sum(self._zscore_table.columnWidth(column_index) for column_index in (1, 2, 3, 4, 5))
+        viewport = self._zscore_table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._zscore_table.width()
+        username_width = max(120, available_width - other_widths)
+        self._zscore_table.setColumnWidth(0, username_width)
 
     # -- Phase transitions ----------------------------------------------------
 

@@ -8,6 +8,7 @@ from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMenu
 
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import (
     ping_ip,
     show_detailed_ip_lookup,
@@ -53,14 +54,22 @@ def skip_if_menu_open(func: Callable[..., Any]) -> Callable[..., Any]:
 class TableContextMenuManager:
     """Manages a standard context menu for tables with copy, select, and IP ping functionality."""
 
-    def __init__(self, table: QTableWidget, parent: QWidget) -> None:
+    def __init__(
+        self,
+        table: QTableWidget,
+        parent: QWidget,
+        *,
+        on_reset_column_sizes: Callable[[], None] | None = None,
+    ) -> None:
         """Initialize the context menu manager for the given table."""
         self._table = table
         self._parent = parent
         self._is_open = False
+        self._on_reset_column_sizes = on_reset_column_sizes
 
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self.show_context_menu)
+        setup_table_header_context_menu(self._table, on_reset=self._on_reset_column_sizes)
         QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(lambda: copy_table_widget_selection(self._table))
         QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
 
@@ -178,6 +187,16 @@ class TableContextMenuManager:
 
             menu.addMenu(ping_menu)
             # pylint: enable=duplicate-code
+
+        # pylint: disable=duplicate-code
+        menu.addSeparator()
+        add_column_sizing_actions(
+            menu,
+            self._table,
+            clicked_column=index.column() if index.isValid() else None,
+            on_reset=self._on_reset_column_sizes,
+        )
+        # pylint: enable=duplicate-code
 
         popup_menu_at_table_widget(menu, self._table, pos)
 

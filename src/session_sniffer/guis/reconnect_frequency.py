@@ -1,10 +1,10 @@
 """Reconnect frequency statistics window."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.guis.table_context_menu import TableContextMenuManager, skip_if_menu_open
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -21,15 +21,20 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Rejoins', 'IP', 'Usernames'])
-        h_header = setup_stat_table_with_header(self._table, layout)
-        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        self._table.setColumnWidth(0, 100)
-        self._table.setColumnWidth(1, 130)
+        setup_stat_table(self._table, layout)
+        self._reset_column_sizes()
 
-        self._context_menu_manager = TableContextMenuManager(self._table, self)
+        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._table.setColumnWidth(0, 100)
+        self._table.setColumnWidth(1, 130)
+        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
+        remaining_width = max(150, available_width - 230)
+        self._table.setColumnWidth(2, remaining_width)
 
     @skip_if_menu_open
     def refresh(self) -> None:

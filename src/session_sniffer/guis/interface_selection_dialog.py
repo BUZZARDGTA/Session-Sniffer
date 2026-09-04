@@ -44,6 +44,7 @@ from session_sniffer.guis.stylesheets import (
     interface_select_button_enabled_style,
     interface_table_stylesheet,
 )
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     ElidedTextTooltipDelegate,
     compute_ui_scale,
@@ -287,16 +288,10 @@ class InterfaceSelectionDialog(QDialog):
         header_font.setPixelSize(scale(14))
         header_font.setBold(True)
         horizontal_header.setFont(header_font)
-        horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
-        horizontal_header.setStretchLastSection(True)
+        for column_index in range(9):
+            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+        horizontal_header.setStretchLastSection(False)
+        setup_table_header_context_menu(self.table, on_reset=self._reset_column_sizes)
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
@@ -472,7 +467,27 @@ class InterfaceSelectionDialog(QDialog):
 
         # Populate the table with initial filtered data (after button is created)
         self.apply_filters()
+        self._reset_column_sizes()
         self.setLayout(layout)
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        horizontal_header = self.table.horizontalHeader()
+        for column_index in (0, 2, 3, 4, 5, 6, 7):
+            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+            self.table.resizeColumnToContents(column_index)
+
+        horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        horizontal_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Interactive)
+
+        compact_widths = sum(self.table.columnWidth(column_index) for column_index in (0, 2, 3, 4, 5, 6, 7))
+        viewport = self.table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self.table.width()
+        remaining = max(300, available_width - compact_widths)
+        description_width = max(180, int(remaining * 0.55))
+        vendor_width = max(120, remaining - description_width)
+        self.table.setColumnWidth(1, description_width)
+        self.table.setColumnWidth(8, vendor_width)
 
         # Connect selection change signal to enable/disable Select button
         selection_model = self.table.selectionModel()

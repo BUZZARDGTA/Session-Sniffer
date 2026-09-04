@@ -1,7 +1,7 @@
 """Country breakdown statistics window."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.guis.table_context_menu import TableContextMenuManager, skip_if_menu_open
 from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
@@ -22,18 +22,19 @@ class CountryBreakdownWindow(ToggleAlwaysOnTopMixin):
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(['Country', 'Players'])
         setup_stat_table(self._table, layout, sorting=False)
-        h_header = self._table.horizontalHeader()
-        if not h_header:
-            message = 'Failed to get horizontal header'
-            raise RuntimeError(message)
-        h_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        h_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        h_header.setStretchLastSection(False)
-        self._table.setColumnWidth(1, 80)
+        self._reset_column_sizes()
 
-        self._context_menu_manager = TableContextMenuManager(self._table, self)
+        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
+        players_width = 80
+        country_width = max(120, available_width - players_width)
+        self._table.setColumnWidth(0, country_width)
+        self._table.setColumnWidth(1, players_width)
 
     @skip_if_menu_open
     def refresh(self) -> None:

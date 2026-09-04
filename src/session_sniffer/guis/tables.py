@@ -23,6 +23,7 @@ from session_sniffer.constants.standalone import (
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, size_all_columns_to_fit, size_column_to_fit
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu, setup_static_table_column_resizing
@@ -395,29 +396,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        size_column_action = QAction('↔️ Size Column to Fit', menu)
-        size_column_action.setEnabled(clicked_column >= 0)
-        size_column_action.setToolTip(
-            f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses."
-            if clicked_column_name
-            else 'Resize the selected column so all text is fully visible without truncation or ellipses.',
-        )
-        size_column_action.triggered.connect(lambda: self._size_column_to_fit(clicked_column))
-        menu.addAction(size_column_action)
-
-        size_all_action = QAction('↕️ Size All Columns to Fit', menu)
-        size_all_action.setToolTip(
-            'Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.',
-        )
-        size_all_action.triggered.connect(self._size_all_columns_to_fit)
-        menu.addAction(size_all_action)
-
-        reset_sizes_action = QAction('🔄 Reset Column Sizes', menu)
-        reset_sizes_action.setToolTip(
-            'Reset all column widths back to their initial default layout.',
-        )
-        reset_sizes_action.triggered.connect(self._reset_column_sizes)
-        menu.addAction(reset_sizes_action)
+        add_column_sizing_actions(menu, self, clicked_column=clicked_column, on_reset=self._reset_column_sizes)
 
         menu.addSeparator()
 
@@ -522,21 +501,13 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _size_column_to_fit(self, column: int) -> None:
         """Resize a single column to fit its contents (header + cell text)."""
-        if column < 0:
-            return
-        header = self.horizontalHeader()
-        header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-        self.resizeColumnToContents(column)
+        size_column_to_fit(self, column)
 
     def _size_all_columns_to_fit(self) -> None:
         """Resize every visible column to fit its contents."""
-        header = self.horizontalHeader()
-        for column in range(self.model().columnCount()):
-            if header.isSectionHidden(column):
-                continue
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-            self.resizeColumnToContents(column)
+        size_all_columns_to_fit(self)
 
+    @override
     def _reset_column_sizes(self) -> None:
         """Restore the default column sizing rules (Stretch / ResizeToContents)."""
         self.setup_static_column_resizing()

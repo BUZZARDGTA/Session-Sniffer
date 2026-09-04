@@ -1,10 +1,10 @@
 """Port heatmap statistics window."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.guis.table_context_menu import TableContextMenuManager, skip_if_menu_open
-from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table_with_header
+from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -21,13 +21,19 @@ class PortHeatmapWindow(ToggleAlwaysOnTopMixin):
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Port', 'Count', '% of Total'])
-        h_header = setup_stat_table_with_header(self._table, layout)
-        h_header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        h_header.setStretchLastSection(False)
+        setup_stat_table(self._table, layout)
+        self._reset_column_sizes()
 
-        self._context_menu_manager = TableContextMenuManager(self._table, self)
+        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
+        column_width = max(80, available_width // 3)
+        for column in range(3):
+            self._table.setColumnWidth(column, column_width)
 
     @skip_if_menu_open
     def refresh(self) -> None:

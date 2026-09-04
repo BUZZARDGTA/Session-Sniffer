@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QKeySequence, QShortcut, QShowEvent, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -33,6 +33,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_fs_sync_mixin import FileSyncMixin
 from session_sniffer.guis.userip_manager_helpers import (
@@ -306,12 +307,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         header = self._entries_table.header()
         if header:
             header.setStretchLastSection(False)
-            for column, width in ((INDEX_COLUMN, 50), (IP_COLUMN, 120), (RANGE_COLUMN, 210), (DATABASE_COLUMN, 120)):
+            for column in range(self._model.columnCount()):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                header.resizeSection(column, width)
-            header.setSectionResizeMode(USERNAME_COLUMN, QHeaderView.ResizeMode.Stretch)
 
         self._entries_table.setColumnHidden(DATABASE_COLUMN, True)  # noqa: FBT003
+        self._reset_column_sizes()
+        setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
 
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._entries_table.customContextMenuRequested.connect(self.show_entries_context_menu)
@@ -586,6 +587,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(db_available)
         self._entries_table.setColumnHidden(DATABASE_COLUMN, not self._global_search_active)
+        self._reset_column_sizes()
         self._settings_container.setVisible(not self._global_search_active and self._current_path is not None)
 
         editable = QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -1057,3 +1059,40 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+
+    @override
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        """Adjust column widths when the dialog is resized."""
+        super().resizeEvent(a0)
+        if a0.oldSize().width() > 0 and a0.size().width() != a0.oldSize().width():
+            viewport = self._entries_table.viewport()
+            available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
+            other_widths = sum(
+                self._entries_table.columnWidth(column)
+                for column in range(self._model.columnCount())
+                if column != USERNAME_COLUMN and not self._entries_table.isColumnHidden(column)
+            )
+            self._entries_table.setColumnWidth(USERNAME_COLUMN, max(150, available_width - other_widths))
+
+    @override
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        header = self._entries_table.header()
+        if not header:
+            return
+        header.setStretchLastSection(False)
+        for column in range(self._model.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+
+        self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
+        self._entries_table.setColumnWidth(IP_COLUMN, 120)
+        self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
+        self._entries_table.setColumnWidth(DATABASE_COLUMN, 120)
+
+        viewport = self._entries_table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
+        fixed_widths = 50 + 120 + 210
+        if not self._entries_table.isColumnHidden(DATABASE_COLUMN):
+            fixed_widths += 120
+        username_width = max(150, available_width - fixed_widths)
+        self._entries_table.setColumnWidth(USERNAME_COLUMN, username_width)

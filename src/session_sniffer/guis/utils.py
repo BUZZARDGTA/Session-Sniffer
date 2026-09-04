@@ -603,8 +603,8 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     if not h_header:
         message = 'Failed to get horizontal header'
         raise RuntimeError(message)
-    h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    h_header.setStretchLastSection(True)
+    h_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    h_header.setStretchLastSection(False)
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)

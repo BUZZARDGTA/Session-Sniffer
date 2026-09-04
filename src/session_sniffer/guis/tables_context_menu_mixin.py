@@ -12,6 +12,7 @@ from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import (
@@ -145,6 +146,9 @@ class TableContextMenuMixin(QTableView):
             """Stub."""
 
         def unselect_column_cells(self, column: int) -> None:
+            """Stub."""
+
+        def _reset_column_sizes(self) -> None:
             """Stub."""
 
     def show_context_menu(self, pos: QPoint) -> None:
@@ -768,6 +772,14 @@ class TableContextMenuMixin(QTableView):
         add_action(unselect_menu, '⬜ Unselect All', tooltip='Unselect all cells in the table.', handler=self.unselect_all_cells)
         add_action(unselect_menu, '➡️ Unselect Row', tooltip='Unselect all cells in this row.', handler=lambda: self.unselect_row_cells(index.row()))
         add_action(unselect_menu, '⬇️ Unselect Column', tooltip='Unselect all cells in this column.', handler=lambda: self.unselect_column_cells(index.column()))
+        context_menu.addSeparator()
+
+        add_column_sizing_actions(
+            context_menu,
+            self,
+            clicked_column=index.column(),
+            on_reset=self._reset_column_sizes,
+        )
         context_menu.addSeparator()
 
         add_remove_players_action(selected_ips)

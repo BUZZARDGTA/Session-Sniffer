@@ -13,6 +13,7 @@ from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.tables_player_actions import (
     ping_ip,
     show_detailed_ip_lookup,
@@ -64,6 +65,8 @@ class EntriesContextMenuMixin(QDialog):
 
     def _delete_selected(self) -> None: ...
 
+    def _reset_column_sizes(self) -> None: ...
+
     def _edit_entry_ip(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
 
     def _insert_entry_at(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
@@ -111,6 +114,16 @@ class EntriesContextMenuMixin(QDialog):
 
         if menu.isEmpty():
             return
+
+        # pylint: disable=duplicate-code
+        menu.addSeparator()
+        add_column_sizing_actions(
+            menu,
+            self._entries_table,
+            clicked_column=index.column() if index.isValid() else None,
+            on_reset=self._reset_column_sizes,
+        )
+        # pylint: enable=duplicate-code
 
         viewport = self._entries_table.viewport()
         if viewport:

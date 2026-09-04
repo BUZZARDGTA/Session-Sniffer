@@ -41,6 +41,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_clipboard_text
 from session_sniffer.text_utils import pluralize
@@ -140,11 +141,9 @@ class CsvLogTab(QWidget):
         h_header = self._table.horizontalHeader()
         if h_header:
             h_header.setHighlightSections(False)
-            if self._stretch_column is not None:
-                h_header.setStretchLastSection(False)
-                h_header.setSectionResizeMode(self._stretch_column, QHeaderView.ResizeMode.Stretch)
-            else:
-                h_header.setStretchLastSection(True)
+            h_header.setStretchLastSection(False)
+            for column_index in range(len(self._expected_headers)):
+                h_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
             for column, width in self._column_min_widths.items():
                 h_header.resizeSection(column, width)
             h_header.setSectionsMovable(True)
@@ -348,15 +347,44 @@ class CsvLogTab(QWidget):
             parts.append(f'(display limited to {MAX_CSV_ROWS:,} rows)')
         self._count_label.setText('  |  '.join(parts))
 
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        h_header = self._table.horizontalHeader()
+        if not h_header:
+            return
+        total_columns = self._model.columnCount()
+        if not total_columns:
+            return
+        for column_index in range(total_columns):
+            h_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+        for column, width in self._column_min_widths.items():
+            h_header.resizeSection(column, width)
+        viewport = self._table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+        configured_widths = sum(self._table.columnWidth(column_index) for column_index in range(total_columns) if column_index != self._stretch_column)
+        if self._stretch_column is not None and 0 <= self._stretch_column < total_columns:
+            stretch_width = max(150, available_width - configured_widths)
+            h_header.resizeSection(self._stretch_column, stretch_width)
+        else:
+            last_column = total_columns - 1
+            other_widths = sum(self._table.columnWidth(column_index) for column_index in range(last_column))
+            last_width = max(100, available_width - other_widths)
+            h_header.resizeSection(last_column, last_width)
+
     # ------------------------------------------------------------------
-    # Column visibility
+    # Column visibility & Context Menus
     # ------------------------------------------------------------------
 
     def _on_header_context_menu(self, pos: QPoint) -> None:
         h_header = self._table.horizontalHeader()
         if not h_header:
             return
+        clicked_column = h_header.logicalIndexAt(pos)
         menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
+        add_column_sizing_actions(menu, self._table, clicked_column=clicked_column, on_reset=self._reset_column_sizes)
+        menu.addSeparator()
         for column in range(self._model.columnCount()):
             name = self._model.headerData(column, Qt.Orientation.Horizontal)
             action = QAction(str(name), menu)
@@ -492,6 +520,14 @@ class CsvLogTab(QWidget):
         delete_action.setEnabled(has_selection)
         delete_action.triggered.connect(self._delete_selected_rows)
         menu.addAction(delete_action)
+
+        menu.addSeparator()
+        add_column_sizing_actions(
+            menu,
+            self._table,
+            clicked_column=index.column() if index.isValid() else None,
+            on_reset=self._reset_column_sizes,
+        )
 
         viewport = self._table.viewport()
         if viewport:

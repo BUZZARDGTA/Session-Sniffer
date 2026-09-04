@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -23,6 +23,7 @@ from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
 from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -290,11 +291,15 @@ class HighRateMonitorWidget(QWidget):
             'A stationary player may not exceed the thresholds.',
         )
         header = setup_table_view_headers(self._table)
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        for column_index in range(self._model.columnCount()):
+            header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
         header.setSectionsClickable(False)
         header.setSortIndicatorShown(True)
         header.setSortIndicator(self._model.COLUMN_DURATION, Qt.SortOrder.DescendingOrder)
         self._table.setSortingEnabled(False)
+        self._has_user_resized_columns = False
+        setup_table_header_context_menu(self._table, on_reset=self._reset_column_sizes)
+        header.sectionResized.connect(self._on_section_resized)
         layout.addWidget(self._table)
 
         # Parameters control panel
@@ -654,11 +659,40 @@ class HighRateMonitorWidget(QWidget):
             graph_action.triggered.connect(_open_graphs_multi)
             menu.addAction(graph_action)
 
+        menu.addSeparator()
+        add_column_sizing_actions(
+            menu,
+            self._table,
+            clicked_column=index.column() if index.isValid() else None,
+            on_reset=self._reset_column_sizes,
+        )
+
         popup_menu_at_table(menu, self._table, pos)
 
         self._timer.stop()
         menu.aboutToHide.connect(lambda: self._timer.start(_UPDATE_INTERVAL_MS))
     # pylint: enable=duplicate-code
+
+    def _on_section_resized(self, _logical_index: int, _old_size: int, _new_size: int) -> None:
+        self._has_user_resized_columns = True
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._has_user_resized_columns = False
+        viewport = self._table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+        total_columns = self._model.columnCount()
+        if total_columns > 0 and available_width > 0:
+            column_width = max(80, available_width // total_columns)
+            for column_index in range(total_columns):
+                self._table.setColumnWidth(column_index, column_width)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust column sizes on window resize unless user has manually customized them."""
+        super().resizeEvent(event)
+        if not getattr(self, '_has_user_resized_columns', False):
+            self._reset_column_sizes()
 
     def _blacklist_ip(self, ip: str) -> None:
         self._blacklisted_ips.add(ip)

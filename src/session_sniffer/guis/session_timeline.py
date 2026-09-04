@@ -43,6 +43,9 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
         self.resize(1000, 500)
         layout = self.setup_window_layout(always_on_top=always_on_top, spacing=4)
 
+        # Tracks the ordered IP list from the last full repopulate to detect row set changes.
+        self._last_player_ips: list[str] = []
+
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
         setup_stat_table(self._table, layout, sorting=True)
@@ -53,19 +56,25 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
             raise RuntimeError(message)
         # Use Interactive so column widths are not recalculated on every cell update;
         # resizeSections() is called once after a full repopulate instead.
-        h_header.setSectionResizeMode(_COLUMN_PLAYER, QHeaderView.ResizeMode.Stretch)
-        for column in (_COLUMN_STATUS, _COLUMN_FIRST_SEEN, _COLUMN_LAST_REJOIN, _COLUMN_LAST_SEEN, _COLUMN_SESSION_TIME, _COLUMN_TOTAL_TIME, _COLUMN_REJOINS):
+        for column in range(len(_HEADERS)):
             h_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
         h_header.setStretchLastSection(False)
+        self._reset_column_sizes()
 
         self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
-        self._context_menu_manager = TableContextMenuManager(self._table, self)
+        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
 
-        # Tracks the ordered IP list from the last full repopulate to detect row set changes.
-        self._last_player_ips: list[str] = []
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        for column in (_COLUMN_STATUS, _COLUMN_FIRST_SEEN, _COLUMN_LAST_REJOIN, _COLUMN_LAST_SEEN, _COLUMN_SESSION_TIME, _COLUMN_TOTAL_TIME, _COLUMN_REJOINS):
+            self._table.resizeColumnToContents(column)
+        other_widths = sum(self._table.columnWidth(column) for column in range(1, len(_HEADERS)))
+        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
+        player_width = max(180, available_width - other_widths)
+        self._table.setColumnWidth(_COLUMN_PLAYER, player_width)
 
     @skip_if_menu_open
     def refresh(self) -> None:
