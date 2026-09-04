@@ -128,7 +128,7 @@ class SettingsIniModel(BaseModel):
     WEBSERVER_PASSWORD: str | None
     UPDATER_CHANNEL: str | None
     LOOKY_ENABLED: bool
-    LOOKY_AUTO_RESOLVE: bool
+    LOOKY_EXCLUSIVE_GTA5_PROCESS: bool
     LOOKY_GAME_VERSION: str
     LOOKY_API_KEY: str | None
     PINGER_LOCAL: bool
@@ -160,8 +160,8 @@ class SettingsIniModel(BaseModel):
             'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FILES',
             'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS',
             'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
-            'LOOKY_AUTO_RESOLVE',
             'LOOKY_ENABLED',
+            'LOOKY_EXCLUSIVE_GTA5_PROCESS',
             'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
         },

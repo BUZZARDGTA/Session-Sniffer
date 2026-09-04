@@ -66,6 +66,7 @@ class _PlayerLifecycleState:
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
     userip_check_version: int = -1
     userip_check_positive: bool = False
+    is_gta5_process: bool = False
 
 
 @dataclass(slots=True)
@@ -174,6 +175,15 @@ class Player:  # pylint: disable=too-many-public-methods
     @userip_check_positive.setter
     def userip_check_positive(self, value: bool) -> None:
         self._lifecycle.userip_check_positive = value
+
+    @property
+    def is_gta5_process(self) -> bool:
+        """Whether this player's traffic matched the detected GTA5 process."""
+        return self._lifecycle.is_gta5_process
+
+    @is_gta5_process.setter
+    def is_gta5_process(self, value: bool) -> None:
+        self._lifecycle.is_gta5_process = value
 
     @property
     def datetime(self) -> PlayerDateTime:

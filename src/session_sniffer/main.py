@@ -278,6 +278,13 @@ def main() -> None:
         if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
             return
 
+        is_gta5_packet = (
+            Settings.is_gta5_feature_set()
+            and CaptureState.is_local_capture()
+            and CaptureState.gta5_is_running
+            and local_port in CaptureState.gta5_udp_ports
+        )
+
         matched_player = PlayersRegistry.get_player_by_ip(target_ip)
         if matched_player is None:
             matched_player = PlayersRegistry.add_connected_player(
@@ -311,6 +318,9 @@ def main() -> None:
                 packet_length=packet.length,
                 sent_by_local_host=sent_by_local_host,
             )
+
+        if is_gta5_packet and not matched_player.is_gta5_process:
+            matched_player.is_gta5_process = True
 
         if packet.payload is not None and (resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host)):
             matched_player.ps3_username = resolved_ps3_username

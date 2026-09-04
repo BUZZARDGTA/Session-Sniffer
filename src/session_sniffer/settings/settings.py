@@ -103,7 +103,7 @@ class Settings:
     webserver_password: str | None = SETTING_DEFAULTS['webserver_password']
     updater_channel: str | None = SETTING_DEFAULTS['updater_channel']
     looky_enabled: bool = SETTING_DEFAULTS['looky_enabled']
-    looky_auto_resolve: bool = SETTING_DEFAULTS['looky_auto_resolve']
+    looky_exclusive_gta5_process: bool = SETTING_DEFAULTS['looky_exclusive_gta5_process']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
     looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
 
@@ -166,7 +166,7 @@ class Settings:
         'WEBSERVER_PASSWORD',
         'UPDATER_CHANNEL',
         'LOOKY_ENABLED',
-        'LOOKY_AUTO_RESOLVE',
+        'LOOKY_EXCLUSIVE_GTA5_PROCESS',
         'LOOKY_GAME_VERSION',
         'LOOKY_API_KEY',
         'PINGER_LOCAL',

@@ -17,15 +17,16 @@ from session_sniffer.core import ScriptControl
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
-from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import LookyState, extract_rate_limit_wait_seconds
 from session_sniffer.networking.looky_system import lookup_ip_batch as looky_lookup_ip_batch
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
+from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -402,17 +403,27 @@ def looky_core() -> None:
                 gui_closed__event.wait(cooldown_duration)
                 continue
 
-        if not Settings.looky_auto_resolve or not LookyState.api_access:
-            if not LookyState.api_access:
-                gui_closed__event.wait(30)
-            else:
-                gui_closed__event.wait(5)
+        if not LookyState.api_access:
+            gui_closed__event.wait(30)
+            continue
+
+        if (
+            Settings.looky_exclusive_gta5_process
+            and CaptureState.is_local_capture()
+            and not CaptureState.gta5_is_running
+        ):
+            gui_closed__event.wait(1.0)
             continue
 
         pending_ips = [
             player.ip
             for player in PlayersRegistry.get_default_sorted_players()
             if not is_third_party_server_ip(player.ip)
+            and (
+                not Settings.looky_exclusive_gta5_process
+                or not CaptureState.is_local_capture()
+                or player.is_gta5_process
+            )
             and (
                 not player.looky_system.is_initialized
                 or player.looky_system.needs_refresh

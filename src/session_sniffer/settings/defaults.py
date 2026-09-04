@@ -623,12 +623,18 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky System API calls.',
     ),
-    'looky_auto_resolve': SettingMeta(
+    'looky_exclusive_gta5_process': SettingMeta(
         category='Looky System',
         group='General',
-        display_label='Auto-resolve Usernames',
+        display_label='Restrict to GTA5 Process',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Continuously resolve player usernames via Looky System in the background and display them in the Usernames column.',
+        tooltip=(
+            'Only perform Looky System auto-resolve queries when the GTA5 process is actively\n'
+            'detected, and restrict lookups exclusively to player IP addresses communicating\n'
+            'with the GTA5 process.\n\n'
+            'When disabled, queries run continuously regardless of GTA5 process status and include\n'
+            'all captured non-third-party player IPs.'
+        ),
     ),
     'looky_game_version': SettingMeta(
         category='Looky System',
@@ -718,7 +724,7 @@ class SettingDefaults(TypedDict):
     webserver_password: str | None
     updater_channel: str | None
     looky_enabled: bool
-    looky_auto_resolve: bool
+    looky_exclusive_gta5_process: bool
     looky_game_version: str
     looky_api_key: str | None
 
@@ -830,7 +836,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'webserver_password': None,
     'updater_channel': 'Stable',
     'looky_enabled': True,
-    'looky_auto_resolve': True,
+    'looky_exclusive_gta5_process': True,
     'looky_game_version': 'Both',
     'looky_api_key': None,
 }
