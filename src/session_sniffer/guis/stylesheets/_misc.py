@@ -104,9 +104,15 @@ INTERFACE_INFO_CARD_STYLESHEET = (
     '}'
 )
 
-INTERFACE_INFO_VALUE_LABEL_STYLESHEET = (
-    'color: #61afef; font-weight: bold; padding: 2px 6px;'
-    'background: rgba(61, 142, 201, 0.10); border-radius: 3px;'
+INTERFACE_INFO_VALUE_LABEL_STYLESHEET = 'color: #61afef; font-weight: bold; padding: 2px 6px;background: rgba(61, 142, 201, 0.10); border-radius: 3px;'
+
+SETTINGS_RESTART_BANNER_STYLESHEET = (
+    'QFrame#restartNoticeBanner {'
+    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+    'border: 1px solid #3b4455;'
+    'border-left: 4px solid #f59e0b;'
+    'border-radius: 6px;'
+    '}'
 )
 
 # =============================================================================

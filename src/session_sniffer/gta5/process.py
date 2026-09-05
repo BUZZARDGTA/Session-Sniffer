@@ -13,7 +13,7 @@ from typing import cast
 
 import psutil
 
-from session_sniffer.capture.game_process import get_process_udp_ports
+from session_sniffer.capture.process import get_process_udp_ports
 from session_sniffer.ctypes_wintrust import has_valid_authenticode_signature
 from session_sniffer.logging_setup import get_logger
 

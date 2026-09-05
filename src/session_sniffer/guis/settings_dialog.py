@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -31,14 +33,19 @@ from PySide6.QtWidgets import (
 from session_sniffer.background import ensure_looky_core_running
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.game_process_monitor import ensure_game_process_monitor_running
+from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url, send_test_message
-from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
+from session_sniffer.guis._dialog_mixins import (
+    UnsavedChangesMixin,
+    equalize_button_sizes,
+    setup_tab_dialog_buttons,
+)
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_widget_builders import (
-    RESTART_INDICATOR,
+    build_discord_info_group,
+    build_webserver_help_group,
     create_bool_or_enum_widget,
     create_boolean_widget,
     create_column_tuple_widget,
@@ -49,18 +56,20 @@ from session_sniffer.guis._settings_widget_builders import (
     create_ip_range_tuple_widget,
     create_text_widget,
     create_third_party_servers_split_widget,
+    format_setting_tooltip,
+    get_line_edit,
 )
+from session_sniffer.guis.process_selector_widget import ProcessSelectorWidget
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
-    DISCORD_INFO_LABEL_STYLESHEET,
     INTERFACE_INFO_CARD_STYLESHEET,
     INTERFACE_INFO_VALUE_LABEL_STYLESHEET,
+    SETTINGS_RESTART_BANNER_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
-    WEBSERVER_HELP_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
     get_screen_size,
@@ -80,25 +89,12 @@ from session_sniffer.webserver import WebServer, start_webserver_from_settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
-
     from session_sniffer.capture.packet_capture import PacketCapture
 
 _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
-
-
-def _get_line_edit(widget: QWidget) -> QLineEdit:
-    """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
-    if isinstance(widget, QLineEdit):
-        return widget
-    child = widget.findChild(QLineEdit)
-    if child is None:
-        message = f'No QLineEdit child found in {widget!r}'
-        raise RuntimeError(message)
-    return child
 
 
 class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
@@ -144,6 +140,26 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         self._tabs.currentChanged.connect(self._on_tab_changed)
         root_layout.addWidget(self._tabs)
 
+        self._restart_notice_banner = QFrame()
+        self._restart_notice_banner.setObjectName('restartNoticeBanner')
+        self._restart_notice_banner.setStyleSheet(SETTINGS_RESTART_BANNER_STYLESHEET)
+        self._restart_notice_banner.setToolTip('One or more modified settings require a capture restart upon saving.')
+        banner_layout = QHBoxLayout(self._restart_notice_banner)
+        banner_layout.setContentsMargins(10, 6, 10, 6)
+        banner_layout.setSpacing(8)
+
+        banner_icon_label = QLabel()
+        banner_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg')).pixmap(16, 16))
+        banner_layout.addWidget(banner_icon_label)
+
+        banner_text_label = QLabel('Saving changes will restart packet capture.')
+        banner_text_label.setStyleSheet('color: #f59e0b; font-size: 9pt; font-weight: 600;')
+        banner_layout.addWidget(banner_text_label)
+        banner_layout.addStretch()
+
+        self._restart_notice_banner.setVisible(False)
+        root_layout.addWidget(self._restart_notice_banner)
+
         button_row = QHBoxLayout()
 
         import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
@@ -172,8 +188,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
 
+        equalize_button_sizes(button_row)
+
         root_layout.addLayout(button_row)
 
+        self._connect_widget_change_signals()
         self._load_current_values()
 
         # Force the webhook enable cascade once even if the value matches the
@@ -238,9 +257,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 ungrouped.append((key, meta))
 
         if category == 'Web Server':
-            outer_layout.addWidget(self._build_web_server_help_group())
+            outer_layout.addWidget(build_webserver_help_group())
         elif category == 'Discord':
-            outer_layout.addWidget(self._build_discord_info_group())
+            outer_layout.addWidget(build_discord_info_group())
         elif category == 'Looky System':
             outer_layout.addWidget(self._build_looky_info_group())
         elif category == 'Capture':
@@ -295,13 +314,11 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                         widget.setMaximumWidth(meta.max_width)
                     self._widgets[key] = widget
 
-                    label_text = meta.display_label
-                    if meta.requires_capture_restart:
-                        label_text += RESTART_INDICATOR
-                    label = QLabel(label_text + ':')
+                    label = QLabel(f'{meta.display_label}:')
                     self._labels[key] = label
-                    if meta.tooltip:
-                        label.setToolTip(meta.tooltip)
+                    tooltip = format_setting_tooltip(meta)
+                    if tooltip:
+                        label.setToolTip(tooltip)
 
                     auth_row.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
                     auth_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -379,54 +396,6 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         self.reject()
         self._on_change_interface()
 
-    def _build_discord_info_group(self) -> QGroupBox:
-        """Build a Discord server invite header for the Discord settings tab."""
-        group_box = QGroupBox('Session Sniffer Community')
-        layout = QVBoxLayout(group_box)
-
-        info_label = QLabel(
-            'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
-            f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
-        )
-        info_label.setWordWrap(True)
-        info_label.setTextFormat(Qt.TextFormat.RichText)
-        info_label.setOpenExternalLinks(True)
-        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
-        info_label.linkHovered.connect(info_label.setToolTip)
-        layout.addWidget(info_label)
-
-        return group_box
-
-    def _build_web_server_help_group(self) -> QGroupBox:
-        """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
-        group_box = QGroupBox('Web Server Usage Guide')
-        layout = QVBoxLayout(group_box)
-
-        help_label = QLabel(
-            '<b>Host binding explained</b><br>'
-            '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
-            '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
-            '<b>Typical setups</b><br>'
-            '- Desktop only: host = 127.0.0.1<br>'
-            '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
-            '<b>Troubleshooting tips</b><br>'
-            '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
-            '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
-            '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
-            '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
-            '<b>Security note</b><br>'
-            'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
-            'Use trusted networks and firewall scope limits.',
-        )
-        help_label.setWordWrap(True)
-        help_label.setTextFormat(Qt.TextFormat.RichText)
-        help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
-        layout.addWidget(help_label)
-
-        return group_box
-
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
         widget = self._create_widget(key, meta)
@@ -442,17 +411,13 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             form.addRow(widget)
             return
 
-        label_text = meta.display_label
-        if meta.requires_capture_restart:
-            label_text += RESTART_INDICATOR
-        label = QLabel(label_text + ':')
+        label = QLabel(f'{meta.display_label}:')
         self._labels[key] = label
 
-        tooltip = meta.tooltip
-        if meta.requires_capture_restart:
-            tooltip += ' (requires capture restart)' if tooltip else 'Requires capture restart'
+        tooltip = format_setting_tooltip(meta)
         if tooltip:
             label.setToolTip(tooltip)
+            widget.setToolTip(tooltip)
 
         form.addRow(label, widget)
 
@@ -487,8 +452,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             enabled_widget = create_boolean_widget(enabled_meta)
             self._widgets['discord_webhook_enabled'] = enabled_widget
             enabled_label = QLabel(enabled_meta.display_label + ':')
-            if enabled_meta.tooltip:
-                enabled_label.setToolTip(enabled_meta.tooltip)
+            enabled_tooltip = format_setting_tooltip(enabled_meta)
+            if enabled_tooltip:
+                enabled_label.setToolTip(enabled_tooltip)
             top_form.addRow(enabled_label, enabled_widget)
 
         # URL row: QLineEdit (masked) + 'Show' toggle + 'Test' button
@@ -615,6 +581,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
 
     def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:
         """Return the appropriate input widget for a single setting."""
+        if key == 'capture_filter_process_pid':
+            return ProcessSelectorWidget(self, meta=meta)
+
         dispatch: dict[SettingType, Callable[[], QWidget]] = {
             SettingType.BOOLEAN: partial(create_boolean_widget, meta),
             SettingType.STRING: partial(create_text_widget, meta),
@@ -654,13 +623,16 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             cast('QCheckBox', widget).setChecked(bool(value))
 
         elif meta.setting_type in (SettingType.STRING, SettingType.IPV4, SettingType.MAC_ADDRESS):
-            _get_line_edit(widget).setText('' if value is None else str(value))
+            get_line_edit(widget).setText('' if value is None else str(value))
 
         elif meta.setting_type == SettingType.FLOAT:
             cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
 
         elif meta.setting_type in (SettingType.INTEGER, SettingType.INTEGER_OR_ALL):
-            cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
+            if key == 'capture_filter_process_pid':
+                cast('ProcessSelectorWidget', widget).set_value(int(value) if isinstance(value, (int, float)) else 0)
+            else:
+                cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
         elif meta.setting_type == SettingType.ENUM:
             self._set_enum(widget, value)
@@ -708,12 +680,12 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             case SettingType.BOOLEAN:
                 value = cast('QCheckBox', widget).isChecked()
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                text = _get_line_edit(widget).text().strip()
+                text = get_line_edit(widget).text().strip()
                 value = text or None
             case SettingType.FLOAT:
                 value = cast('QDoubleSpinBox', widget).value()
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
-                value = cast('QSpinBox', widget).value()
+                value = cast('ProcessSelectorWidget', widget).value() if key == 'capture_filter_process_pid' else cast('QSpinBox', widget).value()
             case SettingType.ENUM:
                 text = cast('QComboBox', widget).currentText()
                 value = None if text == _NONE_PLACEHOLDER else text
@@ -808,7 +780,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         Settings.rewrite_settings_file()
         Settings.rebuild_blocked_ip_ranges()
 
-        ensure_game_process_monitor_running()
+        ensure_process_monitor_running()
         ensure_looky_core_running()
 
         capture_settings_changed = any(value != self._old_values.get(key) for key, value in new_values.items() if SETTING_METADATA[key].requires_capture_restart)
@@ -856,6 +828,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         for key, widget in self._widgets.items():
             if key in defaults_dict and SETTING_METADATA[key].category == category:
                 self._set_widget_value(key, widget, defaults_dict[key])
+        self._update_restart_notice()
 
     def _reset_current_tab(self) -> None:
         """Reset the current tab's settings to their default values."""
@@ -868,6 +841,7 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         for key, widget in self._widgets.items():
             if key in defaults_dict:
                 self._set_widget_value(key, widget, defaults_dict[key])
+        self._update_restart_notice()
 
     def _export_settings(self) -> None:
         """Export current in-memory settings to a user-chosen Settings.ini file."""
@@ -904,15 +878,68 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
         self._load_current_values()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 
+    def _connect_widget_change_signals(self) -> None:
+        """Connect change signals for all setting widgets to dynamically update dialog notices."""
+        for key, widget in self._widgets.items():
+            meta = SETTING_METADATA[key]
+            if isinstance(widget, QCheckBox):
+                widget.toggled.connect(self._update_restart_notice)
+            elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                widget.valueChanged.connect(self._update_restart_notice)
+            elif isinstance(widget, QComboBox):
+                widget.currentIndexChanged.connect(self._update_restart_notice)
+            elif isinstance(widget, ProcessSelectorWidget):
+                combo = widget.findChild(QComboBox)
+                if combo is not None:
+                    combo.currentIndexChanged.connect(self._update_restart_notice)
+            elif meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
+                for checkbox in widget.findChildren(QCheckBox):
+                    checkbox.toggled.connect(self._update_restart_notice)
+            elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
+                list_widget = next(iter(widget.findChildren(QListWidget)), None)
+                if list_widget is not None:
+                    list_widget.model().rowsInserted.connect(self._on_list_rows_changed)
+                    list_widget.model().rowsRemoved.connect(self._on_list_rows_changed)
+            else:
+                try:
+                    line_edit = get_line_edit(widget)
+                    line_edit.textChanged.connect(self._update_restart_notice)
+                except RuntimeError:
+                    pass
+
+    def _on_list_rows_changed(self, *_args: object) -> None:
+        """Handle rows added or removed in IP range list widgets."""
+        self._update_restart_notice()
+
+    def _update_restart_notice(self, *_args: object) -> None:
+        """Update visibility of the capture restart notice banner."""
+        if getattr(self, '_loading_settings', False):
+            return
+        self._restart_notice_banner.setVisible(self._has_unsaved_restart_changes())
+
+    def _has_unsaved_restart_changes(self) -> bool:
+        """Return `True` if any modified setting requires a packet capture restart."""
+        for key, widget in self._widgets.items():
+            if not SETTING_METADATA[key].requires_capture_restart:
+                continue
+            current_value = self._read_widget_value(key, widget)
+            original_value = self._old_values.get(key)
+            if SETTING_METADATA[key].setting_type == SettingType.IP_RANGE_TUPLE:
+                if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
+                    return True
+            elif current_value != original_value:
+                return True
+        return False
+
     def _has_unsaved_changes(self) -> bool:
         """Return True if any widget value differs from the value at dialog open."""
         for key, widget in self._widgets.items():
-            current = self._read_widget_value(key, widget)
-            original = self._old_values.get(key)
+            current_value = self._read_widget_value(key, widget)
+            original_value = self._old_values.get(key)
             if SETTING_METADATA[key].setting_type == SettingType.IP_RANGE_TUPLE:
-                if sorted(current if isinstance(current, tuple) else ()) != sorted(original if isinstance(original, tuple) else ()):
+                if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
                     return True
-            elif current != original:
+            elif current_value != original_value:
                 return True
         return False
 

@@ -31,9 +31,9 @@ from session_sniffer.background import (
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
-from session_sniffer.capture.game_process_monitor import ensure_game_process_monitor_running
 from session_sniffer.capture.interface_setup import get_filtered_capture_interfaces, populate_network_interfaces_info
 from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
+from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
 from session_sniffer.constants.external import LOCAL_TZ
@@ -268,9 +268,10 @@ def main() -> None:
             return
 
         if (
-            Settings.capture_filter_exclusive_game_process
+            Settings.capture_filter_process_pid > 0
             and CaptureState.is_local_capture()
-            and (not CaptureState.active_game_running or local_port not in CaptureState.active_game_udp_ports)
+            and CaptureState.target_process_running
+            and local_port not in CaptureState.target_process_udp_ports
         ):
             return
 
@@ -662,7 +663,7 @@ def main() -> None:
         daemon=True,
     ).start()
 
-    ensure_game_process_monitor_running()
+    ensure_process_monitor_running()
 
     splash.finish_loading()
 

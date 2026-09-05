@@ -10,7 +10,7 @@ import psutil
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.guis.colors import StatusBarColors, ThresholdColors
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.types import CaptureStats
+from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
 
 _BYTES_PER_MB = 1024**2
@@ -233,6 +233,13 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
         rpc_status = 'Connected' if snapshot.system.discord_rpc_connected else 'Waiting'
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> <span style="color: {rpc_color};">{rpc_status}</span>',
+        )
+
+    if Settings.capture_filter_process_pid > 0:
+        target_name = CaptureState.target_process_name or f'PID {Settings.capture_filter_process_pid}'
+        target_color = StatusBarColors.ENABLED if CaptureState.target_process_running else StatusBarColors.DISABLED
+        parts.append(
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Target:</span> <span style="color: {target_color};">{target_name}</span>',
         )
 
     divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'

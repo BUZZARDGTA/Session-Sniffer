@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QListWidget,
     QPushButton,
@@ -23,8 +24,14 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL
 from session_sniffer.guis.secret_line_edit import SecretLineEdit
-from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET, COMPACT_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    COMPACT_BUTTON_STYLESHEET,
+    COMPACT_DANGER_BUTTON_STYLESHEET,
+    DISCORD_INFO_LABEL_STYLESHEET,
+    WEBSERVER_HELP_LABEL_STYLESHEET,
+)
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
@@ -33,14 +40,22 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-RESTART_INDICATOR = ' ⟳'
+
+def format_setting_tooltip(meta: SettingMeta) -> str | None:
+    """Return the tooltip text for *meta*, consistently including the capture restart note if required."""
+    if not meta.tooltip:
+        return 'Requires capture restart' if meta.requires_capture_restart else None
+    if meta.requires_capture_restart and '(requires capture restart)' not in meta.tooltip:
+        return f'{meta.tooltip} (requires capture restart)'
+    return meta.tooltip
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
     """Create a checkbox widget for a boolean setting."""
     checkbox = QCheckBox()
-    if meta.tooltip:
-        checkbox.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        checkbox.setToolTip(tooltip)
     return checkbox
 
 
@@ -95,8 +110,9 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             _le.blockSignals(False)  # noqa: FBT003
 
         le.textEdited.connect(_filter_chars)
-    if meta.tooltip:
-        le.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        le.setToolTip(tooltip)
     if meta.min_width is not None:
         le.setMinimumWidth(meta.min_width)
     if meta.max_width is not None:
@@ -133,8 +149,9 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin.setSingleStep(0.5)
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
-    if meta.tooltip:
-        spin.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        spin.setToolTip(tooltip)
     return spin
 
 
@@ -144,8 +161,9 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
     spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
-    if meta.tooltip:
-        spin.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        spin.setToolTip(tooltip)
     return spin
 
 
@@ -156,8 +174,9 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMinimum(0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     spin.setSpecialValueText(meta.special_value_text)
-    if meta.tooltip:
-        spin.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        spin.setToolTip(tooltip)
     return spin
 
 
@@ -166,8 +185,9 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     combo = QComboBox()
     if meta.allowed_values:
         combo.addItems(meta.allowed_values)
-    if meta.tooltip:
-        combo.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        combo.setToolTip(tooltip)
     return combo
 
 
@@ -178,8 +198,9 @@ def create_bool_or_enum_widget(meta: SettingMeta) -> QComboBox:
     if meta.allowed_values:
         items.extend(meta.allowed_values)
     combo.addItems(items)
-    if meta.tooltip:
-        combo.setToolTip(meta.tooltip)
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        combo.setToolTip(tooltip)
     return combo
 
 
@@ -189,12 +210,10 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     allowed_columns = cast('tuple[str, ...]', getattr(Settings, allowed_attr, ()))
     default_columns = cast('tuple[str, ...]', SETTING_DEFAULTS.get(key, ()))
 
-    title = meta.display_label
-    if meta.requires_capture_restart:
-        title += RESTART_INDICATOR
-    group = QGroupBox(title.replace('&', '&&'))
-    if meta.tooltip:
-        group.setToolTip(meta.tooltip)
+    group = QGroupBox(meta.display_label.replace('&', '&&'))
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        group.setToolTip(tooltip)
 
     inner = QWidget()
     grid = QGridLayout(inner)
@@ -344,13 +363,10 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     presets_layout.addWidget(presets_grid_container)
 
     # Checklist container
-    title_checklist = meta.display_label
-    if meta.requires_capture_restart:
-        title_checklist += RESTART_INDICATOR
-
-    checklist_group = QGroupBox(title_checklist.replace('&', '&&'))
-    if meta.tooltip:
-        checklist_group.setToolTip(meta.tooltip)
+    checklist_group = QGroupBox(meta.display_label.replace('&', '&&'))
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        checklist_group.setToolTip(tooltip)
 
     grid_container = QWidget()
     grid = QGridLayout(grid_container)
@@ -733,12 +749,10 @@ class _AutoFitListWidget(QListWidget):
 
 def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
-    title = meta.display_label
-    if meta.requires_capture_restart:
-        title += RESTART_INDICATOR
-    group = QGroupBox(title.replace('&', '&&'))
-    if meta.tooltip:
-        group.setToolTip(meta.tooltip)
+    group = QGroupBox(meta.display_label.replace('&', '&&'))
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        group.setToolTip(tooltip)
 
     list_widget = _AutoFitListWidget()
     list_widget.setSizeAdjustPolicy(QListWidget.SizeAdjustPolicy.AdjustToContents)
@@ -807,3 +821,64 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
     wanted = set(selected)
     for checkbox in container.findChildren(QCheckBox):
         checkbox.setChecked(checkbox.objectName() in wanted)
+
+
+def get_line_edit(widget: QWidget) -> QLineEdit:
+    """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
+    if isinstance(widget, QLineEdit):
+        return widget
+    child = widget.findChild(QLineEdit)
+    if child is None:
+        message = f'No QLineEdit child found in {widget!r}'
+        raise RuntimeError(message)
+    return child
+
+
+def build_discord_info_group() -> QGroupBox:
+    """Build a Discord server invite header for the Discord settings tab."""
+    group_box = QGroupBox('Session Sniffer Community')
+    layout = QVBoxLayout(group_box)
+
+    info_label = QLabel(
+        'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
+        f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+    )
+    info_label.setWordWrap(True)
+    info_label.setTextFormat(Qt.TextFormat.RichText)
+    info_label.setOpenExternalLinks(True)
+    info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+    info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
+    info_label.linkHovered.connect(info_label.setToolTip)
+    layout.addWidget(info_label)
+
+    return group_box
+
+
+def build_webserver_help_group() -> QGroupBox:
+    """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
+    group_box = QGroupBox('Web Server Usage Guide')
+    layout = QVBoxLayout(group_box)
+
+    help_label = QLabel(
+        '<b>Host binding explained</b><br>'
+        '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
+        '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
+        '<b>Typical setups</b><br>'
+        '- Desktop only: host = 127.0.0.1<br>'
+        '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
+        '<b>Troubleshooting tips</b><br>'
+        '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
+        '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
+        '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
+        '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
+        '<b>Security note</b><br>'
+        'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
+        'Use trusted networks and firewall scope limits.',
+    )
+    help_label.setWordWrap(True)
+    help_label.setTextFormat(Qt.TextFormat.RichText)
+    help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
+    layout.addWidget(help_label)
+
+    return group_box

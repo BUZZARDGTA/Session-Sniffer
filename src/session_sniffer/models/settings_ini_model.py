@@ -67,7 +67,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_ARP_SPOOFING: bool
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
     CAPTURE_FEATURE_SET: str | None
-    CAPTURE_FILTER_EXCLUSIVE_GAME_PROCESS: bool
+    CAPTURE_FILTER_PROCESS_PID: int
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PS3_NAME_RESOLVER: bool
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
@@ -138,7 +138,6 @@ class SettingsIniModel(BaseModel):
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset(
         {
             'CAPTURE_ARP_SPOOFING',
-            'CAPTURE_FILTER_EXCLUSIVE_GAME_PROCESS',
             'CAPTURE_PS3_NAME_RESOLVER',
             *CAPTURE_FILTER_BLOCK_SETTINGS,
             'DISCORD_PRESENCE',
@@ -371,6 +370,24 @@ class SettingsIniModel(BaseModel):
             return cast('int', cls._get_default_for_field(info) or 3)
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('int', cls._get_default_for_field(info) or 3)
+
+    @field_validator('CAPTURE_FILTER_PROCESS_PID', mode='before')
+    @classmethod
+    def _parse_filter_process_pid(cls, value: object, info: ValidationInfo) -> int:
+        if isinstance(value, (int, float)):
+            return int(value) if value >= 0 else cast('int', cls._get_default_for_field(info) or 0)
+        if isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('int', cls._get_default_for_field(info) or 0)
+            if parsed >= 0:
+                return parsed
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return cast('int', cls._get_default_for_field(info) or 0)
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('int', cls._get_default_for_field(info) or 0)
 
     @field_validator('CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER', mode='before')
     @classmethod

@@ -30,6 +30,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 ### 🔑 Key Features
 
 - **Free & Open Source**: Completely free to use, unlike other similar software.
+- **Process ID (PID) Sniffing**: Restrict packet capture exclusively to any target process running on your PC by its PID.
 - **No Mods Required**: Works without mods, no risk of banning.
 - **Advanced Options**: Configuration files for deep customization.
 - **Game Server Scanning**: Includes a setting to scan for game servers.
@@ -116,7 +117,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 | TeamViewer               | PC                                 |          No          |                                                                                                                                                                                                              |
 | WhatsApp                 | Android, iOS                       |          No          | The IP is exposed only during the first call with a given contact. If P2P traffic is disabled in the privacy settings, the IP is never exposed.                                                              |
 
-> _Note_: The script works with all peer-to-peer (P2P) games and software, but only the titles listed above have been confirmed to work.
+> _Note_: The script works with all peer-to-peer (P2P) games and software, but only the titles listed above have been confirmed to work. On PC, you can restrict capture exclusively to **any** running game or process by targeting its Process ID (PID) via **Capture ➔ Target Process (PID)...** or the **Exclusive Process PID** setting.
 
 ---
 

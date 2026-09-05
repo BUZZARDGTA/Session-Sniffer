@@ -48,7 +48,7 @@ class Settings:
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
     capture_feature_set: str | None = SETTING_DEFAULTS['capture_feature_set']
-    capture_filter_exclusive_game_process: bool = SETTING_DEFAULTS['capture_filter_exclusive_game_process']
+    capture_filter_process_pid: int = SETTING_DEFAULTS['capture_filter_process_pid']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_ps3_name_resolver: bool = SETTING_DEFAULTS['capture_ps3_name_resolver']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
@@ -119,7 +119,7 @@ class Settings:
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_BLOCKED_IPS',
         'CAPTURE_FEATURE_SET',
-        'CAPTURE_FILTER_EXCLUSIVE_GAME_PROCESS',
+        'CAPTURE_FILTER_PROCESS_PID',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PS3_NAME_RESOLVER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
