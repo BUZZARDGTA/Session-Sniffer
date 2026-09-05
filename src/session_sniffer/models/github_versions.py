@@ -14,6 +14,7 @@ class VersionInfo(BaseModel):
     release_url: str
     download_url: str
     sha256: str
+    file_size: int | None = None
 
 
 class GithubVersionsResponse(BaseModel):

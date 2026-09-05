@@ -24,7 +24,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
-from session_sniffer.guis.update_download_dialog import UpdateDownloadDialog
+from session_sniffer.guis.update_download_dialog import UpdateCandidate, UpdateDownloadDialog
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
@@ -214,17 +214,32 @@ def _apply_update(new_exe: Path) -> None:
     os._exit(0)
 
 
+def _resolve_candidate_file_size(candidate_info: VersionInfo) -> int | None:
+    """Resolve the candidate binary file size in bytes."""
+    if candidate_info.file_size is not None:
+        return candidate_info.file_size
+
+    try:
+        response = session.head(candidate_info.download_url, allow_redirects=True, timeout=5)
+        if response.status_code == requests.codes.ok and 'Content-Length' in response.headers:
+            return int(response.headers['Content-Length'])
+    except requests.exceptions.RequestException:
+        pass
+    return None
+
+
 def _download_and_apply(candidate_info: VersionInfo, version_str: str) -> None:
     """Download the update exe, verify its SHA-256 hash, and apply it."""
     with tempfile.NamedTemporaryFile(suffix='.exe', prefix='Session_Sniffer_', delete=False) as tmp:
         dest = Path(tmp.name)
 
-    dialog = UpdateDownloadDialog(
+    candidate = UpdateCandidate(
         download_url=candidate_info.download_url,
-        dest_path=dest,
         version_label=version_str,
-        new_sha256_hash=candidate_info.sha256,
+        sha256_hash=candidate_info.sha256,
+        size_bytes=_resolve_candidate_file_size(candidate_info),
     )
+    dialog = UpdateDownloadDialog(candidate, dest)
     dialog.exec()
     if not dialog.success:
         _remove_file_if_possible(dest)
@@ -293,6 +308,7 @@ def _handle_update_decision(
             version_str = format_project_version(candidate)
             pending = functools.partial(_download_and_apply, candidate_info, version_str)
         else:
+
             def _open_browser() -> None:
                 webbrowser.open(candidate_info.release_url)
 
@@ -362,6 +378,7 @@ def _handle_prerelease_update_decision(
             version_str = format_project_version(Version(open_info.version))
             pending = functools.partial(_download_and_apply, open_info, version_str)
         else:
+
             def _open_browser() -> None:
                 webbrowser.open(open_info.release_url)
 

@@ -3,6 +3,7 @@
 import hashlib
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
@@ -76,6 +77,9 @@ class _DownloadWorker(CrashingQThread):
             response.raise_for_status()
 
             total = int(response.headers.get('Content-Length', 0))
+            if total > 0:
+                self.progress_signal.emit(0, total)
+
             done = 0
             chunk_size = 65_536  # 64 KiB
 
@@ -97,30 +101,37 @@ class _DownloadWorker(CrashingQThread):
         self.finished_signal.emit(True, '')  # noqa: FBT003
 
 
+@dataclass(frozen=True, slots=True)
+class UpdateCandidate:
+    """Metadata describing a candidate release to be downloaded and verified."""
+
+    download_url: str
+    version_label: str
+    sha256_hash: str
+    size_bytes: int | None = None
+
+
 class UpdateDownloadDialog(QDialog):
     """Modal dialog that downloads a file and shows live progress.
 
     Usage:
-        dialog = UpdateDownloadDialog(download_url, dest_path, version_label, new_sha256_hash, parent)
+        dialog = UpdateDownloadDialog(candidate, dest_path, parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # dest_path now contains the downloaded file
     """
 
     def __init__(
         self,
-        download_url: str,
+        candidate: UpdateCandidate,
         dest_path: Path,
-        version_label: str,
-        new_sha256_hash: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """Initialise the dialog and start the background download worker."""
         super().__init__(parent)
+        self._candidate = candidate
         self._dest_path = dest_path
         self._success = False
         self._drag_offset: tuple[int, int] | None = None
-        self._new_version_label = version_label
-        self._new_sha256_hash = new_sha256_hash
         self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
         self._current_sha256_hash = self._compute_current_build_sha256()
@@ -128,8 +139,9 @@ class UpdateDownloadDialog(QDialog):
         self._new_size_label: QLabel | None = None
         self._progress_bar = QProgressBar()
         self._status_label = QLabel('Preparing download…')
+        initial_total_size = self._format_size_mb(candidate.size_bytes) if candidate.size_bytes is not None else 'xx.x MB'
         self._size_label = QLabel(
-            '0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>xx.x MB',
+            f'0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{initial_total_size}',
         )
 
         self.setWindowTitle('Downloading Update')
@@ -170,7 +182,7 @@ class UpdateDownloadDialog(QDialog):
 
         self._center_on_screen()
 
-        self._worker = _DownloadWorker(download_url, dest_path)
+        self._worker = _DownloadWorker(candidate.download_url, dest_path)
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_finished)
         self._worker.start()
@@ -215,12 +227,13 @@ class UpdateDownloadDialog(QDialog):
         arrow_label.setFixedWidth(28)
         row.addWidget(arrow_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
+        new_size_text = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else ''
         row.addWidget(
             self._create_version_card(
                 'DOWNLOADING',
-                self._new_version_label,
-                '',
-                self._new_sha256_hash,
+                self._candidate.version_label,
+                new_size_text,
+                self._candidate.sha256_hash,
                 accent=True,
             ),
             1,

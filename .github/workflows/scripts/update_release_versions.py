@@ -48,6 +48,7 @@ def main() -> None:
     parser.add_argument('--release-url', required=True, help='The URL of the GitHub release page (e.g., https://github.com/owner/repo/releases/tag/1.0.0)')
     parser.add_argument('--download-url', required=True, help='The direct download URL for the release executable')
     parser.add_argument('--sha256', required=True, type=validate_sha256, help='The SHA-256 hash of the release executable (lowercase hex)')
+    parser.add_argument('--file-size', required=True, type=int, help='The size of the release executable in bytes')
 
     args = parser.parse_args()
 
@@ -77,6 +78,7 @@ def main() -> None:
         'release_url': args.release_url,
         'download_url': args.download_url,
         'sha256': args.sha256,
+        'file_size': args.file_size,
         'is_devrelease': version.is_devrelease,
         'is_postrelease': version.is_postrelease,
         'is_prerelease': version.is_prerelease,

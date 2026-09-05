@@ -148,6 +148,7 @@ jobs:
     name: Upload release artifact
     outputs:
       sha256: ${{ steps.release_asset.outputs.sha256 }}
+      file_size: ${{ steps.release_asset.outputs.file_size }}
       download_url: ${{ steps.release_asset.outputs.download_url }}
     steps:
       - name: Download workflow artifact
@@ -177,6 +178,12 @@ jobs:
             exit 1
           fi
 
+          file_size=$(stat -c%s "$exe_path")
+          if [[ -z "$file_size" ]]; then
+            echo "Failed to calculate file size for $exe_path." >&2
+            exit 1
+          fi
+
           gh release upload "$RELEASE_TAG" "$exe_path" --repo "$GH_REPO" --clobber
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
             --jq ".assets | map(select(.name == \"$ASSET_NAME\")) | if length == 1 then .[0].browser_download_url else empty end")
@@ -187,6 +194,7 @@ jobs:
           fi
 
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "file_size=$file_size" >> "$GITHUB_OUTPUT"
           echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
 
   update-version-info:
@@ -223,6 +231,7 @@ jobs:
           IS_PRERELEASE: ${{ github.event.release.prerelease }}
           DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.download_url }}
           SHA256: ${{ needs.upload-release-artifact.outputs.sha256 }}
+          FILE_SIZE: ${{ needs.upload-release-artifact.outputs.file_size }}
         run: |
           set -euo pipefail
 
@@ -251,6 +260,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "$FILE_SIZE" ]]; then
+            echo 'File size is empty.' >&2
+            exit 1
+          fi
+
           if [[ ! -f release_versions.json ]]; then
             echo 'release_versions.json is missing from the version branch.' >&2
             exit 1
@@ -261,7 +275,8 @@ jobs:
             "${prerelease_arg[@]}" \
             --release-url "$RELEASE_URL" \
             --download-url "$DOWNLOAD_URL" \
-            --sha256 "$SHA256"
+            --sha256 "$SHA256" \
+            --file-size "$FILE_SIZE"
 
           rm -rf .github
 
