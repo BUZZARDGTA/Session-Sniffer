@@ -124,7 +124,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
 def show_looky_lookup(parent: QWidget, player: Player) -> None:
     """Validate and fetch Looky System IP lookup results for *player*; open a results dialog or show an error."""
-    api_key = check_looky_prerequisites(parent)
+    api_key = check_looky_prerequisites(parent, player=player)
     if api_key is None:
         return
 

@@ -261,7 +261,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
-            self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
+            self._update_looky_actions()
 
         self._update_gta5_toolbar_visibility()
 
@@ -741,7 +741,7 @@ class MainWindow(LookyMixin, GTA5Mixin, StatsMixin, FilesMixin, QMainWindow):
             self._update_gta5_status_label()
             self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
             self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
-            self._looky_crawler_join_own_session_action.setEnabled(CaptureState.gta5_is_running)
+            self._update_looky_actions()
             self._sync_gta5_process_button()
 
         if self._capture_statistics_window is not None:

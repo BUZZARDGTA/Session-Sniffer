@@ -1,6 +1,7 @@
 """Shared Looky System pre-flight validation for player action dialogs."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.looky_text import (
+    LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING,
+    LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS,
     LOOKY_TITLE,
     LOOKY_WARNING_API_ACCESS_MISSING,
     LOOKY_WARNING_API_KEY_MISSING,
@@ -27,7 +30,11 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
 from session_sniffer.networking.looky_system import LookyState
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
+
+if TYPE_CHECKING:
+    from session_sniffer.models.player import Player
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,13 +87,14 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     return LookyProgressWidgets(progress_bar, status_label, try_again_button, button_box)
 
 
-def check_looky_prerequisites(parent: QWidget) -> str | None:
+def check_looky_prerequisites(parent: QWidget, player: Player | None = None) -> str | None:
     """Validate Looky System prerequisites and return the API key on success.
 
     Checks (in order):
     - API key is set
     - Looky System is enabled
     - API access is granted
+    - If `player` is provided, checks GTA5 process restriction and GTA5 running status
 
     Returns the API key string when all prerequisites are met, or None after
     displaying a warning for the first unmet prerequisite.
@@ -102,5 +110,13 @@ def check_looky_prerequisites(parent: QWidget) -> str | None:
     if not LookyState.api_access:
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_ACCESS_MISSING)
         return None
+
+    if player is not None and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
+        if not CaptureState.gta5_is_running:
+            QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
+            return None
+        if not player.is_gta5_process:
+            QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS)
+            return None
 
     return Settings.looky_api_key

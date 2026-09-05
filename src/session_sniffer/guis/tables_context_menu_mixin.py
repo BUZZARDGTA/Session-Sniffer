@@ -422,9 +422,12 @@ class TableContextMenuMixin(QTableView):
             if not Settings.is_gta5_feature_set() or not players or any(is_third_party_server_ip(player.ip) for player in players):
                 return
 
-            def _apply_looky_gating(action: QAction, *, require_gta5_running: bool) -> None:
-                is_gta5_running = CaptureState.gta5_is_running if require_gta5_running else None
-                configure_looky_action(action, is_gta5_running=is_gta5_running)
+            def _apply_looky_gating(
+                action: QAction,
+                *,
+                players: Player | list[Player] | None = None,
+            ) -> None:
+                configure_looky_action(action, default_tooltip=action.toolTip(), players=players)
 
             looky_menu = add_menu(parent_menu, '👁️ Looky System', 'Looky System tools and shortcuts.')
 
@@ -447,7 +450,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
                 )
-                _apply_looky_gating(lookup_action, require_gta5_running=False)
+                _apply_looky_gating(lookup_action, players=players[0])
                 if players[0].looky_system.rockstarids:
                     crawler_action = add_action(
                         looky_menu,
@@ -455,11 +458,13 @@ class TableContextMenuMixin(QTableView):
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
                     )
-                    _apply_looky_gating(crawler_action, require_gta5_running=False)
+                    _apply_looky_gating(crawler_action, players=players[0])
                 return
 
             def _show_looky_lookup_for_all() -> None:
                 for player in players:
+                    if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process:
+                        continue
                     show_looky_lookup(self, player)
 
             lookup_all_action = add_action(
@@ -468,7 +473,7 @@ class TableContextMenuMixin(QTableView):
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
             )
-            _apply_looky_gating(lookup_all_action, require_gta5_running=False)
+            _apply_looky_gating(lookup_all_action, players=players)
 
         def add_ping_menu(ip_addresses: list[str]) -> None:
             if not ip_addresses:
@@ -621,7 +626,7 @@ class TableContextMenuMixin(QTableView):
                     tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
                     handler=lambda: looky_refresh_userip_entries(self, [(player.userip.db_path, [ip_address])]) if player.userip else None,
                 )
-                configure_looky_action(refresh_action)
+                configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), players=player)
                 userip_menu.addSeparator()
             add_action(
                 userip_menu,
@@ -698,6 +703,8 @@ class TableContextMenuMixin(QTableView):
                     _refresh_by_db: dict[Path, list[str]] = {}
                     for _p in players:
                         if _p.userip is not None:
+                            if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not _p.is_gta5_process:
+                                continue
                             _refresh_by_db.setdefault(_p.userip.db_path, []).append(_p.ip)
                     if _refresh_by_db:
                         if rename_players:
@@ -708,7 +715,7 @@ class TableContextMenuMixin(QTableView):
                             tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                             handler=lambda: looky_refresh_userip_entries(self, list(_refresh_by_db.items())),
                         )
-                        configure_looky_action(refresh_multi_action)
+                        configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), players=players)
                         userip_menu.addSeparator()
 
                 move_userip_menu = add_menu(userip_menu, '📦 Move Selected', f'Move {entries_phrase} to another UserIP database.')

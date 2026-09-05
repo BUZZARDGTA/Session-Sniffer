@@ -6,14 +6,10 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 from session_sniffer.guis.looky_text import (
-    LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS,
-    LOOKY_MENU_TOOLTIP_API_KEY_MISSING,
-    LOOKY_MENU_TOOLTIP_DISABLED,
-    LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING,
     LOOKY_TITLE,
+    configure_looky_action,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
-from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -70,34 +66,16 @@ class LookyMixin(QMainWindow):
 
     def _update_looky_actions(self) -> None:
         """Update enabled state and tooltips for Looky System submenu actions based on current settings."""
-        if not Settings.looky_enabled:
-            self._looky_crawler_join_own_session_action.setEnabled(False)
-            self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-        elif not Settings.looky_api_key:
-            self._looky_crawler_join_own_session_action.setEnabled(False)
-            self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-        elif not LookyState.api_access:
-            self._looky_crawler_join_own_session_action.setEnabled(False)
-            self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-        elif not CaptureState.gta5_is_running:
-            self._looky_crawler_join_own_session_action.setEnabled(False)
-            self._looky_crawler_join_own_session_action.setToolTip(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
-        else:
-            self._looky_crawler_join_own_session_action.setEnabled(True)
-            self._looky_crawler_join_own_session_action.setToolTip('Call the crawler bot to resolve usernames for players in your current session.')
-
-        if not Settings.looky_enabled:
-            self._looky_rescan_all_action.setEnabled(False)
-            self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
-        elif not Settings.looky_api_key:
-            self._looky_rescan_all_action.setEnabled(False)
-            self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)
-        elif not LookyState.api_access:
-            self._looky_rescan_all_action.setEnabled(False)
-            self._looky_rescan_all_action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS)
-        else:
-            self._looky_rescan_all_action.setEnabled(True)
-            self._looky_rescan_all_action.setToolTip('Immediately refresh Looky System data for all players without waiting for the next automatic update.')
+        configure_looky_action(
+            self._looky_crawler_join_own_session_action,
+            'Call the crawler bot to resolve usernames for players in your current session.',
+            is_gta5_running=CaptureState.gta5_is_running,
+        )
+        configure_looky_action(
+            self._looky_rescan_all_action,
+            'Immediately refresh Looky System data for all players without waiting for the next automatic update.',
+            check_gta5_restriction=True,
+        )
 
     def _request_crawler_own_session(self) -> None:
         """Request the Looky System crawler bot to join the current session."""
@@ -105,9 +83,19 @@ class LookyMixin(QMainWindow):
 
     def _rescan_all_looky_players(self) -> None:
         """Reset the Looky System fetch timestamp for every player so `looky_core` re-fetches them immediately."""
+        if (
+            Settings.looky_exclusive_gta5_process
+            and CaptureState.is_local_capture()
+            and not CaptureState.gta5_is_running
+        ):
+            QMessageBox.warning(self, LOOKY_TITLE, 'Looky System is restricted to GTA V, which is not currently running.')
+            return
+
         players = PlayersRegistry.get_default_sorted_players()
         count = 0
         for player in players:
+            if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process:
+                continue
             if player.looky_system.is_initialized:
                 with player.looky_system.lock:
                     player.looky_system.last_fetched_at = 0.0

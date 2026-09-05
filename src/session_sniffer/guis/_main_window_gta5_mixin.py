@@ -18,6 +18,7 @@ from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from PySide6.QtGui import QAction
@@ -58,6 +59,9 @@ class GTA5Mixin(QMainWindow):
     _gta5_process_detected: bool
     _detections_manager_window: DetectionsManagerDialog | None
     _userip_manager_window: UserIPDatabasesManager | None
+
+    if TYPE_CHECKING:
+        _update_looky_actions: Callable[[], None]
 
     def _gta5_has_any_process_path(self) -> bool:
         """Return `True` if GTA5 is currently running."""
@@ -253,5 +257,6 @@ class GTA5Mixin(QMainWindow):
 
         self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
         self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+        self._update_looky_actions()
 
         self._refresh_runtime_capability_windows()
