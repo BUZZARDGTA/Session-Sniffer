@@ -287,7 +287,7 @@ class Player:  # pylint: disable=too-many-public-methods
 
     @property
     def ps3_username(self) -> str | None:
-        """PSN username resolved from PS3 packet capture, if any."""
+        """PlayStation username resolved from PS3 packet capture, if any."""
         return self._optional.ps3_username
 
     @ps3_username.setter

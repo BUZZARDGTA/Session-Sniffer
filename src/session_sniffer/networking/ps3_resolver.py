@@ -1,4 +1,4 @@
-"""PS3 packet payload name resolver for PSN usernames."""
+"""PS3 packet payload name resolver for PlayStation usernames."""
 
 import re
 
@@ -12,7 +12,7 @@ _PSN_MAX_LENGTH = 16
 
 
 def extract_ps3_username(payload: bytes, *, sent_by_local_host: bool) -> str | None:
-    """Extract and validate a PSN username from a PS3 packet UDP payload.
+    """Extract and validate a PlayStation username from a PS3 packet UDP payload.
 
     Args:
         payload: The raw UDP packet payload bytes.
@@ -20,7 +20,7 @@ def extract_ps3_username(payload: bytes, *, sent_by_local_host: bool) -> str | N
             False if received from a remote player.
 
     Returns:
-        The resolved PSN username string if found and valid, otherwise None.
+        The resolved PlayStation username string if found and valid, otherwise None.
     """
     if _PS3_MAGIC not in payload or _PS3_TAG not in payload:
         return None

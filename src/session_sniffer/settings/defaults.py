@@ -170,7 +170,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='General',
         display_label='PS3 Name Resolver',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Extract and resolve PSN usernames directly from PS3 game packet payloads and display them in the Usernames column.',
+        tooltip='Extract and resolve PlayStation usernames directly from PS3 game packet payloads and display them in the Usernames column.',
         requires_capture_restart=True,
     ),
     'capture_block_third_party_servers': SettingMeta(

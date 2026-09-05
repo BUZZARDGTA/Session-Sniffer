@@ -124,7 +124,7 @@ Grab the latest stable release and get started instantly, or build it yourself f
 
 Session Sniffer supports resolving and displaying player usernames through several methods:
 
-- **PlayStation 3 (PS3)**: Direct packet payload extraction via the built-in **PS3 Name Resolver** setting. Note: This works only on supported PS3 games that broadcast unencrypted PSN usernames in packet payloads (see the **Username Resolving** column in the [Officially Tested and Supported P2P Video Games](#-officially-tested-and-supported-p2p-video-games) table for supported titles).
+- **PlayStation 3 (PS3)**: Direct packet payload extraction via the built-in **PS3 Name Resolver** setting. Note: This works only on supported PS3 games that broadcast unencrypted PlayStation usernames in packet payloads (see the **Username Resolving** column in the [Officially Tested and Supported P2P Video Games](#-officially-tested-and-supported-p2p-video-games) table for supported titles).
 - **GTA Online (PC) Mod Menus**: Automatic username logging via these Lua plugins:
   - [Session Sniffer Cherax Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua)
   - [Session Sniffer Lexis Lua Plugin](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua)
