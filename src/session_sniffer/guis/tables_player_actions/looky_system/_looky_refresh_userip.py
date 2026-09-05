@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -36,6 +37,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_REVIEW_SUMMARY_STYLESHEET,
     LOOKY_REVIEW_TABLE_STYLESHEET,
 )
+from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
@@ -330,15 +332,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree.setWordWrap(False)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
-
-        from PySide6.QtWidgets import QHeaderView  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
-        header = self._tree.header()
-        if header:
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-            header.setMinimumSectionSize(30)
+        setup_table_header_context_menu(self._tree, on_reset=self._reset_column_sizes)
+        self._reset_column_sizes()
 
         # Build the tree: one top-level item per IP, children for existing + new
         self._new_items: list[tuple[QTreeWidgetItem, _PendingEntry]] = []
@@ -476,25 +471,36 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         """Return the list of new entries the user checked."""
         return [entry for item, entry in self._new_items if item.checkState(0) == Qt.CheckState.Checked]
 
-    def _show_context_menu(self, pos: QPoint) -> None:
-        """Show a right-click context menu to copy IP and username."""
-        item = self._tree.itemAt(pos)
-        if item is None:
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        header = self._tree.header()
+        if not header:
             return
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setMinimumSectionSize(30)
 
+    def _show_context_menu(self, pos: QPoint) -> None:
+        """Show a right-click context menu to copy IP, username, and resize columns."""
+        item = self._tree.itemAt(pos)
         menu = QMenu(self)
 
-        parent = item.parent()
-        if not parent:
-            # IP node
-            ip_str = item.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
-        else:
-            # Username node
-            username_str = item.text(0).strip()
-            ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
-            menu.addAction('Copy Username', lambda: set_clipboard_text(username_str))
-            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
+        if item is not None:
+            parent = item.parent()
+            if not parent:
+                # IP node
+                ip_str = item.text(0).replace('\U0001f310  ', '').strip()
+                menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
+            else:
+                # Username node
+                username_str = item.text(0).strip()
+                ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
+                menu.addAction('Copy Username', lambda: set_clipboard_text(username_str))
+                menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
+            menu.addSeparator()
+
+        add_column_sizing_actions(menu, self._tree, on_reset=self._reset_column_sizes)
 
         viewport = self._tree.viewport()
         if viewport:
