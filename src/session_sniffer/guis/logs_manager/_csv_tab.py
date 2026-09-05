@@ -43,7 +43,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_clipboard_text
+from session_sniffer.guis.utils import SearchHighlightDelegate, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -152,7 +152,13 @@ class CsvLogTab(QWidget):
 
         layout.addWidget(self._table, stretch=1)
 
-        self._table.setItemDelegate(ElidedTextTooltipDelegate(self._table))
+        self._table.setItemDelegate(
+            SearchHighlightDelegate(
+                self._table,
+                self._search_input.text,
+                self._get_active_search_column,
+            )
+        )
         self._table.setWordWrap(False)
 
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -306,9 +312,16 @@ class CsvLogTab(QWidget):
             self._column_combo.addItem(header, i)
         self._column_combo.blockSignals(False)  # noqa: FBT003
 
+    def _get_active_search_column(self) -> int:
+        column_data = self._column_combo.currentData()
+        return column_data if isinstance(column_data, int) else -1
+
     def _on_search_changed(self, text: str) -> None:
         self._proxy.setFilterFixedString(text)
         self._update_counts()
+        viewport = self._table.viewport()
+        if viewport:
+            viewport.update()
 
     def _on_column_filter_changed(self) -> None:
         column = self._column_combo.currentData()
@@ -316,6 +329,9 @@ class CsvLogTab(QWidget):
             column = -1
         self._proxy.set_filter_column(column)
         self._update_counts()
+        viewport = self._table.viewport()
+        if viewport:
+            viewport.update()
 
     def _on_date_filter_changed(self, choice: str) -> None:
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]

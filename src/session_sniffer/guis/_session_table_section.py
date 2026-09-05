@@ -36,7 +36,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
-from session_sniffer.guis.utils import apply_search_icon, make_padded_icon
+from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon, make_padded_icon
 from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
 
@@ -273,6 +273,13 @@ class SessionTableSection(QWidget):
             column_names.index(sort_column_name),
             sort_order,
             is_connected_table=is_connected,
+        )
+        self.table_view.setItemDelegate(
+            SearchHighlightDelegate(
+                self.table_view,
+                self._search_bar.text,
+                self._get_active_search_column,
+            ),
         )
         arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg').as_posix()
         arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg').as_posix()
@@ -713,6 +720,10 @@ class SessionTableSection(QWidget):
         """Set the keyboard editing state for the rows-per-page spinbox."""
         self._rows_keyboard_editing = is_editing
 
+    def _get_active_search_column(self) -> int:
+        raw_column = self._search_combo.itemData(self._search_combo.currentIndex())
+        return raw_column if isinstance(raw_column, int) else -1
+
     def _on_search_changed(self, text: str) -> None:
         raw = self._search_combo.itemData(self._search_combo.currentIndex())
         column = raw if isinstance(raw, int) else -1
@@ -722,6 +733,7 @@ class SessionTableSection(QWidget):
         else:
             SearchState.set_disconnected(text, column)
             PaginationState.set_disconnected_page(1)
+        self.table_view.viewport().update()
 
     def _on_search_column_changed(self, index: int) -> None:
         raw = self._search_combo.itemData(index)
@@ -733,3 +745,4 @@ class SessionTableSection(QWidget):
         else:
             SearchState.set_disconnected(text, column)
             PaginationState.set_disconnected_page(1)
+        self.table_view.viewport().update()

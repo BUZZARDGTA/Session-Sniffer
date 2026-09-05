@@ -34,7 +34,7 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate, apply_search_icon
+from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -371,11 +371,11 @@ class RenameUsernameDialog(QDialog):
         self._list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list.setAlternatingRowColors(True)
-        self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
+        self._list.setItemDelegate(SearchHighlightDelegate(self._list, self._search.text))
         self._list.setWordWrap(False)
         layout.addWidget(self._list, stretch=1)
 
-        self._search.textChanged.connect(self._proxy.setFilterFixedString)
+        self._search.textChanged.connect(self._on_search_changed)
         self._list.doubleClicked.connect(self.accept)
 
         button_row = QHBoxLayout()
@@ -394,6 +394,12 @@ class RenameUsernameDialog(QDialog):
         button_row.addWidget(cancel_button)
 
         layout.addLayout(button_row)
+
+    def _on_search_changed(self, text: str) -> None:
+        self._proxy.setFilterFixedString(text)
+        viewport = self._list.viewport()
+        if viewport:
+            viewport.update()
 
     def selected_username(self) -> str | None:
         """Return the username selected in the list, or None."""
@@ -442,11 +448,11 @@ class RemoveUsernameDialog(QDialog):
         self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list.setAlternatingRowColors(True)
         self._list.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
-        self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
+        self._list.setItemDelegate(SearchHighlightDelegate(self._list, self._search.text))
         self._list.setWordWrap(False)
         layout.addWidget(self._list, stretch=1)
 
-        self._search.textChanged.connect(self._proxy.setFilterFixedString)
+        self._search.textChanged.connect(self._on_search_changed)
 
         button_row = QHBoxLayout()
         button_row.addStretch()
@@ -464,6 +470,12 @@ class RemoveUsernameDialog(QDialog):
         button_row.addWidget(cancel_button)
 
         layout.addLayout(button_row)
+
+    def _on_search_changed(self, text: str) -> None:
+        self._proxy.setFilterFixedString(text)
+        viewport = self._list.viewport()
+        if viewport:
+            viewport.update()
 
     def selected_usernames(self) -> list[str] | None:
         """Return the usernames selected in the list, or None if nothing selected."""

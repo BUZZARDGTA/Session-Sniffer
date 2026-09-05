@@ -28,7 +28,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
-    ElidedTextTooltipDelegate,
+    SearchHighlightDelegate,
     apply_search_icon,
     scale_by_ui,
     set_clipboard_text,
@@ -89,7 +89,7 @@ class TargetProcessDialog(QDialog):
         self._table.setIconSize(QSize(scale_by_ui(18), scale_by_ui(18)))
         self._table.setWordWrap(False)
         self._table.setTextElideMode(Qt.TextElideMode.ElideRight)
-        self._table.setItemDelegate(ElidedTextTooltipDelegate(self._table))
+        self._table.setItemDelegate(SearchHighlightDelegate(self._table, self._search_input.text))
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -246,6 +246,8 @@ class TargetProcessDialog(QDialog):
                 self._table.showRow(row_index)
             else:
                 self._table.hideRow(row_index)
+
+        self._table.viewport().update()
 
     def _on_table_selection_changed(self) -> None:
         """Handle row selection change to update buttons and spinbox."""

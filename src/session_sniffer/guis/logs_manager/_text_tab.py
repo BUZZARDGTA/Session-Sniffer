@@ -183,8 +183,8 @@ class TextLogTab(QWidget):
     def _highlight_all_matches(self) -> None:
         selections: list[Any] = []
         highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor('#665c00'))
-        highlight_format.setForeground(QColor('#ffffff'))
+        highlight_format.setBackground(QColor('#e3b341'))
+        highlight_format.setForeground(QColor('#000000'))
 
         for cursor in self._search_matches:
             selection = cast('Any', QTextEdit.ExtraSelection())

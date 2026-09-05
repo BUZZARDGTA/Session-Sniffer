@@ -67,6 +67,7 @@ from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip
 from session_sniffer.guis.utils import (
     HEADER_SORT_PADDING,
     ElidedTextTooltipDelegate,
+    SearchHighlightDelegate,
     apply_search_icon,
     format_player_display,
     get_screen_size,
@@ -129,10 +130,21 @@ _SEARCH_COLUMNS = (
     _SEARCH_COLUMN_ISP,
 )
 _COLUMN_RANK = 0
+_COLUMN_USERNAMES = 1
+_COLUMN_IP = 2
 _COLUMN_SESSIONS = 3
 _COLUMN_FIRST_SEEN = 4
 _COLUMN_LAST_SEEN = 5
 _COLUMN_COUNTRY = 6
+_COLUMN_ISP = 7
+
+_SEARCH_COLUMN_TO_INDEX: dict[str, int] = {
+    _SEARCH_COLUMN_ALL: -1,
+    _SEARCH_COLUMN_USERNAMES: _COLUMN_USERNAMES,
+    _SEARCH_COLUMN_IP: _COLUMN_IP,
+    _SEARCH_COLUMN_COUNTRY: _COLUMN_COUNTRY,
+    _SEARCH_COLUMN_ISP: _COLUMN_ISP,
+}
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
@@ -800,6 +812,13 @@ class PlayerLeaderboardWindow(QWidget):
         self._table.customContextMenuRequested.connect(self._show_context_menu)
 
         header = setup_table_view_headers(self._table)
+        self._table.setItemDelegate(
+            SearchHighlightDelegate(
+                self._table,
+                self._search_box.text,
+                self._get_active_search_column,
+            )
+        )
         header.setStretchLastSection(False)
         for column in range(len(_HEADERS)):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
@@ -1023,13 +1042,22 @@ class PlayerLeaderboardWindow(QWidget):
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
+    def _get_active_search_column(self) -> int:
+        return _SEARCH_COLUMN_TO_INDEX.get(self._search_column_combo.currentText(), -1)
+
     def _on_search_changed(self, text: str) -> None:
         self._proxy.set_search_text(text)
         self._update_count_label()
+        viewport = self._table.viewport()
+        if viewport:
+            viewport.update()
 
     def _on_search_column_changed(self, column: str) -> None:
         self._proxy.set_search_column(column)
         self._update_count_label()
+        viewport = self._table.viewport()
+        if viewport:
+            viewport.update()
 
     def _on_hide_servers_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Toggle exclusion of known game/relay server IPs and refresh the count label."""

@@ -3,8 +3,21 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFontMetrics, QHelpEvent, QIcon, QLinearGradient, QPainter, QPalette, QPixmap
+from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QPointF, QRect, QRectF, QSize, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFontMetrics,
+    QHelpEvent,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPalette,
+    QPixmap,
+    QTextCharFormat,
+    QTextLayout,
+    QTextOption,
+)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -42,7 +55,6 @@ from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionE
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtCore import QRect
     from PySide6.QtGui import QFont, QMouseEvent
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
@@ -51,12 +63,12 @@ _MIN_SCREEN_HEIGHT_WARNING = 768
 _LARGE_WINDOW_MIN_HEIGHT = 500
 
 _BREAKPOINT_2K_WIDTH = 2560
-_BREAKPOINT_2K_HEIGHT = 1400
+_BREAKPOINT_2K_HEIGHT = 1350
 _TARGET_2K_WIDTH = 1300
 _TARGET_2K_HEIGHT = 820
 
 _BREAKPOINT_FHD_WIDTH = 1920
-_BREAKPOINT_FHD_HEIGHT = 1040
+_BREAKPOINT_FHD_HEIGHT = 1000
 _TARGET_FHD_WIDTH = 1100
 _TARGET_FHD_HEIGHT = 660
 
@@ -256,11 +268,11 @@ def compute_ui_scale(screen_size: tuple[int, int]) -> float:
     Returns:
         A float in the range [0.65, 1.00].
     """
-    if screen_size >= (2560, 1440):
+    if screen_size[0] >= _BREAKPOINT_2K_WIDTH and screen_size[1] >= _BREAKPOINT_2K_HEIGHT:
         return 1.00
-    if screen_size >= (1920, 1080):
+    if screen_size[0] >= _BREAKPOINT_FHD_WIDTH and screen_size[1] >= _BREAKPOINT_FHD_HEIGHT:
         return 0.85
-    if screen_size >= (1280, 800):
+    if screen_size[0] >= _BREAKPOINT_HD_WIDTH and screen_size[1] >= _BREAKPOINT_HD_HEIGHT:
         return 0.75
     return 0.65  # ≥ 1024x768 (minimum supported resolution)
 
@@ -489,6 +501,163 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor('#ffffff'))
 
         super().paint(painter, opt, index)
+
+
+class SearchHighlightDelegate(ElidedTextTooltipDelegate):
+    """Item delegate that highlights search query matches with a colored background."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        get_search_text: Callable[[], str],
+        get_search_column: Callable[[], int] | None = None,
+    ) -> None:
+        """Initialize the delegate with callables for the active search query and target column."""
+        super().__init__(parent)
+        self._get_search_text = get_search_text
+        self._get_search_column = get_search_column
+
+    @override
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Paint cell with highlighted search substrings when a search query is active."""
+        if self._get_search_column is not None:
+            target_column = self._get_search_column()
+            if target_column >= 0 and index.column() != target_column:
+                super().paint(painter, option, index)
+                return
+
+        search_query = self._get_search_text().strip()
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+
+        if not search_query or not isinstance(text, str) or search_query.lower() not in text.lower():
+            super().paint(painter, option, index)
+            return
+
+        if painter:
+            cell_rectangle = cast('QRect', option.rect)  # type: ignore[redundant-cast]
+            is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+            is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+
+            if is_hovered:
+                painter.save()
+                gradient = QLinearGradient(cell_rectangle.topLeft(), cell_rectangle.bottomLeft())
+                if is_selected:
+                    gradient.setColorAt(0, QColor('#2f4f64'))
+                    gradient.setColorAt(1, QColor('#2f4f64'))
+                else:
+                    gradient.setColorAt(0, QColor('#2d2d30'))
+                    gradient.setColorAt(1, QColor('#2d2d30'))
+                painter.fillRect(cell_rectangle, gradient)
+                painter.restore()
+            elif is_selected:
+                painter.save()
+                painter.fillRect(cell_rectangle, option.palette.highlight())
+                painter.restore()
+            else:
+                background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+                if isinstance(background_brush, QBrush):
+                    painter.save()
+                    painter.fillRect(cell_rectangle, background_brush)
+                    painter.restore()
+
+        style_option = QStyleOptionViewItem(option)
+        self.initStyleOption(style_option, index)
+        style_option.state &= ~QStyle.StateFlag.State_HasFocus
+
+        text_color = QColor('#ffffff')
+        if not bool(style_option.state & QStyle.StateFlag.State_Selected):
+            foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
+            if isinstance(foreground_brush, QBrush):
+                text_color = foreground_brush.color()
+
+        if painter:
+            cell_rectangle = cast('QRect', option.rect)  # type: ignore[redundant-cast]
+            font = cast('QFont', style_option.font)  # type: ignore[redundant-cast]
+            painter.save()
+            painter.setFont(font)
+
+            icon_offset = 0
+            icon_data = index.data(Qt.ItemDataRole.DecorationRole)
+            if isinstance(icon_data, (QIcon, QPixmap)) and not (isinstance(icon_data, QIcon) and icon_data.isNull()):
+                view = self.parent()
+                icon_size = view.iconSize() if isinstance(view, QAbstractItemView) else None
+                if icon_size is None or not icon_size.isValid():
+                    icon_size = option.decorationSize if option.decorationSize.isValid() else None
+                if icon_size is None or not icon_size.isValid():
+                    icon_size = QSize(16, 16)
+                icon_rectangle = QRect(
+                    cell_rectangle.left() + 6,
+                    cell_rectangle.top() + (cell_rectangle.height() - icon_size.height()) // 2,
+                    icon_size.width(),
+                    icon_size.height(),
+                )
+                if isinstance(icon_data, QIcon):
+                    icon_data.paint(painter, icon_rectangle, Qt.AlignmentFlag.AlignCenter)
+                else:
+                    painter.drawPixmap(icon_rectangle, icon_data)
+                icon_offset = icon_size.width() + 6
+
+            text_rectangle = cell_rectangle.adjusted(6 + icon_offset, 0, -6, 0)
+            painter.setClipRect(cell_rectangle)
+
+            font_metrics = QFontMetrics(font)
+            display_text = text
+            if font_metrics.horizontalAdvance(text) > text_rectangle.width():
+                display_text = font_metrics.elidedText(text, Qt.TextElideMode.ElideRight, text_rectangle.width())
+
+            lower_display_text = display_text.lower()
+            lower_query = search_query.lower()
+            formats: list[QTextLayout.FormatRange] = []
+            search_position = 0
+
+            highlight_format = QTextCharFormat()
+            highlight_format.setBackground(QColor('#e3b341'))
+            highlight_format.setForeground(QColor('#000000'))
+
+            while True:
+                match_index = lower_display_text.find(lower_query, search_position)
+                if match_index == -1:
+                    break
+                format_range = QTextLayout.FormatRange()
+                format_range.start = match_index
+                format_range.length = len(lower_query)
+                format_range.format = highlight_format
+                formats.append(format_range)
+                search_position = match_index + len(lower_query)
+
+            text_option = QTextOption()
+            text_option.setWrapMode(QTextOption.WrapMode.NoWrap)
+
+            layout = QTextLayout(display_text, font)
+            layout.setTextOption(text_option)
+
+            base_format = QTextLayout.FormatRange()
+            base_format.start = 0
+            base_format.length = len(display_text)
+            base_char_format = QTextCharFormat()
+            base_char_format.setForeground(text_color)
+            base_format.format = base_char_format
+            layout.setFormats([base_format, *formats])
+
+            layout.beginLayout()
+            line = layout.createLine()
+            if line.isValid():
+                line.setLineWidth(text_rectangle.width())
+            layout.endLayout()
+
+            vertical_offset = text_rectangle.top() + max(0, round((text_rectangle.height() - line.height()) / 2))
+
+            alignment_data = index.data(Qt.ItemDataRole.TextAlignmentRole)
+            alignment = Qt.AlignmentFlag(alignment_data) if isinstance(alignment_data, int) else Qt.AlignmentFlag.AlignLeft
+            if bool(alignment & Qt.AlignmentFlag.AlignRight):
+                horizontal_offset = text_rectangle.right() - line.naturalTextWidth()
+            elif bool(alignment & Qt.AlignmentFlag.AlignHCenter):
+                horizontal_offset = text_rectangle.left() + max(0.0, (text_rectangle.width() - line.naturalTextWidth()) / 2)
+            else:
+                horizontal_offset = float(text_rectangle.left())
+
+            layout.draw(painter, QPointF(horizontal_offset, float(vertical_offset)))
+            painter.restore()
 
 
 def setup_table_view_headers(table: QTableView) -> QHeaderView:

@@ -1,14 +1,27 @@
 # pylint: disable=too-many-lines
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
+import json
 from collections import defaultdict
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from pathlib import Path
-from typing import override
+from typing import Any, ClassVar, cast, override
 
-from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
-from PySide6.QtGui import QBrush, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItem, QStandardItemModel
+from PySide6.QtCore import QByteArray, QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
+from PySide6.QtGui import (
+    QBrush,
+    QCloseEvent,
+    QColor,
+    QDesktopServices,
+    QIcon,
+    QKeySequence,
+    QResizeEvent,
+    QShortcut,
+    QShowEvent,
+    QStandardItem,
+    QStandardItemModel,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,7 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import GUI_STATE_PATH, RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
@@ -58,6 +71,7 @@ from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixi
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
 from session_sniffer.guis.utils import (
     ElidedTextTooltipDelegate,
+    SearchHighlightDelegate,
     apply_search_icon,
     get_screen_size,
     resize_window_for_screen,
@@ -68,17 +82,78 @@ from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
 
+def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None]:
+    """Load saved window geometry, maximized state, and splitter state from local app data."""
+    if not GUI_STATE_PATH.is_file():
+        return None, False, None
+    try:
+        raw_data: Any = json.loads(GUI_STATE_PATH.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return None, False, None
+    if not isinstance(raw_data, dict):
+        return None, False, None
+    state_dict = cast('dict[str, Any]', raw_data)
+
+    geometry_value: Any = state_dict.get('userip_manager_geometry')
+    maximized_value: Any = state_dict.get('userip_manager_maximized')
+    splitter_value: Any = state_dict.get('userip_manager_splitter')
+
+    geometry: QByteArray | None = QByteArray.fromHex(geometry_value.encode('ascii')) if isinstance(geometry_value, str) else None
+    maximized: bool = bool(maximized_value)
+    splitter: QByteArray | None = QByteArray.fromHex(splitter_value.encode('ascii')) if isinstance(splitter_value, str) else None
+    return geometry, maximized, splitter
+
+
+def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, maximized: bool) -> None:
+    """Save window geometry, maximized state, and splitter state to local app data."""
+    current_data: dict[str, Any] = {}
+    if GUI_STATE_PATH.is_file():
+        try:
+            loaded_data: Any = json.loads(GUI_STATE_PATH.read_text(encoding='utf-8'))
+            if isinstance(loaded_data, dict):
+                current_data = cast('dict[str, Any]', loaded_data)
+        except (json.JSONDecodeError, OSError):
+            current_data = {}
+
+    current_data['userip_manager_geometry'] = geometry.toHex().toStdString()
+    current_data['userip_manager_maximized'] = maximized
+    current_data['userip_manager_splitter'] = splitter.toHex().toStdString()
+
+    try:
+        GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        GUI_STATE_PATH.write_text(json.dumps(current_data, indent=2), encoding='utf-8')
+    except OSError:
+        pass
+
+
 class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
     """Non-modal dialog for managing UserIP database files and their entries."""
+
+    _cached_geometry: ClassVar[QByteArray | None] = None
+    _cached_maximized: ClassVar[bool] = False
+    _cached_splitter: ClassVar[QByteArray | None] = None
 
     def __init__(self, parent: QWidget | None) -> None:
         """Build the UserIP Databases Manager dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(scale_by_ui(980), scale_by_ui(580))
-        screen_size = get_screen_size()
-        resize_window_for_screen(self, screen_size)
+        self.setMinimumSize(scale_by_ui(1000), scale_by_ui(600))
+
+        if UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
+            (
+                UserIPDatabasesManager._cached_geometry,
+                UserIPDatabasesManager._cached_maximized,
+                UserIPDatabasesManager._cached_splitter,
+            ) = _load_userip_manager_state()
+
+        if UserIPDatabasesManager._cached_geometry is not None:
+            self.restoreGeometry(UserIPDatabasesManager._cached_geometry)
+            if UserIPDatabasesManager._cached_maximized:
+                self.setProperty('_should_maximize_on_show', True)  # noqa: FBT003
+        else:
+            screen_size = get_screen_size()
+            resize_window_for_screen(self, screen_size)
 
         self._current_path: Path | None = None
         self._dirty = False
@@ -92,8 +167,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         root_layout = QVBoxLayout(self)
 
         # === Main splitter: file tree (left) | entries editor (right) ===
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setChildrenCollapsible(False)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setChildrenCollapsible(False)
 
         # ------ LEFT PANEL: file tree ------
         left_panel = QWidget()
@@ -250,7 +325,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         left_layout.addWidget(self._metadata_container)
 
-        splitter.addWidget(left_panel)
+        self._splitter.addWidget(left_panel)
 
         # ------ RIGHT PANEL: entries editor ------
         right_panel = QWidget()
@@ -296,7 +371,9 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setSortingEnabled(True)
         self._entries_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._entries_table.setItemDelegate(ElidedTextTooltipDelegate(self._entries_table))
+        self._entries_table.setItemDelegate(
+            SearchHighlightDelegate(self._entries_table, self._search_input.text),
+        )
         self._entries_table.setWordWrap(False)
         self._entries_table.sortByColumn(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)
         self._entries_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -381,15 +458,16 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         right_layout.addLayout(entry_buttons)
 
-        splitter.addWidget(right_panel)
-        splitter.setSizes([300, 700])
-        splitter.setHandleWidth(1)
+        self._splitter.addWidget(right_panel)
+        self._splitter.setHandleWidth(scale_by_ui(4))
+        self._splitter.handle(1).setEnabled(True)
 
-        handle = splitter.handle(1)
-        if handle:
-            handle.setDisabled(True)
+        if UserIPDatabasesManager._cached_splitter is not None:
+            self._splitter.restoreState(UserIPDatabasesManager._cached_splitter)
+        else:
+            self._splitter.setSizes([scale_by_ui(280), scale_by_ui(820)])
 
-        root_layout.addWidget(splitter)
+        root_layout.addWidget(self._splitter)
 
         # --- Real-time filesystem sync ---
         self._fs_watcher = QFileSystemWatcher(self)
@@ -550,6 +628,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             self._global_search_checkbox.setChecked(True)
         self._proxy.setFilterFixedString(text)
         self._update_entry_counts()
+        self._entries_table.viewport().update()
 
     def _on_search_return_pressed(self) -> None:
         """Activate global search when the user presses Enter in the search field."""
@@ -1053,6 +1132,19 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         return not self._dirty
 
     @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Save window geometry and splitter state on close if closing is accepted."""
+        super().closeEvent(event)
+        if event.isAccepted():
+            geometry = self.saveGeometry()
+            maximized = self.isMaximized()
+            splitter_state = self._splitter.saveState()
+            UserIPDatabasesManager._cached_geometry = geometry
+            UserIPDatabasesManager._cached_maximized = maximized
+            UserIPDatabasesManager._cached_splitter = splitter_state
+            _save_userip_manager_state(geometry, splitter_state, maximized=maximized)
+
+    @override
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
@@ -1072,7 +1164,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 for column in range(self._model.columnCount())
                 if column != USERNAME_COLUMN and not self._entries_table.isColumnHidden(column)
             )
-            self._entries_table.setColumnWidth(USERNAME_COLUMN, max(150, available_width - other_widths))
+            self._entries_table.setColumnWidth(USERNAME_COLUMN, max(180, available_width - other_widths))
 
     @override
     def _reset_column_sizes(self) -> None:
@@ -1085,14 +1177,14 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
         self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
-        self._entries_table.setColumnWidth(IP_COLUMN, 120)
+        self._entries_table.setColumnWidth(IP_COLUMN, 125)
         self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
-        self._entries_table.setColumnWidth(DATABASE_COLUMN, 120)
+        self._entries_table.setColumnWidth(DATABASE_COLUMN, 180)
 
         viewport = self._entries_table.viewport()
         available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
-        fixed_widths = 50 + 120 + 210
+        fixed_widths = 50 + 125 + 210
         if not self._entries_table.isColumnHidden(DATABASE_COLUMN):
-            fixed_widths += 120
-        username_width = max(150, available_width - fixed_widths)
+            fixed_widths += 180
+        username_width = max(180, available_width - fixed_widths)
         self._entries_table.setColumnWidth(USERNAME_COLUMN, username_width)

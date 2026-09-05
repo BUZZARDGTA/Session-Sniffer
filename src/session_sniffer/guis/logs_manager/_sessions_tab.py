@@ -400,8 +400,8 @@ class SessionsLogTab(QWidget):
             cursor = document.find(text, cursor)
 
         highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor('#665c00'))
-        highlight_format.setForeground(QColor('#ffffff'))
+        highlight_format.setBackground(QColor('#e3b341'))
+        highlight_format.setForeground(QColor('#000000'))
 
         selections: list[Any] = []
         for match_cursor in matched_cursors:

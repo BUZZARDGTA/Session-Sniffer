@@ -35,6 +35,7 @@ PROTECTION_LOGGING_PATH: Path = LOGGING_DIR_PATH / 'Protection_Logging.csv'
 USERIP_LOGGING_PATH: Path = LOGGING_DIR_PATH / 'UserIP_Logging.csv'
 
 GEOLITE2_DATABASES_DIR_PATH: Path = APP_DIR_LOCAL / 'GeoLite2 Databases'
+GUI_STATE_PATH: Path = APP_DIR_LOCAL / 'gui_state.json'
 SESSIONS_LOGGING_DIR_PATH: Path = LOGGING_DIR_PATH / 'Sessions'
 
 # Roaming (syncable): settings, user databases, user scripts
