@@ -468,6 +468,21 @@ class InterfaceSelectionDialog(QDialog):
         # Populate the table with initial filtered data (after button is created)
         self.apply_filters()
         self._reset_column_sizes()
+
+        # Connect selection change signal to enable/disable Select button
+        selection_model = self.table.selectionModel()
+        selection_model.selectionChanged.connect(self.update_select_button_state)
+
+        # Connect double-click signal to select interface (simulates Start button)
+        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+
+        # Apply initial constraints
+        self.enforce_spoofing_constraints()
+
+        # Raise and activate window to ensure it gets focus
+        self.raise_()
+        self.activateWindow()
+
         self.setLayout(layout)
 
     def _reset_column_sizes(self) -> None:
@@ -488,20 +503,6 @@ class InterfaceSelectionDialog(QDialog):
         vendor_width = max(120, remaining - description_width)
         self.table.setColumnWidth(1, description_width)
         self.table.setColumnWidth(8, vendor_width)
-
-        # Connect selection change signal to enable/disable Select button
-        selection_model = self.table.selectionModel()
-        selection_model.selectionChanged.connect(self.update_select_button_state)
-
-        # Connect double-click signal to select interface (simulates Start button)
-        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
-
-        # Apply initial constraints
-        self.enforce_spoofing_constraints()
-
-        # Raise and activate window to ensure it gets focus
-        self.raise_()
-        self.activateWindow()
 
         # Live refresh: periodically re-query the OS for adapter changes
         self._refresh_timer = QTimer(self)
