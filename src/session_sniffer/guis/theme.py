@@ -22,6 +22,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     branch_more_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_more.svg').as_posix()
     branch_end_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_end.svg').as_posix()
     chevron_right_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
+    chevron_right_disabled_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_disabled.svg').as_posix()
     chevron_right_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_more.svg').as_posix()
     chevron_right_end_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_end.svg').as_posix()
     chevron_down_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_down_more.svg').as_posix()
@@ -578,6 +579,10 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     QMenuBar::item:pressed {
         background-color: #55555a;
     }
+    QMenuBar::item:disabled {
+        color: #666666;
+        background: transparent;
+    }
     QMenu {
         background-color: #252526;
         color: #e0e0e0;
@@ -591,6 +596,14 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     QMenu::item:selected {
         background-color: #3e3e42;
         border-radius: 3px;
+    }
+    QMenu::item:disabled {
+        color: #666666;
+        background-color: transparent;
+    }
+    QMenu::item:disabled:selected {
+        color: #666666;
+        background-color: transparent;
     }
     QMenu::separator {
         height: 1px;
@@ -641,6 +654,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{branch_end_path}', branch_end_path)
     css = css.replace('{chevron_right_more_path}', chevron_right_more_path)
     css = css.replace('{chevron_right_path}', chevron_right_path)
+    css = css.replace('{chevron_right_disabled_path}', chevron_right_disabled_path)
     css = css.replace('{chevron_right_end_path}', chevron_right_end_path)
     css = css.replace('{chevron_down_more_path}', chevron_down_more_path)
     css = css.replace('{chevron_down_end_path}', chevron_down_end_path)

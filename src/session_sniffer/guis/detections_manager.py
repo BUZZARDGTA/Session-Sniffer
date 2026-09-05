@@ -27,7 +27,11 @@ from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PA
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
-from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, setup_tab_dialog_buttons
+from session_sniffer.guis._dialog_mixins import (
+    UnsavedChangesMixin,
+    equalize_button_sizes,
+    setup_tab_dialog_buttons,
+)
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
     get_screen_size,
@@ -167,6 +171,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
+
+        equalize_button_sizes(button_row)
 
         layout.addLayout(button_row)
 

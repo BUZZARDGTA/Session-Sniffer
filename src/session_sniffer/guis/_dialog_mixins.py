@@ -63,14 +63,14 @@ def setup_tab_dialog_buttons(
     The caller is responsible for setting the Save button's tooltip, connecting its clicked signal,
     and adding it (plus any Cancel button) to *button_row*.
     """
+    button_row.addStretch()
+
     reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_button.clicked.connect(reset_to_defaults)
     button_row.addWidget(reset_button)
 
-    button_row.addStretch()
-
     reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Reset')
-    reset_tab_button.setToolTip('Reset current tab settings to default values (review before saving)')
+    reset_tab_button.setToolTip('Reset current tab settings to their default values (review before saving)')
     reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_tab_button.clicked.connect(reset_current_tab)
     button_row.addWidget(reset_tab_button)
@@ -79,3 +79,20 @@ def setup_tab_dialog_buttons(
     save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
     save_button.setDefault(True)
     return save_button
+
+
+def equalize_button_sizes(button_row: QHBoxLayout) -> None:
+    """Ensure all QPushButton widgets in *button_row* share the same minimum width and height based on the largest button."""
+    buttons: list[QPushButton] = []
+    for index in range(button_row.count()):
+        item = button_row.itemAt(index)
+        widget = item.widget() if item is not None else None
+        if isinstance(widget, QPushButton):
+            buttons.append(widget)
+    if not buttons:
+        return
+    max_width = max(button.sizeHint().width() for button in buttons)
+    max_height = max(button.sizeHint().height() for button in buttons)
+    for button in buttons:
+        button.setMinimumWidth(max_width)
+        button.setMinimumHeight(max_height)

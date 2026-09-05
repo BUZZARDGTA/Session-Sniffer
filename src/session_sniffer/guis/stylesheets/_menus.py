@@ -3,6 +3,7 @@
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 
 _CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
+_CHEVRON_RIGHT_DISABLED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_disabled.svg').as_posix()
 _CHECKBOX_CHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'select_all.svg').as_posix()
 _CHECKBOX_UNCHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg').as_posix()
 
@@ -18,6 +19,9 @@ QMenu::right-arrow {
     width: 14px;
     height: 14px;
     padding-right: 6px;
+}
+QMenu::right-arrow:disabled {
+    image: url("{chevron_right_disabled_path}");
 }
 """
 
@@ -43,7 +47,12 @@ QMenu::item:selected {
 }
 
 QMenu::item:disabled {
-    color: #777777;
+    color: #666666;
+    background-color: transparent;
+}
+
+QMenu::item:disabled:selected {
+    color: #666666;
     background-color: transparent;
 }
 
@@ -76,6 +85,7 @@ QMenu::separator {
     )
     .strip()
     .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
+    .replace('{chevron_right_disabled_path}', _CHEVRON_RIGHT_DISABLED_PATH)
     .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
     .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
 )
@@ -100,7 +110,12 @@ QMenu::item:selected {
 }
 
 QMenu::item:disabled {
-    color: #777777;
+    color: #666666;
+    background-color: transparent;
+}
+
+QMenu::item:disabled:selected {
+    color: #666666;
     background-color: transparent;
 }
 
@@ -133,6 +148,7 @@ QMenu::separator {
     )
     .strip()
     .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
+    .replace('{chevron_right_disabled_path}', _CHEVRON_RIGHT_DISABLED_PATH)
     .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
     .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
 )
