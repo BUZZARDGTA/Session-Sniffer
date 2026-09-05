@@ -1,7 +1,12 @@
 """Reconnect frequency statistics window."""
 
+from typing import TYPE_CHECKING, override
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
+
+if TYPE_CHECKING:
+    from PySide6.QtGui import QResizeEvent, QShowEvent
 
 from session_sniffer.guis.table_context_menu import TableContextMenuManager, skip_if_menu_open
 from session_sniffer.guis.utils import NumericTableWidgetItem, ToggleAlwaysOnTopMixin, setup_stat_table
@@ -27,6 +32,18 @@ class ReconnectFrequencyWindow(ToggleAlwaysOnTopMixin):
         self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Adjust column widths when the reconnect frequency window is shown."""
+        super().showEvent(event)
+        self._reset_column_sizes()
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust column widths when the reconnect frequency window is resized."""
+        super().resizeEvent(event)
+        self._reset_column_sizes()
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""

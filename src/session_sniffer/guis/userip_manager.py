@@ -467,6 +467,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         else:
             self._splitter.setSizes([scale_by_ui(280), scale_by_ui(820)])
 
+        self._splitter.splitterMoved.connect(lambda *_: self._adjust_username_column_width())
         root_layout.addWidget(self._splitter)
 
         # --- Real-time filesystem sync ---
@@ -1151,20 +1152,24 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+        self._adjust_username_column_width()
 
     @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
         """Adjust column widths when the dialog is resized."""
         super().resizeEvent(a0)
-        if a0.oldSize().width() > 0 and a0.size().width() != a0.oldSize().width():
-            viewport = self._entries_table.viewport()
-            available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
-            other_widths = sum(
-                self._entries_table.columnWidth(column)
-                for column in range(self._model.columnCount())
-                if column != USERNAME_COLUMN and not self._entries_table.isColumnHidden(column)
-            )
-            self._entries_table.setColumnWidth(USERNAME_COLUMN, max(180, available_width - other_widths))
+        self._adjust_username_column_width()
+
+    def _adjust_username_column_width(self) -> None:
+        """Adjust the Username column width so all entries columns fit the viewport without trailing blank space."""
+        viewport = self._entries_table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
+        other_widths = sum(
+            self._entries_table.columnWidth(column)
+            for column in range(self._model.columnCount())
+            if column != USERNAME_COLUMN and not self._entries_table.isColumnHidden(column)
+        )
+        self._entries_table.setColumnWidth(USERNAME_COLUMN, max(180, available_width - other_widths))
 
     @override
     def _reset_column_sizes(self) -> None:
@@ -1180,11 +1185,4 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setColumnWidth(IP_COLUMN, 125)
         self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
         self._entries_table.setColumnWidth(DATABASE_COLUMN, 180)
-
-        viewport = self._entries_table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
-        fixed_widths = 50 + 125 + 210
-        if not self._entries_table.isColumnHidden(DATABASE_COLUMN):
-            fixed_widths += 180
-        username_width = max(180, available_width - fixed_widths)
-        self._entries_table.setColumnWidth(USERNAME_COLUMN, username_width)
+        self._adjust_username_column_width()

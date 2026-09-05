@@ -1,10 +1,10 @@
 """Player Identifier — baseline PPS/BPS profiles then detect spikes to correlate IPs to players."""
 
 from math import sqrt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QResizeEvent
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
@@ -364,6 +364,13 @@ class PlayerIdentifierWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust z-score table column widths when the dialog is resized."""
+        super().resizeEvent(event)
+        if self._zscore_table.isVisible():
+            self._reset_zscore_column_sizes()
+
     def _reset_zscore_column_sizes(self) -> None:
         """Reset z-score table column widths back to their initial default layout."""
         for column_index in (1, 2, 3, 4, 5):
@@ -441,6 +448,7 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(True)
         self._zscore_table.setRowCount(0)
         self._zscore_table.setVisible(True)
+        self._reset_zscore_column_sizes()
         self._params_box.setVisible(False)
         self._timer.start(UPDATE_INTERVAL_MS)
 

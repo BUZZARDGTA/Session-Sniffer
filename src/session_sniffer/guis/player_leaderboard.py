@@ -559,48 +559,74 @@ _STATS_PERIODS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+class _SeenStatsDialog(QDialog):
+    """Dialog showing Unique Days and Sessions side-by-side for each time period."""
+
+    def __init__(self, entry: LeaderboardEntry, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setWindowTitle(f'Seen Stats — {format_player_display(entry.ip, entry.usernames)}')
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
+
+        self._table = QTableWidget(len(_STATS_PERIODS), 3, self)
+        self._table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
+        v_header = self._table.verticalHeader()
+        if v_header:
+            v_header.setVisible(False)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._table.setItemDelegate(ElidedTextTooltipDelegate(self._table))
+        self._table.setWordWrap(False)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        for row, (period, sessions_attr, days_attr) in enumerate(_STATS_PERIODS):
+            period_item = QTableWidgetItem(period)
+            days_item = QTableWidgetItem(str(getattr(entry, days_attr)))
+            sessions_item = QTableWidgetItem(str(getattr(entry, sessions_attr)))
+            days_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            sessions_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._table.setItem(row, 0, period_item)
+            self._table.setItem(row, 1, days_item)
+            self._table.setItem(row, 2, sessions_item)
+
+        h_header = self._table.horizontalHeader()
+        if h_header:
+            for column in range(3):
+                h_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+            setup_table_header_context_menu(self._table, on_reset=self._reset_column_sizes)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._table)
+        self._reset_column_sizes()
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout, stretching Period."""
+        self._table.setColumnWidth(1, 110)
+        self._table.setColumnWidth(2, 110)
+        viewport = self._table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+        used_width = self._table.columnWidth(1) + self._table.columnWidth(2)
+        remaining_width = max(100, available_width - used_width)
+        self._table.setColumnWidth(0, remaining_width)
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Adjust column widths when the dialog is shown."""
+        super().showEvent(event)
+        self._reset_column_sizes()
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust column widths when the dialog is resized."""
+        super().resizeEvent(event)
+        self._reset_column_sizes()
+
+
 def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = None) -> QDialog:
     """Build and return a dialog showing Unique Days and Sessions side-by-side for each time period."""
-    dialog = QDialog(parent)
-    dialog.setWindowModality(Qt.WindowModality.WindowModal)
-    dialog.setWindowTitle(f'Seen Stats — {format_player_display(entry.ip, entry.usernames)}')
-    dialog.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-
-    table = QTableWidget(len(_STATS_PERIODS), 3, dialog)
-    table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
-    v_header = table.verticalHeader()
-    if v_header:
-        v_header.setVisible(False)
-    table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-    table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-    table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-    table.setItemDelegate(ElidedTextTooltipDelegate(table))
-    table.setWordWrap(False)
-    table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-    table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-
-    for row, (period, sessions_attr, days_attr) in enumerate(_STATS_PERIODS):
-        period_item = QTableWidgetItem(period)
-        days_item = QTableWidgetItem(str(getattr(entry, days_attr)))
-        sessions_item = QTableWidgetItem(str(getattr(entry, sessions_attr)))
-        days_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        sessions_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        table.setItem(row, 0, period_item)
-        table.setItem(row, 1, days_item)
-        table.setItem(row, 2, sessions_item)
-
-    h_header = table.horizontalHeader()
-    if h_header:
-        for column in range(3):
-            h_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-        table.resizeColumnToContents(0)
-        table.setColumnWidth(1, 110)
-        table.setColumnWidth(2, 110)
-        setup_table_header_context_menu(table)
-
-    layout = QVBoxLayout(dialog)
-    layout.addWidget(table)
-    return dialog
+    return _SeenStatsDialog(entry, parent)
 
 
 class _LeaderboardTableView(QTableView):

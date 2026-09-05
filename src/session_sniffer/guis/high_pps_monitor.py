@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -297,9 +297,11 @@ class HighRateMonitorWidget(QWidget):
         header.setSortIndicatorShown(True)
         header.setSortIndicator(self._model.COLUMN_DURATION, Qt.SortOrder.DescendingOrder)
         self._table.setSortingEnabled(False)
+        self._is_resetting_columns = False
         self._has_user_resized_columns = False
         setup_table_header_context_menu(self._table, on_reset=self._reset_column_sizes)
         header.sectionResized.connect(self._on_section_resized)
+        self._reset_column_sizes()
         layout.addWidget(self._table)
 
         # Parameters control panel
@@ -674,18 +676,31 @@ class HighRateMonitorWidget(QWidget):
     # pylint: enable=duplicate-code
 
     def _on_section_resized(self, _logical_index: int, _old_size: int, _new_size: int) -> None:
-        self._has_user_resized_columns = True
+        if not getattr(self, '_is_resetting_columns', False):
+            self._has_user_resized_columns = True
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
-        self._has_user_resized_columns = False
-        viewport = self._table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-        total_columns = self._model.columnCount()
-        if total_columns > 0 and available_width > 0:
-            column_width = max(80, available_width // total_columns)
-            for column_index in range(total_columns):
-                self._table.setColumnWidth(column_index, column_width)
+        self._is_resetting_columns = True
+        try:
+            self._has_user_resized_columns = False
+            viewport = self._table.viewport()
+            available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+            total_columns = self._model.columnCount()
+            if total_columns > 0 and available_width > 0:
+                column_width = max(80, available_width // total_columns)
+                remainder = available_width % total_columns
+                for column_index in range(total_columns):
+                    add_pixels = remainder if column_index == total_columns - 1 else 0
+                    self._table.setColumnWidth(column_index, column_width + add_pixels)
+        finally:
+            self._is_resetting_columns = False
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Adjust column sizes when the monitor window is shown."""
+        super().showEvent(event)
+        self._reset_column_sizes()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:

@@ -125,6 +125,7 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
 # Columns that absorb remaining table viewport space to eliminate empty right-hand space.
 FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',
+    'Username',
     'Hostname',
     'Country',
     'Region',

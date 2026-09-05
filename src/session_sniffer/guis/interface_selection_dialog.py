@@ -483,7 +483,23 @@ class InterfaceSelectionDialog(QDialog):
         self.raise_()
         self.activateWindow()
 
+        # Live refresh: periodically re-query the OS for adapter changes
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(self._REFRESH_INTERVAL_MS)
+        self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
+        self._refresh_timer.start()
+
+        # Wire ARP-refresh worker bridges (queued by default since worker lives in another thread).
+        self._arp_refresh_progress_signal.connect(self._on_arp_refresh_progress)
+        self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
+
         self.setLayout(layout)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust column widths when the interface selection dialog is resized."""
+        super().resizeEvent(event)
+        self._reset_column_sizes()
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
@@ -503,16 +519,6 @@ class InterfaceSelectionDialog(QDialog):
         vendor_width = max(120, remaining - description_width)
         self.table.setColumnWidth(1, description_width)
         self.table.setColumnWidth(8, vendor_width)
-
-        # Live refresh: periodically re-query the OS for adapter changes
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(self._REFRESH_INTERVAL_MS)
-        self._refresh_timer.timeout.connect(self._live_refresh_interfaces)
-        self._refresh_timer.start()
-
-        # Wire ARP-refresh worker bridges (queued by default since worker lives in another thread).
-        self._arp_refresh_progress_signal.connect(self._on_arp_refresh_progress)
-        self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
     # Custom Methods:
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
@@ -928,3 +934,4 @@ class InterfaceSelectionDialog(QDialog):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+        self._reset_column_sizes()

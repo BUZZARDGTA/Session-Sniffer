@@ -3,7 +3,7 @@
 from typing import override
 
 from PySide6.QtCore import QFileInfo, QPoint, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -308,14 +308,19 @@ class TargetProcessDialog(QDialog):
         self._update_status_label()
 
     @override
+    def showEvent(self, a0: QShowEvent) -> None:
+        """Adjust column widths when the dialog is shown."""
+        super().showEvent(a0)
+        self._reset_column_sizes()
+
+    @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
         """Adjust column widths when the dialog is resized."""
         super().resizeEvent(a0)
-        if a0.oldSize().width() > 0 and a0.size().width() != a0.oldSize().width():
-            viewport = self._table.viewport()
-            available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-            used_width = self._table.columnWidth(0) + self._table.columnWidth(1)
-            self._table.setColumnWidth(2, max(scale_by_ui(250), available_width - used_width))
+        viewport = self._table.viewport()
+        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+        used_width = self._table.columnWidth(0) + self._table.columnWidth(1)
+        self._table.setColumnWidth(2, max(scale_by_ui(250), available_width - used_width))
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""

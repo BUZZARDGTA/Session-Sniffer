@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QToolTip,
+    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -683,15 +684,16 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
 
 
 def setup_static_table_column_resizing(
-    table: QTableView,
+    table: QTableView | QTreeView,
     compute_base_width: Callable[[QFontMetrics, str], int] | None = None,
+    flexible_columns: tuple[str, ...] | None = None,
 ) -> None:
-    """Set up initial column resizing for a QTableView, fitting columns and distributing extra space to flexible columns."""
+    """Set up initial column resizing for a QTableView or QTreeView, fitting columns and distributing extra space to flexible columns."""
     table_model = table.model()
     if not table_model:
         return
 
-    horizontal_header = table.horizontalHeader()
+    horizontal_header = table.horizontalHeader() if isinstance(table, QTableView) else table.header()
     if not horizontal_header:
         return
 
@@ -699,12 +701,16 @@ def setup_static_table_column_resizing(
     viewport = table.viewport()
     viewport_width = viewport.width() if viewport and viewport.width() > MINIMUM_VIEWPORT_WIDTH_THRESHOLD else table.width()
 
+    target_flexible_columns = flexible_columns if flexible_columns is not None else FLEXIBLE_STRETCH_COLUMNS
+
     total_base_width = 0
     flex_count = 0
+    last_visible_column: int | None = None
 
     for column in range(table_model.columnCount()):
         if horizontal_header.isSectionHidden(column):
             continue
+        last_visible_column = column
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
         base_width = (
             compute_base_width(font_metrics, header_label)
@@ -712,7 +718,7 @@ def setup_static_table_column_resizing(
             else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
         )
         total_base_width += base_width
-        if header_label in FLEXIBLE_STRETCH_COLUMNS:
+        if header_label in target_flexible_columns:
             flex_count += 1
 
     extra_space = max(0, viewport_width - total_base_width)
@@ -732,10 +738,12 @@ def setup_static_table_column_resizing(
             else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
         )
 
-        if header_label in FLEXIBLE_STRETCH_COLUMNS:
+        if header_label in target_flexible_columns:
             current_flex_index += 1
             add_pixels = extra_per_flex + (remainder if current_flex_index == flex_count else 0)
             final_width = base_width + add_pixels
+        elif flex_count == 0 and column == last_visible_column:
+            final_width = base_width + extra_space
         else:
             final_width = base_width
 

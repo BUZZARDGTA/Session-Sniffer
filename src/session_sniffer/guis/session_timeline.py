@@ -1,9 +1,10 @@
 """Session timeline window — sortable table view of per-player presence."""
 
 from datetime import datetime
+from typing import override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
@@ -66,6 +67,18 @@ class SessionTimelineWindow(ToggleAlwaysOnTopMixin):
         self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
 
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Adjust column widths when the session timeline window is shown."""
+        super().showEvent(event)
+        self._reset_column_sizes()
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Adjust column widths when the session timeline window is resized."""
+        super().resizeEvent(event)
+        self._reset_column_sizes()
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
