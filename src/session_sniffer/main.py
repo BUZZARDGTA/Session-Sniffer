@@ -31,6 +31,7 @@ from session_sniffer.background import (
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
+from session_sniffer.capture.game_process_monitor import ensure_game_process_monitor_running
 from session_sniffer.capture.interface_setup import get_filtered_capture_interfaces, populate_network_interfaces_info
 from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder, Packet, PacketCapture
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
@@ -41,7 +42,6 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
-from session_sniffer.gta5.monitor import ensure_gta5_process_monitor_running
 from session_sniffer.guis.app import app
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
@@ -268,10 +268,9 @@ def main() -> None:
             return
 
         if (
-            Settings.capture_filter_exclusive_gta5_process
-            and Settings.is_gta5_feature_set()
+            Settings.capture_filter_exclusive_game_process
             and CaptureState.is_local_capture()
-            and (not CaptureState.gta5_is_running or local_port not in CaptureState.gta5_udp_ports)
+            and (not CaptureState.active_game_running or local_port not in CaptureState.active_game_udp_ports)
         ):
             return
 
@@ -663,7 +662,7 @@ def main() -> None:
         daemon=True,
     ).start()
 
-    ensure_gta5_process_monitor_running()
+    ensure_game_process_monitor_running()
 
     splash.finish_loading()
 

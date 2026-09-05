@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
     import geoip2.database
 
+    from session_sniffer.capture.game_process import ActiveGameStatus
     from session_sniffer.gta5.process import GTA5Status
 
 _MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
@@ -112,6 +113,11 @@ class CaptureState:
     interface_ip: ClassVar[str] = ''
     interface_type: ClassVar[str] = ''
     discord_rpc_connected: ClassVar[bool] = False
+    active_game_name: ClassVar[str | None] = None
+    active_game_running: ClassVar[bool] = False
+    active_game_path: ClassVar[Path | None] = None
+    active_game_pid: ClassVar[int | None] = None
+    active_game_udp_ports: ClassVar[frozenset[int]] = frozenset[int]()
     gta5_is_running: ClassVar[bool] = False
     gta5_is_enhanced: ClassVar[bool] = False
     gta5_is_legacy: ClassVar[bool] = False
@@ -134,13 +140,23 @@ class CaptureState:
     def is_local_capture(cls) -> bool:
         """Return `True` when the capture targets traffic from this machine.
 
-        Local capture allows GTA5 process control and other local-process actions.
+        Local capture allows game process control and other local-process actions.
         Returns `False` when ARP spoofing is enabled, a neighbour adapter is selected,
         or the interface is a bridged/sharing adapter (each of which captures another
         machine's traffic). `Shared` is treated as local — it captures this host's traffic.
         """
         with cls._lock:
             return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
+
+    @classmethod
+    def update_active_game_status(cls, status: ActiveGameStatus) -> None:
+        """Update active game running state, PID, path, and UDP socket ports."""
+        with cls._lock:
+            cls.active_game_name = status.game_name
+            cls.active_game_running = status.is_running
+            cls.active_game_path = status.path
+            cls.active_game_pid = status.pid
+            cls.active_game_udp_ports = status.udp_ports
 
     @classmethod
     def update_gta5_status(cls, status: GTA5Status) -> None:

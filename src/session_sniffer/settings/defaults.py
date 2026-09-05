@@ -123,19 +123,20 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'GTA5',
         ),
     ),
-    'capture_filter_exclusive_gta5_process': SettingMeta(
+    'capture_filter_exclusive_game_process': SettingMeta(
         category='Capture',
         group='General',
-        display_label='Exclusive GTA5 Process Traffic',
+        display_label='Exclusive Game Process Traffic',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'When the GTA5 feature set is active and running locally on this PC, restrict\n'
-            'the packet sniffer to only capture network traffic belonging directly to the\n'
-            'detected GTA5 process PID by matching its active local UDP socket ports.\n\n'
-            'Supports both GTA V Legacy (GTA5.exe) and Enhanced (GTA5_Enhanced.exe).\n\n'
+            'When running locally on this PC, restrict the packet sniffer to only capture\n'
+            'network traffic belonging directly to the detected running supported PC game process\n'
+            'by matching its active local UDP socket ports.\n\n'
+            'Supports all officially tested PC games (e.g. GTA V Legacy & Enhanced, Call of Duty,\n'
+            'Borderlands, Red Dead Online, Elden Ring, Payday 2, Monster Hunter, and more).\n\n'
             'All background noise and other applications on your computer (such as Discord,\n'
-            'browsers, Steam, or other games) will be completely ignored.\n\n'
-            'When GTA5 is not running locally, no player traffic is captured until GTA5 is launched.\n\n'
+            'browsers, Steam, or other software) will be completely ignored.\n\n'
+            'When no supported game is running locally, no player traffic is captured until a game is launched.\n\n'
             'Note: This setting only applies to local PC captures. When scanning an external\n'
             'device (such as a console via ARP spoofing or a secondary adapter), external process\n'
             'inspection is not possible, so this restriction is automatically bypassed.'
@@ -680,7 +681,7 @@ class SettingDefaults(TypedDict):
     capture_arp_spoofing: bool
     capture_block_third_party_servers: tuple[str, ...]
     capture_feature_set: str | None
-    capture_filter_exclusive_gta5_process: bool
+    capture_filter_exclusive_game_process: bool
     capture_overflow_timer: int
     capture_ps3_name_resolver: bool
     capture_prepend_custom_capture_filter: str | None
@@ -748,7 +749,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_arp_spoofing': False,
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_feature_set': None,
-    'capture_filter_exclusive_gta5_process': True,
+    'capture_filter_exclusive_game_process': True,
     'capture_overflow_timer': 3,
     'capture_ps3_name_resolver': False,
     'capture_prepend_custom_capture_filter': None,

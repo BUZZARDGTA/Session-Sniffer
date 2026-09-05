@@ -6,16 +6,14 @@ executables that merely reuse the process name, and exposes the result as an
 immutable `GTA5Status` snapshot.
 """
 
-import ctypes
-import socket
 from contextlib import suppress
-from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
 import psutil
 
+from session_sniffer.capture.game_process import get_process_udp_ports
 from session_sniffer.ctypes_wintrust import has_valid_authenticode_signature
 from session_sniffer.logging_setup import get_logger
 
@@ -27,33 +25,6 @@ _GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
         'gta5_enhanced.exe',
     },
 )
-
-
-class _MIB_UDPROW_OWNER_PID(ctypes.Structure):
-    """ctypes definition for MIB_UDPROW_OWNER_PID structure."""
-
-    _fields_ = [
-        ('dwLocalAddr', wintypes.DWORD),
-        ('dwLocalPort', wintypes.DWORD),
-        ('dwOwningPid', wintypes.DWORD),
-    ]
-
-
-_AF_INET = 2
-_UDP_TABLE_OWNER_PID = 1
-_ERROR_INSUFFICIENT_BUFFER = 122
-_ERROR_SUCCESS = 0
-
-_GetExtendedUdpTable = ctypes.windll.iphlpapi.GetExtendedUdpTable
-_GetExtendedUdpTable.argtypes = [
-    ctypes.c_void_p,
-    ctypes.POINTER(wintypes.DWORD),
-    wintypes.BOOL,
-    wintypes.ULONG,
-    ctypes.c_int,
-    wintypes.ULONG,
-]
-_GetExtendedUdpTable.restype = wintypes.DWORD
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,31 +57,6 @@ class GTA5Status:
         object.__setattr__(self, 'is_running', self.path is not None)
         object.__setattr__(self, 'is_enhanced', stem == 'gta5_enhanced')
         object.__setattr__(self, 'is_legacy', stem == 'gta5')
-
-
-def _get_process_udp_ports(target_pid: int) -> frozenset[int]:
-    """Return the set of local UDP ports currently bound by the target PID via Win32 IP Helper API."""
-    buffer_size = wintypes.DWORD(0)
-    result = _GetExtendedUdpTable(None, ctypes.byref(buffer_size), 0, _AF_INET, _UDP_TABLE_OWNER_PID, 0)
-
-    for _attempt in range(3):
-        if result != _ERROR_INSUFFICIENT_BUFFER:
-            break
-        buffer = ctypes.create_string_buffer(buffer_size.value)
-        result = _GetExtendedUdpTable(buffer, ctypes.byref(buffer_size), 0, _AF_INET, _UDP_TABLE_OWNER_PID, 0)
-        if result == _ERROR_SUCCESS:
-            number_of_entries = ctypes.cast(buffer, ctypes.POINTER(wintypes.DWORD)).contents.value
-            if not number_of_entries:
-                return frozenset[int]()
-            table_offset = ctypes.sizeof(wintypes.DWORD)
-            row_array = (_MIB_UDPROW_OWNER_PID * number_of_entries).from_buffer(buffer, table_offset)
-            return frozenset(
-                socket.ntohs(row.dwLocalPort)
-                for row in row_array
-                if row.dwOwningPid == target_pid
-            )
-
-    return frozenset[int]()
 
 
 def find_running_gta5_path(
@@ -157,7 +103,7 @@ def find_running_gta5_path(
                         path=cached_status.path,
                         pid=cached_proc.pid,
                         is_suspended=cached_proc.status() == psutil.STATUS_STOPPED,
-                        udp_ports=_get_process_udp_ports(cached_proc.pid),
+                        udp_ports=get_process_udp_ports(cached_proc.pid),
                     ),
                     cached_proc,
                 )
@@ -188,7 +134,7 @@ def find_running_gta5_path(
                     path=resolved_path,
                     pid=process.pid,
                     is_suspended=process.status() == psutil.STATUS_STOPPED,
-                    udp_ports=_get_process_udp_ports(process.pid),
+                    udp_ports=get_process_udp_ports(process.pid),
                 ),
                 process,
             )
