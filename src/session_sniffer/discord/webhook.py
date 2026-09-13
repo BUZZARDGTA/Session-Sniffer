@@ -85,7 +85,7 @@ def is_valid_webhook_url(url: str | None) -> bool:
 def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_TABLE_BODY_CHARS) -> tuple[str, int]:
     """Return (possibly-truncated table, removed_row_count).
 
-    PrettyTable produces lines like:
+    Single-border tables produce lines like:
         ┌───── title ─────┐
         │ header │ header │
         ├────────┼────────┤
@@ -114,7 +114,7 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
 
     removed = 0
     if body_indices:
-        # PrettyTable mode: drop body rows beyond max_rows.
+        # Single-border table mode: drop body rows beyond max_rows.
         if len(body_indices) > max_rows:
             keep = set(body_indices[:max_rows])
             drop = set(body_indices[max_rows:])
@@ -122,7 +122,7 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
             lines = [line for i, line in enumerate(lines) if i not in drop or i in keep]
         truncated = '\n'.join(lines)
 
-        # Hard char-cap fallback for PrettyTable: ugly but never breaks
+        # Hard char-cap fallback for single-border table: ugly but never breaks
         # markdown because the body is wrapped in a code fence.
         if len(truncated) > body_char_limit:
             truncated = truncated[: body_char_limit - 3] + '...'

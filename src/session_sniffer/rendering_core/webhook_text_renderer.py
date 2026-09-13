@@ -1,9 +1,7 @@
-"""Webhook text rendering helpers (PrettyTable + mobile-friendly lists)."""
+"""Webhook text rendering helpers (text tables + mobile-friendly lists)."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
-
-from prettytable import PrettyTable, TableStyle
 
 from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.models.player import Player, PlayerBandwidth
@@ -12,7 +10,7 @@ from session_sniffer.rendering_core.session_table_renderer import (
     format_player_ports,
     format_player_usernames,
 )
-from session_sniffer.text_utils import format_elapsed_time
+from session_sniffer.text_utils import format_elapsed_time, format_single_border_table
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -82,18 +80,12 @@ def format_player_column_value(player: Player, column_name: str, now: datetime) 
 
 
 def build_webhook_table_text(players: list[Player], *, columns: tuple[str, ...], title: str) -> str | None:
-    """Render a compact PrettyTable for the Discord webhook (None when empty)."""
+    """Render a compact table for the Discord webhook (None when empty)."""
     if not players or not columns:
         return None
-    table = PrettyTable()
-    table.set_style(TableStyle.SINGLE_BORDER)
-    table.title = title
-    table.field_names = list(columns)
-    table.align = 'l'
     now = datetime.now(tz=LOCAL_TZ)
-    for player in players:
-        table.add_row([format_player_column_value(player, column, now) for column in columns])
-    return table.get_string()
+    rows = [[format_player_column_value(player, column, now) for column in columns] for player in players]
+    return format_single_border_table(columns, rows, title=title)
 
 
 def build_webhook_mobile_text(players: list[Player], columns: tuple[str, ...]) -> str | None:

@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from prettytable import PrettyTable, TableStyle
 from pydantic import ValidationError
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QTextCharFormat, QTextCursor
@@ -51,6 +50,7 @@ from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, ElidedTextTooltipDelegate
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
+from session_sniffer.text_utils import format_single_border_table
 
 if TYPE_CHECKING:
     from typing import Any
@@ -537,7 +537,7 @@ class SessionsLogTab(QWidget):
                 if not line_num % 400:
                     time.sleep(0)
                 if search_lower in line.lower():
-                    parsed_cells = self._try_parse_prettytable_row(line)
+                    parsed_cells = self._try_parse_table_row(line)
                     if parsed_cells is not None:
                         row_length = len(parsed_cells)
                         parsed_table_rows_by_length.setdefault(row_length, []).append(parsed_cells)
@@ -640,7 +640,7 @@ class SessionsLogTab(QWidget):
         return str(value)
 
     @staticmethod
-    def _try_parse_prettytable_row(line: str) -> list[str] | None:
+    def _try_parse_table_row(line: str) -> list[str] | None:
         stripped = line.strip()
         if not stripped.startswith('│') or not stripped.endswith('│'):
             return None
@@ -650,7 +650,7 @@ class SessionsLogTab(QWidget):
         return [cell.strip() for cell in raw_cells]
 
     @staticmethod
-    def _format_prettytable_row(cells: list[str], column_widths: list[int]) -> str:
+    def _format_table_row(cells: list[str], column_widths: list[int]) -> str:
         padded = [cell.ljust(column_widths[i]) if i < len(column_widths) else cell for i, cell in enumerate(cells)]
         return f'│ {" │ ".join(padded)} │'
 
@@ -666,7 +666,7 @@ class SessionsLogTab(QWidget):
         return effective_widths
 
     @staticmethod
-    def _format_prettytable_separator(column_widths: list[int], column_count: int) -> str:
+    def _format_table_separator(column_widths: list[int], column_count: int) -> str:
         if column_count <= 0:
             return ''
         widths = [column_widths[i] if i < len(column_widths) else 0 for i in range(column_count)]
@@ -710,12 +710,12 @@ class SessionsLogTab(QWidget):
                         if schema_label:
                             rendered_lines.append(f'  {" " * line_number_width}  ── {schema_label} ──')
                         active_column_widths = self._build_effective_column_widths(active_column_widths, header_cells)
-                        header_row = self._format_prettytable_row(header_cells, active_column_widths)
-                        separator_row = self._format_prettytable_separator(active_column_widths, len(header_cells))
+                        header_row = self._format_table_row(header_cells, active_column_widths)
+                        separator_row = self._format_table_separator(active_column_widths, len(header_cells))
                         rendered_lines.append(f'  {" " * line_number_width}  {header_row}')
                         rendered_lines.append(f'  {" " * line_number_width}  {separator_row}')
                         has_rendered_schema_header = True
-                rendered_line = self._format_prettytable_row(parsed_cells, active_column_widths)
+                rendered_line = self._format_table_row(parsed_cells, active_column_widths)
             rendered_lines.append(f'  {line_num:>{line_number_width}}: {rendered_line}')
 
         return rendered_lines
@@ -863,20 +863,16 @@ class SessionsLogTab(QWidget):
         players: dict[str, dict[str, Any]],
         column_names: tuple[str, ...],
         config: _SessionTableRenderConfig,
-    ) -> PrettyTable:
-        table = PrettyTable()
-        table.set_style(TableStyle.SINGLE_BORDER)
-        table.title = config.title
-        table.field_names = [
+    ) -> str:
+        headers = [
             f'{column} ↓' if column == config.sort_column and config.descending else f'{column} ↑' if column == config.sort_column else column for column in column_names
         ]
-        table.align = 'l'
-
         sorted_players = sorted(
             players.items(),
             key=lambda item: cls._get_column_snapshot(item[1]).get(config.sort_column, ''),
             reverse=config.descending,
         )
+        rows: list[list[str]] = []
         for ip, info in sorted_players:
             columns = cls._get_column_snapshot(info)
             row = [
@@ -887,12 +883,12 @@ class SessionsLogTab(QWidget):
                 else cls._format_table_value(ip)
                 for column_name in column_names
             ]
-            table.add_row(row)
+            rows.append(row)
 
-        return table
+        return format_single_border_table(headers, rows, title=config.title)
 
     @classmethod
-    def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> PrettyTable:
+    def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> str:
         return cls._build_session_table(
             players=players,
             column_names=Settings.GUI_ALL_CONNECTED_COLUMNS,
@@ -904,7 +900,7 @@ class SessionsLogTab(QWidget):
         )
 
     @classmethod
-    def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> PrettyTable:
+    def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> str:
         return cls._build_session_table(
             players=players,
             column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS,
@@ -923,7 +919,7 @@ class SessionsLogTab(QWidget):
 
         connected_table = self._build_connected_table(session_log.connected)
         disconnected_table = self._build_disconnected_table(session_log.disconnected)
-        return f'{connected_table.get_string()}\n{disconnected_table.get_string()}'
+        return f'{connected_table}\n{disconnected_table}'
 
     def _delete_selected(self) -> None:
         if self._selected_path is None or not self._selected_path.exists():

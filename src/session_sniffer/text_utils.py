@@ -5,7 +5,10 @@ Keep this module dependency-free and safe to import from anywhere.
 
 import textwrap
 from datetime import timedelta
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS = 60
 _ONE_MS = timedelta(milliseconds=1)
@@ -100,3 +103,63 @@ def format_suspend_duration_setting(value: int | Literal['Auto']) -> str:
     if isinstance(value, int):
         return f'Manual({value})'
     return value
+
+
+def format_single_border_table(
+    columns: Sequence[str],
+    rows: Iterable[Sequence[str]],
+    *,
+    title: str | None = None,
+) -> str:
+    """Render a text table with single-line box-drawing characters and left-aligned columns.
+
+    Args:
+        columns: Column header names.
+        rows: Rows of string cell values.
+        title: Optional title displayed centered across the top of the table.
+
+    Returns:
+        The formatted single-border table string, or an empty string if columns is empty.
+    """
+    if not columns:
+        return ''
+
+    column_widths = [len(column) for column in columns]
+    rows_list = [list(row) for row in rows]
+    for row in rows_list:
+        for i, cell in enumerate(row):
+            if i < len(column_widths):
+                column_widths[i] = max(column_widths[i], len(cell))
+
+    total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
+
+    if title:
+        min_inner_width = len(title) + 2
+        if min_inner_width > total_inner_width:
+            extra_content_width = min_inner_width - total_inner_width
+            current_content_width = sum(column_widths) or 1
+            scale = (current_content_width + extra_content_width) / current_content_width
+            column_widths = [int(width * scale) for width in column_widths]
+            remaining = (current_content_width + extra_content_width) - sum(column_widths)
+            if remaining > 0:
+                column_widths[-1] += remaining
+            total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
+
+    lines: list[str] = []
+    if title:
+        lines.append(f'┌{"─" * total_inner_width}┐')
+        lines.append(f'│{title.center(total_inner_width)}│')
+        lines.append(f'├{"┬".join("─" * (width + 2) for width in column_widths)}┤')
+    else:
+        lines.append(f'┌{"┬".join("─" * (width + 2) for width in column_widths)}┐')
+
+    lines.append(f'│ {" │ ".join(column.ljust(width) for column, width in zip(columns, column_widths, strict=True))} │')
+    lines.append(f'├{"┼".join("─" * (width + 2) for width in column_widths)}┤')
+
+    for row in rows_list:
+        row_cells = [(row[i] if i < len(row) else '').ljust(width) for i, width in enumerate(column_widths)]
+        lines.append(f'│ {" │ ".join(row_cells)} │')
+
+    lines.append(f'└{"┴".join("─" * (width + 2) for width in column_widths)}┘')
+
+    return '\n'.join(lines)
