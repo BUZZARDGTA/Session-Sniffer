@@ -56,11 +56,12 @@ jobs:
           ${{ matrix.venv_python }} -m pip install pyinstaller
 
       - name: Bake build metadata
+        working-directory: .github/workflows
         env:
           COMMIT_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_DATE: ${{ github.event.release.published_at }}
-        run: ${{ matrix.venv_python }} '.github/workflows/scripts/bake_build_metadata.py'
+        run: ${{ matrix.venv_python }} 'scripts/bake_build_metadata.py'
 
       - name: Build executable with PyInstaller
         working-directory: .github/workflows
