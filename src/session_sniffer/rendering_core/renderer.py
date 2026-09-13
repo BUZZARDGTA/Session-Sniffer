@@ -13,9 +13,9 @@ from PySide6.QtGui import QImage
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import handle_detection_notification, process_userip_task
-from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender

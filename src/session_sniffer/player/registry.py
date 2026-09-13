@@ -7,7 +7,7 @@ from operator import attrgetter
 from threading import RLock
 from typing import TYPE_CHECKING, ClassVar
 
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip

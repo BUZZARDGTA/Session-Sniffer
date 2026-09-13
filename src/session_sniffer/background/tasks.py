@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.gta5.suspend_manager import GTASuspendManager

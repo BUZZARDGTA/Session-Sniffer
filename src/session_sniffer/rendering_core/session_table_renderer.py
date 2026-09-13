@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PySide6.QtGui import QColor
 
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
 from session_sniffer.models.player import Player, PlayerBandwidth

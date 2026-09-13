@@ -15,7 +15,6 @@ dependencies = [
     "PySide6==6.11.2",
     "requests==2.34.2",
     "rich==15.0.0",
-    "tzlocal==5.4.4",
 
     # Security fixes
     "certifi>=2024.7.4",

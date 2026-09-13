@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.models.player import Player, PlayerBandwidth
 from session_sniffer.rendering_core.session_table_renderer import (
     format_player_middle_ports,

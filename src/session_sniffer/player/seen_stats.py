@@ -5,7 +5,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:

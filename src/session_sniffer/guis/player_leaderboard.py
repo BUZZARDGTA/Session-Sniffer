@@ -50,8 +50,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.external import LOCAL_TZ
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
 from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
 from session_sniffer.guis._player_leaderboard_loading_widget import LeaderboardLoadingWidget

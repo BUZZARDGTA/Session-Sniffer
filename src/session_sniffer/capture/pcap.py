@@ -22,7 +22,7 @@ from session_sniffer.capture.exceptions import (
     PcapReadError,
     PcapSendError,
 )
-from session_sniffer.constants.external import LOCAL_TZ
+from session_sniffer.constants.standard import LOCAL_TZ
 
 PCAP_ERRBUF_SIZE = 256
 PCAP_NETMASK_UNKNOWN = 0xFFFFFFFF
