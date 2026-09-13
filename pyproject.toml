@@ -14,7 +14,6 @@ dependencies = [
     "pypresence==4.6.2",
     "PySide6==6.11.2",
     "requests==2.34.2",
-    "rich==15.0.0",
 
     # Security fixes
     "certifi>=2024.7.4",

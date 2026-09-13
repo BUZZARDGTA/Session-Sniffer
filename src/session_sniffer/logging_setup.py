@@ -1,18 +1,17 @@
-"""Logging setup using Rich with console + rotating file handler.
+"""Logging setup with console + rotating file handler.
 
-Console outputs INFO+ with Rich formatting (app loggers only).
+Console outputs INFO+ with ANSI formatting (app loggers only).
 All log records go to a single debug.log file; severity is readable from each line's level field.
 Supports rotating log files, stderr capture, and safe flushing.
 """
 
 import atexit
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
 from threading import Event, RLock, local
 from typing import TYPE_CHECKING, Self, TextIO, cast, override
-
-from rich.logging import RichHandler
 
 from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH
 
@@ -250,6 +249,44 @@ class _StderrToLogger:
 # --- Default console level ---
 DEFAULT_CONSOLE_LEVEL = logging.INFO
 
+_ANSI_RESET = '\033[0m'
+_LEVEL_COLORS: dict[int, str] = {
+    logging.DEBUG: '\033[36m',
+    logging.INFO: '\033[32m',
+    logging.WARNING: '\033[33m',
+    logging.ERROR: '\033[31m',
+    logging.CRITICAL: '\033[1;31m',
+}
+
+
+def _should_use_colors() -> bool:
+    """Return True when standard output is attached to a terminal and color is not disabled."""
+    if os.getenv('NO_COLOR'):
+        return False
+    return bool(hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
+
+
+class _ConsoleFormatter(_RedactingFormatter):
+    """Console log formatter with optional ANSI level coloring and secret redaction."""
+
+    @override
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a record with optional ANSI coloring for the level name."""
+        level_color = _LEVEL_COLORS.get(record.levelno, '') if _should_use_colors() else ''
+        original_levelname = record.levelname
+        if level_color:
+            record.levelname = f'{level_color}{original_levelname}{_ANSI_RESET}'
+        try:
+            return super().format(record)
+        finally:
+            record.levelname = original_levelname
+
+
+_CONSOLE_FORMATTER = _ConsoleFormatter(
+    '%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s',
+    datefmt='%H:%M:%S',
+)
+
 _FILE_FORMATTER = _RedactingFormatter(
     '%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -284,10 +321,10 @@ def _register_shutdown_once() -> None:
 def setup_logging(
     console_level: int = DEFAULT_CONSOLE_LEVEL,
 ) -> None:
-    """Configure root logging with Rich console + rotating file handler (idempotent).
+    """Configure root logging with console + rotating file handler (idempotent).
 
     Handlers:
-        - console: INFO+ with Rich formatting (app loggers only).
+        - console: INFO+ with ANSI formatting (app loggers only).
         - debug.log: DEBUG+ on pre-release; INFO+ on stable (10 MiB, 5 backups).
 
     Args:
@@ -296,20 +333,16 @@ def setup_logging(
     with _setup_lock:
         root = logging.getLogger()
 
-        # --- Rich console handler ---
-        rich_handler = _find_handler(root, _CONSOLE_HANDLER_NAME)
-        if rich_handler is None:
-            rich_handler = RichHandler(
-                rich_tracebacks=True,
-                show_time=True,
-                show_path=True,
-                markup=False,
-            )
-            rich_handler.name = _CONSOLE_HANDLER_NAME
-            root.addHandler(rich_handler)
-        rich_handler.setLevel(console_level)
-        _configure_common_filters(rich_handler)
-        _add_filter_once(rich_handler, _app_only_filter)
+        # --- Console handler ---
+        console_handler = _find_handler(root, _CONSOLE_HANDLER_NAME)
+        if console_handler is None:
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.name = _CONSOLE_HANDLER_NAME
+            root.addHandler(console_handler)
+        console_handler.setLevel(console_level)
+        console_handler.setFormatter(_CONSOLE_FORMATTER)
+        _configure_common_filters(console_handler)
+        _add_filter_once(console_handler, _app_only_filter)
 
         # --- Rotating file handler: debug.log (DEBUG+ on pre-release; INFO+ on stable) ---
         debug_handler = _find_handler(root, _DEBUG_FILE_HANDLER_NAME)

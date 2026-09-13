@@ -1,22 +1,21 @@
 """Ping an IP address using the Check-Host API.
 
-It continuously sends ping requests and displays results using Rich formatting.
+It continuously sends ping requests and displays results using ANSI terminal formatting.
 """  # noqa: INP001
 
 import argparse
 import ctypes
 import enum
+import re
 import statistics
 import sys
 import time
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
-from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast, override
+from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast
 
 import requests
 from pydantic import BaseModel, ValidationError, field_validator
-from rich import print as rprint
-from rich.table import Table
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -78,6 +77,42 @@ NODE_INFO_MIN_LENGTH = 3
 MSGBOX_ICON_ERROR = 0x10
 
 
+_ANSI_ESCAPE_PATTERN = re.compile(r'\033\[[0-9;]*m')
+
+
+def _strip_ansi(text: str) -> str:
+    """Return text with ANSI escape sequences removed."""
+    return _ANSI_ESCAPE_PATTERN.sub('', text)
+
+
+def _visible_length(text: str) -> int:
+    """Return character length of text excluding ANSI escape sequences."""
+    return len(_strip_ansi(text))
+
+
+def _pad_cell(text: str, width: int, justify: str = 'left') -> str:
+    """Pad text to specified visible width respecting ANSI escape sequences."""
+    extra_spaces = max(0, width - _visible_length(text))
+    if justify == 'right':
+        return ' ' * extra_spaces + text
+    if justify == 'center':
+        left_spaces = extra_spaces // 2
+        right_spaces = extra_spaces - left_spaces
+        return ' ' * left_spaces + text + ' ' * right_spaces
+    return text + ' ' * extra_spaces
+
+
+_reconfigure_stdout = getattr(sys.stdout, 'reconfigure', None)
+if callable(_reconfigure_stdout):
+    _reconfigure_stdout(encoding='utf-8')
+
+
+def print_line(message: str = '', end: str = '\n') -> None:
+    """Write message to standard output without buffering delay."""
+    sys.stdout.write(f'{message}{end}')
+    sys.stdout.flush()
+
+
 def show_error_msgbox(title: str, message: str) -> None:
     """Show a native Windows error message box and ignore UI failures."""
     with suppress(Exception):
@@ -86,7 +121,7 @@ def show_error_msgbox(title: str, message: str) -> None:
 
 def exit_with_error(message: str) -> NoReturn:
     """Display an error, show a message box, and terminate the script gracefully."""
-    rprint(f'[{Colors.RED}]{message}[/{Colors.RED}]')
+    print_line(f'{Colors.RED}{message}{Colors.RESET}')
     show_error_msgbox('Spoofed Ping Error', message)
     raise SystemExit(1)
 
@@ -135,21 +170,18 @@ CHECK_HOST_API = 'https://check-host.net'
 
 
 class Colors(enum.StrEnum):
-    """Hex color codes for Rich formatting."""
+    """ANSI color codes for terminal formatting."""
 
-    CYAN = '3a96dd'
-    CYAN_LIGHT = '61d6d6'
-    GREEN = '13a10e'
-    YELLOW = 'c19c00'
-    YELLOW_LIGHT = 'f9f1a5'
-    ORANGE = 'ff5f00'
-    RED = 'c50f1f'
-    RED_LIGHT = 'e74856'
-
-    @override
-    def __str__(self) -> str:
-        """Automatically returns the color with a '#' prefix."""
-        return f'#{self.value}'
+    CYAN = '\033[38;2;58;150;221m'
+    CYAN_LIGHT = '\033[38;2;97;214;214m'
+    GREEN = '\033[38;2;19;161;14m'
+    YELLOW = '\033[38;2;193;156;0m'
+    YELLOW_LIGHT = '\033[38;2;249;241;165m'
+    ORANGE = '\033[38;2;255;95;0m'
+    RED = '\033[38;2;197;15;31m'
+    RED_LIGHT = '\033[38;2;231;72;86m'
+    BOLD = '\033[1m'
+    RESET = '\033[0m'
 
 
 PING_COLOR_MAP = {
@@ -158,6 +190,61 @@ PING_COLOR_MAP = {
     2: Colors.ORANGE,
     1: Colors.RED,
 }
+
+
+def format_ping_table(
+    target_ip: str,
+    rows: list[list[str]],
+) -> str:
+    """Format ping results into a single-border box-drawing text table with ANSI styling."""
+    headers = [
+        f'{Colors.CYAN_LIGHT}Country{Colors.RESET}',
+        f'{Colors.CYAN_LIGHT}City{Colors.RESET}',
+        f'{Colors.BOLD}{Colors.CYAN_LIGHT}Success{Colors.RESET}',
+        f'{Colors.GREEN}Min RTT (ms){Colors.RESET}',
+        f'{Colors.YELLOW}Avg RTT (ms){Colors.RESET}',
+        f'{Colors.RED}Max RTT (ms){Colors.RESET}',
+    ]
+    alignments = ['left', 'left', 'center', 'right', 'right', 'right']
+
+    column_widths = [_visible_length(header) for header in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            if i < len(column_widths):
+                column_widths[i] = max(column_widths[i], _visible_length(cell))
+
+    plain_title = f'Ping Results from {target_ip}'
+    styled_title = f'{Colors.CYAN}Ping Results from {Colors.CYAN_LIGHT}{target_ip}{Colors.RESET}'
+
+    total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
+    min_inner_width = len(plain_title) + 2
+    if min_inner_width > total_inner_width:
+        extra_width = min_inner_width - total_inner_width
+        current_content_width = sum(column_widths) or 1
+        scale = (current_content_width + extra_width) / current_content_width
+        column_widths = [int(width * scale) for width in column_widths]
+        remaining = (current_content_width + extra_width) - sum(column_widths)
+        if remaining > 0:
+            column_widths[-1] += remaining
+        total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
+
+    lines: list[str] = [
+        f'┌{"─" * total_inner_width}┐',
+        f'│{_pad_cell(styled_title, total_inner_width, "center")}│',
+        f'├{"┬".join("─" * (width + 2) for width in column_widths)}┤',
+        f'│ {" │ ".join(_pad_cell(header, width, "left") for header, width in zip(headers, column_widths, strict=True))} │',
+        f'├{"┼".join("─" * (width + 2) for width in column_widths)}┤',
+    ]
+
+    for row in rows:
+        formatted_cells = [
+            _pad_cell(cell, width, align)
+            for cell, width, align in zip(row, column_widths, alignments, strict=True)
+        ]
+        lines.append(f'│ {" │ ".join(formatted_cells)} │')
+
+    lines.append(f'└{"┴".join("─" * (width + 2) for width in column_widths)}┘')
+    return '\n'.join(lines)
 
 
 def ping_loop(target_ip: str, session: requests.Session) -> None:
@@ -189,9 +276,9 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
     def get_ping_results(request_id: str, delay: int = 10) -> PingCheckResults:
         """Fetch the results using the request ID."""
         for i in range(delay, 0, -1):
-            rprint(f'[{Colors.CYAN}]Waiting [{Colors.CYAN_LIGHT}]{i}[/{Colors.CYAN_LIGHT}] second{pluralize(i)} for ping request to complete...  ', end='\r')
+            print_line(f'{Colors.CYAN}Waiting {Colors.CYAN_LIGHT}{i}{Colors.CYAN} second{pluralize(i)} for ping request to complete...  {Colors.RESET}', end='\r')
             time.sleep(1)
-        rprint(' ' * 50, end='\r')
+        print_line(' ' * 50, end='\r')
 
         response = session.get(f'{CHECK_HOST_API}/check-result/{request_id}', headers={'Accept': 'application/json'})
         response.raise_for_status()
@@ -216,12 +303,12 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
 
     def get_rtt_gradient_color(val: int) -> str:
         val = min(max(val, 0), 3000) * 0xFF // 3000
-        return f'#{val:02X}{(0xFF - val):02X}00'
+        return f'\033[38;2;{val};{(0xFF - val)};0m'
 
     def color_ping_result(successful_pings: int) -> str:
         """Return a color-coded string based on successful pings."""
         color = PING_COLOR_MAP.get(successful_pings, Colors.RED)
-        return f'[{color}]{successful_pings}[/{color}]'
+        return f'{color}{successful_pings}{Colors.RESET}'
 
     def parse_successful_pings(
         pings: PingSuccess,
@@ -282,7 +369,7 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         rows = [
             country,
             city,
-            f'{color_ping_result(successful_pings)}/[{Colors.GREEN}]4[/{Colors.GREEN}]',
+            f'{color_ping_result(successful_pings)}/{Colors.GREEN}4{Colors.RESET}',
         ]
 
         if this_rtt_values:
@@ -294,17 +381,17 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             rtt_max_color = get_rtt_gradient_color(round(rtt_max))
             rows.extend(
                 [
-                    f'[{rtt_min_color}]{round(rtt_min, 1)}[/{rtt_min_color}] ms',
-                    f'[{rtt_avg_color}]{round(rtt_avg, 1)}[/{rtt_avg_color}] ms',
-                    f'[{rtt_max_color}]{round(rtt_max, 1)}[/{rtt_max_color}] ms',
+                    f'{rtt_min_color}{round(rtt_min, 1)}{Colors.RESET} ms',
+                    f'{rtt_avg_color}{round(rtt_avg, 1)}{Colors.RESET} ms',
+                    f'{rtt_max_color}{round(rtt_max, 1)}{Colors.RESET} ms',
                 ],
             )
         else:
             rows.extend(
                 [
-                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
-                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
-                    f'[{Colors.RED}]{status_message}[/{Colors.RED}]',
+                    f'{Colors.RED}{status_message}{Colors.RESET}',
+                    f'{Colors.RED}{status_message}{Colors.RESET}',
+                    f'{Colors.RED}{status_message}{Colors.RESET}',
                 ],
             )
 
@@ -314,47 +401,36 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         request_id, nodes = send_ping_request(target_ip)
 
         if not request_id or not nodes:
-            rprint(f'[{Colors.RED}]Failed to send ping request to [{Colors.RED_LIGHT}]{target_ip}[/{Colors.RED_LIGHT}].[/{Colors.RED}]')
+            print_line(f'{Colors.RED}Failed to send ping request to {Colors.RED_LIGHT}{target_ip}{Colors.RED}.{Colors.RESET}')
 
             for i in range(100, 0, -1):
-                rprint(f'[{Colors.YELLOW}]Retrying in [{Colors.YELLOW_LIGHT}]{i}[/{Colors.YELLOW_LIGHT}] second{pluralize(i)}...[/{Colors.YELLOW}]   ', end='\r')
+                print_line(f'{Colors.YELLOW}Retrying in {Colors.YELLOW_LIGHT}{i}{Colors.YELLOW} second{pluralize(i)}...{Colors.RESET}   ', end='\r')
                 time.sleep(1)
 
-            rprint('\n')
+            print_line('\n')
             continue
 
         result_url = f'{CHECK_HOST_API}/check-result/{request_id}'
-        rprint(
-            f'[{Colors.CYAN}]Ping request sent to [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]. '
-            f'Result API link: [link={result_url}][{Colors.CYAN_LIGHT} bold]{result_url}[/{Colors.CYAN_LIGHT} bold][/link][/{Colors.CYAN}]',
+        print_line(
+            f'{Colors.CYAN}Ping request sent to {Colors.CYAN_LIGHT}{target_ip}{Colors.CYAN}. '
+            f'Result API link: {Colors.CYAN_LIGHT}{Colors.BOLD}{result_url}{Colors.RESET}',
         )
 
         results: PingCheckResults = get_ping_results(request_id)
         if not results:
-            rprint(f'[{Colors.RED}]Failed to retrieve ping results.[/{Colors.RED}]')
+            print_line(f'{Colors.RED}Failed to retrieve ping results.{Colors.RESET}')
             time.sleep(10)
             continue
 
         global_rtt_values: list[float | int] = []
-
-        table = Table(
-            title=(f'[{Colors.CYAN}]Ping Results from[/{Colors.CYAN}] [{Colors.CYAN_LIGHT}]{target_ip}[/{Colors.CYAN_LIGHT}]'),
-            show_header=True,
-            header_style=f'bold {Colors.CYAN_LIGHT}',
-        )
-        table.add_column('Country', header_style=f'{Colors.CYAN_LIGHT}')
-        table.add_column('City', header_style=f'{Colors.CYAN_LIGHT}')
-        table.add_column('Success', header_style=f'bold {Colors.CYAN_LIGHT}', justify='center')
-        table.add_column('Min RTT (ms)', header_style=f'{Colors.GREEN}', justify='right')
-        table.add_column('Avg RTT (ms)', header_style=f'{Colors.YELLOW}', justify='right')
-        table.add_column('Max RTT (ms)', header_style=f'{Colors.RED}', justify='right')
+        table_rows: list[list[str]] = []
 
         for node, pings in results.items():
-            rows = build_result_row(node, pings, nodes, global_rtt_values.append)
-            table.add_row(*rows)
+            row = build_result_row(node, pings, nodes, global_rtt_values.append)
+            table_rows.append(row)
 
-        rprint()
-        rprint(table)
+        print_line()
+        print_line(format_ping_table(target_ip, table_rows))
 
         if global_rtt_values:
             global_rtt_min = min(global_rtt_values) * 1000
@@ -364,21 +440,21 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             global_rtt_avg_color = get_rtt_gradient_color(round(global_rtt_avg))
             global_rtt_max_color = get_rtt_gradient_color(round(global_rtt_max))
 
-            rprint('\n[cyan]RTT Statistics [cyan]([/cyan]All Nodes Combined[cyan])[/cyan]:[/cyan]')
-            rprint(f'[{Colors.GREEN}]Min RTT:[/{Colors.GREEN}] [{global_rtt_min_color}]{str(round(global_rtt_min, 1)).ljust(6)}[/{global_rtt_min_color}] ms')
-            rprint(f'[{Colors.YELLOW}]Avg RTT:[/{Colors.YELLOW}] [{global_rtt_avg_color}]{str(round(global_rtt_avg, 1)).ljust(6)}[/{global_rtt_avg_color}] ms')
-            rprint(f'[{Colors.RED}]Max RTT:[/{Colors.RED}] [{global_rtt_max_color}]{str(round(global_rtt_max, 1)).ljust(6)}[/{global_rtt_max_color}] ms')
+            print_line(f'\n{Colors.CYAN}RTT Statistics {Colors.CYAN_LIGHT}(All Nodes Combined){Colors.CYAN}:{Colors.RESET}')
+            print_line(f'{Colors.GREEN}Min RTT:{Colors.RESET} {global_rtt_min_color}{str(round(global_rtt_min, 1)).ljust(6)}{Colors.RESET} ms')
+            print_line(f'{Colors.YELLOW}Avg RTT:{Colors.RESET} {global_rtt_avg_color}{str(round(global_rtt_avg, 1)).ljust(6)}{Colors.RESET} ms')
+            print_line(f'{Colors.RED}Max RTT:{Colors.RESET} {global_rtt_max_color}{str(round(global_rtt_max, 1)).ljust(6)}{Colors.RESET} ms')
         else:
-            rprint(f'\n[{Colors.RED}]No RTT data available.[/{Colors.RED}]')
+            print_line(f'\n{Colors.RED}No RTT data available.{Colors.RESET}')
 
-        rprint()
-        rprint(f'[bold {Colors.YELLOW_LIGHT}]- [/bold {Colors.YELLOW_LIGHT}]' * 22)
-        rprint()
+        print_line()
+        print_line(f'{Colors.BOLD}{Colors.YELLOW_LIGHT}- {Colors.RESET}' * 22)
+        print_line()
 
         for i in range(20, 0, -1):
-            rprint(f'[{Colors.CYAN}]Waiting [{Colors.CYAN_LIGHT}]{i}[/{Colors.CYAN_LIGHT}] second{pluralize(i)} before the next ping request...[/{Colors.CYAN}]  ', end='\r')
+            print_line(f'{Colors.CYAN}Waiting {Colors.CYAN_LIGHT}{i}{Colors.CYAN} second{pluralize(i)} before the next ping request...{Colors.RESET}  ', end='\r')
             time.sleep(1)
-        rprint(' ' * 50, end='\r')
+        print_line(' ' * 50, end='\r')
 
 
 def is_ipv4_address(ip_address: str, /) -> bool:
@@ -397,11 +473,11 @@ def main() -> None:
 
     target_ip = args.ip.strip() if isinstance(args.ip, str) else None
     if not target_ip:
-        rprint(f'[{Colors.RED}]Error: No IP address provided.[/{Colors.RED}]')
+        print_line(f'{Colors.RED}Error: No IP address provided.{Colors.RESET}')
         sys.exit(1)
 
     if not is_ipv4_address(target_ip):
-        rprint(f"[{Colors.RED}]Error: '[{Colors.RED_LIGHT}]{target_ip}[/{Colors.RED_LIGHT}]' is not a valid IP address.[/{Colors.RED}]")
+        print_line(f"{Colors.RED}Error: '{Colors.RED_LIGHT}{target_ip}{Colors.RED}' is not a valid IP address.{Colors.RESET}")
         sys.exit(1)
 
     try:
