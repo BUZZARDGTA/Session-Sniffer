@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from threading import Event, Thread
 from typing import TYPE_CHECKING, override
 
-import dns.exception
 import requests
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer
@@ -107,7 +106,7 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
     if not lookup.reverse_dns.is_initialized:
         try:
             lookup.reverse_dns.hostname = reverse_dns_lookup(lookup.ip)
-        except (dns.exception.DNSException, OSError):
+        except OSError:
             lookup.reverse_dns.hostname = 'N/A'
         lookup.reverse_dns.is_initialized = True
 

@@ -1,74 +1,153 @@
 """The module provides functionality for performing reverse DNS lookups.
 
-It includes a function `reverse_dns_lookup` which resolves hostnames from IP addresses.
+It includes `reverse_dns_lookup` which resolves hostnames from IP addresses,
+querying public DNS servers (1.1.1.1 and 8.8.8.8) with automatic fallback
+to the operating system resolver.
 """
 
+import ipaddress
+import secrets
+import socket
+import struct
 import threading
-from typing import TYPE_CHECKING
 
-import dns.exception
-import dns.resolver
-import dns.reversename
+PUBLIC_DNS_SERVERS: tuple[str, ...] = ('1.1.1.1', '8.8.8.8')
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from dns.resolver import Resolver
+_DNS_HEADER_LENGTH = 12
+_DNS_PTR_RECORD_TYPE = 12
+_DNS_COMPRESSION_MASK = 0xC0
+_MAX_DNS_LABEL_HOPS = 16
 
 
-def _init_smart_resolver() -> Resolver:
-    """Perform a network check and return the optimal DNS resolver."""
-    public_resolver = dns.resolver.Resolver(configure=False)
-    public_resolver.nameservers = ['1.1.1.1', '8.8.8.8']
+class _ResolverState:
+    """Thread-safe state container tracking public DNS server availability."""
+
+    def __init__(self) -> None:
+        self.public_dns_available: bool | None = None
+        self.lock = threading.Lock()
+
+    def is_public_dns_reachable(self) -> bool:
+        """Check whether public DNS servers (1.1.1.1 or 8.8.8.8) are reachable and not blocked."""
+        if self.public_dns_available is not None:
+            return self.public_dns_available
+
+        with self.lock:
+            if self.public_dns_available is not None:
+                return self.public_dns_available
+
+            probe_pointer = '1.1.1.1.in-addr.arpa'
+            is_reachable = (
+                _query_udp_dns('1.1.1.1', probe_pointer, timeout_seconds=1.0) is not None
+                or _query_udp_dns('8.8.8.8', probe_pointer, timeout_seconds=1.0) is not None
+            )
+            self.public_dns_available = is_reachable
+            return self.public_dns_available
+
+    def reset(self) -> None:
+        """Clear the cached DNS availability state, forcing a re-check on the next lookup."""
+        with self.lock:
+            self.public_dns_available = None
+
+
+_resolver_state = _ResolverState()
+
+
+def _build_dns_ptr_query(reverse_pointer: str, transaction_id: int) -> bytes:
+    """Construct a raw DNS query packet for a PTR record."""
+    labels = reverse_pointer.split('.')
+    encoded_query_name = b''.join(bytes([len(label)]) + label.encode('ascii') for label in labels) + b'\x00'
+    header = struct.pack('!HHHHHH', transaction_id, 0x0100, 1, 0, 0, 0)
+    question = encoded_query_name + struct.pack('!HH', _DNS_PTR_RECORD_TYPE, 1)
+    return header + question
+
+
+def _parse_dns_name(response_data: bytes, offset: int) -> tuple[str, int]:
+    """Parse a sequence of DNS labels handling compression pointers."""
+    labels: list[str] = []
+    has_jumped = False
+    original_offset = offset
+    hops = 0
+
+    while hops < _MAX_DNS_LABEL_HOPS:
+        if offset >= len(response_data):
+            break
+        length = response_data[offset]
+        if not length:
+            offset += 1
+            break
+        if (length & _DNS_COMPRESSION_MASK) == _DNS_COMPRESSION_MASK:
+            if offset + 1 >= len(response_data):
+                break
+            pointer: int = ((length & 0x3F) << 8) | response_data[offset + 1]
+            if not has_jumped:
+                original_offset = offset + 2
+                has_jumped = True
+            offset = pointer
+            hops += 1
+            continue
+        offset += 1
+        if offset + length > len(response_data):
+            break
+        labels.append(response_data[offset : offset + length].decode('ascii', errors='replace'))
+        offset += length
+
+    return '.'.join(labels), (original_offset if has_jumped else offset)
+
+
+def _query_udp_dns(server_ip: str, reverse_pointer: str, timeout_seconds: float = 1.0) -> str | None:
+    """Send a raw DNS PTR query over UDP to a specific DNS server."""
+    address_family = socket.AF_INET6 if ':' in server_ip else socket.AF_INET
+    udp_socket = socket.socket(address_family, socket.SOCK_DGRAM)
+    udp_socket.settimeout(timeout_seconds)
+    transaction_id = secrets.randbelow(65536)
 
     try:
-        # Test if public DNS is blocked in the user's country
-        public_resolver.resolve(dns.reversename.from_address('1.1.1.1'), 'PTR')
-    except dns.exception.DNSException:
-        # Fallback to the local ISP resolver
-        return dns.resolver.Resolver()
+        query_packet = _build_dns_ptr_query(reverse_pointer, transaction_id)
+        udp_socket.sendto(query_packet, (server_ip, 53))
+        response_bytes, _ = udp_socket.recvfrom(512)
+    except OSError:
+        return None
+    finally:
+        udp_socket.close()
 
-    return public_resolver
+    if len(response_bytes) < _DNS_HEADER_LENGTH:
+        return None
 
+    response_transaction_id, flags, question_count, answer_count, _, _ = struct.unpack('!HHHHHH', response_bytes[:_DNS_HEADER_LENGTH])
+    if response_transaction_id != transaction_id or not (flags & 0x8000) or (flags & 0x000F) or not answer_count:
+        return None
 
-def _build_resolver_cache() -> tuple[Callable[[], Resolver], Callable[[], None]]:
-    """Build a thread-safe DNS resolver cache using a closure to avoid global state."""
-    instance: Resolver | None = None
-    lock = threading.Lock()
+    offset = _DNS_HEADER_LENGTH
+    for _ in range(question_count):
+        _, offset = _parse_dns_name(response_bytes, offset)
+        offset += 4
 
-    def get_resolver() -> Resolver:
-        nonlocal instance
+    for _ in range(answer_count):
+        if offset + 10 > len(response_bytes):
+            break
+        _, offset = _parse_dns_name(response_bytes, offset)
+        if offset + 10 > len(response_bytes):
+            break
+        record_type, _, _, resource_data_length = struct.unpack('!HHIH', response_bytes[offset : offset + 10])
+        offset += 10
+        if record_type == _DNS_PTR_RECORD_TYPE:
+            resolved_name, _ = _parse_dns_name(response_bytes, offset)
+            return resolved_name
+        offset += resource_data_length
 
-        # 1. Fast check outside the lock
-        if instance is not None:
-            return instance
-
-        # 2. Safe check inside the lock
-        with lock:
-            if instance is not None:
-                return instance
-
-            instance = _init_smart_resolver()
-            return instance
-
-    def reset_resolver() -> None:
-        """Clear the cached resolver, forcing a network check on the next lookup."""
-        nonlocal instance
-        with lock:
-            instance = None
-
-    return get_resolver, reset_resolver
+    return None
 
 
-# Expose the initialized functions to the module
-_get_resolver, reset_resolver_cache = _build_resolver_cache()
+def reset_resolver_cache() -> None:
+    """Clear the cached DNS availability state, forcing a re-check on the next lookup."""
+    _resolver_state.reset()
 
 
 def reverse_dns_lookup(target_ip: str) -> str:
     """Perform a reverse DNS lookup for the given IP address.
 
-    If a hostname is found, it returns the hostname. If no valid hostname
-    is found or an error occurs during lookup, it returns the original IP address.
+    Queries public DNS servers (1.1.1.1 and 8.8.8.8) first for public addresses,
+    falling back to the operating system resolver if unreachable or unassigned.
 
     Args:
         target_ip: The IP address to look up.
@@ -76,19 +155,26 @@ def reverse_dns_lookup(target_ip: str) -> str:
     Returns:
         The resolved hostname, or the original IP address if no valid hostname is found.
     """
-    rev_name = dns.reversename.from_address(target_ip)
+    try:
+        ip_object = ipaddress.ip_address(target_ip)
+    except ValueError:
+        ip_object = None
+
+    if ip_object is not None and not ip_object.is_private and not ip_object.is_loopback and _resolver_state.is_public_dns_reachable():
+        for public_server in PUBLIC_DNS_SERVERS:
+            resolved_hostname = _query_udp_dns(public_server, ip_object.reverse_pointer, timeout_seconds=1.0)
+            if resolved_hostname:
+                cleaned_hostname = resolved_hostname.rstrip('.')
+                if cleaned_hostname:
+                    return cleaned_hostname
 
     try:
-        answer = _get_resolver().resolve(rev_name, 'PTR')
-    except dns.exception.DNSException:
+        system_hostname, _ = socket.getnameinfo((target_ip, 0), 0)
+    except (socket.gaierror, OSError):
         return target_ip
 
-    ptr_record = next(iter(answer), None)
-    if not ptr_record:
+    cleaned_system_hostname = system_hostname.rstrip('.')
+    if not cleaned_system_hostname:
         return target_ip
 
-    hostname = str(ptr_record).rstrip('.')
-    if not hostname:
-        return target_ip
-
-    return hostname
+    return cleaned_system_hostname
