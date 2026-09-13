@@ -4,20 +4,31 @@ It connects to Discord using a provided client ID, updates the presence state wi
 functionality to update or close the presence. It uses threading to run the update process asynchronously.
 """
 
-import asyncio
+import contextlib
+import json
+import os
+import socket
+import struct
 import sys
 import time
+import uuid
 from enum import Enum, auto
+from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread
-from typing import NamedTuple
-
-from pypresence import exceptions
-from pypresence.presence import Presence
+from typing import BinaryIO, NamedTuple
 
 from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.logging_setup import get_logger
+
+_OPCODE_HANDSHAKE = 0
+_OPCODE_FRAME = 1
+_OPCODE_CLOSE = 2
+
+_HEADER_FORMAT = '<II'
+_HEADER_LENGTH = struct.calcsize(_HEADER_FORMAT)
+_MAX_PIPE_INDEX = 10
 
 
 class _PresenceUpdate(NamedTuple):
@@ -44,6 +55,79 @@ DISCORD_RPC_BUTTONS = [
 logger = get_logger(__name__)
 
 
+class _DiscordIPCConnection:
+    """Manages raw communication with the local Discord IPC pipe."""
+
+    def __init__(self, pipe_stream: BinaryIO, unix_socket: socket.socket | None = None) -> None:
+        self._stream = pipe_stream
+        self._unix_socket = unix_socket
+
+    @classmethod
+    def connect(cls) -> _DiscordIPCConnection | None:
+        """Find and connect to an active Discord IPC pipe (0 through 9)."""
+        for pipe_index in range(_MAX_PIPE_INDEX):
+            if sys.platform == 'win32':
+                pipe_path = Path(rf'\\.\pipe\discord-ipc-{pipe_index}')
+                try:
+                    stream = pipe_path.open('r+b', buffering=0)
+                    return cls(pipe_stream=stream)
+                except OSError:
+                    continue
+            elif hasattr(socket, 'AF_UNIX'):
+                candidate_paths: list[Path] = []
+                for environment_variable in ('XDG_RUNTIME_DIR', 'TMPDIR', 'TMP', 'TEMP'):
+                    directory_path = os.environ.get(environment_variable)
+                    if directory_path:
+                        candidate_paths.append(Path(directory_path) / f'discord-ipc-{pipe_index}')
+                candidate_paths.append(Path('/tmp') / f'discord-ipc-{pipe_index}')  # noqa: S108
+
+                for socket_path in candidate_paths:
+                    if not socket_path.exists():
+                        continue
+                    try:
+                        unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                        unix_socket.connect(str(socket_path))
+                        stream = unix_socket.makefile('r+b', buffering=0)
+                        return cls(pipe_stream=stream, unix_socket=unix_socket)
+                    except OSError:
+                        continue
+
+        return None
+
+    def send(self, opcode: int, payload: dict[str, object]) -> None:
+        """Encode and send a JSON payload with the Discord IPC header."""
+        encoded_data = json.dumps(payload).encode('utf-8')
+        header_bytes = struct.pack(_HEADER_FORMAT, opcode, len(encoded_data))
+        self._stream.write(header_bytes + encoded_data)
+
+    def receive(self) -> tuple[int, dict[str, object]] | None:
+        """Read and decode a frame from the Discord IPC pipe."""
+        header_bytes = self._stream.read(_HEADER_LENGTH)
+        if len(header_bytes) < _HEADER_LENGTH:
+            return None
+
+        opcode, payload_length = struct.unpack(_HEADER_FORMAT, header_bytes)
+        payload_bytes = self._stream.read(payload_length)
+        if len(payload_bytes) < payload_length:
+            return None
+
+        raw_payload = json.loads(payload_bytes.decode('utf-8'))
+        if not isinstance(raw_payload, dict):
+            return None
+
+        decoded_payload: dict[str, object] = {str(key): value for key, value in raw_payload.items()}
+        return opcode, decoded_payload
+
+    def close(self) -> None:
+        """Close the pipe stream and any underlying socket."""
+        with contextlib.suppress(OSError):
+            self._stream.close()
+
+        if self._unix_socket is not None:
+            with contextlib.suppress(OSError):
+                self._unix_socket.close()
+
+
 class DiscordRPC:
     """Manage Discord Rich Presence updates and connection."""
 
@@ -53,7 +137,7 @@ class DiscordRPC:
         Args:
             client_id: The client ID for connecting to Discord Rich Presence.
         """
-        self._rpc = Presence(client_id)
+        self._client_id = client_id
         self._closed = False
         self._queue: QueueType = SimpleQueue()
 
@@ -63,7 +147,7 @@ class DiscordRPC:
             target=_run,
             name='DiscordRPCThread',
             daemon=True,
-            args=(self._rpc, self._queue, self.connection_status),
+            args=(self._client_id, self._queue, self.connection_status),
         )
         self._thread.start()
 
@@ -100,61 +184,99 @@ class DiscordRPC:
         self._thread.join(timeout=3)
 
 
-def _create_rpc_event_loop() -> asyncio.AbstractEventLoop:
-    """Create an event loop that supports Discord IPC on the current platform."""
-    if sys.platform == 'win32':
-        return asyncio.ProactorEventLoop()
+def _connect_ipc(client_id: int) -> _DiscordIPCConnection | None:
+    """Establish a connection and perform the handshake with Discord."""
+    connection = _DiscordIPCConnection.connect()
+    if connection is None:
+        return None
 
-    return asyncio.new_event_loop()
+    try:
+        connection.send(_OPCODE_HANDSHAKE, {'v': 1, 'client_id': str(client_id)})
+        response = connection.receive()
+        if response is None:
+            connection.close()
+            return None
+
+        _, payload = response
+        if payload.get('evt') == 'ERROR':
+            connection.close()
+            return None
+    except (OSError, json.JSONDecodeError, struct.error):
+        connection.close()
+        return None
+
+    return connection
 
 
-def _connect_rpc(rpc: Presence) -> None:
-    """Connect the RPC client using a loop that supports its IPC transport."""
-    rpc.update_event_loop(_create_rpc_event_loop())
-    rpc.loop.run_until_complete(rpc.handshake())
+def _build_activity_payload(update_payload: _PresenceUpdate) -> dict[str, object]:
+    """Build the dictionary representing a Discord Rich Presence activity."""
+    activity: dict[str, object] = {
+        'state': update_payload.state_message,
+        'timestamps': {'start': START_TIME_INT},
+        'buttons': DISCORD_RPC_BUTTONS,
+    }
+    if update_payload.details is not None:
+        activity['details'] = update_payload.details
+
+    return {
+        'cmd': 'SET_ACTIVITY',
+        'args': {
+            'pid': os.getpid(),
+            'activity': activity,
+        },
+        'nonce': str(uuid.uuid4()),
+    }
 
 
-def _run(rpc: Presence, queue: QueueType, connection_status: Event) -> None:
+def _clear_activity_payload() -> dict[str, object]:
+    """Build the payload to clear the current Discord Rich Presence activity."""
+    return {
+        'cmd': 'SET_ACTIVITY',
+        'args': {
+            'pid': os.getpid(),
+            'activity': None,
+        },
+        'nonce': str(uuid.uuid4()),
+    }
+
+
+def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
     """Run the Discord RPC update loop in a separate thread."""
     last_connect_attempt: float = 0.0
+    active_connection: _DiscordIPCConnection | None = None
+
     while True:
         queue_item = queue.get()
         if queue_item is SHUTDOWN_SIGNAL:
-            if connection_status.is_set():
-                rpc.clear()
-                rpc.close()
+            if active_connection is not None:
+                with contextlib.suppress(OSError):
+                    active_connection.send(_OPCODE_FRAME, _clear_activity_payload())
+                    active_connection.send(_OPCODE_CLOSE, {})
+                active_connection.close()
+            connection_status.clear()
             return
 
         update_payload = ensure_instance(queue_item, _PresenceUpdate)
 
-        if not connection_status.is_set():
+        if active_connection is None:
             now = time.monotonic()
             if now - last_connect_attempt < _RECONNECT_COOLDOWN_SECONDS:
                 continue
             last_connect_attempt = now
-            try:
-                _connect_rpc(rpc)
-            except (
-                OSError,
-                exceptions.DiscordNotFound,
-                exceptions.DiscordError,
-                exceptions.ConnectionTimeout,
-                exceptions.InvalidPipe,
-            ) as e:
-                logger.debug('Discord RPC connection failed: %s: %s', type(e).__name__, e)
+
+            active_connection = _connect_ipc(client_id)
+            if active_connection is None:
+                logger.debug('Discord RPC connection failed')
                 continue
-            else:
-                logger.debug('Discord RPC connected')
-                connection_status.set()
+
+            logger.debug('Discord RPC connected')
+            connection_status.set()
 
         try:
-            rpc.update(
-                state=update_payload.state_message,
-                details=update_payload.details,
-                start=START_TIME_INT,
-                buttons=DISCORD_RPC_BUTTONS,
-            )
-        except (exceptions.PipeClosed, exceptions.ResponseTimeout) as e:
+            active_connection.send(_OPCODE_FRAME, _build_activity_payload(update_payload))
+            active_connection.receive()
+        except (OSError, json.JSONDecodeError, struct.error) as e:
             logger.debug('Discord RPC pipe lost: %s: %s', type(e).__name__, e)
-            rpc.close()
+            active_connection.close()
+            active_connection = None
             connection_status.clear()
