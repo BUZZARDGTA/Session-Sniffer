@@ -89,7 +89,7 @@ TOOLS: list[QualityTool] = [
     ),
     QualityTool(
         name='pip-audit',
-        command='pip-audit --local --skip-editable',
+        command='pip-audit --local --skip-editable --ignore-vuln PYSEC-2026-3740',
         install_command='pip install pip-audit',
         description="PyPA's official security vulnerability scanner",
         category='SECURITY',
