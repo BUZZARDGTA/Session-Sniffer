@@ -115,12 +115,10 @@ class StatsMixin(QMainWindow):
             self._leaderboard_window.raise_()
             self._leaderboard_window.activateWindow()
             return
-        self._leaderboard_window = PlayerLeaderboardWindow()
-        self._leaderboard_window.destroyed.connect(self._on_leaderboard_window_destroyed)
+        window = PlayerLeaderboardWindow()
+        window.destroyed.connect(lambda: setattr(self, '_leaderboard_window', None) if self._leaderboard_window is window else None)
+        self._leaderboard_window = window
         self._leaderboard_window.load_and_show()
-
-    def _on_leaderboard_window_destroyed(self) -> None:
-        self._leaderboard_window = None
 
     def reset_session_graph(self) -> None:
         """Reset graph history for all open statistics windows (called on capture restart)."""
@@ -144,9 +142,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = SessionRateGraphWindow()
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None) if self._session_rate_graph_window is window else None)
         self._session_rate_graph_window = window
+        self._session_rate_graph_window.show()
 
     def _tick_stats(self) -> None:
         """Tick all open statistics windows with the latest data."""
@@ -192,9 +190,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = SessionPpsGraphWindow()
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None) if self._session_pps_graph_window is window else None)
         self._session_pps_graph_window = window
+        self._session_pps_graph_window.show()
 
     def _open_session_bps_graph(self) -> None:
         """Open or focus the session-wide BPS graph window."""
@@ -205,9 +203,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = SessionBpsGraphWindow()
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None) if self._session_bps_graph_window is window else None)
         self._session_bps_graph_window = window
+        self._session_bps_graph_window.show()
 
     def _open_packets_latency_graph(self) -> None:
         """Open or focus the packets latency graph window."""
@@ -218,9 +216,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = PacketsLatencyGraphWindow()
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None) if self._packets_latency_graph_window is window else None)
         self._packets_latency_graph_window = window
+        self._packets_latency_graph_window.show()
 
     def _open_country_breakdown(self) -> None:
         """Open or focus the country breakdown window."""
@@ -231,9 +229,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = CountryBreakdownWindow(always_on_top=True)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None) if self._country_breakdown_window is window else None)
         self._country_breakdown_window = window
+        self._country_breakdown_window.show()
 
     def _open_reconnect_frequency(self) -> None:
         """Open or focus the reconnect frequency window."""
@@ -244,9 +242,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = ReconnectFrequencyWindow(always_on_top=True)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None) if self._reconnect_frequency_window is window else None)
         self._reconnect_frequency_window = window
+        self._reconnect_frequency_window.show()
 
     def _open_session_timeline(self) -> None:
         """Open or focus the session timeline window."""
@@ -257,9 +255,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = SessionTimelineWindow(always_on_top=True)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None) if self._session_timeline_window is window else None)
         self._session_timeline_window = window
+        self._session_timeline_window.show()
 
     def _open_port_heatmap(self) -> None:
         """Open or focus the port heatmap window."""
@@ -270,9 +268,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = PortHeatmapWindow(always_on_top=True)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None) if self._port_heatmap_window is window else None)
         self._port_heatmap_window = window
+        self._port_heatmap_window.show()
 
     def _open_session_duration(self) -> None:
         """Open or focus the session duration window."""
@@ -283,9 +281,9 @@ class StatsMixin(QMainWindow):
             return
 
         window = SessionDurationWindow(always_on_top=True)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None) if self._session_duration_window is window else None)
         self._session_duration_window = window
+        self._session_duration_window.show()
 
     def _open_capture_health(self) -> None:
         """Open or focus the capture statistics window."""
@@ -299,9 +297,9 @@ class StatsMixin(QMainWindow):
         window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
         window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
         window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)
-        window.show()
-        window.destroyed.connect(lambda: setattr(self, '_capture_statistics_window', None))
+        window.destroyed.connect(lambda: setattr(self, '_capture_statistics_window', None) if self._capture_statistics_window is window else None)
         self._capture_statistics_window = window
+        self._capture_statistics_window.show()
 
     def remove_player_from_connected(self, ip: str) -> None:
         """Remove a single player from connected table and registry by IP address."""

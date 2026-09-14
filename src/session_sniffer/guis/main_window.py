@@ -572,7 +572,9 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
         # Parentless: an owned Qt.Tool/Dialog window disables the owner's native close (X) button.
         # Retain the reference so the dialog isn't garbage-collected; WA_DeleteOnClose cleans it up.
-        self._discord_intro_window = DiscordIntro()
+        window = DiscordIntro()
+        window.destroyed.connect(lambda: setattr(self, '_discord_intro_window', None) if self._discord_intro_window is window else None)
+        self._discord_intro_window = window
 
     @override
     def eventFilter(self, a0: QObject, a1: QEvent) -> bool:
@@ -869,10 +871,11 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._settings_dialog_window.raise_()
             self._settings_dialog_window.activateWindow()
             return
-        self._settings_dialog_window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
-        self._settings_dialog_window.accepted.connect(self._update_gta5_toolbar_visibility)
-        self._settings_dialog_window.accepted.connect(self._apply_always_on_top)
-        self._settings_dialog_window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None))
+        window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
+        window.accepted.connect(self._update_gta5_toolbar_visibility)
+        window.accepted.connect(self._apply_always_on_top)
+        window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
+        self._settings_dialog_window = window
         self._settings_dialog_window.show()
 
     def _open_userip_manager(self) -> None:
@@ -881,8 +884,9 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._userip_manager_window.raise_()
             self._userip_manager_window.activateWindow()
             return
-        self._userip_manager_window = UserIPDatabasesManager(None)
-        self._userip_manager_window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None))
+        window = UserIPDatabasesManager(None)
+        window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None) if self._userip_manager_window is window else None)
+        self._userip_manager_window = window
         self._userip_manager_window.show()
 
     def _open_logs_manager(self) -> None:
@@ -891,8 +895,9 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._logs_manager_window.raise_()
             self._logs_manager_window.activateWindow()
             return
-        self._logs_manager_window = LogsManager(None)
-        self._logs_manager_window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None))
+        window = LogsManager(None)
+        window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
+        self._logs_manager_window = window
         self._logs_manager_window.show()
 
     def _open_detections_manager(self) -> None:
@@ -901,8 +906,9 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._detections_manager_window.raise_()
             self._detections_manager_window.activateWindow()
             return
-        self._detections_manager_window = DetectionsManagerDialog(None)
-        self._detections_manager_window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None))
+        window = DetectionsManagerDialog(None)
+        window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None) if self._detections_manager_window is window else None)
+        self._detections_manager_window = window
         self._detections_manager_window.show()
 
     @override

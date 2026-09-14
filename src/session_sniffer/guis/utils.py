@@ -408,6 +408,7 @@ def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> No
     Use *keep_on_top* for transient notification dialogs that must stay above other windows.
     """
     dialog.setWindowModality(Qt.WindowModality.NonModal)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     window_flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
     if keep_on_top:
         window_flags |= Qt.WindowType.WindowStaysOnTopHint
