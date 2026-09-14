@@ -5,7 +5,6 @@ functionality to update or close the presence. It uses threading to run the upda
 """
 
 import contextlib
-import json
 import os
 import socket
 import struct
@@ -16,11 +15,23 @@ from enum import Enum, auto
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread
-from typing import BinaryIO, NamedTuple, cast
+from typing import BinaryIO, NamedTuple
+
+from pydantic import BaseModel, ValidationError
 
 from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.models import (
+    DiscordActivity,
+    DiscordActivityArgs,
+    DiscordActivityButton,
+    DiscordActivityTimestamps,
+    DiscordClosePayload,
+    DiscordCommandPayload,
+    DiscordHandshakePayload,
+    DiscordResponsePayload,
+)
 
 _OPCODE_HANDSHAKE = 0
 _OPCODE_FRAME = 1
@@ -49,7 +60,7 @@ SHUTDOWN_SIGNAL = _ShutdownSignal.SIGNAL
 START_TIME_INT = int(time.time())
 _RECONNECT_COOLDOWN_SECONDS = 60.0
 DISCORD_RPC_BUTTONS = [
-    {'label': 'GitHub Repo', 'url': GITHUB_REPO_URL},
+    DiscordActivityButton(label='GitHub Repo', url=GITHUB_REPO_URL),
 ]
 
 logger = get_logger(__name__)
@@ -94,13 +105,13 @@ class _DiscordIPCConnection:
 
         return None
 
-    def send(self, opcode: int, payload: dict[str, object]) -> None:
-        """Encode and send a JSON payload with the Discord IPC header."""
-        encoded_data = json.dumps(payload).encode('utf-8')
+    def send(self, opcode: int, payload: BaseModel) -> None:
+        """Encode and send a Pydantic payload with the Discord IPC header."""
+        encoded_data = payload.model_dump_json().encode('utf-8')
         header_bytes = struct.pack(_HEADER_FORMAT, opcode, len(encoded_data))
         self._stream.write(header_bytes + encoded_data)
 
-    def receive(self) -> tuple[int, dict[str, object]] | None:
+    def receive(self) -> tuple[int, DiscordResponsePayload] | None:
         """Read and decode a frame from the Discord IPC pipe."""
         header_bytes = self._stream.read(_HEADER_LENGTH)
         if len(header_bytes) < _HEADER_LENGTH:
@@ -111,13 +122,12 @@ class _DiscordIPCConnection:
         if len(payload_bytes) < payload_length:
             return None
 
-        raw_payload: object = json.loads(payload_bytes.decode('utf-8'))
-        if not isinstance(raw_payload, dict):
+        try:
+            response_payload = DiscordResponsePayload.model_validate_json(payload_bytes)
+        except ValidationError:
             return None
 
-        payload_dict = cast('dict[object, object]', raw_payload)
-        decoded_payload: dict[str, object] = {str(key): value for key, value in payload_dict.items()}
-        return opcode, decoded_payload
+        return opcode, response_payload
 
     def close(self) -> None:
         """Close the pipe stream and any underlying socket."""
@@ -192,53 +202,51 @@ def _connect_ipc(client_id: int) -> _DiscordIPCConnection | None:
         return None
 
     try:
-        connection.send(_OPCODE_HANDSHAKE, {'v': 1, 'client_id': str(client_id)})
+        connection.send(_OPCODE_HANDSHAKE, DiscordHandshakePayload(client_id=str(client_id)))
         response = connection.receive()
         if response is None:
             connection.close()
             return None
 
         _, payload = response
-        if payload.get('evt') == 'ERROR':
+        if payload.evt == 'ERROR':
             connection.close()
             return None
-    except (OSError, json.JSONDecodeError, struct.error):
+    except (OSError, ValidationError, struct.error):
         connection.close()
         return None
 
     return connection
 
 
-def _build_activity_payload(update_payload: _PresenceUpdate) -> dict[str, object]:
-    """Build the dictionary representing a Discord Rich Presence activity."""
-    activity: dict[str, object] = {
-        'state': update_payload.state_message,
-        'timestamps': {'start': START_TIME_INT},
-        'buttons': DISCORD_RPC_BUTTONS,
-    }
-    if update_payload.details is not None:
-        activity['details'] = update_payload.details
-
-    return {
-        'cmd': 'SET_ACTIVITY',
-        'args': {
-            'pid': os.getpid(),
-            'activity': activity,
-        },
-        'nonce': str(uuid.uuid4()),
-    }
+def _build_activity_payload(update_payload: _PresenceUpdate) -> DiscordCommandPayload:
+    """Build the payload representing a Discord Rich Presence activity."""
+    activity = DiscordActivity(
+        state=update_payload.state_message,
+        details=update_payload.details,
+        timestamps=DiscordActivityTimestamps(start=START_TIME_INT),
+        buttons=DISCORD_RPC_BUTTONS,
+    )
+    return DiscordCommandPayload(
+        cmd='SET_ACTIVITY',
+        args=DiscordActivityArgs(
+            pid=os.getpid(),
+            activity=activity,
+        ),
+        nonce=str(uuid.uuid4()),
+    )
 
 
-def _clear_activity_payload() -> dict[str, object]:
+def _clear_activity_payload() -> DiscordCommandPayload:
     """Build the payload to clear the current Discord Rich Presence activity."""
-    return {
-        'cmd': 'SET_ACTIVITY',
-        'args': {
-            'pid': os.getpid(),
-            'activity': None,
-        },
-        'nonce': str(uuid.uuid4()),
-    }
+    return DiscordCommandPayload(
+        cmd='SET_ACTIVITY',
+        args=DiscordActivityArgs(
+            pid=os.getpid(),
+            activity=None,
+        ),
+        nonce=str(uuid.uuid4()),
+    )
 
 
 def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
@@ -252,7 +260,7 @@ def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
             if active_connection is not None:
                 with contextlib.suppress(OSError):
                     active_connection.send(_OPCODE_FRAME, _clear_activity_payload())
-                    active_connection.send(_OPCODE_CLOSE, {})
+                    active_connection.send(_OPCODE_CLOSE, DiscordClosePayload())
                 active_connection.close()
             connection_status.clear()
             return
@@ -276,7 +284,7 @@ def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
         try:
             active_connection.send(_OPCODE_FRAME, _build_activity_payload(update_payload))
             active_connection.receive()
-        except (OSError, json.JSONDecodeError, struct.error) as e:
+        except (OSError, ValidationError, struct.error) as e:
             logger.debug('Discord RPC pipe lost: %s: %s', type(e).__name__, e)
             active_connection.close()
             active_connection = None

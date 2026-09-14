@@ -6,12 +6,30 @@ This module contains pydantic models for validating JSON responses from various 
 - IP-API batch lookup (IP geolocation)
 """
 
+from .discord_rpc import (
+    DiscordActivity,
+    DiscordActivityArgs,
+    DiscordActivityButton,
+    DiscordActivityTimestamps,
+    DiscordClosePayload,
+    DiscordCommandPayload,
+    DiscordHandshakePayload,
+    DiscordResponsePayload,
+)
 from .github_release import GithubReleaseAsset, GithubReleaseResponse
 from .github_versions import GithubVersionsResponse, VersionInfo
 from .ip_api import IpApiResponse
 from .sessions_log import SessionLogFile
 
 __all__ = [
+    'DiscordActivity',
+    'DiscordActivityArgs',
+    'DiscordActivityButton',
+    'DiscordActivityTimestamps',
+    'DiscordClosePayload',
+    'DiscordCommandPayload',
+    'DiscordHandshakePayload',
+    'DiscordResponsePayload',
     'GithubReleaseAsset',
     'GithubReleaseResponse',
     'GithubVersionsResponse',
