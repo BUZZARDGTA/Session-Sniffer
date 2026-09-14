@@ -579,7 +579,6 @@ class SettingsIniModel(BaseModel):
         default_val = cls._get_default_for_field(info)
         return str(default_val) if default_val is not None else DEFAULT_DETECTED_SERVER_COLOR
 
-
     @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', 'LOOKY_API_KEY', mode='before')
     @classmethod
     def _parse_optional_string(cls, value: object, info: ValidationInfo) -> str | None:

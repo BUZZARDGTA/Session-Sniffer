@@ -144,7 +144,6 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     # Public properties
     # --------------------------------------------------------------------------
 
-
     @property
     def view(self) -> SessionTableView:
         """Get or attach a `SessionTableView` to this model."""

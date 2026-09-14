@@ -16,7 +16,7 @@ from enum import Enum, auto
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread
-from typing import BinaryIO, NamedTuple
+from typing import BinaryIO, NamedTuple, cast
 
 from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
@@ -111,11 +111,12 @@ class _DiscordIPCConnection:
         if len(payload_bytes) < payload_length:
             return None
 
-        raw_payload = json.loads(payload_bytes.decode('utf-8'))
+        raw_payload: object = json.loads(payload_bytes.decode('utf-8'))
         if not isinstance(raw_payload, dict):
             return None
 
-        decoded_payload: dict[str, object] = {str(key): value for key, value in raw_payload.items()}
+        payload_dict = cast('dict[object, object]', raw_payload)
+        decoded_payload: dict[str, object] = {str(key): value for key, value in payload_dict.items()}
         return opcode, decoded_payload
 
     def close(self) -> None:
