@@ -586,14 +586,6 @@ class CsvLogTab(QWidget):
         delete_action.triggered.connect(self._delete_selected_rows)
         menu.addAction(delete_action)
 
-        menu.addSeparator()
-        add_column_sizing_actions(
-            menu,
-            self._table,
-            clicked_column=index.column() if index.isValid() else None,
-            on_reset=self._reset_column_sizes,
-        )
-
         viewport = self._table.viewport()
         if viewport:
             menu.popup(viewport.mapToGlobal(pos))

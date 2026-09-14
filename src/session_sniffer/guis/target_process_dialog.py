@@ -27,7 +27,7 @@ from session_sniffer.capture.process_monitor import ensure_process_monitor_runni
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     SearchHighlightDelegate,
     apply_search_icon,
@@ -467,15 +467,6 @@ class TargetProcessDialog(QDialog):
             copy_name_action.setToolTip('Copy the process name to the clipboard.')
             copy_name_action.triggered.connect(lambda: set_clipboard_text(process_name))
             menu.addAction(copy_name_action)
-
-        menu.addSeparator()
-
-        add_column_sizing_actions(
-            menu,
-            self._table,
-            clicked_column=index.column(),
-            on_reset=self._reset_column_sizes,
-        )
 
         viewport = self._table.viewport()
         if viewport:

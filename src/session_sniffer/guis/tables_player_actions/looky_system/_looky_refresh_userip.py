@@ -38,7 +38,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_REVIEW_SUMMARY_STYLESHEET,
     LOOKY_REVIEW_TABLE_STYLESHEET,
 )
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
 from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
@@ -492,25 +492,23 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         header.setMinimumSectionSize(30)
 
     def _show_context_menu(self, pos: QPoint) -> None:
-        """Show a right-click context menu to copy IP, username, and resize columns."""
+        """Show a right-click context menu to copy IP or username."""
         item = self._tree.itemAt(pos)
+        if item is None:
+            return
+
         menu = QMenu(self)
-
-        if item is not None:
-            parent = item.parent()
-            if not parent:
-                # IP node
-                ip_str = item.text(0).replace('\U0001f310  ', '').strip()
-                menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
-            else:
-                # Username node
-                username_str = item.text(0).strip()
-                ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
-                menu.addAction('Copy Username', lambda: set_clipboard_text(username_str))
-                menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
-            menu.addSeparator()
-
-        add_column_sizing_actions(menu, self._tree, on_reset=self._reset_column_sizes)
+        parent = item.parent()
+        if not parent:
+            # IP node
+            ip_str = item.text(0).replace('\U0001f310  ', '').strip()
+            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
+        else:
+            # Username node
+            username_str = item.text(0).strip()
+            ip_str = parent.text(0).replace('\U0001f310  ', '').strip()
+            menu.addAction('Copy Username', lambda: set_clipboard_text(username_str))
+            menu.addAction('Copy IP Address', lambda: set_clipboard_text(ip_str))
 
         viewport = self._tree.viewport()
         if viewport:

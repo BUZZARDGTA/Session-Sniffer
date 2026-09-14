@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import (
     ping_ip,
     show_detailed_ip_lookup,
@@ -189,16 +189,6 @@ class TableContextMenuManager:
 
             menu.addMenu(ping_menu)
             # pylint: enable=duplicate-code
-
-        # pylint: disable=duplicate-code
-        menu.addSeparator()
-        add_column_sizing_actions(
-            menu,
-            self._table,
-            clicked_column=index.column() if index.isValid() else None,
-            on_reset=self._on_reset_column_sizes,
-        )
-        # pylint: enable=duplicate-code
 
         popup_menu_at_table_widget(menu, self._table, pos)
 

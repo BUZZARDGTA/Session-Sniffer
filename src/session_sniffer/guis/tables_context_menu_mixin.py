@@ -12,7 +12,6 @@ from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import (
@@ -872,14 +871,6 @@ class TableContextMenuMixin(QTableView):
             tooltip='Unselect all cells in this column.',
             handler=lambda: self.unselect_column_cells(index.column()),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')),
-        )
-        context_menu.addSeparator()
-
-        add_column_sizing_actions(
-            context_menu,
-            self,
-            clicked_column=index.column(),
-            on_reset=self._reset_column_sizes,
         )
         context_menu.addSeparator()
 

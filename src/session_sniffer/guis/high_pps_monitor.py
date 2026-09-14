@@ -23,7 +23,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -660,14 +660,6 @@ class HighRateMonitorWidget(QWidget):
 
             graph_action.triggered.connect(_open_graphs_multi)
             menu.addAction(graph_action)
-
-        menu.addSeparator()
-        add_column_sizing_actions(
-            menu,
-            self._table,
-            clicked_column=index.column() if index.isValid() else None,
-            on_reset=self._reset_column_sizes,
-        )
 
         popup_menu_at_table(menu, self._table, pos)
 
