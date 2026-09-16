@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QIcon, QShowEvent
 from PySide6.QtWidgets import (
-    QFrame,
     QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
+    QSplitter,
     QVBoxLayout,
     QWidget,
     QWidgetAction,
@@ -75,15 +75,36 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
     _actions: _MenuActions
     _connected: SessionTableSection
     _disconnected: SessionTableSection
+    _tables_splitter: QSplitter
+    _saved_splitter_sizes: list[int]
     _gta5_status_label: QLabel
     _session_host_submenu: QMenu
     _player_resolver_action: QAction
     _discord_intro_window: DiscordIntro | None
 
-    def _update_separator_visibility(self) -> None:
-        self._tables_separator.setVisible(
-            self._connected.is_expanded or self._disconnected.is_expanded,
-        )
+    def _on_splitter_moved(self, _position: int, _index: int) -> None:
+        if self._connected.is_expanded and self._disconnected.is_expanded:
+            self._saved_splitter_sizes = self._tables_splitter.sizes()
+
+    def _update_splitter_visibility(self) -> None:
+        connected_expanded = self._connected.is_expanded
+        disconnected_expanded = self._disconnected.is_expanded
+        self._tables_splitter.setVisible(connected_expanded or disconnected_expanded)
+
+        if connected_expanded and disconnected_expanded:
+            if self._saved_splitter_sizes:
+                total_height = sum(self._tables_splitter.sizes())
+                saved_total = sum(self._saved_splitter_sizes)
+                if saved_total > 0 and total_height > 0:
+                    ratio = self._saved_splitter_sizes[0] / saved_total
+                    connected_size = int(total_height * ratio)
+                    disconnected_size = total_height - connected_size
+                    self._tables_splitter.setSizes([connected_size, disconnected_size])
+            else:
+                total_height = sum(self._tables_splitter.sizes())
+                if total_height > 0:
+                    half_height = total_height // 2
+                    self._tables_splitter.setSizes([half_height, total_height - half_height])
 
     def __init__(self, screen_size: tuple[int, int], capture_holder: CaptureHolder, on_change_interface: Callable[[], None]) -> None:
         """Initialize the main application window.
@@ -510,9 +531,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         )
         self._connected.table_view.open_rate_graph_callback = self._player_resolver_window.high_rate_monitor.open_graph
 
-        self._tables_separator = QFrame(self)
-        self._tables_separator.setFrameShape(QFrame.Shape.HLine)
-        self._tables_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        self._saved_splitter_sizes = []
 
         disconnected_column_names = [
             column for column in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column in set(Settings.gui_columns_disconnected_shown) or column in Settings.GUI_FORCED_COLUMNS
@@ -523,6 +542,15 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             clear_slot=self._clear_disconnected_players,
             parent=self,
         )
+
+        self._tables_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self._tables_splitter.setChildrenCollapsible(False)
+        self._tables_splitter.setHandleWidth(scale_by_ui(6))
+        self._tables_splitter.addWidget(self._connected)
+        self._tables_splitter.addWidget(self._disconnected)
+        self._tables_splitter.setStretchFactor(0, 1)
+        self._tables_splitter.setStretchFactor(1, 1)
+        self._tables_splitter.splitterMoved.connect(self._on_splitter_moved)
 
         self._status_bar = SessionStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -535,14 +563,12 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         main_layout.addSpacing(4)
         main_layout.addWidget(self._header)
         main_layout.addSpacing(14)
-        main_layout.addWidget(self._connected, 1)
-        main_layout.addWidget(self._tables_separator)
-        main_layout.addWidget(self._disconnected, 1)
+        main_layout.addWidget(self._tables_splitter, 1)
         main_layout.addWidget(self._connected.expand_button)
         main_layout.addWidget(self._disconnected.expand_button)
 
-        self._connected.section_toggled.connect(self._update_separator_visibility)
-        self._disconnected.section_toggled.connect(self._update_separator_visibility)
+        self._connected.section_toggled.connect(self._update_splitter_visibility)
+        self._disconnected.section_toggled.connect(self._update_splitter_visibility)
 
         self.raise_()
         self.activateWindow()
@@ -608,7 +634,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         self._header.setEnabled(False)
         self._connected.set_all_enabled(enabled=False)
         self._disconnected.set_all_enabled(enabled=False)
-        self._tables_separator.setEnabled(False)
+        self._tables_splitter.setEnabled(False)
         status_bar = self.statusBar()
         if not status_bar:
             return
@@ -622,7 +648,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         self._header.setEnabled(True)
         self._connected.set_all_enabled(enabled=True)
         self._disconnected.set_all_enabled(enabled=True)
-        self._tables_separator.setEnabled(True)
+        self._tables_splitter.setEnabled(True)
         status_bar = self.statusBar()
         if not status_bar:
             return
@@ -958,7 +984,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         self._actions.change_interface.setEnabled(not switching)
         self._connected.set_all_enabled(enabled=not switching)
         self._disconnected.set_all_enabled(enabled=not switching)
-        self._tables_separator.setEnabled(not switching)
+        self._tables_splitter.setEnabled(not switching)
         status_bar = self.statusBar()
         if status_bar:
             status_bar.setEnabled(not switching)

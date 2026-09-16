@@ -36,7 +36,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
-from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon, make_padded_icon
+from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon, make_padded_icon, scale_by_ui
 from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
 
@@ -514,6 +514,8 @@ class SessionTableSection(QWidget):
         layout.setSpacing(0)
         layout.addWidget(header_container)
         layout.addWidget(self.table_view, 1)
+
+        self.setMinimumHeight(scale_by_ui(110))
 
         self.table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
 

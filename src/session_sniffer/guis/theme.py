@@ -666,6 +666,27 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         border: none;
     }
 
+    /* Splitter */
+    QSplitter {
+        background-color: transparent;
+    }
+    QSplitter::handle {
+        background-color: #2d2d30;
+        border-radius: 2px;
+    }
+    QSplitter::handle:hover {
+        background-color: #007acc;
+    }
+    QSplitter::handle:pressed {
+        background-color: #0098ff;
+    }
+    QSplitter::handle:horizontal {
+        margin: 0px 1px;
+    }
+    QSplitter::handle:vertical {
+        margin: 1px 0px;
+    }
+
     /* Labels */
     QLabel {
         background-color: transparent;
