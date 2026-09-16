@@ -346,7 +346,11 @@ def main() -> None:
         if is_rdr2_packet and not matched_player.is_rdr2_process:
             matched_player.is_rdr2_process = True
 
-        if packet.payload is not None and (resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host)):
+        if (
+            matched_player.ps3_username is None
+            and packet.payload is not None
+            and (resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host))
+        ):
             matched_player.ps3_username = resolved_ps3_username
 
         if not matched_player.detection_checked:
