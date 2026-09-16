@@ -254,21 +254,6 @@ def main() -> None:
         if capture_holder.is_restart_requested():
             return
 
-        packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
-        CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
-        CaptureStats.total_packets_captured += 1
-        if Settings.capture_overflow_timer > 0 and packet_latency.total_seconds() >= Settings.capture_overflow_timer:
-            CaptureStats.restarted_times += 1
-            CaptureStats.packets_latencies.clear()
-            logger.warning(
-                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. Restarting capture now (restart no.%d). Skipping this packet.',
-                packet_latency.total_seconds(),
-                Settings.capture_overflow_timer,
-                CaptureStats.restarted_times,
-            )
-            capture_holder.request_restart()
-            return
-
         if packet.ip.src == Settings.capture_ip_address:
             target_ip = packet.ip.dst
             target_port = packet.port.dst
@@ -291,6 +276,21 @@ def main() -> None:
             return
 
         if Settings.blocked_ip_ranges and check_ip_against_ranges(target_ip, Settings.blocked_ip_ranges):
+            return
+
+        packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
+        CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
+        CaptureStats.total_packets_captured += 1
+        if Settings.capture_overflow_timer > 0 and packet_latency.total_seconds() >= Settings.capture_overflow_timer:
+            CaptureStats.restarted_times += 1
+            CaptureStats.packets_latencies.clear()
+            logger.warning(
+                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. Restarting capture now (restart no.%d). Skipping this packet.',
+                packet_latency.total_seconds(),
+                Settings.capture_overflow_timer,
+                CaptureStats.restarted_times,
+            )
+            capture_holder.request_restart()
             return
 
         is_gta5_packet = (
