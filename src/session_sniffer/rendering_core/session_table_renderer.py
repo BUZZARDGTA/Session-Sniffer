@@ -28,11 +28,6 @@ _DISCONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
 _SERVER_BACKGROUND_COLOR = QColor(TableColors.SERVER_BACKGROUND)
 
 
-def is_detected_server(player: Player) -> bool:
-    """Return whether the player represents a detected third-party or hosting server."""
-    return is_third_party_server_ip(player.ip) or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.hosting is True)
-
-
 def format_player_usernames(player: Player) -> str:
     """Format player usernames as a comma-separated string."""
     return ', '.join(player.usernames) if player.usernames else ''
@@ -172,7 +167,7 @@ def build_session_table_snapshot(
         if player.userip and player.userip.usernames:
             row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.connected_num_columns
-        elif Settings.gui_servers_color_enabled and is_detected_server(player):
+        elif Settings.gui_servers_color_enabled and is_third_party_server_ip(player.ip):
             row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=server_bg_color)] * context.connected_num_columns
         else:
@@ -328,7 +323,7 @@ def build_session_table_snapshot(
         if player.userip and player.userip.usernames:
             row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.disconnected_num_columns
-        elif Settings.gui_servers_color_enabled and is_detected_server(player):
+        elif Settings.gui_servers_color_enabled and is_third_party_server_ip(player.ip):
             row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=server_bg_color)] * context.disconnected_num_columns
         else:

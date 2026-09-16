@@ -454,14 +454,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Detected Servers',
         display_label='Enabled',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Highlight detected game and hosting servers with a custom background color in the player tables.',
+        tooltip='Highlight detected game servers with a custom background color in the player tables.',
     ),
     'gui_servers_color': SettingMeta(
         category='Session',
         group='Detected Servers',
         display_label='Color',
         setting_type=SettingType.COLOR,
-        tooltip='Background color used to highlight detected game and hosting servers in the player tables.',
+        tooltip='Background color used to highlight detected game servers in the player tables.',
     ),
     'gui_ignore_screen_resolution_warning': SettingMeta(
         category='Launcher',
