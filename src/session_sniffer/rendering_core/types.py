@@ -108,7 +108,6 @@ class CaptureState:
 
     _lock: ClassVar[Lock] = Lock()
 
-    vpn_mode_enabled: ClassVar[bool] = False
     is_neighbour_interface: ClassVar[bool] = False
     interface_name: ClassVar[str] = ''
     interface_ip: ClassVar[str] = ''

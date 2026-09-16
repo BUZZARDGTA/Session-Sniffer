@@ -323,7 +323,6 @@ def rendering_core(
     def generate_gui_status_text() -> tuple[str, str, str, str]:
         return build_gui_status_text(
             capture=capture,
-            vpn_mode_enabled=CaptureState.vpn_mode_enabled,
             discord_rpc_manager=discord_rpc_manager,
         )
 

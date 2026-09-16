@@ -219,7 +219,7 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
     )
 
 
-def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool) -> str:
+def _build_config_section(snapshot: StatusBarSnapshot) -> str:
     parts: list[str] = []
 
     if snapshot.interface.arp_spoofing:
@@ -231,11 +231,6 @@ def _build_config_section(snapshot: StatusBarSnapshot, *, vpn_mode_enabled: bool
     elif snapshot.interface.is_neighbour_interface:
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
-        )
-
-    if vpn_mode_enabled:
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">VPN:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
         )
 
     if snapshot.capture.feature_set is not None:
@@ -314,14 +309,13 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
 def build_gui_status_text(
     *,
     capture: PacketCapture,
-    vpn_mode_enabled: bool,
     discord_rpc_manager: DiscordRPC | None,
 ) -> tuple[str, str, str, str]:
     """Generate status bar text content for all sections."""
     snapshot = _capture_global_state(capture, discord_rpc_manager)
 
     capture_section = _build_capture_section(snapshot)
-    config_section = _build_config_section(snapshot, vpn_mode_enabled=vpn_mode_enabled)
+    config_section = _build_config_section(snapshot)
     userip_issues_section = _build_userip_issues_section(snapshot)
     performance_section = _build_performance_section(snapshot)
 

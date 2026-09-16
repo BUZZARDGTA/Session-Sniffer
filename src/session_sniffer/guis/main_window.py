@@ -950,7 +950,6 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         """Immediately render the status bar with current capture state."""
         capture_section, config_section, issues_section, performance_section = build_gui_status_text(
             capture=self.capture.get(),
-            vpn_mode_enabled=CaptureState.vpn_mode_enabled,
             discord_rpc_manager=None,
         )
         self._status_bar.set_texts(

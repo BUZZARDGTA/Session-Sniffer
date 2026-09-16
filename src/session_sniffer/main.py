@@ -239,7 +239,6 @@ def main() -> None:
         Settings.rewrite_settings_file()
 
     broadcast_support, multicast_support = splash.run_with_spinner(check_broadcast_multicast_support, selected_interface.device_name or selected_interface.name)
-    vpn_mode_enabled = not (broadcast_support and multicast_support)
 
     capture_filter_str, display_filter_fn = build_capture_filters(
         capture_ip_address=selected_interface.ip_address,
@@ -402,7 +401,6 @@ def main() -> None:
 
     splash.run_with_spinner(capture.start)
     CaptureStats.capture_started_at = time.monotonic()
-    CaptureState.vpn_mode_enabled = vpn_mode_enabled
 
     _arp_failed_event = Event()
     ArpSpoofingController.configure(capture_holder, on_failed=_arp_failed_event.set)
@@ -508,7 +506,6 @@ def main() -> None:
                 app.processEvents()
                 time.sleep(0.016)
             new_broadcast, new_multicast = _future.result()
-        new_vpn_mode = not (new_broadcast and new_multicast)
 
         CaptureState.apply_interface_names(
             is_neighbour=new_interface.is_neighbour,
@@ -527,7 +524,6 @@ def main() -> None:
             multicast_support=new_multicast,
         )
 
-        CaptureState.vpn_mode_enabled = new_vpn_mode
         reset_resolver_cache()
 
         if is_same_adapter:
