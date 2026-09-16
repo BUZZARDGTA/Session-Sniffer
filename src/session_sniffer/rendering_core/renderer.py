@@ -376,14 +376,19 @@ def rendering_core(
         _country_flag_cache[country_code] = country_flag
         return country_flag
 
-    # Perform session log cleanup once at startup
-    cleanup_session_logs(
-        sessions_dir=SESSIONS_LOGGING_DIR_PATH,
-        delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
-        delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
-        gui_sessions_logging=Settings.gui_sessions_logging,
-        active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
-    )
+    # Perform session log cleanup once at startup in a background thread so startup is not delayed
+    Thread(
+        target=cleanup_session_logs,
+        kwargs={
+            'sessions_dir': SESSIONS_LOGGING_DIR_PATH,
+            'delete_empty_files': Settings.gui_sessions_logging_delete_empty_files,
+            'delete_empty_folders': Settings.gui_sessions_logging_delete_empty_folders,
+            'gui_sessions_logging': Settings.gui_sessions_logging,
+            'active_session_path': SESSIONS_LOGGING_PATH.with_suffix('.json'),
+        },
+        name='CleanupSessionLogs',
+        daemon=True,
+    ).start()
 
     while not gui_closed__event.is_set():
         capture = capture_holder.get()  # Resolve the active capture each iteration

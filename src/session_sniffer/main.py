@@ -846,7 +846,7 @@ def main() -> None:
 
     ensure_process_monitor_running()
 
-    GUIRenderingState.wait_rendering_snapshot(last_seen_version=0)
+    splash.run_with_spinner(GUIRenderingState.wait_rendering_snapshot, last_seen_version=0)
     app.processEvents()
 
     splash.finish_loading()
