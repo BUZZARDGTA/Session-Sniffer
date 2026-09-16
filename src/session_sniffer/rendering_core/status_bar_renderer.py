@@ -2,6 +2,7 @@
 
 import enum
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -156,8 +157,12 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
     _CPU_STATE.last_timestamp = now
     if delta_time > 0.0:
         CaptureStats.app_cpu_percent = (max(0.0, delta_cpu) / delta_time / _CPU_COUNT) * 100.0
+        CaptureStats.app_peak_cpu_percent = max(CaptureStats.app_peak_cpu_percent, CaptureStats.app_cpu_percent)
 
     CaptureStats.app_memory_mb = get_current_process_memory_mb()
+    CaptureStats.app_peak_memory_mb = max(CaptureStats.app_peak_memory_mb, CaptureStats.app_memory_mb)
+    CaptureStats.app_active_threads = threading.active_count()
+    CaptureStats.app_peak_threads = max(CaptureStats.app_peak_threads, CaptureStats.app_active_threads)
     _compute_disk_io_rates()
     CaptureStats.packets_dropped = capture.get_pcap_drop_count() or 0
 

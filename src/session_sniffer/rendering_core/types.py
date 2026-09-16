@@ -207,7 +207,11 @@ class CaptureStats:
     global_pps_rate: ClassVar[int] = 0
     global_avg_latency_ms: ClassVar[float] = 0.0
     app_cpu_percent: ClassVar[float] = 0.0
+    app_peak_cpu_percent: ClassVar[float] = 0.0
     app_memory_mb: ClassVar[float] = 0.0
+    app_peak_memory_mb: ClassVar[float] = 0.0
+    app_active_threads: ClassVar[int] = 0
+    app_peak_threads: ClassVar[int] = 0
     app_disk_read_rate_mb: ClassVar[float] = 0.0
     app_disk_write_rate_mb: ClassVar[float] = 0.0
     app_disk_read_total_mb: ClassVar[float] = 0.0
