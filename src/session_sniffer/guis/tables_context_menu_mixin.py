@@ -6,7 +6,7 @@ from PySide6.QtCore import QItemSelectionModel, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import QMenu, QTableView
 
-from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_DIR_PATH, USER_SCRIPTS_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_DIR_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
@@ -40,6 +40,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename,
     userip_rename_multi,
 )
+from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
@@ -188,49 +189,6 @@ class TableContextMenuMixin(QTableView):
                     menu_action.setToolTip(tooltip)
 
             return menu
-
-        def populate_db_menu(
-            parent_menu: QMenu,
-            database_paths: list[Path],
-            tooltip: str,
-            handler_factory: Callable[[Path], Callable[[], None]],
-            disabled_path: Path | None = None,
-        ) -> None:
-            """Add database entries to *parent_menu*, nesting subfolders as child menus."""
-            folder_menus: dict[tuple[str, ...], QMenu] = {}
-            menus_with_folders: set[QMenu] = set()
-
-            def _sort_key(db_path: Path) -> tuple[tuple[int, str], ...]:
-                rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-                return tuple((0, part.casefold()) if i < len(rel.parts) - 1 else (1, part.casefold()) for i, part in enumerate(rel.parts))
-
-            for db_path in sorted(database_paths, key=_sort_key):
-                rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-
-                if len(rel.parts) == 1:
-                    if parent_menu in menus_with_folders:
-                        parent_menu.addSeparator()
-                        menus_with_folders.remove(parent_menu)
-                    action = add_action(parent_menu, rel.parts[0], tooltip=tooltip, handler=handler_factory(db_path))
-                    if disabled_path is not None and db_path == disabled_path:
-                        action.setEnabled(False)
-                else:
-                    # Build / reuse nested submenus for each folder level
-                    current_menu = parent_menu
-                    for depth in range(len(rel.parts) - 1):
-                        folder_key = rel.parts[: depth + 1]
-                        if folder_key not in folder_menus:
-                            folder_menus[folder_key] = add_menu(current_menu, rel.parts[depth])
-                            menus_with_folders.add(current_menu)
-                        current_menu = folder_menus[folder_key]
-
-                    if current_menu in menus_with_folders:
-                        current_menu.addSeparator()
-                        menus_with_folders.remove(current_menu)
-
-                    action = add_action(current_menu, rel.parts[-1], tooltip=tooltip, handler=handler_factory(db_path))
-                    if disabled_path is not None and db_path == disabled_path:
-                        action.setEnabled(False)
 
         # Determine the index at the clicked position
         index = self.indexAt(pos)
@@ -614,7 +572,7 @@ class TableContextMenuMixin(QTableView):
             if player.userip is None:
                 database_paths = UserIPDatabases.get_userip_database_filepaths()
                 add_userip_menu = add_menu(userip_menu, 'Add', 'Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
-                populate_db_menu(
+                populate_userip_databases_menu(
                     add_userip_menu,
                     database_paths,
                     tooltip='Add selected IP address to this UserIP database.',
@@ -626,7 +584,7 @@ class TableContextMenuMixin(QTableView):
                     'Add selected IP as a range entry to a UserIP database.',
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
                 )
-                populate_db_menu(
+                populate_userip_databases_menu(
                     add_range_userip_menu,
                     database_paths,
                     tooltip='Add selected IP as a range to this UserIP database.',
@@ -703,7 +661,7 @@ class TableContextMenuMixin(QTableView):
                 f'Move this {entry_desc} entry to another UserIP database.',
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')),
             )
-            populate_db_menu(
+            populate_userip_databases_menu(
                 move_userip_menu,
                 UserIPDatabases.get_userip_database_filepaths(),
                 tooltip=f'Move this {entry_desc} entry to this UserIP database.',
@@ -723,7 +681,7 @@ class TableContextMenuMixin(QTableView):
                 userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
                 add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
                 add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
-                populate_db_menu(
+                populate_userip_databases_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
                     tooltip=f'Add the {add_count}selected IP address{pluralize(len(ip_addresses), plural="es")} to this UserIP database.',
@@ -773,7 +731,7 @@ class TableContextMenuMixin(QTableView):
                     f'Move {entries_phrase} to another UserIP database.',
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')),
                 )
-                populate_db_menu(
+                populate_userip_databases_menu(
                     move_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
                     tooltip=f'Move {entries_phrase} to this UserIP database.',

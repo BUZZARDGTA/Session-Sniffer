@@ -269,7 +269,7 @@ class EntriesContextMenuMixin(QDialog):
             handler_factory=lambda target_path: lambda: self._move_selected_to_database(target_path),
             disabled_path=self._current_path,
         )
-        if enabled_target_count == 0:
+        if not enabled_target_count:
             move_db_menu.setEnabled(False)
             move_db_menu.setToolTip('No other databases available.')
         menu.addMenu(move_db_menu)
@@ -470,7 +470,7 @@ class EntriesContextMenuMixin(QDialog):
             handler_factory=lambda target_path: lambda: self._move_selected_to_database(target_path),
             disabled_path=disabled_gs_path,
         )
-        if enabled_target_count_gs == 0:
+        if not enabled_target_count_gs:
             move_gs_menu.setEnabled(False)
             move_gs_menu.setToolTip('No other databases available.')
         menu.addMenu(move_gs_menu)
