@@ -367,7 +367,7 @@ def main() -> None:
                     daemon=True,
                 ).start()
 
-        if UserIPDatabases.is_known_ip(matched_player.ip) and (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task):
+        if (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task) and UserIPDatabases.is_known_ip(matched_player.ip):
             resolved_userip = UserIPDatabases.resolve_userip(matched_player.ip)
             if resolved_userip is None:
                 # is_known_ip() just returned True, so this should not happen; guard defensively.

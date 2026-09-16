@@ -321,6 +321,8 @@ class UserIPDatabases:
         """
         if ip in cls.ips_set:
             return True
+        if not cls._range_entries:
+            return False
         try:
             addr = IPv4Address(ip)
         except ValueError:
