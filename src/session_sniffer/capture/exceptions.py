@@ -91,22 +91,6 @@ class MissingPortError(MalformedPacketError):
     message_template = 'Missing port(s)'
 
 
-class InvalidIPv4AddressError(MalformedPacketError):
-    """Raised when the source or destination IP addresses are not valid IPv4 addresses."""
-
-
-class InvalidIPv4AddressMultipleError(InvalidIPv4AddressError):
-    """Raised when an IP field contains multiple comma-separated values."""
-
-    message_template = 'Invalid IPv4 address: {value}. IP must be a valid IPv4 address.'
-
-
-class InvalidIPv4AddressFormatError(InvalidIPv4AddressError):
-    """Raised when an IP field is not a valid IPv4 format."""
-
-    message_template = 'Invalid IPv4 address: {value}. IP must be a valid IPv4 address.'
-
-
 class InvalidPortNumberError(MalformedPacketError):
     """Raised when source or destination ports are not valid."""
 

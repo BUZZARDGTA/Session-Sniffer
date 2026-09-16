@@ -12,8 +12,6 @@ from session_sniffer.capture.exceptions import (
     CaptureExitError,
     CaptureNotRunningError,
     CaptureThreadAlreadyRunningError,
-    InvalidIPv4AddressFormatError,
-    InvalidIPv4AddressMultipleError,
     InvalidLengthNumericError,
     InvalidPortNumberError,
     MalformedEthernetFrameTooShortError,
@@ -31,7 +29,6 @@ from session_sniffer.capture.exceptions import (
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.logging_setup import get_logger
-from session_sniffer.networking.utils import is_ipv4_address
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -71,14 +68,6 @@ def _parse_and_validate_port(port: int, /) -> int:
     if not MIN_PORT <= port <= MAX_PORT:
         raise InvalidPortNumberError(port)
     return port
-
-
-def _parse_and_validate_ip(ip: str, /) -> str:
-    if ',' in ip:
-        raise InvalidIPv4AddressMultipleError(ip)
-    if not is_ipv4_address(ip):
-        raise InvalidIPv4AddressFormatError(ip)
-    return ip
 
 
 def _parse_and_validate_length(length: int, /) -> int:
@@ -183,10 +172,8 @@ class Packet(NamedTuple):
         if protocol != _IP_PROTOCOL_UDP:
             raise MalformedProtocolError(protocol)
 
-        src_ip_bytes = raw_bytes[ip_offset + 12 : ip_offset + 16]
-        dst_ip_bytes = raw_bytes[ip_offset + 16 : ip_offset + 20]
-        src_ip = f'{src_ip_bytes[0]}.{src_ip_bytes[1]}.{src_ip_bytes[2]}.{src_ip_bytes[3]}'
-        dst_ip = f'{dst_ip_bytes[0]}.{dst_ip_bytes[1]}.{dst_ip_bytes[2]}.{dst_ip_bytes[3]}'
+        src_ip = f'{raw_bytes[ip_offset + 12]}.{raw_bytes[ip_offset + 13]}.{raw_bytes[ip_offset + 14]}.{raw_bytes[ip_offset + 15]}'
+        dst_ip = f'{raw_bytes[ip_offset + 16]}.{raw_bytes[ip_offset + 17]}.{raw_bytes[ip_offset + 18]}.{raw_bytes[ip_offset + 19]}'
 
         udp_offset = ip_offset + ip_header_length
         src_port, dst_port, udp_length = struct.unpack_from('!HHH', raw_bytes, udp_offset)
@@ -203,8 +190,8 @@ class Packet(NamedTuple):
         return cls(
             datetime=packet_time,
             ip=PacketIP(
-                src=_parse_and_validate_ip(src_ip),
-                dst=_parse_and_validate_ip(dst_ip),
+                src=src_ip,
+                dst=dst_ip,
             ),
             port=Port(
                 src=_parse_and_validate_port(src_port),
