@@ -6,7 +6,7 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QBrush, QColor, QRegularExpressionValidator, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListView,
+    QMenu,
     QPushButton,
     QRadioButton,
     QSlider,
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
@@ -37,7 +38,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
@@ -335,6 +336,101 @@ def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -
                     continue
         new_lines.append(raw_line)
     db_path.write_text('\n'.join(new_lines), encoding='utf-8')
+
+
+def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -> int:
+    """Append entries to the `[UserIP]` section of a database file, avoiding exact duplicates.
+
+    Args:
+        db_path: The target UserIP database file path.
+        entries: List of `(username, ip_or_range, is_looky)` tuples to append.
+
+    Returns:
+        The number of entries actually added (excluding exact duplicates already present).
+    """
+    content = db_path.read_text('utf-8') if db_path.is_file() else ''
+    existing_pairs = set(iter_userip_entries(content))
+    lines_to_add: list[str] = []
+
+    for username, ip_or_range, is_looky in entries:
+        if (username, ip_or_range) not in existing_pairs:
+            existing_pairs.add((username, ip_or_range))
+            suffix = ' ; looky' if is_looky else ''
+            lines_to_add.append(f'{username}={ip_or_range}{suffix}')
+
+    if not lines_to_add:
+        return 0
+
+    has_userip_section = any(line.strip() == f'[{SECTION_USERIP}]' for line in content.splitlines())
+    prefix = ''
+    if not has_userip_section:
+        prefix = f'\n[{SECTION_USERIP}]\n'
+    elif content and not content.endswith(('\n', '\r')):
+        prefix = '\n'
+
+    new_content = content + prefix + '\n'.join(lines_to_add) + '\n'
+    db_path.write_text(new_content, encoding='utf-8')
+    return len(lines_to_add)
+
+
+def populate_userip_databases_menu(
+    parent_menu: QMenu,
+    database_paths: list[Path],
+    tooltip: str,
+    handler_factory: Callable[[Path], Callable[[], None]],
+    *,
+    disabled_path: Path | None = None,
+) -> int:
+    """Add database entries to *parent_menu*, nesting subfolders as child menus.
+
+    Returns the count of enabled database actions added to the menu.
+    """
+    folder_menus: dict[tuple[str, ...], QMenu] = {}
+    menus_with_folders: set[QMenu] = set()
+    enabled_count = 0
+
+    def _sort_key(db_path: Path) -> tuple[tuple[int, str], ...]:
+        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        return tuple((0, part.casefold()) if i < len(rel.parts) - 1 else (1, part.casefold()) for i, part in enumerate(rel.parts))
+
+    for db_path in sorted(database_paths, key=_sort_key):
+        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+
+        if len(rel.parts) == 1:
+            if parent_menu in menus_with_folders:
+                parent_menu.addSeparator()
+                menus_with_folders.remove(parent_menu)
+            action = parent_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[0])
+            action.setToolTip(tooltip)
+            action.triggered.connect(handler_factory(db_path))
+            if disabled_path is not None and db_path == disabled_path:
+                action.setEnabled(False)
+            else:
+                enabled_count += 1
+        else:
+            current_menu = parent_menu
+            for depth in range(len(rel.parts) - 1):
+                folder_key = rel.parts[: depth + 1]
+                if folder_key not in folder_menus:
+                    folder_menu = current_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), rel.parts[depth])
+                    folder_menu.setToolTipsVisible(True)
+                    folder_menus[folder_key] = folder_menu
+                    menus_with_folders.add(current_menu)
+                current_menu = folder_menus[folder_key]
+
+            if current_menu in menus_with_folders:
+                current_menu.addSeparator()
+                menus_with_folders.remove(current_menu)
+
+            action = current_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[-1])
+            action.setToolTip(tooltip)
+            action.triggered.connect(handler_factory(db_path))
+            if disabled_path is not None and db_path == disabled_path:
+                action.setEnabled(False)
+            else:
+                enabled_count += 1
+
+    return enabled_count
 
 
 class RenameUsernameDialog(QDialog):

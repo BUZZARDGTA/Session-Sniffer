@@ -8,7 +8,7 @@ from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QCheckBox, QDialog, QFileSystemModel, QMenu, QPushButton, QTreeView
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
@@ -28,6 +28,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     USERNAME_COLUMN,
     EntriesSortProxy,
     handle_ini_section_header,
+    populate_userip_databases_menu,
 )
 from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.settings.settings import Settings
@@ -76,6 +77,8 @@ class EntriesContextMenuMixin(QDialog):
         return ''
 
     def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
+
+    def _move_selected_to_database(self, target_db_path: Path) -> None: ...  # pylint: disable=unused-argument
 
     def _update_entry_counts(self) -> None: ...
 
@@ -251,6 +254,26 @@ class EntriesContextMenuMixin(QDialog):
         edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
         menu.addAction(edit_ip_action)
 
+        menu.addSeparator()
+
+        move_db_label = f'Move Selected to Database ({selected_count})' if selected_count > 1 else 'Move to Database'
+        move_db_menu = QMenu(move_db_label, menu)
+        move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')))
+        move_db_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        move_db_menu.setToolTipsVisible(True)
+        all_db_paths = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
+        enabled_target_count = populate_userip_databases_menu(
+            move_db_menu,
+            all_db_paths,
+            tooltip=f'Move selected {pluralize(selected_count, "entry", "entries")} to this database.',
+            handler_factory=lambda target_path: lambda: self._move_selected_to_database(target_path),
+            disabled_path=self._current_path,
+        )
+        if enabled_target_count == 0:
+            move_db_menu.setEnabled(False)
+            move_db_menu.setToolTip('No other databases available.')
+        menu.addMenu(move_db_menu)
+
         # Network / Ping & Lookup actions
         if is_single_ip or len(selected_ips) > 1:
             menu.addSeparator()
@@ -425,6 +448,32 @@ class EntriesContextMenuMixin(QDialog):
             open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
             open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
             menu.addAction(open_explorer_action)
+
+        menu.addSeparator()
+
+        move_gs_label = f'Move Selected to Database ({selected_count_gs})' if selected_count_gs > 1 else 'Move to Database'
+        move_gs_menu = QMenu(move_gs_label, menu)
+        move_gs_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')))
+        move_gs_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        move_gs_menu.setToolTipsVisible(True)
+        all_db_paths_gs = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
+        selected_db_paths = {
+            self._model.item(self._proxy.mapToSource(i).row(), DATABASE_COLUMN).data(Qt.ItemDataRole.UserRole)
+            for i in selected_rows_gs
+            if self._model.item(self._proxy.mapToSource(i).row(), DATABASE_COLUMN)
+        }
+        disabled_gs_path = Path(next(iter(selected_db_paths))) if len(selected_db_paths) == 1 and next(iter(selected_db_paths)) else None
+        enabled_target_count_gs = populate_userip_databases_menu(
+            move_gs_menu,
+            all_db_paths_gs,
+            tooltip=f'Move selected {pluralize(selected_count_gs, "entry", "entries")} to this database.',
+            handler_factory=lambda target_path: lambda: self._move_selected_to_database(target_path),
+            disabled_path=disabled_gs_path,
+        )
+        if enabled_target_count_gs == 0:
+            move_gs_menu.setEnabled(False)
+            move_gs_menu.setToolTip('No other databases available.')
+        menu.addMenu(move_gs_menu)
 
         # Single IP check & Multi-selected IPs detection for global search
         is_single_ip_gs = False

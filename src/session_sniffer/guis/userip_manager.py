@@ -60,6 +60,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     USERNAME_COLUMN,
     EntriesSortProxy,
     IPRangeBuilderDialog,
+    append_userip_entries,
     human_readable_size,
     iter_userip_databases,
     iter_userip_entries_with_metadata,
@@ -904,6 +905,87 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             self._model.removeRow(row)
         self._update_entry_counts()
         self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
+
+    @override
+    def _move_selected_to_database(self, target_db_path: Path) -> None:
+        """Move the selected entries to a different UserIP database."""
+        selection = self._entries_table.selectionModel()
+        if not selection:
+            return
+
+        selected_indexes = selection.selectedRows()
+        if not selected_indexes:
+            QMessageBox.information(self, TITLE, 'No entries selected.')
+            return
+
+        source_rows = sorted({self._proxy.mapToSource(i).row() for i in selected_indexes})
+
+        entries_to_move: list[tuple[str, str, bool, int]] = []
+        for row in source_rows:
+            u_item = self._model.item(row, USERNAME_COLUMN)
+            username = u_item.text().strip() if u_item else ''
+            ip_or_range = self._get_row_entry_value(row).strip()
+            if not username or not ip_or_range:
+                continue
+            is_looky = bool(u_item.data(Qt.ItemDataRole.UserRole)) if u_item else False
+            entries_to_move.append((username, ip_or_range, is_looky, row))
+
+        if not entries_to_move:
+            QMessageBox.information(self, TITLE, 'No valid entries to move.')
+            return
+
+        target_display_name = target_db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        count = len(entries_to_move)
+
+        if self._global_search_active:
+            entries_by_src: dict[Path, set[tuple[str, str]]] = defaultdict(set)
+            valid_moves: list[tuple[str, str, bool, int]] = []
+
+            for username, ip_or_range, is_looky, row in entries_to_move:
+                db_item = self._model.item(row, DATABASE_COLUMN)
+                db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+                if db_path_str:
+                    src_db_path = Path(db_path_str)
+                    if src_db_path == target_db_path:
+                        continue
+                    entries_by_src[src_db_path].add((username, ip_or_range))
+                valid_moves.append((username, ip_or_range, is_looky, row))
+
+            if not valid_moves:
+                QMessageBox.information(self, TITLE, f'Selected {pluralize(count, "entry", "entries")} already belong to "{target_display_name}".')
+                return
+
+            append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in valid_moves])
+
+            for src_db_path, to_remove in entries_by_src.items():
+                if src_db_path.is_file():
+                    rewrite_db_without_entries(src_db_path, to_remove)
+
+            for _username, _ip, _is_looky, row in valid_moves:
+                db_item = self._model.item(row, DATABASE_COLUMN)
+                if db_item:
+                    db_item.setText(str(target_display_name))
+                    db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
+
+            self._highlight_duplicates()
+            self._refresh_stats()
+            self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
+            self._rebuild_fs_watch()
+        else:
+            if self._current_path is None or target_db_path == self._current_path:
+                return
+
+            if self._dirty and not self._save_on_close():
+                return
+
+            append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in entries_to_move])
+
+            for row in sorted({r for _, _, _, r in entries_to_move}, reverse=True):
+                self._model.removeRow(row)
+
+            self._renumber_indexes()
+            self._save_database()
+            self._set_status(f'Moved {count} {pluralize(count, "entry", "entries")} to "{target_display_name}".')
 
     # ------------------------------------------------------------------
     # Save
