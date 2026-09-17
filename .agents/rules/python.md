@@ -22,7 +22,6 @@ globs: **/*.py
 ## Style
 
 * Use single quotes for strings throughout the project. Use double quotes only when the string itself contains a single quote.
-* Always use CRLF (`\r\n`) line endings for Python files.
 * Never use `from __future__ import annotations`.
 * Never use quoted forward references in type hints.
 * Use precise type hints and prefer existing project types, protocols, models, and type aliases.

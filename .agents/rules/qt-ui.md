@@ -74,6 +74,11 @@ Follow the project's existing styling and stylesheet architecture.
 
 Do not introduce a separate styling system or duplicate existing styles just to implement a local UI change.
 
+## Icons and SVG Assets
+
+* All SVG icon assets must always use CRLF (`\r\n`) line endings. Never commit or use LF line endings.
+* Follow the project's established icon style: Lucide 24x24 viewBox (`viewBox="0 0 24 24"`), stroke `#a5b4c4`, stroke-width `2`, stroke-linecap `round`, stroke-linejoin `round`, and `fill="none"` (except deliberate small accent dots).
+
 ## Errors
 
 For GUI-specific error states, use the project's existing exception and message-box patterns.

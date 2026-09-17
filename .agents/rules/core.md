@@ -30,6 +30,10 @@ When replacing, renaming, or removing something:
 - Update every call site.
 - Do not add aliases, migration code, compatibility shims, fallback lookups, transitional validators, or dual code paths.
 
+## Line Endings
+
+- Always use CRLF (`\r\n`) line endings for all files in the repository, including SVG assets, Python source files, configuration, and documentation. Never use or commit LF line endings.
+
 ## Investigation
 
 For non-trivial changes:
