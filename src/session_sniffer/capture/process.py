@@ -387,51 +387,65 @@ def _is_process_suspended_linux(pid: int) -> bool:
     return False
 
 
-def is_process_suspended(pid: int) -> bool:
-    """Check whether the target process is in a suspended/stopped state."""
-    if pid <= 0:
-        return False
-    if sys.platform != 'win32':
-        return _is_process_suspended_linux(pid)
-
+def _is_process_suspended_win32(pid: int) -> bool:
+    """Check whether the target process is suspended on Windows via NtQuerySystemInformation."""
     buffer_size = wintypes.ULONG(0x100000)
-    while True:
-        process_info_buffer = ctypes.create_string_buffer(buffer_size.value)
+    process_info_buffer: ctypes.Array[ctypes.c_char] | None = None
+    for _ in range(10):
+        current_buffer = ctypes.create_string_buffer(buffer_size.value)
         return_length = wintypes.ULONG()
         status = _ntdll.NtQuerySystemInformation(
             _SYSTEM_PROCESS_INFORMATION_CLASS,
-            process_info_buffer,
+            current_buffer,
             buffer_size,
             ctypes.byref(return_length),
         ) & 0xFFFFFFFF
         if not status:
+            process_info_buffer = current_buffer
             break
         if status == _STATUS_INFO_LENGTH_MISMATCH:
             buffer_size = wintypes.ULONG(max(buffer_size.value * 2, return_length.value + 4096))
             continue
         return False
 
-    current_address = ctypes.addressof(process_info_buffer)
-    while True:
+    if process_info_buffer is None:
+        return False
+
+    buffer_len = len(process_info_buffer)
+    buffer_start = ctypes.addressof(process_info_buffer)
+    buffer_end = buffer_start + buffer_len
+    current_address = buffer_start
+
+    while current_address + 88 <= buffer_end:
         next_entry_offset = wintypes.ULONG.from_address(current_address).value
         number_of_threads = wintypes.ULONG.from_address(current_address + 4).value
         process_id = ctypes.c_void_p.from_address(current_address + 80).value or 0
 
         if process_id == pid:
-            if not number_of_threads:
-                return False
             threads_base_address = current_address + 256
+            threads_end_address = threads_base_address + number_of_threads * 80
+            if not number_of_threads or threads_end_address > buffer_end:
+                return False
             return all(
                 wintypes.ULONG.from_address(threads_base_address + i * 80 + 68).value == _THREAD_STATE_WAITING
                 and wintypes.ULONG.from_address(threads_base_address + i * 80 + 72).value == _WAIT_REASON_SUSPENDED
                 for i in range(number_of_threads)
             )
 
-        if not next_entry_offset:
+        if not next_entry_offset or current_address + next_entry_offset >= buffer_end:
             break
         current_address += next_entry_offset
 
     return False
+
+
+def is_process_suspended(pid: int) -> bool:
+    """Check whether the target process is in a suspended/stopped state."""
+    if pid <= 0:
+        return False
+    if sys.platform != 'win32':
+        return _is_process_suspended_linux(pid)
+    return _is_process_suspended_win32(pid)
 
 
 def get_current_process_memory_mb() -> float:
@@ -536,19 +550,25 @@ def get_process_udp_ports(target_pid: int) -> frozenset[int]:
     for _attempt in range(3):
         if result != _ERROR_INSUFFICIENT_BUFFER:
             break
-        buffer = ctypes.create_string_buffer(buffer_size.value)
-        result = _GetExtendedUdpTable(buffer, ctypes.byref(buffer_size), 0, _AF_INET, _UDP_TABLE_OWNER_PID, 0)
+        allocated_size = buffer_size.value + 4096
+        buffer = ctypes.create_string_buffer(allocated_size)
+        actual_size = wintypes.DWORD(allocated_size)
+        result = _GetExtendedUdpTable(buffer, ctypes.byref(actual_size), 0, _AF_INET, _UDP_TABLE_OWNER_PID, 0)
         if result == _ERROR_SUCCESS:
             number_of_entries = ctypes.cast(buffer, ctypes.POINTER(wintypes.DWORD)).contents.value
             if not number_of_entries:
                 return frozenset[int]()
             table_offset = ctypes.sizeof(wintypes.DWORD)
+            required_size = table_offset + ctypes.sizeof(_MibUdpRowOwnerPid) * number_of_entries
+            if required_size > len(buffer):
+                return frozenset[int]()
             row_array = (_MibUdpRowOwnerPid * number_of_entries).from_buffer(buffer, table_offset)
             return frozenset(
                 socket.ntohs(row.dwLocalPort)
                 for row in row_array
                 if row.dwOwningPid == target_pid
             )
+        buffer_size = actual_size
 
     return frozenset[int]()
 
