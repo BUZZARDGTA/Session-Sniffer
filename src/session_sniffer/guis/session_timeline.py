@@ -171,8 +171,7 @@ class SessionTimelineWindow(StatTableWindowMixin):
 
                 status_cell = self._table.item(target_row, _COLUMN_STATUS)
                 status_text = 'Connected' if is_connected else 'Disconnected'
-                status_changed = status_cell is not None and status_cell.text() != status_text
-                if status_changed and status_cell is not None:
+                if status_cell is not None and status_cell.text() != status_text:
                     status_cell.setText(status_text)
                     for column in range(len(_HEADERS)):
                         cell = self._table.item(target_row, column)
