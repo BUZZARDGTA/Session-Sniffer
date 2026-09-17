@@ -492,10 +492,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_dirty = False
         self._settings_dirty = False
         self._dirty = False
+        self._sync_dirty_state()
 
     def _sync_dirty_state(self) -> None:
-        """Recompute the aggregate dirty flag from the tracked sources."""
+        """Recompute the aggregate dirty flag from the tracked sources and update the Save button."""
         self._dirty = self._entries_dirty or self._settings_dirty
+        self._save_button.setEnabled(self._dirty and self._current_path is not None and not self._global_search_active)
 
     @override
     def _mark_entries_dirty(self) -> None:
