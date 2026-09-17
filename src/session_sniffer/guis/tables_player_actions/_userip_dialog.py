@@ -85,10 +85,25 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
+_active_userip_dialogs: dict[str, UserIPDetectedDialog] = {}
+
+
 def show_userip_detected_dialog(parent: QWidget | None, player: Player) -> None:
-    """Open the UserIP Detected dialog for *player*."""
+    """Open or focus the UserIP Detected dialog for *player*."""
+    existing_dialog = _active_userip_dialogs.get(player.ip)
+    if existing_dialog is not None:
+        if existing_dialog.isMinimized():
+            existing_dialog.showNormal()
+        else:
+            existing_dialog.show()
+        existing_dialog.raise_()
+        existing_dialog.activateWindow()
+        return
+
     dialog = UserIPDetectedDialog(parent, player)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    _active_userip_dialogs[player.ip] = dialog
+    dialog.destroyed.connect(lambda: _active_userip_dialogs.pop(player.ip, None))
     dialog.show()
     dialog.raise_()
     dialog.activateWindow()
