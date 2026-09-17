@@ -5,9 +5,9 @@ preventing `threading.excepthook` from firing. This base class overrides `run()`
 a try/except wrapper that delegates to `_run()`, which subclasses implement instead.
 """
 
-from typing import override
+from typing import ClassVar, override
 
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QObject, QThread
 
 from session_sniffer.core import terminate_on_uncaught_exception
 
@@ -18,7 +18,25 @@ class CrashingQThread(QThread):
     Inherit from this instead of `QThread` and override `_run()` instead of `run()`.
     Any unhandled exception escaping `_run()` is forwarded to `terminate_on_uncaught_exception` —
     the same crash path triggered by `_handle_thread_exception` for plain `threading.Thread` exceptions.
+    Strong references to running threads are retained in `_active_threads` until their `finished`
+    signal fires, preventing 'QThread: Destroyed while thread is still running' fatal app exits.
     """
+
+    _active_threads: ClassVar[set[CrashingQThread]] = set()
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.finished.connect(self._on_thread_finished)
+
+    @override
+    def start(self, priority: QThread.Priority = QThread.Priority.InheritPriority) -> None:
+        """Start thread execution and retain a strong reference until termination."""
+        CrashingQThread._active_threads.add(self)
+        super().start(priority)
+
+    def _on_thread_finished(self) -> None:
+        """Discard the strong reference once the native thread has finished."""
+        CrashingQThread._active_threads.discard(self)
 
     @override
     def run(self) -> None:
