@@ -112,14 +112,30 @@ class DetectionNotificationDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
+_active_notification_dialogs: dict[tuple[str, str], DetectionNotificationDialog] = {}
+
+
 def show_detection_notification_dialog(
     parent: QWidget | None,
     player: Player,
     info: DetectionNotificationInfo,
 ) -> None:
-    """Open the Detection Notification dialog for *player*."""
+    """Open or focus the Detection Notification dialog for *player*."""
+    key = (player.ip, info.display_title)
+    existing_dialog = _active_notification_dialogs.get(key)
+    if existing_dialog is not None:
+        if existing_dialog.isMinimized():
+            existing_dialog.showNormal()
+        else:
+            existing_dialog.show()
+        existing_dialog.raise_()
+        existing_dialog.activateWindow()
+        return
+
     dialog = DetectionNotificationDialog(parent, player, info)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    _active_notification_dialogs[key] = dialog
+    dialog.destroyed.connect(lambda: _active_notification_dialogs.pop(key, None))
     dialog.show()
     dialog.raise_()
     dialog.activateWindow()
@@ -244,14 +260,30 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
+_active_player_detection_dialogs: dict[tuple[str, NotificationType], PlayerDetectionDialog] = {}
+
+
 def show_player_detection_dialog(
     parent: QWidget | None,
     player: Player,
     info: PlayerDetectionInfo,
 ) -> None:
-    """Open the Player Detection dialog for *player*."""
+    """Open or focus the Player Detection dialog for *player*."""
+    key = (player.ip, info.event_type)
+    existing_dialog = _active_player_detection_dialogs.get(key)
+    if existing_dialog is not None:
+        if existing_dialog.isMinimized():
+            existing_dialog.showNormal()
+        else:
+            existing_dialog.show()
+        existing_dialog.raise_()
+        existing_dialog.activateWindow()
+        return
+
     dialog = PlayerDetectionDialog(parent, player, info)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    _active_player_detection_dialogs[key] = dialog
+    dialog.destroyed.connect(lambda: _active_player_detection_dialogs.pop(key, None))
     dialog.show()
     dialog.raise_()
     dialog.activateWindow()
