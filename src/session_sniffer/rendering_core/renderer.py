@@ -462,7 +462,7 @@ def rendering_core(
             del session_connected[i]
 
         for player in chain(session_connected, session_disconnected):
-            if _userip_db_rebuilt and player.userip and not UserIPDatabases.is_known_ip(player.ip):
+            if _userip_db_rebuilt and (player.userip is not None or player.userip_detection is not None) and not UserIPDatabases.is_known_ip(player.ip):
                 player.userip = None
                 player.userip_detection = None
                 _userip_not_found.discard(player.ip)

@@ -294,6 +294,8 @@ class UserIPDatabases:
                             usernames=list(range_entry.usernames),
                         )
                         break
+            if player.userip is None:
+                player.userip_detection = None
 
         with cls._update_userip_database_lock:
             # Remove resolved conflicts and auto-close their dialogs
