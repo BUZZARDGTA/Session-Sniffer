@@ -231,7 +231,7 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox.setSpecialValueText('All')
         self._rows_per_page_spinbox.setValue(initial_rpp)
         self._rows_per_page_spinbox.setToolTip(
-            f'Limit how many {self._section_name.lower()} players are shown per page. Set 0 to show all.',
+            f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.',
         )
         self._rows_per_page_spinbox.setKeyboardTracking(False)
         self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
@@ -512,7 +512,7 @@ class SessionTableSection(QWidget):
         search_shortcut.activated.connect(self._search_bar.setFocus)
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
-        self.expand_button = QPushButton(f'Show {self._section_name} Players (0)')
+        self.expand_button = QPushButton(f'Show {self._expand_button_noun()} (0)')
         _expand_icon = QIcon((RESOURCES_DIR_PATH / 'icons' / 'expand_table.svg').as_posix())
         self.expand_button.setIcon(make_padded_icon(_expand_icon, (16, 16), 8))
         self.expand_button.setIconSize(QSize(16 + 8, 16))
@@ -555,7 +555,7 @@ class SessionTableSection(QWidget):
         self._is_expanded = False
         self.setVisible(False)
         self.expand_button.setText(
-            f'Show {self._section_name} Players ({max(self.last_count, 0)})',
+            f'Show {self._expand_button_noun()} ({max(self.last_count, 0)})',
         )
         self.expand_button.setVisible(True)
         self.section_toggled.emit()
@@ -566,7 +566,7 @@ class SessionTableSection(QWidget):
         self._update_header_label()
         if not self.is_expanded:
             self.expand_button.setText(
-                f'Show {self._section_name} Players ({count})',
+                f'Show {self._expand_button_noun()} ({count})',
             )
 
     def clear_table(self) -> None:
@@ -615,6 +615,19 @@ class SessionTableSection(QWidget):
             self._clear_button.setToolTip('Clear all connected players' if disconnected_enabled else 'Clear all players')
             search_table_name = 'connected players' if disconnected_enabled else 'players'
             self._search_combo.setToolTip(f'Select which column to search in the {search_table_name} table')
+            self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
+
+    def _expand_button_noun(self) -> str:
+        """Return the player label for the expand button, respecting the disconnected players setting."""
+        if self._is_connected:
+            return 'Connected Players' if Settings.gui_disconnected_players_enabled else 'Players'
+        return 'Disconnected Players'
+
+    def _rows_per_page_tooltip_noun(self) -> str:
+        """Return the player noun used in the rows-per-page tooltip, respecting the disconnected players setting."""
+        if self._is_connected:
+            return 'connected players' if Settings.gui_disconnected_players_enabled else 'players'
+        return 'disconnected players'
 
     def _header_label_text(self) -> str:
         intro = ('Connected Players' if Settings.gui_disconnected_players_enabled else 'Players') if self._section_name == 'Connected' else 'Disconnected Players'
