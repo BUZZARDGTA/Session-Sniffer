@@ -124,7 +124,7 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=5)
+    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
     npcap_future = preload_executor.submit(ensure_npcap_installed)
     geolite2_future = preload_executor.submit(update_and_initialize_geolite2_readers)
@@ -496,7 +496,7 @@ def main() -> None:
         window.set_interface_switching_mode(switching=True)
 
         # Run the filter probe off the Qt thread so the UI stays responsive.
-        with ThreadPoolExecutor(max_workers=1) as _pool:
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix='InterfaceReselect') as _pool:
             _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
             while not _future.done():
                 app.processEvents()

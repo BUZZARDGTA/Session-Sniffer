@@ -72,7 +72,7 @@ class SplashScreen(QWidget):
         self._spinner_timer.setInterval(80)
         self._spinner_timer.timeout.connect(self._animate_spinner)
 
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='SplashScreen')
 
         self._center_on_screen()
 

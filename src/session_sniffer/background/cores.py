@@ -221,7 +221,7 @@ def _run_player_future_core[T](
     max_workers: int = 32,
 ) -> None:
     """Run a background player task using one future per pending IP."""
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='PlayerCore') as executor:
         futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()  # Tracks IPs currently being processed
 
