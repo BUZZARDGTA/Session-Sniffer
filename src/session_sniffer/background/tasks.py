@@ -8,6 +8,7 @@ import sys
 import time
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -157,8 +158,12 @@ def _play_wav_linux(wav_path: str) -> None:
             subprocess.run([player, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10.0, check=False)
 
 
+@dataclass(slots=True)
 class _VoiceNotificationWorkerState:
     is_running: bool = False
+
+
+_voice_notification_worker_state = _VoiceNotificationWorkerState()
 
 
 _VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
@@ -170,9 +175,9 @@ def ensure_voice_notification_worker_running() -> None:
     if not Settings.voice_notifications_enabled:
         return
     with _voice_notification_lock:
-        if _VoiceNotificationWorkerState.is_running:
+        if _voice_notification_worker_state.is_running:
             return
-        _VoiceNotificationWorkerState.is_running = True
+        _voice_notification_worker_state.is_running = True
         Thread(target=_voice_notification_worker, name=_VOICE_NOTIFICATION_THREAD_NAME, daemon=True).start()
 
 
@@ -187,11 +192,11 @@ def _voice_notification_worker() -> None:
             with _voice_notification_lock:
                 if not Settings.voice_notifications_enabled:
                     _voice_notification_queue.clear()
-                    _VoiceNotificationWorkerState.is_running = False
+                    _voice_notification_worker_state.is_running = False
                     return
                 wav_path = _voice_notification_queue.get(timeout=0.0)
                 if wav_path is None:
-                    _VoiceNotificationWorkerState.is_running = False
+                    _voice_notification_worker_state.is_running = False
                     return
 
             if sys.platform == 'win32':
@@ -204,7 +209,7 @@ def _voice_notification_worker() -> None:
             _voice_notification_queue.acknowledge(wav_path)
     finally:
         with _voice_notification_lock:
-            _VoiceNotificationWorkerState.is_running = False
+            _voice_notification_worker_state.is_running = False
 
 
 def clear_voice_notification_queue() -> None:
