@@ -112,6 +112,7 @@ class SettingsIniModel(BaseModel):
     GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE: int
     GUI_DISCONNECTED_PLAYERS_TIMER: int
     GUI_IGNORE_SCREEN_RESOLUTION_WARNING: bool
+    VOICE_NOTIFICATIONS_ENABLED: bool
 
     # Detection settings
 
@@ -176,6 +177,7 @@ class SettingsIniModel(BaseModel):
             'LOOKY_EXCLUSIVE_GTA5_PROCESS',
             'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
+            'VOICE_NOTIFICATIONS_ENABLED',
         },
     )
 

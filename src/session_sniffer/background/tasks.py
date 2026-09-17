@@ -89,6 +89,8 @@ class _DeduplicatedQueue:
 
     def put(self, item: str) -> None:
         """Enqueue *item* unless it is already present or the queue is full."""
+        if not Settings.voice_notifications_enabled:
+            return
         with self._lock:
             if item in self._set:
                 return
@@ -165,6 +167,8 @@ _voice_notification_lock = Lock()
 
 def ensure_voice_notification_worker_running() -> None:
     """Start the `VoiceNotificationWorker` thread if it is not already running."""
+    if not Settings.voice_notifications_enabled:
+        return
     with _voice_notification_lock:
         if _VoiceNotificationWorkerState.is_running:
             return
@@ -181,6 +185,10 @@ def _voice_notification_worker() -> None:
     try:
         while not gui_closed__event.is_set():
             with _voice_notification_lock:
+                if not Settings.voice_notifications_enabled:
+                    _voice_notification_queue.clear()
+                    _VoiceNotificationWorkerState.is_running = False
+                    return
                 wav_path = _voice_notification_queue.get(timeout=0.0)
                 if wav_path is None:
                     _VoiceNotificationWorkerState.is_running = False
@@ -373,7 +381,7 @@ def handle_detection_notification(
                 )
 
             # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
-            if voice_setting:
+            if Settings.voice_notifications_enabled and voice_setting:
                 tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting) / 'event' / f'{notification_type}.wav'
                 _voice_notification_queue.put(str(tts_candidate_path))
 
@@ -433,7 +441,7 @@ def handle_detection_notification(
                     )
 
                 # Voice notification
-                if rule.voice_notifications:
+                if Settings.voice_notifications_enabled and rule.voice_notifications:
                     tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
                     _voice_notification_queue.put(str(tts_candidate_path))
 
@@ -513,7 +521,7 @@ def process_userip_task(
                 duration=userip.settings.protection.suspend_process_mode,
             )
 
-        if userip.settings.voice_notifications:
+        if Settings.voice_notifications_enabled and userip.settings.voice_notifications:
             tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
             _voice_notification_queue.put(str(tts_candidate_path))
 
@@ -617,7 +625,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
-    if GUIDetectionSettings.gta5_relay_voice_notifications:
+    if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
         tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
@@ -688,7 +696,7 @@ def check_global_detections(player: Player) -> None:
         settings: _DetectionSettings,
     ) -> None:
         """Handle voice, logging, and message box for a detection."""
-        if settings.voice:
+        if Settings.voice_notifications_enabled and settings.voice:
             tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
             _voice_notification_queue.put(str(tts_candidate_path))
 

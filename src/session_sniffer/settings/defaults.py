@@ -470,6 +470,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.COLOR,
         tooltip='Background color used to highlight detected game servers in the player tables.',
     ),
+    'voice_notifications_enabled': SettingMeta(
+        category='Session',
+        group='Voice Notifications',
+        display_label='Enabled',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable all voice notifications globally across the application.',
+    ),
     'gui_ignore_screen_resolution_warning': SettingMeta(
         category='Launcher',
         group='Application Popups',
@@ -744,6 +751,7 @@ class SettingDefaults(TypedDict):
     gui_disconnected_table_rows_per_page: int
     gui_disconnected_players_timer: int
     gui_ignore_screen_resolution_warning: bool
+    voice_notifications_enabled: bool
     pinger_local: bool
     discord_presence: bool
     discord_presence_title: str
@@ -843,6 +851,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_disconnected_table_rows_per_page': 0,
     'gui_disconnected_players_timer': 10,
     'gui_ignore_screen_resolution_warning': False,
+    'voice_notifications_enabled': True,
     'pinger_local': True,
     'discord_presence': True,
     'discord_presence_title': 'Sniffing session traffic',

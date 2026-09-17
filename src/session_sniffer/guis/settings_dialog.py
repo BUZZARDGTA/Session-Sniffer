@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import ensure_looky_core_running
+from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
@@ -837,6 +837,9 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 auth_username=Settings.webserver_username,
                 auth_password=Settings.webserver_password,
             )
+
+        if not Settings.voice_notifications_enabled:
+            clear_voice_notification_queue()
 
         prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
 

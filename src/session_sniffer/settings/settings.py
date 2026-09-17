@@ -83,6 +83,7 @@ class Settings:
     gui_disconnected_table_rows_per_page: int = SETTING_DEFAULTS['gui_disconnected_table_rows_per_page']
     gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
+    voice_notifications_enabled: bool = SETTING_DEFAULTS['voice_notifications_enabled']
     pinger_local: bool = SETTING_DEFAULTS['pinger_local']
     discord_presence: bool = SETTING_DEFAULTS['discord_presence']
     discord_presence_title: str = SETTING_DEFAULTS['discord_presence_title']
@@ -151,6 +152,7 @@ class Settings:
         'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE',
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
+        'VOICE_NOTIFICATIONS_ENABLED',
         'DISCORD_PRESENCE',
         'DISCORD_PRESENCE_TITLE',
         'SHOW_DISCORD_POPUP',
