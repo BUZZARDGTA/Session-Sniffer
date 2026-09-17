@@ -219,22 +219,22 @@ class EntriesContextMenuMixin(QDialog):
         source_row = self._proxy.mapToSource(index).row()
 
         if source_row > 0:
-            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Move Up', self)
+            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
             menu.addAction(move_up_action)
         if source_row < self._model.rowCount() - 1:
-            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Move Down', self)
+            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Move Down', self)
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
         if source_row > 0 or source_row < self._model.rowCount() - 1:
             menu.addSeparator()
 
-        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg')), 'Insert Entry Above', self)
+        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
         menu.addAction(insert_above_action)
 
-        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')), 'Insert Entry Below', self)
+        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Insert Entry Below', self)
         insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
         menu.addAction(insert_below_action)
 

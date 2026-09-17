@@ -81,8 +81,8 @@ class SettingsPanelMixin(QDialog):
         group_outer.setContentsMargins(8, 4, 8, 8)
         group_outer.setSpacing(0)
 
-        self._icon_arrow_right = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg'))
-        self._icon_arrow_down = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg'))
+        self._icon_arrow_right = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg'))
+        self._icon_arrow_down = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chevron_down.svg'))
         self._settings_toggle = QPushButton(self._icon_arrow_right, ' Database Settings')
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)

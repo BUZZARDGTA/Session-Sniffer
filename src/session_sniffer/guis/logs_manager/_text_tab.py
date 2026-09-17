@@ -59,13 +59,13 @@ class TextLogTab(QWidget):
         self._search_input.textChanged.connect(self._on_search_changed)
         top_bar.addWidget(self._search_input, stretch=1)
 
-        prev_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_left.svg')), '')
+        prev_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_left.svg')), '')
         prev_button.setToolTip('Previous match')
         prev_button.setFixedWidth(30)
         prev_button.clicked.connect(self._find_prev)
         top_bar.addWidget(prev_button)
 
-        next_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg')), '')
+        next_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')), '')
         next_button.setToolTip('Next match')
         next_button.setFixedWidth(30)
         next_button.clicked.connect(self._find_next)

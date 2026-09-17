@@ -798,14 +798,14 @@ class TableContextMenuMixin(QTableView):
             'Select Row',
             tooltip='Select all cells in this row.',
             handler=lambda: self.select_row_cells(index.row()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')),
         )
         add_action(
             select_menu,
             'Select Column',
             tooltip='Select all cells in this column.',
             handler=lambda: self.select_column_cells(index.column()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')),
         )
 
         unselect_menu = add_menu(context_menu, 'Unselect', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')))
@@ -821,14 +821,14 @@ class TableContextMenuMixin(QTableView):
             'Unselect Row',
             tooltip='Unselect all cells in this row.',
             handler=lambda: self.unselect_row_cells(index.row()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_right.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')),
         )
         add_action(
             unselect_menu,
             'Unselect Column',
             tooltip='Unselect all cells in this column.',
             handler=lambda: self.unselect_column_cells(index.column()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')),
         )
         context_menu.addSeparator()
 
