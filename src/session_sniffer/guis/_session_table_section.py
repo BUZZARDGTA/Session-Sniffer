@@ -107,6 +107,7 @@ class SessionTableSection(QWidget):
     table_view: SessionTableView
     expand_button: QPushButton
     collapse_button: QToolButton
+    _clear_button: QPushButton
     _is_expanded: bool
 
     def __init__(
@@ -132,7 +133,7 @@ class SessionTableSection(QWidget):
             accent = '#327546'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the connected players table'
-            clear_tooltip = 'Clear all connected players'
+            clear_tooltip = 'Clear all connected players' if Settings.gui_disconnected_players_enabled else 'Clear all players'
             expand_tooltip = 'Show the connected players table'
             sort_column_name = 'Last Rejoin'
             sort_order = Qt.SortOrder.DescendingOrder
@@ -167,6 +168,7 @@ class SessionTableSection(QWidget):
         clear_button.setStyleSheet(SECTION_CLEAR_BUTTON_STYLESHEET)
         clear_button.setToolTip(clear_tooltip)
         clear_button.clicked.connect(clear_slot)
+        self._clear_button = clear_button
 
         collapse_button = QToolButton()
         collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'collapse_table.svg').as_posix()))
@@ -192,8 +194,14 @@ class SessionTableSection(QWidget):
             if column_name not in SEARCHABLE_COLUMN_EXCLUSIONS:
                 self._search_combo.addItem(column_name)
                 self._search_combo.setItemData(self._search_combo.count() - 1, column_index)
+        if not is_connected:
+            search_table_name = 'disconnected players'
+        elif Settings.gui_disconnected_players_enabled:
+            search_table_name = 'connected players'
+        else:
+            search_table_name = 'players'
         self._search_combo.setToolTip(
-            f'Select which column to search in the {self._section_name.lower()} players table',
+            f'Select which column to search in the {search_table_name} table',
         )
         self._search_combo.currentIndexChanged.connect(self._on_search_column_changed)
 
@@ -599,8 +607,17 @@ class SessionTableSection(QWidget):
         self.table_view.setEnabled(enabled)
         self.expand_button.setEnabled(enabled)
 
+    def update_disconnected_players_state(self) -> None:
+        """Update header label and tooltips when the disconnected players setting changes."""
+        self._update_header_label()
+        if self._is_connected:
+            disconnected_enabled = Settings.gui_disconnected_players_enabled
+            self._clear_button.setToolTip('Clear all connected players' if disconnected_enabled else 'Clear all players')
+            search_table_name = 'connected players' if disconnected_enabled else 'players'
+            self._search_combo.setToolTip(f'Select which column to search in the {search_table_name} table')
+
     def _header_label_text(self) -> str:
-        intro = 'Connected Players' if self._section_name == 'Connected' else 'Disconnected Players'
+        intro = ('Connected Players' if Settings.gui_disconnected_players_enabled else 'Players') if self._section_name == 'Connected' else 'Disconnected Players'
         base = f'{intro} ({max(0, self.last_count)})'
         if self._selected_count > 0:
             noun = 'player' if self._selected_count == 1 else 'players'

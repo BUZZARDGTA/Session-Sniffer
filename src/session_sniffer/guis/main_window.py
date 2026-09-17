@@ -87,6 +87,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._saved_splitter_sizes = self._tables_splitter.sizes()
 
     def _update_splitter_visibility(self) -> None:
+        self._connected.update_disconnected_players_state()
         if not Settings.gui_disconnected_players_enabled:
             self._disconnected.setVisible(False)
             self._disconnected.expand_button.setVisible(False)

@@ -217,6 +217,12 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
             api_key_widget.installEventFilter(self)
             self._on_looky_api_key_changed(api_key_widget.text())
 
+        # Update Session tab controls and labels based on the Disconnected Players toggle.
+        disconnected_enabled_widget = self._widgets.get('gui_disconnected_players_enabled')
+        if isinstance(disconnected_enabled_widget, QCheckBox):
+            disconnected_enabled_widget.toggled.connect(self._on_disconnected_players_enabled_toggled)
+            self._on_disconnected_players_enabled_toggled(disconnected_enabled_widget.isChecked())
+
     # ------------------------------------------------------------------
     # Tab / widget construction
     # ------------------------------------------------------------------
@@ -445,6 +451,35 @@ class SettingsDialog(SettingsDialogLookyMixin, UnsavedChangesMixin, QDialog):
                 label.setVisible(session_host_supported)
         if self._looky_tab_index != -1:
             self._tabs.setTabVisible(self._looky_tab_index, gta5_only)
+
+    def _on_disconnected_players_enabled_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Update Session tab controls and labels based on the Disconnected Players toggle."""
+        connected_rpp_label = self._labels.get('gui_connected_table_rows_per_page')
+        connected_rpp_widget = self._widgets.get('gui_connected_table_rows_per_page')
+        if connected_rpp_label is not None:
+            connected_rpp_label.setText('Connected Rows Per Page:' if checked else 'Rows Per Page:')
+            rpp_tooltip = (
+                'Maximum rows per page in the connected-players table. 0 = show all.'
+                if checked
+                else 'Maximum rows per page in the players table. 0 = show all.'
+            )
+            connected_rpp_label.setToolTip(rpp_tooltip)
+            if connected_rpp_widget is not None:
+                connected_rpp_widget.setToolTip(rpp_tooltip)
+
+        disconnected_rpp_label = self._labels.get('gui_disconnected_table_rows_per_page')
+        disconnected_rpp_widget = self._widgets.get('gui_disconnected_table_rows_per_page')
+        if disconnected_rpp_label is not None:
+            disconnected_rpp_label.setEnabled(checked)
+        if disconnected_rpp_widget is not None:
+            disconnected_rpp_widget.setEnabled(checked)
+
+        disconnected_timer_label = self._labels.get('gui_disconnected_players_timer')
+        disconnected_timer_widget = self._widgets.get('gui_disconnected_players_timer')
+        if disconnected_timer_label is not None:
+            disconnected_timer_label.setEnabled(checked)
+        if disconnected_timer_widget is not None:
+            disconnected_timer_widget.setEnabled(checked)
 
     def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
