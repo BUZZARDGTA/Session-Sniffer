@@ -325,7 +325,7 @@ class Player:  # pylint: disable=too-many-public-methods
 
     def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
-        self._traffic.datetime.last_seen = packet_datetime
+        self._traffic.datetime.last_seen = max(self._traffic.datetime.last_seen, packet_datetime)
         self._traffic.packets.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
         self._traffic.bandwidth.increment(packet_length=packet_length, sent_by_local_host=sent_by_local_host)
 
