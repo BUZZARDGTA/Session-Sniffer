@@ -622,6 +622,9 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background-color: #3e3e42;
         border-radius: 3px;
     }
+    QMenu::icon {
+        padding-left: 8px;
+    }
     QMenu::item:disabled {
         color: #666666;
         background-color: transparent;
