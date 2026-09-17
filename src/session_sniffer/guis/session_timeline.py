@@ -43,9 +43,6 @@ class SessionTimelineWindow(StatTableWindowMixin):
         self.resize(1000, 500)
         layout = self.setup_window_layout(always_on_top=always_on_top, spacing=4)
 
-        # Tracks the ordered IP list from the last full repopulate to detect row set changes.
-        self._last_player_ips: list[str] = []
-
         self._table = QTableWidget(0, len(_HEADERS))
         self._table.setHorizontalHeaderLabels(_HEADERS)
         setup_stat_table(self._table, layout, sorting=True)
@@ -85,12 +82,20 @@ class SessionTimelineWindow(StatTableWindowMixin):
         if not num_players:
             if self._table.rowCount() > 0:
                 self._table.setRowCount(0)
-            self._last_player_ips = []
             return
 
         now = datetime.now(tz=all_players[0].datetime.first_seen.tzinfo)
-        current_ips = [player.ip for player in all_players]
-        players_changed = current_ips != self._last_player_ips
+        current_ips_set = {player.ip for player in all_players}
+
+        table_ip_to_row: dict[str, int] = {}
+        for row in range(self._table.rowCount()):
+            item = self._table.item(row, _COLUMN_PLAYER)
+            if item is not None:
+                ip = item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(ip, str):
+                    table_ip_to_row[ip] = row
+
+        players_changed = current_ips_set != set(table_ip_to_row.keys())
 
         if players_changed:
             # Full repopulate: disable sorting so setItem doesn't trigger a sort after
@@ -112,6 +117,7 @@ class SessionTimelineWindow(StatTableWindowMixin):
                     total_seconds = session_seconds
 
                 player_item = QTableWidgetItem(format_player_display(player.ip, player.usernames))
+                player_item.setData(Qt.ItemDataRole.UserRole, player.ip)
                 status_item = QTableWidgetItem('Connected' if is_connected else 'Disconnected')
 
                 first_item = NumericTableWidgetItem(player.datetime.first_seen.strftime('%H:%M:%S'))
@@ -138,17 +144,19 @@ class SessionTimelineWindow(StatTableWindowMixin):
                     self._table.setItem(row, column, item)
 
             self._reset_column_sizes()
-            self._last_player_ips = current_ips
             # Re-enable sorting once — triggers a single sort, acceptable after a structural change.
             self._table.setSortingEnabled(True)
 
         else:
-            # Incremental update: block signals so setText/setData don't trigger Qt's
-            # auto-sort (which fires on every itemChanged when sorting is enabled).
-            # setSortingEnabled is NOT toggled here, so header-click sorting still works.
+            # Incremental update: update each player at their exact sorted row.
+            # Block signals so setText/setData don't trigger auto-sort during the tick.
             self._table.blockSignals(True)  # noqa: FBT003
 
-            for row, player in enumerate(all_players):
+            for player in all_players:
+                target_row = table_ip_to_row.get(player.ip)
+                if target_row is None:
+                    continue
+
                 is_connected = PlayersRegistry.is_player_connected(player)
                 color = _COLOR_CONNECTED if is_connected else _COLOR_DISCONNECTED
 
@@ -161,58 +169,61 @@ class SessionTimelineWindow(StatTableWindowMixin):
                 except PlayerDateTimeCorruptionError:
                     total_seconds = session_seconds
 
-                cell = self._table.item(row, _COLUMN_PLAYER)
-                if cell is not None:
+                status_cell = self._table.item(target_row, _COLUMN_STATUS)
+                status_text = 'Connected' if is_connected else 'Disconnected'
+                status_changed = status_cell is not None and status_cell.text() != status_text
+                if status_changed and status_cell is not None:
+                    status_cell.setText(status_text)
+                    for column in range(len(_HEADERS)):
+                        cell = self._table.item(target_row, column)
+                        if cell is not None:
+                            cell.setForeground(color)
+
+                player_cell = self._table.item(target_row, _COLUMN_PLAYER)
+                if player_cell is not None:
                     new_val = format_player_display(player.ip, player.usernames)
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setForeground(color)
+                    if player_cell.text() != new_val:
+                        player_cell.setText(new_val)
+                        player_cell.setForeground(color)
 
-                cell = self._table.item(row, _COLUMN_STATUS)
-                if cell is not None:
-                    new_val = 'Connected' if is_connected else 'Disconnected'
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setForeground(color)
-
-                cell = self._table.item(row, _COLUMN_LAST_REJOIN)
-                if cell is not None:
+                rejoin_cell = self._table.item(target_row, _COLUMN_LAST_REJOIN)
+                if rejoin_cell is not None:
                     new_val = player.datetime.last_rejoin.strftime('%H:%M:%S')
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_rejoin.timestamp())
-                        cell.setForeground(color)
+                    if rejoin_cell.text() != new_val:
+                        rejoin_cell.setText(new_val)
+                        rejoin_cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_rejoin.timestamp())
+                        rejoin_cell.setForeground(color)
 
-                cell = self._table.item(row, _COLUMN_LAST_SEEN)
-                if cell is not None:
+                seen_cell = self._table.item(target_row, _COLUMN_LAST_SEEN)
+                if seen_cell is not None:
                     new_val = player.datetime.last_seen.strftime('%H:%M:%S')
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
-                        cell.setForeground(color)
+                    if seen_cell.text() != new_val:
+                        seen_cell.setText(new_val)
+                        seen_cell.setData(Qt.ItemDataRole.UserRole, player.datetime.last_seen.timestamp())
+                        seen_cell.setForeground(color)
 
-                cell = self._table.item(row, _COLUMN_SESSION_TIME)
-                if cell is not None:
+                session_cell = self._table.item(target_row, _COLUMN_SESSION_TIME)
+                if session_cell is not None:
                     new_val = format_duration(session_seconds)
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, session_seconds)
-                        cell.setForeground(color)
+                    if session_cell.text() != new_val:
+                        session_cell.setText(new_val)
+                        session_cell.setData(Qt.ItemDataRole.UserRole, session_seconds)
+                        session_cell.setForeground(color)
 
-                cell = self._table.item(row, _COLUMN_TOTAL_TIME)
-                if cell is not None:
+                total_cell = self._table.item(target_row, _COLUMN_TOTAL_TIME)
+                if total_cell is not None:
                     new_val = format_duration(total_seconds)
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, total_seconds)
-                        cell.setForeground(color)
+                    if total_cell.text() != new_val:
+                        total_cell.setText(new_val)
+                        total_cell.setData(Qt.ItemDataRole.UserRole, total_seconds)
+                        total_cell.setForeground(color)
 
-                cell = self._table.item(row, _COLUMN_REJOINS)
-                if cell is not None:
+                rejoins_cell = self._table.item(target_row, _COLUMN_REJOINS)
+                if rejoins_cell is not None:
                     new_val = str(player.rejoins)
-                    if cell.text() != new_val:
-                        cell.setText(new_val)
-                        cell.setData(Qt.ItemDataRole.UserRole, player.rejoins)
-                        cell.setForeground(color)
+                    if rejoins_cell.text() != new_val:
+                        rejoins_cell.setText(new_val)
+                        rejoins_cell.setData(Qt.ItemDataRole.UserRole, player.rejoins)
+                        rejoins_cell.setForeground(color)
 
             self._table.blockSignals(False)  # noqa: FBT003
