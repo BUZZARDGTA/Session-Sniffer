@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Event, Lock, Thread
-from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
@@ -156,24 +155,8 @@ def _play_wav_linux(wav_path: str) -> None:
             subprocess.run([player, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10.0, check=False)
 
 
-def _voice_notification_worker() -> None:
-    """Singleton worker that plays queued voice notification WAV files sequentially.
-
-    Dequeues one WAV path at a time, plays it synchronously (blocking until done),
-    then waits a short pause before playing the next one. Exits when the GUI closes.
-    """
-    while not gui_closed__event.is_set():
-        wav_path = _voice_notification_queue.get(timeout=0.1)
-        if wav_path is None:
-            continue
-        if sys.platform == 'win32':
-            import winsound  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-            with contextlib.suppress(RuntimeError):
-                winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
-        else:
-            _play_wav_linux(wav_path)
-        gui_closed__event.wait(_INTER_SOUND_PAUSE_SECONDS)
-        _voice_notification_queue.acknowledge(wav_path)
+class _VoiceNotificationWorkerState:
+    is_running: bool = False
 
 
 _VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
@@ -183,10 +166,37 @@ _voice_notification_lock = Lock()
 def ensure_voice_notification_worker_running() -> None:
     """Start the `VoiceNotificationWorker` thread if it is not already running."""
     with _voice_notification_lock:
-        for thread in enumerate_threads():
-            if thread.name == _VOICE_NOTIFICATION_THREAD_NAME and thread.is_alive():
-                return
+        if _VoiceNotificationWorkerState.is_running:
+            return
+        _VoiceNotificationWorkerState.is_running = True
         Thread(target=_voice_notification_worker, name=_VOICE_NOTIFICATION_THREAD_NAME, daemon=True).start()
+
+
+def _voice_notification_worker() -> None:
+    """Worker that plays queued voice notification WAV files sequentially until the queue is empty.
+
+    Dequeues one WAV path at a time, plays it synchronously (blocking until done),
+    then waits a short pause before checking for the next sound. Exits when the queue is drained.
+    """
+    try:
+        while not gui_closed__event.is_set():
+            with _voice_notification_lock:
+                wav_path = _voice_notification_queue.get(timeout=0.0)
+                if wav_path is None:
+                    _VoiceNotificationWorkerState.is_running = False
+                    return
+
+            if sys.platform == 'win32':
+                import winsound  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+                with contextlib.suppress(RuntimeError):
+                    winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
+            else:
+                _play_wav_linux(wav_path)
+            gui_closed__event.wait(_INTER_SOUND_PAUSE_SECONDS)
+            _voice_notification_queue.acknowledge(wav_path)
+    finally:
+        with _voice_notification_lock:
+            _VoiceNotificationWorkerState.is_running = False
 
 
 def clear_voice_notification_queue() -> None:

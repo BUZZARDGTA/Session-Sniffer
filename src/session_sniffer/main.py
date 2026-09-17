@@ -18,7 +18,6 @@ from PySide6.QtWidgets import QMessageBox
 from session_sniffer import msgbox
 from session_sniffer.background import (
     ensure_looky_core_running,
-    ensure_voice_notification_worker_running,
     handle_detection_notification,
     hostname_core,
     iplookup_core,
@@ -881,7 +880,6 @@ def main() -> None:
     pinger_core__thread.start()
 
     ensure_looky_core_running()
-    ensure_voice_notification_worker_running()
 
     def _show_discord_intro() -> None:
         window.show_discord_intro()
