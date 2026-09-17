@@ -79,6 +79,7 @@ class Settings:
     gui_columns_geo_country_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_country_append_alpha2']
     gui_columns_geo_continent_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_continent_append_alpha2']
     gui_connected_table_rows_per_page: int = SETTING_DEFAULTS['gui_connected_table_rows_per_page']
+    gui_disconnected_players_enabled: bool = SETTING_DEFAULTS['gui_disconnected_players_enabled']
     gui_disconnected_table_rows_per_page: int = SETTING_DEFAULTS['gui_disconnected_table_rows_per_page']
     gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
@@ -146,6 +147,7 @@ class Settings:
         'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
         'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
         'GUI_CONNECTED_TABLE_ROWS_PER_PAGE',
+        'GUI_DISCONNECTED_PLAYERS_ENABLED',
         'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE',
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',

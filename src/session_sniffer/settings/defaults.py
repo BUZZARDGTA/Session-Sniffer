@@ -419,6 +419,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         max_value=5000,
         step=10,
     ),
+    'gui_disconnected_players_enabled': SettingMeta(
+        category='Session',
+        group='Disconnected Players',
+        display_label='Enabled',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Enable tracking and displaying disconnected players in a separate table below connected players.',
+    ),
     'gui_disconnected_players_timer': SettingMeta(
         category='Session',
         group='Disconnected Players',
@@ -733,6 +740,7 @@ class SettingDefaults(TypedDict):
     gui_columns_geo_country_append_alpha2: bool
     gui_columns_geo_continent_append_alpha2: bool
     gui_connected_table_rows_per_page: int
+    gui_disconnected_players_enabled: bool
     gui_disconnected_table_rows_per_page: int
     gui_disconnected_players_timer: int
     gui_ignore_screen_resolution_warning: bool
@@ -831,6 +839,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_columns_geo_country_append_alpha2': True,
     'gui_columns_geo_continent_append_alpha2': True,
     'gui_connected_table_rows_per_page': 0,
+    'gui_disconnected_players_enabled': True,
     'gui_disconnected_table_rows_per_page': 0,
     'gui_disconnected_players_timer': 10,
     'gui_ignore_screen_resolution_warning': False,

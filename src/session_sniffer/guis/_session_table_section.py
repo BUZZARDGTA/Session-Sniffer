@@ -105,6 +105,9 @@ class SessionTableSection(QWidget):
     section_toggled = Signal()
     table_model: SessionTableModel
     table_view: SessionTableView
+    expand_button: QPushButton
+    collapse_button: QToolButton
+    _is_expanded: bool
 
     def __init__(
         self,
@@ -120,6 +123,7 @@ class SessionTableSection(QWidget):
         self._section_name = 'Connected' if is_connected else 'Disconnected'
         self.last_count: int = -1
         self._selected_count: int = 0
+        self._is_expanded = True
 
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
@@ -169,6 +173,7 @@ class SessionTableSection(QWidget):
         collapse_button.setIconSize(QSize(16, 16))
         collapse_button.setToolTip(collapse_tooltip)
         collapse_button.clicked.connect(self.minimize)
+        self.collapse_button = collapse_button
 
         icon_title_pair = QHBoxLayout()
         icon_title_pair.setSpacing(1)
@@ -527,10 +532,11 @@ class SessionTableSection(QWidget):
     @property
     def is_expanded(self) -> bool:
         """True when the section content (header + table) is visible."""
-        return self.isVisible()
+        return self._is_expanded
 
     def expand(self) -> None:
         """Show section content and hide the expand button."""
+        self._is_expanded = True
         self.expand_button.setVisible(False)
         self.setVisible(True)
         self.table_model.refresh_view()
@@ -538,6 +544,7 @@ class SessionTableSection(QWidget):
 
     def minimize(self) -> None:
         """Collapse section to just an expand button."""
+        self._is_expanded = False
         self.setVisible(False)
         self.expand_button.setText(
             f'Show {self._section_name} Players ({max(self.last_count, 0)})',

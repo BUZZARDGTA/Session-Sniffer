@@ -375,6 +375,42 @@ def rendering_core(
         _country_flag_cache[country_code] = country_flag
         return country_flag
 
+    def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
+        if not Settings.gui_disconnected_players_enabled:
+            for player in disconnected:
+                player.left_event.clear()
+                PlayersRegistry.move_player_to_connected(player)
+                connected.append(player)
+            disconnected.clear()
+            return []
+
+        to_disconnect: list[int] = []
+        now = datetime.now(tz=LOCAL_TZ)
+        for i, player in enumerate(connected):
+            if player.left_event.is_set() or (now - player.datetime.last_seen).total_seconds() < Settings.gui_disconnected_players_timer:
+                continue
+            player.mark_as_left()
+            player.detection_checked = False
+            player.relay_monitor_started = False
+            to_disconnect.append(i)
+            disconnected.append(player)
+
+            if player.userip_detection and player.userip_detection.as_processed_task:
+                player.userip_detection.as_processed_task = False
+                disconnected_userip = player.userip or UserIPDatabases.resolve_userip(player.ip)
+                if disconnected_userip is None:
+                    logger.warning('No UserIP found for disconnecting player ip=%s — skipping disconnected UserIP task', player.ip)
+                else:
+                    Thread(
+                        target=process_userip_task,
+                        name=f'ProcessUserIPTask-{player.ip}-disconnected',
+                        args=(player, disconnected_userip, 'disconnected'),
+                        daemon=True,
+                    ).start()
+
+            handle_detection_notification(player, 'player_left_session')
+        return to_disconnect
+
     # Perform session log cleanup once at startup in a background thread so startup is not delayed
     Thread(
         target=cleanup_session_logs,
@@ -407,29 +443,7 @@ def rendering_core(
             last_modmenu_refresh_time = time.monotonic()
 
         session_connected, session_disconnected = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
-        players_to_disconnect: list[int] = []
-        for i, player in enumerate(session_connected):
-            if not player.left_event.is_set() and (datetime.now(tz=LOCAL_TZ) - player.datetime.last_seen).total_seconds() >= Settings.gui_disconnected_players_timer:
-                player.mark_as_left()
-                player.detection_checked = False
-                player.relay_monitor_started = False
-                players_to_disconnect.append(i)
-                session_disconnected.append(player)
-
-                if player.userip_detection and player.userip_detection.as_processed_task:
-                    player.userip_detection.as_processed_task = False
-                    disconnected_userip = player.userip or UserIPDatabases.resolve_userip(player.ip)
-                    if disconnected_userip is None:
-                        logger.warning('No UserIP found for disconnecting player ip=%s — skipping disconnected UserIP task', player.ip)
-                    else:
-                        Thread(
-                            target=process_userip_task,
-                            name=f'ProcessUserIPTask-{player.ip}-disconnected',
-                            args=(player, disconnected_userip, 'disconnected'),
-                            daemon=True,
-                        ).start()
-
-                handle_detection_notification(player, 'player_left_session')
+        players_to_disconnect = _process_player_disconnections(session_connected, session_disconnected)
 
         # Nudge the GTA5 / RDR2 suspend monitor so reasons waiting on a player 'left' event
         # resume the process immediately instead of waiting for the next poll cycle.

@@ -87,8 +87,22 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._saved_splitter_sizes = self._tables_splitter.sizes()
 
     def _update_splitter_visibility(self) -> None:
+        if not Settings.gui_disconnected_players_enabled:
+            self._disconnected.setVisible(False)
+            self._disconnected.expand_button.setVisible(False)
+            self._connected.collapse_button.setVisible(False)
+            self._connected.expand_button.setVisible(False)
+            self._connected.setVisible(True)
+            self._tables_splitter.setVisible(True)
+            return
+
+        self._connected.collapse_button.setVisible(True)
         connected_expanded = self._connected.is_expanded
         disconnected_expanded = self._disconnected.is_expanded
+        self._connected.setVisible(connected_expanded)
+        self._connected.expand_button.setVisible(not connected_expanded)
+        self._disconnected.setVisible(disconnected_expanded)
+        self._disconnected.expand_button.setVisible(not disconnected_expanded)
         self._tables_splitter.setVisible(connected_expanded or disconnected_expanded)
 
         if connected_expanded and disconnected_expanded:
@@ -569,6 +583,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
 
         self._connected.section_toggled.connect(self._update_splitter_visibility)
         self._disconnected.section_toggled.connect(self._update_splitter_visibility)
+        self._update_splitter_visibility()
 
         self.raise_()
         self.activateWindow()
@@ -900,6 +915,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
         window.accepted.connect(self._update_gta5_toolbar_visibility)
         window.accepted.connect(self._apply_always_on_top)
+        window.accepted.connect(self._update_splitter_visibility)
         window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
         self._settings_dialog_window = window
         self._settings_dialog_window.show()
