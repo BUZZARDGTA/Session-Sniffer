@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Event, Lock, Thread
+from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
@@ -98,6 +99,7 @@ class _DeduplicatedQueue:
             self._deque.append(item)
             self._set.add(item)
             self._not_empty.set()
+        ensure_voice_notification_worker_running()
 
     def get(self, timeout: float) -> str | None:
         """Dequeue the oldest item, waiting up to *timeout* seconds. Returns `None` on timeout.
@@ -174,7 +176,17 @@ def _voice_notification_worker() -> None:
         _voice_notification_queue.acknowledge(wav_path)
 
 
-Thread(target=_voice_notification_worker, name='VoiceNotificationWorker', daemon=True).start()
+_VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
+_voice_notification_lock = Lock()
+
+
+def ensure_voice_notification_worker_running() -> None:
+    """Start the `VoiceNotificationWorker` thread if it is not already running."""
+    with _voice_notification_lock:
+        for thread in enumerate_threads():
+            if thread.name == _VOICE_NOTIFICATION_THREAD_NAME and thread.is_alive():
+                return
+        Thread(target=_voice_notification_worker, name=_VOICE_NOTIFICATION_THREAD_NAME, daemon=True).start()
 
 
 def clear_voice_notification_queue() -> None:
