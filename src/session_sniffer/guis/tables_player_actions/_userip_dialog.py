@@ -12,7 +12,7 @@ from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
+from session_sniffer.guis.utils import activate_window, format_player_display, set_dialog_window_flags
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -92,18 +92,11 @@ def show_userip_detected_dialog(parent: QWidget | None, player: Player) -> None:
     """Open or focus the UserIP Detected dialog for *player*."""
     existing_dialog = _active_userip_dialogs.get(player.ip)
     if existing_dialog is not None:
-        if existing_dialog.isMinimized():
-            existing_dialog.showNormal()
-        else:
-            existing_dialog.show()
-        existing_dialog.raise_()
-        existing_dialog.activateWindow()
+        activate_window(existing_dialog)
         return
 
     dialog = UserIPDetectedDialog(parent, player)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     _active_userip_dialogs[player.ip] = dialog
     dialog.destroyed.connect(lambda: _active_userip_dialogs.pop(player.ip, None))
-    dialog.show()
-    dialog.raise_()
-    dialog.activateWindow()
+    activate_window(dialog)

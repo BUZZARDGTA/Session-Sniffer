@@ -14,7 +14,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, set_dialog_window_flags
+from session_sniffer.guis.utils import activate_window, format_player_display, set_dialog_window_flags
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -124,21 +124,14 @@ def show_detection_notification_dialog(
     key = (player.ip, info.display_title)
     existing_dialog = _active_notification_dialogs.get(key)
     if existing_dialog is not None:
-        if existing_dialog.isMinimized():
-            existing_dialog.showNormal()
-        else:
-            existing_dialog.show()
-        existing_dialog.raise_()
-        existing_dialog.activateWindow()
+        activate_window(existing_dialog)
         return
 
     dialog = DetectionNotificationDialog(parent, player, info)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     _active_notification_dialogs[key] = dialog
     dialog.destroyed.connect(lambda: _active_notification_dialogs.pop(key, None))
-    dialog.show()
-    dialog.raise_()
-    dialog.activateWindow()
+    activate_window(dialog)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -272,18 +265,11 @@ def show_player_detection_dialog(
     key = (player.ip, info.event_type)
     existing_dialog = _active_player_detection_dialogs.get(key)
     if existing_dialog is not None:
-        if existing_dialog.isMinimized():
-            existing_dialog.showNormal()
-        else:
-            existing_dialog.show()
-        existing_dialog.raise_()
-        existing_dialog.activateWindow()
+        activate_window(existing_dialog)
         return
 
     dialog = PlayerDetectionDialog(parent, player, info)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     _active_player_detection_dialogs[key] = dialog
     dialog.destroyed.connect(lambda: _active_player_detection_dialogs.pop(key, None))
-    dialog.show()
-    dialog.raise_()
-    dialog.activateWindow()
+    activate_window(dialog)

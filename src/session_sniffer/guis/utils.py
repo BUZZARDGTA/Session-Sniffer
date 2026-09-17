@@ -415,6 +415,16 @@ def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> No
     dialog.setWindowFlags(window_flags)
 
 
+def activate_window(widget: QWidget) -> None:
+    """Restore if minimized, raise, and activate *widget*."""
+    if widget.isMinimized():
+        widget.showNormal()
+    else:
+        widget.show()
+    widget.raise_()
+    widget.activateWindow()
+
+
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
 
