@@ -158,14 +158,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'the capture engine buffers the backlog and delivers packets with increasing latency —\n'
             'meaning you are processing old traffic instead of live sessions.\n\n'
             'This threshold defines the maximum allowed packet latency (in seconds).\n'
-            'If a packet arrives more than this many seconds late, the capture is automatically\n'
-            'restarted to resync with real time and the stale backlog is discarded.\n\n'
+            'If a packet arrives more than this many seconds late, stale packets are automatically\n'
+            'dropped to catch up with real time without restarting the capture.\n\n'
             'Recommended: 3-5 seconds — low enough to recover quickly without triggering on brief spikes.\n\n'
-            'Disabled (0): The capture never auto-restarts.\n'
+            'Disabled (0): Stale packets are never auto-dropped.\n'
             'Under heavy traffic the sniffer will keep falling further behind real time,\n'
-            'showing outdated player data and missing live connections until traffic subsides or you restart manually.'
+            'showing outdated player data and missing live connections until traffic subsides.'
         ),
-        requires_capture_restart=True,
+        requires_capture_restart=False,
         min_value=0,
         step=1,
         special_value_text='Disabled',

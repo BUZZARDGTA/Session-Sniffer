@@ -217,6 +217,7 @@ class CaptureStats:
     app_disk_read_total_mb: ClassVar[float] = 0.0
     app_disk_write_total_mb: ClassVar[float] = 0.0
     packets_dropped: ClassVar[int] = 0
+    packets_overflow_dropped: ClassVar[int] = 0
     peak_bps_rate: ClassVar[int] = 0
     peak_bpm_rate: ClassVar[int] = 0
     peak_pps_rate: ClassVar[int] = 0
@@ -233,6 +234,7 @@ class CaptureStats:
         cls.restarted_times = 0
         cls.packets_latencies.clear()
         cls.capture_health_samples.clear()
+        cls.packets_overflow_dropped = 0
         cls.global_bandwidth = 0
         cls.global_download = 0
         cls.global_upload = 0

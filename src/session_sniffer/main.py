@@ -280,17 +280,6 @@ def main() -> None:
         packet_latency = datetime.now(tz=LOCAL_TZ) - packet.datetime
         CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
         CaptureStats.total_packets_captured += 1
-        if Settings.capture_overflow_timer > 0 and packet_latency.total_seconds() >= Settings.capture_overflow_timer:
-            CaptureStats.restarted_times += 1
-            CaptureStats.packets_latencies.clear()
-            logger.warning(
-                'Packet capture overflow detected: latency %.2fs exceeds threshold of %.2fs. Restarting capture now (restart no.%d). Skipping this packet.',
-                packet_latency.total_seconds(),
-                Settings.capture_overflow_timer,
-                CaptureStats.restarted_times,
-            )
-            capture_holder.request_restart()
-            return
 
         is_gta5_packet = (
             Settings.is_gta5_feature_set()
@@ -385,6 +374,10 @@ def main() -> None:
 
     _adapter_lost_event = Event()
 
+    def on_overflow_drop() -> None:
+        CaptureStats.total_packets_captured += 1
+        CaptureStats.packets_overflow_dropped += 1
+
     capture = PacketCapture(
         CaptureConfig(
             interface=selected_interface,
@@ -395,6 +388,8 @@ def main() -> None:
             include_payload=Settings.capture_ps3_name_resolver,
             callback=packet_callback,
             on_capture_lost=_adapter_lost_event.set,
+            max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
+            on_overflow_drop=on_overflow_drop,
         ),
     )
     capture_holder = CaptureHolder(capture)
@@ -565,6 +560,8 @@ def main() -> None:
                 include_payload=Settings.capture_ps3_name_resolver,
                 callback=packet_callback,
                 on_capture_lost=_adapter_lost_event.set,
+                max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
+                on_overflow_drop=on_overflow_drop,
             ),
         )
         new_capture.start()
@@ -642,6 +639,8 @@ def main() -> None:
                 include_payload=Settings.capture_ps3_name_resolver,
                 callback=packet_callback,
                 on_capture_lost=_adapter_lost_event.set,
+                max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
+                on_overflow_drop=on_overflow_drop,
             ),
         )
 

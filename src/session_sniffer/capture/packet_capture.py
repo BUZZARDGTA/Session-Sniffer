@@ -2,6 +2,8 @@
 
 import struct
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime as datetime_type
 from typing import TYPE_CHECKING, NamedTuple, Self, final
@@ -28,11 +30,10 @@ from session_sniffer.capture.exceptions import (
 )
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
 logger = get_logger(__name__)
@@ -229,6 +230,8 @@ class CaptureConfig:
     display_filter_fn: Callable[[Packet], bool] | None = None
     include_payload: bool = False
     on_capture_lost: Callable[[], None] | None = None
+    max_latency_seconds: Callable[[], float] | None = None
+    on_overflow_drop: Callable[[], None] | None = None
 
 
 @dataclass(kw_only=True, slots=True)
@@ -393,10 +396,24 @@ class PacketCapture:
                 if captured_packet is None:
                     continue
 
+                if self.config.max_latency_seconds is not None:
+                    max_latency = self.config.max_latency_seconds()
+                    if max_latency > 0.0:
+                        packet_latency = time.time() - captured_packet.timestamp_epoch
+                        if packet_latency >= max_latency:
+                            if self.config.on_overflow_drop is not None:
+                                self.config.on_overflow_drop()
+                            continue
+
+                try:
+                    packet_time = datetime_type.fromtimestamp(captured_packet.timestamp_epoch, tz=LOCAL_TZ)
+                except (OSError, ValueError, OverflowError):
+                    packet_time = datetime_type.now(tz=LOCAL_TZ)
+
                 try:
                     packet = Packet.from_raw_frame(
                         captured_packet.data,
-                        captured_packet.timestamp,
+                        packet_time,
                         captured_packet.datalink_type,
                         include_payload=need_payload,
                     )

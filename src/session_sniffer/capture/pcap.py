@@ -11,7 +11,6 @@ import sys
 import threading
 from ctypes import byref, c_char_p, c_int, c_long, c_ubyte, c_uint, c_uint32, c_void_p
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Self, final
 
@@ -22,7 +21,6 @@ from session_sniffer.capture.exceptions import (
     PcapReadError,
     PcapSendError,
 )
-from session_sniffer.constants.standard import LOCAL_TZ
 
 PCAP_ERRBUF_SIZE = 256
 PCAP_NETMASK_UNKNOWN = 0xFFFFFFFF
@@ -78,7 +76,7 @@ class PcapStat(ctypes.Structure):
 class RawCapturedPacket:
     """Raw packet received from pcap handle."""
 
-    timestamp: datetime
+    timestamp_epoch: float
     data: bytes
     datalink_type: int
 
@@ -344,16 +342,11 @@ class PcapHandle:
             if not 0 < captured_length <= self._snaplen:
                 return None
 
-            try:
-                epoch_seconds = float(header.tv_sec) + (float(header.tv_usec) / 1_000_000.0)
-                packet_time = datetime.fromtimestamp(epoch_seconds, tz=LOCAL_TZ)
-            except (OSError, ValueError, OverflowError):
-                packet_time = datetime.now(tz=LOCAL_TZ)
-
+            epoch_seconds = float(header.tv_sec) + (float(header.tv_usec) / 1_000_000.0)
             packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
 
             return RawCapturedPacket(
-                timestamp=packet_time,
+                timestamp_epoch=epoch_seconds,
                 data=packet_bytes,
                 datalink_type=self._datalink_type,
             )

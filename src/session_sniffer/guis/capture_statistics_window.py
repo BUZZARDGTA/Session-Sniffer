@@ -93,10 +93,12 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._label_uptime = QLabel('0s')
         self._label_total_uptime = QLabel('0s')
         self._label_packets_dropped = QLabel('0')
+        self._label_overflow_dropped = QLabel('0')
         stability_form.addRow('Total App Uptime:', self._label_total_uptime)
         stability_form.addRow('Capture Uptime:', self._label_uptime)
         stability_form.addRow('Capture Restarts:', self._label_restarts)
         stability_form.addRow('Packets Dropped:', self._label_packets_dropped)
+        stability_form.addRow('Overflow Dropped:', self._label_overflow_dropped)
         left_column_a.addWidget(stability_group)
 
         self._process_started_at: float = get_process_creation_time(os.getpid()) or time.time()
@@ -293,6 +295,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         """Refresh stats labels and advance all three live graphs by one sample."""
         self._label_restarts.setText(str(CaptureStats.restarted_times))
         self._label_packets_dropped.setText(str(CaptureStats.packets_dropped))
+        self._label_overflow_dropped.setText(str(CaptureStats.packets_overflow_dropped))
 
         self._label_disk_read_rate.setText(f'{CaptureStats.app_disk_read_rate_mb:.2f} MB/s')
         self._label_disk_write_rate.setText(f'{CaptureStats.app_disk_write_rate_mb:.2f} MB/s')
