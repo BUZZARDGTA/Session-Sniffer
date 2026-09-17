@@ -7,8 +7,6 @@ from datetime import datetime as datetime_type
 from datetime import timedelta as timedelta_type
 from typing import NamedTuple, Self
 
-from session_sniffer.exceptions import PlayerDateTimeCorruptionError
-
 BANDWIDTH_GB_THRESHOLD = 1_073_741_824  # 1 GB in bytes
 BANDWIDTH_MB_THRESHOLD = 1_048_576  # 1 MB in bytes
 BANDWIDTH_KB_THRESHOLD = 1024  # 1 KB in bytes
@@ -443,6 +441,7 @@ class PlayerDateTime:
         Calculates the duration between when the player last joined and was last seen,
         then stores it. Called when a player disconnects to freeze their session duration.
         """
+        self.last_seen = max(self.last_seen, self.last_rejoin)
         self.session_time = self.last_seen - self.last_rejoin
 
     def accumulate_session_to_total(self) -> None:
@@ -467,8 +466,7 @@ class PlayerDateTime:
                 duration from their last session. For connected players, calculates the
                 live duration from when they joined until their last activity.
         """
-        if self.last_rejoin > self.last_seen:
-            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        self.last_seen = max(self.last_seen, self.last_rejoin)
         if self.session_time is None:
             return self.last_seen - self.last_rejoin
         return self.session_time
@@ -481,8 +479,7 @@ class PlayerDateTime:
                 For connected players, includes their ongoing session time.
                 For disconnected players, includes their completed final session.
         """
-        if self.last_rejoin > self.last_seen:
-            raise PlayerDateTimeCorruptionError(str(self.last_rejoin), str(self.last_seen))
+        self.last_seen = max(self.last_seen, self.last_rejoin)
         if self.total_session_time is None:
             if self.session_time is None:
                 return self.last_seen - self.last_rejoin
