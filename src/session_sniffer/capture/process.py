@@ -33,6 +33,7 @@ _AF_INET = 2
 _UDP_TABLE_OWNER_PID = 1
 _ERROR_INSUFFICIENT_BUFFER = 122
 _ERROR_SUCCESS = 0
+_PORT_MASK = 0xFFFF
 
 if sys.platform == 'win32':
     _kernel32 = ctypes.windll.kernel32
@@ -564,7 +565,7 @@ def get_process_udp_ports(target_pid: int) -> frozenset[int]:
                 return frozenset[int]()
             row_array = (_MibUdpRowOwnerPid * number_of_entries).from_buffer(buffer, table_offset)
             return frozenset(
-                socket.ntohs(row.dwLocalPort)
+                socket.ntohs(row.dwLocalPort & _PORT_MASK)
                 for row in row_array
                 if row.dwOwningPid == target_pid
             )
