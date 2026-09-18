@@ -29,6 +29,7 @@ When replacing, renaming, or removing something:
 - Delete the old implementation outright.
 - Update every call site.
 - Do not add aliases, migration code, compatibility shims, fallback lookups, transitional validators, or dual code paths.
+- Delete unused assets (such as SVG icons, images, or resource files) outright. Never leave orphaned or unreferenced assets in the repository.
 
 ## Line Endings
 

@@ -78,6 +78,7 @@ Do not introduce a separate styling system or duplicate existing styles just to 
 
 * All SVG icon assets must always use CRLF (`\r\n`) line endings. Never commit or use LF line endings.
 * Follow the project's established icon style: Lucide 24x24 viewBox (`viewBox="0 0 24 24"`), stroke `#a5b4c4`, stroke-width `2`, stroke-linecap `round`, stroke-linejoin `round`, and `fill="none"` (except deliberate small accent dots).
+* Never leave unused SVG files in `resources/icons/`. Whenever an icon is replaced, superseded, or no longer referenced in code or stylesheets, delete its SVG file outright. When introducing, renaming, or removing icons or UI elements, audit `resources/icons/` to ensure every SVG asset is actively used.
 
 ## Errors
 
