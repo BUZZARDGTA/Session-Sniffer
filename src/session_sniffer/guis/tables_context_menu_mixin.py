@@ -623,13 +623,6 @@ class TableContextMenuMixin(QTableView):
                 )
                 configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), players=player)
                 userip_menu.addSeparator()
-            add_action(
-                userip_menu,
-                'Rename',
-                tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
-                handler=lambda: userip_rename(self, ip_address, player),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
-            )
             entry_desc = _classify_userip_entry(ip_address)
             if entry_desc == 'single IP':
                 add_action(
@@ -647,14 +640,13 @@ class TableContextMenuMixin(QTableView):
                     handler=lambda: userip_edit_range(self, ip_address, player),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
                 )
-            if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
-                add_action(
-                    userip_menu,
-                    'Remove Username',
-                    tooltip='Remove selected usernames for this IP address while keeping others.',
-                    handler=lambda: userip_remove_username(self, ip_address, player),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
-                )
+            add_action(
+                userip_menu,
+                'Rename',
+                tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
+                handler=lambda: userip_rename(self, ip_address, player),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
+            )
             move_userip_menu = add_menu(
                 userip_menu,
                 'Move',
@@ -668,6 +660,14 @@ class TableContextMenuMixin(QTableView):
                 handler_factory=lambda db_path: lambda: userip_move(self, [ip_address], db_path),
                 disabled_path=player.userip.db_path,
             )
+            if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
+                add_action(
+                    userip_menu,
+                    'Remove Username',
+                    tooltip='Remove selected usernames for this IP address while keeping others.',
+                    handler=lambda: userip_remove_username(self, ip_address, player),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                )
             add_action(
                 userip_menu,
                 'Delete',
