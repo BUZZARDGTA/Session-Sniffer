@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, cast
 
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QGroupBox,
     QHBoxLayout,
@@ -35,7 +34,7 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtWidgets import QFormLayout
+    from PySide6.QtWidgets import QCheckBox, QFormLayout
 
     from session_sniffer.settings import SettingMeta
 
@@ -148,7 +147,7 @@ class SettingsDialogDiscordMixin(QDialog):
 
         # Wire enable cascade.
         if enabled_meta is not None:
-            enabled_checkbox = cast(QCheckBox, self._widgets['discord_webhook_enabled'])
+            enabled_checkbox = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
             enabled_checkbox.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))
 
         return group_box
