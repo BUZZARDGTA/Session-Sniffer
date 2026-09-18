@@ -229,7 +229,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     # Tab / widget construction
     # ------------------------------------------------------------------
 
-
     def _build_tab(self, category: str) -> QWidget:
         """Create one tab page containing all settings for *category*."""
         page = QWidget()
