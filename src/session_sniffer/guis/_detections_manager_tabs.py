@@ -44,7 +44,8 @@ from session_sniffer.guis.stylesheets import (
     WARNING_TEXT_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, ElidedTextTooltipDelegate, create_section_separator
-from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
+from session_sniffer.models.combo_rules import ComboRule
+from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.settings import Settings
 
 

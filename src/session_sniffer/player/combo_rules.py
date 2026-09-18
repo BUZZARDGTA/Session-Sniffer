@@ -2,103 +2,21 @@
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar, Literal, cast
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
+
+from pydantic import TypeAdapter, ValidationError
 
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
-from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 logger = get_logger(__name__)
 
-# Condition keys that accept a free-text string value
-_STRING_CONDITIONS: frozenset[str] = frozenset({'country', 'city', 'region', 'org', 'isp', 'asn', 'as_name'})
-# Condition keys that are boolean flags
-_BOOL_CONDITIONS: frozenset[str] = frozenset({'mobile', 'vpn', 'hosting'})
-# The special event condition
-_EVENT_CONDITION: str = 'event'
-_VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
-
-ALL_CONDITION_KEYS: frozenset[str] = _STRING_CONDITIONS | _BOOL_CONDITIONS | {_EVENT_CONDITION}
-
-type ConditionValue = str | bool | list[str]
 type ConditionMatcher = Callable[[ConditionValue, Player], bool]
-
-
-@dataclass(kw_only=True, slots=True)
-class ComboRule:
-    """A single combo detection rule with AND-combined conditions and per-rule action settings."""
-
-    name: str
-    enabled: bool = True
-    conditions: dict[str, ConditionValue] = field(default_factory=dict[str, ConditionValue])
-
-    # Action settings
-    protection_enabled: bool = False
-    duration: int | Literal['Auto'] = 'Auto'
-    voice_notifications: Literal['Male', 'Female'] | bool = False
-    logging: bool = False
-    message_box: bool = False
-
-    @property
-    def has_event_condition(self) -> bool:
-        """Return True if the rule has an event condition."""
-        return _EVENT_CONDITION in self.conditions
-
-    @property
-    def has_ip_condition(self) -> bool:
-        """Return True if the rule has at least one IP-based condition."""
-        return bool(self.conditions.keys() - {_EVENT_CONDITION})
-
-    def to_dict(self) -> dict[str, object]:
-        """Serialize the rule to a JSON-compatible dictionary."""
-        return {
-            'name': self.name,
-            'enabled': self.enabled,
-            'conditions': self.conditions,
-            'protection_enabled': self.protection_enabled,
-            'duration': format_suspend_duration_setting(self.duration),
-            'voice_notifications': str(self.voice_notifications) if self.voice_notifications else 'False',
-            'logging': self.logging,
-            'message_box': self.message_box,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, object]) -> ComboRule:
-        """Deserialize a rule from a JSON-compatible dictionary."""
-        conditions_raw = data.get('conditions', {})
-        if not isinstance(conditions_raw, dict):
-            conditions_raw = {}
-
-        conditions: dict[str, ConditionValue] = {}
-
-        for key, value in cast('dict[str, object]', conditions_raw).items():
-            if key in _STRING_CONDITIONS:
-                if isinstance(value, str) and value.strip():
-                    conditions[key] = value.strip()
-
-            elif key in _BOOL_CONDITIONS:
-                if isinstance(value, bool):
-                    conditions[key] = value
-
-            elif key == _EVENT_CONDITION and isinstance(value, list):
-                valid_events = [event for event in cast('list[object]', value) if isinstance(event, str) and event in _VALID_EVENTS]
-                if valid_events:
-                    conditions[key] = valid_events
-
-        return cls(
-            name=str(data.get('name', 'Unnamed Rule')),
-            enabled=bool(data.get('enabled', True)),
-            conditions=conditions,
-            protection_enabled=bool(data.get('protection_enabled', False)),
-            duration=parse_suspend_duration_setting(str(data.get('duration', 'Auto'))),
-            voice_notifications=parse_voice_notifications(str(data.get('voice_notifications', 'False'))),
-            logging=bool(data.get('logging', False)),
-            message_box=bool(data.get('message_box', False)),
-        )
 
 
 def _valid_lookup_value(value: object) -> bool:
@@ -233,7 +151,7 @@ def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> b
     if not rule.enabled or not rule.conditions:
         return False
 
-    event_cond = rule.conditions.get(_EVENT_CONDITION)
+    event_cond = rule.conditions.get(EVENT_CONDITION)
 
     if event_cond is not None:
         if event_type is None:
@@ -243,7 +161,7 @@ def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> b
     elif event_type is not None:
         return False
 
-    return all(_check_condition(key, value, player) for key, value in rule.conditions.items() if key != _EVENT_CONDITION)
+    return all(_check_condition(key, value, player) for key, value in rule.conditions.items() if key != EVENT_CONDITION)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -261,26 +179,20 @@ class ComboRulesManager:
             return
 
         try:
-            data: object = json.loads(file_path.read_text(encoding='utf-8'))
-        except json.JSONDecodeError, OSError:
-            logger.warning('Failed to load combo rules from %s, starting with empty rules', file_path)
-            return
-
-        if not isinstance(data, list):
-            return
-
-        for entry in cast('list[object]', data):
-            if isinstance(entry, dict):
-                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))
+            content = file_path.read_text(encoding='utf-8')
+            cls.rules = TypeAdapter(list[ComboRule]).validate_json(content)
+        except (ValidationError, json.JSONDecodeError, OSError) as e:
+            logger.warning('Failed to load combo rules from %s: %s, starting with empty rules', file_path, e)
+            cls.rules = []
 
     @classmethod
     def save_to_file(cls, file_path: Path) -> None:
         """Save all combo rules to a JSON file."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = [rule.to_dict() for rule in cls.rules]
+        json_str = TypeAdapter(list[ComboRule]).dump_json(cls.rules, indent=4).decode('utf-8')
         tmp_path = file_path.with_suffix('.tmp')
-        tmp_path.write_text(json.dumps(data, indent=4), encoding='utf-8')
+        tmp_path.write_text(json_str, encoding='utf-8')
         tmp_path.replace(file_path)
 
     @classmethod
@@ -296,8 +208,8 @@ class ComboRulesManager:
     @classmethod
     def import_rules(cls, rules_data: list[object]) -> None:
         """Import rules from a list of dicts from detection settings import."""
-        cls.rules = []
-
-        for entry in rules_data:
-            if isinstance(entry, dict):
-                cls.rules.append(ComboRule.from_dict(cast('dict[str, object]', entry)))
+        try:
+            cls.rules = TypeAdapter(list[ComboRule]).validate_python(rules_data)
+        except ValidationError as e:
+            logger.warning('Failed to import combo rules: %s', e)
+            cls.rules = []

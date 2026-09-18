@@ -1,6 +1,5 @@
 """Core rendering loop that compiles GUI payloads from runtime state."""
 
-import json
 import threading
 import time
 from datetime import datetime
@@ -22,6 +21,7 @@ from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhoo
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
@@ -300,12 +300,12 @@ def rendering_core(
                 'columns': columns,
             }
 
-        json_snapshot: dict[str, dict[str, dict[str, object]]] = {
-            'connected': {player.ip: _player_to_json_dict(player) for player in session_connected},
-            'disconnected': {player.ip: _player_to_json_dict(player) for player in session_disconnected},
-        }
+        snapshot_model = SessionLogFile(
+            connected={player.ip: _player_to_json_dict(player) for player in session_connected},
+            disconnected={player.ip: _player_to_json_dict(player) for player in session_disconnected},
+        )
         json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
-        json_path.write_text(json.dumps(json_snapshot, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+        json_path.write_text(snapshot_model.model_dump_json(by_alias=True), encoding='utf-8')
 
     def process_gui_session_tables_rendering() -> SessionTableSnapshot:
         return build_session_table_snapshot(

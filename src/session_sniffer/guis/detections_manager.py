@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
+from pydantic import ValidationError
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -39,7 +40,9 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
-from session_sniffer.player.combo_rules import ComboRule, ComboRulesManager
+from session_sniffer.models.combo_rules import ComboRule
+from session_sniffer.models.detections import DetectionsFile
+from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -390,15 +393,11 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             # Save current widget state to GUIDetectionSettings first
             self._save_widgets_to_singleton()
             # Build combined export: standard detections + combo rules
+            model = GUIDetectionSettings.to_model()
+            model.combo_rules = list(ComboRulesManager.rules)
             target = Path(file_path)
-            GUIDetectionSettings.export_to_file(target)
-            data: object = json.loads(target.read_text(encoding='utf-8'))
-            if not isinstance(data, dict):
-                message = 'Expected a JSON object in the exported file.'
-                raise RuntimeError(message)
-            data_dict = cast('dict[str, object]', data)
-            data_dict['combo_rules'] = [rule.to_dict() for rule in ComboRulesManager.rules]
-            target.write_text(json.dumps(data_dict, indent=4), encoding='utf-8')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(model.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
             QMessageBox.information(self, TITLE, 'Detection settings exported successfully.')
 
     def _import_detections(self) -> None:
@@ -411,17 +410,13 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         )
         if file_path:
             try:
-                raw: object = json.loads(Path(file_path).read_text(encoding='utf-8'))
-                GUIDetectionSettings.import_from_file(Path(file_path))
+                content = Path(file_path).read_text(encoding='utf-8')
+                model = DetectionsFile.model_validate_json(content)
+                GUIDetectionSettings.apply_model(model)
                 # Import combo rules if present
-                if isinstance(raw, dict):
-                    raw_dict = cast('dict[str, object]', raw)
-                    combo_data: object = raw_dict.get('combo_rules')
-                    if isinstance(combo_data, list):
-                        ComboRulesManager.rules = [
-                            ComboRule.from_dict(cast('dict[str, object]', entry)) for entry in cast('list[object]', combo_data) if isinstance(entry, dict)
-                        ]
-            except (ValueError, KeyError, OSError, json.JSONDecodeError) as e:
+                if model.combo_rules is not None:
+                    ComboRulesManager.rules = list(model.combo_rules)
+            except (ValidationError, OSError, json.JSONDecodeError) as e:
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
                 return
             self._load_current_settings()

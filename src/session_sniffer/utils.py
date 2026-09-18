@@ -5,7 +5,6 @@ This module contains a variety of helper functions and custom exceptions used ac
 
 import contextlib
 import ctypes
-import json
 import os
 import shutil
 import signal
@@ -14,11 +13,14 @@ import sys
 from ctypes import wintypes
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
+
+from pydantic import ValidationError
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import CMD_EXE
 from session_sniffer.error_messages import format_type_error
+from session_sniffer.models import SessionLogFile
 from session_sniffer.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -30,7 +32,6 @@ from session_sniffer.utils_exceptions import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import Any
 
     from packaging.version import Version
 
@@ -548,24 +549,11 @@ def is_session_file_empty(file_path: Path) -> bool:
         True if the file has no players (empty 'connected' and 'disconnected' sections) or is unreadable.
     """
     try:
-        content = file_path.read_text(encoding='utf-8')
-        if not content.strip():
-            return True
-        parsed_data = json.loads(content)
-    except OSError, json.JSONDecodeError:
+        session_log = SessionLogFile.model_validate_json(file_path.read_text(encoding='utf-8', errors='replace'))
+    except (OSError, ValidationError):
         return True
 
-    if not isinstance(parsed_data, dict):
-        return True
-
-    data = cast('Any', parsed_data)
-    connected = data.get('connected')
-    disconnected = data.get('disconnected')
-
-    has_connected = isinstance(connected, dict) and len(cast('Any', connected)) > 0
-    has_disconnected = isinstance(disconnected, dict) and len(cast('Any', disconnected)) > 0
-
-    return not (has_connected or has_disconnected)
+    return not (session_log.connected or session_log.disconnected)
 
 
 def cleanup_session_logs(

@@ -1,13 +1,13 @@
 # pylint: disable=too-many-lines
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
-import json
 from collections import defaultdict
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from pathlib import Path
-from typing import Any, ClassVar, cast, override
+from typing import ClassVar, override
 
+from pydantic import ValidationError
 from PySide6.QtCore import QByteArray, QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QBrush,
@@ -79,6 +79,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.models import GUIState
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
@@ -88,41 +89,36 @@ def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | 
     if not GUI_STATE_PATH.is_file():
         return None, False, None
     try:
-        raw_data: Any = json.loads(GUI_STATE_PATH.read_text(encoding='utf-8'))
-    except (json.JSONDecodeError, OSError):
+        gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
+    except (ValidationError, OSError):
         return None, False, None
-    if not isinstance(raw_data, dict):
-        return None, False, None
-    state_dict = cast('dict[str, Any]', raw_data)
 
-    geometry_value: Any = state_dict.get('userip_manager_geometry')
-    maximized_value: Any = state_dict.get('userip_manager_maximized')
-    splitter_value: Any = state_dict.get('userip_manager_splitter')
-
-    geometry: QByteArray | None = QByteArray.fromHex(geometry_value.encode('ascii')) if isinstance(geometry_value, str) else None
-    maximized: bool = bool(maximized_value)
-    splitter: QByteArray | None = QByteArray.fromHex(splitter_value.encode('ascii')) if isinstance(splitter_value, str) else None
+    geometry: QByteArray | None = (
+        QByteArray.fromHex(gui_state.userip_manager_geometry.encode('ascii')) if gui_state.userip_manager_geometry else None
+    )
+    maximized: bool = gui_state.userip_manager_maximized
+    splitter: QByteArray | None = (
+        QByteArray.fromHex(gui_state.userip_manager_splitter.encode('ascii')) if gui_state.userip_manager_splitter else None
+    )
     return geometry, maximized, splitter
 
 
 def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, maximized: bool) -> None:
     """Save window geometry, maximized state, and splitter state to local app data."""
-    current_data: dict[str, Any] = {}
+    gui_state = GUIState()
     if GUI_STATE_PATH.is_file():
         try:
-            loaded_data: Any = json.loads(GUI_STATE_PATH.read_text(encoding='utf-8'))
-            if isinstance(loaded_data, dict):
-                current_data = cast('dict[str, Any]', loaded_data)
-        except (json.JSONDecodeError, OSError):
-            current_data = {}
+            gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
+        except (ValidationError, OSError):
+            gui_state = GUIState()
 
-    current_data['userip_manager_geometry'] = geometry.toHex().toStdString()
-    current_data['userip_manager_maximized'] = maximized
-    current_data['userip_manager_splitter'] = splitter.toHex().toStdString()
+    gui_state.userip_manager_geometry = geometry.toHex().toStdString()
+    gui_state.userip_manager_maximized = maximized
+    gui_state.userip_manager_splitter = splitter.toHex().toStdString()
 
     try:
         GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        GUI_STATE_PATH.write_text(json.dumps(current_data, indent=2), encoding='utf-8')
+        GUI_STATE_PATH.write_text(gui_state.model_dump_json(indent=2), encoding='utf-8')
     except OSError:
         pass
 

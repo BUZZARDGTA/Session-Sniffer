@@ -6,6 +6,8 @@ This module contains pydantic models for validating JSON responses from various 
 - IP-API batch lookup (IP geolocation)
 """
 
+from .combo_rules import ComboRule
+from .detections import DetectionActionSettings, DetectionsFile, Gta5RelayDetectionActionSettings, ListDetectionActionSettings
 from .discord_rpc import (
     DiscordActivity,
     DiscordActivityArgs,
@@ -18,10 +20,14 @@ from .discord_rpc import (
 )
 from .github_release import GithubReleaseAsset, GithubReleaseResponse
 from .github_versions import GithubVersionsResponse, VersionInfo
+from .gui_state import GUIState
 from .ip_api import IpApiResponse
 from .sessions_log import SessionLogFile
 
 __all__ = [
+    'ComboRule',
+    'DetectionActionSettings',
+    'DetectionsFile',
     'DiscordActivity',
     'DiscordActivityArgs',
     'DiscordActivityButton',
@@ -30,10 +36,13 @@ __all__ = [
     'DiscordCommandPayload',
     'DiscordHandshakePayload',
     'DiscordResponsePayload',
+    'GUIState',
     'GithubReleaseAsset',
     'GithubReleaseResponse',
     'GithubVersionsResponse',
+    'Gta5RelayDetectionActionSettings',
     'IpApiResponse',
+    'ListDetectionActionSettings',
     'SessionLogFile',
     'VersionInfo',
 ]

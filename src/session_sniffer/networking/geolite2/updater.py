@@ -1,7 +1,6 @@
 """GeoLite2 database updater (download and persist)."""
 
 import hashlib
-import json
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,7 +9,7 @@ from threading import Thread
 from typing import Literal
 
 import requests
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
@@ -35,9 +34,20 @@ class GeoLite2VersionEntry(BaseModel):
 class GeoLite2VersionFile(BaseModel):
     """Represents the full GeoLite2 version file."""
 
-    GeoLite2_ASN: GeoLite2VersionEntry = Field(alias='GeoLite2-ASN.mmdb')
-    GeoLite2_City: GeoLite2VersionEntry = Field(alias='GeoLite2-City.mmdb')
-    GeoLite2_Country: GeoLite2VersionEntry = Field(alias='GeoLite2-Country.mmdb')
+    GeoLite2_ASN: GeoLite2VersionEntry = Field(
+        validation_alias='GeoLite2-ASN.mmdb',
+        serialization_alias='GeoLite2-ASN.mmdb',
+    )
+    GeoLite2_City: GeoLite2VersionEntry = Field(
+        validation_alias='GeoLite2-City.mmdb',
+        serialization_alias='GeoLite2-City.mmdb',
+    )
+    GeoLite2_Country: GeoLite2VersionEntry = Field(
+        validation_alias='GeoLite2-Country.mmdb',
+        serialization_alias='GeoLite2-Country.mmdb',
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -86,18 +96,12 @@ def _as_geolite2_database_key(name: str, /) -> GeoLite2DatabaseKey | None:
 
 def _load_geolite2_current_versions(*, geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases) -> None:
     """Load current GeoLite2 database versions from disk into in-memory state."""
-    try:
-        raw_data = json.loads(geolite2_version_file_path.read_text(encoding='utf-8'))
-    except FileNotFoundError:
+    if not geolite2_version_file_path.is_file():
         return
-    except json.JSONDecodeError:
-        logger.warning('Corrupted GeoLite2 JSON version file at %s, re-downloading databases', geolite2_version_file_path)
-        return
-
     try:
-        version_file = GeoLite2VersionFile.model_validate(raw_data)
-    except ValidationError:
-        logger.warning('Failed to parse GeoLite2 JSON version file at %s', geolite2_version_file_path)
+        version_file = GeoLite2VersionFile.model_validate_json(geolite2_version_file_path.read_text(encoding='utf-8'))
+    except (ValidationError, OSError):
+        logger.warning('Corrupted or invalid GeoLite2 JSON version file at %s, re-downloading databases', geolite2_version_file_path)
         return
 
     geolite2_databases['GeoLite2-ASN.mmdb'].set_current_version_from_datetime(version_file.GeoLite2_ASN.version)
@@ -138,8 +142,18 @@ def _download_geolite2_asset_bytes(download_url: str, /) -> tuple[GeoLite2Update
 def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases, /) -> None:
     geolite2_version_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {name: {'version': info.current_version} for name, info in geolite2_databases.items()}
-    geolite2_version_file_path.write_text(json.dumps(data, indent=4), encoding='utf-8')
+    asn_version = geolite2_databases['GeoLite2-ASN.mmdb'].current_version
+    city_version = geolite2_databases['GeoLite2-City.mmdb'].current_version
+    country_version = geolite2_databases['GeoLite2-Country.mmdb'].current_version
+    if not (asn_version and city_version and country_version):
+        return
+
+    version_file = GeoLite2VersionFile(
+        GeoLite2_ASN=GeoLite2VersionEntry(version=datetime.fromisoformat(asn_version)),
+        GeoLite2_City=GeoLite2VersionEntry(version=datetime.fromisoformat(city_version)),
+        GeoLite2_Country=GeoLite2VersionEntry(version=datetime.fromisoformat(country_version)),
+    )
+    geolite2_version_file_path.write_text(version_file.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
 
 
 def _notify_geolite2_download_flags_failed(failed_flags: list[str], /) -> None:

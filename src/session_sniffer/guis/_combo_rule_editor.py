@@ -29,7 +29,7 @@ from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import COUNTRY_NAMES
 from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET
 from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, create_section_separator
-from session_sniffer.player.combo_rules import ComboRule
+from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 

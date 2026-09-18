@@ -15,19 +15,18 @@ import json
 import re
 import time
 import urllib.parse
-from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
 from queue import Empty, SimpleQueue
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Final, cast
+from typing import Final
+
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.settings import Settings
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -63,8 +62,7 @@ _EMBED_COLOR_DISCONNECTED = 0xE74C3C  # red
 _EMBED_COLOR_STOPPED = 0x95A5A6  # gray
 
 
-@dataclass(slots=True)
-class DiscordWebhookPayload:
+class DiscordWebhookPayload(BaseModel):
     """Snapshot of the latest live tables to mirror to Discord."""
 
     connected_text: str | None
@@ -73,6 +71,23 @@ class DiscordWebhookPayload:
     disconnected_count: int
     generated_at: datetime
     capture_running: bool
+
+
+class DiscordMessageResponse(BaseModel):
+    """Response returned by Discord webhook POST ?wait=true."""
+
+    id: str | int | None = None
+    model_config = ConfigDict(extra='ignore')
+
+
+class DiscordRateLimitPayload(BaseModel):
+    """Payload returned by Discord on rate limit HTTP 429."""
+
+    retry_after: float | None = None
+    model_config = ConfigDict(extra='ignore')
+
+
+_MESSAGE_IDS_ADAPTER: TypeAdapter[dict[str, str]] = TypeAdapter(dict[str, str])
 
 
 def is_valid_webhook_url(url: str | None) -> bool:
@@ -178,8 +193,7 @@ def _build_message_content(
     return '\n'.join(parts)
 
 
-@dataclass(slots=True)
-class _EmbedStyle:
+class _EmbedStyle(BaseModel):
     timestamp: datetime
     color: int
 
@@ -333,22 +347,18 @@ def send_test_message(url: str) -> tuple[bool, str]:
 
 def _load_message_ids() -> dict[str, str]:
     """Return persisted {connected, disconnected} message IDs (or empty dict)."""
-    discord_webhook_message_ids_raw = Settings.discord_webhook_message_ids
-    if not isinstance(discord_webhook_message_ids_raw, str) or not discord_webhook_message_ids_raw:
+    raw = Settings.discord_webhook_message_ids
+    if not raw:
         return {}
     try:
-        parsed: object = json.loads(discord_webhook_message_ids_raw)
-    except json.JSONDecodeError:
+        return _MESSAGE_IDS_ADAPTER.validate_json(raw)
+    except (ValidationError, ValueError):
         return {}
-    if not isinstance(parsed, dict):
-        return {}
-    parsed_dict = cast('dict[object, object]', parsed)
-    return {str(key): str(value) for key, value in parsed_dict.items() if isinstance(value, (str, int))}
 
 
 def _save_message_ids(message_ids: dict[str, str]) -> None:
     """Persist *message_ids* to Settings.ini."""
-    Settings.discord_webhook_message_ids = json.dumps(message_ids) if message_ids else None
+    Settings.discord_webhook_message_ids = _MESSAGE_IDS_ADAPTER.dump_json(message_ids).decode('utf-8') if message_ids else None
     Settings.rewrite_settings_file()
 
 
@@ -595,14 +605,10 @@ class DiscordWebhookSender:
     def _parse_posted_id(response_body: bytes) -> str | None:
         """Extract the message id from a POST ?wait=true response body."""
         try:
-            parsed: object = json.loads(response_body.decode('utf-8'))
-        except json.JSONDecodeError, UnicodeDecodeError:
+            msg = DiscordMessageResponse.model_validate_json(response_body)
+        except ValidationError:
             return None
-        if not isinstance(parsed, dict):
-            return None
-        parsed_dict = cast('dict[str, object]', parsed)
-        new_id = parsed_dict.get('id')
-        return str(new_id) if isinstance(new_id, (str, int)) else None
+        return str(msg.id) if msg.id is not None else None
 
     @staticmethod
     def _send(url: str, *, method: str, body: bytes) -> tuple[int, dict[str, str], bytes]:
@@ -619,14 +625,11 @@ class DiscordWebhookSender:
                 delay = 2.0
         else:
             try:
-                payload: object = json.loads(body.decode('utf-8'))
-            except json.JSONDecodeError, UnicodeDecodeError:
-                payload = None
-            if isinstance(payload, dict):
-                payload_dict = cast('dict[str, object]', payload)
-                retry_value: object = payload_dict.get('retry_after')
-                if isinstance(retry_value, (int, float)):
-                    delay = float(retry_value)
+                rate_limit = DiscordRateLimitPayload.model_validate_json(body)
+                if rate_limit.retry_after is not None:
+                    delay = float(rate_limit.retry_after)
+            except ValidationError:
+                pass
         delay = max(0.1, min(delay, 30.0))
         logger.warning('Discord webhook rate-limited; sleeping %.2fs', delay)
         time.sleep(delay)

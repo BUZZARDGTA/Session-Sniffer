@@ -1,12 +1,13 @@
 """Historical IP encounter statistics from session log archives."""
 
-import json
-from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.logging_setup import get_logger
+from session_sniffer.models import SessionLogFile
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -15,8 +16,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass(slots=True)
-class SeenStats:
+class SeenStats(BaseModel):
     """Counts how many sessions an IP appeared in across time ranges."""
 
     today: int = 0
@@ -27,19 +27,14 @@ class SeenStats:
 
 
 def _get_player_from_session(
-    data: dict[str, Any],
+    session_log: SessionLogFile,
     ip: str,
 ) -> dict[str, Any] | None:
     """Look up an IP in both connected and disconnected sections."""
-    for section in ('connected', 'disconnected'):
-        players_raw: object = data.get(section)
-        if not isinstance(players_raw, dict):
-            continue
-        players = cast('dict[str, Any]', players_raw)
-        entry = players.get(ip)
-        if isinstance(entry, dict):
-            return cast('dict[str, Any]', entry)
-    return None
+    entry = session_log.connected.get(ip)
+    if entry is not None:
+        return entry
+    return session_log.disconnected.get(ip)
 
 
 def _parse_first_seen(player_info: dict[str, Any]) -> datetime | None:
@@ -90,13 +85,11 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
         if not json_file.is_file():
             continue
         try:
-            data: object = json.loads(json_file.read_text(encoding='utf-8'))
-        except json.JSONDecodeError, OSError:
-            continue
-        if not isinstance(data, dict):
+            session_log = SessionLogFile.model_validate_json(json_file.read_text(encoding='utf-8', errors='replace'))
+        except (ValidationError, OSError):
             continue
 
-        player_info = _get_player_from_session(cast('dict[str, Any]', data), ip)
+        player_info = _get_player_from_session(session_log, ip)
         if player_info is None:
             continue
 
@@ -109,12 +102,11 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
     return stats
 
 
-@dataclass(slots=True)
-class LeaderboardEntry:
+class LeaderboardEntry(BaseModel):
     """Aggregated stats for a single player IP across all session logs."""
 
     ip: str
-    usernames: list[str] = field(default_factory=list[str])
+    usernames: list[str] = Field(default_factory=list[str])
     sessions_today: int = 0
     sessions_week: int = 0
     sessions_month: int = 0
@@ -136,18 +128,14 @@ class LeaderboardEntry:
 
 
 def _extract_all_players_from_session(
-    data: dict[str, Any],
+    session_log: SessionLogFile,
 ) -> dict[str, dict[str, Any]]:
     """Extract all player entries (keyed by IP) from both connected and disconnected sections."""
     result: dict[str, dict[str, Any]] = {}
-    for section in ('connected', 'disconnected'):
-        players_raw: object = data.get(section)
-        if not isinstance(players_raw, dict):
-            continue
-        players = cast('dict[str, Any]', players_raw)
-        for ip, info in players.items():
-            if isinstance(info, dict) and ip not in result:
-                result[ip] = cast('dict[str, Any]', info)
+    for section in (session_log.connected, session_log.disconnected):
+        for ip, info in section.items():
+            if ip not in result:
+                result[ip] = info
     return result
 
 
@@ -197,8 +185,7 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any])
         entry.hosting = raw_hosting
 
 
-@dataclass(slots=True)
-class LeaderboardBaseline:
+class LeaderboardBaseline(BaseModel):
     """Historical leaderboard aggregation that can be cheaply overlaid with the live session.
 
     `entries` holds one `LeaderboardEntry` per IP with session counts from finished session logs
@@ -211,15 +198,17 @@ class LeaderboardBaseline:
     entries: dict[str, LeaderboardEntry]
     seen_dates: dict[str, set[date]]
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
 
 def _accumulate_session(
     entries: dict[str, LeaderboardEntry],
     seen_dates: dict[str, set[date]],
-    data: dict[str, Any],
+    session_log: SessionLogFile,
     now: datetime,
 ) -> None:
     """Merge one parsed session snapshot into the running `entries`/`seen_dates` aggregation."""
-    all_players = _extract_all_players_from_session(data)
+    all_players = _extract_all_players_from_session(session_log)
 
     for ip, player_info in all_players.items():
         first_seen = _parse_first_seen(player_info)
@@ -280,7 +269,7 @@ def _finalize_days(
 
 def _copy_entry(entry: LeaderboardEntry) -> LeaderboardEntry:
     """Return a shallow copy of *entry* that is safe to mutate without affecting the baseline."""
-    return replace(entry, usernames=list(entry.usernames))
+    return entry.model_copy(update={'usernames': list(entry.usernames)})
 
 
 def build_leaderboard_baseline(
@@ -318,13 +307,11 @@ def build_leaderboard_baseline(
         if exclude_file is not None and json_file == exclude_file:
             continue
         try:
-            data: object = json.loads(json_file.read_text(encoding='utf-8'))
-        except json.JSONDecodeError, OSError:
-            continue
-        if not isinstance(data, dict):
+            session_log = SessionLogFile.model_validate_json(json_file.read_text(encoding='utf-8', errors='replace'))
+        except (ValidationError, OSError):
             continue
 
-        _accumulate_session(entries, seen_dates, cast('dict[str, Any]', data), now)
+        _accumulate_session(entries, seen_dates, session_log, now)
 
     if progress_callback is not None and (should_cancel is None or not should_cancel()):
         progress_callback(total_files, total_files)
@@ -351,15 +338,15 @@ def overlay_live_session(
     seen_dates: dict[str, set[date]] = {ip: set(dates) for ip, dates in baseline.seen_dates.items()}
 
     try:
-        data: object = json.loads(live_file.read_text(encoding='utf-8'))
-    except FileNotFoundError, json.JSONDecodeError, OSError:
-        data = None
+        session_log = SessionLogFile.model_validate_json(live_file.read_text(encoding='utf-8', errors='replace'))
+    except (FileNotFoundError, ValidationError, OSError):
+        session_log = None
 
     live_ips: set[str] = set()
-    if isinstance(data, dict):
-        all_players = _extract_all_players_from_session(cast('dict[str, Any]', data))
+    if session_log is not None:
+        all_players = _extract_all_players_from_session(session_log)
         live_ips = set(all_players.keys())
-        _accumulate_session(entries, seen_dates, cast('dict[str, Any]', data), now)
+        _accumulate_session(entries, seen_dates, session_log, now)
 
     if preserve_ips:
         live_ips.update(preserve_ips)
