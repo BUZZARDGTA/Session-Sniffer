@@ -21,6 +21,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import send_test_message
 from session_sniffer.guis._settings_widget_builders import (
     create_boolean_widget,
+    create_standard_form_layout,
     format_setting_tooltip,
 )
 from session_sniffer.guis.secret_line_edit import SecretLineEdit
@@ -43,16 +44,16 @@ class SettingsDialogDiscordMixin(QDialog):
     """Discord tab helpers — server webhook group and related actions.
 
     Expects these attributes on the concrete class:
-        `_widgets`, `_create_standard_form_layout`, `_add_setting_row`
+        `_widgets`
     """
 
     _widgets: dict[str, QWidget]
 
-    if TYPE_CHECKING:
-        _create_standard_form_layout: Callable[..., QFormLayout]
-        _add_setting_row: Callable[[QFormLayout, str, SettingMeta], None]
-
-    def _build_discord_webhook_group(self, items: list[tuple[str, SettingMeta]]) -> QGroupBox:
+    def _build_discord_webhook_group(
+        self,
+        items: list[tuple[str, SettingMeta]],
+        add_setting_row: Callable[[QFormLayout, str, SettingMeta], None],
+    ) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
         group_box = QGroupBox('Server Webhook')
         outer = QVBoxLayout(group_box)
@@ -61,7 +62,7 @@ class SettingsDialogDiscordMixin(QDialog):
         meta_by_key = dict(items)
 
         # Top form: Enabled + Webhook URL row (with Show + Test buttons).
-        top_form = self._create_standard_form_layout()
+        top_form = create_standard_form_layout()
 
         # Enabled checkbox
         enabled_meta = meta_by_key.get('discord_webhook_enabled')
@@ -113,13 +114,13 @@ class SettingsDialogDiscordMixin(QDialog):
         # Remaining settings (refresh interval, include flags, max rows) in a
         # separate form so we can disable them all when 'Enabled' is unchecked.
         details_widget = QWidget()
-        details_form = self._create_standard_form_layout(details_widget)
+        details_form = create_standard_form_layout(details_widget)
         details_form.setContentsMargins(0, 0, 0, 0)
 
         for key, meta in items:
             if key in ('discord_webhook_enabled', 'discord_webhook_url'):
                 continue
-            self._add_setting_row(details_form, key, meta)
+            add_setting_row(details_form, key, meta)
 
         outer.addWidget(details_widget)
 

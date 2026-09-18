@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDoubleSpinBox,
+    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -49,6 +50,21 @@ def format_setting_tooltip(meta: SettingMeta) -> str | None:
     if meta.requires_capture_restart and '(requires capture restart)' not in meta.tooltip:
         return f'{meta.tooltip} (requires capture restart)'
     return meta.tooltip
+
+
+def create_standard_form_layout(parent: QWidget | None = None) -> QFormLayout:
+    """Create and configure a standard `QFormLayout` for settings pages and groups."""
+    layout = QFormLayout(parent) if parent else QFormLayout()
+    layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+    layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    return layout
+
+
+def create_standard_vbox_layout(parent: QWidget | None = None) -> QVBoxLayout:
+    """Create and configure a standard `QVBoxLayout` with uniform group spacing."""
+    layout = QVBoxLayout(parent) if parent else QVBoxLayout()
+    layout.setSpacing(16)
+    return layout
 
 
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:

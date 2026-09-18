@@ -56,6 +56,8 @@ from session_sniffer.guis._settings_widget_builders import (
     create_integer_or_all_widget,
     create_integer_widget,
     create_ip_range_tuple_widget,
+    create_standard_form_layout,
+    create_standard_vbox_layout,
     create_text_widget,
     create_third_party_servers_split_widget,
     format_setting_tooltip,
@@ -227,18 +229,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     # Tab / widget construction
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _create_standard_form_layout(parent: QWidget | None = None) -> QFormLayout:
-        layout = QFormLayout(parent) if parent else QFormLayout()
-        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        return layout
-
-    @staticmethod
-    def _create_standard_vbox_layout(parent: QWidget | None = None) -> QVBoxLayout:
-        layout = QVBoxLayout(parent) if parent else QVBoxLayout()
-        layout.setSpacing(16)
-        return layout
 
     def _build_tab(self, category: str) -> QWidget:
         """Create one tab page containing all settings for *category*."""
@@ -276,7 +266,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         # Render ungrouped settings first in a plain form layout.
         if ungrouped:
-            form = self._create_standard_form_layout()
+            form = create_standard_form_layout()
             for key, meta in ungrouped:
                 self._add_setting_row(form, key, meta)
             outer_layout.addLayout(form)
@@ -286,7 +276,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             # The Discord Webhook group has a custom layout (masked URL, enable
             # cascade, reset-messages, automod warning).
             if category == 'Discord' and group_name == 'Server Webhook':
-                outer_layout.addWidget(self._build_discord_webhook_group(items))
+                outer_layout.addWidget(self._build_discord_webhook_group(items, self._add_setting_row))
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
@@ -297,20 +287,20 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     subgrouped.setdefault(setting_meta.subgroup, []).append((setting_key, setting_meta))
 
             if subgrouped:
-                group_vbox = self._create_standard_vbox_layout(group_box)
+                group_vbox = create_standard_vbox_layout(group_box)
                 if direct_items:
-                    direct_form = self._create_standard_form_layout()
+                    direct_form = create_standard_form_layout()
                     for key, meta in direct_items:
                         self._add_setting_row(direct_form, key, meta)
                     group_vbox.addLayout(direct_form)
                 for sub_name, sub_items in subgrouped.items():
                     sub_box = QGroupBox(sub_name.replace('&', '&&'))
-                    sub_form = self._create_standard_form_layout(sub_box)
+                    sub_form = create_standard_form_layout(sub_box)
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
                     group_vbox.addWidget(sub_box)
             elif category == 'Looky System' and group_name == 'Authentication':
-                auth_vbox = self._create_standard_vbox_layout(group_box)
+                auth_vbox = create_standard_vbox_layout(group_box)
                 auth_row = QHBoxLayout()
                 auth_row.setContentsMargins(0, 0, 0, 0)
                 auth_row.setSpacing(10)
@@ -336,7 +326,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 self._looky_account_info_group = self._build_looky_account_info_group()
                 auth_vbox.addWidget(self._looky_account_info_group)
             else:
-                group_form = self._create_standard_form_layout(group_box)
+                group_form = create_standard_form_layout(group_box)
                 for key, meta in items:
                     self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
