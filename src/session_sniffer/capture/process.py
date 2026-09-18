@@ -33,6 +33,8 @@ _AF_INET = 2
 _UDP_TABLE_OWNER_PID = 1
 _ERROR_INSUFFICIENT_BUFFER = 122
 _ERROR_SUCCESS = 0
+_SYSTEM_PROCESS_INFORMATION_MIN_SIZE = 256
+_SYSTEM_THREAD_INFORMATION_SIZE = 80
 _PORT_MASK = 0xFFFF
 
 if sys.platform == 'win32':
@@ -391,10 +393,10 @@ def _is_process_suspended_linux(pid: int) -> bool:
 def _is_process_suspended_win32(pid: int) -> bool:
     """Check whether the target process is suspended on Windows via NtQuerySystemInformation."""
     buffer_size = wintypes.ULONG(0x100000)
+    return_length = wintypes.ULONG(0)
     process_info_buffer: ctypes.Array[ctypes.c_char] | None = None
     for _ in range(10):
         current_buffer = ctypes.create_string_buffer(buffer_size.value)
-        return_length = wintypes.ULONG()
         status = _ntdll.NtQuerySystemInformation(
             _SYSTEM_PROCESS_INFORMATION_CLASS,
             current_buffer,
@@ -414,26 +416,32 @@ def _is_process_suspended_win32(pid: int) -> bool:
 
     buffer_len = len(process_info_buffer)
     buffer_start = ctypes.addressof(process_info_buffer)
-    buffer_end = buffer_start + buffer_len
+    buffer_end = buffer_start + min(buffer_len, return_length.value)
     current_address = buffer_start
 
-    while current_address + 88 <= buffer_end:
+    while current_address + _SYSTEM_PROCESS_INFORMATION_MIN_SIZE <= buffer_end:
         next_entry_offset = wintypes.ULONG.from_address(current_address).value
         number_of_threads = wintypes.ULONG.from_address(current_address + 4).value
         process_id = ctypes.c_void_p.from_address(current_address + 80).value or 0
 
         if process_id == pid:
-            threads_base_address = current_address + 256
-            threads_end_address = threads_base_address + number_of_threads * 80
+            threads_base_address = current_address + _SYSTEM_PROCESS_INFORMATION_MIN_SIZE
+            threads_end_address = threads_base_address + number_of_threads * _SYSTEM_THREAD_INFORMATION_SIZE
             if not number_of_threads or threads_end_address > buffer_end:
                 return False
             return all(
-                wintypes.ULONG.from_address(threads_base_address + i * 80 + 68).value == _THREAD_STATE_WAITING
-                and wintypes.ULONG.from_address(threads_base_address + i * 80 + 72).value == _WAIT_REASON_SUSPENDED
+                wintypes.ULONG.from_address(threads_base_address + i * _SYSTEM_THREAD_INFORMATION_SIZE + 68).value == _THREAD_STATE_WAITING
+                and wintypes.ULONG.from_address(threads_base_address + i * _SYSTEM_THREAD_INFORMATION_SIZE + 72).value == _WAIT_REASON_SUSPENDED
                 for i in range(number_of_threads)
             )
 
-        if not next_entry_offset or current_address + next_entry_offset >= buffer_end:
+        if not next_entry_offset:
+            break
+        if (
+            next_entry_offset < _SYSTEM_PROCESS_INFORMATION_MIN_SIZE
+            or next_entry_offset % 8 != 0
+            or current_address + next_entry_offset >= buffer_end
+        ):
             break
         current_address += next_entry_offset
 
