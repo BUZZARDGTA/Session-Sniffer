@@ -511,42 +511,43 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Push *value* into the appropriate *widget*."""
         meta = SETTING_METADATA[key]
 
-        if meta.setting_type == SettingType.BOOLEAN:
-            cast('QCheckBox', widget).setChecked(bool(value))
+        match meta.setting_type:
+            case SettingType.BOOLEAN:
+                cast('QCheckBox', widget).setChecked(bool(value))
 
-        elif meta.setting_type in (SettingType.STRING, SettingType.IPV4, SettingType.MAC_ADDRESS):
-            get_line_edit(widget).setText('' if value is None else str(value))
+            case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
+                get_line_edit(widget).setText('' if value is None else str(value))
 
-        elif meta.setting_type == SettingType.COLOR:
-            cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
+            case SettingType.COLOR:
+                cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
 
-        elif meta.setting_type == SettingType.FLOAT:
-            cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
+            case SettingType.FLOAT:
+                cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
 
-        elif meta.setting_type in (SettingType.INTEGER, SettingType.INTEGER_OR_ALL):
-            if key == 'capture_filter_process_pid':
-                cast('ProcessSelectorWidget', widget).set_value(int(value) if isinstance(value, (int, float)) else 0)
-            else:
-                cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
+            case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
+                if key == 'capture_filter_process_pid':
+                    cast('ProcessSelectorWidget', widget).set_value(int(value) if isinstance(value, (int, float)) else 0)
+                else:
+                    cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
-        elif meta.setting_type == SettingType.ENUM:
-            self._set_enum(widget, value)
+            case SettingType.ENUM:
+                self._set_enum(widget, value)
 
-        elif meta.setting_type == SettingType.BOOL_OR_ENUM:
-            self._set_bool_or_enum(widget, value)
+            case SettingType.BOOL_OR_ENUM:
+                self._set_bool_or_enum(widget, value)
 
-        elif meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
-            shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
-            shown_set = set(shown)
-            for checkbox in widget.findChildren(QCheckBox):
-                checkbox.setChecked(checkbox.objectName() in shown_set)
+            case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
+                shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
+                shown_set = set(shown)
+                for checkbox in widget.findChildren(QCheckBox):
+                    checkbox.setChecked(checkbox.objectName() in shown_set)
 
-        else:  # SettingType.IP_RANGE_TUPLE
-            entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
-            list_widget = next(iter(widget.findChildren(QListWidget)), None)
-            if list_widget is not None:
-                list_widget.clear()
-                list_widget.addItems(list(entries))
+            case SettingType.IP_RANGE_TUPLE:
+                entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
+                list_widget = next(iter(widget.findChildren(QListWidget)), None)
+                if list_widget is not None:
+                    list_widget.clear()
+                    list_widget.addItems(list(entries))
 
     def _set_enum(self, widget: QWidget, value: SettingValue) -> None:
         """Set value for an enum combo box."""
@@ -785,32 +786,34 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Connect change signals for all setting widgets to dynamically update dialog notices."""
         for key, widget in self._widgets.items():
             meta = SETTING_METADATA[key]
-            if isinstance(widget, QCheckBox):
-                widget.toggled.connect(self._update_restart_notice)
-            elif isinstance(widget, ColorPickerButton):
-                widget.color_changed.connect(self._update_restart_notice)
-            elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-                widget.valueChanged.connect(self._update_restart_notice)
-            elif isinstance(widget, QComboBox):
-                widget.currentIndexChanged.connect(self._update_restart_notice)
-            elif isinstance(widget, ProcessSelectorWidget):
-                combo = widget.findChild(QComboBox)
-                if combo is not None:
-                    combo.currentIndexChanged.connect(self._update_restart_notice)
-            elif meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
-                for checkbox in widget.findChildren(QCheckBox):
-                    checkbox.toggled.connect(self._update_restart_notice)
-            elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
-                list_widget = next(iter(widget.findChildren(QListWidget)), None)
-                if list_widget is not None:
-                    list_widget.model().rowsInserted.connect(self._on_list_rows_changed)
-                    list_widget.model().rowsRemoved.connect(self._on_list_rows_changed)
-            else:
-                try:
-                    line_edit = get_line_edit(widget)
-                    line_edit.textChanged.connect(self._update_restart_notice)
-                except RuntimeError:
-                    pass
+            match widget:
+                case QCheckBox():
+                    widget.toggled.connect(self._update_restart_notice)
+                case ColorPickerButton():
+                    widget.color_changed.connect(self._update_restart_notice)
+                case QSpinBox() | QDoubleSpinBox():
+                    widget.valueChanged.connect(self._update_restart_notice)
+                case QComboBox():
+                    widget.currentIndexChanged.connect(self._update_restart_notice)
+                case ProcessSelectorWidget():
+                    combo = widget.findChild(QComboBox)
+                    if combo is not None:
+                        combo.currentIndexChanged.connect(self._update_restart_notice)
+                case _:
+                    if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
+                        for checkbox in widget.findChildren(QCheckBox):
+                            checkbox.toggled.connect(self._update_restart_notice)
+                    elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
+                        list_widget = next(iter(widget.findChildren(QListWidget)), None)
+                        if list_widget is not None:
+                            list_widget.model().rowsInserted.connect(self._on_list_rows_changed)
+                            list_widget.model().rowsRemoved.connect(self._on_list_rows_changed)
+                    else:
+                        try:
+                            line_edit = get_line_edit(widget)
+                            line_edit.textChanged.connect(self._update_restart_notice)
+                        except RuntimeError:
+                            pass
 
     def _on_list_rows_changed(self, *_args: object) -> None:
         """Handle rows added or removed in IP range list widgets."""
