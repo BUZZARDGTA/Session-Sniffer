@@ -350,7 +350,7 @@ class PacketCapture:
                     or 'cap_net_raw' in error_string.lower()
                 )
                 if has_monitored_adapter_guid and (is_device_removed or is_open_error) and not is_permission_error:
-                    logger.debug('Capture interface "%s" temporarily disconnected: %s — pausing capture.', self.config.interface.name, error_detail)
+                    logger.info('Capture interface "%s" temporarily disconnected: %s — pausing capture.', self.config.interface.name, error_detail)
                 else:
                     logger.warning('Packet capture stopped unexpectedly: %s', error_detail)
 
