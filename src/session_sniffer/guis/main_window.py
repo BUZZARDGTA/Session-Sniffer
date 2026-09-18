@@ -63,7 +63,6 @@ class _MenuActions:
 @dataclass(slots=True)
 class _WindowState:
     """Mutable runtime state for the main window."""
-
     worker_thread: GUIWorkerThread
     window_being_moved: bool
     min_accepted_snapshot_version: int
