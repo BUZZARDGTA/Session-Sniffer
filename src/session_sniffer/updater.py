@@ -273,13 +273,13 @@ def _download_and_apply(
         return
 
     actual_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
-    if actual_hash.lower() != candidate_info.sha256.lower():
-        logger.warning('SHA-256 mismatch for update download: expected %s, got %s', candidate_info.sha256, actual_hash)
+    if actual_hash.lower() != candidate_info.platform_sha256.lower():
+        logger.warning('SHA-256 mismatch for update download: expected %s, got %s', candidate_info.platform_sha256, actual_hash)
         _remove_file_if_possible(dest)
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.\n\nExpected: {candidate_info.sha256}\nActual:   {actual_hash}',
+                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.\n\nExpected: {candidate_info.platform_sha256}\nActual:   {actual_hash}',
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
