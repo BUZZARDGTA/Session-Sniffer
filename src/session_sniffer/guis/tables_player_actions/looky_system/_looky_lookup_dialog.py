@@ -79,7 +79,7 @@ class _LookyFetchWorker(CrashingQThread):
 class LookyLookupDialog(PlayerInfoDialogMixin):
     """Non-modal dialog that renders pre-fetched Looky System player results."""
 
-    def __init__(self, parent: QWidget, player: Player, results: list[LookyPlayer]) -> None:
+    def __init__(self, parent: QWidget | None, player: Player, results: list[LookyPlayer]) -> None:
         """Render *results* for *player*."""
         super().__init__(parent)
         set_dialog_window_flags(self)
@@ -149,7 +149,7 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
             QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')
             return
 
-        LookyLookupDialog(parent, player, worker.results).show()
+        LookyLookupDialog(None, player, worker.results).show()
 
     def _on_fetch_not_found() -> None:
         if isValid(parent):

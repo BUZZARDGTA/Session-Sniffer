@@ -219,7 +219,7 @@ class _CrawlerRequestDialog(QDialog):
     # preventing 'QThread: Destroyed while thread is still running' crashes.
     _detaching_workers: ClassVar[set[_CrawlerSendWorker | _CrawlerWatchWorker]] = set()
 
-    def __init__(self, parent: QWidget, request: _CrawlerRequest) -> None:
+    def __init__(self, parent: QWidget | None, request: _CrawlerRequest) -> None:
         super().__init__(parent)
         self._request = request
         self._registry_key = request.registry_key
@@ -613,7 +613,7 @@ class _CrawlerRequest:
     on_completed: Callable[[], None] | None = None
 
 
-def _start_crawler_send(parent: QWidget, request: _CrawlerRequest) -> None:
+def _start_crawler_send(request: _CrawlerRequest) -> None:
     """Open the crawler request dialog for *request* (or restore it if already open).
 
     The dialog itself sends the instruction and shows progress, so a rate-limited or failed send still
@@ -622,7 +622,7 @@ def _start_crawler_send(parent: QWidget, request: _CrawlerRequest) -> None:
     """
     if _CrawlerRequestDialog.restore_existing(request.registry_key):
         return
-    _CrawlerRequestDialog(parent, request).show()
+    _CrawlerRequestDialog(None, request).show()
 
 
 def get_crawler_game_version() -> str:
@@ -663,7 +663,6 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
 
     version = get_crawler_game_version()
     _start_crawler_send(
-        parent,
         _CrawlerRequest(
             display_name=display_name,
             api_key=api_key,
@@ -694,7 +693,6 @@ def show_crawlme_request(parent: QWidget) -> None:
 
     version = get_crawler_game_version()
     _start_crawler_send(
-        parent,
         _CrawlerRequest(
             display_name='Current Session',
             api_key=api_key,

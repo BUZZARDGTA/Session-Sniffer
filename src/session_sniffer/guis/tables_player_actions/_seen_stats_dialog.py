@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class SeenStatsDialog(PlayerInfoDialogMixin):
     """A dialog showing historical encounter statistics for a player IP."""
 
-    def __init__(self, parent: QWidget, player: Player) -> None:
+    def __init__(self, parent: QWidget | None, player: Player) -> None:
         """Compute seen stats and build the dialog UI."""
         super().__init__(parent)
         set_dialog_window_flags(self)
@@ -61,8 +61,8 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
-def show_seen_stats(parent: QWidget, player: Player) -> None:
+def show_seen_stats(_parent: QWidget | None, player: Player) -> None:
     """Open the Seen Stats dialog for *player*."""
-    dialog = SeenStatsDialog(parent, player)
+    dialog = SeenStatsDialog(None, player)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     dialog.show()

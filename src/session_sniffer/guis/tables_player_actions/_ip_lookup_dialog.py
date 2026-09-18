@@ -163,7 +163,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     _REFRESH_INTERVAL_MS = 500
 
-    def __init__(self, parent: QWidget, target: IPLookupTarget) -> None:
+    def __init__(self, parent: QWidget | None, target: IPLookupTarget) -> None:
         """Build the dialog, install the periodic refresh timer, and show initial values."""
         super().__init__(parent)
         set_dialog_window_flags(self)
@@ -335,18 +335,18 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         super().closeEvent(event)
 
 
-def show_detailed_ip_lookup(parent: QWidget, target: Player | StandaloneIPLookup | str) -> None:
+def show_detailed_ip_lookup(_parent: QWidget | None, target: Player | StandaloneIPLookup | str) -> None:
     """Open the live IP Lookup Details dialog for a player or IP address."""
     if isinstance(target, str):
         matched_player = PlayersRegistry.get_player_by_ip(target)
         if matched_player is not None:
-            dialog = IPLookupDetailsDialog(parent, matched_player)
+            dialog = IPLookupDetailsDialog(None, matched_player)
         else:
             standalone_lookup = StandaloneIPLookup(ip=target)
             _start_standalone_lookup(standalone_lookup)
-            dialog = IPLookupDetailsDialog(parent, standalone_lookup)
+            dialog = IPLookupDetailsDialog(None, standalone_lookup)
     else:
-        dialog = IPLookupDetailsDialog(parent, target)
+        dialog = IPLookupDetailsDialog(None, target)
 
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     dialog.show()
