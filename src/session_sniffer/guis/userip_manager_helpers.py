@@ -436,7 +436,14 @@ def populate_userip_databases_menu(
 class RenameUsernameDialog(QDialog):
     """Compact dialog for picking an existing username to rename entries to."""
 
-    def __init__(self, parent: QWidget | None, usernames: list[str], current_username: str) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None,
+        usernames: list[str],
+        current_username: str,
+        database: str,
+        ip_address: str,
+    ) -> None:
         """Build the rename username picker dialog."""
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -447,6 +454,8 @@ class RenameUsernameDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        layout.addWidget(QLabel(f'Database:  <b>{database}</b>'))
+        layout.addWidget(QLabel(f'IP address:  <b>{ip_address}</b>'))
         layout.addWidget(QLabel(f'Current:  <b>{current_username}</b>'))
 
         self._search = QLineEdit()
@@ -509,7 +518,13 @@ class RenameUsernameDialog(QDialog):
 class RemoveUsernameDialog(QDialog):
     """Dialog for selecting one or more usernames to remove from a UserIP database entry."""
 
-    def __init__(self, parent: QWidget | None, usernames: list[str], ip_address: str) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None,
+        usernames: list[str],
+        ip_address: str,
+        database: str,
+    ) -> None:
         """Build the remove username picker dialog."""
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -522,6 +537,7 @@ class RemoveUsernameDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        layout.addWidget(QLabel(f'Database:  <b>{database}</b>'))
         layout.addWidget(QLabel(f'IP address:  <b>{ip_address}</b>'))
         layout.addWidget(QLabel('Select usernames to remove:'))
 

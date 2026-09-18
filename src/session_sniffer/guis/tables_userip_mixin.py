@@ -402,19 +402,20 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     # Read the database content
     content = player.userip.db_path.read_text('utf-8')
 
+    db_display = str(player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+
     # Step 1: Determine which username to rename
     old_username: str | None
     if len(ip_usernames) == 1:
         old_username = ip_usernames[0]
     else:
         current_name = ', '.join(ip_usernames)
-        dialog = RenameUsernameDialog(parent, ip_usernames, current_name)
+        dialog = RenameUsernameDialog(parent, ip_usernames, current_name, db_display, ip_address)
         old_username = dialog.selected_username() if dialog.exec() == RenameUsernameDialog.DialogCode.Accepted else None
         if not old_username:
             return
 
     # Step 2: Prompt for the new username
-    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     new_username, success = QInputDialog.getText(
         parent,
         'Rename Username',
@@ -606,7 +607,8 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     if len(ip_usernames) < MIN_USERNAMES_FOR_REMOVAL:
         return
 
-    dialog = RemoveUsernameDialog(parent, ip_usernames, ip_address)
+    db_display = str(player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    dialog = RemoveUsernameDialog(parent, ip_usernames, ip_address, db_display)
     if dialog.exec() != RemoveUsernameDialog.DialogCode.Accepted:
         return
 
