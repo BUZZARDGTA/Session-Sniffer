@@ -439,7 +439,7 @@ def _is_process_suspended_win32(pid: int) -> bool:
             break
         if (
             next_entry_offset < _SYSTEM_PROCESS_INFORMATION_MIN_SIZE
-            or next_entry_offset % 8 != 0
+            or next_entry_offset % 8
             or current_address + next_entry_offset >= buffer_end
         ):
             break
