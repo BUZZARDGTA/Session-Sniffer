@@ -4,7 +4,6 @@ import atexit
 import contextlib
 import logging
 import os
-import queue
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -745,103 +744,81 @@ def main() -> None:
     _arp_failed_timer.timeout.connect(_on_arp_failed_poll)
     _arp_failed_timer.start()
 
-    _ip_changed_queue: queue.Queue[str] = queue.Queue()
+    _last_drought_packet_count = CaptureStats.total_packets_captured
+    _last_drought_count_change = time.monotonic()
+    _drought_active = False
 
     def _on_ip_changed_poll() -> None:
-        """Poll for capture interface IP changes and silently restart the capture."""
+        """Poll for capture interface IP changes during packet droughts and silently restart the capture.
+
+        Some VPN clients assign a new IP address to their adapter when switching servers without
+        causing Npcap to raise an error. The BPF capture filter is compiled once at capture start with
+        the old IP, so after the IP changes the sniffer keeps running but captures zero matching packets.
+
+        When packet counts stop advancing for ≥8 seconds (packet drought), check whether the interface IP
+        actually changed and restart capture if so.
+        """
+        nonlocal _last_drought_packet_count, _last_drought_count_change, _drought_active
+
         if gui_closed__event.is_set():
             return
 
-        try:
-            new_ip = _ip_changed_queue.get_nowait()
-        except queue.Empty:
+        if not capture_holder.is_running():
+            _last_drought_packet_count = CaptureStats.total_packets_captured
+            _last_drought_count_change = time.monotonic()
+            _drought_active = False
             return
 
-        if capture_holder.config.interface.ip_address == new_ip and capture_holder.is_running():
+        if CaptureStats.total_packets_captured != _last_drought_packet_count:
+            _last_drought_packet_count = CaptureStats.total_packets_captured
+            _last_drought_count_change = time.monotonic()
+            _drought_active = False
             return
 
-        _restart_capture_with_ip(new_ip)
+        if time.monotonic() - _last_drought_count_change < _PACKET_DROUGHT_THRESHOLD_SECONDS:
+            return
+
+        if not _drought_active:
+            _drought_active = True
+        if capture_holder.config.interface.is_neighbour:
+            _last_drought_count_change = time.monotonic()  # reset so we don't spin
+            _drought_active = False
+            return  # ARP-spoof mode: filter IP is the neighbour's, not the adapter's
+
+        adapter_guid = capture_holder.config.interface.interface.identity.adapter_guid
+        if adapter_guid is None:
+            _last_drought_count_change = time.monotonic()
+            _drought_active = False
+            return
+
+        adapter_has_ip = False
+        for adapter in get_adapters_info():
+            if adapter.identity.adapter_guid != adapter_guid:
+                continue
+            if not adapter.ipv4_addresses:
+                break  # Adapter found but no IP yet (VPN reconnecting)
+            adapter_has_ip = True
+            new_ip = adapter.ipv4_addresses[0]
+            if new_ip != capture_holder.config.interface.ip_address:
+                logger.info(
+                    'Capture interface "%s" IP changed from %s to %s — restarting capture.',
+                    capture_holder.config.interface.name,
+                    capture_holder.config.interface.ip_address,
+                    new_ip,
+                )
+                _restart_capture_with_ip(new_ip)
+            break
+
+        # Only reset the drought clock when the adapter has a valid IP;
+        # if it has none (VPN reconnecting), keep drought active to re-check next cycle.
+        if adapter_has_ip:
+            _last_drought_count_change = time.monotonic()
+            _drought_active = False
 
     _ip_changed_timer = QTimer()
-    _ip_changed_timer.setInterval(500)
+    _ip_changed_timer.setInterval(2000)
     _ip_changed_timer.timeout.connect(_on_ip_changed_poll)
     _ip_changed_timer.start()
-
-    def _monitor_capture_ip_change_loop() -> None:
-        """Background thread: detect when the capture interface IP changes and queue a silent restart.
-
-        Some VPN clients assign a new IP address to their adapter when switching servers.
-        The BPF capture filter is compiled once at capture start with the old IP, so after
-        the IP changes the sniffer keeps running but captures zero matching packets.
-
-        Strategy: poll `total_packets_captured` every 2 seconds.  When the counter stops advancing
-        for ≥8 seconds (packet drought), call `get_adapters_info()` once to check whether the
-        interface IP actually changed.  If it did → queue a restart.  If the IP is unchanged the
-        drought is just normal idle time (no game running) and nothing is done.  This avoids calling
-        the network adapter API on every iteration while also preventing false restarts when the
-        user simply isn't in a session.
-        """
-        last_packet_count = CaptureStats.total_packets_captured
-        last_count_change = time.monotonic()
-        drought_active = False
-
-        while not gui_closed__event.wait(2.0):
-            if not capture_holder.is_running() or not _ip_changed_queue.empty():
-                last_packet_count = CaptureStats.total_packets_captured
-                last_count_change = time.monotonic()
-                drought_active = False
-                continue
-
-            if CaptureStats.total_packets_captured != last_packet_count:
-                last_packet_count = CaptureStats.total_packets_captured
-                last_count_change = time.monotonic()
-                drought_active = False
-                continue
-
-            if time.monotonic() - last_count_change < _PACKET_DROUGHT_THRESHOLD_SECONDS:
-                continue
-
-            if not drought_active:
-                drought_active = True
-            if capture_holder.config.interface.is_neighbour:
-                last_count_change = time.monotonic()  # reset so we don't spin
-                drought_active = False
-                continue  # ARP-spoof mode: filter IP is the neighbour's, not the adapter's
-
-            if capture_holder.config.interface.interface.identity.adapter_guid is None:
-                last_count_change = time.monotonic()
-                drought_active = False
-                continue
-
-            adapter_has_ip = False
-            for adapter in get_adapters_info():
-                if adapter.identity.adapter_guid != capture_holder.config.interface.interface.identity.adapter_guid:
-                    continue
-                if not adapter.ipv4_addresses:
-                    break  # Adapter found but no IP yet (VPN reconnecting)
-                adapter_has_ip = True
-                new_ip = adapter.ipv4_addresses[0]
-                if new_ip != capture_holder.config.interface.ip_address:
-                    logger.info(
-                        'Capture interface "%s" IP changed from %s to %s — restarting capture.',
-                        capture_holder.config.interface.name,
-                        capture_holder.config.interface.ip_address,
-                        new_ip,
-                    )
-                    _ip_changed_queue.put(new_ip)
-                break
-
-            # Only reset the drought clock when the adapter has a valid IP;
-            # if it has none (VPN reconnecting), keep drought active to re-check next cycle.
-            if adapter_has_ip:
-                last_count_change = time.monotonic()
-                drought_active = False
-
-    Thread(
-        target=_monitor_capture_ip_change_loop,
-        name='CaptureIPChangeMonitor',
-        daemon=True,
-    ).start()
 
     ensure_process_monitor_running()
 
