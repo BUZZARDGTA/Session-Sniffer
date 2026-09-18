@@ -704,6 +704,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self.showMaximized()
 
     def _update_gui(self, payload: GUIUpdatePayload) -> None:
+        self._sync_capture_toggle_action()
         self._header.setText(payload.header_text)
         self._status_bar.set_texts(
             capture=payload.status_capture_text,
@@ -976,19 +977,30 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             performance=performance_section,
         )
 
+    def _sync_capture_toggle_action(self) -> None:
+        """Synchronize the toggle capture action icon, text, and tooltip with the current capture state."""
+        is_running = self.capture.is_running()
+        expected_text = 'Stop Capture' if is_running else 'Start Capture'
+        if self._actions.toggle_capture.text() == expected_text:
+            return
+
+        if is_running:
+            self._actions.toggle_capture.setText('Stop Capture')
+            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
+            self._actions.toggle_capture.setToolTip('Stop packet capture')
+        else:
+            self._actions.toggle_capture.setText('Start Capture')
+            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._actions.toggle_capture.setToolTip('Start packet capture')
+
     def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
         if self.capture.is_running():
             self.capture.stop()
-            self._actions.toggle_capture.setText('Start Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
-            self._actions.toggle_capture.setToolTip('Start packet capture')
         else:
             self.capture.start()
-            self._actions.toggle_capture.setText('Stop Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
-            self._actions.toggle_capture.setToolTip('Stop packet capture')
 
+        self._sync_capture_toggle_action()
         self._update_header_capture_status()
         self._update_status_bar()
 
@@ -1023,14 +1035,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
         self._update_gta5_toolbar_visibility()
-        if self.capture.is_running():
-            self._actions.toggle_capture.setText('Stop Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
-            self._actions.toggle_capture.setToolTip('Stop packet capture')
-        else:
-            self._actions.toggle_capture.setText('Start Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
-            self._actions.toggle_capture.setToolTip('Start packet capture')
+        self._sync_capture_toggle_action()
         self._actions.toggle_capture.setEnabled(True)
         self._update_header_capture_status()
         self._update_status_bar()
