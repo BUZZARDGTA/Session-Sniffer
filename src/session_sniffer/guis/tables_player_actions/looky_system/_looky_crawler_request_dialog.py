@@ -229,6 +229,8 @@ class _CrawlerRequestDialog(QDialog):
         self._rate_limit_message = ''
         self._last_status = ''
         self._cancel_button: QPushButton | None = None
+        self._is_completed = False
+        self._auto_close_timer: QTimer | None = None
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
 
         set_dialog_window_flags(self)
@@ -276,11 +278,19 @@ class _CrawlerRequestDialog(QDialog):
 
         self._maybe_send()
 
+    @property
+    def is_completed(self) -> bool:
+        """Return whether the crawler request completed successfully."""
+        return self._is_completed
+
     @classmethod
     def restore_existing(cls, registry_key: str) -> bool:
         """Restore and raise an already-open dialog for *registry_key*; return True if one existed."""
         existing = cls._open_dialogs.get(registry_key)
         if existing is None:
+            return False
+        if existing.is_completed:
+            existing.close()
             return False
         existing.showNormal()
         existing.raise_()
@@ -406,16 +416,23 @@ class _CrawlerRequestDialog(QDialog):
 
     def _on_completed(self) -> None:
         """The crawler instruction completed successfully."""
+        self._is_completed = True
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
         if self._cancel_button is not None:
             self._cancel_button.setText('Close')
             self._cancel_button.setToolTip('Close this window.')
-        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">Completed</span>')
+        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">Completed (closing in 3s)</span>')
         self._widgets.status_label.show()
         self._log.setPlaceholderText('')
         if self._request.on_completed is not None:
             self._request.on_completed()
+
+        auto_close_timer = QTimer(self)
+        auto_close_timer.setSingleShot(True)
+        auto_close_timer.timeout.connect(self.close)
+        auto_close_timer.start(3000)
+        self._auto_close_timer = auto_close_timer
 
     def _show_failed(self, message: str) -> None:
         """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
@@ -458,6 +475,9 @@ class _CrawlerRequestDialog(QDialog):
         Each worker removes itself from the set via its `finished` signal.
         """
         self._retry_timer.stop()
+        if self._auto_close_timer is not None:
+            self._auto_close_timer.stop()
+            self._auto_close_timer = None
         if self._watch_worker is not None:
             watch_worker = self._watch_worker
             self._watch_worker = None
