@@ -230,7 +230,6 @@ class _CrawlerRequestDialog(QDialog):
         self._last_status = ''
         self._cancel_button: QPushButton | None = None
         self._is_completed = False
-        self._auto_close_timer: QTimer | None = None
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
 
         set_dialog_window_flags(self)
@@ -275,6 +274,11 @@ class _CrawlerRequestDialog(QDialog):
         self._retry_timer = QTimer(self)
         self._retry_timer.setInterval(1000)
         self._retry_timer.timeout.connect(self._tick_retry_countdown)
+
+        self._auto_close_timer = QTimer(self)
+        self._auto_close_timer.setInterval(1000)
+        self._auto_close_timer.timeout.connect(self._tick_auto_close_countdown)
+        self._auto_close_remaining = 0
 
         self._maybe_send()
 
@@ -322,6 +326,7 @@ class _CrawlerRequestDialog(QDialog):
         button — which lets the user force a request through even while the local cooldown is active.
         """
         self._retry_timer.stop()
+        self._auto_close_timer.stop()
         self._append_log_line('Sending request...')
         self._widgets.progress_bar.show()
         self._widgets.status_label.hide()
@@ -419,24 +424,35 @@ class _CrawlerRequestDialog(QDialog):
         self._is_completed = True
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
-        if self._cancel_button is not None:
-            self._cancel_button.setText('Close')
-            self._cancel_button.setToolTip('Close this window.')
-        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">Completed (closing in 3s)</span>')
+        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">Completed</span>')
         self._widgets.status_label.show()
         self._log.setPlaceholderText('')
         if self._request.on_completed is not None:
             self._request.on_completed()
 
-        auto_close_timer = QTimer(self)
-        auto_close_timer.setSingleShot(True)
-        auto_close_timer.timeout.connect(self.close)
-        auto_close_timer.start(3000)
-        self._auto_close_timer = auto_close_timer
+        self._auto_close_remaining = 3
+        self._update_close_button_countdown()
+        self._auto_close_timer.start()
+
+    def _tick_auto_close_countdown(self) -> None:
+        """Advance the auto-close countdown; close the dialog when it reaches zero."""
+        self._auto_close_remaining -= 1
+        if self._auto_close_remaining <= 0:
+            self._auto_close_timer.stop()
+            self.close()
+        else:
+            self._update_close_button_countdown()
+
+    def _update_close_button_countdown(self) -> None:
+        """Refresh the Close button text with the remaining countdown seconds."""
+        if self._cancel_button is not None:
+            self._cancel_button.setText(f'Close ({self._auto_close_remaining}s)')
+            self._cancel_button.setToolTip(f'Close this window (auto-closing in {self._auto_close_remaining}s).')
 
     def _show_failed(self, message: str) -> None:
         """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
         self._retry_timer.stop()
+        self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
         self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">Failed: {message}</span>')
         self._widgets.status_label.show()
@@ -451,6 +467,7 @@ class _CrawlerRequestDialog(QDialog):
         """Show a connection loss error with a Try Again button."""
         self._append_log_line(f'Status stream lost: {message}')
         self._retry_timer.stop()
+        self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
         self._widgets.status_label.setText(
             '<span style="color: #fbbf24; font-weight: 600;">Status stream lost</span>',
@@ -475,9 +492,7 @@ class _CrawlerRequestDialog(QDialog):
         Each worker removes itself from the set via its `finished` signal.
         """
         self._retry_timer.stop()
-        if self._auto_close_timer is not None:
-            self._auto_close_timer.stop()
-            self._auto_close_timer = None
+        self._auto_close_timer.stop()
         if self._watch_worker is not None:
             watch_worker = self._watch_worker
             self._watch_worker = None
