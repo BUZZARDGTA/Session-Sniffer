@@ -340,12 +340,20 @@ def overlay_live_session(
     seen_dates: dict[str, set[date]] = {ip: set(dates) for ip, dates in baseline.seen_dates.items()}
 
     try:
-        session_log = SessionLogFile.model_validate_json(live_file.read_text(encoding='utf-8', errors='replace'))
+        live_text = live_file.read_text(encoding='utf-8', errors='replace')
     except FileNotFoundError:
-        session_log = None
-    except (ValidationError, OSError) as e:
-        logger.warning('Failed to load live session file %s: %s', live_file, e)
-        session_log = None
+        live_text = None
+    except OSError as e:
+        logger.warning('Failed to read live session file %s: %s', live_file, e)
+        live_text = None
+
+    session_log: SessionLogFile | None = None
+    if live_text:
+        try:
+            session_log = SessionLogFile.model_validate_json(live_text)
+        except ValidationError as e:
+            logger.warning('Failed to parse live session file %s: %s', live_file, e)
+    # An empty file is a normal transient race: the writer truncated before finishing the write.
 
     live_ips: set[str] = set()
     if session_log is not None:
