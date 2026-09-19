@@ -251,8 +251,8 @@ class GUIDetectionSettings:
             return
         try:
             cls.import_from_file(file_path)
-        except (ValidationError, json.JSONDecodeError, OSError) as e:
-            logger.warning('Failed to load detection settings from %s: %s, keeping defaults', file_path, e)
+        except (ValidationError, json.JSONDecodeError, OSError):
+            logger.exception('Failed to load detection settings from %s, keeping defaults', file_path)
 
     @classmethod
     def export_to_file(cls, file_path: Path) -> None:

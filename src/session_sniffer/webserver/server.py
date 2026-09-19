@@ -264,7 +264,7 @@ class WebServer:
             site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
             await site.start()
         except OSError as e:
-            logger.warning('Failed to start web server on %s:%d: %s', self.host, self.port, e)
+            logger.exception('Failed to start web server on %s:%d', self.host, self.port)
             startup_state.error = e
             startup_state.ready.set()
             await self._runner.cleanup()

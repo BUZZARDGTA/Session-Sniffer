@@ -124,8 +124,8 @@ def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, ma
     try:
         GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         GUI_STATE_PATH.write_text(gui_state.model_dump_json(indent=2), encoding='utf-8')
-    except OSError as e:
-        logger.warning('Failed to save UserIP Manager state to %s: %s', GUI_STATE_PATH, e)
+    except OSError:
+        logger.exception('Failed to save UserIP Manager state to %s', GUI_STATE_PATH)
 
 
 class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):

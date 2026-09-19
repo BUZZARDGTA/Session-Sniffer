@@ -181,8 +181,8 @@ class ComboRulesManager:
         try:
             content = file_path.read_text(encoding='utf-8')
             cls.rules = TypeAdapter(list[ComboRule]).validate_json(content)
-        except (ValidationError, json.JSONDecodeError, OSError) as e:
-            logger.warning('Failed to load combo rules from %s: %s, starting with empty rules', file_path, e)
+        except (ValidationError, json.JSONDecodeError, OSError):
+            logger.exception('Failed to load combo rules from %s, starting with empty rules', file_path)
             cls.rules = []
 
     @classmethod
@@ -210,6 +210,6 @@ class ComboRulesManager:
         """Import rules from a list of dicts from detection settings import."""
         try:
             cls.rules = TypeAdapter(list[ComboRule]).validate_python(rules_data)
-        except ValidationError as e:
-            logger.warning('Failed to import combo rules: %s', e)
+        except ValidationError:
+            logger.exception('Failed to import combo rules')
             cls.rules = []

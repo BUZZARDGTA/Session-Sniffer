@@ -24,7 +24,7 @@ def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geo
 
         exception = None
     except geoip2.errors.GeoIP2Error as e:
-        logger.warning('Failed to initialize GeoLite2 readers: %s', e)
+        logger.exception('Failed to initialize GeoLite2 readers')
         geolite2_asn_reader = None
         geolite2_city_reader = None
         geolite2_country_reader = None
