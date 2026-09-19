@@ -19,7 +19,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
-from session_sniffer.logging_setup import get_logger
+from session_sniffer.logging_setup import clear_secret_cache, get_logger
 from session_sniffer.models.settings_ini_model import SettingsIniModel, SettingsValidationConfig
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
@@ -280,6 +280,7 @@ class Settings:
         tmp_path: Path = SETTINGS_PATH.with_suffix('.tmp')
         tmp_path.write_text(text, encoding='utf-8')
         tmp_path.replace(SETTINGS_PATH)
+        clear_secret_cache()
 
     @staticmethod
     def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:

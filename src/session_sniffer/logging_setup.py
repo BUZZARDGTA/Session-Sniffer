@@ -9,6 +9,7 @@ import atexit
 import logging
 import os
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 from threading import Event, RLock, local
 from typing import TYPE_CHECKING, Self, TextIO, cast, override
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from types import TracebackType
 
 
-__all__ = ['get_logger', 'register_secret_provider', 'setup_logging']
+__all__ = ['clear_secret_cache', 'get_logger', 'register_secret_provider', 'setup_logging']
 
 # --- Handler names for idempotency ---
 _CONSOLE_HANDLER_NAME = 'console_handler'
@@ -35,6 +36,10 @@ _setup_lock = RLock()
 _secret_provider_lock = RLock()
 _stderr_reentry_state = local()
 _atexit_registered = Event()
+
+_SECRETS_CACHE_TTL_SECONDS = 2.0
+_cached_secrets: tuple[str, ...] = ()
+_cached_secrets_expiry: float = 0.0  # pylint: disable=invalid-name
 
 # --- Suppress noisy third-party retry spam ---
 _SUPPRESSED_URLLIB3_SUBSTRINGS = (
@@ -59,21 +64,46 @@ def _app_only_filter(record: logging.LogRecord) -> bool:
 _secret_providers: list[Callable[[], str | None]] = []
 
 
-def _get_secret_values() -> tuple[str, ...]:
-    """Return current secret values, de-duplicated and ordered longest-first."""
+def _invalidate_secret_cache() -> None:
+    """Invalidate the cached secret values so the next lookup re-evaluates providers."""
+    global _cached_secrets_expiry  # noqa: PLW0603
+    _cached_secrets_expiry = 0.0
+
+
+def clear_secret_cache() -> None:
+    """Invalidate cached secret values, forcing re-evaluation on next lookup."""
     with _secret_provider_lock:
+        _invalidate_secret_cache()
+
+
+def _get_secret_values() -> tuple[str, ...]:
+    """Return current secret values, de-duplicated and ordered longest-first.
+
+    Cached with a short TTL to eliminate lock contention and sorting overhead on high-frequency logging paths.
+    """
+    global _cached_secrets, _cached_secrets_expiry  # noqa: PLW0603
+
+    current_time = time.monotonic()
+    if current_time < _cached_secrets_expiry:
+        return _cached_secrets
+
+    with _secret_provider_lock:
+        if current_time < _cached_secrets_expiry:
+            return _cached_secrets
+
         providers = tuple(_secret_providers)
+        secrets: set[str] = set()
+        for provider in providers:
+            try:
+                secret = provider()
+            except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+                secret = None
+            if secret:
+                secrets.add(secret)
 
-    secrets: set[str] = set()
-    for provider in providers:
-        try:
-            secret = provider()
-        except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
-            secret = None
-        if secret:
-            secrets.add(secret)
-
-    return tuple(sorted(secrets, key=len, reverse=True))
+        _cached_secrets = tuple(sorted(secrets, key=len, reverse=True))
+        _cached_secrets_expiry = time.monotonic() + _SECRETS_CACHE_TTL_SECONDS
+        return _cached_secrets
 
 
 def _redact_text(value: str, secrets: tuple[str, ...] | None = None) -> str:
@@ -111,8 +141,12 @@ class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-met
     @override
     def filter(self, record: logging.LogRecord) -> bool:
         """Redact record message fields in-place and keep the record."""
+        if getattr(record, 'secrets_redacted', False):
+            return True
+
         secrets = _get_secret_values()
         if not secrets:
+            record.secrets_redacted = True
             return True
 
         record.msg = _redact_value(record.msg, secrets)
@@ -122,6 +156,7 @@ class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-met
             record.exc_text = _redact_text(record.exc_text, secrets)
         if record.stack_info:
             record.stack_info = _redact_text(record.stack_info, secrets)
+        record.secrets_redacted = True
         return True
 
 
@@ -146,6 +181,7 @@ def register_secret_provider(fn: Callable[[], str | None]) -> None:
     with _secret_provider_lock:
         if fn not in _secret_providers:
             _secret_providers.append(fn)
+            _invalidate_secret_cache()
 
 
 class _StderrToLogger:
