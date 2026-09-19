@@ -70,8 +70,8 @@ def _resolve_mac_address_linux(ip_address: str) -> str:
         probe_socket.settimeout(0.5)
         probe_socket.sendto(b'', (ip_address, 80))
         probe_socket.close()
-    except OSError:
-        pass
+    except OSError as e:
+        logger.debug('UDP probe to %s failed: %s', ip_address, e)
 
     time.sleep(0.1)
 
@@ -99,14 +99,15 @@ def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
         return _resolve_mac_address_linux(ip_address)
     try:
         destination_ip = wintypes.DWORD(struct.unpack('<I', socket.inet_aton(ip_address))[0])
-    except OSError as exception:
-        raise ArpResolutionError(ip_address, f'Invalid IP address: {exception}') from exception
+    except OSError as e:
+        raise ArpResolutionError(ip_address, f'Invalid IP address: {e}') from e
 
     source_ip_dword = wintypes.DWORD(0)
     if source_ip is not None:
         try:
             source_ip_dword = wintypes.DWORD(struct.unpack('<I', socket.inet_aton(source_ip))[0])
-        except OSError:
+        except OSError as e:
+            logger.debug('Failed to convert source IP %s: %s', source_ip, e)
             source_ip_dword = wintypes.DWORD(0)
 
     # Allocate 8 bytes for physical address buffer as mandated by MSDN (at least two ULONGs)

@@ -338,6 +338,7 @@ def send_test_message(url: str) -> tuple[bool, str]:
     try:
         status, _headers, response_body = _http_request(url, method='POST', body=payload)
     except (http.client.HTTPException, OSError) as e:
+        logger.warning('Failed to send Discord webhook test message: %s', e)
         return False, f'Network error: {e}'
 
     if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
@@ -352,7 +353,8 @@ def _load_message_ids() -> dict[str, str]:
         return {}
     try:
         return _MESSAGE_IDS_ADAPTER.validate_json(raw)
-    except (ValidationError, ValueError):
+    except (ValidationError, ValueError) as e:
+        logger.warning('Failed to parse persisted Discord webhook message IDs: %s', e)
         return {}
 
 
@@ -606,7 +608,8 @@ class DiscordWebhookSender:
         """Extract the message id from a POST ?wait=true response body."""
         try:
             msg = DiscordMessageResponse.model_validate_json(response_body)
-        except ValidationError:
+        except ValidationError as e:
+            logger.warning('Failed to parse Discord message response: %s', e)
             return None
         return str(msg.id) if msg.id is not None else None
 
@@ -628,8 +631,8 @@ class DiscordWebhookSender:
                 rate_limit = DiscordRateLimitPayload.model_validate_json(body)
                 if rate_limit.retry_after is not None:
                     delay = float(rate_limit.retry_after)
-            except ValidationError:
-                pass
+            except ValidationError as e:
+                logger.warning('Failed to parse Discord rate limit payload: %s', e)
         delay = max(0.1, min(delay, 30.0))
         logger.warning('Discord webhook rate-limited; sleeping %.2fs', delay)
         time.sleep(delay)

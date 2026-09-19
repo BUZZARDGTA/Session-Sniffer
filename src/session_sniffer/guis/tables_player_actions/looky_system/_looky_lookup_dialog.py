@@ -24,6 +24,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -35,6 +36,8 @@ from session_sniffer.text_utils import pluralize
 if TYPE_CHECKING:
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
+
+logger = get_logger(__name__)
 
 
 class _LookyFetchWorker(CrashingQThread):
@@ -56,6 +59,7 @@ class _LookyFetchWorker(CrashingQThread):
         try:
             results = lookup_ip(self._ip, self._api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as e:
+            logger.warning('Looky System IP lookup failed with HTTP error: %s', e)
             if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 self.fetch_not_found.emit()
             elif e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
@@ -67,9 +71,11 @@ class _LookyFetchWorker(CrashingQThread):
                 self.fetch_failed.emit(f'Looky System API error: HTTP {status_code}')
             return
         except requests.RequestException as e:
+            logger.warning('Looky System IP lookup failed with network error: %s', e)
             self.fetch_failed.emit(f'Looky System request failed: {e}')
             return
         except ValidationError as e:
+            logger.warning('Looky System IP lookup failed with validation error: %s', e)
             self.fetch_failed.emit(f'Looky System response format unexpected: {e}')
             return
         self.results = results

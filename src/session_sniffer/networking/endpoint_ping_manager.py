@@ -14,8 +14,11 @@ from urllib.parse import urlparse
 from requests import exceptions
 
 from session_sniffer.error_messages import ensure_instance, format_type_error
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
+
+logger = get_logger(__name__)
 
 RE_BYTES_PATTERN = re.compile(
     r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) '
@@ -225,6 +228,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
                 ping_result = parsed
 
         except exceptions.RequestException as e:
+            logger.debug('Ping request to endpoint %s failed: %s', endpoint_info.url, e)
             cooldown = DEFAULT_RETRY_COOLDOWN
             if e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')

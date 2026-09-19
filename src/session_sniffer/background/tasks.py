@@ -1,6 +1,5 @@
 """Background tasks for UserIP processing and detection notifications."""
 
-import contextlib
 import csv
 import shutil
 import subprocess
@@ -154,8 +153,10 @@ def _play_wav_linux(wav_path: str) -> None:
     """Play a WAV audio file on Linux using available audio player (pw-play, aplay, or paplay)."""
     player = shutil.which('pw-play') or shutil.which('aplay') or shutil.which('paplay')
     if player is not None:
-        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+        try:
             subprocess.run([player, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10.0, check=False)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            logger.warning('Failed to play audio with %s: %s', player, e)
 
 
 @dataclass(slots=True)
@@ -201,8 +202,10 @@ def _voice_notification_worker() -> None:
 
             if sys.platform == 'win32':
                 import winsound  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-                with contextlib.suppress(RuntimeError):
+                try:
                     winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
+                except RuntimeError as e:
+                    logger.warning('Failed to play voice notification %s: %s', wav_path, e)
             else:
                 _play_wav_linux(wav_path)
             gui_closed__event.wait(_INTER_SOUND_PAUSE_SECONDS)

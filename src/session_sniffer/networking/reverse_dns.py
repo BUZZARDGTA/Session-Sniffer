@@ -11,6 +11,10 @@ import socket
 import struct
 import threading
 
+from session_sniffer.logging_setup import get_logger
+
+logger = get_logger(__name__)
+
 PUBLIC_DNS_SERVERS: tuple[str, ...] = ('1.1.1.1', '8.8.8.8')
 
 _DNS_HEADER_LENGTH = 12
@@ -105,7 +109,8 @@ def _query_udp_dns(server_ip: str, reverse_pointer: str, timeout_seconds: float 
         query_packet = _build_dns_ptr_query(reverse_pointer, transaction_id)
         udp_socket.sendto(query_packet, (server_ip, 53))
         response_bytes, _ = udp_socket.recvfrom(512)
-    except OSError:
+    except OSError as e:
+        logger.debug('UDP DNS query to %s for %s failed: %s', server_ip, reverse_pointer, e)
         return None
     finally:
         udp_socket.close()
@@ -170,7 +175,8 @@ def reverse_dns_lookup(target_ip: str) -> str:
 
     try:
         system_hostname, _ = socket.getnameinfo((target_ip, 0), 0)
-    except (socket.gaierror, OSError):
+    except (socket.gaierror, OSError) as e:
+        logger.debug('System reverse DNS lookup for %s failed: %s', target_ip, e)
         return target_ip
 
     cleaned_system_hostname = system_hostname.rstrip('.')

@@ -21,12 +21,15 @@ from session_sniffer.capture.exceptions import (
     PcapReadError,
     PcapSendError,
 )
+from session_sniffer.logging_setup import get_logger
 
 PCAP_ERRBUF_SIZE = 256
 PCAP_NETMASK_UNKNOWN = 0xFFFFFFFF
 DLT_EN10MB = 1
 DLT_NULL = 0
 DLT_RAW = 12
+
+logger = get_logger(__name__)
 
 _PCAP_READ_SUCCESS = 1
 _PCAP_READ_TIMEOUT = 0
@@ -111,7 +114,8 @@ class _PcapLibrary:  # pylint: disable=too-few-public-methods
                 try:
                     library = ctypes.cdll.LoadLibrary(lib_name)
                     break
-                except OSError:
+                except OSError as e:
+                    logger.debug('Failed to load libpcap candidate %s: %s', lib_name, e)
                     continue
             if library is None:
                 pcap_path = ctypes.util.find_library('pcap')
@@ -175,7 +179,8 @@ def is_pcap_library_available() -> bool:
     """Return `True` if the underlying pcap library can be loaded successfully."""
     try:
         _PcapLibrary.get()
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError) as e:
+        logger.debug('Pcap library unavailable: %s', e)
         return False
     return True
 

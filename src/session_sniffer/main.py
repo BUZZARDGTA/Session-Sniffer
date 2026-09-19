@@ -1,7 +1,6 @@
 """Session Sniffer application entry point and main GUI/capture orchestration."""
 
 import atexit
-import contextlib
 import logging
 import os
 import sys
@@ -84,8 +83,10 @@ def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
     if is_pyinstaller_compiled():
         old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')
-        with contextlib.suppress(OSError):
+        try:
             old_exe.unlink()
+        except OSError as e:
+            logger.debug('Failed to remove old executable %s: %s', old_exe, e)
 
     hide_console_window()
 
@@ -99,6 +100,7 @@ def main() -> None:
     try:
         screen_size = get_screen_size()
     except UnsupportedScreenResolutionError as e:
+        logger.warning('Unsupported screen resolution: %s', e)
         prompt_text = e.msgbox_text + '\n\nDo you want to ignore this warning and continue anyway?'
         response = msgbox.show(
             title='Unsupported Screen Resolution',

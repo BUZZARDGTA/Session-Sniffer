@@ -79,9 +79,12 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GUIState
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
+
+logger = get_logger(__name__)
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None]:
@@ -90,7 +93,8 @@ def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | 
         return None, False, None
     try:
         gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
-    except (ValidationError, OSError):
+    except (ValidationError, OSError) as e:
+        logger.warning('Failed to load UserIP Manager state from %s: %s', GUI_STATE_PATH, e)
         return None, False, None
 
     geometry: QByteArray | None = (
@@ -109,7 +113,8 @@ def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, ma
     if GUI_STATE_PATH.is_file():
         try:
             gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
-        except (ValidationError, OSError):
+        except (ValidationError, OSError) as e:
+            logger.warning('Failed to load UserIP Manager state from %s: %s', GUI_STATE_PATH, e)
             gui_state = GUIState()
 
     gui_state.userip_manager_geometry = geometry.toHex().toStdString()
@@ -119,8 +124,8 @@ def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, ma
     try:
         GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         GUI_STATE_PATH.write_text(gui_state.model_dump_json(indent=2), encoding='utf-8')
-    except OSError:
-        pass
+    except OSError as e:
+        logger.warning('Failed to save UserIP Manager state to %s: %s', GUI_STATE_PATH, e)
 
 
 class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):

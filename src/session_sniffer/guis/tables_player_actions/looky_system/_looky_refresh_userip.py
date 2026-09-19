@@ -48,6 +48,7 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -60,6 +61,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from session_sniffer.models.looky_system import LookyPlayer
+
+logger = get_logger(__name__)
 
 _BATCH_SIZE = 32
 
@@ -100,6 +103,7 @@ class _LookyRefreshWorker(CrashingQThread):
             try:
                 results = lookup_ip_batch(batch, self._api_key, self._version)
             except requests.HTTPError as e:
+                logger.warning('Looky System batch lookup failed with HTTP error: %s', e)
                 if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                     message = extract_rate_limit_message(e)
                     wait_seconds = extract_rate_limit_wait_seconds(e)
@@ -109,9 +113,11 @@ class _LookyRefreshWorker(CrashingQThread):
                     self.finished_error.emit(f'Looky System API error: HTTP {status_code}')
                 return
             except requests.RequestException as e:
+                logger.warning('Looky System batch lookup failed with network error: %s', e)
                 self.finished_error.emit(f'Looky System request failed: {e}')
                 return
             except ValidationError as e:
+                logger.warning('Looky System batch lookup failed with validation error: %s', e)
                 self.finished_error.emit(f'Looky System response format unexpected: {e}')
                 return
 
@@ -128,7 +134,8 @@ def _collect_existing_usernames(db_path: Path) -> dict[str, list[str]]:
     ip_to_seen: dict[str, set[str]] = {}
     try:
         content = db_path.read_text(encoding='utf-8')
-    except OSError:
+    except OSError as e:
+        logger.warning('Failed to read database file %s: %s', db_path, e)
         return ip_to_usernames
     for username, ip in iter_userip_entries(content):
         seen = ip_to_seen.setdefault(ip, set())
@@ -641,8 +648,8 @@ def looky_refresh_userip_entries(
         try:
             worker.finished_ok.disconnect(_on_finished_ok)
             worker.finished_error.disconnect(_on_finished_error)
-        except TypeError:
-            pass
+        except TypeError as e:
+            logger.debug('Failed to disconnect worker signals: %s', e)
         worker.requestInterruption()
         worker.wait()
 

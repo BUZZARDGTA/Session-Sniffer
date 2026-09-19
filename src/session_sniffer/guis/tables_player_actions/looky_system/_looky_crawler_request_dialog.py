@@ -1,6 +1,5 @@
 """Crawler request progress dialog, worker thread, and RID picker for the Looky System."""
 
-import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -135,8 +134,10 @@ class _CrawlerWatchWorker(CrashingQThread):
         active_response = self._active_response
         if active_response is not None:
             def _close_socket() -> None:
-                with contextlib.suppress(Exception):
+                try:
                     active_response.close()
+                except OSError as e:
+                    logger.debug('Failed to close crawler active response socket: %s', e)
             Thread(target=_close_socket, name='CrawlerCancel-closeSSE', daemon=True).start()
 
     def _on_response(self, response: requests.Response) -> None:

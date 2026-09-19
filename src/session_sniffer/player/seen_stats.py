@@ -86,7 +86,8 @@ def analyze_sessions_logging(folder_path: Path, ip: str) -> SeenStats:
             continue
         try:
             session_log = SessionLogFile.model_validate_json(json_file.read_text(encoding='utf-8', errors='replace'))
-        except (ValidationError, OSError):
+        except (ValidationError, OSError) as e:
+            logger.warning('Failed to load session log from %s: %s', json_file, e)
             continue
 
         player_info = _get_player_from_session(session_log, ip)
@@ -308,7 +309,8 @@ def build_leaderboard_baseline(
             continue
         try:
             session_log = SessionLogFile.model_validate_json(json_file.read_text(encoding='utf-8', errors='replace'))
-        except (ValidationError, OSError):
+        except (ValidationError, OSError) as e:
+            logger.warning('Failed to load session log from %s: %s', json_file, e)
             continue
 
         _accumulate_session(entries, seen_dates, session_log, now)
@@ -339,7 +341,10 @@ def overlay_live_session(
 
     try:
         session_log = SessionLogFile.model_validate_json(live_file.read_text(encoding='utf-8', errors='replace'))
-    except (FileNotFoundError, ValidationError, OSError):
+    except FileNotFoundError:
+        session_log = None
+    except (ValidationError, OSError) as e:
+        logger.warning('Failed to load live session file %s: %s', live_file, e)
         session_log = None
 
     live_ips: set[str] = set()

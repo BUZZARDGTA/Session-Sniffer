@@ -194,7 +194,8 @@ def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, d
 
         try:
             temp_path.replace(destination_file_path)
-        except PermissionError:
+        except PermissionError as e:
+            logger.warning('Failed to replace GeoLite2 database at %s: %s', destination_file_path, e)
             temp_path.unlink(missing_ok=True)
             return current_version
 

@@ -1,6 +1,5 @@
 """Settings loading, validation, and persistence."""
 
-import contextlib
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -264,8 +263,10 @@ class Settings:
         """Rebuild the in-memory list of parsed IPRange objects from `capture_blocked_ips`."""
         ranges: list[IPRange] = []
         for raw in cls.capture_blocked_ips:
-            with contextlib.suppress(ValueError, TypeError):
+            try:
                 ranges.append(parse_ip_range(raw))
+            except (ValueError, TypeError) as e:
+                logger.warning('Failed to parse blocked IP range %r: %s', raw, e)
         cls.blocked_ip_ranges = ranges
 
     @classmethod
@@ -330,6 +331,7 @@ class Settings:
         try:
             raw_settings, need_rewrite_settings = cls.parse_settings_ini_file(settings_path)
         except FileNotFoundError:
+            logger.info('Settings file not found at %s; initializing defaults.', settings_path)
             need_rewrite_settings = True
         else:
             # Build UPPER_CASE defaults dict for the model

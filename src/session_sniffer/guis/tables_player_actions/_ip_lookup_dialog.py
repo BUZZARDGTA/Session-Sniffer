@@ -34,6 +34,7 @@ from session_sniffer.guis.tables_player_actions._format import (
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
@@ -58,6 +59,8 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent
 
     from session_sniffer.models.player import Player
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True)
@@ -133,7 +136,8 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
                 parsed = IpApiResponse.model_validate(data)
                 lookup.iplookup.ipapi.update_fields(parsed.model_dump(exclude={'status', 'query'}))
                 lookup.iplookup.ipapi.is_initialized = True
-        except (requests.exceptions.RequestException, ValidationError):
+        except (requests.exceptions.RequestException, ValidationError) as e:
+            logger.warning('IP-API lookup failed: %s', e)
             lookup.iplookup.ipapi.is_initialized = True
 
     # 5. Ping
@@ -143,7 +147,8 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
             lookup.ping.update_fields(ping_result._asdict())
             lookup.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
             lookup.ping.is_initialized = True
-        except (AllEndpointsExhaustedError, requests.exceptions.RequestException, OSError):
+        except (AllEndpointsExhaustedError, requests.exceptions.RequestException, OSError) as e:
+            logger.debug('Ping failed: %s', e)
             lookup.ping.is_pinging = False
             lookup.ping.is_initialized = True
 
@@ -222,7 +227,8 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
                 self._target.ping.update_fields(ping_result._asdict())
                 self._target.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
                 self._target.ping.is_initialized = True
-            except (AllEndpointsExhaustedError, requests.exceptions.RequestException, OSError):
+            except (AllEndpointsExhaustedError, requests.exceptions.RequestException, OSError) as e:
+                logger.debug('Continuous ping failed: %s', e)
                 if not self._target.ping.is_initialized:
                     self._target.ping.is_pinging = False
                     self._target.ping.is_initialized = True

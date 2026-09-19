@@ -345,8 +345,8 @@ def _get_linux_bridge_classification() -> dict[str, AdapterClassification]:
         for entry in net_path.iterdir():
             if (entry / 'brport').exists() or (entry / 'bridge').exists():
                 classification[entry.name] = 'bridged'
-    except OSError:
-        pass
+    except OSError as e:
+        logger.debug('Failed to inspect /sys/class/net for bridge classification: %s', e)
     return classification
 
 

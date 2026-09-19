@@ -4,7 +4,6 @@ It connects to Discord using a provided client ID, updates the presence state wi
 functionality to update or close the presence. It uses threading to run the update process asynchronously.
 """
 
-import contextlib
 import os
 import socket
 import struct
@@ -124,19 +123,24 @@ class _DiscordIPCConnection:
 
         try:
             response_payload = DiscordResponsePayload.model_validate_json(payload_bytes)
-        except ValidationError:
+        except ValidationError as e:
+            logger.warning('Failed to parse Discord RPC response: %s', e)
             return None
 
         return opcode, response_payload
 
     def close(self) -> None:
         """Close the pipe stream and any underlying socket."""
-        with contextlib.suppress(OSError):
+        try:
             self._stream.close()
+        except OSError as e:
+            logger.debug('Failed to close Discord RPC stream: %s', e)
 
         if self._unix_socket is not None:
-            with contextlib.suppress(OSError):
+            try:
                 self._unix_socket.close()
+            except OSError as e:
+                logger.debug('Failed to close Discord RPC unix socket: %s', e)
 
 
 class DiscordRPC:
@@ -212,7 +216,8 @@ def _connect_ipc(client_id: int) -> _DiscordIPCConnection | None:
         if payload.evt == 'ERROR':
             connection.close()
             return None
-    except (OSError, ValidationError, struct.error):
+    except (OSError, ValidationError, struct.error) as e:
+        logger.debug('Discord IPC handshake failed: %s', e)
         connection.close()
         return None
 
@@ -258,9 +263,11 @@ def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
         queue_item = queue.get()
         if queue_item is SHUTDOWN_SIGNAL:
             if active_connection is not None:
-                with contextlib.suppress(OSError):
+                try:
                     active_connection.send(_OPCODE_FRAME, _clear_activity_payload())
                     active_connection.send(_OPCODE_CLOSE, DiscordClosePayload())
+                except OSError as e:
+                    logger.debug('Failed to send Discord RPC close payload: %s', e)
                 active_connection.close()
             connection_status.clear()
             return

@@ -3,8 +3,8 @@
 This module contains a variety of helper functions and custom exceptions used across the project.
 """
 
-import contextlib
 import ctypes
+import logging
 import os
 import shutil
 import signal
@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from packaging.version import Version
+
+logger = logging.getLogger(__name__)
 
 USER_SHELL_FOLDERS__REG_KEY = R'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
 
@@ -273,11 +275,15 @@ def terminate_process_tree(pid: int | None = None) -> None:
                 queue.append(child_pid)
 
         for child_pid in reversed(descendant_pids):
-            with contextlib.suppress(ProcessLookupError, PermissionError):
+            try:
                 os.kill(child_pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError) as e:
+                logger.debug('Failed to kill child PID %d: %s', child_pid, e)
 
-        with contextlib.suppress(ProcessLookupError, PermissionError):
+        try:
             os.kill(target_pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError) as e:
+            logger.debug('Failed to kill process %d: %s', target_pid, e)
         return
 
     kernel32 = ctypes.windll.kernel32
@@ -550,7 +556,8 @@ def is_session_file_empty(file_path: Path) -> bool:
     """
     try:
         session_log = SessionLogFile.model_validate_json(file_path.read_text(encoding='utf-8', errors='replace'))
-    except (OSError, ValidationError):
+    except (OSError, ValidationError) as e:
+        logger.warning('Failed to read or parse session log file %s: %s', file_path, e)
         return True
 
     return not (session_log.connected or session_log.disconnected)
@@ -599,7 +606,8 @@ def cleanup_session_logs(
             try:
                 active_session_path_resolved = active_session_path.resolve()
                 files_to_scan = [file_path for file_path in files_to_scan if file_path.resolve() != active_session_path_resolved]
-            except OSError:
+            except OSError as e:
+                logger.debug('Failed to resolve active session path %s: %s', active_session_path, e)
                 files_to_scan = [file_path for file_path in files_to_scan if file_path != active_session_path]
 
     deleted_parents: set[Path] = set()
@@ -611,8 +619,8 @@ def cleanup_session_logs(
                     file_path.unlink()
                     files_deleted_count += 1
                     deleted_parents.add(file_path.parent)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning('Failed to delete empty session file %s: %s', file_path, e)
 
         for folder in deleted_parents:
             _clean_upwards_if_empty(folder, sessions_dir, deleted_folders_set)
@@ -634,13 +642,15 @@ def _clean_upwards_if_empty(folder: Path, base_dir: Path, deleted_folders: set[P
     current = folder
     try:
         base_dir_resolved = base_dir.resolve()
-    except OSError:
+    except OSError as e:
+        logger.debug('Failed to resolve base directory %s: %s', base_dir, e)
         base_dir_resolved = base_dir
 
     while True:
         try:
             current_resolved = current.resolve()
-        except OSError:
+        except OSError as e:
+            logger.debug('Failed to resolve directory %s: %s', current, e)
             current_resolved = current
 
         if current_resolved == base_dir_resolved or not current.is_relative_to(base_dir):
@@ -656,7 +666,8 @@ def _clean_upwards_if_empty(folder: Path, base_dir: Path, deleted_folders: set[P
                 deleted_folders.add(current)
             else:
                 break
-        except OSError:
+        except OSError as e:
+            logger.warning('Failed to remove empty folder %s: %s', current, e)
             break
         current = current.parent
 
@@ -676,11 +687,11 @@ def _delete_all_empty_folders(base_dir: Path, deleted_folders: set[Path]) -> Non
                 base_dir_resolved = base_dir.resolve()
                 if dir_path_resolved == base_dir_resolved:
                     continue
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning('Failed to resolve directory path %s: %s', dir_path, e)
             try:
                 if not any(dir_path.iterdir()):
                     dir_path.rmdir()
                     deleted_folders.add(dir_path)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning('Failed to remove empty folder %s: %s', dir_path, e)

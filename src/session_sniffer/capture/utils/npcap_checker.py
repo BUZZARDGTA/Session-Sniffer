@@ -9,7 +9,6 @@ import socket
 import subprocess
 import sys
 import webbrowser
-from contextlib import suppress
 from threading import Thread
 
 from session_sniffer import msgbox
@@ -21,7 +20,10 @@ from session_sniffer.error_messages import (
     format_npcap_required_message,
     format_npcap_success_message,
 )
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.text_utils import format_triple_quoted_text
+
+logger = get_logger(__name__)
 
 NPCAP_SERVICE_QUERY_CMD = (SC_EXE, 'query', 'npcap')
 NPCAP_DOWNLOAD_URL = 'https://npcap.com/#download'
@@ -54,7 +56,8 @@ def can_capture_packets_on_linux() -> bool:
     try:
         raw_socket = socket.socket(_AF_PACKET, socket.SOCK_RAW)
         raw_socket.close()
-    except (PermissionError, OSError):
+    except (PermissionError, OSError) as e:
+        logger.debug('Cannot capture packets on Linux: %s', e)
         return False
     return True
 
@@ -130,10 +133,13 @@ def is_npcap_installed() -> bool:
         return can_capture_packets_on_linux()
 
     creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    with suppress(subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    try:
         subprocess.run(NPCAP_SERVICE_QUERY_CMD, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=10, creationflags=creationflags)
-        return True
-    return False
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logger.debug('Npcap service query failed: %s', e)
+        return False
+
+    return True
 
 
 def open_npcap_download_page() -> None:

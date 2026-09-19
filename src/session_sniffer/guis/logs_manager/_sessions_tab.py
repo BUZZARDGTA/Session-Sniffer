@@ -48,9 +48,12 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, ElidedTextTooltipDelegate
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_single_border_table
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from typing import Any
@@ -495,7 +498,8 @@ class SessionsLogTab(QWidget):
         def worker() -> None:
             try:
                 result_lines, total_matches, files_with_matches = self._build_global_search_result(text, selected_column)
-            except (OSError, ValidationError):
+            except (OSError, ValidationError) as e:
+                logger.warning('Global session search failed: %s', e)
                 result_lines = ['Global search failed unexpectedly. Please try again.']
                 total_matches = 0
                 files_with_matches = 0
@@ -769,7 +773,8 @@ class SessionsLogTab(QWidget):
     def _collect_structured_search_matches(self, file_path: Path, search_lower: str, selected_column: str) -> list[str]:
         try:
             session_log = self._load_session_log_file(file_path)
-        except OSError, ValidationError:
+        except (OSError, ValidationError) as e:
+            logger.warning('Failed to load session log from %s: %s', file_path, e)
             return []
 
         matches: list[str] = []
@@ -915,6 +920,7 @@ class SessionsLogTab(QWidget):
         try:
             session_log = self._load_session_log_file(file_path)
         except (OSError, ValidationError) as e:
+            logger.warning('Failed to load session log from %s: %s', file_path, e)
             return f'[Failed to parse JSON session file: {file_path.name}]\n{e}'
 
         connected_table = self._build_connected_table(session_log.connected)

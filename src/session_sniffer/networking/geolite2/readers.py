@@ -6,6 +6,9 @@ import geoip2.database
 import geoip2.errors
 
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
+from session_sniffer.logging_setup import get_logger
+
+logger = get_logger(__name__)
 
 
 def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
@@ -21,6 +24,7 @@ def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geo
 
         exception = None
     except geoip2.errors.GeoIP2Error as e:
+        logger.warning('Failed to initialize GeoLite2 readers: %s', e)
         geolite2_asn_reader = None
         geolite2_city_reader = None
         geolite2_country_reader = None

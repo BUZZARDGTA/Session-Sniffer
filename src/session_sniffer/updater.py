@@ -1,6 +1,5 @@
 """Updater: GitHub version fetch + retry + UI + version comparison."""
 
-import contextlib
 import functools
 import hashlib
 import os
@@ -121,9 +120,11 @@ def _fetch_github_versions() -> GithubVersionsResponse:
 
 
 def _remove_file_if_possible(path: Path) -> None:
-    """Remove `path`, silently ignoring any `OSError` (e.g. antivirus lock)."""
-    with contextlib.suppress(OSError):
+    """Remove `path`, logging any `OSError` (e.g. antivirus lock)."""
+    try:
         path.unlink(missing_ok=True)
+    except OSError as e:
+        logger.debug('Failed to remove file %s: %s', path, e)
 
 
 def _apply_update(new_exe: Path) -> None:
@@ -141,6 +142,7 @@ def _apply_update(new_exe: Path) -> None:
     try:
         old_exe.unlink(missing_ok=True)
     except OSError as e:
+        logger.exception('Failed to remove stale backup executable before updating')
         _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
@@ -154,6 +156,7 @@ def _apply_update(new_exe: Path) -> None:
     try:
         current_exe.rename(old_exe)
     except OSError as e:
+        logger.exception('Failed to rename current executable before updating')
         _remove_file_if_possible(new_exe)
         msgbox.show(
             title=TITLE,
@@ -169,10 +172,12 @@ def _apply_update(new_exe: Path) -> None:
         if sys.platform != 'win32':
             current_exe.chmod(0o755)
     except OSError as e:
+        logger.exception('Failed to write new executable')
         # Restore the original exe so the user can still run the app
         try:
             old_exe.rename(current_exe)
         except OSError as restore_error:
+            logger.exception('Failed to restore previous executable')
             _remove_file_if_possible(new_exe)
             msgbox.show(
                 title=TITLE,
@@ -219,8 +224,8 @@ def _resolve_candidate_file_size(candidate_info: VersionInfo) -> int | None:
         response = session.head(candidate_info.platform_download_url, allow_redirects=True, timeout=5)
         if response.status_code == requests.codes.ok and 'Content-Length' in response.headers:
             return int(response.headers['Content-Length'])
-    except requests.exceptions.RequestException:
-        pass
+    except requests.exceptions.RequestException as e:
+        logger.debug('Failed to resolve candidate file size: %s', e)
     return None
 
 

@@ -1,6 +1,5 @@
 """Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
-import contextlib
 import os
 import shutil
 import subprocess
@@ -27,9 +26,12 @@ from session_sniffer.guis.userip_manager_helpers import (
     parse_settings_from_lines,
     read_preserved_sections,
 )
+from session_sniffer.logging_setup import get_logger
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
+
+logger = get_logger(__name__)
 
 
 class TreeOperationsMixin(QDialog):
@@ -209,7 +211,8 @@ class TreeOperationsMixin(QDialog):
                 continue
             try:
                 content = db_path.read_text('utf-8')
-            except OSError:
+            except OSError as e:
+                logger.warning('Failed to read database file %s: %s', db_path, e)
                 continue
             ip_addresses = [ip_address for _, ip_address in iter_userip_entries(content)]
             if ip_addresses:
@@ -635,15 +638,17 @@ class TreeOperationsMixin(QDialog):
                 try:
                     ini_path.unlink()
                     deleted += 1
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning('Failed to delete user database file %s: %s', ini_path, e)
 
         # Remove user-created subdirectories
         for entry in USERIP_DATABASES_DIR_PATH.iterdir():
             if entry.is_dir():
                 self._unwatch_path(entry)
-                with contextlib.suppress(OSError):
+                try:
                     shutil.rmtree(entry)
+                except OSError as e:
+                    logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
         self._set_status(
             'Reset complete'
