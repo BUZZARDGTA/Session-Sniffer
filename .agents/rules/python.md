@@ -56,10 +56,15 @@ globs: **/*.py
 
 ## Logging
 
-* Use the project's logging system for diagnostics.
-* Prefer the existing logger methods such as `debug`, `info`, `warning`, `error`, and `exception` over `print`.
+* Use `import logging` and `logger = logging.getLogger(__name__)` in every module that needs a logger. Do not import or call any project-specific logger shim.
+* `setup_logging()` is called once at application startup in `main.py`. Do not call it from library modules or module-level code outside `main.py`.
+* Prefer the existing logger methods — `debug`, `info`, `warning`, `error`, `exception` — over `print`.
 * Use terminal output only for intentional console reporting.
-* Follow the existing logging setup rather than creating a separate logging system.
+* Choose log severity deliberately:
+  * `debug` — expected, low-value operational noise (e.g. DNS timeouts, cache misses).
+  * `warning` — something went wrong and could explain a user-visible problem, but the full traceback adds no value (`logger.warning('…: %s', e)`).
+  * `exception` — an unexpected failure on a critical path where the full traceback is diagnostic (`logger.exception('…')`). Use this inside `except` blocks where you want the traceback captured.
+* Do not silently swallow exceptions; prefer a clear traceback over `except ...: pass`.
 
 ## Dependencies
 

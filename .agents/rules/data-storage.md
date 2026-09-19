@@ -68,14 +68,22 @@ Do not consider a settings change complete until the relevant documentation has 
 
 ## Logging
 
-* Configure application logging through `session_sniffer.logging_setup.setup_logging` once during startup.
-* Obtain module loggers with `get_logger(__name__)`.
+* Configure application logging through `session_sniffer.logging_setup.setup_logging` once during startup (already done in `main.py`).
+* Obtain module loggers with the standard `import logging` / `logger = logging.getLogger(__name__)` pattern. Do not use any project-specific logger shim.
 * Preserve the existing log file behavior:
 
   * `debug.log`: consolidated rotating log file under Local AppData (`Debug/debug.log`).
 * Do not create a separate logging configuration for individual features.
 
 Application logs belong under the appropriate Local AppData location rather than the repository or working directory.
+
+## Secret Redaction
+
+When a module introduces a new secret value (API key, token, password) that may appear in logs:
+
+* Register a provider via `session_sniffer.logging_setup.register_secret_provider`.
+* Providers are cheap, non-blocking callables that return the current secret string or `None`.
+* After any settings save that changes a secret value, call `session_sniffer.logging_setup.clear_secret_cache()` so the new value is redacted immediately without waiting for the TTL window to elapse.
 
 ## User Data and Privacy
 
