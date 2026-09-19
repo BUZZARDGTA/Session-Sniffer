@@ -1,14 +1,14 @@
 """GeoLite2 database reader initialization and query helpers."""
 
 import functools
+import logging
 
 import geoip2.database
 import geoip2.errors
 
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
-from session_sniffer.logging_setup import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:

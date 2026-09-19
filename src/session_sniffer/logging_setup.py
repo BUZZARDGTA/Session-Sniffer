@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from types import TracebackType
 
 
-__all__ = ['clear_secret_cache', 'get_logger', 'register_secret_provider', 'setup_logging']
+__all__ = ['clear_secret_cache', 'register_secret_provider', 'setup_logging']
 
 # --- Handler names for idempotency ---
 _CONSOLE_HANDLER_NAME = 'console_handler'
@@ -428,16 +428,3 @@ def setup_logging(
 
         # --- Ensure logs flush on exit ---
         _register_shutdown_once()
-
-
-def get_logger(name: str | None = None) -> logging.Logger:
-    """Return a logger, ensuring logging is configured (idempotent).
-
-    Args:
-        name: The logger name (default: root logger).
-
-    Returns:
-        The configured logger.
-    """
-    setup_logging()
-    return logging.getLogger(name)

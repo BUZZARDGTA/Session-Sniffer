@@ -1,5 +1,6 @@
 """RDR2 process-control, session-host, and player-resolver mixin for `MainWindow`."""
 
+import logging
 from threading import Event
 from typing import TYPE_CHECKING
 
@@ -16,7 +17,6 @@ from session_sniffer.error_messages import (
 )
 from session_sniffer.guis.session_host_history_window import setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureState
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 RDR2_SOLO_TOOLTIP = 'Suspend RDR2 for ~8 seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
 

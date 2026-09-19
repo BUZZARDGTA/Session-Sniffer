@@ -1,5 +1,6 @@
 """ARP spoofing background task utilities."""
 
+import logging
 import socket
 import time
 from dataclasses import dataclass
@@ -20,7 +21,6 @@ from session_sniffer.capture.arp import (
 from session_sniffer.capture.exceptions import ArpResolutionError, PcapFilterError, PcapOpenError, PcapReadError, PcapSendError
 from session_sniffer.capture.pcap import PcapHandle
 from session_sniffer.error_messages import format_arp_spoofing_failed_message
-from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _ARP_SPOOF_INTERVAL_SECONDS = 1.0
 

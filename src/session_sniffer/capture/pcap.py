@@ -6,6 +6,7 @@ requiring any third-party packet manipulation frameworks.
 
 import ctypes
 import ctypes.util
+import logging
 import os
 import sys
 import threading
@@ -21,7 +22,6 @@ from session_sniffer.capture.exceptions import (
     PcapReadError,
     PcapSendError,
 )
-from session_sniffer.logging_setup import get_logger
 
 PCAP_ERRBUF_SIZE = 256
 PCAP_NETMASK_UNKNOWN = 0xFFFFFFFF
@@ -29,7 +29,7 @@ DLT_EN10MB = 1
 DLT_NULL = 0
 DLT_RAW = 12
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _PCAP_READ_SUCCESS = 1
 _PCAP_READ_TIMEOUT = 0

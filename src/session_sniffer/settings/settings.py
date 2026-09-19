@@ -1,5 +1,6 @@
 """Settings loading, validation, and persistence."""
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -19,7 +20,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
 )
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
-from session_sniffer.logging_setup import clear_secret_cache, get_logger
+from session_sniffer.logging_setup import clear_secret_cache
 from session_sniffer.models.settings_ini_model import SettingsIniModel, SettingsValidationConfig
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 

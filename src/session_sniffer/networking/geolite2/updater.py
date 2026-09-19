@@ -1,6 +1,7 @@
 """GeoLite2 database updater (download and persist)."""
 
 import hashlib
+import logging
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,14 +16,13 @@ from session_sniffer import msgbox
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import format_geolite2_download_flags_failed_message, format_type_error
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GithubReleaseResponse
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
 
 GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class GeoLite2VersionEntry(BaseModel):

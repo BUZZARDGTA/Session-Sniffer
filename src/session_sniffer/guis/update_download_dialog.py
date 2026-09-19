@@ -1,6 +1,7 @@
 """Qt dialog for downloading a Session Sniffer update with a live progress bar."""
 
 import hashlib
+import logging
 import sys
 import threading
 import webbrowser
@@ -52,14 +53,13 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET,
 )
 from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _SHA_SPLIT_THRESHOLD: int = 32
 

@@ -6,6 +6,7 @@ The dialog refreshes automatically so that plugged/unplugged or
 enabled/disabled adapters appear and disappear in real time.
 """
 
+import logging
 from dataclasses import dataclass, field
 from threading import Thread
 from typing import TYPE_CHECKING, Any, override
@@ -51,14 +52,13 @@ from session_sniffer.guis.utils import (
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
 )
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _calculate_interface_score(

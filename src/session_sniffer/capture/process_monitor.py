@@ -4,18 +4,18 @@ Polls for the configured target process PID at 1-second intervals, updates `Capt
 on state changes, and logs meaningful transitions via `_log_process_status_transition`.
 """
 
+import logging
 from threading import Thread
 from threading import enumerate as enumerate_threads
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.process import ProcessInfo, TargetProcessStatus, inspect_target_process
 from session_sniffer.gta5.process import GTA5Status, find_running_gta5_path
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.rdr2.process import RDR2Status, find_running_rdr2_path
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _PROCESS_MONITOR_THREAD_NAME = 'ProcessMonitor'
 

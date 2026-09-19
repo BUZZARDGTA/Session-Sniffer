@@ -5,6 +5,7 @@ ARP Table" action that wakes up devices on the local subnet(s) so that
 recently plugged-in or idle devices show up as ARP neighbors.
 """
 
+import logging
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,6 @@ from threading import Lock
 from typing import TYPE_CHECKING
 
 from session_sniffer.capture.utils.ctypes_win32 import get_system32_dir
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.utils import is_valid_private_ipv4
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     ProgressCallback = Callable[[int, int, str], None]
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _IS_WINDOWS = sys.platform == 'win32'
 _SYSTEM32_DIR = get_system32_dir()

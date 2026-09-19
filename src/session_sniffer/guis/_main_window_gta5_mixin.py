@@ -1,5 +1,6 @@
 """GTA5 process-control and toolbar-visibility mixin for `MainWindow`."""
 
+import logging
 from threading import Event
 from typing import TYPE_CHECKING
 
@@ -14,7 +15,6 @@ from session_sniffer.error_messages import (
     format_gta5_solo_session_suspend_failed_message,
 )
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.player.registry import SessionHost
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 GTA5_SOLO_TOOLTIP = 'Suspend GTA5 for ~8 seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
 

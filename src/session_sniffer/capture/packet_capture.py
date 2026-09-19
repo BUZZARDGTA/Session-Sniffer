@@ -1,5 +1,6 @@
 """Module for packet capture using Npcap/WinPcap, including packet parsing and lifecycle management."""
 
+import logging
 import struct
 import threading
 import time
@@ -31,12 +32,11 @@ from session_sniffer.capture.exceptions import (
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from session_sniffer.networking.interface import SelectedInterfaceRow
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Protocol numbers and header sizes
 _ETHERTYPE_IPV4 = 0x0800

@@ -1,12 +1,12 @@
 """UserIP INI file parser."""
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import ProtectionSettings, UserIPSettings
@@ -16,7 +16,7 @@ from session_sniffer.utils import validate_file
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
 

@@ -1,5 +1,6 @@
 """Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
+import logging
 import os
 import shutil
 import subprocess
@@ -26,12 +27,11 @@ from session_sniffer.guis.userip_manager_helpers import (
     parse_settings_from_lines,
     read_preserved_sections,
 )
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TreeOperationsMixin(QDialog):

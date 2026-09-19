@@ -1,12 +1,12 @@
 """Global detection settings singleton and persistence."""
 
 import json
+import logging
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from pydantic import ValidationError
 
 from session_sniffer.constants.local import DETECTIONS_JSON_PATH
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.detections import (
     DetectionActionSettings,
     DetectionsFile,
@@ -17,7 +17,7 @@ from session_sniffer.models.detections import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class GUIDetectionSettings:

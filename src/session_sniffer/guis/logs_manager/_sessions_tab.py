@@ -1,5 +1,6 @@
 """Sessions logging tab — folder tree + file viewer."""
 
+import logging
 import queue
 import shutil
 import threading
@@ -48,12 +49,11 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, ElidedTextTooltipDelegate
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_single_border_table
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from typing import Any

@@ -6,6 +6,7 @@ the ARP cache on Linux.
 """
 
 import ctypes
+import logging
 import socket
 import struct
 import sys
@@ -15,13 +16,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from session_sniffer.capture.exceptions import ArpResolutionError
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.ctypes_adapters_info import iterate_ipv4_neighbors
 
 if TYPE_CHECKING:
     from session_sniffer.capture.pcap import PcapHandle
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # ARP constants
 _ARP_HARDWARE_TYPE_ETHERNET = 1

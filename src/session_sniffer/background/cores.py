@@ -1,5 +1,6 @@
 """Background core loops for IP lookup, hostname resolution, and ping."""
 
+import logging
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from http import HTTPStatus
@@ -15,7 +16,6 @@ from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
     from session_sniffer.networking.endpoint_ping_manager import PingResult
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # API limits taken from https://ip-api.com/docs/api:batch the 03/04/2024.

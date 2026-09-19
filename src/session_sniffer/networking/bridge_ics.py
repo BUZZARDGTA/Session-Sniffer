@@ -10,6 +10,7 @@ the classification rather than raising.
 """
 
 import ctypes
+import logging
 import sys
 from ctypes import wintypes
 from pathlib import Path
@@ -20,9 +21,7 @@ if sys.platform == 'win32':
 else:
     winreg = None  # type: ignore[assignment]  # pylint: disable=invalid-name
 
-from session_sniffer.logging_setup import get_logger  # pylint: disable=wrong-import-position
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 AdapterClassification = Literal['bridged', 'shared', 'sharing']
 

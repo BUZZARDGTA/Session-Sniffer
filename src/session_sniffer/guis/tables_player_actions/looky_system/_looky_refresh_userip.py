@@ -1,5 +1,6 @@
 """Looky System → UserIP username refresh: batch-lookup IPs and append new usernames to database files."""
 
+import logging
 from dataclasses import dataclass
 from http import HTTPStatus
 from ipaddress import IPv4Address
@@ -48,7 +49,6 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.looky_system import LookyPlayer
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 32
 

@@ -4,6 +4,7 @@ It connects to Discord using a provided client ID, updates the presence state wi
 functionality to update or close the presence. It uses threading to run the update process asynchronously.
 """
 
+import logging
 import os
 import socket
 import struct
@@ -20,7 +21,6 @@ from pydantic import BaseModel, ValidationError
 
 from session_sniffer.constants.standalone import GITHUB_REPO_URL
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import (
     DiscordActivity,
     DiscordActivityArgs,
@@ -62,7 +62,7 @@ DISCORD_RPC_BUTTONS = [
     DiscordActivityButton(label='GitHub Repo', url=GITHUB_REPO_URL),
 ]
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _DiscordIPCConnection:

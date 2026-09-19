@@ -1,5 +1,6 @@
 """Core rendering loop that compiles GUI payloads from runtime state."""
 
+import logging
 import threading
 import time
 from datetime import datetime
@@ -20,7 +21,6 @@ from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
@@ -69,7 +69,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.capture.packet_capture import CaptureHolder
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _THREAD_COUNT_WARN_THRESHOLD = 150
 

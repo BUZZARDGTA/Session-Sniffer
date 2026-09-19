@@ -6,6 +6,7 @@ executables that merely reuse the process name, and exposes the result as an
 immutable `GTA5Status` snapshot.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -19,12 +20,11 @@ from session_sniffer.capture.process import (
     iter_running_processes,
 )
 from session_sniffer.ctypes_wintrust import has_valid_authenticode_signature
-from session_sniffer.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # pylint: disable=duplicate-code
 

@@ -1,5 +1,6 @@
 """LookyLookupDialog and show_looky_lookup helper."""
 
+import logging
 import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING, override
@@ -24,7 +25,6 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import set_dialog_window_flags
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _LookyFetchWorker(CrashingQThread):

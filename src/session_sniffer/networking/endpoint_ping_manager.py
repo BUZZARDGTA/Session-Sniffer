@@ -4,6 +4,7 @@ It is used to determine whether each player's IP is responsive to pings.
 """
 
 import dataclasses
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -14,11 +15,10 @@ from urllib.parse import urlparse
 from requests import exceptions
 
 from session_sniffer.error_messages import ensure_instance, format_type_error
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 RE_BYTES_PATTERN = re.compile(
     r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) '

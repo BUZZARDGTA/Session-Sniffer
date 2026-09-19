@@ -1,6 +1,7 @@
 """Target process inspection and UDP port resolution via Win32 IP Helper and Windows APIs on Windows, or procfs on Linux."""
 
 import ctypes
+import logging
 import os
 import signal
 import socket
@@ -10,10 +11,9 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
 
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import ProcessEntry32W
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _PROCESS_TERMINATE = 0x0001
 _PROCESS_SUSPEND_RESUME = 0x0800

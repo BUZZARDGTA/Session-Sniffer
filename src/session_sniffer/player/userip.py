@@ -1,6 +1,7 @@
 """UserIP settings, database loading, and IP-to-user resolution."""
 
 import dataclasses
+import logging
 from ipaddress import IPv4Address
 from pathlib import Path
 from threading import Lock
@@ -12,7 +13,6 @@ from PySide6.QtGui import QColor
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
 from session_sniffer.guis.utils import create_nonmodal_warning, find_main_window
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from PySide6.QtWidgets import QMessageBox
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _GUIThreadDispatcher(QObject):

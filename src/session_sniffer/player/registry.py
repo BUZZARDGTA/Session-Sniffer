@@ -1,5 +1,6 @@
 """Player registry for connected and disconnected players."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from heapq import nsmallest
@@ -9,14 +10,13 @@ from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 10
 MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 20

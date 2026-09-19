@@ -1,19 +1,19 @@
 """Historical IP encounter statistics from session log archives."""
 
+import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import SessionLogFile
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SeenStats(BaseModel):

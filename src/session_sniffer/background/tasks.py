@@ -1,6 +1,7 @@
 """Background tasks for UserIP processing and detection notifications."""
 
 import csv
+import logging
 import shutil
 import subprocess
 import sys
@@ -30,7 +31,6 @@ from session_sniffer.guis.tables_player_actions import (
     show_userip_detected_dialog,
 )
 from session_sniffer.guis.utils import find_main_window
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -43,7 +43,7 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 _GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])

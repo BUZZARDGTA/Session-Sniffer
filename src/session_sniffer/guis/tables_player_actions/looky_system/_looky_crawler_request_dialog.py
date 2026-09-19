@@ -1,5 +1,6 @@
 """Crawler request progress dialog, worker thread, and RID picker for the Looky System."""
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -39,7 +40,6 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
     check_looky_prerequisites,
 )
 from session_sniffer.guis.utils import ElidedTextTooltipDelegate, set_dialog_window_flags
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.looky_system import (
     LookyInstructionContext,
     LookyState,
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.player import Player
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _CrawlerSendWorker(CrashingQThread):

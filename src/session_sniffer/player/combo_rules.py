@@ -1,20 +1,20 @@
 """Combo detection rules — multi-condition AND rules with per-rule actions."""
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import TypeAdapter, ValidationError
 
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 type ConditionMatcher = Callable[[ConditionValue, Player], bool]
 

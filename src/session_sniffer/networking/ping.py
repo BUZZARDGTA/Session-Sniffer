@@ -3,6 +3,7 @@
 import ctypes
 import ctypes.wintypes
 import enum
+import logging
 import math
 import socket
 import struct
@@ -11,7 +12,6 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Final, Self, cast
 
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.http_session import session
 from session_sniffer.settings import Settings
@@ -19,7 +19,7 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from types import TracebackType
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # --- Windows ICMP Echo API Definitions ---
 _IP_STATUS_DESCRIPTIONS: Final[dict[int, str]] = {

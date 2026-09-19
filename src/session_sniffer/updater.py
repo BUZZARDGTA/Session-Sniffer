@@ -2,6 +2,7 @@
 
 import functools
 import hashlib
+import logging
 import os
 import shutil
 import subprocess
@@ -24,7 +25,6 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
 from session_sniffer.guis.update_download_dialog import UpdateCandidate, UpdateDownloadDialog
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class UpdateCheckOutcome(Enum):

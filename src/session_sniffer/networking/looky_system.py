@@ -1,5 +1,6 @@
 """Looky System IP-to-player lookup API client."""
 
+import logging
 import math
 import re
 import time
@@ -10,7 +11,6 @@ import requests
 from pydantic import TypeAdapter
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models.looky_system import (
     LookyInstructionStatus,
     LookyInstructionStatusEvent,
@@ -26,7 +26,7 @@ from session_sniffer.networking.http_session import session
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 LOOKY_SEARCH_URL = f'{LOOKY_BASE_HOST}/api/search'
 LOOKY_SEARCH_IP_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'

@@ -6,6 +6,7 @@ import binascii
 import errno
 import hmac
 import json
+import logging
 import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -14,14 +15,13 @@ import aiohttp.web
 
 from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
 from session_sniffer.core import ExceptionInfo, terminate_script
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.rendering_core.types import GUIRenderingSnapshot, GUIRenderingState
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
     from pathlib import Path
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _WEB_SERVER_STARTUP_TIMEOUT_SECONDS = 3.0
 

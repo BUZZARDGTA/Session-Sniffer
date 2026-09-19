@@ -50,7 +50,7 @@ from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
 from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
-from session_sniffer.logging_setup import get_logger, register_secret_provider, setup_logging
+from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
@@ -71,7 +71,7 @@ from session_sniffer.utils import is_pyinstaller_compiled
 from session_sniffer.webserver import start_webserver_from_settings
 
 setup_logging(console_level=logging.INFO)
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 

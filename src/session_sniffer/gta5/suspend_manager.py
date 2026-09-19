@@ -6,16 +6,16 @@ of the single, globally-resolved GTA5 process based on multiple concurrent
 process is only suspended once and only resumed when all active reasons are resolved.
 """
 
+import logging
 import time
 from dataclasses import dataclass, field
 from threading import Condition, Event, Thread
 from typing import ClassVar, Literal
 
 from session_sniffer.capture.process import resume_process, suspend_process
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.rendering_core.types import CaptureState
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # pylint: disable=duplicate-code
 

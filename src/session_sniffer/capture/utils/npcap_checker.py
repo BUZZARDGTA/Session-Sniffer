@@ -23,16 +23,17 @@ else:
     wintypes = None  # type: ignore[assignment]  # pylint: disable=invalid-name
 
 # pylint: disable=wrong-import-position
+import logging
+
 from session_sniffer.capture.pcap import is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
 from session_sniffer.constants.standard import SC_EXE
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
-from session_sniffer.logging_setup import get_logger
 
 # pylint: enable=wrong-import-position
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 NPCAP_SERVICE_QUERY_CMD = (SC_EXE, 'query', 'npcap')
 NPCAP_DOWNLOAD_URL = 'https://npcap.com/#download'

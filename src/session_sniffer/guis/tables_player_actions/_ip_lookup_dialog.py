@@ -1,6 +1,7 @@
 """IPLookupDetailsDialog and show_detailed_ip_lookup helper."""
 
 import dataclasses
+import logging
 import time
 from dataclasses import dataclass
 from threading import Event, Thread
@@ -34,7 +35,6 @@ from session_sniffer.guis.tables_player_actions._format import (
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.player import Player
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)

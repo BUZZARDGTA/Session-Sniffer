@@ -1,6 +1,7 @@
 # pylint: disable=too-many-lines
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
+import logging
 from collections import defaultdict
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
@@ -79,12 +80,11 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.models import GUIState
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None]:

@@ -6,14 +6,13 @@ to the operating system resolver.
 """
 
 import ipaddress
+import logging
 import secrets
 import socket
 import struct
 import threading
 
-from session_sniffer.logging_setup import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 PUBLIC_DNS_SERVERS: tuple[str, ...] = ('1.1.1.1', '8.8.8.8')
 

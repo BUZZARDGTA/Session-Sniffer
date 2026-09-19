@@ -12,6 +12,7 @@ the message id on first POST.
 
 import http.client
 import json
+import logging
 import re
 import time
 import urllib.parse
@@ -25,10 +26,9 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.settings import Settings
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _WebhookShutdownSignal(Enum):

@@ -1,5 +1,6 @@
 """Parse mod menu logs to update the mapping of IPs to usernames."""
 
+import logging
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -7,10 +8,9 @@ from threading import Lock
 from typing import ClassVar
 
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.logging_setup import get_logger
 from session_sniffer.utils import get_documents_dir
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 FileModTimes = dict[Path, float]
 UsernamesByIP = defaultdict[str, list[str]]
