@@ -267,33 +267,10 @@ def format_npcap_required_message() -> str:
             2. Download and install Npcap from:
                 https://npcap.com/#download
             3. Follow the installation instructions on the website
-            4. Click OK after installation is complete
 
         IMPORTANT:
             Waiting for installation to complete...
-            Please do not close this dialog until Npcap is installed.
-    """
-
-
-def format_npcap_installation_check_message() -> str:
-    """Format the retry/cancel prompt shown while waiting for Npcap to be installed."""
-    return """
-        NPCAP INSTALLATION CHECK:
-            Npcap is still not detected on your system.
-
-        OPTIONS:
-            • Click "Retry" if you have completed the installation
-            • Click "Cancel" to exit the application
-    """
-
-
-def format_npcap_success_message() -> str:
-    """Format the success notification shown when Npcap detection succeeds."""
-    return """
-        SUCCESS:
-            Npcap has been successfully detected!
-
-        The application will now continue normally.
+            The application will resume automatically once Npcap is detected.
     """
 
 

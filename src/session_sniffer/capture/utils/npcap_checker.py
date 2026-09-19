@@ -9,17 +9,12 @@ import socket
 import subprocess
 import sys
 import webbrowser
-from threading import Thread
 
 from session_sniffer import msgbox
 from session_sniffer.capture.pcap import is_pcap_library_available
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import SC_EXE
-from session_sniffer.error_messages import (
-    format_npcap_installation_check_message,
-    format_npcap_required_message,
-    format_npcap_success_message,
-)
+from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.logging_setup import get_logger
 from session_sniffer.text_utils import format_triple_quoted_text
 
@@ -32,12 +27,7 @@ LIBPCAP_REQUIRED_MESSAGE = (
     'Session Sniffer requires libpcap on Linux to capture packets.\n\n'
     'Please install it using your package manager, for example:\n'
     '  sudo apt install libpcap0.8\n\n'
-    'After installing, click OK to proceed.'
-)
-LIBPCAP_INSTALLATION_CHECK_MESSAGE = (
-    'libpcap was not detected.\n\n'
-    'If you have already installed it, click Retry.\n'
-    'Otherwise, click Cancel to exit.'
+    'Waiting for installation to complete... The application will resume automatically once libpcap is detected.'
 )
 
 
@@ -71,60 +61,27 @@ def get_linux_permissions_required_message() -> str:
         f'  sudo setcap cap_net_raw,cap_net_admin=eip {real_python_executable}\n\n'
         'Alternatively, run Session Sniffer with root privileges:\n'
         '  sudo -E env PATH=$PATH python3 -m session_sniffer\n\n'
-        'After granting permissions, click OK to proceed.'
-    )
-
-
-def get_linux_permissions_check_message() -> str:
-    """Format the retry message for packet capture capabilities on Linux."""
-    real_python_executable = os.path.realpath(sys.executable)
-    return (
-        'Packet capture permissions were not granted.\n\n'
-        f'Command: sudo setcap cap_net_raw,cap_net_admin=eip {real_python_executable}\n\n'
-        'If you have granted permissions, click Retry.\n'
-        'Otherwise, click Cancel to exit.'
+        'Waiting for permissions to be granted... The application will resume automatically once permissions are detected.'
     )
 
 
 def ensure_libpcap_installed() -> None:
     """Ensure that libpcap is installed and capture permissions are granted on Linux."""
-    if not is_libpcap_installed():
-        msgbox.show(
-            title=TITLE,
-            text=LIBPCAP_REQUIRED_MESSAGE,
-            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
-        )
+    if not is_libpcap_installed() and not msgbox.show_until(
+        title=TITLE,
+        text=LIBPCAP_REQUIRED_MESSAGE,
+        condition=is_libpcap_installed,
+        style=msgbox.Style.MB_OKCANCEL | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
+    ):
+        sys.exit(1)
 
-        while not is_libpcap_installed():
-            result = msgbox.show(
-                title=TITLE,
-                text=LIBPCAP_INSTALLATION_CHECK_MESSAGE,
-                style=msgbox.Style.MB_RETRYCANCEL | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_DEFBUTTON1,
-            )
-
-            if result == msgbox.ReturnValues.IDCANCEL:
-                sys.exit(1)
-            elif result == msgbox.ReturnValues.IDRETRY:
-                continue
-
-    if not can_capture_packets_on_linux():
-        msgbox.show(
-            title=TITLE,
-            text=get_linux_permissions_required_message(),
-            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
-        )
-
-        while not can_capture_packets_on_linux():
-            result = msgbox.show(
-                title=TITLE,
-                text=get_linux_permissions_check_message(),
-                style=msgbox.Style.MB_RETRYCANCEL | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_DEFBUTTON1,
-            )
-
-            if result == msgbox.ReturnValues.IDCANCEL:
-                sys.exit(1)
-            elif result == msgbox.ReturnValues.IDRETRY:
-                continue
+    if not can_capture_packets_on_linux() and not msgbox.show_until(
+        title=TITLE,
+        text=get_linux_permissions_required_message(),
+        condition=can_capture_packets_on_linux,
+        style=msgbox.Style.MB_OKCANCEL | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
+    ):
+        sys.exit(1)
 
 
 def is_npcap_installed() -> bool:
@@ -158,30 +115,10 @@ def ensure_npcap_installed() -> None:
 
     open_npcap_download_page()
 
-    msgbox.show(
+    if not msgbox.show_until(
         title=TITLE,
         text=format_triple_quoted_text(format_npcap_required_message()),
-        style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
-    )
-
-    while not is_npcap_installed():
-        result = msgbox.show(
-            title=TITLE,
-            text=format_triple_quoted_text(format_npcap_installation_check_message()),
-            style=msgbox.Style.MB_RETRYCANCEL | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND | msgbox.Style.MB_DEFBUTTON1,
-        )
-
-        if result == msgbox.ReturnValues.IDCANCEL:
-            sys.exit(1)
-        elif result == msgbox.ReturnValues.IDRETRY:
-            continue
-
-    # Success message in a separate thread so the app can continue running
-    def show_success_message() -> None:
-        msgbox.show(
-            title=TITLE,
-            text=format_triple_quoted_text(format_npcap_success_message()),
-            style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
-        )
-
-    Thread(target=show_success_message, name='NpcapSuccessMessage', daemon=True).start()
+        condition=is_npcap_installed,
+        style=msgbox.Style.MB_OKCANCEL | msgbox.Style.MB_ICONINFORMATION | msgbox.Style.MB_SETFOREGROUND,
+    ):
+        sys.exit(1)

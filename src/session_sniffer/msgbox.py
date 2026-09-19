@@ -11,11 +11,18 @@ The msgbox.show() method can be used to display a message box with custom button
 import ctypes
 import enum
 import sys
+import threading
+import time
+from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QMetaObject, Qt
 from PySide6.QtWidgets import QMessageBox
 
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 # https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw#parameters
@@ -152,3 +159,137 @@ def show(title: str, text: str, style: Style) -> ReturnValues:
 
     result = ctypes.windll.user32.MessageBoxW(_state['owner_hwnd'], text, title, style)
     return ReturnValues(ensure_instance(result, int))
+
+
+def _show_until_windows(
+    title: str,
+    text: str,
+    condition: Callable[[], bool],
+    poll_interval: float,
+    style: Style,
+) -> bool:
+    """Display a Windows message box and poll until condition returns True or user cancels."""
+    if condition():
+        return True
+
+    success_event = threading.Event()
+    stop_event = threading.Event()
+
+    def poller() -> None:
+        while not stop_event.wait(poll_interval):
+            if condition():
+                success_event.set()
+                for _ in range(20):
+                    hwnd = ctypes.windll.user32.FindWindowW('#32770', title)
+                    if hwnd:
+                        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+                        break
+                    time.sleep(0.1)
+                break
+
+    while not success_event.is_set():
+        stop_event.clear()
+        poll_thread = threading.Thread(target=poller, name='MsgboxPoller', daemon=True)
+        poll_thread.start()
+
+        result = ctypes.windll.user32.MessageBoxW(_state['owner_hwnd'], text, title, style)
+        stop_event.set()
+        poll_thread.join()
+
+        if success_event.is_set():
+            return True
+
+        if result == ReturnValues.IDCANCEL:
+            return False
+
+        if condition():
+            return True
+
+    return True
+
+
+def _show_until_qt(
+    title: str,
+    text: str,
+    condition: Callable[[], bool],
+    poll_interval: float,
+    style: Style,
+) -> bool:
+    """Display a Qt QMessageBox and poll until condition returns True or user cancels."""
+    if condition():
+        return True
+
+    _ = app
+
+    box = QMessageBox()
+    box.setWindowTitle(title)
+    box.setText(text)
+
+    if style & Style.MB_ICONSTOP:
+        box.setIcon(QMessageBox.Icon.Critical)
+    elif style & Style.MB_ICONEXCLAMATION:
+        box.setIcon(QMessageBox.Icon.Warning)
+    elif style & Style.MB_ICONQUESTION:
+        box.setIcon(QMessageBox.Icon.Question)
+    elif style & Style.MB_ICONINFORMATION:
+        box.setIcon(QMessageBox.Icon.Information)
+
+    box.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+
+    success_event = threading.Event()
+    stop_event = threading.Event()
+
+    def poller() -> None:
+        while not stop_event.wait(poll_interval):
+            if condition():
+                success_event.set()
+                QMetaObject.invokeMethod(box, 'accept', Qt.ConnectionType.QueuedConnection)
+                break
+
+    while not success_event.is_set():
+        stop_event.clear()
+        poll_thread = threading.Thread(target=poller, name='MsgboxPoller', daemon=True)
+        poll_thread.start()
+
+        result = box.exec()
+        stop_event.set()
+        poll_thread.join()
+
+        if success_event.is_set():
+            return True
+
+        if result == QMessageBox.StandardButton.Cancel:
+            return False
+
+        if condition():
+            return True
+
+    return True
+
+
+def show_until(
+    title: str,
+    text: str,
+    condition: Callable[[], bool],
+    poll_interval: float = 0.5,
+    style: Style = Style.MB_OKCANCEL | Style.MB_ICONINFORMATION | Style.MB_SETFOREGROUND,
+) -> bool:
+    """Display a message box and poll in a loop until condition returns True or user cancels.
+
+    If condition returns True at any point, the dialog is closed automatically and True is returned.
+    If the user cancels or closes the dialog, False is returned.
+
+    Args:
+        title: The title of the message box.
+        text: The text to display in the message box.
+        condition: A callable returning a boolean indicating if the requirement is satisfied.
+        poll_interval: The polling interval in seconds.
+        style: The message box style flags.
+
+    Returns:
+        True if condition was satisfied, False if the user cancelled.
+    """
+    if sys.platform != 'win32':
+        return _show_until_qt(title, text, condition, poll_interval, style)
+
+    return _show_until_windows(title, text, condition, poll_interval, style)
