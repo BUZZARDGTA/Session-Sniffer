@@ -1,6 +1,7 @@
 """Session Sniffer application entry point and main GUI/capture orchestration."""
 
 import atexit
+import functools
 import logging
 import os
 import sys
@@ -126,7 +127,10 @@ def main() -> None:
     preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
     npcap_future = preload_executor.submit(ensure_npcap_installed)
-    geolite2_future = preload_executor.submit(update_and_initialize_geolite2_readers)
+    geolite2_future = preload_executor.submit(
+        update_and_initialize_geolite2_readers,
+        progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
+    )
     mac_lookup_future = preload_executor.submit(MacLookup.load)
 
     def _populate_interfaces_after_mac() -> None:

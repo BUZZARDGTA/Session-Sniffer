@@ -4,7 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
 
@@ -28,10 +28,13 @@ _CHECK_ICON = '✓'
 _CHECK_COLOR = '#44cc66'
 _READY_COLOR = '#44cc66'
 _TEXT_COLOR = '#8899aa'
+_DETAIL_COLOR = '#6688aa'
 
 
 class SplashScreen(QWidget):
     """Frameless dark splash window that accumulates startup status messages."""
+
+    progress_signal: Signal = Signal(str, object)
 
     def __init__(self) -> None:
         """Initialize the startup splash screen."""
@@ -66,7 +69,11 @@ class SplashScreen(QWidget):
         layout.addWidget(self._log_area)
 
         self._current_message: str | None = None
+        self._progress_detail: str | None = None
+        self._pending_progress_details: dict[str, str] = {}
         self._spinner_index = 0
+
+        self.progress_signal.connect(self._on_progress_signal)
 
         self._spinner_timer = QTimer(self)
         self._spinner_timer.setInterval(80)
@@ -81,9 +88,12 @@ class SplashScreen(QWidget):
         center_window_on_screen(self)
 
     @staticmethod
-    def _build_line_html(icon: str, icon_color: str, text: str) -> str:
-        """Build an HTML line with a colored icon prefix."""
-        return f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
+    def _build_line_html(icon: str, icon_color: str, text: str, detail: str | None = None) -> str:
+        """Build an HTML line with a colored icon prefix and optional second detail line."""
+        html = f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
+        if detail:
+            html = f'{html}<br>&nbsp;&nbsp;&nbsp;<span style="color:{_DETAIL_COLOR};">{detail}</span>'
+        return html
 
     def _replace_last_line(self, html: str) -> None:
         """Replace the last line in the log area with new HTML content."""
@@ -93,27 +103,50 @@ class SplashScreen(QWidget):
         cursor.removeSelectedText()
         cursor.insertHtml(html)
 
+    def _render_current_line(self) -> None:
+        """Render the current message and optional progress detail with the active spinner frame."""
+        if self._current_message is None:
+            return
+        frame = SPINNER_FRAMES[self._spinner_index]
+        self._replace_last_line(self._build_line_html(frame, _SPINNER_COLOR, self._current_message, self._progress_detail))
+
     def _mark_current_done(self) -> None:
         """Replace the spinner on the current line with a checkmark."""
         if self._current_message is not None:
             self._spinner_timer.stop()
             self._replace_last_line(self._build_line_html(_CHECK_ICON, _CHECK_COLOR, self._current_message))
+            self._progress_detail = None
 
     def _animate_spinner(self) -> None:
         """Advance the spinner animation on the current line."""
         if self._current_message is None:
             return
         self._spinner_index = (self._spinner_index + 1) % len(SPINNER_FRAMES)
-        frame = SPINNER_FRAMES[self._spinner_index]
-        self._replace_last_line(self._build_line_html(frame, _SPINNER_COLOR, self._current_message))
+        self._render_current_line()
+
+    def update_progress(self, detail: str, *, target_message: str | None = None) -> None:
+        """Post a progress detail update to be rendered on the matching or current status line."""
+        self.progress_signal.emit(detail, target_message)
+
+    def _on_progress_signal(self, detail: str, target_message: object) -> None:
+        """Handle progress signal on the GUI thread."""
+        target_message_str = target_message if isinstance(target_message, str) else None
+        if target_message_str is not None and self._current_message != target_message_str:
+            self._pending_progress_details[target_message_str] = detail
+            return
+
+        self._progress_detail = detail
+        if self._current_message is not None:
+            self._render_current_line()
 
     def update_status(self, message: str) -> None:
         """Append a status line with an animated spinner, marking the previous line done."""
         self._mark_current_done()
 
         self._current_message = message
+        self._progress_detail = self._pending_progress_details.pop(message, None)
         self._spinner_index = 0
-        self._log_area.append(self._build_line_html(SPINNER_FRAMES[0], _SPINNER_COLOR, message))
+        self._log_area.append(self._build_line_html(SPINNER_FRAMES[0], _SPINNER_COLOR, message, self._progress_detail))
         self._spinner_timer.start()
 
         scrollbar = self._log_area.verticalScrollBar()

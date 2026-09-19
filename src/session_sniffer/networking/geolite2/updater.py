@@ -3,11 +3,12 @@
 import hashlib
 import logging
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from threading import Thread
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import requests
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -15,12 +16,19 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from session_sniffer import msgbox
 from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.error_messages import format_geolite2_download_flags_failed_message, format_type_error
+from session_sniffer.error_messages import format_geolite2_download_flags_failed_message
 from session_sniffer.models import GithubReleaseResponse
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 GITHUB_RELEASE_API__GEOLITE2__URL = 'https://api.github.com/repos/P3TERX/GeoLite.mmdb/releases/latest'
+_PROGRESS_THROTTLE_SECONDS = 0.08
+_UNKNOWN_TOTAL_PROGRESS_THROTTLE_SECONDS = 0.2
+_PERCENTAGE_COMPLETE = 100
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +123,7 @@ def _geolite2_update_result_from_exception(*, exception: requests.exceptions.Req
 
 def _fetch_geolite2_release_assets() -> tuple[GeoLite2UpdateResult, None] | tuple[None, GithubReleaseResponse]:
     try:
-        response = session.get(GITHUB_RELEASE_API__GEOLITE2__URL)
+        response = session.get(GITHUB_RELEASE_API__GEOLITE2__URL, timeout=30)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         return _geolite2_update_result_from_exception(exception=e, url=GITHUB_RELEASE_API__GEOLITE2__URL), None
@@ -126,17 +134,55 @@ def _fetch_geolite2_release_assets() -> tuple[GeoLite2UpdateResult, None] | tupl
     return None, release_data
 
 
-def _download_geolite2_asset_bytes(download_url: str, /) -> tuple[GeoLite2UpdateResult | None, bytes | None]:
+def _download_geolite2_asset_bytes(
+    download_url: str,
+    /,
+    *,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> tuple[GeoLite2UpdateResult | None, bytes | None]:
     try:
-        response = session.get(download_url)
+        response = session.get(download_url, stream=True, timeout=30)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         return _geolite2_update_result_from_exception(exception=e, url=download_url), None
 
-    if not isinstance(response.content, bytes):
-        raise TypeError(format_type_error(response.content, bytes))
+    total_bytes = int(response.headers.get('Content-Length', 0))
+    chunk_size = 65_536  # 64 KiB
+    downloaded_chunks: list[bytes] = []
+    downloaded_bytes = 0
+    last_reported_percentage = -1
+    last_reported_time = 0.0
 
-    return None, response.content
+    if on_progress is not None and total_bytes > 0:
+        on_progress(0, total_bytes)
+
+    try:
+        for chunk in response.iter_content(chunk_size=chunk_size):
+            if not chunk:
+                continue
+            downloaded_chunks.append(chunk)
+            downloaded_bytes += len(chunk)
+
+            if on_progress is not None:
+                current_time = time.monotonic()
+                if total_bytes > 0:
+                    percentage = int((downloaded_bytes / total_bytes) * _PERCENTAGE_COMPLETE)
+                    if percentage != last_reported_percentage and (
+                        current_time - last_reported_time >= _PROGRESS_THROTTLE_SECONDS or percentage == _PERCENTAGE_COMPLETE
+                    ):
+                        last_reported_percentage = percentage
+                        last_reported_time = current_time
+                        on_progress(downloaded_bytes, total_bytes)
+                elif current_time - last_reported_time >= _UNKNOWN_TOTAL_PROGRESS_THROTTLE_SECONDS:
+                    last_reported_time = current_time
+                    on_progress(downloaded_bytes, total_bytes)
+    except requests.exceptions.RequestException as e:
+        return _geolite2_update_result_from_exception(exception=e, url=download_url), None
+
+    if on_progress is not None and total_bytes > 0 and last_reported_percentage != _PERCENTAGE_COMPLETE:
+        on_progress(downloaded_bytes, total_bytes)
+
+    return None, b''.join(downloaded_chunks)
 
 
 def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases, /) -> None:
@@ -205,7 +251,7 @@ def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, d
     return desired_version
 
 
-def update_geolite2_databases() -> GeoLite2UpdateResult:
+def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None = None) -> GeoLite2UpdateResult:
     """Download/update GeoLite2 ASN/City/Country mmdb databases and persist versions."""
     geolite2_version_file_path = GEOLITE2_DATABASES_DIR_PATH / 'version.json'
     geolite2_databases = _build_geolite2_databases_state()
@@ -226,6 +272,14 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
             download_url=str(asset.browser_download_url),
         )
 
+    databases_to_download: list[GeoLite2DatabaseKey] = [
+        database_name
+        for database_name, database_info in geolite2_databases.items()
+        if database_info.last_version and database_info.current_version != database_info.last_version and database_info.download_url
+    ]
+    total_databases = len(databases_to_download)
+    current_database_index = 0
+
     failed_fetching_flag_list: list[str] = []
     first_download_error: GeoLite2UpdateResult | None = None
 
@@ -241,7 +295,21 @@ def update_geolite2_databases() -> GeoLite2UpdateResult:
             failed_fetching_flag_list.append(database_name)
             continue
 
-        download_error, file_bytes = _download_geolite2_asset_bytes(database_info.download_url)
+        current_database_index += 1
+
+        def _handle_chunk_progress(downloaded_bytes: int, total_bytes: int, name: str = database_name, index: int = current_database_index) -> None:
+            if progress_callback is None:
+                return
+            downloaded_formatted = PlayerBandwidth.format_bytes(downloaded_bytes)
+            prefix = f'{name} [{index}/{total_databases}]' if total_databases > 1 else name
+            if total_bytes > 0:
+                percentage = int((downloaded_bytes / total_bytes) * _PERCENTAGE_COMPLETE)
+                total_formatted = PlayerBandwidth.format_bytes(total_bytes)
+                progress_callback(f'{prefix}: {percentage}% - {downloaded_formatted} / {total_formatted}')
+            else:
+                progress_callback(f'{prefix}: {downloaded_formatted}')
+
+        download_error, file_bytes = _download_geolite2_asset_bytes(database_info.download_url, on_progress=_handle_chunk_progress)
         if download_error is not None or file_bytes is None:
             if first_download_error is None:
                 first_download_error = download_error if download_error is not None else GeoLite2UpdateResult()

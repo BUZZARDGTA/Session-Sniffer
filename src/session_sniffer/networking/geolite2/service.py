@@ -9,16 +9,21 @@ from session_sniffer.networking.geolite2.readers import initialize_geolite2_read
 from session_sniffer.networking.geolite2.updater import update_geolite2_databases
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import geoip2.database
 
 
-def update_and_initialize_geolite2_readers() -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
+def update_and_initialize_geolite2_readers(
+    *,
+    progress_callback: Callable[[str], None] | None = None,
+) -> tuple[bool, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     """Update GeoLite2 databases (best-effort) and initialize readers.
 
     Returns:
         (geoip2_enabled, asn_reader, city_reader, country_reader)
     """
-    update_result = update_geolite2_databases()
+    update_result = update_geolite2_databases(progress_callback=progress_callback)
 
     init_exception, asn_reader, city_reader, country_reader = initialize_geolite2_readers()
 
