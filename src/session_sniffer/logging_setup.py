@@ -65,21 +65,31 @@ _secret_providers: list[Callable[[], str | None]] = []
 
 
 def _invalidate_secret_cache() -> None:
-    """Invalidate the cached secret values so the next lookup re-evaluates providers."""
+    """Expire the cache immediately so the next `_get_secret_values()` call re-evaluates all providers.
+
+    Must be called with `_secret_provider_lock` held.
+    """
     global _cached_secrets_expiry  # noqa: PLW0603
     _cached_secrets_expiry = 0.0
 
 
 def clear_secret_cache() -> None:
-    """Invalidate cached secret values, forcing re-evaluation on next lookup."""
+    """Expire the secret-value cache, forcing providers to be re-queried on the next log emit.
+
+    Call this whenever an underlying secret changes — for example, immediately after saving
+    a settings file that contains an API key or token — so that the new value is redacted
+    without waiting for the TTL (`_SECRETS_CACHE_TTL_SECONDS`) to elapse.
+    """
     with _secret_provider_lock:
         _invalidate_secret_cache()
 
 
 def _get_secret_values() -> tuple[str, ...]:
-    """Return current secret values, de-duplicated and ordered longest-first.
+    """Return current secret values, de-duplicated and sorted longest-first for correct substring replacement.
 
-    Cached with a short TTL to eliminate lock contention and sorting overhead on high-frequency logging paths.
+    Results are cached for `_SECRETS_CACHE_TTL_SECONDS` seconds.  The cache is shared across all threads.
+    Providers are re-invoked only after the TTL expires, after a new provider is registered, or after
+    `clear_secret_cache()` is called.  A provider that raises is silently skipped for that cycle.
     """
     global _cached_secrets, _cached_secrets_expiry  # noqa: PLW0603
 
@@ -177,7 +187,15 @@ class _RedactingFormatter(logging.Formatter):
 
 
 def register_secret_provider(fn: Callable[[], str | None]) -> None:
-    """Register a callable that returns a secret string (or `None`) to redact from logs."""
+    """Register a callable that returns a secret string (or `None`) to redact from log output.
+
+    The callable is invoked at most once per `_SECRETS_CACHE_TTL_SECONDS` window and must be
+    cheap and non-blocking.  Returning `None` or an empty string is safe and means no secret is
+    currently active for that provider.  Registering a new provider immediately invalidates the
+    cache so the new secret takes effect on the very next log emit.
+
+    Each callable is registered at most once; duplicate registrations are silently ignored.
+    """
     with _secret_provider_lock:
         if fn not in _secret_providers:
             _secret_providers.append(fn)
