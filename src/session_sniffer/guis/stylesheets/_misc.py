@@ -130,6 +130,144 @@ SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent; fon
 SPLASH_LOG_AREA_STYLESHEET = 'QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}'
 
 # =============================================================================
+# DEPENDENCY PROMPT DIALOG STYLES
+# =============================================================================
+
+DEPENDENCY_PROMPT_DIALOG_STYLESHEET = 'QDialog { background-color: transparent; }'
+
+DEPENDENCY_PROMPT_FRAME_STYLESHEET = (
+    'QFrame#dependencyPromptFrame {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #232f3e, stop:1 #18212c);'
+    '    border: 1px solid #3a4a5c;'
+    '    border-radius: 14px;'
+    '}'
+)
+
+DEPENDENCY_PROMPT_ICON_CONTAINER_STYLESHEET = (
+    'QFrame#dependencyPromptIconContainer {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(95, 180, 245, 0.20), stop:1 rgba(31, 108, 200, 0.10));'
+    '    border: 1px solid rgba(95, 180, 245, 0.35);'
+    '    border-radius: 10px;'
+    '}'
+)
+
+DEPENDENCY_PROMPT_KICKER_LABEL_STYLESHEET = (
+    'color: #5fb4f5;'
+    'background: transparent;'
+    'font-size: 8pt;'
+    'font-weight: 700;'
+    'letter-spacing: 1px;'
+)
+
+DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET = (
+    'color: #f0f4fa;'
+    'background: transparent;'
+    'font-size: 15pt;'
+    'font-weight: 700;'
+    'letter-spacing: 0.3px;'
+)
+
+DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET = (
+    'QPushButton#dependencyPromptCloseButton {'
+    '    background: transparent;'
+    '    color: #6f7e91;'
+    '    border: none;'
+    '    border-radius: 6px;'
+    '    font-size: 11pt;'
+    '    font-weight: 700;'
+    '    min-width: 26px;'
+    '    max-width: 26px;'
+    '    min-height: 26px;'
+    '    max-height: 26px;'
+    '}'
+    'QPushButton#dependencyPromptCloseButton:hover {'
+    '    background: rgba(231, 76, 60, 0.22);'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton#dependencyPromptCloseButton:pressed {'
+    '    background: rgba(231, 76, 60, 0.38);'
+    '}'
+)
+
+DEPENDENCY_PROMPT_INFO_CARD_STYLESHEET = (
+    'QFrame#dependencyPromptInfoCard {'
+    '    background: rgba(18, 26, 38, 0.75);'
+    '    border: 1px solid #2c3a4d;'
+    '    border-radius: 10px;'
+    '}'
+)
+
+DEPENDENCY_PROMPT_MESSAGE_LABEL_STYLESHEET = 'color: #c8d4e2; background: transparent; font-size: 9.5pt;'
+
+DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #388ecc, stop:1 #1c62a4);'
+    '    color: #ffffff;'
+    '    border: 1px solid #4da2e4;'
+    '    border-radius: 8px;'
+    '    padding: 7px 26px;'
+    '    font-weight: 700;'
+    '    font-size: 9.5pt;'
+    '    letter-spacing: 0.3px;'
+    '}'
+    'QPushButton:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #479de0, stop:1 #2472bc);'
+    '    border: 1px solid #7ec2fc;'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #17548f, stop:1 #2974b8);'
+    '    border: 1px solid #3d8ec9;'
+    '}'
+)
+
+DEPENDENCY_PROMPT_STATUS_CARD_STYLESHEET = (
+    'QFrame#dependencyPromptStatusCard {'
+    '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(14, 21, 32, 0.95), stop:1 rgba(19, 30, 45, 0.85));'
+    '    border: 1px solid rgba(95, 180, 245, 0.28);'
+    '    border-radius: 9px;'
+    '}'
+)
+
+DEPENDENCY_PROMPT_STATUS_TITLE_STYLESHEET = 'color: #e2eaf4; background: transparent; font-size: 9pt; font-weight: 700;'
+
+DEPENDENCY_PROMPT_STATUS_SUBTITLE_STYLESHEET = 'color: #728498; background: transparent; font-size: 8pt;'
+
+DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET = (
+    'color: #3dd68c;'
+    'background: rgba(61, 214, 140, 0.12);'
+    'border: 1px solid rgba(61, 214, 140, 0.35);'
+    'border-radius: 4px;'
+    'padding: 2px 7px;'
+    'font-size: 7.5pt;'
+    'letter-spacing: 0.5px;'
+    'font-weight: 800;'
+)
+
+DEPENDENCY_PROMPT_FOOTER_HINT_STYLESHEET = 'color: #5c6d80; background: transparent; font-size: 8pt;'
+
+DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #253140, stop:1 #1a222d);'
+    '    color: #b0c0d0;'
+    '    border: 1px solid #38485c;'
+    '    border-radius: 7px;'
+    '    padding: 6px 18px;'
+    '    font-weight: 700;'
+    '    font-size: 9pt;'
+    '}'
+    'QPushButton:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #334358, stop:1 #222d3c);'
+    '    border: 1px solid #526780;'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a222d, stop:1 #253140);'
+    '    border: 1px solid #28374a;'
+    '}'
+)
+
+# =============================================================================
 # UPDATE DOWNLOAD DIALOG STYLES
 # =============================================================================
 

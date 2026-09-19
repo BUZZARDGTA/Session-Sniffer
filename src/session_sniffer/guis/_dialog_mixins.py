@@ -1,9 +1,10 @@
-"""Shared dialog mixins and helpers for unsaved-changes close handling and tabbed button rows."""
+"""Shared dialog mixins and helpers for unsaved-changes close handling, draggable frameless dialogs, and tabbed button rows."""
 
 from typing import TYPE_CHECKING, override
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QPushButton
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QPushButton, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -12,7 +13,38 @@ from session_sniffer.guis.stylesheets import DIALOG_DANGER_BUTTON_STYLESHEET, DI
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QCloseEvent
+    from PySide6.QtGui import QCloseEvent, QMouseEvent
+
+
+class DraggableDialogMixin(QDialog):
+    """Mixin providing mouse drag support for frameless dialogs."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize mouse drag state."""
+        super().__init__(parent)
+        self._drag_offset: tuple[int, int] | None = None
+
+    @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Begin dragging the frameless dialog."""
+        if event and event.button() == Qt.MouseButton.LeftButton:
+            pos = event.position().toPoint()
+            self._drag_offset = (pos.x(), pos.y())
+        super().mousePressEvent(event)
+
+    @override
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Drag the frameless dialog."""
+        if event and self._drag_offset and event.buttons() & Qt.MouseButton.LeftButton:
+            global_pos = event.globalPosition().toPoint()
+            self.move(global_pos.x() - self._drag_offset[0], global_pos.y() - self._drag_offset[1])
+        super().mouseMoveEvent(event)
+
+    @override
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """Stop dragging the frameless dialog."""
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
 
 
 class UnsavedChangesMixin(QDialog):

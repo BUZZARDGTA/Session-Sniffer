@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import CURRENT_VERSION
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
 from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_DIALOG_STYLESHEET,
@@ -56,7 +57,7 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QCloseEvent, QMouseEvent
+    from PySide6.QtGui import QCloseEvent
 
 logger = get_logger(__name__)
 
@@ -124,7 +125,7 @@ class UpdateCandidate:
     release_url: str | None = None
 
 
-class UpdateDownloadDialog(QDialog):
+class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
     """Modal dialog that downloads a file and shows live progress.
 
     Usage:
@@ -145,7 +146,6 @@ class UpdateDownloadDialog(QDialog):
         self._dest_path = dest_path
         self._success = False
         self._skipped = False
-        self._drag_offset: tuple[int, int] | None = None
         self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
         self._current_sha256_hash = self._compute_current_build_sha256()
@@ -551,28 +551,6 @@ class UpdateDownloadDialog(QDialog):
     def _center_on_screen(self) -> None:
         """Center the dialog on its screen."""
         center_window_on_screen(self)
-
-    @override
-    def mousePressEvent(self, a0: QMouseEvent) -> None:
-        """Begin dragging the frameless dialog."""
-        if a0 and a0.button() == Qt.MouseButton.LeftButton:
-            pos = a0.position().toPoint()
-            self._drag_offset = (pos.x(), pos.y())
-        super().mousePressEvent(a0)
-
-    @override
-    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
-        """Drag the frameless dialog."""
-        if a0 and self._drag_offset and a0.buttons() & Qt.MouseButton.LeftButton:
-            global_pos = a0.globalPosition().toPoint()
-            self.move(global_pos.x() - self._drag_offset[0], global_pos.y() - self._drag_offset[1])
-        super().mouseMoveEvent(a0)
-
-    @override
-    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
-        """Stop dragging the frameless dialog."""
-        self._drag_offset = None
-        super().mouseReleaseEvent(a0)
 
     @property
     def success(self) -> bool:

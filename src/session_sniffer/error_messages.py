@@ -258,20 +258,7 @@ def format_capture_interrupted_message() -> str:
 
 def format_npcap_required_message() -> str:
     """Format the initial NPCAP-required notification shown when Npcap is missing."""
-    return """
-        NPCAP REQUIRED:
-            Npcap is required for network packet capturing.
-
-        ACTION REQUIRED:
-            1. Npcap download page opened in your browser
-            2. Download and install Npcap from:
-                https://npcap.com/#download
-            3. Follow the installation instructions on the website
-
-        IMPORTANT:
-            Waiting for installation to complete...
-            The application will resume automatically once Npcap is detected.
-    """
+    return 'Session Sniffer requires the Npcap packet capture driver to monitor and analyze network traffic on Windows.'
 
 
 def format_gta5_solo_session_process_not_running_message() -> str:
