@@ -34,12 +34,11 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
    - new version,
    - changed files,
    - validation performed.
-13. Ask for confirmation before creating the commit.
-14. After confirmation, create exactly one version-bump commit using:
+13. Create exactly one version-bump commit using:
 
    `build: bump version to <new-version>`
 
-15. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
+14. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
 
 ## Version Format
 
@@ -95,7 +94,7 @@ For example:
 
 The version-bump commit should contain only the intended release-version changes.
 
-Do not create a commit if validation fails or if the user does not confirm the proposed commit.
+Do not create a commit if validation fails.
 
 ## Validation
 

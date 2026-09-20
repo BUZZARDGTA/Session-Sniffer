@@ -20,9 +20,7 @@ If the user identifies a feature, fix, refactor, documentation change, or other 
 3. Do not stage unrelated files or hunks.
 4. If the requested change cannot be separated safely from unrelated changes, explain the overlap and ask how the user wants to proceed.
 5. Propose one commit message describing only that change.
-6. Show the files/hunks that will be committed.
-7. Ask for confirmation before staging and committing.
-8. After confirmation, stage only the intended changes and create exactly one commit.
+6. Stage only the intended changes and create exactly one commit.
 
 ### All Changes
 
@@ -35,8 +33,7 @@ If the user asks to commit everything, do not automatically create one large com
 5. Do not force a separation when changes are tightly coupled and belong in the same commit.
 6. Propose one commit message for each logical change.
 7. Show the proposed groups, affected files, and commit messages.
-8. Ask for one confirmation covering the complete commit plan.
-9. After confirmation, create the proposed commits in logical order.
+8. Create the proposed commits in logical order.
 
 ## Commit Messages
 
@@ -64,7 +61,6 @@ Write the message from the actual diff. Do not invent functionality or motivatio
 * Do not amend existing commits.
 * Do not reset, rebase, force-push, or rewrite existing history.
 * Do not push commits unless the user explicitly asks for a push as a separate action.
-* Do not create a commit if the user has not confirmed the proposed commit plan.
 
 ## Validation
 
