@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
+from PySide6.QtCore import QAbstractTableModel, QItemSelection, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QGroupBox,
@@ -279,11 +279,11 @@ class HighRateMonitorWidget(QWidget):
         self._model = _HighRateTableModel()
         self._table = QTableView()
         self._table.setModel(self._model)
-        self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
         self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_context_menu)
-        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_rows)
+        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_cells)
         QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
         self._table.setToolTip(
             'Players currently exceeding both PPS and BPS thresholds.\n'
@@ -419,7 +419,27 @@ class HighRateMonitorWidget(QWidget):
 
     def _scan_players(self) -> None:
         players = [player for player in PlayersRegistry.get_connected_players() if player.ip not in self._blacklisted_ips]
+
+        selection_model = self._table.selectionModel()
+        saved_selected: set[tuple[str, int]] = set()
+        if selection_model:
+            for index in selection_model.selectedIndexes():
+                player = self._model.get_visible_player(index.row())
+                if player is not None:
+                    saved_selected.add((player.ip, index.column()))
+
         self._model.update_data(players)
+
+        if selection_model and saved_selected:
+            new_selection = QItemSelection()
+            visible_players = self._model.get_all_visible()
+            for row_index, player in enumerate(visible_players):
+                for col_index in range(self._model.columnCount()):
+                    if (player.ip, col_index) in saved_selected:
+                        model_index = self._model.index(row_index, col_index)
+                        new_selection.select(model_index, model_index)
+            if not new_selection.isEmpty():
+                selection_model.select(new_selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
         for ip, graph in list(self._graph_windows.items()):
             data = self._model.get_tracked(ip)
@@ -477,11 +497,21 @@ class HighRateMonitorWidget(QWidget):
 
     # Actions ----------------------------------------------------------------
 
-    def _reset_scan(self) -> None:
-        self._model.reset_all()
-
-    def _clear_blacklist(self) -> None:
-        self._blacklisted_ips.clear()
+    def _get_selected_players(self) -> list[_PlayerRateData]:
+        """Return the list of _PlayerRateData corresponding to currently selected table items."""
+        selection_model = self._table.selectionModel()
+        if not selection_model:
+            return []
+        seen_rows: set[int] = set()
+        selected_players: list[_PlayerRateData] = []
+        for model_index in selection_model.selectedIndexes():
+            row_index = model_index.row()
+            if row_index not in seen_rows:
+                seen_rows.add(row_index)
+                player_data = self._model.get_visible_player(row_index)
+                if player_data is not None:
+                    selected_players.append(player_data)
+        return selected_players
 
     def _add_players_to_searchlist(self, players: list[_PlayerRateData]) -> None:
         """Add the given players to Searchlist.ini, prompting for username."""
@@ -497,16 +527,52 @@ class HighRateMonitorWidget(QWidget):
             if timer_was_active:
                 self._timer.start(_UPDATE_INTERVAL_MS)
 
+    def _reset_scan(self) -> None:
+        self._model.reset_all()
+
+    def _clear_blacklist(self) -> None:
+        self._blacklisted_ips.clear()
+
     # Context menu -----------------------------------------------------------
 
+    def _select_row(self, row: int) -> None:
+        selection_model = self._table.selectionModel()
+        if not selection_model or not self._model.rowCount():
+            return
+        top_left = self._model.index(row, 0)
+        bottom_right = self._model.index(row, self._model.columnCount() - 1)
+        selection = QItemSelection(top_left, bottom_right)
+        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
+
+    def _select_column(self, column: int) -> None:
+        selection_model = self._table.selectionModel()
+        if not selection_model or not self._model.rowCount():
+            return
+        top_left = self._model.index(0, column)
+        bottom_right = self._model.index(self._model.rowCount() - 1, column)
+        selection = QItemSelection(top_left, bottom_right)
+        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
+
     # pylint: disable=duplicate-code
-    def _copy_selected_rows(self) -> None:
-        """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
+    def _copy_selected_cells(self) -> None:
+        """Copy selected cells from the high-rate monitor table to the clipboard."""
         selection_model = self._table.selectionModel()
         if not selection_model:
             return
         selected_indexes = selection_model.selectedIndexes()
         if not selected_indexes:
+            return
+
+        if len(selected_indexes) == 1:
+            cell_data = selected_indexes[0].data(Qt.ItemDataRole.DisplayRole)
+            set_clipboard_text(str(cell_data) if cell_data is not None else '')
+            return
+
+        columns = {index.column() for index in selected_indexes}
+        if len(columns) == 1:
+            sorted_indexes = sorted(selected_indexes, key=lambda idx: idx.row())
+            texts = [str(idx.data(Qt.ItemDataRole.DisplayRole) or '') for idx in sorted_indexes]
+            set_clipboard_text('\n'.join(texts))
             return
 
         rows: dict[int, dict[int, str]] = {}
@@ -522,6 +588,28 @@ class HighRateMonitorWidget(QWidget):
             lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
 
         set_clipboard_text('\n'.join(lines))
+
+    def _copy_selected_rows(self) -> None:
+        """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
+        selection_model = self._table.selectionModel()
+        if not selection_model:
+            return
+        selected_row_indexes = sorted({index.row() for index in selection_model.selectedIndexes()})
+        if not selected_row_indexes:
+            return
+
+        column_count = self._model.columnCount()
+        lines: list[str] = []
+        for row_index in selected_row_indexes:
+            cells: list[str] = []
+            for column_index in range(column_count):
+                index = self._model.index(row_index, column_index)
+                cell_data = self._model.data(index, Qt.ItemDataRole.DisplayRole)
+                cells.append(str(cell_data) if cell_data is not None else '')
+            lines.append('\t'.join(cells))
+
+        if lines:
+            set_clipboard_text('\n'.join(lines))
 
     def _copy_all_rows(self) -> None:
         """Copy all rows in the high-rate monitor table to clipboard as tab-separated text."""
@@ -550,30 +638,35 @@ class HighRateMonitorWidget(QWidget):
 
         selection_model = self._table.selectionModel()
         if selection_model and not selection_model.isSelected(index):
-            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
-        selected_rows = selection_model.selectedRows() if selection_model else []
-        if not selected_rows:
-            selected_rows = [index]
-
-        selected_players: list[_PlayerRateData] = []
-        for model_index in selected_rows:
-            player_data = self._model.get_visible_player(model_index.row())
+        selected_players = self._get_selected_players()
+        if not selected_players:
+            player_data = self._model.get_visible_player(index.row())
             if player_data is not None:
                 selected_players.append(player_data)
 
         if not selected_players:
             return
 
+        selected_indexes = selection_model.selectedIndexes() if selection_model else []
+        selected_cell_count = len(selected_indexes)
+
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
+        copy_selection_label = f'Copy Selection ({selected_cell_count})' if selected_cell_count > 1 else 'Copy Selection'
+        copy_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_selection_label, self)
+        copy_selection_action.setShortcut('Ctrl+C')
+        copy_selection_action.setToolTip('Copy selected cell(s) to the clipboard.')
+        copy_selection_action.triggered.connect(self._copy_selected_cells)
+        menu.addAction(copy_selection_action)
+
         if len(selected_players) == 1:
             data = selected_players[0]
             copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
-            copy_row_action.setShortcut('Ctrl+C')
-            copy_row_action.setToolTip('Copy the selected row to the clipboard as tab-separated text.')
+            copy_row_action.setToolTip('Copy the entire row to the clipboard as tab-separated text.')
             copy_row_action.triggered.connect(self._copy_selected_rows)
             menu.addAction(copy_row_action)
 
@@ -601,7 +694,6 @@ class HighRateMonitorWidget(QWidget):
             all_usernames = [username for player_data in selected_players for username in player_data.usernames]
 
             copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_players)})', self)
-            copy_rows_action.setShortcut('Ctrl+C')
             copy_rows_action.setToolTip('Copy selected rows to the clipboard as tab-separated text.')
             copy_rows_action.triggered.connect(self._copy_selected_rows)
             menu.addAction(copy_rows_action)
@@ -629,13 +721,23 @@ class HighRateMonitorWidget(QWidget):
 
         select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
         select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all rows in the monitor.')
+        select_all_action.setToolTip('Select all cells in the monitor.')
         select_all_action.setEnabled(self._model.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
+        select_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')), 'Select Row', self)
+        select_row_action.setToolTip('Select all cells in this row.')
+        select_row_action.triggered.connect(lambda: self._select_row(index.row()))
+        menu.addAction(select_row_action)
+
+        select_col_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Select Column', self)
+        select_col_action.setToolTip('Select all cells in this column.')
+        select_col_action.triggered.connect(lambda: self._select_column(index.column()))
+        menu.addAction(select_col_action)
+
         clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
-        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.setToolTip('Deselect all currently selected cells.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
 
