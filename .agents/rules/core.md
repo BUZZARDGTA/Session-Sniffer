@@ -50,7 +50,10 @@ Do not assume how the application works when the repository can answer the quest
 
 Use the project's existing tooling and validation workflow when appropriate.
 
-Do not claim that tests, quality checks, builds, or application launches were performed unless they were actually performed.
+This repository does not have an automated test suite (e.g. pytest). Never attempt to run pytest or search for test suites.
+Validate changes using the project's configured static-analysis, linting, and type-checking tools in `.venv`.
+
+Do not claim that quality checks, builds, or application launches were performed unless they were actually performed.
 
 ## Git
 

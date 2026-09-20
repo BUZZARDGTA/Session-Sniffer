@@ -1,11 +1,17 @@
 ---
 trigger: model_decision
-description: Use when adding, modifying, debugging, reviewing, or validating code, including tests, linting, type checking, quality checks, builds, or release-sensitive validation.
+description: Use when adding, modifying, debugging, reviewing, or validating code, including static analysis, linting, type checking, quality checks, builds, or release-sensitive validation.
 ---
 
-# Testing and Quality Rules
+# Quality and Validation Rules
 
 Apply these rules when adding, modifying, debugging, reviewing, or validating code.
+
+## No Test Suite
+
+* This project has no automated test suite (no `pytest`, `unittest`, or test runner).
+* **Never run `pytest`**, `python -m pytest`, or attempt to execute tests. Pytest is not installed and does not exist in this project.
+* Validation is performed exclusively through static analysis, linting, type checking, syntax checks, or running the application.
 
 ## Validation Strategy
 
@@ -13,7 +19,6 @@ Use the smallest relevant validation first.
 
 Depending on the change, this may include:
 
-* targeted tests,
 * static analysis,
 * linting,
 * type checking,
@@ -29,32 +34,17 @@ For non-trivial changes, broaden validation when appropriate.
 
 Follow the project's existing tooling and configuration in `pyproject.toml`.
 
-The project uses strict static-analysis and linting configurations including Ruff, MyPy, Pyrefly, Pyright, ty, Flake8, Pylint, and Vulture.
+The project uses strict static-analysis and linting configurations including Ruff, MyPy, Pyrefly, Pyright, ty, Flake8, Pylint, and Vulture within the local `.venv`.
 
 Do not introduce competing validation tools.
 
 Preserve existing intentional suppression lists and disabled diagnostics unless the task explicitly requires changing them.
 
-## Tests
-
-When behavior changes, consider:
-
-* normal behavior,
-* edge cases,
-* error handling,
-* relevant concurrency behavior,
-* backward-incompatible replacements,
-* interaction with existing callers.
-
-Prefer focused tests that directly validate the changed behavior.
-
-Do not add tests that merely duplicate implementation details without providing meaningful behavioral coverage.
-
 ## Existing Behavior
 
 When fixing a bug, verify the actual failure path before changing code.
 
-Do not weaken assertions, type checking, linting, or tests simply to make a change pass.
+Do not weaken assertions, type checking, or linting simply to make a change pass.
 
 Fix the underlying problem whenever practical.
 
@@ -64,7 +54,7 @@ Only report checks that were actually performed.
 
 If a check could not be run, state that clearly rather than implying it passed.
 
-Do not claim that the application was launched, tests passed, or a build succeeded unless the corresponding operation was actually performed.
+Do not claim that the application was launched, checks passed, or a build succeeded unless the corresponding operation was actually performed.
 
 ## Dependency Changes
 
