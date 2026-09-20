@@ -335,6 +335,11 @@ class CsvLogTab(QWidget):
         column_data = self._column_combo.currentData()
         return column_data if isinstance(column_data, int) else -1
 
+    def set_search(self, text: str) -> None:
+        """Programmatically set the search text and focus the search input."""
+        self._search_input.setText(text)
+        self._search_input.setFocus()
+
     def _on_search_changed(self, text: str) -> None:
         self._proxy.setFilterFixedString(text)
         self._update_counts()

@@ -421,6 +421,14 @@ class SessionsLogTab(QWidget):
 
         self._match_label.setText(f'{len(matched_cursors)} match(es)' if matched_cursors else 'No matches')
 
+    def set_search_global(self, text: str) -> None:
+        """Programmatically activate global search mode with the given text and start the search."""
+        self._search_input.setText(text)
+        if self._global_search_active:
+            self._start_global_search(text)
+        else:
+            self._global_search_checkbox.setChecked(True)
+
     def _on_search_return_pressed(self) -> None:
         """Run global search on Enter. Activates global mode if not already active."""
         if self._global_search_active:
@@ -500,7 +508,7 @@ class SessionsLogTab(QWidget):
                 result_lines, total_matches, files_with_matches = self._build_global_search_result(text, selected_column)
             except (OSError, ValidationError) as e:
                 logger.warning('Global session search failed: %s', e)
-                result_lines = ['Global search failed unexpectedly. Please try again.']
+                result_lines = ['Search failed unexpectedly. Please try again.']
                 total_matches = 0
                 files_with_matches = 0
             self._global_search_results_queue.put((generation, result_lines, total_matches, files_with_matches))
@@ -605,7 +613,7 @@ class SessionsLogTab(QWidget):
                 self._stop_loading_animation()
                 self._match_label.setText('Search failed')
                 if not self._viewer.toPlainText():
-                    self._viewer.setPlainText('Global search did not return results. Please try again.')
+                    self._viewer.setPlainText('Search did not return results. Please try again.')
             return
 
         generation, result_lines, total_matches, files_with_matches = latest_result
@@ -617,7 +625,7 @@ class SessionsLogTab(QWidget):
         self._viewer.setPlainText('\n'.join(result_lines))
         self._match_label.setText(f'{total_matches} match(es)' if total_matches else 'No matches')
         self._file_info_label.setText(
-            f'Global search  |  {files_with_matches} file(s) matched' if total_matches else '',
+            f'Search across all files  |  {files_with_matches} file(s) matched' if total_matches else '',
         )
 
     def _build_loading_text(self) -> str:

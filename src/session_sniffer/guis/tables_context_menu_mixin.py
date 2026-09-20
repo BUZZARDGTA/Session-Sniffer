@@ -750,6 +750,34 @@ class TableContextMenuMixin(QTableView):
         selected_players = get_matched_players(selected_ips)
         selected_cell_count = len(selected_indexes)
 
+        def add_search_in_menu() -> None:
+            cell_text = selected_model.get_display_text(index)
+            if not cell_text:
+                return
+            main_window = cast('MainWindow', self.window())
+            search_menu = add_menu(context_menu, 'Search in\u2026', "Search this cell's text in logs and the UserIP database.", icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')))
+            add_action(
+                search_menu,
+                'UserIP All Databases',
+                tooltip='Open the UserIP Manager searching across all databases with this text pre-filled.',
+                handler=lambda: main_window.open_userip_manager_and_search(cell_text),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')),
+            )
+            add_action(
+                search_menu,
+                'UserIP Logging',
+                tooltip='Open the Logs Manager on the UserIP Logging tab and filter by this text.',
+                handler=lambda: main_window.open_logs_manager_and_search_userip(cell_text),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')),
+            )
+            add_action(
+                search_menu,
+                'Sessions Logging',
+                tooltip='Open the Logs Manager on the Sessions Logging tab and search across all session files for this text.',
+                handler=lambda: main_window.open_logs_manager_and_search_sessions(cell_text),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
+            )
+
         def add_shared_selected_players_actions(ip_addresses: list[str], players: list[Player]) -> None:
             add_exclude_ips_action(ip_addresses)
             add_ip_lookup_action(players)
@@ -848,5 +876,7 @@ class TableContextMenuMixin(QTableView):
             add_userip_single_menu(selected_ips[0], selected_players[0])
         elif is_multi_selection_with_ips:
             add_userip_multi_menu(selected_ips, selected_players)
+
+        add_search_in_menu()
 
         context_menu.popup(self.mapToGlobal(pos))

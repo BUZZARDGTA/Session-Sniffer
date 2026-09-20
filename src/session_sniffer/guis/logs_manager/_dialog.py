@@ -89,6 +89,7 @@ class LogsManager(QDialog):
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
         tabs.addTab(self._sessions_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Sessions Logging')
 
+        self._tabs = tabs
         root_layout.addWidget(tabs, stretch=1)
 
         # --- Bottom button row ---
@@ -114,6 +115,20 @@ class LogsManager(QDialog):
         button_row.addWidget(close_button)
 
         root_layout.addLayout(button_row)
+
+    # ------------------------------------------------------------------
+    # Programmatic search entry points
+    # ------------------------------------------------------------------
+
+    def search_in_userip_logging(self, text: str) -> None:
+        """Switch to the UserIP Logging tab and apply `text` as the search filter."""
+        self._tabs.setCurrentWidget(self._userip_tab)
+        self._userip_tab.set_search(text)
+
+    def search_in_sessions_logging(self, text: str) -> None:
+        """Switch to the Sessions Logging tab and start a global search for `text`."""
+        self._tabs.setCurrentWidget(self._sessions_tab)
+        self._sessions_tab.set_search_global(text)
 
     # ------------------------------------------------------------------
     # Clean empty sessions

@@ -398,6 +398,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.doubleClicked.connect(self.on_entry_double_clicked)
         QShortcut(QKeySequence('Ctrl+C'), self._entries_table).activated.connect(self._copy_selected_entries)
         QShortcut(QKeySequence('Ctrl+A'), self._entries_table).activated.connect(self._entries_table.selectAll)
+        QShortcut(QKeySequence('Delete'), self._entries_table).activated.connect(self._delete_selected)
 
         entries_selection = self._entries_table.selectionModel()
         if entries_selection:
@@ -682,6 +683,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             QAbstractItemView.EditTrigger.NoEditTriggers if self._global_search_active else editable,
         )
         self._rebuild_fs_watch()
+
+    def search_global(self, text: str) -> None:
+        """Programmatically activate global search mode with the given text."""
+        self._search_input.setText(text)
+        if not self._global_search_active:
+            self._global_search_checkbox.setChecked(True)
 
     # ------------------------------------------------------------------
     # Import: merge entries

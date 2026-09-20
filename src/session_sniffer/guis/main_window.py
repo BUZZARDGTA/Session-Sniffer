@@ -932,6 +932,18 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         self._userip_manager_window = window
         self._userip_manager_window.show()
 
+    def open_userip_manager_and_search(self, text: str) -> None:
+        """Open the UserIP Databases Manager, activate global search, and populate the search field with `text`."""
+        if self._userip_manager_window is None or not self._userip_manager_window.isVisible():
+            window = UserIPDatabasesManager(None)
+            window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None) if self._userip_manager_window is window else None)
+            self._userip_manager_window = window
+            self._userip_manager_window.show()
+        else:
+            self._userip_manager_window.raise_()
+            self._userip_manager_window.activateWindow()
+        self._userip_manager_window.search_global(text)
+
     def _open_logs_manager(self) -> None:
         """Open the Logs Manager window, or focus the existing one."""
         if self._logs_manager_window is not None and self._logs_manager_window.isVisible():
@@ -942,6 +954,30 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
         self._logs_manager_window = window
         self._logs_manager_window.show()
+
+    def open_logs_manager_and_search_userip(self, text: str) -> None:
+        """Open the Logs Manager on the UserIP Logging tab and filter by `text`."""
+        if self._logs_manager_window is None or not self._logs_manager_window.isVisible():
+            window = LogsManager(None)
+            window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
+            self._logs_manager_window = window
+            self._logs_manager_window.show()
+        else:
+            self._logs_manager_window.raise_()
+            self._logs_manager_window.activateWindow()
+        self._logs_manager_window.search_in_userip_logging(text)
+
+    def open_logs_manager_and_search_sessions(self, text: str) -> None:
+        """Open the Logs Manager on the Sessions Logging tab and start a global search for `text`."""
+        if self._logs_manager_window is None or not self._logs_manager_window.isVisible():
+            window = LogsManager(None)
+            window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
+            self._logs_manager_window = window
+            self._logs_manager_window.show()
+        else:
+            self._logs_manager_window.raise_()
+            self._logs_manager_window.activateWindow()
+        self._logs_manager_window.search_in_sessions_logging(text)
 
     def _open_detections_manager(self) -> None:
         """Open the Detections Manager window, or focus the existing one."""
