@@ -3,8 +3,8 @@
 from math import sqrt
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QResizeEvent
+from PySide6.QtCore import QItemSelectionModel, QPoint, Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._player_identifier_core import (
     BASELINE_CONTAMINATION_MIN_SAMPLES,
     BASELINE_CONTAMINATION_SECONDS,
@@ -47,9 +49,16 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
+    SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.utils import ElidedTextTooltipDelegate
+from session_sniffer.guis.tables_userip_mixin import ensure_searchlist_database, userip_add
+from session_sniffer.guis.utils import (
+    ElidedTextTooltipDelegate,
+    copy_table_widget_selection,
+    popup_menu_at_table_widget,
+    set_clipboard_text,
+)
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
@@ -182,7 +191,12 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_zscore_column_sizes()
         setup_table_header_context_menu(self._zscore_table, on_reset=self._reset_zscore_column_sizes)
         self._zscore_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._zscore_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._zscore_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._zscore_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self._zscore_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._zscore_table.customContextMenuRequested.connect(self._show_context_menu)
+        QShortcut(QKeySequence('Ctrl+C'), self._zscore_table).activated.connect(lambda: copy_table_widget_selection(self._zscore_table))
+        QShortcut(QKeySequence('Ctrl+A'), self._zscore_table).activated.connect(self._zscore_table.selectAll)
         self._zscore_table.setItemDelegate(ElidedTextTooltipDelegate(self._zscore_table))
         self._zscore_table.setWordWrap(False)
         self._zscore_table.setMaximumHeight(150)
@@ -920,7 +934,10 @@ class PlayerIdentifierWidget(QWidget):
 
     def _update_zscore_table(self, rows: list[tuple[str, str, int, int, float, int]]) -> None:
         """Rebuild the live z-score table. rows = [(username, ip, pps, bps, zscore, streak), ...] sorted by zscore desc."""
+        selected_ips = set(self._get_selected_ips())
         self._zscore_table.setRowCount(len(rows))
+        selection_model = self._zscore_table.selectionModel()
+        table_model = self._zscore_table.model()
         for row_index, (username, ip, pps, bps, zscore, streak) in enumerate(rows):
             username_item = QTableWidgetItem(username)
             username_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -959,6 +976,149 @@ class PlayerIdentifierWidget(QWidget):
             self._zscore_table.setItem(row_index, 3, bps_item)
             self._zscore_table.setItem(row_index, 4, zscore_item)
             self._zscore_table.setItem(row_index, 5, streak_item)
+
+            if selection_model and table_model and ip in selected_ips:
+                selection_model.select(
+                    table_model.index(row_index, 0),
+                    QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                )
+
+    # -- Context menu and table helpers ---------------------------------------
+
+    def _get_selected_ips(self) -> list[str]:
+        """Return the list of unique IP addresses from currently selected rows."""
+        selection_model = self._zscore_table.selectionModel()
+        if not selection_model:
+            return []
+        selected_row_indexes = {index.row() for index in selection_model.selectedIndexes()}
+        ips: list[str] = []
+        for row_index in sorted(selected_row_indexes):
+            ip_item = self._zscore_table.item(row_index, 1)
+            if ip_item and ip_item.text().strip():
+                ip_val = ip_item.text().strip()
+                if ip_val not in ips:
+                    ips.append(ip_val)
+        return ips
+
+    def _add_to_searchlist(self, ips: list[str], *, default_username: str = '') -> None:
+        """Add the given IPs to Searchlist.ini, prompting for username."""
+        if not ips:
+            return
+        timer_was_active = self._timer.isActive()
+        self._timer.stop()
+        try:
+            searchlist_path = ensure_searchlist_database()
+            userip_add(self, ips, searchlist_path, default_username=default_username)
+        finally:
+            if timer_was_active:
+                self._timer.start(UPDATE_INTERVAL_MS)
+
+    def _show_context_menu(self, pos: QPoint) -> None:
+        index = self._zscore_table.indexAt(pos)
+        if not index.isValid():
+            return
+
+        selection_model = self._zscore_table.selectionModel()
+        if selection_model and not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
+        selected_row_indexes = sorted({idx.row() for idx in (selection_model.selectedIndexes() if selection_model else [])})
+        if not selected_row_indexes:
+            selected_row_indexes = [index.row()]
+
+        selected_players_data: list[tuple[str, str]] = []  # (username, ip)
+        for row in selected_row_indexes:
+            ip_item = self._zscore_table.item(row, 1)
+            if not ip_item:
+                continue
+            ip = ip_item.text().strip()
+            username_item = self._zscore_table.item(row, 0)
+            username = username_item.text().strip() if username_item and username_item.text() != '—' else ''
+            if not username and (player := PlayersRegistry.get_player_by_ip(ip)) and player.usernames:
+                username = player.usernames[0]
+            selected_players_data.append((username, ip))
+
+        if not selected_players_data:
+            return
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
+
+        if len(selected_players_data) == 1:
+            username, ip = selected_players_data[0]
+
+            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
+            copy_row_action.setShortcut('Ctrl+C')
+            copy_row_action.setToolTip('Copy the selected row to the clipboard as tab-separated text.')
+            copy_row_action.triggered.connect(lambda: copy_table_widget_selection(self._zscore_table))
+            menu.addAction(copy_row_action)
+
+            copy_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
+            copy_username_action.setToolTip("Copy this player's username to the clipboard.")
+            copy_username_action.setEnabled(bool(username))
+            copy_username_action.triggered.connect(lambda: set_clipboard_text(username))
+            menu.addAction(copy_username_action)
+
+            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy IP', self)
+            copy_ip_action.setToolTip("Copy this player's IP to the clipboard.")
+            copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip))
+            menu.addAction(copy_ip_action)
+        else:
+            all_ips = [ip for _, ip in selected_players_data]
+            all_usernames = [username for username, _ in selected_players_data if username]
+
+            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_players_data)})', self)
+            copy_rows_action.setShortcut('Ctrl+C')
+            copy_rows_action.setToolTip('Copy selected rows to the clipboard as tab-separated text.')
+            copy_rows_action.triggered.connect(lambda: copy_table_widget_selection(self._zscore_table))
+            menu.addAction(copy_rows_action)
+
+            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
+            copy_usernames_action.setToolTip('Copy all selected usernames.')
+            copy_usernames_action.setEnabled(bool(all_usernames))
+            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
+            menu.addAction(copy_usernames_action)
+
+            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
+            copy_ips_action.setToolTip('Copy all selected IPs.')
+            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
+            menu.addAction(copy_ips_action)
+
+        menu.addSeparator()
+
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_action.setShortcut('Ctrl+A')
+        select_all_action.setToolTip('Select all rows in the table.')
+        select_all_action.setEnabled(self._zscore_table.rowCount() > 0)
+        select_all_action.triggered.connect(self._zscore_table.selectAll)
+        menu.addAction(select_all_action)
+
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action.triggered.connect(self._zscore_table.clearSelection)
+        menu.addAction(clear_selection_action)
+
+        menu.addSeparator()
+
+        if len(selected_players_data) == 1:
+            username, ip = selected_players_data[0]
+            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add to Searchlist', self)
+            add_searchlist_action.setToolTip("Add this player's IP to the Searchlist UserIP database.")
+            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist([ip], default_username=username))
+            menu.addAction(add_searchlist_action)
+        else:
+            all_ips = [ip for _, ip in selected_players_data]
+            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), f'Add to Searchlist ({len(selected_players_data)})', self)
+            add_searchlist_action.setToolTip('Add all selected players to the Searchlist UserIP database.')
+            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist(all_ips))
+            menu.addAction(add_searchlist_action)
+
+        popup_menu_at_table_widget(menu, self._zscore_table, pos)
+
+        timer_was_active = self._timer.isActive()
+        self._timer.stop()
+        menu.aboutToHide.connect(lambda: self._timer.start(UPDATE_INTERVAL_MS) if timer_was_active else None)
 
     # -- Parameter setters ----------------------------------------------------
 
