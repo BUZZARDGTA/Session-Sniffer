@@ -1,10 +1,11 @@
 # pylint: disable=too-many-lines
 """Utility functions for GUI-related operations."""
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QPointF, QRect, QRectF, QSize, Qt
+from PySide6.QtCore import QByteArray, QEvent, QModelIndex, QPersistentModelIndex, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -58,7 +59,7 @@ from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
     from PySide6.QtGui import QMouseEvent
 
@@ -963,6 +964,64 @@ def copy_table_widget_selection(table: QTableWidget) -> None:
         column = index.column()
         item = table.item(row, column)
         rows.setdefault(row, {})[column] = item.text() if item else ''
+
+    lines: list[str] = []
+    for row in sorted(rows):
+        column_map = rows[row]
+        lines.append('\t'.join(column_map[column] for column in sorted(column_map)))
+
+    set_clipboard_text('\n'.join(lines))
+
+
+@contextmanager
+def paused_timer(timer: QTimer, interval_ms: int | None = None) -> Generator[None]:
+    """Temporarily pause a running QTimer and resume it on exit."""
+    was_active = timer.isActive()
+    if was_active:
+        timer.stop()
+    try:
+        yield
+    finally:
+        if was_active:
+            if interval_ms is not None:
+                timer.start(interval_ms)
+            else:
+                timer.start()
+
+
+def copy_table_cells(table: QAbstractItemView) -> None:
+    """Copy selected cells from *table* to the clipboard.
+
+    - Single cell: plain text.
+    - Single column: newline-separated values.
+    - Single row: tab-separated values.
+    - Multiple rows and columns: tab-separated rows with newline breaks.
+    """
+    selection_model = table.selectionModel()
+    if not selection_model:
+        return
+    selected_indexes = selection_model.selectedIndexes()
+    if not selected_indexes:
+        return
+
+    if len(selected_indexes) == 1:
+        cell_data = selected_indexes[0].data(Qt.ItemDataRole.DisplayRole)
+        set_clipboard_text(str(cell_data) if cell_data is not None else '')
+        return
+
+    columns = {index.column() for index in selected_indexes}
+    if len(columns) == 1:
+        sorted_indexes = sorted(selected_indexes, key=lambda item_index: item_index.row())
+        texts = [str(item_index.data(Qt.ItemDataRole.DisplayRole) or '') for item_index in sorted_indexes]
+        set_clipboard_text('\n'.join(texts))
+        return
+
+    rows: dict[int, dict[int, str]] = {}
+    for index in selected_indexes:
+        row = index.row()
+        column = index.column()
+        cell_data = index.data(Qt.ItemDataRole.DisplayRole)
+        rows.setdefault(row, {})[column] = str(cell_data) if cell_data is not None else ''
 
     lines: list[str] = []
     for row in sorted(rows):

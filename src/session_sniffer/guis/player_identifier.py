@@ -4,59 +4,48 @@ from math import sqrt
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QResizeEvent, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
-    QDoubleSpinBox,
-    QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis._player_identifier_context_menu import show_player_identifier_context_menu
 from session_sniffer.guis._player_identifier_core import (
-    BASELINE_CONTAMINATION_MIN_SAMPLES,
-    BASELINE_CONTAMINATION_SECONDS,
-    BASELINE_CONTAMINATION_ZSCORE,
-    BASELINE_MAX_SECONDS,
-    BASELINE_MIN_SAMPLES,
     BUTTON_WIDTH,
     CONVERGENCE_GREEN,
     CONVERGENCE_RECENT_WINDOW,
     CONVERGENCE_YELLOW,
     MIN_CONNECTED_PLAYERS,
-    SESSION_DRIFT_ZSCORE_THRESHOLD,
-    SPIKE_MIN_ZSCORE,
-    SPIKE_SUSTAINED_SECONDS,
     UPDATE_INTERVAL_MS,
     ZSCORE_ELEVATED,
     IPBaseline,
     Phase,
     ResolvedIP,
+    compute_aggregate_zscore,
     zscore_to_confidence,
 )
+from session_sniffer.guis._player_identifier_params import PlayerIdentifierParamsWidget
 from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
-    SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_userip_mixin import ensure_searchlist_database, userip_add
 from session_sniffer.guis.utils import (
     ElidedTextTooltipDelegate,
-    popup_menu_at_table_widget,
-    set_clipboard_text,
+    copy_table_cells,
+    copy_table_widget_selection,
+    paused_timer,
 )
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -84,15 +73,7 @@ class PlayerIdentifierWidget(QWidget):
         self._contamination_streak: dict[str, int] = {}
         self._resolved_ips: list[ResolvedIP] = []
 
-        # Tweakable detection parameters (adjusted via the control panel)
-        self._spike_min_zscore: float = SPIKE_MIN_ZSCORE
-        self._spike_sustained_seconds: int = SPIKE_SUSTAINED_SECONDS
-        self._contamination_zscore: float = BASELINE_CONTAMINATION_ZSCORE
-        self._contamination_seconds: int = BASELINE_CONTAMINATION_SECONDS
-        self._contamination_min_samples: int = BASELINE_CONTAMINATION_MIN_SAMPLES
-        self._baseline_min_samples: int = BASELINE_MIN_SAMPLES
-        self._baseline_max_seconds: int = BASELINE_MAX_SECONDS
-        self._session_drift_threshold: float = SESSION_DRIFT_ZSCORE_THRESHOLD
+        self._params_box = PlayerIdentifierParamsWidget(self)
 
         # Widget update caches — skip redundant repaints when values haven't changed
         self._prev_stability_pct: int | None = None
@@ -252,125 +233,6 @@ class PlayerIdentifierWidget(QWidget):
 
         layout.addLayout(button_layout)
         layout.addStretch()
-
-        # Parameters control panel
-        self._params_box = QGroupBox('Parameters')
-        params_layout = QHBoxLayout(self._params_box)
-
-        left_form = QFormLayout()
-        left_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-
-        center_form = QFormLayout()
-        center_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-
-        right_form = QFormLayout()
-        right_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-
-        params_layout.addLayout(left_form)
-        params_layout.addLayout(center_form)
-        params_layout.addLayout(right_form)
-
-        self._spike_zscore_input = QDoubleSpinBox()
-        self._spike_zscore_input.setRange(1.0, 20.0)
-        self._spike_zscore_input.setSingleStep(0.5)
-        self._spike_zscore_input.setDecimals(1)
-        self._spike_zscore_input.setValue(self._spike_min_zscore)
-        self._spike_zscore_input.setToolTip(
-            'Minimum z-score for an IP to be considered spiking during the Resolve phase.\n\n'
-            'Higher = only very dramatic traffic increases trigger detection.\n'
-            'Lower = more sensitive but may produce false positives.',
-        )
-        self._spike_zscore_input.valueChanged.connect(self._set_spike_min_zscore)
-        left_form.addRow('Spike Z-Score:', self._spike_zscore_input)
-
-        self._spike_seconds_input = QSpinBox()
-        self._spike_seconds_input.setRange(1, 30)
-        self._spike_seconds_input.setValue(self._spike_sustained_seconds)
-        self._spike_seconds_input.setSuffix('s')
-        self._spike_seconds_input.setToolTip(
-            'Consecutive seconds an IP must stay above the spike z-score to be confirmed as the target.\n\n'
-            'Higher = fewer false positives but takes longer to confirm.\n'
-            'Lower = faster confirmation but may match brief coincidental traffic bursts.',
-        )
-        self._spike_seconds_input.valueChanged.connect(self._set_spike_sustained_seconds)
-        center_form.addRow('Spike Duration:', self._spike_seconds_input)
-
-        self._contam_zscore_input = QDoubleSpinBox()
-        self._contam_zscore_input.setRange(3.0, 50.0)
-        self._contam_zscore_input.setSingleStep(0.5)
-        self._contam_zscore_input.setDecimals(1)
-        self._contam_zscore_input.setValue(self._contamination_zscore)
-        self._contam_zscore_input.setToolTip(
-            'Z-score threshold for detecting baseline contamination (active during baseline and ready phases).\n\n'
-            'If an IP sustains this z-score for the contamination duration, the baseline is aborted.\n'
-            'Higher = less likely to abort on normal traffic variation.\n'
-            'Lower = more aggressively detects movement or spectating.',
-        )
-        self._contam_zscore_input.valueChanged.connect(self._set_contamination_zscore)
-        right_form.addRow('Contamination Z-Score:', self._contam_zscore_input)
-
-        self._contamination_seconds_input = QSpinBox()
-        self._contamination_seconds_input.setRange(1, 30)
-        self._contamination_seconds_input.setValue(self._contamination_seconds)
-        self._contamination_seconds_input.setSuffix('s')
-        self._contamination_seconds_input.setToolTip(
-            'Consecutive seconds an IP must stay above the contamination z-score to trigger a baseline abort.\n\n'
-            'Higher = more tolerant of brief traffic bursts (fewer false aborts).\n'
-            'Lower = aborts sooner if any IP stays elevated.',
-        )
-        self._contamination_seconds_input.valueChanged.connect(self._set_contamination_seconds)
-        left_form.addRow('Contamination Duration:', self._contamination_seconds_input)
-
-        self._contam_min_samples_input = QSpinBox()
-        self._contam_min_samples_input.setRange(5, 60)
-        self._contam_min_samples_input.setValue(self._contamination_min_samples)
-        self._contam_min_samples_input.setSuffix('s')
-        self._contam_min_samples_input.setToolTip(
-            'Minimum samples collected before contamination checking activates.\n\n'
-            'Prevents false aborts right at the start when the baseline has very little data.\n'
-            'Lower = contamination detection activates sooner.',
-        )
-        self._contam_min_samples_input.valueChanged.connect(self._set_contamination_min_samples)
-        center_form.addRow('Contamination Grace Period:', self._contam_min_samples_input)
-
-        self._min_samples_input = QSpinBox()
-        self._min_samples_input.setRange(5, 120)
-        self._min_samples_input.setValue(self._baseline_min_samples)
-        self._min_samples_input.setSuffix('s')
-        self._min_samples_input.setToolTip(
-            'Minimum number of 1-second samples required before the baseline can auto-lock on convergence.\n\n'
-            'More samples = more statistically accurate baseline.\n'
-            'Fewer = faster lock but potentially less reliable detection.',
-        )
-        self._min_samples_input.valueChanged.connect(self._set_baseline_min_samples)
-        right_form.addRow('Min Baseline Samples:', self._min_samples_input)
-
-        self._max_seconds_input = QSpinBox()
-        self._max_seconds_input.setRange(10, 300)
-        self._max_seconds_input.setValue(self._baseline_max_seconds)
-        self._max_seconds_input.setSuffix('s')
-        self._max_seconds_input.setToolTip(
-            'Hard time limit for the baseline phase.\n\n'
-            'If traffic has not converged within this many seconds, the baseline locks anyway.\n'
-            'Increase for very variable or noisy network conditions.',
-        )
-        self._max_seconds_input.valueChanged.connect(self._set_baseline_max_seconds)
-        left_form.addRow('Baseline Timeout:', self._max_seconds_input)
-
-        self._drift_threshold_input = QDoubleSpinBox()
-        self._drift_threshold_input.setRange(1.0, 30.0)
-        self._drift_threshold_input.setSingleStep(0.5)
-        self._drift_threshold_input.setDecimals(1)
-        self._drift_threshold_input.setValue(self._session_drift_threshold)
-        self._drift_threshold_input.setToolTip(
-            'Aggregate z-score threshold for detecting session-wide traffic drift.\n\n'
-            'If the median z-score across all tracked IPs exceeds this magnitude, '
-            'the tool assumes the session has changed and aborts.\n'
-            'Higher = more tolerant of session-wide traffic shifts.',
-        )
-        self._drift_threshold_input.valueChanged.connect(self._set_session_drift_threshold)
-        center_form.addRow('Session Drift Z-Score:', self._drift_threshold_input)
-
         layout.addWidget(self._params_box)
 
         # Timer
@@ -592,30 +454,6 @@ class PlayerIdentifierWidget(QWidget):
 
     # -- Periodic tick --------------------------------------------------------
 
-    def _compute_aggregate_zscore(self, players: list[Player]) -> float | None:
-        """Return the median spike z-score across all baselined IPs, or None if fewer than 2 IPs are available.
-
-        Uses median instead of mean so that a single high-z outlier (the target player being watched)
-        does not falsely trigger the aggregate-drift abort. Only session-wide events where the majority
-        of IPs shift together (e.g. mass disconnect, session ended) will push the median above the threshold.
-
-        Uses the finalized baseline (must only be called after BASELINE phase ends).
-        A positive value means overall traffic is higher than baseline; negative means lower.
-        """
-        scores: list[float] = []
-        for player in players:
-            bl = self._baselines.get(player.ip)
-            if bl is None:
-                continue
-            scores.append(bl.spike_score(player.packets.pps.calculated_rate, player.bandwidth.bps.calculated_rate))
-        if len(scores) < MIN_CONNECTED_PLAYERS:
-            return None
-        scores.sort()
-        mid = len(scores) // 2
-        if not len(scores) % 2:
-            return (scores[mid - 1] + scores[mid]) / 2.0
-        return scores[mid]
-
     def _tick(self) -> None:
         players = PlayersRegistry.get_connected_players()
         if self._phase == Phase.BASELINE:
@@ -753,7 +591,7 @@ class PlayerIdentifierWidget(QWidget):
 
     def _tick_ready(self, players: list[Player]) -> None:
         """Monitor while the baseline is locked and the user hasn't clicked Resolve yet."""
-        aggregate_z = self._compute_aggregate_zscore(players)
+        aggregate_z = compute_aggregate_zscore(self._baselines, players)
         if aggregate_z is not None and abs(aggregate_z) >= self._session_drift_threshold:
             self._abort_session_changed()
             return
@@ -825,7 +663,7 @@ class PlayerIdentifierWidget(QWidget):
         # --- 2. Aggregate baseline-drift check (drop only) ---
         # Only abort when traffic drops significantly below baseline (session ended / disconnected).
         # A positive spike is expected — the user is near players and that raises all traffic.
-        aggregate_z = self._compute_aggregate_zscore(players)
+        aggregate_z = compute_aggregate_zscore(self._baselines, players)
         if aggregate_z is not None and aggregate_z <= -self._session_drift_threshold:
             self._abort_session_changed()
             return
@@ -997,260 +835,55 @@ class PlayerIdentifierWidget(QWidget):
 
     # -- Context menu and table helpers ---------------------------------------
 
-    def _select_row(self, row: int) -> None:
-        selection_model = self._zscore_table.selectionModel()
-        table_model = self._zscore_table.model()
-        if not selection_model or not table_model or not self._zscore_table.rowCount():
-            return
-        top_left = table_model.index(row, 0)
-        bottom_right = table_model.index(row, self._zscore_table.columnCount() - 1)
-        selection = QItemSelection(top_left, bottom_right)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
-
-    def _select_column(self, column: int) -> None:
-        selection_model = self._zscore_table.selectionModel()
-        table_model = self._zscore_table.model()
-        if not selection_model or not table_model or not self._zscore_table.rowCount():
-            return
-        top_left = table_model.index(0, column)
-        bottom_right = table_model.index(self._zscore_table.rowCount() - 1, column)
-        selection = QItemSelection(top_left, bottom_right)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
+    # -- Context menu and table helpers ---------------------------------------
 
     def _copy_selected_cells(self) -> None:
         """Copy selected cells from the z-score table to the clipboard."""
-        selection_model = self._zscore_table.selectionModel()
-        if not selection_model:
-            return
-        selected_indexes = selection_model.selectedIndexes()
-        if not selected_indexes:
-            return
-
-        if len(selected_indexes) == 1:
-            cell_data = selected_indexes[0].data(Qt.ItemDataRole.DisplayRole)
-            set_clipboard_text(str(cell_data) if cell_data is not None else '')
-            return
-
-        columns = {index.column() for index in selected_indexes}
-        if len(columns) == 1:
-            sorted_indexes = sorted(selected_indexes, key=lambda idx: idx.row())
-            texts = [str(idx.data(Qt.ItemDataRole.DisplayRole) or '') for idx in sorted_indexes]
-            set_clipboard_text('\n'.join(texts))
-            return
-
-        rows: dict[int, dict[int, str]] = {}
-        for model_index in selected_indexes:
-            row_index = model_index.row()
-            column_index = model_index.column()
-            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
-            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
-
-        lines: list[str] = []
-        for row_index in sorted(rows):
-            row_cols = rows[row_index]
-            min_col = min(row_cols)
-            max_col = max(row_cols)
-            lines.append('\t'.join(row_cols.get(c, '') for c in range(min_col, max_col + 1)))
-
-        set_clipboard_text('\n'.join(lines))
+        copy_table_cells(self._zscore_table)
 
     def _copy_selected_rows(self) -> None:
-        """Copy selected rows from the z-score table to clipboard as tab-separated text."""
-        selection_model = self._zscore_table.selectionModel()
-        if not selection_model:
+        """Copy selected rows from the z-score table to the clipboard as TSV."""
+        copy_table_widget_selection(self._zscore_table)
+
+    def _add_to_searchlist(self, ip_addresses: list[str], *, default_username: str = '', usernames: list[str] | None = None) -> None:
+        """Add the given IP addresses to Searchlist.ini, prompting for username."""
+        if not ip_addresses:
             return
-        selected_row_indexes = sorted({index.row() for index in selection_model.selectedIndexes()})
-        if not selected_row_indexes:
-            return
-
-        column_count = self._zscore_table.columnCount()
-        lines: list[str] = []
-        for row_index in selected_row_indexes:
-            cells: list[str] = []
-            for column_index in range(column_count):
-                item = self._zscore_table.item(row_index, column_index)
-                cells.append(item.text() if item else '')
-            lines.append('\t'.join(cells))
-
-        if lines:
-            set_clipboard_text('\n'.join(lines))
-
-    def _get_selected_ips(self) -> list[str]:
-        """Return the list of unique IP addresses from currently selected rows."""
-        selection_model = self._zscore_table.selectionModel()
-        if not selection_model:
-            return []
-        selected_row_indexes = {index.row() for index in selection_model.selectedIndexes()}
-        ips: list[str] = []
-        for row_index in sorted(selected_row_indexes):
-            ip_item = self._zscore_table.item(row_index, 1)
-            if ip_item and ip_item.text().strip():
-                ip_val = ip_item.text().strip()
-                if ip_val not in ips:
-                    ips.append(ip_val)
-        return ips
-
-    def _add_to_searchlist(self, ips: list[str], *, default_username: str = '', usernames: list[str] | None = None) -> None:
-        """Add the given IPs to Searchlist.ini, prompting for username."""
-        if not ips:
-            return
-        timer_was_active = self._timer.isActive()
-        self._timer.stop()
-        try:
+        with paused_timer(self._timer, UPDATE_INTERVAL_MS):
             searchlist_path = ensure_searchlist_database()
-            userip_add(self, ips, searchlist_path, default_username=default_username, usernames=usernames)
-        finally:
-            if timer_was_active:
-                self._timer.start(UPDATE_INTERVAL_MS)
+            userip_add(self, ip_addresses, searchlist_path, default_username=default_username, usernames=usernames)
 
     def _show_context_menu(self, pos: QPoint) -> None:
-        index = self._zscore_table.indexAt(pos)
-        if not index.isValid():
-            return
+        show_player_identifier_context_menu(self, self._zscore_table, pos, self._timer, self._add_to_searchlist)
 
-        selection_model = self._zscore_table.selectionModel()
-        if selection_model and not selection_model.isSelected(index):
-            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    @property
+    def _spike_min_zscore(self) -> float:
+        return self._params_box.spike_min_zscore
 
-        selected_row_indexes = sorted({idx.row() for idx in (selection_model.selectedIndexes() if selection_model else [])})
-        if not selected_row_indexes:
-            selected_row_indexes = [index.row()]
+    @property
+    def _spike_sustained_seconds(self) -> int:
+        return self._params_box.spike_sustained_seconds
 
-        selected_players_data: list[tuple[str, str]] = []  # (username, ip)
-        for row in selected_row_indexes:
-            ip_item = self._zscore_table.item(row, 1)
-            if not ip_item:
-                continue
-            ip = ip_item.text().strip()
-            username_item = self._zscore_table.item(row, 0)
-            username = username_item.text().strip() if username_item and username_item.text() != '—' else ''
-            if not username and (player := PlayersRegistry.get_player_by_ip(ip)) and player.usernames:
-                username = player.usernames[0]
-            selected_players_data.append((username, ip))
+    @property
+    def _contamination_zscore(self) -> float:
+        return self._params_box.contamination_zscore
 
-        if not selected_players_data:
-            return
+    @property
+    def _contamination_seconds(self) -> int:
+        return self._params_box.contamination_seconds
 
-        selected_indexes = selection_model.selectedIndexes() if selection_model else []
-        selected_cell_count = len(selected_indexes)
+    @property
+    def _contamination_min_samples(self) -> int:
+        return self._params_box.contamination_min_samples
 
-        menu = QMenu(self)
-        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        menu.setToolTipsVisible(True)
+    @property
+    def _baseline_min_samples(self) -> int:
+        return self._params_box.baseline_min_samples
 
-        copy_selection_label = f'Copy Selection ({selected_cell_count})' if selected_cell_count > 1 else 'Copy Selection'
-        copy_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_selection_label, self)
-        copy_selection_action.setShortcut('Ctrl+C')
-        copy_selection_action.setToolTip('Copy selected cell(s) to the clipboard.')
-        copy_selection_action.triggered.connect(self._copy_selected_cells)
-        menu.addAction(copy_selection_action)
+    @property
+    def _baseline_max_seconds(self) -> int:
+        return self._params_box.baseline_max_seconds
 
-        if len(selected_players_data) == 1:
-            username, ip = selected_players_data[0]
-
-            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
-            copy_row_action.setToolTip('Copy the entire row to the clipboard as tab-separated text.')
-            copy_row_action.triggered.connect(self._copy_selected_rows)
-            menu.addAction(copy_row_action)
-
-            copy_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Username', self)
-            copy_username_action.setToolTip("Copy this player's username to the clipboard.")
-            copy_username_action.setEnabled(bool(username))
-            copy_username_action.triggered.connect(lambda: set_clipboard_text(username))
-            menu.addAction(copy_username_action)
-
-            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IP ({ip})', self)
-            copy_ip_action.setToolTip("Copy this player's IP to the clipboard.")
-            copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip))
-            menu.addAction(copy_ip_action)
-        else:
-            all_ips = [ip for _, ip in selected_players_data]
-            all_usernames = [username for username, _ in selected_players_data if username]
-
-            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_players_data)})', self)
-            copy_rows_action.setToolTip('Copy selected rows to the clipboard as tab-separated text.')
-            copy_rows_action.triggered.connect(self._copy_selected_rows)
-            menu.addAction(copy_rows_action)
-
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
-            copy_usernames_action.setToolTip('Copy all selected usernames.')
-            copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
-            menu.addAction(copy_usernames_action)
-
-            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
-            copy_ips_action.setToolTip('Copy all selected IPs.')
-            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
-            menu.addAction(copy_ips_action)
-
-        menu.addSeparator()
-
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
-        select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all cells in the table.')
-        select_all_action.setEnabled(self._zscore_table.rowCount() > 0)
-        select_all_action.triggered.connect(self._zscore_table.selectAll)
-        menu.addAction(select_all_action)
-
-        select_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')), 'Select Row', self)
-        select_row_action.setToolTip('Select all cells in this row.')
-        select_row_action.triggered.connect(lambda: self._select_row(index.row()))
-        menu.addAction(select_row_action)
-
-        select_col_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Select Column', self)
-        select_col_action.setToolTip('Select all cells in this column.')
-        select_col_action.triggered.connect(lambda: self._select_column(index.column()))
-        menu.addAction(select_col_action)
-
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
-        clear_selection_action.setToolTip('Deselect all currently selected cells.')
-        clear_selection_action.triggered.connect(self._zscore_table.clearSelection)
-        menu.addAction(clear_selection_action)
-
-        menu.addSeparator()
-
-        if len(selected_players_data) == 1:
-            username, ip = selected_players_data[0]
-            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add to Searchlist', self)
-            add_searchlist_action.setToolTip("Add this player's IP to the Searchlist UserIP database.")
-            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist([ip], default_username=username))
-            menu.addAction(add_searchlist_action)
-        else:
-            all_ips = [ip for _, ip in selected_players_data]
-            all_usernames = [username for username, _ in selected_players_data if username]
-            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), f'Add to Searchlist ({len(selected_players_data)})', self)
-            add_searchlist_action.setToolTip('Add all selected players to the Searchlist UserIP database.')
-            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist(all_ips, usernames=all_usernames or None))
-            menu.addAction(add_searchlist_action)
-
-        popup_menu_at_table_widget(menu, self._zscore_table, pos)
-
-        timer_was_active = self._timer.isActive()
-        self._timer.stop()
-        menu.aboutToHide.connect(lambda: self._timer.start(UPDATE_INTERVAL_MS) if timer_was_active else None)
-
-    # -- Parameter setters ----------------------------------------------------
-
-    def _set_spike_min_zscore(self, value: float) -> None:
-        self._spike_min_zscore = value
-
-    def _set_spike_sustained_seconds(self, value: int) -> None:
-        self._spike_sustained_seconds = value
-
-    def _set_contamination_zscore(self, value: float) -> None:
-        self._contamination_zscore = value
-
-    def _set_contamination_seconds(self, value: int) -> None:
-        self._contamination_seconds = value
-
-    def _set_contamination_min_samples(self, value: int) -> None:
-        self._contamination_min_samples = value
-
-    def _set_baseline_min_samples(self, value: int) -> None:
-        self._baseline_min_samples = value
-
-    def _set_baseline_max_seconds(self, value: int) -> None:
-        self._baseline_max_seconds = value
-
-    def _set_session_drift_threshold(self, value: float) -> None:
-        self._session_drift_threshold = value
+    @property
+    def _session_drift_threshold(self) -> float:
+        return self._params_box.session_drift_threshold

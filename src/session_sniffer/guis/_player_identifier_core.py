@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import islice
 from math import sqrt
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from session_sniffer.models.player import Player
 
 UPDATE_INTERVAL_MS = 1_000
 CONVERGENCE_RECENT_WINDOW = 10
@@ -150,3 +154,28 @@ def zscore_to_confidence(zscore: float) -> float:
     """Map a z-score to a 0-100 confidence percentage using a sigmoid-like curve."""
     # z=6 -> ~50%, z=10 -> ~70%, z=20 -> ~87%
     return min(100.0 * (1.0 - 1.0 / (1.0 + zscore / 6.0)), 99.0)
+
+
+def compute_aggregate_zscore(baselines: dict[str, IPBaseline], players: list[Player]) -> float | None:
+    """Return the median spike z-score across all baselined IPs, or None if fewer than 2 IPs are available.
+
+    Uses median instead of mean so that a single high-z outlier (the target player being watched)
+    does not falsely trigger the aggregate-drift abort. Only session-wide events where the majority
+    of IPs shift together (e.g. mass disconnect, session ended) will push the median above the threshold.
+
+    Uses the finalized baseline (must only be called after BASELINE phase ends).
+    A positive value means overall traffic is higher than baseline; negative means lower.
+    """
+    scores: list[float] = []
+    for player in players:
+        baseline = baselines.get(player.ip)
+        if baseline is None:
+            continue
+        scores.append(baseline.spike_score(player.packets.pps.calculated_rate, player.bandwidth.bps.calculated_rate))
+    if len(scores) < MIN_CONNECTED_PLAYERS:
+        return None
+    scores.sort()
+    mid = len(scores) // 2
+    if not len(scores) % 2:
+        return (scores[mid - 1] + scores[mid]) / 2.0
+    return scores[mid]

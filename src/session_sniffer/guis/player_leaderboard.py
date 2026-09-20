@@ -65,6 +65,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
 from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
 from session_sniffer.guis.utils import (
     HEADER_SORT_PADDING,
@@ -1329,18 +1330,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             copy_all_action.triggered.connect(self._copy_all_rows)
             menu.addAction(copy_all_action)
 
-            menu.addSeparator()
-
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
-            copy_usernames_action.setToolTip('Copy all usernames for the selected players.')
-            copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
-            menu.addAction(copy_usernames_action)
-
-            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
-            copy_ips_action.setToolTip('Copy all IP addresses for the selected players.')
-            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
-            menu.addAction(copy_ips_action)
+            add_copy_usernames_and_ips_actions(menu, self, all_usernames, all_ips)
 
         menu.addSeparator()
 

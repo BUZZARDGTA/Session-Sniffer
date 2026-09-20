@@ -24,8 +24,15 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
 from session_sniffer.guis.tables_userip_mixin import ensure_searchlist_database, userip_add
-from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, setup_table_view_headers
+from session_sniffer.guis.utils import (
+    copy_table_cells,
+    paused_timer,
+    popup_menu_at_table,
+    set_clipboard_text,
+    setup_table_view_headers,
+)
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
@@ -518,15 +525,10 @@ class HighRateMonitorWidget(QWidget):
         """Add the given players to Searchlist.ini, prompting for username."""
         if not players:
             return
-        timer_was_active = self._timer.isActive()
-        self._timer.stop()
-        try:
+        with paused_timer(self._timer, _UPDATE_INTERVAL_MS):
             searchlist_path = ensure_searchlist_database()
             all_usernames = dedup_preserve_order(*(player.usernames for player in players))
             userip_add(self, [player.ip for player in players], searchlist_path, usernames=all_usernames)
-        finally:
-            if timer_was_active:
-                self._timer.start(_UPDATE_INTERVAL_MS)
 
     def _reset_scan(self) -> None:
         self._model.reset_all()
@@ -554,42 +556,11 @@ class HighRateMonitorWidget(QWidget):
         selection = QItemSelection(top_left, bottom_right)
         selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
 
-    # pylint: disable=duplicate-code
     def _copy_selected_cells(self) -> None:
         """Copy selected cells from the high-rate monitor table to the clipboard."""
-        selection_model = self._table.selectionModel()
-        if not selection_model:
-            return
-        selected_indexes = selection_model.selectedIndexes()
-        if not selected_indexes:
-            return
+        copy_table_cells(self._table)
 
-        if len(selected_indexes) == 1:
-            cell_data = selected_indexes[0].data(Qt.ItemDataRole.DisplayRole)
-            set_clipboard_text(str(cell_data) if cell_data is not None else '')
-            return
-
-        columns = {index.column() for index in selected_indexes}
-        if len(columns) == 1:
-            sorted_indexes = sorted(selected_indexes, key=lambda idx: idx.row())
-            texts = [str(idx.data(Qt.ItemDataRole.DisplayRole) or '') for idx in sorted_indexes]
-            set_clipboard_text('\n'.join(texts))
-            return
-
-        rows: dict[int, dict[int, str]] = {}
-        for model_index in selected_indexes:
-            row_index = model_index.row()
-            column_index = model_index.column()
-            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
-            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
-
-        lines: list[str] = []
-        for row_index in sorted(rows):
-            column_map = rows[row_index]
-            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
-
-        set_clipboard_text('\n'.join(lines))
-
+    # pylint: disable=duplicate-code
     def _copy_selected_rows(self) -> None:
         """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
         selection_model = self._table.selectionModel()
@@ -705,18 +676,7 @@ class HighRateMonitorWidget(QWidget):
             copy_all_action.triggered.connect(self._copy_all_rows)
             menu.addAction(copy_all_action)
 
-            menu.addSeparator()
-
-            copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(all_ips)})', self)
-            copy_ips_action.setToolTip('Copy all selected IP addresses.')
-            copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips)))
-            menu.addAction(copy_ips_action)
-
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(all_usernames)})', self)
-            copy_usernames_action.setToolTip('Copy all selected usernames.')
-            copy_usernames_action.setEnabled(bool(all_usernames))
-            copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
-            menu.addAction(copy_usernames_action)
+            add_copy_usernames_and_ips_actions(menu, self, all_usernames, all_ips)
 
         menu.addSeparator()
 

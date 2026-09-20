@@ -16,12 +16,38 @@ from session_sniffer.guis.tables_player_actions import (
     tcp_port_ping,
     tcp_port_ping_multi,
 )
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, copy_table_widget_selection, popup_menu_at_table_widget
+from session_sniffer.guis.utils import (
+    ToggleAlwaysOnTopMixin,
+    copy_table_widget_selection,
+    popup_menu_at_table_widget,
+    set_clipboard_text,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from PySide6.QtCore import QPoint
+
+
+def add_copy_usernames_and_ips_actions(
+    menu: QMenu,
+    parent: QWidget,
+    usernames: list[str],
+    ip_addresses: list[str],
+) -> None:
+    """Add 'Copy Usernames' and 'Copy IPs' actions to *menu* if usernames or IP addresses are present."""
+    if usernames:
+        copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(usernames)})', parent)
+        copy_usernames_action.setToolTip('Copy all selected usernames.')
+        copy_usernames_action.setEnabled(bool(usernames))
+        copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(usernames)))
+        menu.addAction(copy_usernames_action)
+
+    if ip_addresses:
+        copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(ip_addresses)})', parent)
+        copy_ips_action.setToolTip('Copy all selected IP addresses.')
+        copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(ip_addresses)))
+        menu.addAction(copy_ips_action)
 
 
 def extract_ip_addresses_from_table_selection(table: QTableWidget) -> list[str]:
