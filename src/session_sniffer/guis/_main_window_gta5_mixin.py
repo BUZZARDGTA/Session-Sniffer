@@ -207,7 +207,7 @@ class GTA5Mixin(QMainWindow):
             self._gta5_solo_menu_action.setEnabled(False)
         elif self._gta5_solo_active:
             self._gta5_process_submenu.setTitle('GTA5 Process (Going Solo...)')
-            self._gta5_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')))
+            self._gta5_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')))
             self._gta5_suspend_resume_action.setText('Suspend Process')
             self._gta5_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
             self._gta5_suspend_resume_action.setEnabled(False)

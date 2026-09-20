@@ -257,7 +257,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         gta5_process_submenu.menuAction().setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
         self._gta5_process_submenu = gta5_process_submenu
 
-        gta5_menu_solo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')), 'Solo Public Session (~8s)', self)
+        gta5_menu_solo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), 'Solo Public Session (~8s)', self)
         gta5_menu_solo_action.setToolTip(GTA5_SOLO_TOOLTIP)
         gta5_menu_solo_action.triggered.connect(self.gta5_solo_session)
         gta5_process_submenu.addAction(gta5_menu_solo_action)

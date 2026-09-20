@@ -131,7 +131,7 @@ class RDR2Mixin(QMainWindow):
         rdr2_process_submenu.menuAction().setToolTip('RDR2 process controls — suspend/resume for solo and public session manipulation')
         self._rdr2_process_submenu = rdr2_process_submenu
 
-        rdr2_solo_menu_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')), 'Solo Public Session (~8s)', self)
+        rdr2_solo_menu_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), 'Solo Public Session (~8s)', self)
         rdr2_solo_menu_action.setToolTip(RDR2_SOLO_TOOLTIP)
         rdr2_solo_menu_action.triggered.connect(self.rdr2_solo_session)
         rdr2_process_submenu.addAction(rdr2_solo_menu_action)
@@ -275,7 +275,7 @@ class RDR2Mixin(QMainWindow):
             self._rdr2_solo_menu_action.setEnabled(False)
         elif self._rdr2_solo_active:
             self._rdr2_process_submenu.setTitle('RDR2 Process (Going Solo...)')
-            self._rdr2_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')))
+            self._rdr2_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')))
             self._rdr2_suspend_resume_action.setText('Suspend Process')
             self._rdr2_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
             self._rdr2_suspend_resume_action.setEnabled(False)
