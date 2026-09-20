@@ -42,7 +42,6 @@ dev = [
     "pyrefly",
     "pyright",
     "ruff",
-    "safety",
     "ty",
     "types-requests==2.33.0.20260906",
     "vulture",
