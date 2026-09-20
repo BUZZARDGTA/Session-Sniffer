@@ -24,6 +24,7 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.tables_userip_mixin import ensure_searchlist_database, userip_add
 from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, setup_table_view_headers
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -482,6 +483,20 @@ class HighRateMonitorWidget(QWidget):
     def _clear_blacklist(self) -> None:
         self._blacklisted_ips.clear()
 
+    def _add_players_to_searchlist(self, players: list[_PlayerRateData]) -> None:
+        """Add the given players to Searchlist.ini, prompting for username."""
+        if not players:
+            return
+        timer_was_active = self._timer.isActive()
+        self._timer.stop()
+        try:
+            searchlist_path = ensure_searchlist_database()
+            default_username = players[0].usernames[0] if len(players) == 1 and players[0].usernames else ''
+            userip_add(self, [player.ip for player in players], searchlist_path, default_username=default_username)
+        finally:
+            if timer_was_active:
+                self._timer.start(_UPDATE_INTERVAL_MS)
+
     # Context menu -----------------------------------------------------------
 
     # pylint: disable=duplicate-code
@@ -638,6 +653,13 @@ class HighRateMonitorWidget(QWidget):
             graph_action.setToolTip('Open a live PPS/BPS rate graph window for this player.')
             graph_action.triggered.connect(lambda: self.open_graph(data.ip))
             menu.addAction(graph_action)
+
+            menu.addSeparator()
+
+            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add to Searchlist', self)
+            add_searchlist_action.setToolTip("Add this player's IP to the Searchlist UserIP database.")
+            add_searchlist_action.triggered.connect(lambda: self._add_players_to_searchlist([data]))
+            menu.addAction(add_searchlist_action)
         else:
             all_ips = [player_data.ip for player_data in selected_players]
 
@@ -660,6 +682,13 @@ class HighRateMonitorWidget(QWidget):
 
             graph_action.triggered.connect(_open_graphs_multi)
             menu.addAction(graph_action)
+
+            menu.addSeparator()
+
+            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), f'Add to Searchlist ({len(selected_players)})', self)
+            add_searchlist_action.setToolTip('Add all selected players to the Searchlist UserIP database.')
+            add_searchlist_action.triggered.connect(lambda: self._add_players_to_searchlist(selected_players))
+            menu.addAction(add_searchlist_action)
 
         popup_menu_at_table(menu, self._table, pos)
 
