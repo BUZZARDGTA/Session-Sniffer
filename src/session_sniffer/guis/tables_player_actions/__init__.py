@@ -37,6 +37,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import (
     LookyLookupDialog,
+    close_all_lookup_dialogs,
     show_looky_lookup,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import (
@@ -58,6 +59,7 @@ __all__ = [
     'UserIPDetectedDialog',
     'block_ip_as_range',
     'build_discord_player_report',
+    'close_all_lookup_dialogs',
     'copy_player_info_for_discord',
     'copy_players_info_for_discord',
     'looky_refresh_userip_entries',
