@@ -32,7 +32,7 @@ from session_sniffer.guis.tables_player_actions import (
 )
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
-from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
+from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges, is_third_party_server_ip
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -743,6 +743,8 @@ def check_global_detections(player: Player) -> None:
     # Wait for IP lookup data to be ready
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
 
+    is_server_ip = is_third_party_server_ip(player.ip)
+
     # Mobile Connection Detection
     if player.iplookup.ipapi.mobile:
         if GUIDetectionSettings.mobile_suspend_enabled:
@@ -755,7 +757,7 @@ def check_global_detections(player: Player) -> None:
             display_title='Mobile Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIDetectionSettings.mobile_voice_notifications,
+                voice=False if is_server_ip else GUIDetectionSettings.mobile_voice_notifications,
                 log=GUIDetectionSettings.mobile_logging,
                 msgbox=GUIDetectionSettings.mobile_message_box,
                 tts_filename='mobile_connection_detected',
@@ -773,7 +775,7 @@ def check_global_detections(player: Player) -> None:
             display_title='VPN/Proxy/Tor Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIDetectionSettings.vpn_voice_notifications,
+                voice=False if is_server_ip else GUIDetectionSettings.vpn_voice_notifications,
                 log=GUIDetectionSettings.vpn_logging,
                 msgbox=GUIDetectionSettings.vpn_message_box,
                 tts_filename='vpn_connection_detected',
@@ -792,7 +794,7 @@ def check_global_detections(player: Player) -> None:
             display_title='Hosting/Data Center Connection Detected',
             extra_detection_fields=[],
             settings=_DetectionSettings(
-                voice=GUIDetectionSettings.hosting_voice_notifications,
+                voice=False if is_server_ip else GUIDetectionSettings.hosting_voice_notifications,
                 log=GUIDetectionSettings.hosting_logging,
                 msgbox=GUIDetectionSettings.hosting_message_box,
                 tts_filename='hosting_connection_detected',
