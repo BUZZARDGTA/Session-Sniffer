@@ -1,6 +1,7 @@
 """Module for packet capture using Npcap/WinPcap, including packet parsing and lifecycle management."""
 
 import logging
+import socket
 import struct
 import threading
 import time
@@ -173,8 +174,8 @@ class Packet(NamedTuple):
         if protocol != _IP_PROTOCOL_UDP:
             raise MalformedProtocolError(protocol)
 
-        src_ip = f'{raw_bytes[ip_offset + 12]}.{raw_bytes[ip_offset + 13]}.{raw_bytes[ip_offset + 14]}.{raw_bytes[ip_offset + 15]}'
-        dst_ip = f'{raw_bytes[ip_offset + 16]}.{raw_bytes[ip_offset + 17]}.{raw_bytes[ip_offset + 18]}.{raw_bytes[ip_offset + 19]}'
+        src_ip = socket.inet_ntoa(raw_bytes[ip_offset + 12 : ip_offset + 16])
+        dst_ip = socket.inet_ntoa(raw_bytes[ip_offset + 16 : ip_offset + 20])
 
         udp_offset = ip_offset + ip_header_length
         src_port, dst_port, udp_length = struct.unpack_from('!HHH', raw_bytes, udp_offset)
