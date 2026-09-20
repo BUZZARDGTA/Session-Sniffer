@@ -1090,7 +1090,7 @@ class PlayerIdentifierWidget(QWidget):
                     ips.append(ip_val)
         return ips
 
-    def _add_to_searchlist(self, ips: list[str], *, default_username: str = '') -> None:
+    def _add_to_searchlist(self, ips: list[str], *, default_username: str = '', usernames: list[str] | None = None) -> None:
         """Add the given IPs to Searchlist.ini, prompting for username."""
         if not ips:
             return
@@ -1098,7 +1098,7 @@ class PlayerIdentifierWidget(QWidget):
         self._timer.stop()
         try:
             searchlist_path = ensure_searchlist_database()
-            userip_add(self, ips, searchlist_path, default_username=default_username)
+            userip_add(self, ips, searchlist_path, default_username=default_username, usernames=usernames)
         finally:
             if timer_was_active:
                 self._timer.start(UPDATE_INTERVAL_MS)
@@ -1217,9 +1217,10 @@ class PlayerIdentifierWidget(QWidget):
             menu.addAction(add_searchlist_action)
         else:
             all_ips = [ip for _, ip in selected_players_data]
+            all_usernames = [username for username, _ in selected_players_data if username]
             add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), f'Add to Searchlist ({len(selected_players_data)})', self)
             add_searchlist_action.setToolTip('Add all selected players to the Searchlist UserIP database.')
-            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist(all_ips))
+            add_searchlist_action.triggered.connect(lambda: self._add_to_searchlist(all_ips, usernames=all_usernames or None))
             menu.addAction(add_searchlist_action)
 
         popup_menu_at_table_widget(menu, self._zscore_table, pos)

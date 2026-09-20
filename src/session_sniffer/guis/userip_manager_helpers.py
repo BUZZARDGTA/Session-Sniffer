@@ -6,19 +6,16 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QDialogButtonBox,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListView,
     QMenu,
-    QPushButton,
     QRadioButton,
     QSlider,
     QVBoxLayout,
@@ -28,14 +25,11 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import (
-    DIALOG_BUTTON_STYLESHEET,
-    DIALOG_PRIMARY_BUTTON_STYLESHEET,
     IP_RANGE_PREVIEW_EMPTY_STYLESHEET,
     IP_RANGE_PREVIEW_ERROR_STYLESHEET,
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -431,180 +425,6 @@ def populate_userip_databases_menu(
                 enabled_count += 1
 
     return enabled_count
-
-
-class RenameUsernameDialog(QDialog):
-    """Compact dialog for picking an existing username to rename entries to."""
-
-    def __init__(
-        self,
-        parent: QWidget | None,
-        usernames: list[str],
-        current_username: str,
-        database: str,
-        ip_address: str,
-    ) -> None:
-        """Build the rename username picker dialog."""
-        super().__init__(parent)
-        self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(f'Rename Username - {TITLE}')
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(320, 400)
-        self.resize(360, 460)
-
-        layout = QVBoxLayout(self)
-
-        layout.addWidget(QLabel(f'Database:  <b>{database}</b>'))
-        layout.addWidget(QLabel(f'IP address:  <b>{ip_address}</b>'))
-        layout.addWidget(QLabel(f'Current:  <b>{current_username}</b>'))
-
-        self._search = QLineEdit()
-        self._search.setPlaceholderText('Filter usernames…')
-        apply_search_icon(self._search)
-        layout.addWidget(self._search)
-
-        self._list_model = QStandardItemModel()
-        for name in sorted(set(usernames), key=str.lower):
-            self._list_model.appendRow(QStandardItem(name))
-
-        self._proxy = QSortFilterProxyModel()
-        self._proxy.setSourceModel(self._list_model)
-        self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-        self._list = QListView()
-        self._list.setModel(self._proxy)
-        self._list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self._list.setAlternatingRowColors(True)
-        self._list.setItemDelegate(SearchHighlightDelegate(self._list, self._search.text))
-        self._list.setWordWrap(False)
-        layout.addWidget(self._list, stretch=1)
-
-        self._search.textChanged.connect(self._on_search_changed)
-        self._list.doubleClicked.connect(self.accept)
-
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        rename_button = QPushButton('Rename')
-        rename_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        rename_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        rename_button.clicked.connect(self.accept)
-        button_row.addWidget(rename_button)
-
-        cancel_button = QPushButton('Cancel')
-        cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_button.clicked.connect(self.reject)
-        button_row.addWidget(cancel_button)
-
-        layout.addLayout(button_row)
-
-    def _on_search_changed(self, text: str) -> None:
-        self._proxy.setFilterFixedString(text)
-        viewport = self._list.viewport()
-        if viewport:
-            viewport.update()
-
-    def selected_username(self) -> str | None:
-        """Return the username selected in the list, or None."""
-        indexes = self._list.selectedIndexes()
-        if not indexes:
-            return None
-        data = self._proxy.data(indexes[0], Qt.ItemDataRole.DisplayRole)
-        return str(data) if data else None
-
-
-class RemoveUsernameDialog(QDialog):
-    """Dialog for selecting one or more usernames to remove from a UserIP database entry."""
-
-    def __init__(
-        self,
-        parent: QWidget | None,
-        usernames: list[str],
-        ip_address: str,
-        database: str,
-    ) -> None:
-        """Build the remove username picker dialog."""
-        super().__init__(parent)
-        self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(f'Remove Username - {TITLE}')
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(320, 400)
-        self.resize(360, 460)
-
-        self._total_count = len(usernames)
-
-        layout = QVBoxLayout(self)
-
-        layout.addWidget(QLabel(f'Database:  <b>{database}</b>'))
-        layout.addWidget(QLabel(f'IP address:  <b>{ip_address}</b>'))
-        layout.addWidget(QLabel('Select usernames to remove:'))
-
-        self._search = QLineEdit()
-        self._search.setPlaceholderText('Filter usernames…')
-        apply_search_icon(self._search)
-        layout.addWidget(self._search)
-
-        self._list_model = QStandardItemModel()
-        for name in sorted(set(usernames), key=str.lower):
-            self._list_model.appendRow(QStandardItem(name))
-
-        self._proxy = QSortFilterProxyModel()
-        self._proxy.setSourceModel(self._list_model)
-        self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-        self._list = QListView()
-        self._list.setModel(self._proxy)
-        self._list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self._list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self._list.setAlternatingRowColors(True)
-        self._list.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
-        self._list.setItemDelegate(SearchHighlightDelegate(self._list, self._search.text))
-        self._list.setWordWrap(False)
-        layout.addWidget(self._list, stretch=1)
-
-        self._search.textChanged.connect(self._on_search_changed)
-
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        remove_button = QPushButton('Remove')
-        remove_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_button.clicked.connect(self.accept)
-        button_row.addWidget(remove_button)
-
-        cancel_button = QPushButton('Cancel')
-        cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_button.clicked.connect(self.reject)
-        button_row.addWidget(cancel_button)
-
-        layout.addLayout(button_row)
-
-    def _on_search_changed(self, text: str) -> None:
-        self._proxy.setFilterFixedString(text)
-        viewport = self._list.viewport()
-        if viewport:
-            viewport.update()
-
-    def selected_usernames(self) -> list[str] | None:
-        """Return the usernames selected in the list, or None if nothing selected."""
-        indexes = self._list.selectedIndexes()
-        if not indexes:
-            return None
-        result: list[str] = []
-        for i in indexes:
-            data = self._proxy.data(i, Qt.ItemDataRole.DisplayRole)
-            if data:
-                result.append(str(data))
-        return result or None
-
-    def is_all_selected(self) -> bool:
-        """Return True if every username in the list is selected."""
-        selected = self.selected_usernames()
-        return selected is not None and len(selected) >= self._total_count
 
 
 # ---- Common subnet descriptions for the slider ----

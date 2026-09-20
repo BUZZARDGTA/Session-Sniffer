@@ -8,8 +8,10 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_SCRIPT_CONFIG_URL, TITLE
-from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, RemoveUsernameDialog, RenameUsernameDialog
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog
+from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.networking.ip_range import check_ip_against_ranges, parse_ip_range_entry
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.text_templates import (
     DEFAULT_USERIP_FILES_SETTINGS_INI,
@@ -17,7 +19,7 @@ from session_sniffer.text_templates import (
     USERIP_DEFAULT_DB_HEADER_TEMPLATE,
 )
 from session_sniffer.text_utils import format_triple_quoted_text, pluralize
-from session_sniffer.utils import write_lines_to_file
+from session_sniffer.utils import dedup_preserve_order, write_lines_to_file
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -50,14 +52,14 @@ def ensure_searchlist_database() -> Path:
 
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
     """Show a modal information message box that stays on top of other windows."""
-    msg_box = QMessageBox(parent)
-    msg_box.setIcon(QMessageBox.Icon.Information)
-    msg_box.setWindowTitle(title)
-    msg_box.setText(text)
-    msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-    msg_box.setWindowModality(Qt.WindowModality.WindowModal)
-    msg_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-    msg_box.exec()
+    message_box = QMessageBox(parent)
+    message_box.setIcon(QMessageBox.Icon.Information)
+    message_box.setWindowTitle(title)
+    message_box.setText(text)
+    message_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    message_box.setWindowModality(Qt.WindowModality.WindowModal)
+    message_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
+    message_box.exec()
 
 
 def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
@@ -68,72 +70,173 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
         ranges = parse_ip_range_entry(entry_ip)
     except ValueError:
         return False
-    return any(check_ip_against_ranges(sel_ip, ranges) is not None for sel_ip in selected_ips)
+    return any(check_ip_against_ranges(selected_ip, ranges) is not None for selected_ip in selected_ips)
 
 
-def userip_add(parent: QWidget, selected_ips: list[str], selected_database: Path, *, default_username: str = '') -> None:
-    """Add the selected IP address(es) to the chosen UserIP database."""
-    username, success = QInputDialog.getText(
-        parent,
-        'Input Username',
-        f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:',
-        QLineEdit.EchoMode.Normal,
-        default_username,
+def resolve_usernames_for_player(player: Player) -> list[str]:
+    """Return deduplicated usernames associated with the given player from all sources."""
+    player_names = dedup_preserve_order(
+        [player.ps3_username] if player.ps3_username else [],
+        player.userip.usernames if player.userip else [],
+        player.mod_menus.usernames if player.mod_menus else [],
+        player.looky_system.usernames if player.looky_system.is_initialized else [],
+        player.usernames,
+    )
+    return [stripped for name in player_names if (stripped := name.strip())]
+
+
+def resolve_usernames_for_ips(selected_ips: list[str]) -> list[str]:
+    """Return deduplicated usernames associated with the given IP addresses from the player registry."""
+    all_usernames: list[str] = []
+    for ip_address in selected_ips:
+        player = PlayersRegistry.get_player_by_ip(ip_address)
+        if player is not None:
+            all_usernames.extend(resolve_usernames_for_player(player))
+    return dedup_preserve_order(all_usernames)
+
+
+def _prompt_usernames_to_add(
+    parent: QWidget,
+    selected_ips: list[str],
+    selected_database: Path,
+    *,
+    candidate_usernames: list[str] | None = None,
+    prompt_message: str | None = None,
+) -> list[str] | None:
+    """Prompt the user for one or more usernames to associate with the selected IP(s).
+
+    If exactly one username is found/provided, pre-fills the input dialog.
+    If multiple usernames are found, shows a selection dialog to pick which one(s) to add.
+    If no usernames are found, displays a standard blank input dialog.
+
+    Returns a non-empty list of chosen usernames, or None if cancelled/empty.
+    """
+    candidates = (
+        [name.strip() for name in dedup_preserve_order(candidate_usernames) if name.strip()]
+        if candidate_usernames is not None
+        else resolve_usernames_for_ips(selected_ips)
     )
 
-    if not success:
-        return
+    db_display = str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
 
-    username = username.strip()
-
-    if username:  # Only proceed if the user clicked 'OK' and provided a username
-        # Append the username and associated IP(s) to the corresponding database file
-        write_lines_to_file(selected_database, 'a', [f'{username}={ip}\n' for ip in selected_ips])
-
-        _show_modal_info_on_top(
+    if len(candidates) > 1:
+        dialog = SelectUsernamesDialog.for_add(
             parent,
-            TITLE,
-            (
-                f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
-                f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username "{username}" '
-                f'to UserIP database "{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}".'
-            ),
+            candidates,
+            database=db_display,
+            selected_ips=selected_ips,
         )
+        if dialog.exec() != SelectUsernamesDialog.DialogCode.Accepted:
+            return None
+
+        if not dialog.custom_requested():
+            selected = dialog.selected_usernames()
+            if not selected:
+                return None
+            return selected
+
+        # User clicked 'Custom…' in the selection dialog
+        initial_text = ''
+    elif len(candidates) == 1:
+        initial_text = candidates[0]
     else:
-        # If the user canceled or left the input empty, show an error
-        QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
+        initial_text = ''
 
+    if prompt_message is None:
+        prompt_message = f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:'
 
-def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Path) -> None:
-    """Add the selected IP address as a range entry to the chosen UserIP database."""
-    range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
-    if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
-        return
-
-    range_input = range_dlg.result_entry()
-
-    username, success = QInputDialog.getText(
+    entered_username, success = QInputDialog.getText(
         parent,
         'Input Username',
-        f'Enter the username to associate with range "{range_input}":',
+        prompt_message,
+        QLineEdit.EchoMode.Normal,
+        initial_text,
     )
 
     if not success:
-        return
+        return None
 
-    username = username.strip()
-
-    if not username:
+    entered_username = entered_username.strip()
+    if not entered_username:
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
+        return None
+
+    return [entered_username]
+
+
+def userip_add(
+    parent: QWidget,
+    selected_ips: list[str],
+    selected_database: Path,
+    *,
+    default_username: str = '',
+    usernames: list[str] | None = None,
+) -> None:
+    """Add the selected IP address(es) to the chosen UserIP database."""
+    candidates = list(usernames) if usernames is not None else ([default_username] if default_username else None)
+    chosen_usernames = _prompt_usernames_to_add(
+        parent,
+        selected_ips,
+        selected_database,
+        candidate_usernames=candidates,
+    )
+    if not chosen_usernames:
         return
 
-    write_lines_to_file(selected_database, 'a', [f'{username}={range_input}\n'])
+    new_lines = [f'{username}={ip_address}\n' for username in chosen_usernames for ip_address in selected_ips]
+    write_lines_to_file(selected_database, 'a', new_lines)
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
     _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Range "{range_input}" has been added with username "{username}" to UserIP database "{db_display}".',
+        (
+            f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
+            f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username{pluralize(len(chosen_usernames))} '
+            f'{usernames_display} to UserIP database "{db_display}".'
+        ),
+    )
+
+
+def userip_add_as_range(
+    parent: QWidget,
+    ip_address: str,
+    selected_database: Path,
+    *,
+    default_username: str = '',
+    usernames: list[str] | None = None,
+) -> None:
+    """Add the selected IP address as a range entry to the chosen UserIP database."""
+    range_dialog = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
+    if range_dialog.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
+        return
+
+    range_input = range_dialog.result_entry()
+    if not range_input:
+        return
+
+    candidates = list(usernames) if usernames is not None else ([default_username] if default_username else None)
+    prompt_message = f'Enter the username to associate with range "{range_input}":'
+    chosen_usernames = _prompt_usernames_to_add(
+        parent,
+        [ip_address],
+        selected_database,
+        candidate_usernames=candidates,
+        prompt_message=prompt_message,
+    )
+    if not chosen_usernames:
+        return
+
+    new_lines = [f'{username}={range_input}\n' for username in chosen_usernames]
+    write_lines_to_file(selected_database, 'a', new_lines)
+
+    db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
+    _show_modal_info_on_top(
+        parent,
+        TITLE,
+        f'Range "{range_input}" has been added with username{pluralize(len(chosen_usernames))} {usernames_display} to UserIP database "{db_display}".',
     )
 
 
@@ -441,8 +544,14 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
         old_username = ip_usernames[0]
     else:
         current_name = ', '.join(ip_usernames)
-        dialog = RenameUsernameDialog(parent, ip_usernames, current_name, db_display, ip_address)
-        old_username = dialog.selected_username() if dialog.exec() == RenameUsernameDialog.DialogCode.Accepted else None
+        dialog = SelectUsernamesDialog.for_rename(
+            parent,
+            ip_usernames,
+            current_username=current_name,
+            database=db_display,
+            ip_address=ip_address,
+        )
+        old_username = dialog.selected_username() if dialog.exec() == SelectUsernamesDialog.DialogCode.Accepted else None
         if not old_username:
             return
 
@@ -639,8 +748,13 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
         return
 
     db_display = str(player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
-    dialog = RemoveUsernameDialog(parent, ip_usernames, ip_address, db_display)
-    if dialog.exec() != RemoveUsernameDialog.DialogCode.Accepted:
+    dialog = SelectUsernamesDialog.for_remove(
+        parent,
+        ip_usernames,
+        database=db_display,
+        ip_address=ip_address,
+    )
+    if dialog.exec() != SelectUsernamesDialog.DialogCode.Accepted:
         return
 
     selected = dialog.selected_usernames()

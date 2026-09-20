@@ -29,6 +29,7 @@ from session_sniffer.guis.tables_player_actions import (
 )
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
+    resolve_usernames_for_player,
     userip_add,
     userip_add_as_range,
     userip_add_username,
@@ -571,12 +572,13 @@ class TableContextMenuMixin(QTableView):
 
             if player.userip is None:
                 database_paths = UserIPDatabases.get_userip_database_filepaths()
+                player_usernames = resolve_usernames_for_player(player)
                 add_userip_menu = add_menu(userip_menu, 'Add', 'Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
                 populate_userip_databases_menu(
                     add_userip_menu,
                     database_paths,
                     tooltip='Add selected IP address to this UserIP database.',
-                    handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path),
+                    handler_factory=lambda db_path: lambda: userip_add(self, [ip_address], db_path, usernames=player_usernames),
                 )
                 add_range_userip_menu = add_menu(
                     userip_menu,
@@ -588,7 +590,7 @@ class TableContextMenuMixin(QTableView):
                     add_range_userip_menu,
                     database_paths,
                     tooltip='Add selected IP as a range to this UserIP database.',
-                    handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path),
+                    handler_factory=lambda db_path: lambda: userip_add_as_range(self, ip_address, db_path, usernames=player_usernames),
                 )
                 return
 
@@ -681,11 +683,21 @@ class TableContextMenuMixin(QTableView):
                 userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
                 add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
                 add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
+                all_usernames = dedup_preserve_order(
+                    *(
+                        ([player.ps3_username] if player.ps3_username else [])
+                        + (list(player.userip.usernames) if player.userip else [])
+                        + (player.mod_menus.usernames if player.mod_menus else [])
+                        + (player.looky_system.usernames if player.looky_system.is_initialized else [])
+                        + player.usernames
+                        for player in players
+                    )
+                )
                 populate_userip_databases_menu(
                     add_userip_menu,
                     UserIPDatabases.get_userip_database_filepaths(),
                     tooltip=f'Add the {add_count}selected IP address{pluralize(len(ip_addresses), plural="es")} to this UserIP database.',
-                    handler_factory=lambda db_path: lambda: userip_add(self, ip_addresses, db_path),
+                    handler_factory=lambda db_path: lambda: userip_add(self, ip_addresses, db_path, usernames=all_usernames),
                 )
                 return
 
@@ -765,15 +777,7 @@ class TableContextMenuMixin(QTableView):
                 row_ip = selected_model.get_display_text(row_ip_index)
                 player = PlayersRegistry.get_player_by_ip(row_ip) if row_ip else None
 
-                usernames: list[str] = []
-                if player:
-                    usernames = dedup_preserve_order(
-                        [player.ps3_username] if player.ps3_username else [],
-                        player.userip.usernames if player.userip else [],
-                        player.mod_menus.usernames if player.mod_menus else [],
-                        player.looky_system.usernames if player.looky_system.is_initialized else [],
-                        player.usernames,
-                    )
+                usernames: list[str] = resolve_usernames_for_player(player) if player else []
 
                 if not usernames:
                     usernames = [cell_text]
@@ -801,6 +805,8 @@ class TableContextMenuMixin(QTableView):
                     return None
                 return chosen_username.strip()
 
+            main_window = cast('MainWindow', self.window())
+
             def _search_userip_all_databases() -> None:
                 search_query = _resolve_search_text()
                 if search_query:
@@ -816,8 +822,12 @@ class TableContextMenuMixin(QTableView):
                 if search_query:
                     main_window.open_logs_manager_and_search_sessions(search_query)
 
-            main_window = cast('MainWindow', self.window())
-            search_menu = add_menu(context_menu, 'Search in\u2026', "Search this cell's text in logs and the UserIP database.", icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')))
+            search_menu = add_menu(
+                context_menu,
+                'Search in\u2026',
+                "Search this cell's text in logs and the UserIP database.",
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
+            )
             add_action(
                 search_menu,
                 'UserIP All Databases',

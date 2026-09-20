@@ -29,6 +29,7 @@ from session_sniffer.guis.utils import popup_menu_at_table, set_clipboard_text, 
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
+from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -521,8 +522,8 @@ class HighRateMonitorWidget(QWidget):
         self._timer.stop()
         try:
             searchlist_path = ensure_searchlist_database()
-            default_username = players[0].usernames[0] if len(players) == 1 and players[0].usernames else ''
-            userip_add(self, [player.ip for player in players], searchlist_path, default_username=default_username)
+            all_usernames = dedup_preserve_order(*(player.usernames for player in players))
+            userip_add(self, [player.ip for player in players], searchlist_path, usernames=all_usernames)
         finally:
             if timer_was_active:
                 self._timer.start(_UPDATE_INTERVAL_MS)
