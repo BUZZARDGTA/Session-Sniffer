@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QItemSelectionModel, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
-from PySide6.QtWidgets import QMenu, QTableView
+from PySide6.QtWidgets import QInputDialog, QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_DIR_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
@@ -48,7 +48,7 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import run_cmd_script
+from session_sniffer.utils import dedup_preserve_order, run_cmd_script
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -754,27 +754,89 @@ class TableContextMenuMixin(QTableView):
             cell_text = selected_model.get_display_text(index)
             if not cell_text:
                 return
+
+            def _resolve_search_text() -> str | None:
+                if index.column() != selected_model.username_column_index:
+                    return cell_text
+
+                # When the cell belongs to the Usernames column, offer the exact structured usernames
+                # from the matched player (UserIP, Looky System, PS3, etc.) without string splitting.
+                row_ip_index = selected_model.index(index.row(), selected_model.ip_column_index)
+                row_ip = selected_model.get_display_text(row_ip_index)
+                player = PlayersRegistry.get_player_by_ip(row_ip) if row_ip else None
+
+                usernames: list[str] = []
+                if player:
+                    usernames = dedup_preserve_order(
+                        [player.ps3_username] if player.ps3_username else [],
+                        player.userip.usernames if player.userip else [],
+                        player.mod_menus.usernames if player.mod_menus else [],
+                        player.looky_system.usernames if player.looky_system.is_initialized else [],
+                        player.usernames,
+                    )
+
+                if not usernames:
+                    usernames = [cell_text]
+
+                if len(usernames) == 1:
+                    chosen_username, success = QInputDialog.getText(
+                        self,
+                        'Search Username',
+                        'Enter the username to search for:',
+                        text=usernames[0],
+                    )
+                    if not success or not chosen_username.strip():
+                        return None
+                    return chosen_username.strip()
+
+                chosen_username, success = QInputDialog.getItem(
+                    self,
+                    'Search Username',
+                    'Select or enter the username to search for:',
+                    usernames,
+                    0,
+                    editable=True,
+                )
+                if not success or not chosen_username.strip():
+                    return None
+                return chosen_username.strip()
+
+            def _search_userip_all_databases() -> None:
+                search_query = _resolve_search_text()
+                if search_query:
+                    main_window.open_userip_manager_and_search(search_query)
+
+            def _search_userip_logging() -> None:
+                search_query = _resolve_search_text()
+                if search_query:
+                    main_window.open_logs_manager_and_search_userip(search_query)
+
+            def _search_sessions_logging() -> None:
+                search_query = _resolve_search_text()
+                if search_query:
+                    main_window.open_logs_manager_and_search_sessions(search_query)
+
             main_window = cast('MainWindow', self.window())
             search_menu = add_menu(context_menu, 'Search in\u2026', "Search this cell's text in logs and the UserIP database.", icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')))
             add_action(
                 search_menu,
                 'UserIP All Databases',
                 tooltip='Open the UserIP Manager searching across all databases with this text pre-filled.',
-                handler=lambda: main_window.open_userip_manager_and_search(cell_text),
+                handler=_search_userip_all_databases,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')),
             )
             add_action(
                 search_menu,
                 'UserIP Logging',
                 tooltip='Open the Logs Manager on the UserIP Logging tab and filter by this text.',
-                handler=lambda: main_window.open_logs_manager_and_search_userip(cell_text),
+                handler=_search_userip_logging,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')),
             )
             add_action(
                 search_menu,
                 'Sessions Logging',
                 tooltip='Open the Logs Manager on the Sessions Logging tab and search across all session files for this text.',
-                handler=lambda: main_window.open_logs_manager_and_search_sessions(cell_text),
+                handler=_search_sessions_logging,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
             )
 
