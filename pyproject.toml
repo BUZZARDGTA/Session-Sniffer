@@ -29,6 +29,10 @@ Repository = "https://github.com/BUZZARDGTA/Session-Sniffer"
 Issues = "https://github.com/BUZZARDGTA/Session-Sniffer/issues"
 Discord = "https://discord.gg/hMZ7MsPX7G"
 
+[tool.uv]
+managed = true
+python-preference = "managed"
+
 [project.optional-dependencies]
 dev = [
     "flake8",
