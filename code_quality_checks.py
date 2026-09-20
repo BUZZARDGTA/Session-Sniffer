@@ -95,13 +95,6 @@ TOOLS: list[QualityTool] = [
         category='SECURITY',
     ),
     QualityTool(
-        name='safety',
-        command='safety scan',
-        install_command='pip install safety',
-        description='Python package vulnerability scanning',
-        category='SECURITY',
-    ),
-    QualityTool(
         name='snyk',
         command='snyk test',
         install_command='npm install -g snyk',
@@ -193,7 +186,7 @@ def main() -> int:
         '-SkipSlowSecurity',
         dest='skip_slow_security',
         action='store_true',
-        help='Skip slow or interactive security tools (safety, snyk).',
+        help='Skip slow or interactive security tools (snyk).',
     )
     arguments = parser.parse_args()
 
@@ -204,11 +197,11 @@ def main() -> int:
 
     active_tools = [
         tool for tool in TOOLS
-        if not (omit_slow and tool.name in ('safety', 'snyk'))
+        if not (omit_slow and tool.name in ('snyk',))
     ]
 
     if omit_slow:
-        print(f'{YELLOW}[INFO] AI agent detected: omitting safety and snyk security checks.{RESET}')
+        print(f'{YELLOW}[INFO] AI agent detected: omitting snyk security checks.{RESET}')
 
     all_passed = True
     total_steps = len(active_tools)
