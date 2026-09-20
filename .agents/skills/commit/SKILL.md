@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Organize and commit current Git changes by committing a requested feature alone or splitting all unrelated changes into separate logical commits.
---------------------------------------------------------------------------------------------------------------------------------------------------------------
+---
 
 # Session Sniffer Commit
 
