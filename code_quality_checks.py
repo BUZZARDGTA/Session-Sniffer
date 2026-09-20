@@ -197,7 +197,7 @@ def main() -> int:
 
     active_tools = [
         tool for tool in TOOLS
-        if not (omit_slow and tool.name in ('snyk',))
+        if not (omit_slow and tool.name == 'snyk')
     ]
 
     if omit_slow:
