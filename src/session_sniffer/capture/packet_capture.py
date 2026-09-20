@@ -174,8 +174,8 @@ class Packet(NamedTuple):
         if protocol != _IP_PROTOCOL_UDP:
             raise MalformedProtocolError(protocol)
 
-        src_ip = socket.inet_ntop(socket.AF_INET, raw_bytes[ip_offset + 12 : ip_offset + 16])
-        dst_ip = socket.inet_ntop(socket.AF_INET, raw_bytes[ip_offset + 16 : ip_offset + 20])
+        src_ip = socket.inet_ntoa(raw_bytes[ip_offset + 12 : ip_offset + 16])
+        dst_ip = socket.inet_ntoa(raw_bytes[ip_offset + 16 : ip_offset + 20])
 
         udp_offset = ip_offset + ip_header_length
         src_port, dst_port, udp_length = struct.unpack_from('!HHH', raw_bytes, udp_offset)
