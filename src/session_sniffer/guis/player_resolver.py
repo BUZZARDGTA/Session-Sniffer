@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.guis.high_pps_monitor import HighRateMonitorWidget
+from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
 
