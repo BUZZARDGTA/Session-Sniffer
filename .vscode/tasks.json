@@ -287,27 +287,6 @@
             }
         },
         {
-            "label": "🛡️ Safety - Security Vulnerability Check",
-            "type": "shell",
-            "windows": {
-                "command": "${workspaceFolder}/.venv/Scripts/safety.exe"
-            },
-            "linux": {
-                "command": "${workspaceFolder}/.venv/bin/safety"
-            },
-            "osx": {
-                "command": "${workspaceFolder}/.venv/bin/safety"
-            },
-            "args": ["scan"],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "panel": "shared",
-                "clear": true
-            }
-        },
-        {
             "label": "🐍 Snyk - Developer Security Platform",
             "type": "shell",
             "windows": {
