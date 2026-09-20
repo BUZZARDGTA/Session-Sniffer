@@ -234,7 +234,6 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
             'Edit Range',
             f'Multiple ranges cover IP {ip_address}.\nSelect the range to edit:',
             matching_ranges,
-            0,
             editable=False,
         )
         if not success or not chosen:
