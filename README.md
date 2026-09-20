@@ -25,6 +25,17 @@ Grab the latest stable release executable for Windows, or run from source on Win
 
 🔨 Prefer to run or build from source? See the step-by-step guide on the [**Building from Source**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source) wiki page.
 
+### ⚡ Development with uv
+
+[uv](https://docs.astral.sh/uv/) is the recommended dependency and virtual-environment manager for development. From the repository root:
+
+```bash
+uv sync --extra dev
+uv run python -m session_sniffer
+```
+
+`uv` automatically creates and manages `.venv` and uses the Python version specified by `.python-version`. To update the lockfile after changing dependencies, run `uv lock` and commit the resulting `uv.lock`.
+
 ---
 
 ### 🔑 Key Features
