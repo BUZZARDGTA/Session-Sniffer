@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QHelpEvent,
     QIcon,
+    QImage,
     QLinearGradient,
     QPainter,
     QPalette,
@@ -51,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import FLEXIBLE_STRETCH_COLUMNS, TITLE
 from session_sniffer.settings.settings import Settings
 
@@ -1154,3 +1155,27 @@ def format_duration(total_seconds: float) -> str:
     if minutes:
         return f'{minutes}m {seconds}s'
     return f'{seconds}s'
+
+
+_country_flag_icon_cache: dict[str, QIcon | None] = {}
+
+
+def load_country_flag_icon(country_code: str) -> QIcon | None:
+    """Load and return a cached country flag QIcon."""
+    normalized_code = country_code.strip().upper()
+    if not normalized_code:
+        return None
+    if normalized_code in _country_flag_icon_cache:
+        return _country_flag_icon_cache[normalized_code]
+    flag_path = IMAGES_DIR_PATH / 'country_flags' / f'{normalized_code}.png'
+    if not flag_path.exists():
+        _country_flag_icon_cache[normalized_code] = None
+        return None
+    image = QImage()
+    image.loadFromData(flag_path.read_bytes())
+    if image.isNull():
+        _country_flag_icon_cache[normalized_code] = None
+        return None
+    icon = QIcon(QPixmap.fromImage(image))
+    _country_flag_icon_cache[normalized_code] = icon
+    return icon

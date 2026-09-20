@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Literal, cast
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -25,8 +25,6 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import (
-    AVAILABLE_FLAG_CODES,
-    COUNTRY_FLAGS_DIR,
     ComboRuleEditorDialog,
     CountrySelectionDialog,
     read_duration_widgets_helper,
@@ -43,7 +41,14 @@ from session_sniffer.guis.stylesheets import (
     WARNING_ICON_LABEL_STYLESHEET,
     WARNING_TEXT_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, ElidedTextTooltipDelegate, create_section_separator
+from session_sniffer.guis.utils import (
+    SUSPEND_TOOLTIP_AUTO,
+    SUSPEND_TOOLTIP_DISABLED,
+    SUSPEND_TOOLTIP_MANUAL,
+    ElidedTextTooltipDelegate,
+    create_section_separator,
+    load_country_flag_icon,
+)
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.settings import Settings
@@ -711,8 +716,10 @@ class DetectionsManagerTabsMixin(QDialog):
         item = QListWidgetItem(country_name)
         item.setData(Qt.ItemDataRole.UserRole, country_name)
         flag_code = get_country_flag_code(country_name)
-        if flag_code and flag_code in AVAILABLE_FLAG_CODES:
-            item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{flag_code}.png'))))
+        if flag_code:
+            flag_icon = load_country_flag_icon(flag_code)
+            if flag_icon is not None:
+                item.setIcon(flag_icon)
         self.country_list.addItem(item)
 
     def _remove_country(self) -> None:

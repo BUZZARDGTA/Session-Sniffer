@@ -25,7 +25,6 @@ from PySide6.QtGui import (
     QIcon,
     QKeyEvent,
     QKeySequence,
-    QPixmap,
     QResizeEvent,
     QShortcut,
     QShowEvent,
@@ -52,8 +51,6 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES
-from session_sniffer.guis._combo_rule_editor import COUNTRY_FLAGS_DIR as _COUNTRY_FLAGS_DIR
 from session_sniffer.guis._player_leaderboard_loading_widget import LeaderboardLoadingWidget
 from session_sniffer.guis._player_leaderboard_workers import (
     LeaderboardBaselineWorker,
@@ -75,6 +72,7 @@ from session_sniffer.guis.utils import (
     apply_search_icon,
     format_player_display,
     get_screen_size,
+    load_country_flag_icon,
     popup_menu_at_table,
     resize_window_for_screen,
     scale_by_ui,
@@ -183,16 +181,9 @@ _COLUMN_SAMPLE_TEXTS: dict[str, str] = {
     'IP Address': '255.255.255.255',
 }
 
-_flag_icon_cache: dict[str, QIcon | None] = {}
-
-
 def _get_flag_icon(country_code: str) -> QIcon | None:
     """Return a cached QIcon for the given ISO country code, or None if unavailable."""
-    if country_code in _flag_icon_cache:
-        return _flag_icon_cache[country_code]
-    icon: QIcon | None = QIcon(QPixmap(str(_COUNTRY_FLAGS_DIR / f'{country_code}.png'))) if country_code and country_code in AVAILABLE_FLAG_CODES else None
-    _flag_icon_cache[country_code] = icon
-    return icon
+    return load_country_flag_icon(country_code) if country_code else None
 
 
 def _format_bool(value: bool | None) -> str:  # noqa: FBT001

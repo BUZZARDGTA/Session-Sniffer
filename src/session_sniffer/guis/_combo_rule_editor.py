@@ -3,7 +3,7 @@
 from typing import ClassVar, Literal
 
 from PySide6.QtCore import QSortFilterProxyModel, Qt
-from PySide6.QtGui import QIcon, QPixmap, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,20 +24,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import COUNTRY_NAMES
 from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET
-from session_sniffer.guis.utils import SUSPEND_TOOLTIP_AUTO, SUSPEND_TOOLTIP_DISABLED, SUSPEND_TOOLTIP_MANUAL, create_section_separator
+from session_sniffer.guis.utils import (
+    SUSPEND_TOOLTIP_AUTO,
+    SUSPEND_TOOLTIP_DISABLED,
+    SUSPEND_TOOLTIP_MANUAL,
+    create_section_separator,
+    load_country_flag_icon,
+)
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-
-COUNTRY_FLAGS_DIR = IMAGES_DIR_PATH / 'country_flags'
-# Pre-scan available flag codes once to avoid per-country filesystem checks
-AVAILABLE_FLAG_CODES: frozenset[str] = (
-    frozenset(path.stem for path in COUNTRY_FLAGS_DIR.glob('*.png')) if COUNTRY_FLAGS_DIR.is_dir() else frozenset[str]()
-)
 
 
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
@@ -112,8 +112,9 @@ class CountrySelectionDialog(QDialog):
             display = f'{country_code} - {country_name}'
             item = QStandardItem(display)
             item.setData(country_name, Qt.ItemDataRole.UserRole)
-            if country_code in AVAILABLE_FLAG_CODES:
-                item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))
+            flag_icon = load_country_flag_icon(country_code)
+            if flag_icon is not None:
+                item.setIcon(flag_icon)
             model.appendRow(item)
 
         self._combo.setModel(model)
@@ -393,8 +394,9 @@ class ComboRuleEditorDialog(QDialog):
                     display = f'{country_code} - {country_name}'
                     item = QStandardItem(display)
                     item.setData(country_name, Qt.ItemDataRole.UserRole)
-                    if country_code in AVAILABLE_FLAG_CODES:
-                        item.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))
+                    flag_icon = load_country_flag_icon(country_code)
+                    if flag_icon is not None:
+                        item.setIcon(flag_icon)
                     model.appendRow(item)
                 country_combo.setModel(model)
                 country_combo.setCurrentIndex(-1)
