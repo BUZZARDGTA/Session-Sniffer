@@ -597,18 +597,8 @@ class SessionTableSection(QWidget):
             sort_column_name = configured_column
         elif fallback in column_names:
             sort_column_name = fallback
-            if self._section_name == 'Connected':
-                Settings.gui_connected_table_sort_column = fallback
-            else:
-                Settings.gui_disconnected_table_sort_column = fallback
-            Settings.rewrite_settings_file()
         elif column_names:
             sort_column_name = column_names[0]
-            if self._section_name == 'Connected':
-                Settings.gui_connected_table_sort_column = sort_column_name
-            else:
-                Settings.gui_disconnected_table_sort_column = sort_column_name
-            Settings.rewrite_settings_file()
         else:
             sort_column_name = None
 

@@ -447,19 +447,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.horizontalScrollBar().setValue(h_scroll)
         self.verticalScrollBar().setValue(v_scroll)
 
-        header_label = model.headerData(section_index, Qt.Orientation.Horizontal)
-        if isinstance(header_label, str):
-            order_str = 'Ascending' if horizontal_header.sortIndicatorOrder() == Qt.SortOrder.AscendingOrder else 'Descending'
-            if self.is_connected_table:
-                if Settings.gui_connected_table_sort_column != header_label or Settings.gui_connected_table_sort_order != order_str:
-                    Settings.gui_connected_table_sort_column = header_label
-                    Settings.gui_connected_table_sort_order = order_str
-                    Settings.rewrite_settings_file()
-            elif Settings.gui_disconnected_table_sort_column != header_label or Settings.gui_disconnected_table_sort_order != order_str:
-                Settings.gui_disconnected_table_sort_column = header_label
-                Settings.gui_disconnected_table_sort_order = order_str
-                Settings.rewrite_settings_file()
-
     def _show_header_context_menu(self, pos: QPoint) -> None:
         """Show a context menu on the column header with sizing and column-visibility actions."""
         toggleable_columns = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
@@ -601,12 +588,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             shown.add(column_name)
         else:
             shown.discard(column_name)
-            if self.is_connected_table and Settings.gui_connected_table_sort_column == column_name:
-                Settings.gui_connected_table_sort_column = 'Last Rejoin'
-                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
-            elif not self.is_connected_table and Settings.gui_disconnected_table_sort_column == column_name:
-                Settings.gui_disconnected_table_sort_column = 'Last Seen'
-                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
 
         # Preserve ordering from the toggleable columns tuple
         new_shown = tuple(
@@ -646,14 +627,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         """Hide all toggleable columns and persist the change to settings."""
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = ()
-            if Settings.gui_connected_table_sort_column not in Settings.GUI_FORCED_COLUMNS:
-                Settings.gui_connected_table_sort_column = 'Last Rejoin'
-                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
         else:
             Settings.gui_columns_disconnected_shown = ()
-            if Settings.gui_disconnected_table_sort_column not in Settings.GUI_FORCED_COLUMNS:
-                Settings.gui_disconnected_table_sort_column = 'Last Seen'
-                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
@@ -686,14 +661,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = new_shown
-            if Settings.gui_connected_table_sort_column in columns:
-                Settings.gui_connected_table_sort_column = 'Last Rejoin'
-                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
         else:
             Settings.gui_columns_disconnected_shown = new_shown
-            if Settings.gui_disconnected_table_sort_column in columns:
-                Settings.gui_disconnected_table_sort_column = 'Last Seen'
-                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
