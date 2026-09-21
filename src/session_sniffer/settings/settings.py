@@ -126,6 +126,11 @@ class Settings:
     player_identifier_spike_zscore: float = SETTING_DEFAULTS['player_identifier_spike_zscore']
     player_identifier_spike_seconds: int = SETTING_DEFAULTS['player_identifier_spike_seconds']
     player_identifier_baseline_seconds: int = SETTING_DEFAULTS['player_identifier_baseline_seconds']
+    player_identifier_contamination_zscore: float = SETTING_DEFAULTS['player_identifier_contamination_zscore']
+    player_identifier_contamination_seconds: int = SETTING_DEFAULTS['player_identifier_contamination_seconds']
+    player_identifier_contamination_min_samples: int = SETTING_DEFAULTS['player_identifier_contamination_min_samples']
+    player_identifier_baseline_timeout: int = SETTING_DEFAULTS['player_identifier_baseline_timeout']
+    player_identifier_session_drift_zscore: float = SETTING_DEFAULTS['player_identifier_session_drift_zscore']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
@@ -211,6 +216,11 @@ class Settings:
         'PLAYER_IDENTIFIER_SPIKE_ZSCORE',
         'PLAYER_IDENTIFIER_SPIKE_SECONDS',
         'PLAYER_IDENTIFIER_BASELINE_SECONDS',
+        'PLAYER_IDENTIFIER_CONTAMINATION_ZSCORE',
+        'PLAYER_IDENTIFIER_CONTAMINATION_SECONDS',
+        'PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES',
+        'PLAYER_IDENTIFIER_BASELINE_TIMEOUT',
+        'PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE',
     )
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)

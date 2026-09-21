@@ -28,7 +28,6 @@ from session_sniffer.guis._player_identifier_core import (
     Phase,
     compute_aggregate_zscore,
 )
-from session_sniffer.guis._player_identifier_params import PlayerIdentifierParamsWidget
 from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_BLUE_STYLESHEET,
     PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
@@ -39,6 +38,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -185,8 +185,6 @@ class PlayerIdentifierWidget(QWidget):
         self._auto_select: bool = True
         PlayerIdentifierTracker.set_identified_ips(set())
 
-        self._params_box = PlayerIdentifierParamsWidget(self)
-
         # Widget update caches — skip redundant repaints when values haven't changed
         self._prev_stability_pct: int | None = None
         self._prev_stability_format: str | None = None
@@ -320,7 +318,6 @@ class PlayerIdentifierWidget(QWidget):
 
         layout.addLayout(table_selection_layout)
         layout.addStretch()
-        layout.addWidget(self._params_box)
 
         # Timer
         self._timer = QTimer(self)
@@ -423,7 +420,6 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setVisible(True)
         self._sample_label.setVisible(True)
         self._sample_label.setText('')
-        self._params_box.setVisible(False)
         self._timer.start(UPDATE_INTERVAL_MS)
 
     def _auto_stop_baseline(self, reason: str) -> None:
@@ -563,7 +559,6 @@ class PlayerIdentifierWidget(QWidget):
         self._sample_label.setText('')
         self._sample_label.setVisible(False)
         self._result_label.setText('')
-        self._params_box.setVisible(True)
 
     def _abort_insufficient_players(self) -> None:
         """Stop the current phase because too many players disconnected."""
@@ -575,7 +570,6 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(False)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
-        self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
@@ -597,7 +591,6 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(False)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
-        self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Contaminated')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
@@ -622,7 +615,6 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(False)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
-        self._params_box.setVisible(True)
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat('Aborted')
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
@@ -874,36 +866,43 @@ class PlayerIdentifierWidget(QWidget):
 
     @property
     def _spike_min_zscore(self) -> float:
-        return self._params_box.spike_min_zscore
+        return Settings.player_identifier_spike_zscore
 
     @property
     def _spike_sustained_seconds(self) -> int:
-        return self._params_box.spike_sustained_seconds
+        return Settings.player_identifier_spike_seconds
 
     @property
     def _contamination_zscore(self) -> float:
-        return self._params_box.contamination_zscore
+        return Settings.player_identifier_contamination_zscore
 
     @property
     def _contamination_seconds(self) -> int:
-        return self._params_box.contamination_seconds
+        return Settings.player_identifier_contamination_seconds
 
     @property
     def _contamination_min_samples(self) -> int:
-        return self._params_box.contamination_min_samples
+        return Settings.player_identifier_contamination_min_samples
 
     @property
     def _baseline_min_samples(self) -> int:
-        return self._params_box.baseline_min_samples
+        return Settings.player_identifier_baseline_seconds
 
     @property
     def _baseline_max_seconds(self) -> int:
-        return self._params_box.baseline_max_seconds
+        return Settings.player_identifier_baseline_timeout
 
     @property
     def _session_drift_threshold(self) -> float:
-        return self._params_box.session_drift_threshold
+        return Settings.player_identifier_session_drift_zscore
 
     def apply_settings(self) -> None:
         """Apply updated detection parameters from `Settings`."""
-        self._params_box.apply_settings()
+        self._update_baseline_button_state()
+        self._resolve_button.setToolTip(
+            'Step 2: Start moving, jumping, or generating traffic while keeping other players still.\n\n'
+            'The tool compares each IP against its baseline to find whose traffic spikes significantly.\n\n'
+            f'An IP must spike for {self._spike_sustained_seconds} consecutive seconds to be confirmed.\n\n'
+            'Tip: Detection works best when the target player is moving — '
+            'a moving player generates significantly more traffic than a stationary one.',
+        )

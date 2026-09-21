@@ -752,7 +752,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.INTEGER,
         tooltip='Duration in seconds to suspend the game process to trigger a solo public session.',
         min_value=6,
-        max_value=30,
+        max_value=60,
         step=1,
     ),
     'high_rate_monitor_icon': SettingMeta(
@@ -843,8 +843,58 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.INTEGER,
         tooltip='Duration in seconds to profile quiet background traffic before triggering player resolution.',
         min_value=5,
+        max_value=120,
+        step=1,
+    ),
+    'player_identifier_contamination_zscore': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Contamination Z-Score',
+        setting_type=SettingType.FLOAT,
+        tooltip='Z-score threshold for detecting baseline contamination. Aborts baseline if an IP sustains this z-score.',
+        min_value=3.0,
+        max_value=50.0,
+        step=0.5,
+    ),
+    'player_identifier_contamination_seconds': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Contamination Duration',
+        setting_type=SettingType.INTEGER,
+        tooltip='Consecutive seconds an IP must stay above the contamination z-score to trigger a baseline abort.',
+        min_value=1,
+        max_value=30,
+        step=1,
+    ),
+    'player_identifier_contamination_min_samples': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Contamination Grace Period',
+        setting_type=SettingType.INTEGER,
+        tooltip='Minimum samples collected before contamination checking activates.',
+        min_value=5,
         max_value=60,
         step=1,
+    ),
+    'player_identifier_baseline_timeout': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Baseline Timeout',
+        setting_type=SettingType.INTEGER,
+        tooltip='Maximum time limit in seconds for the baseline phase before forcing baseline lock.',
+        min_value=10,
+        max_value=300,
+        step=1,
+    ),
+    'player_identifier_session_drift_zscore': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Session Drift Z-Score',
+        setting_type=SettingType.FLOAT,
+        tooltip='Aggregate z-score threshold across all tracked IPs for detecting session-wide traffic drift.',
+        min_value=1.0,
+        max_value=30.0,
+        step=0.5,
     ),
 }
 
@@ -937,6 +987,11 @@ class SettingDefaults(TypedDict):
     player_identifier_spike_zscore: float
     player_identifier_spike_seconds: int
     player_identifier_baseline_seconds: int
+    player_identifier_contamination_zscore: float
+    player_identifier_contamination_seconds: int
+    player_identifier_contamination_min_samples: int
+    player_identifier_baseline_timeout: int
+    player_identifier_session_drift_zscore: float
 
 
 SETTING_DEFAULTS: SettingDefaults = {
@@ -1069,4 +1124,9 @@ SETTING_DEFAULTS: SettingDefaults = {
     'player_identifier_spike_zscore': 3.0,
     'player_identifier_spike_seconds': 3,
     'player_identifier_baseline_seconds': 10,
+    'player_identifier_contamination_zscore': 10.0,
+    'player_identifier_contamination_seconds': 5,
+    'player_identifier_contamination_min_samples': 15,
+    'player_identifier_baseline_timeout': 30,
+    'player_identifier_session_drift_zscore': 6.0,
 }

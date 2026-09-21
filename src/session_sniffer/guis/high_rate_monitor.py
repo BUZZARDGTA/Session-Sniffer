@@ -8,11 +8,9 @@ from typing import TYPE_CHECKING, ClassVar, override
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -30,19 +28,6 @@ if TYPE_CHECKING:
 
     from PySide6.QtGui import QHideEvent, QShowEvent
 
-PPS_THRESHOLD_DEFAULT = 30
-PPS_THRESHOLD_MIN = 20
-PPS_THRESHOLD_MAX = 50
-
-BPS_THRESHOLD_DEFAULT_KBS = 5
-BPS_THRESHOLD_MIN_KBS = 3
-BPS_THRESHOLD_MAX_KBS = 500
-
-DURATION_THRESHOLD_DEFAULT_SECONDS = 3
-DURATION_THRESHOLD_MIN_SECONDS = 1
-DURATION_THRESHOLD_MAX_SECONDS = 10
-
-_BUTTON_WIDTH = 250
 _UPDATE_INTERVAL_MS = 1_000
 _KBS_TO_BYTES = 1024
 
@@ -166,72 +151,6 @@ class HighRateMonitorWidget(QWidget):
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
-
-        # Parameters control panel
-        params_box = QGroupBox('Thresholds')
-        params_layout = QHBoxLayout(params_box)
-        params_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # PPS threshold spinner
-        self._pps_threshold_input = QSpinBox()
-        self._pps_threshold_input.setFixedWidth(_BUTTON_WIDTH)
-        self._pps_threshold_input.setRange(PPS_THRESHOLD_MIN, PPS_THRESHOLD_MAX)
-        self._pps_threshold_input.setValue(self.pps_threshold)
-        self._pps_threshold_input.setSuffix(' PPS threshold')
-        self._pps_threshold_input.setToolTip(
-            'Packets Per Second threshold.\n\n'
-            f'Range: {PPS_THRESHOLD_MIN}-{PPS_THRESHOLD_MAX} PPS.\n'
-            'A player must send/receive at least this many packets per second '
-            'to be considered high-rate. Lower = more sensitive, higher = fewer false positives.\n\n'
-            'Tip: Moving players generate more packets than stationary ones.',
-        )
-        pps_line_edit = self._pps_threshold_input.lineEdit()
-        if pps_line_edit:
-            pps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._pps_threshold_input.valueChanged.connect(self._set_pps_threshold)
-        params_layout.addWidget(self._pps_threshold_input)
-
-        # BPS threshold spinner (displayed in KB/s, stored as bytes/s)
-        self._bps_threshold_input = QSpinBox()
-        self._bps_threshold_input.setFixedWidth(_BUTTON_WIDTH)
-        self._bps_threshold_input.setRange(BPS_THRESHOLD_MIN_KBS, BPS_THRESHOLD_MAX_KBS)
-        self._bps_threshold_input.setValue(Settings.high_rate_monitor_bps_threshold)
-        self._bps_threshold_input.setSuffix(' KB/s threshold')
-        self._bps_threshold_input.setSingleStep(1)
-        self._bps_threshold_input.setToolTip(
-            'Bytes Per Second (bandwidth) threshold, displayed in KB/s.\n\n'
-            f'Range: {BPS_THRESHOLD_MIN_KBS}-{BPS_THRESHOLD_MAX_KBS} KB/s.\n'
-            'A player must transfer at least this much data per second '
-            'to be considered high-rate. Works together with the PPS threshold — '
-            'both must be exceeded simultaneously.\n\n'
-            'Tip: Moving players generate more bandwidth than stationary ones.',
-        )
-        bps_line_edit = self._bps_threshold_input.lineEdit()
-        if bps_line_edit:
-            bps_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._bps_threshold_input.valueChanged.connect(self._set_bps_threshold)
-        params_layout.addWidget(self._bps_threshold_input)
-
-        # Duration spinner (shared for both PPS and BPS)
-        self._duration_input = QSpinBox()
-        self._duration_input.setFixedWidth(_BUTTON_WIDTH)
-        self._duration_input.setRange(DURATION_THRESHOLD_MIN_SECONDS, DURATION_THRESHOLD_MAX_SECONDS)
-        self._duration_input.setValue(self.required_duration)
-        self._duration_input.setSuffix('s (required duration)')
-        self._duration_input.setToolTip(
-            'How many consecutive seconds a player must stay above both thresholds '
-            'before being flagged as high-rate.\n\n'
-            f'Range: {DURATION_THRESHOLD_MIN_SECONDS}-{DURATION_THRESHOLD_MAX_SECONDS} seconds.\n'
-            'Higher values reduce false positives from short traffic bursts. '
-            'Lower values detect spikes faster but may flag normal activity.',
-        )
-        duration_line_edit = self._duration_input.lineEdit()
-        if duration_line_edit:
-            duration_line_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._duration_input.valueChanged.connect(self._set_required_duration)
-        params_layout.addWidget(self._duration_input)
-
-        layout.addWidget(params_box)
 
         # Selection controls row
         selection_layout = QHBoxLayout()
@@ -388,26 +307,14 @@ class HighRateMonitorWidget(QWidget):
         lines.append('<small>Flagged players are marked with a speedometer icon in the connected players table.</small>')
         self._status_label.setText('<br>'.join(lines))
 
-    # Threshold / duration ---------------------------------------------------
-
-    def _set_pps_threshold(self, value: int) -> None:
-        self.pps_threshold = value
-        for graph in self._graph_windows.values():
-            graph.set_pps_threshold(value)
-
-    def _set_bps_threshold(self, value: int) -> None:
-        self.bps_threshold = value * _KBS_TO_BYTES
-        for graph in self._graph_windows.values():
-            graph.set_bps_threshold(value * _KBS_TO_BYTES)
-
-    def _set_required_duration(self, value: int) -> None:
-        self.required_duration = value
-
     def apply_settings(self) -> None:
         """Apply updated threshold and auto-select settings from `Settings`."""
-        self._pps_threshold_input.setValue(Settings.high_rate_monitor_pps_threshold)
-        self._bps_threshold_input.setValue(Settings.high_rate_monitor_bps_threshold)
-        self._duration_input.setValue(Settings.high_rate_monitor_duration_threshold)
+        self.pps_threshold = Settings.high_rate_monitor_pps_threshold
+        self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
+        self.required_duration = Settings.high_rate_monitor_duration_threshold
+        for graph in self._graph_windows.values():
+            graph.set_pps_threshold(self.pps_threshold)
+            graph.set_bps_threshold(self.bps_threshold)
         self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
 
     # Graphs -----------------------------------------------------------------

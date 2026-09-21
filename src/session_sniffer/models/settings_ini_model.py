@@ -161,6 +161,11 @@ class SettingsIniModel(BaseModel):
     PLAYER_IDENTIFIER_SPIKE_ZSCORE: float
     PLAYER_IDENTIFIER_SPIKE_SECONDS: int
     PLAYER_IDENTIFIER_BASELINE_SECONDS: int
+    PLAYER_IDENTIFIER_CONTAMINATION_ZSCORE: float
+    PLAYER_IDENTIFIER_CONTAMINATION_SECONDS: int
+    PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES: int
+    PLAYER_IDENTIFIER_BASELINE_TIMEOUT: int
+    PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE: float
 
     # --- Internal context helpers ---
 
@@ -654,7 +659,7 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_solo_session_duration(cls, value: object, info: ValidationInfo) -> int:
         min_val = 6
-        max_val = 30
+        max_val = 60
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 6
 
@@ -822,7 +827,7 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_player_identifier_baseline_seconds(cls, value: object, info: ValidationInfo) -> int:
         min_val = 5
-        max_val = 60
+        max_val = 120
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 10
 
@@ -838,6 +843,146 @@ class SettingsIniModel(BaseModel):
         if parsed is None:
             cls._set_flag(info, 'should_rewrite', value=True)
             return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_ZSCORE', mode='before')
+    @classmethod
+    def _parse_player_identifier_contamination_zscore(cls, value: object, info: ValidationInfo) -> float:
+        min_val = 3.0
+        max_val = 50.0
+        default = cls._get_default_for_field(info)
+        default_float = default if isinstance(default, float) else 10.0
+
+        parsed: float | None = None
+        if isinstance(value, (int, float)):
+            parsed = float(value)
+        elif isinstance(value, str):
+            try:
+                parsed = float(value)
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_float
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_SECONDS', mode='before')
+    @classmethod
+    def _parse_player_identifier_contamination_seconds(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 1
+        max_val = 30
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 5
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES', mode='before')
+    @classmethod
+    def _parse_player_identifier_contamination_min_samples(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 5
+        max_val = 60
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 15
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_BASELINE_TIMEOUT', mode='before')
+    @classmethod
+    def _parse_player_identifier_baseline_timeout(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 10
+        max_val = 300
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 30
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE', mode='before')
+    @classmethod
+    def _parse_player_identifier_session_drift_zscore(cls, value: object, info: ValidationInfo) -> float:
+        min_val = 1.0
+        max_val = 30.0
+        default = cls._get_default_for_field(info)
+        default_float = default if isinstance(default, float) else 6.0
+
+        parsed: float | None = None
+        if isinstance(value, (int, float)):
+            parsed = float(value)
+        elif isinstance(value, str):
+            try:
+                parsed = float(value)
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_float
         if parsed < min_val:
             cls._set_flag(info, 'should_rewrite', value=True)
             return min_val
