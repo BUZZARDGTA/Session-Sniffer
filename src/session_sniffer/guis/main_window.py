@@ -64,6 +64,7 @@ class _MenuActions:
 @dataclass(slots=True)
 class _WindowState:
     """Mutable runtime state for the main window."""
+
     worker_thread: GUIWorkerThread
     window_being_moved: bool
     min_accepted_snapshot_version: int
@@ -909,6 +910,11 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         """Apply the always-on-top setting to the main window."""
         apply_always_on_top(self, Settings.gui_always_on_top)
 
+    def _apply_table_sort_from_settings(self) -> None:
+        """Apply configured table sort column and order to connected and disconnected tables."""
+        self._connected.apply_sort_from_settings()
+        self._disconnected.apply_sort_from_settings()
+
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
         if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
@@ -919,6 +925,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         window.accepted.connect(self._update_gta5_toolbar_visibility)
         window.accepted.connect(self._apply_always_on_top)
         window.accepted.connect(self._update_splitter_visibility)
+        window.accepted.connect(self._apply_table_sort_from_settings)
         window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
         self._settings_dialog_window = window
         self._settings_dialog_window.show()

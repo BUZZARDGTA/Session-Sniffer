@@ -79,8 +79,12 @@ class Settings:
     gui_columns_geo_country_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_country_append_alpha2']
     gui_columns_geo_continent_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_continent_append_alpha2']
     gui_connected_table_rows_per_page: int = SETTING_DEFAULTS['gui_connected_table_rows_per_page']
+    gui_connected_table_sort_column: str = SETTING_DEFAULTS['gui_connected_table_sort_column']
+    gui_connected_table_sort_order: str = SETTING_DEFAULTS['gui_connected_table_sort_order']
     gui_disconnected_players_enabled: bool = SETTING_DEFAULTS['gui_disconnected_players_enabled']
     gui_disconnected_table_rows_per_page: int = SETTING_DEFAULTS['gui_disconnected_table_rows_per_page']
+    gui_disconnected_table_sort_column: str = SETTING_DEFAULTS['gui_disconnected_table_sort_column']
+    gui_disconnected_table_sort_order: str = SETTING_DEFAULTS['gui_disconnected_table_sort_order']
     gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
     voice_notifications_enabled: bool = SETTING_DEFAULTS['voice_notifications_enabled']
@@ -148,8 +152,12 @@ class Settings:
         'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
         'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
         'GUI_CONNECTED_TABLE_ROWS_PER_PAGE',
+        'GUI_CONNECTED_TABLE_SORT_COLUMN',
+        'GUI_CONNECTED_TABLE_SORT_ORDER',
         'GUI_DISCONNECTED_PLAYERS_ENABLED',
         'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE',
+        'GUI_DISCONNECTED_TABLE_SORT_COLUMN',
+        'GUI_DISCONNECTED_TABLE_SORT_ORDER',
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
         'VOICE_NOTIFICATIONS_ENABLED',
@@ -346,8 +354,8 @@ class Settings:
                     all_setting_names=cls.ALL_SETTINGS,
                     toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
                     toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
-                    webhook_all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
-                    webhook_all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
+                    all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
+                    all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
                     all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
                     max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
                     min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,

@@ -135,16 +135,22 @@ class SessionTableSection(QWidget):
             collapse_tooltip = 'Hide the connected players table'
             clear_tooltip = 'Clear all connected players' if Settings.gui_disconnected_players_enabled else 'Clear all players'
             expand_tooltip = 'Show the connected players table'
-            sort_column_name = 'Last Rejoin'
-            sort_order = Qt.SortOrder.DescendingOrder
+            configured_column = Settings.gui_connected_table_sort_column
+            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+            sort_column_name = (
+                configured_column if configured_column in column_names else ('Last Rejoin' if 'Last Rejoin' in column_names else (column_names[0] if column_names else ''))
+            )
         else:
             accent = '#943b3b'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the disconnected players table'
             clear_tooltip = 'Clear all disconnected players'
             expand_tooltip = 'Show the disconnected players table'
-            sort_column_name = 'Last Seen'
-            sort_order = Qt.SortOrder.AscendingOrder
+            configured_column = Settings.gui_disconnected_table_sort_column
+            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+            sort_column_name = (
+                configured_column if configured_column in column_names else ('Last Seen' if 'Last Seen' in column_names else (column_names[0] if column_names else ''))
+            )
 
         # Header container
         header_container = QFrame()
@@ -286,7 +292,7 @@ class SessionTableSection(QWidget):
         self.table_model = SessionTableModel(column_names)
         self.table_view = SessionTableView(
             self.table_model,
-            column_names.index(sort_column_name),
+            column_names.index(sort_column_name) if sort_column_name in column_names else 0,
             sort_order,
             is_connected_table=is_connected,
         )
@@ -578,11 +584,37 @@ class SessionTableSection(QWidget):
 
     def update_columns(self, column_names: list[str]) -> None:
         """Replace the column set at runtime and reconfigure the view."""
-        sort_column_name = 'Last Rejoin' if self._section_name == 'Connected' else 'Last Seen'
+        if self._section_name == 'Connected':
+            configured_column = Settings.gui_connected_table_sort_column
+            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+            fallback = 'Last Rejoin'
+        else:
+            configured_column = Settings.gui_disconnected_table_sort_column
+            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+            fallback = 'Last Seen'
+
+        if configured_column in column_names:
+            sort_column_name = configured_column
+        elif fallback in column_names:
+            sort_column_name = fallback
+            if self._section_name == 'Connected':
+                Settings.gui_connected_table_sort_column = fallback
+            else:
+                Settings.gui_disconnected_table_sort_column = fallback
+            Settings.rewrite_settings_file()
+        elif column_names:
+            sort_column_name = column_names[0]
+            if self._section_name == 'Connected':
+                Settings.gui_connected_table_sort_column = sort_column_name
+            else:
+                Settings.gui_disconnected_table_sort_column = sort_column_name
+            Settings.rewrite_settings_file()
+        else:
+            sort_column_name = None
+
         self.table_model.reset_columns(column_names)
-        sort_index = column_names.index(sort_column_name)
-        header = self.table_view.horizontalHeader()
-        header.setSortIndicator(sort_index, header.sortIndicatorOrder())
+        if sort_column_name is not None:
+            self.table_view.apply_sort(sort_column_name, sort_order)
         self.table_view.setup_static_column_resizing()
 
         # Refresh search combo to match new column set, preserving current selection
@@ -600,6 +632,16 @@ class SessionTableSection(QWidget):
         self._search_combo.blockSignals(False)  # noqa: FBT003
         # Resync SearchState in case the column index shifted after rebuild
         self._on_search_column_changed(self._search_combo.currentIndex())
+
+    def apply_sort_from_settings(self) -> None:
+        """Apply sort column and order from current Settings."""
+        if self._section_name == 'Connected':
+            target_column = Settings.gui_connected_table_sort_column
+            target_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+        else:
+            target_column = Settings.gui_disconnected_table_sort_column
+            target_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+        self.table_view.apply_sort(target_column, target_order)
 
     def set_all_enabled(self, *, enabled: bool) -> None:
         """Enable or disable all interactive child widgets."""

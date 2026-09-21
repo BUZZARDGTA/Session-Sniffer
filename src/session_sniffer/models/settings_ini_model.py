@@ -41,8 +41,8 @@ class SettingsValidationConfig:
     all_setting_names: tuple[str, ...]
     toggleable_connected_columns: tuple[str, ...]
     toggleable_disconnected_columns: tuple[str, ...]
-    webhook_all_connected_columns: tuple[str, ...]
-    webhook_all_disconnected_columns: tuple[str, ...]
+    all_connected_columns: tuple[str, ...]
+    all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
     max_gui_table_rows_per_page: int
     min_gui_disconnected_players_timer: int
@@ -55,8 +55,8 @@ class _ValidatorContext:
     flags: dict[str, Any]
     toggleable_connected_columns: tuple[str, ...]
     toggleable_disconnected_columns: tuple[str, ...]
-    webhook_all_connected_columns: tuple[str, ...]
-    webhook_all_disconnected_columns: tuple[str, ...]
+    all_connected_columns: tuple[str, ...]
+    all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
     max_gui_table_rows_per_page: int
     min_gui_disconnected_players_timer: int
@@ -108,8 +108,12 @@ class SettingsIniModel(BaseModel):
     GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2: bool
     GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2: bool
     GUI_CONNECTED_TABLE_ROWS_PER_PAGE: int
+    GUI_CONNECTED_TABLE_SORT_COLUMN: str
+    GUI_CONNECTED_TABLE_SORT_ORDER: str
     GUI_DISCONNECTED_PLAYERS_ENABLED: bool
     GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE: int
+    GUI_DISCONNECTED_TABLE_SORT_COLUMN: str
+    GUI_DISCONNECTED_TABLE_SORT_ORDER: str
     GUI_DISCONNECTED_PLAYERS_TIMER: int
     GUI_IGNORE_SCREEN_RESOLUTION_WARNING: bool
     VOICE_NOTIFICATIONS_ENABLED: bool
@@ -440,14 +444,14 @@ class SettingsIniModel(BaseModel):
     @classmethod
     def _parse_webhook_columns_connected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.webhook_all_connected_columns
+        allowed: tuple[str, ...] = () if context is None else context.all_connected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @field_validator('DISCORD_WEBHOOK_COLUMNS_DISCONNECTED', mode='before')
     @classmethod
     def _parse_webhook_columns_disconnected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.webhook_all_disconnected_columns
+        allowed: tuple[str, ...] = () if context is None else context.all_disconnected_columns
         return cls._parse_shown_columns(value, allowed, info)
 
     @classmethod
@@ -716,6 +720,55 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str', cls._get_default_for_field(info))
 
+    @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', mode='before')
+    @classmethod
+    def _parse_connected_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
+        context = cls._get_context(info)
+        allowed: tuple[str, ...] = () if context is None else context.all_connected_columns
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
+    @field_validator('GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
+    @classmethod
+    def _parse_disconnected_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
+        context = cls._get_context(info)
+        allowed: tuple[str, ...] = () if context is None else context.all_disconnected_columns
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
+    @field_validator('GUI_CONNECTED_TABLE_SORT_ORDER', 'GUI_DISCONNECTED_TABLE_SORT_ORDER', mode='before')
+    @classmethod
+    def _parse_table_sort_order(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Ascending', 'Descending'))
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
+
     @field_validator('LOOKY_GAME_VERSION', mode='before')
     @classmethod
     def _parse_looky_game_version(cls, value: object, info: ValidationInfo) -> str:
@@ -771,6 +824,31 @@ class SettingsIniModel(BaseModel):
                 )
         return self
 
+    @model_validator(mode='after')
+    def _check_table_sort_columns(self, info: ValidationInfo) -> Self:
+        """Ensure sort columns exist in their respective table's enabled or forced columns."""
+        updates: dict[str, Any] = {}
+        context = self._get_context(info)
+        forced_columns = {'Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address'}
+
+        connected_shown = set(self.GUI_COLUMNS_CONNECTED_SHOWN) | forced_columns
+        if self.GUI_CONNECTED_TABLE_SORT_COLUMN not in connected_shown:
+            updates['GUI_CONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
+            if context is not None:
+                context.ini_rewrites['GUI_CONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
+            self._set_flag(info, 'should_rewrite', value=True)
+
+        disconnected_shown = set(self.GUI_COLUMNS_DISCONNECTED_SHOWN) | forced_columns
+        if self.GUI_DISCONNECTED_TABLE_SORT_COLUMN not in disconnected_shown:
+            updates['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
+            if context is not None:
+                context.ini_rewrites['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
+            self._set_flag(info, 'should_rewrite', value=True)
+
+        if updates:
+            return self.model_copy(update=updates)
+        return self
+
     # --- Public API ---
 
     @classmethod
@@ -804,8 +882,8 @@ class SettingsIniModel(BaseModel):
             flags=flags,
             toggleable_connected_columns=config.toggleable_connected_columns,
             toggleable_disconnected_columns=config.toggleable_disconnected_columns,
-            webhook_all_connected_columns=config.webhook_all_connected_columns,
-            webhook_all_disconnected_columns=config.webhook_all_disconnected_columns,
+            all_connected_columns=config.all_connected_columns,
+            all_disconnected_columns=config.all_disconnected_columns,
             all_third_party_servers=config.all_third_party_servers,
             max_gui_table_rows_per_page=config.max_gui_table_rows_per_page,
             min_gui_disconnected_players_timer=config.min_gui_disconnected_players_timer,

@@ -447,11 +447,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         connected_rpp_widget = self._widgets.get('gui_connected_table_rows_per_page')
         if connected_rpp_label is not None:
             connected_rpp_label.setText('Connected Rows Per Page:' if checked else 'Rows Per Page:')
-            rpp_tooltip = (
-                'Maximum rows per page in the connected-players table. 0 = show all.'
-                if checked
-                else 'Maximum rows per page in the players table. 0 = show all.'
-            )
+            rpp_tooltip = 'Maximum rows per page in the connected-players table. 0 = show all.' if checked else 'Maximum rows per page in the players table. 0 = show all.'
             connected_rpp_label.setToolTip(rpp_tooltip)
             if connected_rpp_widget is not None:
                 connected_rpp_widget.setToolTip(rpp_tooltip)
@@ -469,6 +465,18 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             disconnected_timer_label.setEnabled(checked)
         if disconnected_timer_widget is not None:
             disconnected_timer_widget.setEnabled(checked)
+
+        connected_sort_col_label = self._labels.get('gui_connected_table_sort_column')
+        if connected_sort_col_label is not None:
+            connected_sort_col_label.setText('Connected Sort Column:' if checked else 'Sort Column:')
+        connected_sort_order_label = self._labels.get('gui_connected_table_sort_order')
+        if connected_sort_order_label is not None:
+            connected_sort_order_label.setText('Connected Sort Order:' if checked else 'Sort Order:')
+        for sort_key in ('gui_disconnected_table_sort_column', 'gui_disconnected_table_sort_order'):
+            if (label := self._labels.get(sort_key)) is not None:
+                label.setEnabled(checked)
+            if (sort_widget := self._widgets.get(sort_key)) is not None:
+                sort_widget.setEnabled(checked)
 
     def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:
         """Return the appropriate input widget for a single setting."""
@@ -504,6 +512,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             for key, widget in self._widgets.items():
                 value = cast('SettingValue', getattr(Settings, key))
                 self._set_widget_value(key, widget, value)
+            self._update_sort_column_options()
         finally:
             self._loading_settings = False
 
@@ -732,6 +741,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for key, widget in self._widgets.items():
             if key in defaults_dict and SETTING_METADATA[key].category == category:
                 self._set_widget_value(key, widget, defaults_dict[key])
+        self._update_sort_column_options()
         self._update_restart_notice()
 
     def _reset_current_tab(self) -> None:
@@ -745,6 +755,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for key, widget in self._widgets.items():
             if key in defaults_dict:
                 self._set_widget_value(key, widget, defaults_dict[key])
+        self._update_sort_column_options()
         self._update_restart_notice()
 
     def _export_settings(self) -> None:
@@ -803,6 +814,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
                         for checkbox in widget.findChildren(QCheckBox):
                             checkbox.toggled.connect(self._update_restart_notice)
+                            if key in ('gui_columns_connected_shown', 'gui_columns_disconnected_shown'):
+                                checkbox.toggled.connect(self._update_sort_column_options)
                     elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
                         list_widget = next(iter(widget.findChildren(QListWidget)), None)
                         if list_widget is not None:
@@ -818,6 +831,34 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     def _on_list_rows_changed(self, *_args: object) -> None:
         """Handle rows added or removed in IP range list widgets."""
         self._update_restart_notice()
+
+    def _update_sort_column_options(self, *_args: object) -> None:
+        """Update table sort column combo boxes based on currently enabled columns."""
+        connected_widget = self._widgets.get('gui_columns_connected_shown')
+        connected_sort_widget = self._widgets.get('gui_connected_table_sort_column')
+        if connected_widget is not None and isinstance(connected_sort_widget, QComboBox):
+            checked_connected = {cb.objectName() for cb in connected_widget.findChildren(QCheckBox) if cb.isChecked()}
+            available_connected = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in checked_connected or col in Settings.GUI_FORCED_COLUMNS]
+            current_selected = connected_sort_widget.currentText()
+            target_selected = current_selected if current_selected in available_connected else 'Last Rejoin'
+            connected_sort_widget.blockSignals(True)  # noqa: FBT003
+            connected_sort_widget.clear()
+            connected_sort_widget.addItems(available_connected)
+            connected_sort_widget.setCurrentText(target_selected)
+            connected_sort_widget.blockSignals(False)  # noqa: FBT003
+
+        disconnected_widget = self._widgets.get('gui_columns_disconnected_shown')
+        disconnected_sort_widget = self._widgets.get('gui_disconnected_table_sort_column')
+        if disconnected_widget is not None and isinstance(disconnected_sort_widget, QComboBox):
+            checked_disconnected = {cb.objectName() for cb in disconnected_widget.findChildren(QCheckBox) if cb.isChecked()}
+            available_disconnected = [col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in checked_disconnected or col in Settings.GUI_FORCED_COLUMNS]
+            current_selected = disconnected_sort_widget.currentText()
+            target_selected = current_selected if current_selected in available_disconnected else 'Last Seen'
+            disconnected_sort_widget.blockSignals(True)  # noqa: FBT003
+            disconnected_sort_widget.clear()
+            disconnected_sort_widget.addItems(available_disconnected)
+            disconnected_sort_widget.setCurrentText(target_selected)
+            disconnected_sort_widget.blockSignals(False)  # noqa: FBT003
 
     def _update_restart_notice(self, *_args: object) -> None:
         """Update visibility of the capture restart notice banner."""

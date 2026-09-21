@@ -211,6 +211,13 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     combo = QComboBox()
     if meta.allowed_values:
         combo.addItems(meta.allowed_values)
+    elif meta.allowed_columns_attr:
+        if meta.allowed_columns_attr == 'GUI_ALL_CONNECTED_COLUMNS':
+            combo.addItems([col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS])
+        elif meta.allowed_columns_attr == 'GUI_ALL_DISCONNECTED_COLUMNS':
+            combo.addItems([col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS])
+        else:
+            combo.addItems(cast('tuple[str, ...]', getattr(Settings, meta.allowed_columns_attr, ())))
     tooltip = format_setting_tooltip(meta)
     if tooltip:
         combo.setToolTip(tooltip)

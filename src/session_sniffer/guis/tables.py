@@ -100,7 +100,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.open_rate_graph_callback: Callable[[str], None] | None = None  # Optional callback to open a rate graph for an IP
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
-        self._previous_sort_section_index: int | None = None
+        self._previous_sort_section_index: int | None = sort_column
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
         self._saved_h_scroll: int | None = None
         self._saved_v_scroll: int | None = None
@@ -339,6 +339,23 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._has_multiple_ports = has_multiple_ports
         self.setup_static_column_resizing()
 
+    def apply_sort(self, column_name: str, order: Qt.SortOrder) -> None:
+        """Sort the table by column name and sort order."""
+        model = self.model()
+        column_index = model.get_column_index(column_name)
+        if column_index is None:
+            fallback = 'Last Rejoin' if self.is_connected_table else 'Last Seen'
+            column_index = model.get_column_index(fallback)
+            if column_index is None:
+                if model.columnCount() > 0:
+                    column_index = 0
+                else:
+                    return
+        horizontal_header = self.horizontalHeader()
+        horizontal_header.setSortIndicator(column_index, order)
+        self._previous_sort_section_index = column_index
+        self.sort_current_column()
+
     def sort_current_column(self) -> None:
         """Sort the table by the currently indicated header column and order, preserving scroll position."""
         h_scroll = self.horizontalScrollBar().value()
@@ -429,6 +446,19 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._previous_sort_section_index = section_index
         self.horizontalScrollBar().setValue(h_scroll)
         self.verticalScrollBar().setValue(v_scroll)
+
+        header_label = model.headerData(section_index, Qt.Orientation.Horizontal)
+        if isinstance(header_label, str):
+            order_str = 'Ascending' if horizontal_header.sortIndicatorOrder() == Qt.SortOrder.AscendingOrder else 'Descending'
+            if self.is_connected_table:
+                if Settings.gui_connected_table_sort_column != header_label or Settings.gui_connected_table_sort_order != order_str:
+                    Settings.gui_connected_table_sort_column = header_label
+                    Settings.gui_connected_table_sort_order = order_str
+                    Settings.rewrite_settings_file()
+            elif Settings.gui_disconnected_table_sort_column != header_label or Settings.gui_disconnected_table_sort_order != order_str:
+                Settings.gui_disconnected_table_sort_column = header_label
+                Settings.gui_disconnected_table_sort_order = order_str
+                Settings.rewrite_settings_file()
 
     def _show_header_context_menu(self, pos: QPoint) -> None:
         """Show a context menu on the column header with sizing and column-visibility actions."""
@@ -571,6 +601,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             shown.add(column_name)
         else:
             shown.discard(column_name)
+            if self.is_connected_table and Settings.gui_connected_table_sort_column == column_name:
+                Settings.gui_connected_table_sort_column = 'Last Rejoin'
+                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
+            elif not self.is_connected_table and Settings.gui_disconnected_table_sort_column == column_name:
+                Settings.gui_disconnected_table_sort_column = 'Last Seen'
+                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
 
         # Preserve ordering from the toggleable columns tuple
         new_shown = tuple(
@@ -610,8 +646,14 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         """Hide all toggleable columns and persist the change to settings."""
         if self.is_connected_table:
             Settings.gui_columns_connected_shown = ()
+            if Settings.gui_connected_table_sort_column not in Settings.GUI_FORCED_COLUMNS:
+                Settings.gui_connected_table_sort_column = 'Last Rejoin'
+                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
         else:
             Settings.gui_columns_disconnected_shown = ()
+            if Settings.gui_disconnected_table_sort_column not in Settings.GUI_FORCED_COLUMNS:
+                Settings.gui_disconnected_table_sort_column = 'Last Seen'
+                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
@@ -638,6 +680,21 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
 
         shown.difference_update(columns)
+        new_shown = tuple(
+            column for column in (Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS) if column in shown
+        )
+
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = new_shown
+            if Settings.gui_connected_table_sort_column in columns:
+                Settings.gui_connected_table_sort_column = 'Last Rejoin'
+                self.apply_sort('Last Rejoin', self.horizontalHeader().sortIndicatorOrder())
+        else:
+            Settings.gui_columns_disconnected_shown = new_shown
+            if Settings.gui_disconnected_table_sort_column in columns:
+                Settings.gui_disconnected_table_sort_column = 'Last Seen'
+                self.apply_sort('Last Seen', self.horizontalHeader().sortIndicatorOrder())
+        Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
 

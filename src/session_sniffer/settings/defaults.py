@@ -409,6 +409,22 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         max_value=5000,
         step=10,
     ),
+    'gui_connected_table_sort_column': SettingMeta(
+        category='Session',
+        group='Table Sorting',
+        display_label='Connected Sort Column',
+        setting_type=SettingType.ENUM,
+        tooltip='Default column used to sort the connected-players table.',
+        allowed_columns_attr='GUI_ALL_CONNECTED_COLUMNS',
+    ),
+    'gui_connected_table_sort_order': SettingMeta(
+        category='Session',
+        group='Table Sorting',
+        display_label='Connected Sort Order',
+        setting_type=SettingType.ENUM,
+        tooltip='Default sort order (Ascending or Descending) for the connected-players table.',
+        allowed_values=('Ascending', 'Descending'),
+    ),
     'gui_disconnected_table_rows_per_page': SettingMeta(
         category='Session',
         group='Table Pagination',
@@ -418,6 +434,22 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=0,
         max_value=5000,
         step=10,
+    ),
+    'gui_disconnected_table_sort_column': SettingMeta(
+        category='Session',
+        group='Table Sorting',
+        display_label='Disconnected Sort Column',
+        setting_type=SettingType.ENUM,
+        tooltip='Default column used to sort the disconnected-players table.',
+        allowed_columns_attr='GUI_ALL_DISCONNECTED_COLUMNS',
+    ),
+    'gui_disconnected_table_sort_order': SettingMeta(
+        category='Session',
+        group='Table Sorting',
+        display_label='Disconnected Sort Order',
+        setting_type=SettingType.ENUM,
+        tooltip='Default sort order (Ascending or Descending) for the disconnected-players table.',
+        allowed_values=('Ascending', 'Descending'),
     ),
     'gui_disconnected_players_enabled': SettingMeta(
         category='Session',
@@ -747,8 +779,12 @@ class SettingDefaults(TypedDict):
     gui_columns_geo_country_append_alpha2: bool
     gui_columns_geo_continent_append_alpha2: bool
     gui_connected_table_rows_per_page: int
+    gui_connected_table_sort_column: str
+    gui_connected_table_sort_order: str
     gui_disconnected_players_enabled: bool
     gui_disconnected_table_rows_per_page: int
+    gui_disconnected_table_sort_column: str
+    gui_disconnected_table_sort_order: str
     gui_disconnected_players_timer: int
     gui_ignore_screen_resolution_warning: bool
     voice_notifications_enabled: bool
@@ -847,8 +883,12 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_columns_geo_country_append_alpha2': True,
     'gui_columns_geo_continent_append_alpha2': True,
     'gui_connected_table_rows_per_page': 0,
+    'gui_connected_table_sort_column': 'Last Rejoin',
+    'gui_connected_table_sort_order': 'Descending',
     'gui_disconnected_players_enabled': True,
     'gui_disconnected_table_rows_per_page': 0,
+    'gui_disconnected_table_sort_column': 'Last Seen',
+    'gui_disconnected_table_sort_order': 'Ascending',
     'gui_disconnected_players_timer': 10,
     'gui_ignore_screen_resolution_warning': False,
     'voice_notifications_enabled': True,
