@@ -34,6 +34,7 @@ from session_sniffer.guis.utils import (
     setup_table_view_headers,
 )
 from session_sniffer.models.player import PlayerBandwidth
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -426,7 +427,11 @@ class HighRateMonitorWidget(QWidget):
     # Scanning ---------------------------------------------------------------
 
     def _scan_players(self) -> None:
-        players = [player for player in PlayersRegistry.get_connected_players() if player.ip not in self._blacklisted_ips]
+        players = [
+            player
+            for player in PlayersRegistry.get_connected_players()
+            if player.ip not in self._blacklisted_ips and not is_third_party_server_ip(player.ip)
+        ]
 
         selection_model = self._table.selectionModel()
         saved_selected: set[tuple[str, int]] = set()
