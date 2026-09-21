@@ -28,7 +28,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-RDR2_SOLO_TOOLTIP = 'Suspend RDR2 for ~8 seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
+
+def format_rdr2_solo_action_text() -> str:
+    """Return the label for the RDR2 solo public session action."""
+    return f'Solo Public Session ({Settings.solo_session_duration}s)'
+
+
+def format_rdr2_solo_tooltip() -> str:
+    """Return the tooltip text for the RDR2 solo public session action."""
+    return (
+        f'Suspend RDR2 for {Settings.solo_session_duration} seconds then auto-resume.\n'
+        'This forces the game to spawn you alone in a public session.'
+    )
 
 
 class RDR2Mixin(QMainWindow):
@@ -131,8 +142,8 @@ class RDR2Mixin(QMainWindow):
         rdr2_process_submenu.menuAction().setToolTip('RDR2 process controls — suspend/resume for solo and public session manipulation')
         self._rdr2_process_submenu = rdr2_process_submenu
 
-        rdr2_solo_menu_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), 'Solo Public Session (~8s)', self)
-        rdr2_solo_menu_action.setToolTip(RDR2_SOLO_TOOLTIP)
+        rdr2_solo_menu_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), format_rdr2_solo_action_text(), self)
+        rdr2_solo_menu_action.setToolTip(format_rdr2_solo_tooltip())
         rdr2_solo_menu_action.triggered.connect(self.rdr2_solo_session)
         rdr2_process_submenu.addAction(rdr2_solo_menu_action)
 
@@ -192,7 +203,7 @@ class RDR2Mixin(QMainWindow):
         self._sync_rdr2_process_button()
 
     def rdr2_solo_session(self) -> None:
-        """Suspend RDR2 for ~8 seconds then auto-resume, forcing a solo public session."""
+        """Suspend RDR2 then auto-resume, forcing a solo public session."""
         self._sync_rdr2_process_button()
         if not self._rdr2_process_is_running():
             logger.warning('RDR2 solo session: RDR2 process is not running')
@@ -215,7 +226,7 @@ class RDR2Mixin(QMainWindow):
         RDR2SuspendManager.request_suspend(
             reason_key='solo:toolbar',
             left_event=already_left,
-            duration=8,
+            duration=Settings.solo_session_duration,
         )
         if not RDR2SuspendManager.has_reason('solo:toolbar'):
             logger.warning('RDR2 solo session: suspend failed')
@@ -309,11 +320,13 @@ class RDR2Mixin(QMainWindow):
                 self._rdr2_suspend_resume_action.setEnabled(True)
                 self._rdr2_solo_menu_action.setEnabled(True)
                 self._rdr2_suspend_resume_action.setToolTip('Manually suspend the RDR2 process — click again to resume')
-                self._rdr2_solo_menu_action.setToolTip(RDR2_SOLO_TOOLTIP)
+                self._rdr2_solo_menu_action.setText(format_rdr2_solo_action_text())
+                self._rdr2_solo_menu_action.setToolTip(format_rdr2_solo_tooltip())
             else:
                 self._rdr2_suspend_resume_action.setEnabled(False)
                 self._rdr2_solo_menu_action.setEnabled(False)
                 self._rdr2_suspend_resume_action.setToolTip('RDR2 is not currently running')
+                self._rdr2_solo_menu_action.setText(format_rdr2_solo_action_text())
                 self._rdr2_solo_menu_action.setToolTip('RDR2 is not currently running')
 
     def _resize_rdr2_status_label(self, visible_text: str) -> None:

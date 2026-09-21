@@ -34,6 +34,7 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.settings import Settings
 
 MAX_POSSIBLE_IP_ICONS = 3
 
@@ -264,11 +265,11 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self.get_ip_from_data_safely(self._data[row_index])
                 icon_paths: list[str] = []
-                if SessionHost.is_host(ip):
+                if Settings.gui_session_host_icon and SessionHost.is_host(ip):
                     icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
-                if HighRateTracker.is_high_rate(ip):
+                if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                     icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'speedometer.svg'))
-                if PlayerIdentifierTracker.is_identified(ip):
+                if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
                     icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
                 if icon_paths:
                     cache_key = tuple(icon_paths)
@@ -307,11 +308,11 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 tooltips: list[str] = []
                 if output:
                     tooltips.append(str(output))
-                if SessionHost.is_host(ip):
+                if Settings.gui_session_host_icon and SessionHost.is_host(ip):
                     tooltips.append('Session Host')
-                if HighRateTracker.is_high_rate(ip):
+                if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                     tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
-                if PlayerIdentifierTracker.is_identified(ip):
+                if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
                     tooltips.append('Identified player (Player Identifier)')
                 if tooltips:
                     output = '\n'.join(tooltips)
@@ -602,11 +603,11 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 continue
             ip = row_data[ip_column]
             count = 0
-            if SessionHost.is_host(ip):
+            if Settings.gui_session_host_icon and SessionHost.is_host(ip):
                 count += 1
-            if HighRateTracker.is_high_rate(ip):
+            if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                 count += 1
-            if PlayerIdentifierTracker.is_identified(ip):
+            if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
                 count += 1
             if count > max_count:
                 max_count = count

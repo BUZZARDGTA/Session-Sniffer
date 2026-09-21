@@ -70,6 +70,7 @@ class Settings:
     gui_sessions_logging_delete_empty_folders: bool = SETTING_DEFAULTS['gui_sessions_logging_delete_empty_folders']
     gui_reset_ports_on_rejoins: bool = SETTING_DEFAULTS['gui_reset_ports_on_rejoins']
     gui_session_host_detection: bool = SETTING_DEFAULTS['gui_session_host_detection']
+    gui_session_host_icon: bool = SETTING_DEFAULTS['gui_session_host_icon']
     gui_columns_connected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_connected_shown']
     gui_columns_disconnected_shown: tuple[str, ...] = SETTING_DEFAULTS['gui_columns_disconnected_shown']
     gui_columns_datetime_show_date: bool = SETTING_DEFAULTS['gui_columns_datetime_show_date']
@@ -114,6 +115,17 @@ class Settings:
     looky_exclusive_gta5_process: bool = SETTING_DEFAULTS['looky_exclusive_gta5_process']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
     looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
+    high_rate_monitor_icon: bool = SETTING_DEFAULTS['high_rate_monitor_icon']
+    high_rate_monitor_run_in_background: bool = SETTING_DEFAULTS['high_rate_monitor_run_in_background']
+    high_rate_monitor_auto_select: bool = SETTING_DEFAULTS['high_rate_monitor_auto_select']
+    solo_session_duration: int = SETTING_DEFAULTS['solo_session_duration']
+    high_rate_monitor_pps_threshold: int = SETTING_DEFAULTS['high_rate_monitor_pps_threshold']
+    high_rate_monitor_bps_threshold: int = SETTING_DEFAULTS['high_rate_monitor_bps_threshold']
+    high_rate_monitor_duration_threshold: int = SETTING_DEFAULTS['high_rate_monitor_duration_threshold']
+    player_identifier_icon: bool = SETTING_DEFAULTS['player_identifier_icon']
+    player_identifier_spike_zscore: float = SETTING_DEFAULTS['player_identifier_spike_zscore']
+    player_identifier_spike_seconds: int = SETTING_DEFAULTS['player_identifier_spike_seconds']
+    player_identifier_baseline_seconds: int = SETTING_DEFAULTS['player_identifier_baseline_seconds']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
@@ -143,6 +155,7 @@ class Settings:
         'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS',
         'GUI_RESET_PORTS_ON_REJOINS',
         'GUI_SESSION_HOST_DETECTION',
+        'GUI_SESSION_HOST_ICON',
         'GUI_COLUMNS_CONNECTED_SHOWN',
         'GUI_COLUMNS_DISCONNECTED_SHOWN',
         'GUI_COLUMNS_DATETIME_SHOW_DATE',
@@ -187,6 +200,17 @@ class Settings:
         'LOOKY_GAME_VERSION',
         'LOOKY_API_KEY',
         'PINGER_LOCAL',
+        'HIGH_RATE_MONITOR_ICON',
+        'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
+        'HIGH_RATE_MONITOR_AUTO_SELECT',
+        'SOLO_SESSION_DURATION',
+        'HIGH_RATE_MONITOR_PPS_THRESHOLD',
+        'HIGH_RATE_MONITOR_BPS_THRESHOLD',
+        'HIGH_RATE_MONITOR_DURATION_THRESHOLD',
+        'PLAYER_IDENTIFIER_ICON',
+        'PLAYER_IDENTIFIER_SPIKE_ZSCORE',
+        'PLAYER_IDENTIFIER_SPIKE_SECONDS',
+        'PLAYER_IDENTIFIER_BASELINE_SECONDS',
     )
 
     _ALL_SETTINGS_SET: ClassVar[frozenset[str]] = frozenset(ALL_SETTINGS)

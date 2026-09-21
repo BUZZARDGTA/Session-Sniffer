@@ -903,3 +903,7 @@ class PlayerIdentifierWidget(QWidget):
     @property
     def _session_drift_threshold(self) -> float:
         return self._params_box.session_drift_threshold
+
+    def apply_settings(self) -> None:
+        """Apply updated detection parameters from `Settings`."""
+        self._params_box.apply_settings()

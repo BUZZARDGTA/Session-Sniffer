@@ -15,11 +15,9 @@ from session_sniffer.guis._player_identifier_core import (
     BASELINE_CONTAMINATION_SECONDS,
     BASELINE_CONTAMINATION_ZSCORE,
     BASELINE_MAX_SECONDS,
-    BASELINE_MIN_SAMPLES,
     SESSION_DRIFT_ZSCORE_THRESHOLD,
-    SPIKE_MIN_ZSCORE,
-    SPIKE_SUSTAINED_SECONDS,
 )
+from session_sniffer.settings import Settings
 
 
 class PlayerIdentifierParamsWidget(QGroupBox):
@@ -48,7 +46,7 @@ class PlayerIdentifierParamsWidget(QGroupBox):
         self._spike_zscore_input.setRange(1.0, 20.0)
         self._spike_zscore_input.setSingleStep(0.5)
         self._spike_zscore_input.setDecimals(1)
-        self._spike_zscore_input.setValue(SPIKE_MIN_ZSCORE)
+        self._spike_zscore_input.setValue(Settings.player_identifier_spike_zscore)
         self._spike_zscore_input.setToolTip(
             'Minimum z-score for an IP to be considered spiking during the Resolve phase.\n\n'
             'Higher = only very dramatic traffic increases trigger detection.\n'
@@ -58,7 +56,7 @@ class PlayerIdentifierParamsWidget(QGroupBox):
 
         self._spike_seconds_input = QSpinBox()
         self._spike_seconds_input.setRange(1, 30)
-        self._spike_seconds_input.setValue(SPIKE_SUSTAINED_SECONDS)
+        self._spike_seconds_input.setValue(Settings.player_identifier_spike_seconds)
         self._spike_seconds_input.setSuffix('s')
         self._spike_seconds_input.setToolTip(
             'Consecutive seconds an IP must stay above the spike z-score to be confirmed as the target.\n\n'
@@ -104,7 +102,7 @@ class PlayerIdentifierParamsWidget(QGroupBox):
 
         self._min_samples_input = QSpinBox()
         self._min_samples_input.setRange(5, 120)
-        self._min_samples_input.setValue(BASELINE_MIN_SAMPLES)
+        self._min_samples_input.setValue(Settings.player_identifier_baseline_seconds)
         self._min_samples_input.setSuffix('s')
         self._min_samples_input.setToolTip(
             'Minimum number of 1-second samples required before the baseline can auto-lock on convergence.\n\n'
@@ -136,6 +134,12 @@ class PlayerIdentifierParamsWidget(QGroupBox):
             'Higher = more tolerant of session-wide traffic shifts.',
         )
         center_form.addRow('Session Drift Z-Score:', self._drift_threshold_input)
+
+    def apply_settings(self) -> None:
+        """Apply updated detection parameters from `Settings`."""
+        self._spike_zscore_input.setValue(Settings.player_identifier_spike_zscore)
+        self._spike_seconds_input.setValue(Settings.player_identifier_spike_seconds)
+        self._min_samples_input.setValue(Settings.player_identifier_baseline_seconds)
 
     @property
     def spike_min_zscore(self) -> float:

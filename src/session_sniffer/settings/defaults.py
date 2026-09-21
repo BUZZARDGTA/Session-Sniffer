@@ -1,5 +1,7 @@
 """Default setting values, metadata, and categories for Session Sniffer."""
 
+# pylint: disable=too-many-lines
+
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TypedDict
@@ -72,6 +74,7 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Columns',
     'Discord',
     'Web Server',
+    'GTA V',
     'Looky System',
 )
 
@@ -327,11 +330,18 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Clear recorded player ports when a player rejoins the session.',
     ),
     'gui_session_host_detection': SettingMeta(
-        category='Session',
-        group='General',
+        category='GTA V',
+        group='Session Host',
         display_label='Session Host Detection',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Detect and highlight the session host in the connected-players table (supported feature sets only).',
+        tooltip='Detect and track the session host for supported game sessions.',
+    ),
+    'gui_session_host_icon': SettingMeta(
+        category='GTA V',
+        group='Session Host',
+        display_label='Session Host Table Icon',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Display the crown icon next to the session host IP address in the session tables.',
     ),
     'gui_columns_connected_shown': SettingMeta(
         category='Columns',
@@ -735,6 +745,107 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_width=600,
         max_width=600,
     ),
+    'solo_session_duration': SettingMeta(
+        category='GTA V',
+        group='Solo Public Session',
+        display_label='Solo Session Suspend Duration',
+        setting_type=SettingType.INTEGER,
+        tooltip='Duration in seconds to suspend the game process to trigger a solo public session.',
+        min_value=6,
+        max_value=30,
+        step=1,
+    ),
+    'high_rate_monitor_icon': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor Table Icon',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Display the High Rate Monitor speedometer icon in the IP Address column for players exceeding rate thresholds.',
+    ),
+    'high_rate_monitor_run_in_background': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor Run in Background',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'When enabled, the High Rate Monitor continuously tracks player packet rates in the background even when the Player Resolver window is closed.\n'
+            'When disabled, player rate monitoring is only active while the Player Resolver window is open.'
+        ),
+    ),
+    'high_rate_monitor_auto_select': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor Auto-Select in Table',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Automatically select flagged high-rate players in the connected-players table.',
+    ),
+    'high_rate_monitor_pps_threshold': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor PPS Threshold',
+        setting_type=SettingType.INTEGER,
+        tooltip='Minimum Packets Per Second required to flag a player as high-rate traffic.',
+        min_value=20,
+        max_value=50,
+        step=1,
+    ),
+    'high_rate_monitor_bps_threshold': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor BPS Threshold',
+        setting_type=SettingType.INTEGER,
+        tooltip='Minimum bandwidth in kilobytes per second (KB/s) required to flag a player as high-rate traffic.',
+        min_value=3,
+        max_value=500,
+        step=1,
+    ),
+    'high_rate_monitor_duration_threshold': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor Duration',
+        setting_type=SettingType.INTEGER,
+        tooltip='Number of consecutive seconds player traffic must exceed both PPS and BPS thresholds.',
+        min_value=1,
+        max_value=10,
+        step=1,
+    ),
+    'player_identifier_icon': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Table Icon',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Display the Player Identifier target icon in the IP Address column for players identified by the tool.',
+    ),
+    'player_identifier_spike_zscore': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Spike Z-Score',
+        setting_type=SettingType.FLOAT,
+        tooltip='Statistical sensitivity threshold (z-score) to detect traffic spikes during correlation.',
+        min_value=1.0,
+        max_value=20.0,
+        step=0.5,
+    ),
+    'player_identifier_spike_seconds': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Spike Duration',
+        setting_type=SettingType.INTEGER,
+        tooltip='Number of consecutive seconds a traffic burst must sustain to identify a player.',
+        min_value=1,
+        max_value=30,
+        step=1,
+    ),
+    'player_identifier_baseline_seconds': SettingMeta(
+        category='GTA V',
+        group='Player Identifier',
+        display_label='Player Identifier Baseline Duration',
+        setting_type=SettingType.INTEGER,
+        tooltip='Duration in seconds to profile quiet background traffic before triggering player resolution.',
+        min_value=5,
+        max_value=60,
+        step=1,
+    ),
 }
 
 
@@ -770,6 +881,7 @@ class SettingDefaults(TypedDict):
     gui_sessions_logging_delete_empty_folders: bool
     gui_reset_ports_on_rejoins: bool
     gui_session_host_detection: bool
+    gui_session_host_icon: bool
     gui_columns_connected_shown: tuple[str, ...]
     gui_columns_disconnected_shown: tuple[str, ...]
     gui_columns_datetime_show_date: bool
@@ -814,6 +926,17 @@ class SettingDefaults(TypedDict):
     looky_exclusive_gta5_process: bool
     looky_game_version: str
     looky_api_key: str | None
+    high_rate_monitor_icon: bool
+    high_rate_monitor_run_in_background: bool
+    high_rate_monitor_auto_select: bool
+    solo_session_duration: int
+    high_rate_monitor_pps_threshold: int
+    high_rate_monitor_bps_threshold: int
+    high_rate_monitor_duration_threshold: int
+    player_identifier_icon: bool
+    player_identifier_spike_zscore: float
+    player_identifier_spike_seconds: int
+    player_identifier_baseline_seconds: int
 
 
 SETTING_DEFAULTS: SettingDefaults = {
@@ -846,6 +969,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_sessions_logging_delete_empty_folders': False,
     'gui_reset_ports_on_rejoins': True,
     'gui_session_host_detection': True,
+    'gui_session_host_icon': True,
     'gui_columns_connected_shown': (
         'Packets',
         'PPS',
@@ -934,4 +1058,15 @@ SETTING_DEFAULTS: SettingDefaults = {
     'looky_exclusive_gta5_process': True,
     'looky_game_version': 'Both',
     'looky_api_key': None,
+    'high_rate_monitor_icon': True,
+    'high_rate_monitor_run_in_background': True,
+    'high_rate_monitor_auto_select': True,
+    'solo_session_duration': 6,
+    'high_rate_monitor_pps_threshold': 30,
+    'high_rate_monitor_bps_threshold': 5,
+    'high_rate_monitor_duration_threshold': 3,
+    'player_identifier_icon': True,
+    'player_identifier_spike_zscore': 3.0,
+    'player_identifier_spike_seconds': 3,
+    'player_identifier_baseline_seconds': 10,
 }

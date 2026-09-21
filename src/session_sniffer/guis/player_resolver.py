@@ -1,9 +1,9 @@
 """Player Resolver — tabbed container for High Rate Monitor and Player Identifier."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QCloseEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QTabWidget,
@@ -14,6 +14,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -70,3 +71,17 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         self.show()
         self.raise_()
         self.activateWindow()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Handle window show event to start monitoring when background running is disabled."""
+        super().showEvent(event)
+        if not Settings.high_rate_monitor_run_in_background:
+            self.high_rate_monitor.start_monitoring()
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Handle window close event to stop monitoring when background running is disabled."""
+        if not Settings.high_rate_monitor_run_in_background:
+            self.high_rate_monitor.stop_monitoring()
+        super().closeEvent(event)

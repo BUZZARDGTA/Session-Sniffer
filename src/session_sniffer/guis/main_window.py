@@ -23,7 +23,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
-from session_sniffer.guis._main_window_gta5_mixin import GTA5_SOLO_TOOLTIP, GTA5Mixin
+from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin, format_gta5_solo_action_text, format_gta5_solo_tooltip
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_rdr2_mixin import RDR2Mixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
@@ -259,8 +259,8 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         gta5_process_submenu.menuAction().setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
         self._gta5_process_submenu = gta5_process_submenu
 
-        gta5_menu_solo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), 'Solo Public Session (~8s)', self)
-        gta5_menu_solo_action.setToolTip(GTA5_SOLO_TOOLTIP)
+        gta5_menu_solo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), format_gta5_solo_action_text(), self)
+        gta5_menu_solo_action.setToolTip(format_gta5_solo_tooltip())
         gta5_menu_solo_action.triggered.connect(self.gta5_solo_session)
         gta5_process_submenu.addAction(gta5_menu_solo_action)
 
@@ -915,6 +915,19 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         self._connected.apply_sort_from_settings()
         self._disconnected.apply_sort_from_settings()
 
+    def _sync_player_resolver_settings(self) -> None:
+        """Synchronize Player Resolver background monitoring and refresh session table icons."""
+        self._player_resolver_window.high_rate_monitor.apply_settings()
+        self._player_resolver_window.player_identifier.apply_settings()
+        if Settings.high_rate_monitor_run_in_background:
+            self._player_resolver_window.high_rate_monitor.start_monitoring()
+        elif not self._player_resolver_window.isVisible():
+            self._player_resolver_window.high_rate_monitor.stop_monitoring()
+        self._connected.table_view.adjust_ip_column_width()
+        self._disconnected.table_view.adjust_ip_column_width()
+        self._connected.table_view.viewport().update()
+        self._disconnected.table_view.viewport().update()
+
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
         if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
@@ -926,6 +939,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         window.accepted.connect(self._apply_always_on_top)
         window.accepted.connect(self._update_splitter_visibility)
         window.accepted.connect(self._apply_table_sort_from_settings)
+        window.accepted.connect(self._sync_player_resolver_settings)
         window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
         self._settings_dialog_window = window
         self._settings_dialog_window.show()

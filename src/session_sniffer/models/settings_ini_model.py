@@ -8,6 +8,8 @@ The INI parser produces a dict[str, str] of UPPER_CASE key → raw string value.
 This model validates each field and records canonical rewrite intent via context.
 """
 
+# pylint: disable=too-many-lines
+
 import ast
 from dataclasses import dataclass
 from typing import Any, ClassVar, Self, cast
@@ -99,6 +101,7 @@ class SettingsIniModel(BaseModel):
     GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS: bool
     GUI_RESET_PORTS_ON_REJOINS: bool
     GUI_SESSION_HOST_DETECTION: bool
+    GUI_SESSION_HOST_ICON: bool
     GUI_COLUMNS_CONNECTED_SHOWN: tuple[str, ...]
     GUI_COLUMNS_DISCONNECTED_SHOWN: tuple[str, ...]
     GUI_COLUMNS_DATETIME_SHOW_DATE: bool
@@ -147,6 +150,17 @@ class SettingsIniModel(BaseModel):
     LOOKY_GAME_VERSION: str
     LOOKY_API_KEY: str | None
     PINGER_LOCAL: bool
+    SOLO_SESSION_DURATION: int
+    HIGH_RATE_MONITOR_ICON: bool
+    HIGH_RATE_MONITOR_RUN_IN_BACKGROUND: bool
+    HIGH_RATE_MONITOR_AUTO_SELECT: bool
+    HIGH_RATE_MONITOR_PPS_THRESHOLD: int
+    HIGH_RATE_MONITOR_BPS_THRESHOLD: int
+    HIGH_RATE_MONITOR_DURATION_THRESHOLD: int
+    PLAYER_IDENTIFIER_ICON: bool
+    PLAYER_IDENTIFIER_SPIKE_ZSCORE: float
+    PLAYER_IDENTIFIER_SPIKE_SECONDS: int
+    PLAYER_IDENTIFIER_BASELINE_SECONDS: int
 
     # --- Internal context helpers ---
 
@@ -172,6 +186,7 @@ class SettingsIniModel(BaseModel):
             'GUI_INTERFACE_SELECTION_HIDE_NEIGHBOURS',
             'GUI_RESET_PORTS_ON_REJOINS',
             'GUI_SESSION_HOST_DETECTION',
+            'GUI_SESSION_HOST_ICON',
             'GUI_SESSIONS_LOGGING',
             'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FILES',
             'GUI_SESSIONS_LOGGING_DELETE_EMPTY_FOLDERS',
@@ -182,6 +197,10 @@ class SettingsIniModel(BaseModel):
             'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
             'VOICE_NOTIFICATIONS_ENABLED',
+            'HIGH_RATE_MONITOR_ICON',
+            'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
+            'HIGH_RATE_MONITOR_AUTO_SELECT',
+            'PLAYER_IDENTIFIER_ICON',
         },
     )
 
@@ -610,6 +629,202 @@ class SettingsIniModel(BaseModel):
         max_val = 300
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 15
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('SOLO_SESSION_DURATION', mode='before')
+    @classmethod
+    def _parse_solo_session_duration(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 6
+        max_val = 30
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 6
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('HIGH_RATE_MONITOR_PPS_THRESHOLD', mode='before')
+    @classmethod
+    def _parse_high_rate_monitor_pps_threshold(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 20
+        max_val = 50
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 30
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('HIGH_RATE_MONITOR_BPS_THRESHOLD', mode='before')
+    @classmethod
+    def _parse_high_rate_monitor_bps_threshold(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 3
+        max_val = 500
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 5
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('HIGH_RATE_MONITOR_DURATION_THRESHOLD', mode='before')
+    @classmethod
+    def _parse_high_rate_monitor_duration_threshold(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 1
+        max_val = 10
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 3
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_SPIKE_ZSCORE', mode='before')
+    @classmethod
+    def _parse_player_identifier_spike_zscore(cls, value: object, info: ValidationInfo) -> float:
+        min_val = 1.0
+        max_val = 20.0
+        default = cls._get_default_for_field(info)
+        default_float = default if isinstance(default, float) else 3.0
+
+        parsed: float | None = None
+        if isinstance(value, (int, float)):
+            parsed = float(value)
+        elif isinstance(value, str):
+            try:
+                parsed = float(value)
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_float
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_SPIKE_SECONDS', mode='before')
+    @classmethod
+    def _parse_player_identifier_spike_seconds(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 1
+        max_val = 30
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 3
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PLAYER_IDENTIFIER_BASELINE_SECONDS', mode='before')
+    @classmethod
+    def _parse_player_identifier_baseline_seconds(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 5
+        max_val = 60
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 10
 
         parsed: int | None = None
         if isinstance(value, (int, float)):

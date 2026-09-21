@@ -22,6 +22,7 @@ from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRa
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -152,11 +153,11 @@ class HighRateMonitorWidget(QWidget):
         self._blacklisted_ips: set[str] = set()
         self._graph_windows: dict[str, PlayerRateGraphWindow] = {}
         self._currently_selected_ips: set[str] = set()
-        self._auto_select: bool = True
+        self._auto_select: bool = Settings.high_rate_monitor_auto_select
 
-        self.pps_threshold = PPS_THRESHOLD_DEFAULT
-        self.bps_threshold = BPS_THRESHOLD_DEFAULT_KBS * _KBS_TO_BYTES
-        self.required_duration = DURATION_THRESHOLD_DEFAULT_SECONDS
+        self.pps_threshold = Settings.high_rate_monitor_pps_threshold
+        self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
+        self.required_duration = Settings.high_rate_monitor_duration_threshold
 
         layout = QVBoxLayout(self)
 
@@ -175,7 +176,7 @@ class HighRateMonitorWidget(QWidget):
         self._pps_threshold_input = QSpinBox()
         self._pps_threshold_input.setFixedWidth(_BUTTON_WIDTH)
         self._pps_threshold_input.setRange(PPS_THRESHOLD_MIN, PPS_THRESHOLD_MAX)
-        self._pps_threshold_input.setValue(PPS_THRESHOLD_DEFAULT)
+        self._pps_threshold_input.setValue(self.pps_threshold)
         self._pps_threshold_input.setSuffix(' PPS threshold')
         self._pps_threshold_input.setToolTip(
             'Packets Per Second threshold.\n\n'
@@ -194,7 +195,7 @@ class HighRateMonitorWidget(QWidget):
         self._bps_threshold_input = QSpinBox()
         self._bps_threshold_input.setFixedWidth(_BUTTON_WIDTH)
         self._bps_threshold_input.setRange(BPS_THRESHOLD_MIN_KBS, BPS_THRESHOLD_MAX_KBS)
-        self._bps_threshold_input.setValue(BPS_THRESHOLD_DEFAULT_KBS)
+        self._bps_threshold_input.setValue(Settings.high_rate_monitor_bps_threshold)
         self._bps_threshold_input.setSuffix(' KB/s threshold')
         self._bps_threshold_input.setSingleStep(1)
         self._bps_threshold_input.setToolTip(
@@ -215,7 +216,7 @@ class HighRateMonitorWidget(QWidget):
         self._duration_input = QSpinBox()
         self._duration_input.setFixedWidth(_BUTTON_WIDTH)
         self._duration_input.setRange(DURATION_THRESHOLD_MIN_SECONDS, DURATION_THRESHOLD_MAX_SECONDS)
-        self._duration_input.setValue(DURATION_THRESHOLD_DEFAULT_SECONDS)
+        self._duration_input.setValue(self.required_duration)
         self._duration_input.setSuffix('s (required duration)')
         self._duration_input.setToolTip(
             'How many consecutive seconds a player must stay above both thresholds '
@@ -255,7 +256,7 @@ class HighRateMonitorWidget(QWidget):
             'Keep high-rate players selected in the connected players table automatically.\n\n'
             'Live updates occur with every scan. Turn off for manual selection control.',
         )
-        self._auto_select_checkbox.setChecked(True)
+        self._auto_select_checkbox.setChecked(self._auto_select)
         self._auto_select_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._auto_select_checkbox.toggled.connect(self._on_auto_select_toggled)
         selection_layout.addWidget(self._auto_select_checkbox)
@@ -298,8 +299,9 @@ class HighRateMonitorWidget(QWidget):
         # Periodic scan timer
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._scan_players)
-        self._timer.start(_UPDATE_INTERVAL_MS)
-        self._scan_players()
+        if Settings.high_rate_monitor_run_in_background:
+            self._timer.start(_UPDATE_INTERVAL_MS)
+            self._scan_players()
 
     # Scanning ---------------------------------------------------------------
 
@@ -401,6 +403,13 @@ class HighRateMonitorWidget(QWidget):
     def _set_required_duration(self, value: int) -> None:
         self.required_duration = value
 
+    def apply_settings(self) -> None:
+        """Apply updated threshold and auto-select settings from `Settings`."""
+        self._pps_threshold_input.setValue(Settings.high_rate_monitor_pps_threshold)
+        self._bps_threshold_input.setValue(Settings.high_rate_monitor_bps_threshold)
+        self._duration_input.setValue(Settings.high_rate_monitor_duration_threshold)
+        self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
+
     # Graphs -----------------------------------------------------------------
 
     def open_graph(self, ip: str) -> None:
@@ -477,6 +486,18 @@ class HighRateMonitorWidget(QWidget):
         """Add an IP to the blacklist to exclude it from high-rate detection."""
         self._blacklisted_ips.add(ip)
         self._tracked.pop(ip, None)
+
+    def start_monitoring(self) -> None:
+        """Start periodic rate monitoring if not already active."""
+        if not self._timer.isActive():
+            self._timer.start(_UPDATE_INTERVAL_MS)
+            self._scan_players()
+
+    def stop_monitoring(self) -> None:
+        """Stop periodic rate monitoring and clear flagged IPs."""
+        if self._timer.isActive():
+            self._timer.stop()
+        self.reset_all()
 
     def get_tracked(self, ip: str) -> _PlayerRateData | None:
         """Return the tracked rate data for the given IP, or None."""

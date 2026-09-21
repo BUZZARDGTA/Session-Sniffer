@@ -30,7 +30,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-GTA5_SOLO_TOOLTIP = 'Suspend GTA5 for ~8 seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
+
+def format_gta5_solo_action_text() -> str:
+    """Return the label for the GTA5 solo public session action."""
+    return f'Solo Public Session ({Settings.solo_session_duration}s)'
+
+
+def format_gta5_solo_tooltip() -> str:
+    """Return the tooltip text for the GTA5 solo public session action."""
+    return (
+        f'Suspend GTA5 for {Settings.solo_session_duration} seconds then auto-resume.\n'
+        'This forces the game to spawn you alone in a public session.'
+    )
 
 
 class GTA5Mixin(QMainWindow):
@@ -118,7 +129,7 @@ class GTA5Mixin(QMainWindow):
         self._sync_gta5_process_button()
 
     def gta5_solo_session(self) -> None:
-        """Suspend GTA5 for ~8 seconds then auto-resume, forcing a solo public session."""
+        """Suspend GTA5 for the configured duration then auto-resume, forcing a solo public session."""
         self._sync_gta5_process_button()
         if not self._gta5_process_is_running():
             logger.warning('GTA5 solo session: GTA5 process is not running')
@@ -141,7 +152,7 @@ class GTA5Mixin(QMainWindow):
         GTASuspendManager.request_suspend(
             reason_key='solo:toolbar',
             left_event=already_left,
-            duration=8,
+            duration=Settings.solo_session_duration,
         )
         if not GTASuspendManager.has_reason('solo:toolbar'):
             logger.warning('GTA5 solo session: suspend failed')
@@ -175,6 +186,7 @@ class GTA5Mixin(QMainWindow):
     def _sync_gta5_process_button(self) -> None:
         """Update the GTA5 Process submenu title and menu-item enabled states."""
         self._refresh_gta5_process_state()
+        self._gta5_solo_menu_action.setText(format_gta5_solo_action_text())
         can_act = self._gta5_has_any_process_path() and CaptureState.is_local_capture()
         self._gta5_process_submenu.setEnabled(can_act)
         if not can_act:
@@ -241,11 +253,13 @@ class GTA5Mixin(QMainWindow):
                 self._gta5_suspend_resume_action.setEnabled(True)
                 self._gta5_solo_menu_action.setEnabled(True)
                 self._gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — click again to resume')
-                self._gta5_solo_menu_action.setToolTip(GTA5_SOLO_TOOLTIP)
+                self._gta5_solo_menu_action.setText(format_gta5_solo_action_text())
+                self._gta5_solo_menu_action.setToolTip(format_gta5_solo_tooltip())
             else:
                 self._gta5_suspend_resume_action.setEnabled(False)
                 self._gta5_solo_menu_action.setEnabled(False)
                 self._gta5_suspend_resume_action.setToolTip('GTA5 is not currently running')
+                self._gta5_solo_menu_action.setText(format_gta5_solo_action_text())
                 self._gta5_solo_menu_action.setToolTip('GTA5 is not currently running')
 
     def _refresh_runtime_capability_windows(self) -> None:
@@ -279,6 +293,7 @@ class GTA5Mixin(QMainWindow):
         self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
         self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
         self._update_looky_actions()
+        self._sync_gta5_process_button()
 
         rdr2_feature_set = Settings.is_rdr2_feature_set()
         rdr2_menu_action = self._rdr2_menu.menuAction()

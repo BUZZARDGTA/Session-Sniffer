@@ -137,11 +137,15 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         self._tabs = QTabWidget()
         self._looky_tab_index: int = -1
+        self._game_tab_index: int = -1
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
+            tab_widget.setProperty('category', category)
             self._tabs.addTab(tab_widget, category)
             if category == 'Looky System':
                 self._looky_tab_index = i
+            elif category == 'GTA V':
+                self._game_tab_index = i
         self._tabs.currentChanged.connect(self._on_tab_changed)
         root_layout.addWidget(self._tabs)
 
@@ -427,19 +431,18 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         form.addRow(label, widget)
 
     def _on_feature_set_changed(self, feature_set: str) -> None:
-        """Show or hide feature-set-dependent rows depending on the active feature set."""
-        session_host_supported = feature_set in ('GTA V', 'RDR2')
-        gta5_only = feature_set == 'GTA V'
-        for key in ('gui_session_host_detection',):
-            widget = self._widgets.get(key)
-            label = self._labels.get(key)
-            if widget:
-                widget.setVisible(session_host_supported)
-                widget.setEnabled(session_host_supported)
-            if label:
-                label.setVisible(session_host_supported)
+        """Show or hide feature-set-dependent tabs and update dynamic game tab title."""
+        is_gta5 = feature_set == 'GTA V'
+        is_rdr2 = feature_set == 'RDR2'
+        is_supported_game = is_gta5 or is_rdr2
+
         if self._looky_tab_index != -1:
-            self._tabs.setTabVisible(self._looky_tab_index, gta5_only)
+            self._tabs.setTabVisible(self._looky_tab_index, is_gta5)
+
+        if self._game_tab_index != -1:
+            self._tabs.setTabVisible(self._game_tab_index, is_supported_game)
+            if is_supported_game:
+                self._tabs.setTabText(self._game_tab_index, feature_set)
 
     def _on_disconnected_players_enabled_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Update Session tab controls and labels based on the Disconnected Players toggle."""
@@ -746,7 +749,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
     def _reset_current_tab(self) -> None:
         """Reset the current tab's settings to their default values."""
-        category = SETTING_CATEGORIES_ORDER[self._tabs.currentIndex()]
+        current_widget = self._tabs.currentWidget()
+        category_property = current_widget.property('category')
+        category = str(category_property) if category_property else self._tabs.tabText(self._tabs.currentIndex())
         self._reset_tab_to_defaults(category)
 
     def _reset_to_defaults(self) -> None:
