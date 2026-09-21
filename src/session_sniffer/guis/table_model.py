@@ -74,7 +74,7 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
     'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Minute during the current session.',
     'IP Address': 'The IP address of the player.',
     'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
-    'Ports': 'All ports used by the player, sorted by the order of discovery.',
+    'Ports': 'All ports used by the player, ordered from first to last discovered (left to right).',
     'Last Port': "The port used by the player's last captured packet.",
     'Middle Ports': 'The ports used by the player between the first and last captured packets.',
     'First Port': "The port used by the player's first captured packet.",
