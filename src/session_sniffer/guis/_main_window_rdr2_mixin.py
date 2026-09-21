@@ -53,7 +53,7 @@ class RDR2Mixin(QMainWindow):
     _last_rdr2_status_key: tuple[bool, bool, bool]
 
     if TYPE_CHECKING:
-        _highlight_ips: Callable[[list[str]], None]
+        _select_ips: Callable[[list[str]], None]
         _clear_session_host: Callable[[], None]
         _redetect_session_host: Callable[[], None]
         _open_player_resolver: Callable[[], None]
@@ -119,7 +119,7 @@ class RDR2Mixin(QMainWindow):
                 self._rdr2_host_status_action.setText('No host')
 
         session_host_submenu.aboutToShow.connect(_update_rdr2_host_status_label)
-        setup_session_host_actions(session_host_submenu, self._clear_session_host, self._redetect_session_host, self._highlight_ips, error_label='RDR2 Host History')
+        setup_session_host_actions(session_host_submenu, self._clear_session_host, self._redetect_session_host, self._select_ips, error_label='RDR2 Host History')
 
         self._rdr2_menu_process_separator = rdr2_menu.addSeparator()
 

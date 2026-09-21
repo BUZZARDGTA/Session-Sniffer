@@ -3,11 +3,11 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QIcon
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.guis._combo_rule_editor import AVAILABLE_FLAG_CODES, COUNTRY_FLAGS_DIR
+from session_sniffer.guis.utils import load_country_flag_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.text_utils import format_elapsed_time
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QMenu
 
 
-def populate_host_history_submenu(menu: QMenu, highlight_ip_callback: Callable[[list[str]], None]) -> None:
+def populate_host_history_submenu(menu: QMenu, select_ip_callback: Callable[[list[str]], None]) -> None:
     """Clear and rebuild `menu` with the current session host detection history."""
     menu.clear()
     history = SessionHost.get_history()
@@ -34,10 +34,10 @@ def populate_host_history_submenu(menu: QMenu, highlight_ip_callback: Callable[[
         elapsed_time_str = format_elapsed_time(now - entry.detected_at)
         act = QAction(f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_str} ago)', menu)
         target_ip = entry.ip
-        act.triggered.connect(lambda _checked=False, ip=target_ip: highlight_ip_callback([ip]))
-        country_code = entry.country_code.strip().upper()
-        if country_code and country_code in AVAILABLE_FLAG_CODES:
-            act.setIcon(QIcon(QPixmap(str(COUNTRY_FLAGS_DIR / f'{country_code}.png'))))
+        act.triggered.connect(lambda _checked=False, ip=target_ip: select_ip_callback([ip]))
+        flag_icon = load_country_flag_icon(entry.country_code)
+        if flag_icon is not None:
+            act.setIcon(flag_icon)
         menu.addAction(act)
 
 
@@ -45,7 +45,7 @@ def setup_session_host_actions(
     session_host_submenu: QMenu,
     clear_host_callback: Callable[[], None],
     redetect_host_callback: Callable[[], None],
-    highlight_ips_callback: Callable[[list[str]], None],
+    select_ips_callback: Callable[[list[str]], None],
     *,
     error_label: str = 'Host History',
 ) -> None:
@@ -68,4 +68,4 @@ def setup_session_host_actions(
         message = f'Failed to create {error_label} submenu'
         raise RuntimeError(message)
     host_history_submenu.setToolTipsVisible(True)
-    host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, highlight_ips_callback))
+    host_history_submenu.aboutToShow.connect(lambda: populate_host_history_submenu(host_history_submenu, select_ips_callback))

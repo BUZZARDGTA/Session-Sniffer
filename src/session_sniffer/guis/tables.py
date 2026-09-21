@@ -104,7 +104,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
         self._saved_h_scroll: int | None = None
         self._saved_v_scroll: int | None = None
-        self._has_host_crown: bool = False
+        self._max_ip_icons: int = 0
         self._has_multiple_ports: bool = False
 
         self.setModel(model)
@@ -133,6 +133,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
         self.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self.setItemDelegate(ElidedTextTooltipDelegate(self))
+        self.setIconSize(QSize(16, 16))
         self.setWordWrap(False)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
@@ -283,16 +284,21 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     def _compute_column_base_width(self, font_metrics: QFontMetrics, header_label: str) -> int:
         base_width = font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-        if header_label == 'IP Address' and self.model().has_session_host():
-            return base_width + 24
+        if header_label == 'IP Address':
+            model = self.model()
+            max_icons = model.max_ip_icons()
+            if max_icons > 0:
+                return base_width + (18 * max_icons + 6)
+            return base_width
         if header_label == 'Ports' and self.model().has_multiple_ports():
             return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
         return base_width
 
     def setup_static_column_resizing(self) -> None:
         """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
-        self._has_host_crown = self.model().has_session_host()
-        self._has_multiple_ports = self.model().has_multiple_ports()
+        model = self.model()
+        self._max_ip_icons = model.max_ip_icons()
+        self._has_multiple_ports = model.has_multiple_ports()
         setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
 
     def adjust_username_column_width(self) -> None:
@@ -302,7 +308,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             self.horizontalHeader().setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Interactive)
 
     def adjust_ip_column_width(self) -> None:
-        """Adjust the 'IP Address' column width when host crown presence changes."""
+        """Adjust the 'IP Address' column width when icon count in IP Address changes."""
         model = self.model()
         ip_column_index = model.ip_column_index
         if ip_column_index < 0 or ip_column_index >= model.columnCount():
@@ -310,11 +316,11 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         if self.horizontalHeader().isSectionHidden(ip_column_index):
             return
 
-        has_host = model.has_session_host()
-        if has_host == self._has_host_crown:
+        max_icons = model.max_ip_icons()
+        if max_icons == self._max_ip_icons:
             return
 
-        self._has_host_crown = has_host
+        self._max_ip_icons = max_icons
         self.setup_static_column_resizing()
 
     def adjust_ports_column_width(self) -> None:

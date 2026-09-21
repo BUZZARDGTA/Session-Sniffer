@@ -133,7 +133,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
 
         self.capture = capture_holder
         self._on_change_interface = on_change_interface
-        self._player_resolver_window = PlayerResolverWindow(self._highlight_connected_ips)
+        self._player_resolver_window = PlayerResolverWindow(self._select_connected_ips, self._deselect_connected_ips)
         self._detections_manager_window: DetectionsManagerDialog | None = None
         self._logs_manager_window: LogsManager | None = None
         self._settings_dialog_window: SettingsDialog | None = None
@@ -246,7 +246,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
 
         session_host_submenu.aboutToShow.connect(_update_host_status_label)
 
-        setup_session_host_actions(session_host_submenu, self._clear_session_host, self._redetect_session_host, self._highlight_ips)
+        setup_session_host_actions(session_host_submenu, self._clear_session_host, self._redetect_session_host, self._select_ips)
 
         self._gta5_menu_process_separator = gta5_menu.addSeparator()
 

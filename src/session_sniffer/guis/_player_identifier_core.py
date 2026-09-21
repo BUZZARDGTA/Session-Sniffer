@@ -1,7 +1,6 @@
 """Core data models and statistical helpers for the Player Identifier."""
 
 from collections import deque
-from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import islice
 from math import sqrt
@@ -16,7 +15,8 @@ CONVERGENCE_GREEN = 0.10
 CONVERGENCE_YELLOW = 0.25
 SPIKE_SUSTAINED_SECONDS = 5
 SPIKE_MIN_ZSCORE = 6.0
-BUTTON_WIDTH = 250
+BUTTON_WIDTH = 140
+PROGRESS_BAR_WIDTH = 280
 MIN_CONNECTED_PLAYERS = 2
 BASELINE_CONTAMINATION_ZSCORE = 10.0
 BASELINE_CONTAMINATION_SECONDS = 5
@@ -26,7 +26,6 @@ BASELINE_MAX_SECONDS = 30
 SESSION_DRIFT_ZSCORE_THRESHOLD = 6.0
 
 _MIN_VARIANCE_SAMPLES = 2
-ZSCORE_ELEVATED = 3.0
 
 
 class Phase(Enum):
@@ -36,17 +35,6 @@ class Phase(Enum):
     BASELINE = auto()
     READY = auto()
     RESOLVING = auto()
-    RESOLVED = auto()
-
-
-@dataclass(slots=True)
-class ResolvedIP:
-    """A resolved IP with its confidence score and reason."""
-
-    ip: str
-    confidence: float
-    reason: str
-    username: str
 
 
 class IPBaseline:
@@ -148,12 +136,6 @@ def _mean_std(samples: deque[int]) -> tuple[float, float]:
         return mean, 0.0
     variance = sum((sample - mean) ** 2 for sample in samples) / (num_samples - 1)
     return mean, sqrt(variance)
-
-
-def zscore_to_confidence(zscore: float) -> float:
-    """Map a z-score to a 0-100 confidence percentage using a sigmoid-like curve."""
-    # z=6 -> ~50%, z=10 -> ~70%, z=20 -> ~87%
-    return min(100.0 * (1.0 - 1.0 / (1.0 + zscore / 6.0)), 99.0)
 
 
 def compute_aggregate_zscore(baselines: dict[str, IPBaseline], players: list[Player]) -> float | None:

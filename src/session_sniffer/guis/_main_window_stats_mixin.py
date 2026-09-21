@@ -55,7 +55,7 @@ class StatsMixin(QMainWindow):
 
     def _sync_gta5_process_button(self) -> None: ...  # Provided by GTA5Mixin
 
-    def _highlight_connected_ips(self, ip_addresses: list[str]) -> None:
+    def _select_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
         selection = QItemSelection()
         first_index = None
@@ -75,7 +75,23 @@ class StatsMixin(QMainWindow):
         self._connected.table_view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self._connected.table_view.scrollTo(first_index)
 
-    def _highlight_ips(self, ip_addresses: list[str]) -> None:
+    def _deselect_connected_ips(self, ip_addresses: list[str] | None = None) -> None:
+        """Deselect player rows by IP in the connected table, or clear selection if None or empty."""
+        if not ip_addresses:
+            self._connected.table_view.selectionModel().clearSelection()
+            return
+        selection = QItemSelection()
+        for ip in ip_addresses:
+            row = self._connected.table_model.get_row_index_by_ip(ip)
+            if row is None:
+                continue
+            top_left = self._connected.table_model.index(row, 0)
+            bottom_right = self._connected.table_model.index(row, self._connected.table_model.columnCount() - 1)
+            selection.select(top_left, bottom_right)
+        if not selection.isEmpty():
+            self._connected.table_view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.Deselect)
+
+    def _select_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP, checking connected first then disconnected."""
         connected_selection = QItemSelection()
         disconnected_selection = QItemSelection()

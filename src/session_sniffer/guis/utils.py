@@ -427,6 +427,9 @@ def activate_window(widget: QWidget) -> None:
     widget.activateWindow()
 
 
+_STANDARD_ICON_SIZE = 16
+
+
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
 
@@ -452,6 +455,20 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                     return True
 
         return super().helpEvent(event, view, option, index)
+
+    @override
+    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Initialize style option and adjust decoration size for custom-sized decorations."""
+        super().initStyleOption(option, index)
+        if option.features & QStyleOptionViewItem.ViewItemFeature.HasDecoration and not option.icon.isNull():
+            if option.decorationSize.width() <= 0 or option.decorationSize.height() <= 0:
+                option.decorationSize = QSize(_STANDARD_ICON_SIZE, _STANDARD_ICON_SIZE)
+            model = index.model()
+            ip_column = getattr(model, 'ip_column_index', -1)
+            if ip_column >= 0 and index.column() == ip_column:
+                size = option.icon.actualSize(QSize(100, _STANDARD_ICON_SIZE))
+                if size.width() > _STANDARD_ICON_SIZE:
+                    option.decorationSize = size
 
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:

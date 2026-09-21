@@ -1,53 +1,40 @@
-"""High Rate Monitor window — tracks players exceeding configurable PPS and BPS thresholds."""
+"""High Rate Monitor — tracks players exceeding configurable PPS and BPS thresholds."""
 
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import QAbstractTableModel, QItemSelection, QItemSelectionModel, QModelIndex, QPersistentModelIndex, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
-    QMenu,
+    QLabel,
     QPushButton,
     QSpinBox,
-    QTableView,
     QVBoxLayout,
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
-from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
-from session_sniffer.guis.tables_userip_mixin import ensure_searchlist_database, userip_add
-from session_sniffer.guis.utils import (
-    copy_table_cells,
-    paused_timer,
-    popup_menu_at_table,
-    set_clipboard_text,
-    setup_table_view_headers,
-)
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
-    from session_sniffer.models.player import Player
+    from collections.abc import Callable
+
+    from PySide6.QtGui import QHideEvent, QShowEvent
 
 PPS_THRESHOLD_DEFAULT = 30
 PPS_THRESHOLD_MIN = 20
 PPS_THRESHOLD_MAX = 50
 
 BPS_THRESHOLD_DEFAULT_KBS = 5
-BPS_THRESHOLD_MIN_KBS = 5
+BPS_THRESHOLD_MIN_KBS = 3
 BPS_THRESHOLD_MAX_KBS = 500
 
 DURATION_THRESHOLD_DEFAULT_SECONDS = 3
@@ -131,188 +118,53 @@ class _PlayerRateData:
             self.is_high_bps = True
 
 
-class _HighRateTableModel(QAbstractTableModel):
-    _COLUMN_USERNAME = 0
-    _COLUMN_IP = 1
-    _COLUMN_PPS = 2
-    _COLUMN_BPS = 3
-    COLUMN_DURATION = 4
-    _COLUMN_TOTAL_DURATION = 5
-    _HEADERS = ('Username', 'IP', 'PPS', 'BPS', 'Duration (s)', 'Total Duration (s)')
-    _HEADER_TOOLTIPS = (
-        'Usernames associated with this IP.',
-        'The IP address of the player being tracked.',
-        'Packets Per Second — the number of network packets this IP is sending/receiving right now.',
-        'Bytes Per Second — the amount of data (bandwidth) this IP is sending/receiving right now.',
-        'How many consecutive seconds this IP has been above both PPS and BPS thresholds in the current streak.',
-        'Total cumulative seconds this IP has been above both thresholds since it was first detected (includes all streaks).',
-    )
+class HighRateTracker:
+    """Global tracker for IPs currently flagged as high-rate."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    flagged_ips: ClassVar[set[str]] = set()
+
+    @classmethod
+    def is_high_rate(cls, ip: str) -> bool:
+        """Return whether the given IP is currently flagged as high-rate."""
+        return ip in cls.flagged_ips
+
+    @classmethod
+    def set_flagged_ips(cls, ips: set[str]) -> None:
+        """Update the set of flagged high-rate IPs."""
+        cls.flagged_ips = ips
+
+
+class HighRateMonitorWidget(QWidget):
+    """Widget monitoring players that exceed configurable PPS and BPS thresholds."""
+
+    def __init__(
+        self,
+        select_ips_callback: Callable[[list[str]], None] | None = None,
+        deselect_ips_callback: Callable[[list[str] | None], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        """Initialize the High Rate Monitor widget."""
+        super().__init__(parent)
+
+        self._select_ips = select_ips_callback
+        self._deselect_ips = deselect_ips_callback
         self._tracked: dict[str, _PlayerRateData] = {}
-        self._visible: list[_PlayerRateData] = []
+        self._blacklisted_ips: set[str] = set()
+        self._graph_windows: dict[str, PlayerRateGraphWindow] = {}
+        self._currently_selected_ips: set[str] = set()
+        self._auto_select: bool = True
+
         self.pps_threshold = PPS_THRESHOLD_DEFAULT
         self.bps_threshold = BPS_THRESHOLD_DEFAULT_KBS * _KBS_TO_BYTES
         self.required_duration = DURATION_THRESHOLD_DEFAULT_SECONDS
 
-    # Qt overrides -----------------------------------------------------------
-
-    @override
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
-        """Return the number of visible high-rate players."""
-        if parent is None:
-            parent = QModelIndex()
-        return len(self._visible)
-
-    @override
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
-        """Return the number of columns."""
-        if parent is None:
-            parent = QModelIndex()
-        return len(self._HEADERS)
-
-    @override
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
-        """Return cell data for the given index."""
-        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
-            return None
-        player = self._visible[index.row()]
-        column = index.column()
-        if column == self._COLUMN_PPS:
-            return player.pps
-        if column == self._COLUMN_BPS:
-            return PlayerBandwidth.format_bytes(player.bps)
-        if column == self._COLUMN_IP:
-            return player.ip
-        if column == self._COLUMN_USERNAME:
-            return ', '.join(player.usernames) if player.usernames else '—'
-        return player.current_pps_duration if column == self.COLUMN_DURATION else player.total_pps_duration
-
-    @override
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
-        """Return column header labels and tooltips."""
-        if orientation != Qt.Orientation.Horizontal:
-            return None
-        if role == Qt.ItemDataRole.DisplayRole:
-            return self._HEADERS[section]
-        if role == Qt.ItemDataRole.ToolTipRole:
-            return self._HEADER_TOOLTIPS[section]
-        return None
-
-    # Public API -------------------------------------------------------------
-
-    def update_data(self, players: list[Player]) -> None:
-        """Refresh high-rate tracking from the given connected players."""
-        now = datetime.now(tz=LOCAL_TZ)
-        connected_ips: set[str] = set()
-        for player in players:
-            connected_ips.add(player.ip)
-            if player.ip not in self._tracked:
-                self._tracked[player.ip] = _PlayerRateData(ip=player.ip, pps=player.packets.pps.calculated_rate, bps=player.bandwidth.bps.calculated_rate)
-            self._tracked[player.ip].usernames = list(player.usernames)
-            self._tracked[player.ip].update_pps_stats(
-                now=now,
-                pps=player.packets.pps.calculated_rate,
-                threshold=self.pps_threshold,
-                required_duration=self.required_duration,
-            )
-            self._tracked[player.ip].update_bps_stats(
-                now=now,
-                bps=player.bandwidth.bps.calculated_rate,
-                threshold=self.bps_threshold,
-                required_duration=self.required_duration,
-            )
-
-        for ip in self._tracked.keys() - connected_ips:
-            del self._tracked[ip]
-
-        new_visible = sorted(
-            (player for player in self._tracked.values() if player.is_high_pps and player.is_high_bps),
-            key=lambda player: (player.current_pps_duration, player.total_pps_duration, player.pps, player.bps, player.ip),
-            reverse=True,
-        )
-        old_len = len(self._visible)
-        new_len = len(new_visible)
-
-        if old_len == new_len:
-            # Only emit dataChanged when visible content actually differs
-            if new_len and any(
-                first_item.ip != second_item.ip
-                or first_item.pps != second_item.pps
-                or first_item.bps != second_item.bps
-                or first_item.current_pps_duration != second_item.current_pps_duration
-                or first_item.total_pps_duration != second_item.total_pps_duration
-                or first_item.usernames != second_item.usernames
-                for first_item, second_item in zip(new_visible, self._visible, strict=True)
-            ):
-                self._visible = new_visible
-                self.dataChanged.emit(self.index(0, 0), self.index(new_len - 1, len(self._HEADERS) - 1))
-        else:
-            self.beginResetModel()
-            self._visible = new_visible
-            self.endResetModel()
-
-    def reset_all(self) -> None:
-        """Clear all tracked and visible player data."""
-        self.beginResetModel()
-        self._tracked.clear()
-        self._visible = []
-        self.endResetModel()
-
-    def get_visible_player(self, row: int) -> _PlayerRateData | None:
-        """Return the visible player at the given row, or None."""
-        if 0 <= row < len(self._visible):
-            return self._visible[row]
-        return None
-
-    def get_tracked(self, ip: str) -> _PlayerRateData | None:
-        """Return the tracked data for the given IP, or None."""
-        return self._tracked.get(ip)
-
-    def get_all_visible(self) -> list[_PlayerRateData]:
-        """Return a copy of the visible players list."""
-        return list(self._visible)
-
-
-class HighRateMonitorWidget(QWidget):
-    """Widget listing players that exceed configurable PPS and BPS thresholds."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the High Rate Monitor widget."""
-        super().__init__(parent)
-
         layout = QVBoxLayout(self)
 
-        # Table
-        self._model = _HighRateTableModel()
-        self._table = QTableView()
-        self._table.setModel(self._model)
-        self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectItems)
-        self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
-        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._table.customContextMenuRequested.connect(self._show_context_menu)
-        QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_cells)
-        QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
-        self._table.setToolTip(
-            'Players currently exceeding both PPS and BPS thresholds.\n'
-            'Right-click a row to blacklist the IP or open a live rate graph.\n\n'
-            'Tip: Players who are moving generate more traffic and are easier to detect.\n'
-            'A stationary player may not exceed the thresholds.',
-        )
-        header = setup_table_view_headers(self._table)
-        for column_index in range(self._model.columnCount()):
-            header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-        header.setSectionsClickable(False)
-        header.setSortIndicatorShown(True)
-        header.setSortIndicator(self._model.COLUMN_DURATION, Qt.SortOrder.DescendingOrder)
-        self._table.setSortingEnabled(False)
-        self._is_resetting_columns = False
-        self._has_user_resized_columns = False
-        setup_table_header_context_menu(self._table, on_reset=self._reset_column_sizes)
-        header.sectionResized.connect(self._on_section_resized)
-        self._reset_column_sizes()
-        layout.addWidget(self._table)
+        # Status summary label
+        self._status_label = QLabel('<b>Status:</b> Initializing scan…')
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status_label.setWordWrap(True)
+        layout.addWidget(self._status_label)
 
         # Parameters control panel
         params_box = QGroupBox('Thresholds')
@@ -344,7 +196,7 @@ class HighRateMonitorWidget(QWidget):
         self._bps_threshold_input.setRange(BPS_THRESHOLD_MIN_KBS, BPS_THRESHOLD_MAX_KBS)
         self._bps_threshold_input.setValue(BPS_THRESHOLD_DEFAULT_KBS)
         self._bps_threshold_input.setSuffix(' KB/s threshold')
-        self._bps_threshold_input.setSingleStep(5)
+        self._bps_threshold_input.setSingleStep(1)
         self._bps_threshold_input.setToolTip(
             'Bytes Per Second (bandwidth) threshold, displayed in KB/s.\n\n'
             f'Range: {BPS_THRESHOLD_MIN_KBS}-{BPS_THRESHOLD_MAX_KBS} KB/s.\n'
@@ -380,43 +232,68 @@ class HighRateMonitorWidget(QWidget):
 
         layout.addWidget(params_box)
 
-        # Buttons
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Selection controls row
+        selection_layout = QHBoxLayout()
+        selection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        open_all_graphs = QPushButton('Open Graphs for All Flagged Players')
+        self._select_button = QPushButton('Select in Table')
+        self._select_button.setToolTip('Select and scroll to all currently flagged high-rate players in the connected players table.')
+        self._select_button.setFixedWidth(140)
+        self._select_button.clicked.connect(self._select_flagged)
+        self._select_button.setEnabled(False)
+        selection_layout.addWidget(self._select_button)
+
+        self._deselect_button = QPushButton('Deselect in Table')
+        self._deselect_button.setToolTip('Deselect all currently flagged high-rate players in the connected players table.')
+        self._deselect_button.setFixedWidth(140)
+        self._deselect_button.clicked.connect(self._deselect_flagged)
+        self._deselect_button.setEnabled(False)
+        selection_layout.addWidget(self._deselect_button)
+
+        self._auto_select_checkbox = QCheckBox('Auto-select in Table')
+        self._auto_select_checkbox.setToolTip(
+            'Keep high-rate players selected in the connected players table automatically.\n\n'
+            'Live updates occur with every scan. Turn off for manual selection control.',
+        )
+        self._auto_select_checkbox.setChecked(True)
+        self._auto_select_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._auto_select_checkbox.toggled.connect(self._on_auto_select_toggled)
+        selection_layout.addWidget(self._auto_select_checkbox)
+
+        layout.addLayout(selection_layout)
+
+        # Action buttons row
+        actions_layout = QHBoxLayout()
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        open_all_graphs = QPushButton('Open Graphs for Flagged Players')
         open_all_graphs.setToolTip(
             'Opens a live PPS/BPS rate graph window for every player currently\n'
-            'listed in the table (exceeding both thresholds).\n\n'
+            'exceeding both thresholds.\n\n'
             'Each graph updates in real time so you can visually compare traffic patterns.',
         )
-        open_all_graphs.setFixedWidth(_BUTTON_WIDTH)
+        open_all_graphs.setFixedWidth(240)
         open_all_graphs.clicked.connect(self._open_all_graphs)
-        buttons_layout.addWidget(open_all_graphs)
+        actions_layout.addWidget(open_all_graphs)
 
         reset_button = QPushButton('Reset Scan')
         reset_button.setToolTip(
             'Clears all tracked data, rate history, and flagged players.\nThe scan restarts from scratch immediately.',
         )
-        reset_button.setFixedWidth(_BUTTON_WIDTH)
-        reset_button.clicked.connect(self._reset_scan)
-        buttons_layout.addWidget(reset_button)
+        reset_button.setFixedWidth(130)
+        reset_button.clicked.connect(self.reset_all)
+        actions_layout.addWidget(reset_button)
 
         clear_bl_button = QPushButton('Clear Blacklist')
         clear_bl_button.setToolTip(
             'Removes all IPs from the blacklist so they can be tracked again.\n\n'
-            'Blacklisted IPs are ones you right-clicked and chose to exclude. '
-            'This button un-excludes all of them.',
+            'Blacklisted IPs are excluded from high-rate detection.',
         )
-        clear_bl_button.setFixedWidth(_BUTTON_WIDTH)
+        clear_bl_button.setFixedWidth(130)
         clear_bl_button.clicked.connect(self._clear_blacklist)
-        buttons_layout.addWidget(clear_bl_button)
+        actions_layout.addWidget(clear_bl_button)
 
-        layout.addLayout(buttons_layout)
-
-        # State
-        self._blacklisted_ips: set[str] = set()
-        self._graph_windows: dict[str, PlayerRateGraphWindow] = {}
+        layout.addLayout(actions_layout)
 
         # Periodic scan timer
         self._timer = QTimer(self)
@@ -433,29 +310,51 @@ class HighRateMonitorWidget(QWidget):
             if player.ip not in self._blacklisted_ips and not is_third_party_server_ip(player.ip)
         ]
 
-        selection_model = self._table.selectionModel()
-        saved_selected: set[tuple[str, int]] = set()
-        if selection_model:
-            for index in selection_model.selectedIndexes():
-                player = self._model.get_visible_player(index.row())
-                if player is not None:
-                    saved_selected.add((player.ip, index.column()))
+        now = datetime.now(tz=LOCAL_TZ)
+        connected_ips: set[str] = set()
+        for player in players:
+            connected_ips.add(player.ip)
+            if player.ip not in self._tracked:
+                self._tracked[player.ip] = _PlayerRateData(
+                    ip=player.ip,
+                    pps=player.packets.pps.calculated_rate,
+                    bps=player.bandwidth.bps.calculated_rate,
+                )
+            self._tracked[player.ip].usernames = list(player.usernames)
+            self._tracked[player.ip].update_pps_stats(
+                now=now,
+                pps=player.packets.pps.calculated_rate,
+                threshold=self.pps_threshold,
+                required_duration=self.required_duration,
+            )
+            self._tracked[player.ip].update_bps_stats(
+                now=now,
+                bps=player.bandwidth.bps.calculated_rate,
+                threshold=self.bps_threshold,
+                required_duration=self.required_duration,
+            )
 
-        self._model.update_data(players)
+        for ip in self._tracked.keys() - connected_ips:
+            del self._tracked[ip]
 
-        if selection_model and saved_selected:
-            new_selection = QItemSelection()
-            visible_players = self._model.get_all_visible()
-            for row_index, player in enumerate(visible_players):
-                for col_index in range(self._model.columnCount()):
-                    if (player.ip, col_index) in saved_selected:
-                        model_index = self._model.index(row_index, col_index)
-                        new_selection.select(model_index, model_index)
-            if not new_selection.isEmpty():
-                selection_model.select(new_selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        flagged_players = [player for player in self._tracked.values() if player.is_high_pps and player.is_high_bps]
+        flagged_ips = {player.ip for player in flagged_players}
+        HighRateTracker.set_flagged_ips(flagged_ips)
+
+        if not self.isVisible():
+            if self._auto_select and self._currently_selected_ips and self._deselect_ips is not None:
+                self._deselect_ips(list(self._currently_selected_ips))
+                self._currently_selected_ips.clear()
+        elif self._auto_select and flagged_ips != self._currently_selected_ips:
+            if flagged_ips:
+                if self._select_ips is not None:
+                    self._select_ips(list(flagged_ips))
+            elif self._currently_selected_ips and self._deselect_ips is not None:
+                self._deselect_ips(list(self._currently_selected_ips))
+            self._currently_selected_ips = set(flagged_ips)
 
         for ip, graph in list(self._graph_windows.items()):
-            data = self._model.get_tracked(ip)
+            data = self._tracked.get(ip)
             graph.update_rates(
                 pps=data.pps if data else 0,
                 bps=data.bps if data else 0,
@@ -463,20 +362,44 @@ class HighRateMonitorWidget(QWidget):
             matched_player = PlayersRegistry.get_player_by_ip(ip)
             graph.update_usernames(matched_player.usernames if matched_player is not None else [])
 
+        self._update_status_display(flagged_players)
+
+    def _update_status_display(self, flagged_players: list[_PlayerRateData]) -> None:
+        num_flagged = len(flagged_players)
+        if not num_flagged:
+            num_connected = len(self._tracked)
+            self._status_label.setText(
+                f'<b>No high-rate players detected.</b><br>'
+                f'<small>Monitoring {num_connected} connected IP{pluralize(num_connected)}.</small>',
+            )
+            return
+
+        lines: list[str] = [
+            f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding thresholds:</b>',
+        ]
+        for player in flagged_players:
+            name_part = f' ({", ".join(player.usernames)})' if player.usernames else ''
+            formatted_bps = PlayerBandwidth.format_bytes(player.bps)
+            lines.append(
+                f'• <b>{player.ip}</b>{name_part} — {player.pps} PPS · {formatted_bps} · streak: {player.current_pps_duration}s (total: {player.total_pps_duration}s)',
+            )
+        lines.append('<small>Flagged players are marked with a speedometer icon in the connected players table.</small>')
+        self._status_label.setText('<br>'.join(lines))
+
     # Threshold / duration ---------------------------------------------------
 
     def _set_pps_threshold(self, value: int) -> None:
-        self._model.pps_threshold = value
+        self.pps_threshold = value
         for graph in self._graph_windows.values():
             graph.set_pps_threshold(value)
 
     def _set_bps_threshold(self, value: int) -> None:
-        self._model.bps_threshold = value * _KBS_TO_BYTES
+        self.bps_threshold = value * _KBS_TO_BYTES
         for graph in self._graph_windows.values():
             graph.set_bps_threshold(value * _KBS_TO_BYTES)
 
     def _set_required_duration(self, value: int) -> None:
-        self._model.required_duration = value
+        self.required_duration = value
 
     # Graphs -----------------------------------------------------------------
 
@@ -491,10 +414,10 @@ class HighRateMonitorWidget(QWidget):
 
         graph = PlayerRateGraphWindow(
             ip=ip,
-            initial_pps_threshold=self._model.pps_threshold,
-            initial_bps_threshold=self._model.bps_threshold,
+            initial_pps_threshold=self.pps_threshold,
+            initial_bps_threshold=self.bps_threshold,
         )
-        data = self._model.get_tracked(ip)
+        data = self._tracked.get(ip)
         if data is not None:
             graph.load_history(pps_history=list(data.pps_history), bps_history=list(data.bps_history))
         matched_player = PlayersRegistry.get_player_by_ip(ip)
@@ -505,299 +428,74 @@ class HighRateMonitorWidget(QWidget):
         self._graph_windows[ip] = graph
 
     def _open_all_graphs(self) -> None:
-        for player in self._model.get_all_visible():
-            self.open_graph(player.ip)
+        for player in self._tracked.values():
+            if player.is_high_pps and player.is_high_bps:
+                self.open_graph(player.ip)
 
     # Actions ----------------------------------------------------------------
 
-    def _get_selected_players(self) -> list[_PlayerRateData]:
-        """Return the list of _PlayerRateData corresponding to currently selected table items."""
-        selection_model = self._table.selectionModel()
-        if not selection_model:
-            return []
-        seen_rows: set[int] = set()
-        selected_players: list[_PlayerRateData] = []
-        for model_index in selection_model.selectedIndexes():
-            row_index = model_index.row()
-            if row_index not in seen_rows:
-                seen_rows.add(row_index)
-                player_data = self._model.get_visible_player(row_index)
-                if player_data is not None:
-                    selected_players.append(player_data)
-        return selected_players
+    def _on_auto_select_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        self._auto_select = checked
+        self._select_button.setEnabled(not checked)
+        self._deselect_button.setEnabled(not checked)
+        if checked:
+            flagged_ips = [p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps]
+            if flagged_ips and self._select_ips is not None:
+                self._select_ips(flagged_ips)
+                self._currently_selected_ips = set(flagged_ips)
+        elif self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+            self._currently_selected_ips.clear()
 
-    def _add_players_to_searchlist(self, players: list[_PlayerRateData]) -> None:
-        """Add the given players to Searchlist.ini, prompting for username."""
-        if not players:
-            return
-        with paused_timer(self._timer, _UPDATE_INTERVAL_MS):
-            searchlist_path = ensure_searchlist_database()
-            all_usernames = dedup_preserve_order(*(player.usernames for player in players))
-            userip_add(self, [player.ip for player in players], searchlist_path, usernames=all_usernames)
+    def _select_flagged(self) -> None:
+        if self._select_ips is not None:
+            flagged_ips = [p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps]
+            if flagged_ips:
+                self._select_ips(flagged_ips)
+                self._currently_selected_ips = set(flagged_ips)
 
-    def _reset_scan(self) -> None:
-        self._model.reset_all()
+    def _deselect_flagged(self) -> None:
+        if self._deselect_ips is not None:
+            flagged_ips = {p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps}
+            ips_to_deselect = list(self._currently_selected_ips | flagged_ips)
+            self._deselect_ips(ips_to_deselect or None)
+            self._currently_selected_ips.clear()
+
+    def reset_all(self) -> None:
+        """Clear all tracked player rate data and reset scan."""
+        if self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+        self._currently_selected_ips.clear()
+        self._tracked.clear()
+        HighRateTracker.set_flagged_ips(set())
+        self._status_label.setText('<b>Status:</b> Scan reset. Collecting data…')
 
     def _clear_blacklist(self) -> None:
         self._blacklisted_ips.clear()
 
-    # Context menu -----------------------------------------------------------
+    def blacklist_ip(self, ip: str) -> None:
+        """Add an IP to the blacklist to exclude it from high-rate detection."""
+        self._blacklisted_ips.add(ip)
+        self._tracked.pop(ip, None)
 
-    def _select_row(self, row: int) -> None:
-        selection_model = self._table.selectionModel()
-        if not selection_model or not self._model.rowCount():
-            return
-        top_left = self._model.index(row, 0)
-        bottom_right = self._model.index(row, self._model.columnCount() - 1)
-        selection = QItemSelection(top_left, bottom_right)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
-
-    def _select_column(self, column: int) -> None:
-        selection_model = self._table.selectionModel()
-        if not selection_model or not self._model.rowCount():
-            return
-        top_left = self._model.index(0, column)
-        bottom_right = self._model.index(self._model.rowCount() - 1, column)
-        selection = QItemSelection(top_left, bottom_right)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.Select)
-
-    def _copy_selected_cells(self) -> None:
-        """Copy selected cells from the high-rate monitor table to the clipboard."""
-        copy_table_cells(self._table)
-
-    # pylint: disable=duplicate-code
-    def _copy_selected_rows(self) -> None:
-        """Copy selected rows from the high-rate monitor table to clipboard as tab-separated text."""
-        selection_model = self._table.selectionModel()
-        if not selection_model:
-            return
-        selected_row_indexes = sorted({index.row() for index in selection_model.selectedIndexes()})
-        if not selected_row_indexes:
-            return
-
-        column_count = self._model.columnCount()
-        lines: list[str] = []
-        for row_index in selected_row_indexes:
-            cells: list[str] = []
-            for column_index in range(column_count):
-                index = self._model.index(row_index, column_index)
-                cell_data = self._model.data(index, Qt.ItemDataRole.DisplayRole)
-                cells.append(str(cell_data) if cell_data is not None else '')
-            lines.append('\t'.join(cells))
-
-        if lines:
-            set_clipboard_text('\n'.join(lines))
-
-    def _copy_all_rows(self) -> None:
-        """Copy all rows in the high-rate monitor table to clipboard as tab-separated text."""
-        lines: list[str] = []
-        column_count = self._model.columnCount()
-        row_count = self._model.rowCount()
-        for row_index in range(row_count):
-            cells: list[str] = []
-            for column_index in range(column_count):
-                index = self._model.index(row_index, column_index)
-                cell_data = self._model.data(index, Qt.ItemDataRole.DisplayRole)
-                cells.append(str(cell_data) if cell_data is not None else '')
-            lines.append('\t'.join(cells))
-
-        if not lines:
-            return
-
-        set_clipboard_text('\n'.join(lines))
-    # pylint: enable=duplicate-code
-
-    # pylint: disable=duplicate-code
-    def _show_context_menu(self, pos: QPoint) -> None:
-        index = self._table.indexAt(pos)
-        if not index.isValid():
-            return
-
-        selection_model = self._table.selectionModel()
-        if selection_model and not selection_model.isSelected(index):
-            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-
-        selected_players = self._get_selected_players()
-        if not selected_players:
-            player_data = self._model.get_visible_player(index.row())
-            if player_data is not None:
-                selected_players.append(player_data)
-
-        if not selected_players:
-            return
-
-        selected_indexes = selection_model.selectedIndexes() if selection_model else []
-        selected_cell_count = len(selected_indexes)
-
-        menu = QMenu(self)
-        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        menu.setToolTipsVisible(True)
-
-        copy_selection_label = f'Copy Selection ({selected_cell_count})' if selected_cell_count > 1 else 'Copy Selection'
-        copy_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_selection_label, self)
-        copy_selection_action.setShortcut('Ctrl+C')
-        copy_selection_action.setToolTip('Copy selected cell(s) to the clipboard.')
-        copy_selection_action.triggered.connect(self._copy_selected_cells)
-        menu.addAction(copy_selection_action)
-
-        if len(selected_players) == 1:
-            data = selected_players[0]
-            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
-            copy_row_action.setToolTip('Copy the entire row to the clipboard as tab-separated text.')
-            copy_row_action.triggered.connect(self._copy_selected_rows)
-            menu.addAction(copy_row_action)
-
-            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
-            copy_all_action.setToolTip('Copy all visible rows to the clipboard as tab-separated text.')
-            copy_all_action.setEnabled(self._model.rowCount() > 0)
-            copy_all_action.triggered.connect(self._copy_all_rows)
-            menu.addAction(copy_all_action)
-
-            menu.addSeparator()
-
-            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IP ({data.ip})', self)
-            copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
-            copy_ip_action.triggered.connect(lambda: set_clipboard_text(data.ip))
-            menu.addAction(copy_ip_action)
-
-            usernames_text = ', '.join(data.usernames)
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(data.usernames))}', self)
-            copy_usernames_action.setToolTip('Copy associated usernames to the clipboard.')
-            copy_usernames_action.setEnabled(bool(data.usernames))
-            copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
-            menu.addAction(copy_usernames_action)
-        else:
-            all_ips = [player_data.ip for player_data in selected_players]
-            all_usernames = [username for player_data in selected_players for username in player_data.usernames]
-
-            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_players)})', self)
-            copy_rows_action.setToolTip('Copy selected rows to the clipboard as tab-separated text.')
-            copy_rows_action.triggered.connect(self._copy_selected_rows)
-            menu.addAction(copy_rows_action)
-
-            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
-            copy_all_action.setToolTip('Copy all visible rows to the clipboard as tab-separated text.')
-            copy_all_action.setEnabled(self._model.rowCount() > 0)
-            copy_all_action.triggered.connect(self._copy_all_rows)
-            menu.addAction(copy_all_action)
-
-            add_copy_usernames_and_ips_actions(menu, self, all_usernames, all_ips)
-
-        menu.addSeparator()
-
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
-        select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all cells in the monitor.')
-        select_all_action.setEnabled(self._model.rowCount() > 0)
-        select_all_action.triggered.connect(self._table.selectAll)
-        menu.addAction(select_all_action)
-
-        select_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_right.svg')), 'Select Row', self)
-        select_row_action.setToolTip('Select all cells in this row.')
-        select_row_action.triggered.connect(lambda: self._select_row(index.row()))
-        menu.addAction(select_row_action)
-
-        select_col_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Select Column', self)
-        select_col_action.setToolTip('Select all cells in this column.')
-        select_col_action.triggered.connect(lambda: self._select_column(index.column()))
-        menu.addAction(select_col_action)
-
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
-        clear_selection_action.setToolTip('Deselect all currently selected cells.')
-        clear_selection_action.triggered.connect(self._table.clearSelection)
-        menu.addAction(clear_selection_action)
-
-        menu.addSeparator()
-
-        if len(selected_players) == 1:
-            data = selected_players[0]
-
-            blacklist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f'Blacklist IP {data.ip}', self)
-            blacklist_action.setToolTip('Exclude this IP from the high-rate scan until the blacklist is cleared.')
-            blacklist_action.triggered.connect(lambda: self._blacklist_ip(data.ip))
-            menu.addAction(blacklist_action)
-
-            graph_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), f'Show Rate Graph for {data.ip}', self)
-            graph_action.setToolTip('Open a live PPS/BPS rate graph window for this player.')
-            graph_action.triggered.connect(lambda: self.open_graph(data.ip))
-            menu.addAction(graph_action)
-
-            menu.addSeparator()
-
-            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add to Searchlist', self)
-            add_searchlist_action.setToolTip("Add this player's IP to the Searchlist UserIP database.")
-            add_searchlist_action.triggered.connect(lambda: self._add_players_to_searchlist([data]))
-            menu.addAction(add_searchlist_action)
-        else:
-            all_ips = [player_data.ip for player_data in selected_players]
-
-            blacklist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f'Blacklist Selected IPs ({len(all_ips)})', self)
-            blacklist_action.setToolTip('Exclude selected IPs from the high-rate scan until the blacklist is cleared.')
-
-            def _blacklist_multi() -> None:
-                for ip_address in all_ips:
-                    self._blacklist_ip(ip_address)
-
-            blacklist_action.triggered.connect(_blacklist_multi)
-            menu.addAction(blacklist_action)
-
-            graph_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), f'Show Rate Graphs ({len(all_ips)})', self)
-            graph_action.setToolTip('Open live PPS/BPS rate graph windows for all selected players.')
-
-            def _open_graphs_multi() -> None:
-                for ip_address in all_ips:
-                    self.open_graph(ip_address)
-
-            graph_action.triggered.connect(_open_graphs_multi)
-            menu.addAction(graph_action)
-
-            menu.addSeparator()
-
-            add_searchlist_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), f'Add to Searchlist ({len(selected_players)})', self)
-            add_searchlist_action.setToolTip('Add all selected players to the Searchlist UserIP database.')
-            add_searchlist_action.triggered.connect(lambda: self._add_players_to_searchlist(selected_players))
-            menu.addAction(add_searchlist_action)
-
-        popup_menu_at_table(menu, self._table, pos)
-
-        self._timer.stop()
-        menu.aboutToHide.connect(lambda: self._timer.start(_UPDATE_INTERVAL_MS))
-    # pylint: enable=duplicate-code
-
-    def _on_section_resized(self, _logical_index: int, _old_size: int, _new_size: int) -> None:
-        if not getattr(self, '_is_resetting_columns', False):
-            self._has_user_resized_columns = True
-
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._is_resetting_columns = True
-        try:
-            self._has_user_resized_columns = False
-            viewport = self._table.viewport()
-            available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-            total_columns = self._model.columnCount()
-            if total_columns > 0 and available_width > 0:
-                column_width = max(80, available_width // total_columns)
-                remainder = available_width % total_columns
-                for column_index in range(total_columns):
-                    add_pixels = remainder if column_index == total_columns - 1 else 0
-                    self._table.setColumnWidth(column_index, column_width + add_pixels)
-        finally:
-            self._is_resetting_columns = False
+    def get_tracked(self, ip: str) -> _PlayerRateData | None:
+        """Return the tracked rate data for the given IP, or None."""
+        return self._tracked.get(ip)
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
-        """Adjust column sizes when the monitor window is shown."""
+        """Select flagged high-rate players if auto-selection is enabled upon showing the monitor."""
         super().showEvent(event)
-        self._reset_column_sizes()
+        if self._auto_select:
+            flagged_ips = [player.ip for player in self._tracked.values() if player.is_high_pps and player.is_high_bps]
+            if flagged_ips and self._select_ips is not None:
+                self._select_ips(flagged_ips)
+                self._currently_selected_ips = set(flagged_ips)
 
     @override
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        """Adjust column sizes on window resize unless user has manually customized them."""
-        super().resizeEvent(event)
-        if not getattr(self, '_has_user_resized_columns', False):
-            self._reset_column_sizes()
-
-    def _blacklist_ip(self, ip: str) -> None:
-        self._blacklisted_ips.add(ip)
-        self._scan_players()
+    def hideEvent(self, event: QHideEvent) -> None:
+        """Deselect auto-selected players when the monitor window or tab is hidden."""
+        super().hideEvent(event)
+        if self._auto_select and self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+            self._currently_selected_ips.clear()

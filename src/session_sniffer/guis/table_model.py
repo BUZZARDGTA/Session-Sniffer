@@ -14,7 +14,7 @@ from PySide6.QtCore import (
     QPersistentModelIndex,
     Qt,
 )
-from PySide6.QtGui import QBrush, QIcon
+from PySide6.QtGui import QBrush, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QHeaderView,
     QTableView,
@@ -31,7 +31,34 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
+from session_sniffer.guis.high_rate_monitor import HighRateTracker
+from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
+
+MAX_POSSIBLE_IP_ICONS = 3
+
+
+def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:
+    """Combine SVG icons side-by-side into a single composite QIcon supporting standard and HiDPI."""
+    if not icon_paths:
+        return QIcon()
+    if len(icon_paths) == 1:
+        return QIcon(icon_paths[0])
+    count = len(icon_paths)
+    total_width = 16 * count + 2 * (count - 1)
+    loaded_icons = [QIcon(path) for path in icon_paths]
+    composite = QIcon()
+    for scale in (1, 2):
+        pixmap = QPixmap(total_width * scale, 16 * scale)
+        pixmap.setDevicePixelRatio(scale)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        for i, icon in enumerate(loaded_icons):
+            icon.paint(painter, i * 18, 0, 16, 16)
+        painter.end()
+        composite.addPixmap(pixmap)
+    return composite
+
 
 if TYPE_CHECKING:
     from session_sniffer.guis.tables import SessionTableView
@@ -112,6 +139,7 @@ class _ColumnIndices:
     username: int
     country: int | None
     ports: int | None
+    pps: int | None
 
 
 class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public-methods
@@ -136,9 +164,10 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             username=self._headers.index('Usernames'),
             country=self.get_column_index('Country'),
             ports=self.get_column_index('Ports'),
+            pps=self.get_column_index('PPS'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
-        self._crown_icon: QIcon | None = None
+        self._ip_icons_cache: dict[tuple[str, ...], QIcon] = {}
 
     # --------------------------------------------------------------------------
     # Public properties
@@ -234,10 +263,18 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                     output = matched_player.country_flag.icon
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self.get_ip_from_data_safely(self._data[row_index])
+                icon_paths: list[str] = []
                 if SessionHost.is_host(ip):
-                    if self._crown_icon is None:
-                        self._crown_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
-                    output = self._crown_icon
+                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+                if HighRateTracker.is_high_rate(ip):
+                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'speedometer.svg'))
+                if PlayerIdentifierTracker.is_identified(ip):
+                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
+                if icon_paths:
+                    cache_key = tuple(icon_paths)
+                    if cache_key not in self._ip_icons_cache:
+                        self._ip_icons_cache[cache_key] = _create_composite_icon(cache_key)
+                    output = self._ip_icons_cache[cache_key]
         elif role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
             output = self._data[row_index][column_index]
@@ -264,6 +301,20 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
                 if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
                     output = cell_text
+
+            if self.ip_column_index >= 0 and self.ip_column_index == column_index:
+                ip = self.get_ip_from_data_safely(self._data[row_index])
+                tooltips: list[str] = []
+                if output:
+                    tooltips.append(str(output))
+                if SessionHost.is_host(ip):
+                    tooltips.append('Session Host')
+                if HighRateTracker.is_high_rate(ip):
+                    tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
+                if PlayerIdentifierTracker.is_identified(ip):
+                    tooltips.append('Identified player (Player Identifier)')
+                if tooltips:
+                    output = '\n'.join(tooltips)
 
         return output
 
@@ -540,12 +591,28 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         return display_data
 
-    def has_session_host(self) -> bool:
-        """Return whether any row in the table contains the session host."""
+    def max_ip_icons(self) -> int:
+        """Return the maximum number of icons displayed in the IP Address column for any row."""
         ip_column = self.ip_column_index
         if ip_column < 0:
-            return False
-        return any(len(row_data) > ip_column and SessionHost.is_host(row_data[ip_column]) for row_data in self._data)
+            return 0
+        max_count = 0
+        for row_data in self._data:
+            if len(row_data) <= ip_column:
+                continue
+            ip = row_data[ip_column]
+            count = 0
+            if SessionHost.is_host(ip):
+                count += 1
+            if HighRateTracker.is_high_rate(ip):
+                count += 1
+            if PlayerIdentifierTracker.is_identified(ip):
+                count += 1
+            if count > max_count:
+                max_count = count
+                if max_count == MAX_POSSIBLE_IP_ICONS:
+                    break
+        return max_count
 
     def has_multiple_ports(self) -> bool:
         """Return whether any row in the table contains multiple ports."""
@@ -666,6 +733,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 username=self._headers.index('Usernames'),
                 country=self.get_column_index('Country'),
                 ports=self.get_column_index('Ports'),
+                pps=self.get_column_index('PPS'),
             )
         self._data = []
         self._compiled_colors = []

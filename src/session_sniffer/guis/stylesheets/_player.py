@@ -4,11 +4,57 @@
 # PLAYER IDENTIFIER STYLES
 # =============================================================================
 
-PROGRESS_BAR_IDLE_STYLESHEET = ''
+_PROGRESS_BAR_BASE = (
+    'QProgressBar {'
+    ' background-color: #0d131a;'
+    ' border: 1px solid #253040;'
+    ' border-radius: 12px;'
+    ' text-align: center;'
+    ' color: #ffffff;'
+    ' font-weight: 700;'
+    ' font-size: 9pt;'
+    ' min-height: 24px;'
+    ' max-height: 24px;'
+    '}'
+)
 
-PROGRESS_BAR_CHUNK_GREEN_STYLESHEET = 'QProgressBar::chunk { background-color: #27ae60; }'
+PROGRESS_BAR_IDLE_STYLESHEET = (
+    _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
+    ' background-color: transparent;'
+    '}'
+)
 
-PROGRESS_BAR_CHUNK_RED_STYLESHEET = 'QProgressBar::chunk { background-color: #e74c3c; }'
+PROGRESS_BAR_CHUNK_BLUE_STYLESHEET = (
+    _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:0.5 #3b82f6, stop:1 #60a5fa);'
+    ' border-radius: 10px;'
+    ' margin: 2px;'
+    '}'
+)
+
+PROGRESS_BAR_CHUNK_GREEN_STYLESHEET = (
+    _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:0.5 #10b981, stop:1 #34d399);'
+    ' border-radius: 10px;'
+    ' margin: 2px;'
+    '}'
+)
+
+PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET = (
+    _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #d97706, stop:0.5 #f59e0b, stop:1 #fbbf24);'
+    ' border-radius: 10px;'
+    ' margin: 2px;'
+    '}'
+)
+
+PROGRESS_BAR_CHUNK_RED_STYLESHEET = (
+    _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #b91c1c, stop:0.5 #ef4444, stop:1 #f87171);'
+    ' border-radius: 10px;'
+    ' margin: 2px;'
+    '}'
+)
 
 
 # =============================================================================
