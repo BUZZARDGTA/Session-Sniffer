@@ -117,10 +117,6 @@ QMenu::item:disabled:selected {
     background-color: transparent;
 }
 
-QMenu::icon {
-    margin-left: 4px;
-}
-
 QMenu::indicator {
     width: 14px;
     height: 14px;

@@ -528,20 +528,46 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             category_menu.setToolTipsVisible(True)
             category_menu.setToolTip(f'Toggle columns in the {label} category.')
 
-            select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', category_menu)
+            column_actions: list[QAction] = []
+
+            select_all_action = QAction('Select All', category_menu)
+            select_all_action.setCheckable(True)
+            select_all_action.setChecked(True)
             select_all_action.setToolTip(f'Show all columns in the {label} category.')
 
-            def _on_select_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
-                self._select_category_columns(cols)
+            def _on_select_all(
+                _checked: bool,  # noqa: FBT001
+                columns_to_select: list[str] = columns,
+                actions: list[QAction] = column_actions,
+                action: QAction = select_all_action,
+            ) -> None:
+                action.setChecked(True)
+                for action_item in actions:
+                    action_item.blockSignals(True)  # noqa: FBT003
+                    action_item.setChecked(True)
+                    action_item.blockSignals(False)  # noqa: FBT003
+                self._select_category_columns(columns_to_select)
 
             select_all_action.triggered.connect(_on_select_all)
             category_menu.addAction(select_all_action)
 
-            deselect_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Unselect All', category_menu)
+            deselect_all_action = QAction('Unselect All', category_menu)
+            deselect_all_action.setCheckable(True)
+            deselect_all_action.setChecked(False)
             deselect_all_action.setToolTip(f'Hide all columns in the {label} category.')
 
-            def _on_deselect_all(_checked: bool, cols: list[str] = columns) -> None:  # noqa: FBT001
-                self._deselect_category_columns(cols)
+            def _on_deselect_all(
+                _checked: bool,  # noqa: FBT001
+                columns_to_deselect: list[str] = columns,
+                actions: list[QAction] = column_actions,
+                action: QAction = deselect_all_action,
+            ) -> None:
+                action.setChecked(False)
+                for action_item in actions:
+                    action_item.blockSignals(True)  # noqa: FBT003
+                    action_item.setChecked(False)
+                    action_item.blockSignals(False)  # noqa: FBT003
+                self._deselect_category_columns(columns_to_deselect)
 
             deselect_all_action.triggered.connect(_on_deselect_all)
             category_menu.addAction(deselect_all_action)
@@ -560,6 +586,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
                 column_action.toggled.connect(_on_column_toggled)
                 category_menu.addAction(column_action)
+                column_actions.append(column_action)
             choose_columns_menu.addMenu(category_menu)
 
         menu.addMenu(choose_columns_menu)
