@@ -100,7 +100,7 @@ class PlayerIdentifierProgressBar(QProgressBar):
         self.update()
 
     @override
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, a0: QPaintEvent | None) -> None:  # pylint: disable=unused-argument
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -164,7 +164,7 @@ class PlayerIdentifierWidget(QWidget):
 
     def __init__(
         self,
-        select_ips_callback: Callable[[list[str]], None],
+        select_ips_callback: Callable[[list[str]], None] | None = None,
         deselect_ips_callback: Callable[[list[str] | None], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
