@@ -908,7 +908,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         filters_layout.addWidget(self._relative_dates_checkbox)
 
         self._always_on_top_checkbox = QCheckBox('Always on Top')
-        self._always_on_top_checkbox.setToolTip('Keep this window above all other windows')
+        self._always_on_top_checkbox.setToolTip('Keep this window visible on top of all other applications and games.')
         self._always_on_top_checkbox.setChecked(always_on_top)
         self._always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
