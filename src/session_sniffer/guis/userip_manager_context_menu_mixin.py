@@ -14,10 +14,10 @@ from session_sniffer.guis.looky_text import (
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import (
+    create_multi_tcp_ping_menu,
     ping_ip,
     show_detailed_ip_lookup,
     tcp_port_ping,
-    tcp_port_ping_multi,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
@@ -300,31 +300,7 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_action.triggered.connect(_do_normal_ping_multi)
                 ping_menu.addAction(normal_ping_action)
 
-                tcp_menu = QMenu('TCP Port Ping', ping_menu)
-                tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
-                tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-                tcp_menu.setToolTipsVisible(True)
-
-                tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
-                tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-                def _do_tcp_ping_multi() -> None:
-                    tcp_port_ping_multi(self, _ip_addresses_target)
-
-                tcp_one_action.triggered.connect(_do_tcp_ping_multi)
-                tcp_menu.addAction(tcp_one_action)
-
-                tcp_indiv_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
-                tcp_indiv_action.setToolTip('Ask for a separate port for each selected IP.')
-
-                def _do_tcp_ping_indiv() -> None:
-                    for ip_address in _ip_addresses_target:
-                        tcp_port_ping(self, ip_address)
-
-                tcp_indiv_action.triggered.connect(_do_tcp_ping_indiv)
-                tcp_menu.addAction(tcp_indiv_action)
-
-                ping_menu.addMenu(tcp_menu)
+                create_multi_tcp_ping_menu(self, _ip_addresses_target, ping_menu)
             else:
                 _ip_target = ip_or_range
                 normal_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
@@ -522,31 +498,7 @@ class EntriesContextMenuMixin(QDialog):
                 normal_ping_gs_action.triggered.connect(_do_normal_ping_multi_gs)
                 ping_menu_gs.addAction(normal_ping_gs_action)
 
-                tcp_menu_gs = QMenu('TCP Port Ping', ping_menu_gs)
-                tcp_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
-                tcp_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-                tcp_menu_gs.setToolTipsVisible(True)
-
-                tcp_one_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu_gs)
-                tcp_one_gs_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-                def _do_tcp_ping_multi_gs() -> None:
-                    tcp_port_ping_multi(self, _ip_addresses_gs)
-
-                tcp_one_gs_action.triggered.connect(_do_tcp_ping_multi_gs)
-                tcp_menu_gs.addAction(tcp_one_gs_action)
-
-                tcp_indiv_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu_gs)
-                tcp_indiv_gs_action.setToolTip('Ask for a separate port for each selected IP.')
-
-                def _do_tcp_ping_indiv_gs() -> None:
-                    for ip_address in _ip_addresses_gs:
-                        tcp_port_ping(self, ip_address)
-
-                tcp_indiv_gs_action.triggered.connect(_do_tcp_ping_indiv_gs)
-                tcp_menu_gs.addAction(tcp_indiv_gs_action)
-
-                ping_menu_gs.addMenu(tcp_menu_gs)
+                create_multi_tcp_ping_menu(self, _ip_addresses_gs, ping_menu_gs)
             else:
                 _ip_gs = ip_or_range
                 normal_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)

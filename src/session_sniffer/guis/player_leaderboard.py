@@ -63,13 +63,14 @@ from session_sniffer.guis._player_leaderboard_workers import (
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
-from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
+from session_sniffer.guis.tables_player_actions import create_multi_tcp_ping_menu, ping_ip, show_detailed_ip_lookup, tcp_port_ping
 from session_sniffer.guis.utils import (
     HEADER_SORT_PADDING,
     ElidedTextTooltipDelegate,
     SearchHighlightDelegate,
     ToggleAlwaysOnTopMixin,
     apply_search_icon,
+    copy_table_cells,
     format_player_display,
     get_screen_size,
     load_country_flag_icon,
@@ -180,6 +181,7 @@ _COLUMN_SAMPLE_TEXTS: dict[str, str] = {
     'Last Seen': '3 days ago',
     'IP Address': '255.255.255.255',
 }
+
 
 def _get_flag_icon(country_code: str) -> QIcon | None:
     """Return a cached QIcon for the given ISO country code, or None if unavailable."""
@@ -743,31 +745,9 @@ class _LeaderboardTableView(QTableView):
 
         super().keyPressEvent(event)
 
-    # pylint: disable=duplicate-code
     def copy_selection(self) -> None:
         """Copy selected rows from the leaderboard table to the clipboard as tab-separated text."""
-        selection_model = self.selectionModel()
-        if not selection_model:
-            return
-        selected_indexes = selection_model.selectedIndexes()
-        if not selected_indexes:
-            return
-
-        rows: dict[int, dict[int, str]] = {}
-        for model_index in selected_indexes:
-            row_index = model_index.row()
-            column_index = model_index.column()
-            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
-            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
-
-        lines: list[str] = []
-        for row_index in sorted(rows):
-            column_map = rows[row_index]
-            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
-
-        set_clipboard_text('\n'.join(lines))
-
-    # pylint: enable=duplicate-code
+        copy_table_cells(self)
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
@@ -1364,7 +1344,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             ping_menu.addAction(tcp_ping_action)
 
             menu.addMenu(ping_menu)
-            # pylint: enable=duplicate-code
 
             menu.addSeparator()
 
@@ -1375,7 +1354,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         else:
             all_ips = [entry.ip for entry in selected_entries]
 
-            # pylint: disable=duplicate-code
             ip_list = list(all_ips)
             ping_menu = QMenu('Ping', menu)
             ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
@@ -1391,33 +1369,8 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             normal_action.triggered.connect(_ping_all_leaderboard)
             ping_menu.addAction(normal_action)
 
-            tcp_menu = QMenu('TCP Port Ping', ping_menu)
-            tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
-            tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-            tcp_menu.setToolTipsVisible(True)
-
-            tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
-            tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-            def _do_tcp_ping_multi() -> None:
-                tcp_port_ping_multi(self, ip_list)
-
-            tcp_one_action.triggered.connect(_do_tcp_ping_multi)
-            tcp_menu.addAction(tcp_one_action)
-
-            tcp_custom_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
-            tcp_custom_action.setToolTip('Ask for a separate port for each selected IP.')
-
-            def _do_tcp_ping_individual() -> None:
-                for ip_address in ip_list:
-                    tcp_port_ping(self, ip_address)
-
-            tcp_custom_action.triggered.connect(_do_tcp_ping_individual)
-            tcp_menu.addAction(tcp_custom_action)
-
-            ping_menu.addMenu(tcp_menu)
+            create_multi_tcp_ping_menu(self, ip_list, ping_menu)
             menu.addMenu(ping_menu)
-            # pylint: enable=duplicate-code
 
         popup_menu_at_table(menu, self._table, pos)
 

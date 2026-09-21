@@ -11,10 +11,10 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import (
+    create_multi_tcp_ping_menu,
     ping_ip,
     show_detailed_ip_lookup,
     tcp_port_ping,
-    tcp_port_ping_multi,
 )
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
@@ -188,33 +188,9 @@ class TableContextMenuManager:
                 normal_action.triggered.connect(_ping_all)
                 ping_menu.addAction(normal_action)
 
-                tcp_menu = QMenu('TCP Port Ping', ping_menu)
-                tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')))
-                tcp_menu.setToolTipsVisible(True)
-
-                tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')), 'One Port for All', tcp_menu)
-                tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-                def _tcp_ping_multi() -> None:
-                    tcp_port_ping_multi(self._parent, ip_list)
-
-                tcp_one_action.triggered.connect(_tcp_ping_multi)
-                tcp_menu.addAction(tcp_one_action)
-
-                tcp_indiv_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')), 'Individual Port per IP', tcp_menu)
-                tcp_indiv_action.setToolTip('Ask for a separate port for each selected IP.')
-
-                def _tcp_ping_indiv() -> None:
-                    for ip_address in ip_list:
-                        tcp_port_ping(self._parent, ip_address)
-
-                tcp_indiv_action.triggered.connect(_tcp_ping_indiv)
-                tcp_menu.addAction(tcp_indiv_action)
-
-                ping_menu.addMenu(tcp_menu)
+                create_multi_tcp_ping_menu(self._parent, ip_list, ping_menu, icon_name='ethernet.svg')
 
             menu.addMenu(ping_menu)
-            # pylint: enable=duplicate-code
 
         popup_menu_at_table_widget(menu, self._table, pos)
 

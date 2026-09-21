@@ -2,18 +2,21 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QClipboard
+from PySide6.QtGui import QAction, QClipboard, QIcon
 from PySide6.QtWidgets import (
     QDialog,
     QInputDialog,
+    QMenu,
     QMessageBox,
     QWidget,
 )
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
 from session_sniffer.guis.ping_window import PingWindow
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import (
     format_bool,
     format_loss_pct,
@@ -163,6 +166,43 @@ def tcp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
         return
 
     PingWindow.open_window(ip_addresses, mode=PingMode.TCP, port=port)
+
+
+def create_multi_tcp_ping_menu(
+    parent: QWidget,
+    ip_addresses: list[str],
+    ping_menu: QMenu,
+    *,
+    icon_name: str = 'settings.svg',
+) -> QMenu:
+    """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
+    tcp_menu = QMenu('TCP Port Ping', ping_menu)
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+    tcp_menu.setIcon(icon)
+    tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+    tcp_menu.setToolTipsVisible(True)
+
+    tcp_one_action = QAction(icon, 'One Port for All', tcp_menu)
+    tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
+
+    def _do_tcp_ping_multi() -> None:
+        tcp_port_ping_multi(parent, ip_addresses)
+
+    tcp_one_action.triggered.connect(_do_tcp_ping_multi)
+    tcp_menu.addAction(tcp_one_action)
+
+    tcp_individual_action = QAction(icon, 'Individual Port per IP', tcp_menu)
+    tcp_individual_action.setToolTip('Ask for a separate port for each selected IP.')
+
+    def _do_tcp_ping_individual() -> None:
+        for ip_address in ip_addresses:
+            tcp_port_ping(parent, ip_address)
+
+    tcp_individual_action.triggered.connect(_do_tcp_ping_individual)
+    tcp_menu.addAction(tcp_individual_action)
+
+    ping_menu.addMenu(tcp_menu)
+    return tcp_menu
 
 
 def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:

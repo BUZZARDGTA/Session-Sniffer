@@ -52,7 +52,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
-from session_sniffer.guis.tables_player_actions import ping_ip, show_detailed_ip_lookup, tcp_port_ping, tcp_port_ping_multi
+from session_sniffer.guis.tables_player_actions import create_multi_tcp_ping_menu, ping_ip, show_detailed_ip_lookup, tcp_port_ping
 from session_sniffer.guis.utils import SearchHighlightDelegate, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
@@ -555,33 +555,8 @@ class CsvLogTab(QWidget):
             normal_action.triggered.connect(_ping_all_csv)
             ping_menu.addAction(normal_action)
 
-            tcp_menu = QMenu('TCP Port Ping', ping_menu)
-            tcp_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')))
-            tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-            tcp_menu.setToolTipsVisible(True)
-
-            tcp_one_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'One Port for All', tcp_menu)
-            tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-            def _do_tcp_ping_multi() -> None:
-                tcp_port_ping_multi(self, _target_ips)
-
-            tcp_one_action.triggered.connect(_do_tcp_ping_multi)
-            tcp_menu.addAction(tcp_one_action)
-
-            tcp_custom_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Individual Port per IP', tcp_menu)
-            tcp_custom_action.setToolTip('Ask for a separate port for each selected IP.')
-
-            def _do_tcp_ping_individual() -> None:
-                for ip_address in _target_ips:
-                    tcp_port_ping(self, ip_address)
-
-            tcp_custom_action.triggered.connect(_do_tcp_ping_individual)
-            tcp_menu.addAction(tcp_custom_action)
-
-            ping_menu.addMenu(tcp_menu)
+            create_multi_tcp_ping_menu(self, _target_ips, ping_menu)
             menu.addMenu(ping_menu)
-            # pylint: enable=duplicate-code
 
         menu.addSeparator()
 
