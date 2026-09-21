@@ -18,6 +18,7 @@ from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureStats
 from session_sniffer.settings import Settings
 
@@ -53,7 +54,7 @@ class StatsMixin(QMainWindow):
     _session_duration_window: SessionDurationWindow | None
     _capture_statistics_window: CaptureStatisticsWindow | None
 
-    def _sync_gta5_process_button(self) -> None: ...  # Provided by GTA5Mixin
+    def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
 
     def _select_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
@@ -193,9 +194,9 @@ class StatsMixin(QMainWindow):
         if self._session_duration_window is not None:
             self._session_duration_window.refresh()
 
-        # Sync GTA5 process control state every tick
-        if Settings.is_gta5_feature_set():
-            self._sync_gta5_process_button()
+        # Sync game process control state every tick
+        if Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set():
+            self._sync_game_process_button()
 
     def _open_session_pps_graph(self) -> None:
         """Open or focus the session-wide PPS graph window."""
@@ -328,6 +329,7 @@ class StatsMixin(QMainWindow):
         self._connected.table_model.remove_player_by_ip(ip)
 
         GTASuspendManager.release_reasons_for_ip(ip)
+        RDR2SuspendManager.release_reasons_for_ip(ip)
 
     def remove_player_from_disconnected(self, ip: str) -> None:
         """Remove a single player from disconnected table and registry by IP address."""
@@ -338,3 +340,4 @@ class StatsMixin(QMainWindow):
         self._disconnected.table_model.remove_player_by_ip(ip)
 
         GTASuspendManager.release_reasons_for_ip(ip)
+        RDR2SuspendManager.release_reasons_for_ip(ip)

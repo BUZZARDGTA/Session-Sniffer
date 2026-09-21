@@ -1,20 +1,18 @@
-"""Main window implementation for Session Sniffer."""  # pylint: disable=too-many-lines
+"""Main window implementation for Session Sniffer."""
 
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QIcon, QShowEvent
+from PySide6.QtGui import QAction, QCloseEvent, QFont, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
-    QMenu,
     QMessageBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
-    QWidgetAction,
 )
 
 from session_sniffer.background.events import gui_closed__event
@@ -23,9 +21,8 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
-from session_sniffer.guis._main_window_gta5_mixin import GTA5Mixin, format_gta5_solo_action_text, format_gta5_solo_tooltip
+from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
-from session_sniffer.guis._main_window_rdr2_mixin import RDR2Mixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
@@ -33,15 +30,15 @@ from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
-from session_sniffer.guis.session_host_history_window import setup_session_host_actions
 from session_sniffer.guis.settings_dialog import SettingsDialog
-from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET, MENU_BAR_STYLESHEET
+from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen, scale_by_ui, show_detailed_message
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
 from session_sniffer.rendering_core.types import CaptureState, GUIRenderingState, GUIUpdatePayload
 from session_sniffer.settings import Settings
@@ -70,7 +67,7 @@ class _WindowState:
     min_accepted_snapshot_version: int
 
 
-class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMainWindow):
+class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
     _actions: _MenuActions
@@ -78,9 +75,6 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
     _disconnected: SessionTableSection
     _tables_splitter: QSplitter
     _saved_splitter_sizes: list[int]
-    _gta5_status_label: QLabel
-    _session_host_submenu: QMenu
-    _player_resolver_action: QAction
     _discord_intro_window: DiscordIntro | None
 
     def _on_splitter_moved(self, _position: int, _index: int) -> None:
@@ -185,119 +179,8 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         change_interface_action.triggered.connect(on_change_interface)
         capture_menu.addAction(change_interface_action)
 
-        gta5_menu = menu_bar.addMenu('GTA V')
-        if not gta5_menu:
-            message = 'Failed to create GTA5 menu'
-            raise RuntimeError(message)
-        gta5_menu.setToolTipsVisible(True)
-        gta5_menu_action = gta5_menu.menuAction()
-        if not gta5_menu_action:
-            message = 'Failed to get GTA5 menu action'
-            raise RuntimeError(message)
-        gta5_menu_action.setVisible(Settings.is_gta5_feature_set())
-        self._gta5_menu = gta5_menu
-
-        gta5_status_label = QLabel()
-        gta5_status_label.setTextFormat(Qt.TextFormat.RichText)
-        gta5_status_label.setStyleSheet(GTA5_STATUS_LABEL_STYLESHEET)
-        gta5_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
-        gta5_status_label.setToolTip('GTA V process detection state')
-        gta5_status_widget_action = QWidgetAction(self)
-        gta5_status_widget_action.setDefaultWidget(gta5_status_label)
-        gta5_menu.addAction(gta5_status_widget_action)
-        self._gta5_status_label = gta5_status_label
-        self._gta5_status_widget_action = gta5_status_widget_action
-        self._resize_gta5_status_label('● GTA V not running')
-
-        gta5_menu.aboutToShow.connect(self._update_gta5_status_label)
-        self._gta5_menu_status_separator = gta5_menu.addSeparator()
-
-        player_resolver_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Player Resolver', self)
-        player_resolver_action.setToolTip('Find the exact IP of a player in your current GTA5 session.')
-        player_resolver_action.triggered.connect(self._open_player_resolver)
-        gta5_menu.addAction(player_resolver_action)
-        self._player_resolver_action = player_resolver_action
-
-        self._build_looky_submenu(gta5_menu)
-
-        gta5_menu.addSeparator()
-
-        session_host_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Session Host')
-        if not session_host_submenu:
-            message = 'Failed to create Session Host submenu'
-            raise RuntimeError(message)
-        session_host_submenu.setToolTipsVisible(True)
-        session_host_submenu.menuAction().setToolTip('Session host detection controls for the current GTA5 lobby')
-        self._session_host_submenu = session_host_submenu
-
-        host_status_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'No host', self)
-        host_status_action.setEnabled(False)
-        host_status_action.setToolTip('Current session host detection state')
-        session_host_submenu.addAction(host_status_action)
-        self._host_status_action = host_status_action
-
-        def _update_host_status_label() -> None:
-            current_session_host = SessionHost.get_player()
-            if current_session_host is not None:
-                self._host_status_action.setText(f'Detected: {current_session_host.ip}')
-            elif SessionHost.search_player:
-                self._host_status_action.setText('Searching…')
-            else:
-                self._host_status_action.setText('No host')
-
-        session_host_submenu.aboutToShow.connect(_update_host_status_label)
-
-        setup_session_host_actions(session_host_submenu, self._clear_session_host, self._redetect_session_host, self._select_ips)
-
-        self._gta5_menu_process_separator = gta5_menu.addSeparator()
-
-        gta5_process_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')), 'GTA5 Process')
-        if not gta5_process_submenu:
-            message = 'Failed to create GTA5 Process submenu'
-            raise RuntimeError(message)
-        gta5_process_submenu.setToolTipsVisible(True)
-        gta5_process_submenu.menuAction().setToolTip('GTA5 process controls — suspend/resume for solo and public session manipulation')
-        self._gta5_process_submenu = gta5_process_submenu
-
-        gta5_menu_solo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), format_gta5_solo_action_text(), self)
-        gta5_menu_solo_action.setToolTip(format_gta5_solo_tooltip())
-        gta5_menu_solo_action.triggered.connect(self.gta5_solo_session)
-        gta5_process_submenu.addAction(gta5_menu_solo_action)
-
-        gta5_process_submenu.addSeparator()
-
-        gta5_suspend_resume_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')), 'Suspend Process', self)
-        gta5_suspend_resume_action.setToolTip('Manually suspend the GTA5 process — stays suspended until you click it again to resume')
-        gta5_suspend_resume_action.triggered.connect(self.toggle_manual_gta5_suspend)
-        gta5_process_submenu.addAction(gta5_suspend_resume_action)
-
-        gta5_process_submenu.aboutToShow.connect(self._sync_gta5_process_button)
-
-        self._gta5_solo_menu_action = gta5_menu_solo_action
-        self._gta5_suspend_resume_action = gta5_suspend_resume_action
-        self._manual_gta5_suspend_active = False
-        self._gta5_solo_active = False
-        self._gta5_process_suspended = False
-        self._gta5_externally_suspended = False
-        self._gta5_process_detected = False
-        self._last_gta5_status_key: tuple[bool, bool, bool, bool, bool] = (False, False, False, False, False)
-
-        self._build_rdr2_menu(menu_bar)
-
-        if Settings.is_gta5_feature_set():
-            self._sync_gta5_process_button()
-            self._update_gta5_status_label()
-            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
-            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
-            self._update_looky_actions()
-
-        if Settings.is_rdr2_feature_set():
-            self._sync_rdr2_process_button()
-            self._update_rdr2_status_label()
-            self._rdr2_session_host_submenu.setEnabled(CaptureState.rdr2_is_running or not CaptureState.is_local_capture())
-            self._rdr2_player_resolver_action.setEnabled(CaptureState.rdr2_is_running or not CaptureState.is_local_capture())
-
-        self._update_gta5_toolbar_visibility()
+        self._build_game_menu(menu_bar)
+        self._update_game_toolbar_visibility()
 
         tools_menu = menu_bar.addMenu('Tools')
         if not tools_menu:
@@ -795,62 +678,12 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             page=payload.disconnected_page,
         )
 
-        status_key = (
-            CaptureState.gta5_is_running,
-            CaptureState.gta5_is_enhanced,
-            CaptureState.gta5_is_legacy,
-            CaptureState.gta5_is_suspended,
-            CaptureState.is_local_capture(),
-        )
-        if status_key != self._last_gta5_status_key:
-            self._update_gta5_status_label()
-            self._session_host_submenu.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
-            self._player_resolver_action.setEnabled(CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+        self._sync_game_status()
+        if Settings.is_gta5_feature_set():
             self._update_looky_actions()
-            self._sync_gta5_process_button()
-
-        self._sync_rdr2_status()
 
         if self._capture_statistics_window is not None:
             self._capture_statistics_window.refresh()
-
-    def _resize_gta5_status_label(self, visible_text: str) -> None:
-        """Resize the GTA5 status label to fit `visible_text` so the menu width tracks the active variant.
-
-        The menu adopts the label's minimum width, so `Legacy` renders narrower than `Enhanced`
-        instead of always reserving room for the widest variant.
-        """
-        status_font = QFont(self._gta5_status_label.font())
-        status_font.setPointSize(10)
-        # `+ 44` covers `16 + 28` px horizontal padding from `GTA5_STATUS_LABEL_STYLESHEET`,
-        # plus `12` px slack for the rich-text dot glyph.
-        self._gta5_status_label.setMinimumWidth(QFontMetrics(status_font).horizontalAdvance(visible_text) + 44 + 12)
-
-    def _update_gta5_status_label(self) -> None:
-        """Refresh the GTA5 status label and tooltip from cached `CaptureState` values."""
-        if CaptureState.gta5_is_running:
-            version = 'GTA V Enhanced' if CaptureState.gta5_is_enhanced else 'GTA V Legacy'
-            path_tooltip = str(CaptureState.gta5_path) if CaptureState.gta5_path is not None else 'GTA V process detection state'
-            if CaptureState.gta5_is_suspended:
-                visible_text = f'{version} (Suspended)'
-                self._gta5_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
-                self._gta5_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
-            else:
-                visible_text = version
-                self._gta5_status_label.setText(f'<span style="color: #4caf50;">●</span> {visible_text}')
-                self._gta5_status_label.setToolTip(path_tooltip)
-        else:
-            visible_text = 'GTA V not running'
-            self._gta5_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
-            self._gta5_status_label.setToolTip('GTA V process detection state')
-        self._resize_gta5_status_label(f'● {visible_text}')
-        self._last_gta5_status_key = (
-            CaptureState.gta5_is_running,
-            CaptureState.gta5_is_enhanced,
-            CaptureState.gta5_is_legacy,
-            CaptureState.gta5_is_suspended,
-            CaptureState.is_local_capture(),
-        )
 
     @staticmethod
     def _prune_missing_rows(model: SessionTableModel, ips_to_keep: set[str]) -> None:
@@ -935,7 +768,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
             self._settings_dialog_window.activateWindow()
             return
         window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
-        window.accepted.connect(self._update_gta5_toolbar_visibility)
+        window.accepted.connect(self._update_game_toolbar_visibility)
         window.accepted.connect(self._apply_always_on_top)
         window.accepted.connect(self._update_splitter_visibility)
         window.accepted.connect(self._apply_table_sort_from_settings)
@@ -1092,7 +925,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
 
     def on_interface_switched(self) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
-        self._update_gta5_toolbar_visibility()
+        self._update_game_toolbar_visibility()
         self._sync_capture_toggle_action()
         self._actions.toggle_capture.setEnabled(True)
         self._update_header_capture_status()
@@ -1111,6 +944,7 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         if connected_ips:
             for ip in connected_ips:
                 GTASuspendManager.release_reasons_for_ip(ip)
+                RDR2SuspendManager.release_reasons_for_ip(ip)
 
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
@@ -1125,3 +959,4 @@ class MainWindow(LookyMixin, GTA5Mixin, RDR2Mixin, StatsMixin, FilesMixin, QMain
         if disconnected_ips:
             for ip in disconnected_ips:
                 GTASuspendManager.release_reasons_for_ip(ip)
+                RDR2SuspendManager.release_reasons_for_ip(ip)

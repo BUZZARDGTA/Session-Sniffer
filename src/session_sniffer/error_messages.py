@@ -261,21 +261,11 @@ def format_npcap_required_message() -> str:
     return 'Session Sniffer requires the Npcap packet capture driver to monitor and analyze network traffic on Windows.'
 
 
-def format_gta5_solo_session_process_not_running_message() -> str:
-    """Format the warning shown when Solo Public Session is triggered but GTA5 is not running."""
-    return 'GTA5 is not currently running.\n\nPlease launch GTA5 before using this feature.'
+def format_game_solo_session_process_not_running_message(game_name: str) -> str:
+    """Format the warning shown when Solo Public Session is triggered but the game process is not running."""
+    return f'{game_name} is not currently running.\n\nPlease launch {game_name} before using this feature.'
 
 
-def format_gta5_solo_session_suspend_failed_message() -> str:
-    """Format the error shown when the GTA5 process suspend attempt fails."""
-    return 'Failed to suspend the GTA5 process.\n\nTry running Session Sniffer as administrator.'
-
-
-def format_rdr2_solo_session_process_not_running_message() -> str:
-    """Format the warning shown when Solo Public Session is triggered but RDR2 is not running."""
-    return 'RDR2 is not currently running.\n\nPlease launch RDR2 before using this feature.'
-
-
-def format_rdr2_solo_session_suspend_failed_message() -> str:
-    """Format the error shown when the RDR2 process suspend attempt fails."""
-    return 'Failed to suspend the RDR2 process.\n\nTry running Session Sniffer as administrator.'
+def format_game_solo_session_suspend_failed_message(game_name: str) -> str:
+    """Format the error shown when the game process suspend attempt fails."""
+    return f'Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.'
