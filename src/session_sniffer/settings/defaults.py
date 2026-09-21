@@ -75,7 +75,6 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
     'Discord',
     'Web Server',
     'GTA V',
-    'Looky System',
 )
 
 
@@ -700,15 +699,15 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         allowed_values=('Stable', 'Pre-release'),
     ),
     'looky_enabled': SettingMeta(
-        category='Looky System',
-        group='General',
+        category='GTA V',
+        group='Looky System',
         display_label='Enable Looky System',
         setting_type=SettingType.BOOLEAN,
         tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky System API calls.',
     ),
     'looky_exclusive_gta5_process': SettingMeta(
-        category='Looky System',
-        group='General',
+        category='GTA V',
+        group='Looky System',
         display_label='Restrict to GTA5 Process',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
@@ -724,8 +723,8 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         ),
     ),
     'looky_game_version': SettingMeta(
-        category='Looky System',
-        group='General',
+        category='GTA V',
+        group='Looky System',
         display_label='Game Version',
         setting_type=SettingType.ENUM,
         tooltip=(
@@ -735,8 +734,8 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         allowed_values=('Both', 'Legacy', 'Enhanced'),
     ),
     'looky_api_key': SettingMeta(
-        category='Looky System',
-        group='Authentication',
+        category='GTA V',
+        group='Looky System',
         display_label='API Key',
         setting_type=SettingType.STRING,
         tooltip='Your Looky System Bearer token. Required for all Looky System features — auto-resolve, manual lookups, and crawler requests.',

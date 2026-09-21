@@ -56,11 +56,11 @@ from session_sniffer.guis._settings_widget_builders import (
     create_integer_or_all_widget,
     create_integer_widget,
     create_ip_range_tuple_widget,
+    create_setting_label,
     create_standard_form_layout,
     create_standard_vbox_layout,
     create_text_widget,
     create_third_party_servers_split_widget,
-    format_setting_tooltip,
     get_line_edit,
 )
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
@@ -136,15 +136,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         root_layout = QVBoxLayout(self)
 
         self._tabs = QTabWidget()
-        self._looky_tab_index: int = -1
         self._game_tab_index: int = -1
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
             self._tabs.addTab(tab_widget, category)
-            if category == 'Looky System':
-                self._looky_tab_index = i
-            elif category == 'GTA V':
+            if category == 'GTA V':
                 self._game_tab_index = i
         self._tabs.currentChanged.connect(self._on_tab_changed)
         root_layout.addWidget(self._tabs)
@@ -262,8 +259,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             outer_layout.addWidget(build_webserver_help_group())
         elif category == 'Discord':
             outer_layout.addWidget(build_discord_info_group())
-        elif category == 'Looky System':
-            outer_layout.addWidget(self._build_looky_info_group())
         elif category == 'Capture':
             outer_layout.addWidget(self._build_interface_info_group())
 
@@ -280,6 +275,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             # cascade, reset-messages, automod warning).
             if category == 'Discord' and group_name == 'Server Webhook':
                 outer_layout.addWidget(self._build_discord_webhook_group(items, self._add_setting_row))
+                continue
+            if category == 'GTA V' and group_name == 'Looky System':
+                outer_layout.addWidget(self._build_looky_group(items, self._add_setting_row))
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
@@ -302,32 +300,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
                     group_vbox.addWidget(sub_box)
-            elif category == 'Looky System' and group_name == 'Authentication':
-                auth_vbox = create_standard_vbox_layout(group_box)
-                auth_row = QHBoxLayout()
-                auth_row.setContentsMargins(0, 0, 0, 0)
-                auth_row.setSpacing(10)
-                auth_row.addStretch(1)
-                for key, meta in items:
-                    widget = self._create_widget(key, meta)
-                    if meta.min_width is not None:
-                        widget.setMinimumWidth(meta.min_width)
-                    if meta.max_width is not None:
-                        widget.setMaximumWidth(meta.max_width)
-                    self._widgets[key] = widget
-
-                    label = QLabel(f'{meta.display_label}:')
-                    self._labels[key] = label
-                    tooltip = format_setting_tooltip(meta)
-                    if tooltip:
-                        label.setToolTip(tooltip)
-
-                    auth_row.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
-                    auth_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
-                auth_row.addStretch(1)
-                auth_vbox.addLayout(auth_row)
-                self._looky_account_info_group = self._build_looky_account_info_group()
-                auth_vbox.addWidget(self._looky_account_info_group)
             else:
                 group_form = create_standard_form_layout(group_box)
                 for key, meta in items:
@@ -413,12 +385,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             form.addRow(widget)
             return
 
-        label = QLabel(f'{meta.display_label}:')
+        label = create_setting_label(meta)
         self._labels[key] = label
-
-        tooltip = format_setting_tooltip(meta)
-        if tooltip:
-            label.setToolTip(tooltip)
+        if (tooltip := label.toolTip()):
             widget.setToolTip(tooltip)
 
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
@@ -435,9 +404,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         is_gta5 = feature_set == 'GTA V'
         is_rdr2 = feature_set == 'RDR2'
         is_supported_game = is_gta5 or is_rdr2
-
-        if self._looky_tab_index != -1:
-            self._tabs.setTabVisible(self._looky_tab_index, is_gta5)
 
         if self._game_tab_index != -1:
             self._tabs.setTabVisible(self._game_tab_index, is_supported_game)

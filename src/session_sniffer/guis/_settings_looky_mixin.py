@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -19,6 +20,12 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis._settings_widget_builders import (
+    create_setting_label,
+    create_standard_form_layout,
+    create_standard_vbox_layout,
+    create_text_widget,
+)
 from session_sniffer.guis.sensitive_value_widget import SensitiveValueWidget
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACCOUNT_CARD_STYLESHEET,
@@ -30,9 +37,13 @@ from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.looky_system import verify_token as looky_verify_token
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtGui import QCloseEvent, QKeyEvent
+    from PySide6.QtWidgets import QFormLayout
 
     from session_sniffer.models.looky_system import LookyVerifyResponse
+    from session_sniffer.settings import SettingMeta
 
 
 def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
@@ -68,10 +79,10 @@ class _LookyVerifyWorker(CrashingQThread):
 
 
 class SettingsDialogLookyMixin(QDialog):
-    """Looky System tab helpers — account info card, verify worker, and related slots.
+    """Looky System UI helpers — settings group, account info card, verify worker, and related slots.
 
     Expects these attributes on the concrete class (set in `__init__`):
-        `_widgets`, `_last_verified_key`, `_verify_worker`, `_verify_debounce`
+        `_widgets`, `_labels`, `_last_verified_key`, `_verify_worker`, `_verify_debounce`
     """
 
     # -- Attribute stubs (Looky System widgets, set during _build_tab) --
@@ -84,14 +95,19 @@ class SettingsDialogLookyMixin(QDialog):
 
     # -- Attribute stubs (set in SettingsDialog.__init__) --
     _widgets: dict[str, QWidget]
+    _labels: dict[str, QLabel]
     _last_verified_key: str
     _verify_worker: _LookyVerifyWorker | None
     _verify_debounce: QTimer
 
-    def _build_looky_info_group(self) -> QGroupBox:
-        """Build an informational banner for the Looky System API key setting."""
-        group_box = QGroupBox('Looky System — GTA IP Lookup')
-        layout = QVBoxLayout(group_box)
+    def _build_looky_group(
+        self,
+        items: list[tuple[str, SettingMeta]],
+        add_setting_row: Callable[[QFormLayout, str, SettingMeta], None],
+    ) -> QGroupBox:
+        """Build the custom Looky System group with info banner, settings, API key, and account info card."""
+        group_box = QGroupBox('Looky System')
+        outer = create_standard_vbox_layout(group_box)
 
         info_label = QLabel(
             '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
@@ -108,7 +124,35 @@ class SettingsDialogLookyMixin(QDialog):
         info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         info_label.setStyleSheet(LOOKY_INFO_LABEL_STYLESHEET)
         info_label.linkHovered.connect(info_label.setToolTip)
-        layout.addWidget(info_label)
+        outer.addWidget(info_label)
+
+        general_items = [(key, meta) for key, meta in items if key != 'looky_api_key']
+        if general_items:
+            form = create_standard_form_layout()
+            for key, meta in general_items:
+                add_setting_row(form, key, meta)
+            outer.addLayout(form)
+
+        api_key_item = next(((key, meta) for key, meta in items if key == 'looky_api_key'), None)
+        if api_key_item is not None:
+            key, meta = api_key_item
+            widget = create_text_widget(meta)
+            self._widgets[key] = widget
+
+            label = create_setting_label(meta)
+            self._labels[key] = label
+
+            auth_row = QHBoxLayout()
+            auth_row.setContentsMargins(0, 0, 0, 0)
+            auth_row.setSpacing(10)
+            auth_row.addStretch(1)
+            auth_row.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
+            auth_row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+            auth_row.addStretch(1)
+            outer.addLayout(auth_row)
+
+            self._looky_account_info_group = self._build_looky_account_info_group()
+            outer.addWidget(self._looky_account_info_group)
 
         return group_box
 

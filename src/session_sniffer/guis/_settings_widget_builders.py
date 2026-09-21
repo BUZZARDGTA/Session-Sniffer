@@ -67,6 +67,15 @@ def create_standard_vbox_layout(parent: QWidget | None = None) -> QVBoxLayout:
     return layout
 
 
+def create_setting_label(meta: SettingMeta) -> QLabel:
+    """Create a standard form label for a setting with an optional tooltip."""
+    label = QLabel(f'{meta.display_label}:')
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        label.setToolTip(tooltip)
+    return label
+
+
 def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
     """Create a checkbox widget for a boolean setting."""
     checkbox = QCheckBox()
