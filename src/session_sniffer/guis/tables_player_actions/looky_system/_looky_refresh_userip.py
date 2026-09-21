@@ -47,7 +47,6 @@ from session_sniffer.guis.utils import (
     SearchHighlightDelegate,
     apply_search_icon,
     set_clipboard_text,
-    set_dialog_window_flags,
 )
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
@@ -165,8 +164,9 @@ class _LookyRefreshLoadingDialog(QDialog):
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
-        set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumSize(320, 150)
 
         layout = QVBoxLayout(self)
@@ -226,14 +226,16 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
     def __init__(self, parent: QWidget, ip_groups: list[_IpGroup]) -> None:
         super().__init__(parent)
-        set_dialog_window_flags(self)
-
         self.setWindowTitle(f'{LOOKY_TITLE} \u2014 UserIP Refresh Review')
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
+        self.setWindowFlags(flags)
         self.setStyleSheet(LOOKY_REVIEW_DIALOG_STYLESHEET)
         self._apply_standard_dialog_size()
         self.resize(max(self.width(), 760), max(self.height(), 580))
 
         self._ip_groups = ip_groups
+        self._accepted_entries: list[_PendingEntry] | None = None
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(12, 12, 12, 12)
@@ -484,8 +486,16 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         self._tree.viewport().update()
 
+    @override
+    def accept(self) -> None:
+        """Capture checked entries before the dialog closes."""
+        self._accepted_entries = [entry for item, entry in self._new_items if item.checkState(0) == Qt.CheckState.Checked]
+        super().accept()
+
     def get_accepted_entries(self) -> list[_PendingEntry]:
         """Return the list of new entries the user checked."""
+        if self._accepted_entries is not None:
+            return list(self._accepted_entries)
         return [entry for item, entry in self._new_items if item.checkState(0) == Qt.CheckState.Checked]
 
     def _reset_column_sizes(self) -> None:

@@ -541,10 +541,11 @@ class _RIDPickerDialog(QDialog):
 
     def __init__(self, parent: QWidget, entries: list[tuple[str, int]]) -> None:
         super().__init__(parent)
-        set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumWidth(420)
+        self._selected_rid: int | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -585,8 +586,17 @@ class _RIDPickerDialog(QDialog):
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         layout.addWidget(button_box)
 
+    @override
+    def accept(self) -> None:
+        """Capture selected RID before closing."""
+        item = self._list.currentItem()
+        self._selected_rid = int(item.data(Qt.ItemDataRole.UserRole)) if item else None
+        super().accept()
+
     def selected_rid(self) -> int | None:
         """Return the currently selected RID, or `None` if nothing is selected."""
+        if self._selected_rid is not None:
+            return self._selected_rid
         item = self._list.currentItem()
         if not item:
             return None
