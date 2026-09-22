@@ -2,7 +2,7 @@
 
 import logging
 import time
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from http import HTTPStatus
 from threading import Event, Thread
 from threading import enumerate as enumerate_threads
@@ -47,6 +47,7 @@ _IPAPI_MAX_CONSECUTIVE_FAILURES = 3
 _IPAPI_FIELDS = (
     'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 )
+_PLAYER_CORE_MAX_WORKERS = 32
 
 
 def _notify_ipapi_unavailable(reason: str) -> None:
@@ -67,11 +68,37 @@ def _notify_ipapi_unavailable(reason: str) -> None:
 
 
 _iplookup_wakeup_event = Event()
+_hostname_wakeup_event = Event()
+_pinger_wakeup_event = Event()
+_looky_wakeup_event = Event()
 
 
 def wake_iplookup_core() -> None:
     """Signal the IP-API background core loop to immediately check for pending player lookups."""
     _iplookup_wakeup_event.set()
+
+
+def wake_hostname_core() -> None:
+    """Signal the reverse DNS background core to immediately check for pending hostnames."""
+    _hostname_wakeup_event.set()
+
+
+def wake_pinger_core() -> None:
+    """Signal the pinger background core to immediately check for pending player pings."""
+    _pinger_wakeup_event.set()
+
+
+def wake_looky_core() -> None:
+    """Signal the Looky System background core to immediately check for pending player lookups."""
+    _looky_wakeup_event.set()
+
+
+def wake_all_player_cores() -> None:
+    """Signal all background enrichment cores to immediately check for pending player work."""
+    _iplookup_wakeup_event.set()
+    _hostname_wakeup_event.set()
+    _pinger_wakeup_event.set()
+    _looky_wakeup_event.set()
 
 
 def iplookup_core() -> None:
@@ -97,8 +124,9 @@ def iplookup_core() -> None:
                 break
 
         if not ips_to_lookup:
-            _iplookup_wakeup_event.wait(1)
             _iplookup_wakeup_event.clear()
+            if not any(not player.iplookup.ipapi.is_initialized for player in PlayersRegistry.get_all_players()) and not gui_closed__event.is_set():
+                _iplookup_wakeup_event.wait()
             continue
 
         try:
@@ -220,19 +248,17 @@ def _run_player_future_core[T](
     worker: Callable[[str], T],
     should_submit: Callable[[Player], bool],
     apply_result: Callable[[Player, T], None],
+    wakeup_event: Event,
     handle_exception: Callable[[str, Exception], bool] | None = None,
-    max_workers: int = 32,
 ) -> None:
     """Run a background player task using one future per pending IP."""
-    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='PlayerCore') as executor:
+    with ThreadPoolExecutor(max_workers=_PLAYER_CORE_MAX_WORKERS, thread_name_prefix='PlayerCore') as executor:
         futures: dict[Future[T], str] = {}  # Maps futures to their corresponding IPs
         pending_ips: set[str] = set()  # Tracks IPs currently being processed
 
         while not gui_closed__event.is_set():
             if ScriptControl.has_crashed():
                 return
-
-            submitted_new = False
 
             for player in PlayersRegistry.get_default_sorted_players():
                 if gui_closed__event.is_set():
@@ -247,16 +273,16 @@ def _run_player_future_core[T](
                 future = executor.submit(worker, player.ip)
                 futures[future] = player.ip
                 pending_ips.add(player.ip)
-                submitted_new = True
 
             if not futures:
-                gui_closed__event.wait(1)
+                wakeup_event.wait(1.0)
+                wakeup_event.clear()
                 continue
 
-            done_futures = [(future, ip) for future, ip in futures.items() if future.done()]
+            done, _ = wait(futures.keys(), timeout=0.1, return_when=FIRST_COMPLETED)
 
-            for future, ip in done_futures:
-                futures.pop(future)
+            for future in done:
+                ip = futures.pop(future)
                 pending_ips.remove(ip)
 
                 try:
@@ -273,14 +299,6 @@ def _run_player_future_core[T](
 
                 apply_result(matched_player, result)
 
-            resolved_any = bool(done_futures)
-
-            # Only poll quickly if there's active work; otherwise wait longer.
-            if not submitted_new and not resolved_any:
-                gui_closed__event.wait(1)
-            else:
-                gui_closed__event.wait(0.1)
-
 
 def hostname_core() -> None:
     """Resolve reverse DNS hostnames for players in the background."""
@@ -296,7 +314,7 @@ def hostname_core() -> None:
         worker=reverse_dns_lookup,
         should_submit=should_submit,
         apply_result=apply_result,
-        max_workers=32,
+        wakeup_event=_hostname_wakeup_event,
     )
 
 
@@ -329,6 +347,7 @@ def pinger_core() -> None:
         worker=ping_player,
         should_submit=should_submit,
         apply_result=apply_result,
+        wakeup_event=_pinger_wakeup_event,
         handle_exception=handle_exception,
     )
 
@@ -435,7 +454,8 @@ def looky_core() -> None:
         ]
 
         if not pending_ips:
-            gui_closed__event.wait(1)
+            _looky_wakeup_event.wait(1)
+            _looky_wakeup_event.clear()
             continue
 
         resolved_any = False
@@ -505,7 +525,8 @@ def looky_core() -> None:
                 server_error_consecutive_failures = 0
 
         if not resolved_any and not rate_limited and not cooldown_active:
-            gui_closed__event.wait(1)
+            _looky_wakeup_event.wait(1)
+            _looky_wakeup_event.clear()
         else:
             gui_closed__event.wait(0.1)
 

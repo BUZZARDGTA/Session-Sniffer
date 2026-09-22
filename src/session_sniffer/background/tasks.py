@@ -16,7 +16,7 @@ from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
-from session_sniffer.background.cores import wake_iplookup_core
+from session_sniffer.background.cores import wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
@@ -301,7 +301,7 @@ def wait_for_player_data_ready(
         if all(checker(player) for checker in checker_items):
             return True
 
-        gui_closed__event.wait(min(0.1, remaining))
+        gui_closed__event.wait(min(0.02, remaining))
 
     return False
 
@@ -926,7 +926,7 @@ def check_global_detections(player: Player) -> None:
 
 def submit_global_detections_check(player: Player) -> None:
     """Submit global detection checks to the background detection worker pool."""
-    wake_iplookup_core()
+    wake_all_player_cores()
     _detection_check_pool.submit(check_global_detections, player).add_done_callback(_on_pool_task_done)
 
 

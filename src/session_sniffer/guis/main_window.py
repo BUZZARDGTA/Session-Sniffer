@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.background import wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -563,6 +564,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         gui_closed__event.set()
+        wake_all_player_cores()
         self._player_resolver_window.close()
         if self._settings_dialog_window is not None:
             self._settings_dialog_window.close()

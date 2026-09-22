@@ -1,6 +1,16 @@
 """Background processing tasks and cores for player data enrichment."""
 
-from session_sniffer.background.cores import ensure_looky_core_running, hostname_core, iplookup_core, pinger_core, wake_iplookup_core
+from session_sniffer.background.cores import (
+    ensure_looky_core_running,
+    hostname_core,
+    iplookup_core,
+    pinger_core,
+    wake_all_player_cores,
+    wake_hostname_core,
+    wake_iplookup_core,
+    wake_looky_core,
+    wake_pinger_core,
+)
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import (
     NotificationConfig,
@@ -35,5 +45,9 @@ __all__ = [
     'process_userip_task',
     'submit_global_detections_check',
     'wait_for_player_data_ready',
+    'wake_all_player_cores',
+    'wake_hostname_core',
     'wake_iplookup_core',
+    'wake_looky_core',
+    'wake_pinger_core',
 ]
