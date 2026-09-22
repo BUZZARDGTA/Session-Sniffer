@@ -753,7 +753,7 @@ def check_global_detections(player: Player) -> None:
     is_server_ip = is_third_party_server_ip(player.ip)
 
     # Mobile Connection Detection
-    if player.iplookup.ipapi.mobile:
+    if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.mobile is True:
         if GUIDetectionSettings.mobile_suspend_enabled:
             execute_suspension_action(GUIDetectionSettings.mobile_suspend_duration, 'MobileDetection')
         handle_detection_notifications(
@@ -769,7 +769,7 @@ def check_global_detections(player: Player) -> None:
         )
 
     # VPN/Proxy/Tor Detection
-    if player.iplookup.ipapi.proxy:
+    if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.proxy is True:
         if GUIDetectionSettings.vpn_suspend_enabled:
             execute_suspension_action(GUIDetectionSettings.vpn_suspend_duration, 'VPNDetection')
         handle_detection_notifications(
@@ -785,7 +785,7 @@ def check_global_detections(player: Player) -> None:
         )
 
     # Hosting/Data Center Detection
-    if player.iplookup.ipapi.hosting:
+    if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.hosting is True:
         if GUIDetectionSettings.hosting_suspend_enabled:
             execute_suspension_action(GUIDetectionSettings.hosting_suspend_duration, 'HostingDetection')
         handle_detection_notifications(
@@ -801,7 +801,10 @@ def check_global_detections(player: Player) -> None:
         )
 
     # Country Detection
-    if GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list:
+    if (
+        GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.is_initialized
+        and player.iplookup.geolite2.country not in ('...', 'N/A') and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list
+    ):
         if GUIDetectionSettings.country_suspend_enabled:
             execute_suspension_action('Auto', 'CountryDetection')
         handle_detection_notifications(
@@ -817,7 +820,7 @@ def check_global_detections(player: Player) -> None:
         )
 
     # ISP Detection
-    if GUIDetectionSettings.isp_detection_list:
+    if GUIDetectionSettings.isp_detection_list and player.iplookup.ipapi.is_initialized:
         matched_isp = None
         for block_entry in GUIDetectionSettings.isp_detection_list:
             block_entry_upper = block_entry.upper().strip()
@@ -856,9 +859,9 @@ def check_global_detections(player: Player) -> None:
     # ASN Detection
     if GUIDetectionSettings.asn_detection_list:
         asns_to_check: list[str] = []
-        if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A'):
+        if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A'):
             asns_to_check.append(player.iplookup.ipapi.asn)
-        if player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A'):
+        if player.iplookup.geolite2.is_initialized and player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A'):
             asns_to_check.append(player.iplookup.geolite2.asn)
 
         if asns_to_check:
@@ -879,11 +882,14 @@ def check_global_detections(player: Player) -> None:
                         'Auto',
                         'ASNDetection',
                     )
-                asn_display = (
-                    f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}'
-                    if player.iplookup.ipapi.asn != player.iplookup.geolite2.asn
-                    else matched_asn
-                )
+                if player.iplookup.ipapi.is_initialized and player.iplookup.geolite2.is_initialized:
+                    asn_display = (
+                        f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}'
+                        if player.iplookup.ipapi.asn != player.iplookup.geolite2.asn
+                        else matched_asn
+                    )
+                else:
+                    asn_display = matched_asn
                 handle_detection_notifications(
                     detection_title='BLOCKED ASN DETECTED!',
                     display_title='Blocked ASN Detected',
