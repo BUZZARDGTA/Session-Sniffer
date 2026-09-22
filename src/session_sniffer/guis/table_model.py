@@ -54,9 +54,11 @@ def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:
         pixmap.setDevicePixelRatio(scale)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
-        for i, icon in enumerate(loaded_icons):
-            icon.paint(painter, i * 18, 0, 16, 16)
-        painter.end()
+        try:
+            for i, icon in enumerate(loaded_icons):
+                icon.paint(painter, i * 18, 0, 16, 16)
+        finally:
+            painter.end()
         composite.addPixmap(pixmap)
     return composite
 

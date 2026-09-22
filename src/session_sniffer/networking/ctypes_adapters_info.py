@@ -243,7 +243,7 @@ def _get_ip_net_table(buf: object, size_ptr: object) -> int:
     return int(GetIpNetTable(buf, size_ptr, order_flag))
 
 
-def _sockaddr_to_ipv4(sockaddr_ptr: int) -> str | None:
+def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
     """Converts a sockaddr pointer to an IPv4 address if applicable.
 
     Args:
@@ -252,6 +252,9 @@ def _sockaddr_to_ipv4(sockaddr_ptr: int) -> str | None:
     Returns:
         The IPv4 address as a string, or `None` if the sockaddr is not IPv4.
     """
+    if not sockaddr_ptr:
+        return None
+
     # Explicitly cast sockaddr_ptr to a ctypes pointer of SOCKADDR_IN
     sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents
 

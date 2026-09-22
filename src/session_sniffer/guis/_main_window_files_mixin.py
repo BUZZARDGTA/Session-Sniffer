@@ -20,6 +20,7 @@ from session_sniffer.constants._build_info import COMMIT_DATE, COMMIT_SHA, OS_IN
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
+    CRASH_LOG_PATH,
     DEBUG_DIR_PATH,
     DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
@@ -150,6 +151,10 @@ class FilesMixin(QMainWindow):
     def _open_debug_log_file(self) -> None:
         """Open the debug.log file."""
         self.open_file(DEBUG_LOG_PATH)
+
+    def _open_crash_log_file(self) -> None:
+        """Open the crash.log file."""
+        self.open_file(CRASH_LOG_PATH)
 
     def _open_debug_logs_folder(self) -> None:
         """Open the Debug logs directory."""

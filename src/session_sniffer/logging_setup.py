@@ -6,6 +6,7 @@ Supports rotating log files, stderr capture, and safe flushing.
 """
 
 import atexit
+import faulthandler
 import logging
 import os
 import sys
@@ -14,7 +15,7 @@ from logging.handlers import RotatingFileHandler
 from threading import Event, RLock, local
 from typing import TYPE_CHECKING, Self, TextIO, cast, override
 
-from session_sniffer.constants.local import CURRENT_VERSION, DEBUG_LOG_PATH
+from session_sniffer.constants.local import CRASH_LOG_PATH, CURRENT_VERSION, DEBUG_LOG_PATH
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -36,6 +37,7 @@ _setup_lock = RLock()
 _secret_provider_lock = RLock()
 _stderr_reentry_state = local()
 _atexit_registered = Event()
+_crash_log_file: TextIO | None = None
 
 _SECRETS_CACHE_TTL_SECONDS = 2.0
 _cached_secrets: tuple[str, ...] = ()
@@ -364,11 +366,24 @@ def _configure_common_filters(handler: logging.Handler) -> None:
     _add_filter_once(handler, _urllib3_noise_filter)
 
 
+def _close_crash_log() -> None:
+    """Disable faulthandler and close the crash log file cleanly on exit."""
+    global _crash_log_file  # noqa: PLW0603
+    if _crash_log_file is not None:
+        try:
+            faulthandler.disable()
+            _crash_log_file.close()
+        except OSError:
+            pass
+        _crash_log_file = None
+
+
 def _register_shutdown_once() -> None:
     """Register logging shutdown exactly once for this module."""
     if _atexit_registered.is_set():
         return
     atexit.register(logging.shutdown)
+    atexit.register(_close_crash_log)
     _atexit_registered.set()
 
 
@@ -428,3 +443,10 @@ def setup_logging(
 
         # --- Ensure logs flush on exit ---
         _register_shutdown_once()
+
+        # --- Native crash fault handler (captures fatal C/C++ exceptions and signals) ---
+        global _crash_log_file  # noqa: PLW0603
+        if _crash_log_file is None:
+            CRASH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
+            faulthandler.enable(file=_crash_log_file, all_threads=True)

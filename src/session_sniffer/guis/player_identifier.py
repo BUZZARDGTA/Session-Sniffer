@@ -102,45 +102,48 @@ class PlayerIdentifierProgressBar(QProgressBar):
     @override
     def paintEvent(self, a0: QPaintEvent | None) -> None:  # pylint: disable=unused-argument
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        bounding_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        capsule_radius = bounding_rect.height() / 2.0
+            bounding_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+            capsule_radius = bounding_rect.height() / 2.0
 
-        outer_path = QPainterPath()
-        outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
-        painter.fillPath(outer_path, self._background_color)
-        painter.setPen(QPen(self._border_color, 1.0))
-        painter.drawPath(outer_path)
+            outer_path = QPainterPath()
+            outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
+            painter.fillPath(outer_path, self._background_color)
+            painter.setPen(QPen(self._border_color, 1.0))
+            painter.drawPath(outer_path)
 
-        current_value = self.value()
-        if current_value > 0 and self._chunk_gradient is not None:
-            inner_rect = bounding_rect.adjusted(2.0, 2.0, -2.0, -2.0)
-            inner_radius = max(0.0, inner_rect.height() / 2.0)
-            clip_path = QPainterPath()
-            clip_path.addRoundedRect(inner_rect, inner_radius, inner_radius)
+            current_value = self.value()
+            if current_value > 0 and self._chunk_gradient is not None:
+                inner_rect = bounding_rect.adjusted(2.0, 2.0, -2.0, -2.0)
+                inner_radius = max(0.0, inner_rect.height() / 2.0)
+                clip_path = QPainterPath()
+                clip_path.addRoundedRect(inner_rect, inner_radius, inner_radius)
 
-            value_range = self.maximum() - self.minimum()
-            progress_ratio = (current_value - self.minimum()) / value_range if value_range > 0 else 0.0
-            chunk_width = inner_rect.width() * progress_ratio
-            chunk_rect = QRectF(inner_rect.x(), inner_rect.y(), chunk_width, inner_rect.height())
+                value_range = self.maximum() - self.minimum()
+                progress_ratio = (current_value - self.minimum()) / value_range if value_range > 0 else 0.0
+                chunk_width = inner_rect.width() * progress_ratio
+                chunk_rect = QRectF(inner_rect.x(), inner_rect.y(), chunk_width, inner_rect.height())
 
-            painter.save()
-            painter.setClipPath(clip_path)
-            linear_gradient = QLinearGradient(inner_rect.left(), 0.0, inner_rect.right(), 0.0)
-            for stop_point, stop_color in self._chunk_gradient:
-                linear_gradient.setColorAt(stop_point, stop_color)
-            painter.fillRect(chunk_rect, linear_gradient)
-            painter.restore()
+                painter.save()
+                painter.setClipPath(clip_path)
+                linear_gradient = QLinearGradient(inner_rect.left(), 0.0, inner_rect.right(), 0.0)
+                for stop_point, stop_color in self._chunk_gradient:
+                    linear_gradient.setColorAt(stop_point, stop_color)
+                painter.fillRect(chunk_rect, linear_gradient)
+                painter.restore()
 
-        displayed_text = self.text()
-        if displayed_text and self.isTextVisible():
-            painter.setPen(QColor('#ffffff'))
-            text_font = self.font()
-            text_font.setPointSize(9)
-            text_font.setBold(True)
-            painter.setFont(text_font)
-            painter.drawText(bounding_rect, Qt.AlignmentFlag.AlignCenter, displayed_text)
+            displayed_text = self.text()
+            if displayed_text and self.isTextVisible():
+                painter.setPen(QColor('#ffffff'))
+                text_font = self.font()
+                text_font.setPointSize(9)
+                text_font.setBold(True)
+                painter.setFont(text_font)
+                painter.drawText(bounding_rect, Qt.AlignmentFlag.AlignCenter, displayed_text)
+        finally:
+            painter.end()
 
 
 class PlayerIdentifierTracker:
