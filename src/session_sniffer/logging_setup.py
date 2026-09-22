@@ -37,7 +37,7 @@ _setup_lock = RLock()
 _secret_provider_lock = RLock()
 _stderr_reentry_state = local()
 _atexit_registered = Event()
-_crash_log_file: TextIO | None = None
+_crash_log_file: TextIO | None = None  # pylint: disable=invalid-name
 
 _SECRETS_CACHE_TTL_SECONDS = 2.0
 _cached_secrets: tuple[str, ...] = ()
