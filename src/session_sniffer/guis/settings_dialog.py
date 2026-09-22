@@ -411,7 +411,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 self._tabs.setTabText(self._game_tab_index, feature_set)
 
     def _on_disconnected_players_enabled_toggled(self, checked: bool) -> None:  # noqa: FBT001
-        """Update Session tab controls and labels based on the Disconnected Players toggle."""
+        """Update dependent controls and labels based on the Disconnected Players toggle."""
         connected_rpp_label = self._labels.get('gui_connected_table_rows_per_page')
         connected_rpp_widget = self._widgets.get('gui_connected_table_rows_per_page')
         if connected_rpp_label is not None:
