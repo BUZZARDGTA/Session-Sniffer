@@ -328,20 +328,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Clear recorded player ports when a player rejoins the session.',
     ),
-    'gui_session_host_detection': SettingMeta(
-        category='GTA V',
-        group='Session Host',
-        display_label='Session Host Detection',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Detect and track the session host for supported game sessions.',
-    ),
-    'gui_session_host_icon': SettingMeta(
-        category='GTA V',
-        group='Session Host',
-        display_label='Session Host Table Icon',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Display the crown icon next to the session host IP address in the session tables.',
-    ),
     'gui_columns_connected_shown': SettingMeta(
         category='Columns',
         group='Column Visibility',
@@ -743,6 +729,20 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         secret=True,
         min_width=600,
         max_width=600,
+    ),
+    'gui_session_host_detection': SettingMeta(
+        category='GTA V',
+        group='Session Host',
+        display_label='Session Host Detection',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Detect and track the session host for supported game sessions.',
+    ),
+    'gui_session_host_icon': SettingMeta(
+        category='GTA V',
+        group='Session Host',
+        display_label='Session Host Table Icon',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Display the crown icon next to the session host IP address in the session tables.',
     ),
     'solo_session_duration': SettingMeta(
         category='GTA V',
