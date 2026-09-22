@@ -47,30 +47,56 @@ _IPAPI_MAX_CONSECUTIVE_FAILURES = 3
 _IPAPI_FIELDS = (
     'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
 )
+_IPAPI_PROBE_IP = '1.1.1.1'
 _PLAYER_CORE_MAX_WORKERS = 32
 
 
 def _notify_ipapi_unavailable(reason: str) -> None:
-    """Log and show a one-time user-facing warning that ip-api.com geolocation is unavailable this session.
+    """Log and show a one-time user-facing warning that ip-api.com geolocation is unavailable.
 
     `reason` is a single sentence explaining why ip-api.com cannot be used (e.g. an HTTPS redirect or a
     blocked connection); it is embedded into both the log line and the user-facing message box.
     """
-    logger.warning('[ip-api.com] %s IP geolocation via ip-api.com will be unavailable for this session.', reason)
-    msgbox.show(
-        TITLE,
-        'IP geolocation via ip-api.com is unavailable for this session.\n\n'
-        f'{reason}\n\n'
-        'Country, City, ISP, ASN and related ip-api.com fields will not be populated until the issue is '
-        'resolved and Session Sniffer is restarted.',
-        msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING,
-    )
+    logger.warning('[ip-api.com] %s IP geolocation via ip-api.com will be unavailable until connection is restored.', reason)
+    Thread(
+        target=msgbox.show,
+        args=(
+            TITLE,
+            (
+                'IP geolocation via ip-api.com is currently unavailable.\n\n'
+                f'{reason}\n\n'
+                'Country, City, ISP, ASN and related ip-api.com fields will not be populated until the network connection '
+                'to ip-api.com is restored (e.g. disconnecting a VPN or switching to an unblocked interface). Lookups will '
+                'automatically resume once the connection is restored.'
+            ),
+            msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING,
+        ),
+        name='IpApiUnavailableMessageBox',
+        daemon=True,
+    ).start()
 
 
 _iplookup_wakeup_event = Event()
 _hostname_wakeup_event = Event()
 _pinger_wakeup_event = Event()
 _looky_wakeup_event = Event()
+
+
+def _wait_iplookup_event(timeout: float) -> bool:
+    """Wait for _iplookup_wakeup_event or gui_closed__event up to timeout seconds.
+
+    Returns:
+        True if awakened by _iplookup_wakeup_event, False if timed out or gui_closed__event set.
+    """
+    deadline = time.monotonic() + timeout
+    while not gui_closed__event.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        if _iplookup_wakeup_event.wait(min(remaining, 0.5)):
+            _iplookup_wakeup_event.clear()
+            return True
+    return False
 
 
 def wake_iplookup_core() -> None:
@@ -123,11 +149,17 @@ def iplookup_core() -> None:
             if len(ips_to_lookup) == _IPAPI_MAX_BATCH_IPS:
                 break
 
+        is_probe = False
         if not ips_to_lookup:
-            _iplookup_wakeup_event.clear()
-            if not any(not player.iplookup.ipapi.is_initialized for player in PlayersRegistry.get_all_players()) and not gui_closed__event.is_set():
-                _iplookup_wakeup_event.wait()
-            continue
+            if not unavailability_warning_shown:
+                _iplookup_wakeup_event.clear()
+                if not any(not player.iplookup.ipapi.is_initialized for player in PlayersRegistry.get_all_players()) and not gui_closed__event.is_set():
+                    _iplookup_wakeup_event.wait()
+                continue
+
+            # When ip-api.com was previously unavailable, probe using a known IP to test if connectivity is restored.
+            is_probe = True
+            ips_to_lookup = [_IPAPI_PROBE_IP]
 
         try:
             response = session.post(
@@ -138,13 +170,13 @@ def iplookup_core() -> None:
                 timeout=3,
             )
             response.raise_for_status()
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
             # blocking the connection. Retry a few times in case it is a transient blip; after too many
             # consecutive failures surface a one-time warning, then probe every 60s so the lookup can
             # recover automatically if the network issue (e.g. a VPN) is resolved later.
             if unavailability_warning_shown:
-                gui_closed__event.wait(60)
+                _wait_iplookup_event(60)
                 continue
             consecutive_failures += 1
             if consecutive_failures >= _IPAPI_MAX_CONSECUTIVE_FAILURES:
@@ -152,9 +184,9 @@ def iplookup_core() -> None:
                 _notify_ipapi_unavailable(
                     f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts (a VPN, proxy, or firewall may be blocking the connection).',
                 )
-                gui_closed__event.wait(60)
+                _wait_iplookup_event(60)
             else:
-                gui_closed__event.wait(1)
+                _wait_iplookup_event(1)
             continue
         except requests.exceptions.HTTPError as e:
             if isinstance(e.response, requests.Response):
@@ -162,19 +194,22 @@ def iplookup_core() -> None:
                 # request onto HTTPS, so ip-api.com answers with a 301 redirect to its HTTPS URL. `requests`
                 # follows that redirect and, per the HTTP spec, downgrades our POST to a GET — but the /batch
                 # endpoint only accepts POST, so the redirected request comes back as 405 Method Not Allowed.
-                # That 301-then-405 chain uniquely identifies this situation, so warn and stop this background
-                # thread gracefully; the rest of the sniffer keeps running normally.
+                # That 301-then-405 chain uniquely identifies this situation, so warn and wait for the condition
+                # to clear (e.g. VPN disconnected) rather than permanently killing the thread.
                 if e.response.status_code == HTTPStatus.METHOD_NOT_ALLOWED and any(redirect.status_code == HTTPStatus.MOVED_PERMANENTLY for redirect in e.response.history):
-                    _notify_ipapi_unavailable(
-                        'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), which the free ip-api.com service does not support.',
-                    )
-                    return
+                    if not unavailability_warning_shown:
+                        unavailability_warning_shown = True
+                        _notify_ipapi_unavailable(
+                            'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), which the free ip-api.com service does not support.',
+                        )
+                    _wait_iplookup_event(60)
+                    continue
 
                 # Handle rate limiting.
                 if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                     requests_remaining = int(e.response.headers.get('X-Rl') or '0')
                     ttl_seconds = int(e.response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
-                    gui_closed__event.wait(ttl_seconds)
+                    _wait_iplookup_event(ttl_seconds)
                     requests_remaining = _IPAPI_MAX_REQUESTS
                     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
                     continue
@@ -182,7 +217,7 @@ def iplookup_core() -> None:
                 # Transient server-side errors — wait and retry.
                 if HTTPStatus(e.response.status_code).is_server_error:
                     logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
-                    gui_closed__event.wait(5)
+                    _wait_iplookup_event(5)
                     continue
 
             raise  # Re-raise unexpected HTTP errors (4xx, etc.)
@@ -192,6 +227,9 @@ def iplookup_core() -> None:
             unavailability_warning_shown = False
             logger.info('[ip-api.com] Connection to ip-api.com has been restored. IP geolocation lookups will resume.')
         consecutive_failures = 0
+
+        if is_probe:
+            continue
 
         requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
         ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))

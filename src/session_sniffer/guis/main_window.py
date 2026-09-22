@@ -937,6 +937,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._actions.toggle_capture.setEnabled(True)
         self._update_header_capture_status()
         self._update_status_bar()
+        wake_all_player_cores()
 
     def _clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
