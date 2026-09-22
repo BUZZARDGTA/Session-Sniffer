@@ -16,6 +16,7 @@ from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
+from session_sniffer.background.cores import wake_iplookup_core
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
@@ -32,6 +33,7 @@ from session_sniffer.guis.tables_player_actions import (
 )
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
+from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges, is_third_party_server_ip
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
@@ -74,7 +76,7 @@ _INTER_SOUND_PAUSE_SECONDS = 0.5
 _MINUTE_INTERVAL_SECONDS = 60.0
 _ONE_SECOND_TD = timedelta(seconds=1)
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
-_detection_check_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='DetectionCheck')
+_detection_check_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='DetectionCheck')
 
 
 class _DeduplicatedQueue:
@@ -247,7 +249,12 @@ def _check_reverse_dns_hostname(player: Player) -> bool:
 
 def _check_iplookup_geolite2(player: Player) -> bool:
     """Check if player GeoLite2 data is initialized."""
-    return player.iplookup.geolite2.is_initialized
+    if not player.iplookup.geolite2.is_initialized:
+        player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = query_geolite2_country(player.ip)
+        player.iplookup.geolite2.city = query_geolite2_city(player.ip)
+        player.iplookup.geolite2.asn = query_geolite2_asn(player.ip)
+        player.iplookup.geolite2.is_initialized = True
+    return True
 
 
 def _check_iplookup_ipapi(player: Player) -> bool:
@@ -741,17 +748,14 @@ def check_global_detections(player: Player) -> None:
             gui_dispatcher.invoke(_show_detection_notif)
 
     # Wait for IP lookup data to be ready
-    wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.ipapi', 'iplookup.geolite2'), timeout=15.0)
+    wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=10.0)
 
     is_server_ip = is_third_party_server_ip(player.ip)
 
     # Mobile Connection Detection
     if player.iplookup.ipapi.mobile:
         if GUIDetectionSettings.mobile_suspend_enabled:
-            execute_suspension_action(
-                GUIDetectionSettings.mobile_suspend_duration,
-                'MobileDetection',
-            )
+            execute_suspension_action(GUIDetectionSettings.mobile_suspend_duration, 'MobileDetection')
         handle_detection_notifications(
             detection_title='MOBILE CONNECTION DETECTED!',
             display_title='Mobile Connection Detected',
@@ -763,13 +767,11 @@ def check_global_detections(player: Player) -> None:
                 tts_filename='mobile_connection_detected',
             ),
         )
+
     # VPN/Proxy/Tor Detection
     if player.iplookup.ipapi.proxy:
         if GUIDetectionSettings.vpn_suspend_enabled:
-            execute_suspension_action(
-                GUIDetectionSettings.vpn_suspend_duration,
-                'VPNDetection',
-            )
+            execute_suspension_action(GUIDetectionSettings.vpn_suspend_duration, 'VPNDetection')
         handle_detection_notifications(
             detection_title='VPN/PROXY/TOR CONNECTION DETECTED!',
             display_title='VPN/Proxy/Tor Connection Detected',
@@ -785,10 +787,7 @@ def check_global_detections(player: Player) -> None:
     # Hosting/Data Center Detection
     if player.iplookup.ipapi.hosting:
         if GUIDetectionSettings.hosting_suspend_enabled:
-            execute_suspension_action(
-                GUIDetectionSettings.hosting_suspend_duration,
-                'HostingDetection',
-            )
+            execute_suspension_action(GUIDetectionSettings.hosting_suspend_duration, 'HostingDetection')
         handle_detection_notifications(
             detection_title='HOSTING/DATA CENTER CONNECTION DETECTED!',
             display_title='Hosting/Data Center Connection Detected',
@@ -804,10 +803,7 @@ def check_global_detections(player: Player) -> None:
     # Country Detection
     if GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.country and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list:
         if GUIDetectionSettings.country_suspend_enabled:
-            execute_suspension_action(
-                'Auto',
-                'CountryDetection',
-            )
+            execute_suspension_action('Auto', 'CountryDetection')
         handle_detection_notifications(
             detection_title='BLOCKED COUNTRY DETECTED!',
             display_title='Blocked Country Detected',
@@ -924,6 +920,7 @@ def check_global_detections(player: Player) -> None:
 
 def submit_global_detections_check(player: Player) -> None:
     """Submit global detection checks to the background detection worker pool."""
+    wake_iplookup_core()
     _detection_check_pool.submit(check_global_detections, player).add_done_callback(_on_pool_task_done)
 
 

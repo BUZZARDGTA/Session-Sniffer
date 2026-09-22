@@ -4,7 +4,7 @@ import logging
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from http import HTTPStatus
-from threading import Thread
+from threading import Event, Thread
 from threading import enumerate as enumerate_threads
 from typing import TYPE_CHECKING, cast
 
@@ -66,14 +66,16 @@ def _notify_ipapi_unavailable(reason: str) -> None:
     )
 
 
+_iplookup_wakeup_event = Event()
+
+
+def wake_iplookup_core() -> None:
+    """Signal the IP-API background core loop to immediately check for pending player lookups."""
+    _iplookup_wakeup_event.set()
+
+
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
-
-    def throttle_until(requests_remaining: int, throttle_time: int) -> None:
-        # Spread remaining requests evenly across the reset window to stay within the rate limit.
-        sleep_time = throttle_time / requests_remaining
-        gui_closed__event.wait(sleep_time)
-
     requests_remaining = _IPAPI_MAX_REQUESTS
     ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
     consecutive_failures = 0
@@ -95,7 +97,8 @@ def iplookup_core() -> None:
                 break
 
         if not ips_to_lookup:
-            gui_closed__event.wait(1)
+            _iplookup_wakeup_event.wait(1)
+            _iplookup_wakeup_event.clear()
             continue
 
         try:
@@ -203,13 +206,13 @@ def iplookup_core() -> None:
             matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
             matched_player.iplookup.ipapi.is_initialized = True
 
-        if requests_remaining <= 0:
-            throttle_until(1, ttl_seconds)
+        if requests_remaining <= 1:
+            gui_closed__event.wait(max(ttl_seconds, 1))
             requests_remaining = _IPAPI_MAX_REQUESTS
             ttl_seconds = _IPAPI_MAX_THROTTLE_TIME
             continue
 
-        throttle_until(requests_remaining, ttl_seconds)
+        gui_closed__event.wait(min(ttl_seconds / requests_remaining, 0.5))
 
 
 def _run_player_future_core[T](
