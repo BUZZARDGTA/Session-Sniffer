@@ -180,6 +180,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
 def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     """Create a double spin-box widget for a float setting."""
     spin = QDoubleSpinBox()
+    spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     spin.setDecimals(1)
     spin.setSingleStep(0.5)
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
@@ -193,6 +194,7 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
 def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     """Create a spin-box widget for an integer setting."""
     spin = QSpinBox()
+    spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
     spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
@@ -205,6 +207,7 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
 def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     """Create a spin-box widget for an integer-or-all setting (0 displays as special text)."""
     spin = QSpinBox()
+    spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
     spin.setMinimum(0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
@@ -218,6 +221,7 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
 def create_enum_widget(meta: SettingMeta) -> QComboBox:
     """Create a combo-box widget for an enum setting."""
     combo = QComboBox()
+    combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     if meta.allowed_values:
         combo.addItems(meta.allowed_values)
     elif meta.allowed_columns_attr:

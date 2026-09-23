@@ -7,7 +7,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QEvent, QMessageLogContext, QObject, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QEvent, QMessageLogContext, QObject, Qt, QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QAbstractSpinBox,
@@ -45,14 +45,32 @@ def _configure_platform_qt_environment() -> None:
     qInstallMessageHandler(_qt_message_handler)
 
 
+_FOCUS_POLICY_CHECK_EVENT_TYPES = (
+    QEvent.Type.Show,
+    QEvent.Type.Polish,
+    QEvent.Type.Enter,
+    QEvent.Type.HoverEnter,
+    QEvent.Type.ChildAdded,
+    QEvent.Type.Wheel,
+)
+
+
 class _DisableScrollValueChangeFilter(QObject):
-    """Filter out mouse wheel events on input widgets so scrolling does not change values."""
+    """Filter out mouse wheel events on input widgets so scrolling does not change values or focus."""
 
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() in _FOCUS_POLICY_CHECK_EVENT_TYPES and isinstance(watched, QWidget):
+            if watched.focusPolicy() == Qt.FocusPolicy.WheelFocus:
+                watched.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            if (parent := watched.parentWidget()) is not None and parent.focusPolicy() == Qt.FocusPolicy.WheelFocus:
+                parent.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
         if event.type() == QEvent.Type.Wheel:
             is_target, target = self._is_scroll_value_change_widget(watched)
             if is_target and target is not None:
+                if target.focusPolicy() == Qt.FocusPolicy.WheelFocus:
+                    target.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
                 event.ignore()
                 ancestor = target.parentWidget()
                 while ancestor is not None:
