@@ -1,7 +1,7 @@
 """Session table snapshot rendering helpers."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PySide6.QtGui import QColor
@@ -100,7 +100,7 @@ def format_player_gui_datetime(player_datetime: datetime) -> str:
     return formatted_datetime
 
 
-def format_player_time_zone(time_zone_value: object) -> str:
+def format_player_time_zone(time_zone_value: object, offset_value: object = None) -> str:
     """Format the Time Zone cell according to the configured display mode."""
     tz_text = str(time_zone_value)
     timezone_display_mode = Settings.gui_columns_timezone_display
@@ -108,9 +108,17 @@ def format_player_time_zone(time_zone_value: object) -> str:
         return tz_text
     try:
         tz = ZoneInfo(tz_text)
+        local_time = datetime.now(tz=tz).strftime('%H:%M')
     except (ZoneInfoNotFoundError, ValueError):
-        return tz_text
-    local_time = datetime.now(tz=tz).strftime('%H:%M')
+        if isinstance(offset_value, (int, float)):
+            local_time = datetime.now(tz=timezone(timedelta(seconds=int(offset_value)))).strftime('%H:%M')
+        elif isinstance(offset_value, str) and offset_value not in {'', '...'}:
+            try:
+                local_time = datetime.now(tz=timezone(timedelta(seconds=int(offset_value)))).strftime('%H:%M')
+            except ValueError:
+                return tz_text
+        else:
+            return tz_text
     if timezone_display_mode == 'Local Time':
         return local_time
     return f'{tz_text} · {local_time}'
@@ -289,7 +297,7 @@ def build_session_table_snapshot(
         if 'Lon' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in context.connected_shown_columns:
-            connected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone))
+            connected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone, player.iplookup.ipapi.offset))
         if 'Offset' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in context.connected_shown_columns:
@@ -406,7 +414,7 @@ def build_session_table_snapshot(
         if 'Lon' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.lon}')
         if 'Time Zone' in context.disconnected_shown_columns:
-            disconnected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone))
+            disconnected_row_texts.append(format_player_time_zone(player.iplookup.ipapi.time_zone, player.iplookup.ipapi.offset))
         if 'Offset' in context.disconnected_shown_columns:
             disconnected_row_texts.append(f'{player.iplookup.ipapi.offset}')
         if 'Currency' in context.disconnected_shown_columns:
