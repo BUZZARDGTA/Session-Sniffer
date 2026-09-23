@@ -46,6 +46,7 @@ from session_sniffer.networking.ping import (
     UdpPortProbeEngine,
 )
 
+_DEFAULT_TARGET: Final[str] = '127.0.0.1'
 _RTT_HIGH_THRESHOLD_MS: Final[float] = 120.0
 _DEFAULT_PORT: Final[int] = 80
 _MIN_PORT: Final[int] = 1
@@ -150,15 +151,16 @@ class PingTabWidget(QWidget):
 
     def __init__(
         self,
-        target_ip: str,
+        target_ip: str | None = None,
         *,
         mode: PingMode = PingMode.ICMP,
         port: int | None = None,
+        tab_widget: QTabWidget | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """Initialize the ping tab widget."""
         super().__init__(parent)
-        self._target_ip = target_ip
+        self._tab_widget = tab_widget
         self._worker_thread: PingWorkerThread | None = None
         self._statistics = PingStatistics()
 
@@ -176,9 +178,11 @@ class PingTabWidget(QWidget):
         row1_layout.setSpacing(8)
 
         target_label = QLabel('Target:')
-        self._target_input = QLineEdit(target_ip)
-        self._target_input.setPlaceholderText('e.g. 1.1.1.1 or example.com')
+        target_text = '' if target_ip is None or target_ip.strip() == _DEFAULT_TARGET else target_ip.strip()
+        self._target_input = QLineEdit(target_text)
+        self._target_input.setPlaceholderText(_DEFAULT_TARGET)
         self._target_input.setMinimumWidth(scale_by_ui(160))
+        self._target_input.textChanged.connect(self._on_target_or_port_changed)
 
         mode_label = QLabel('Protocol:')
         self._mode_combo = QComboBox()
@@ -197,6 +201,7 @@ class PingTabWidget(QWidget):
         self._port_spinbox = QSpinBox()
         self._port_spinbox.setRange(_MIN_PORT, _MAX_PORT)
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
+        self._port_spinbox.valueChanged.connect(self._on_target_or_port_changed)
 
         self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start')
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
@@ -303,7 +308,17 @@ class PingTabWidget(QWidget):
     @property
     def target_ip(self) -> str:
         """Return the target IP or hostname configured for this tab."""
-        return self._target_input.text().strip()
+        return self._target_input.text().strip() or self._target_input.placeholderText().strip()
+
+    @property
+    def tab_label(self) -> str:
+        """Return the tab title reflecting current target host, mode, and port."""
+        mode_data = self._mode_combo.currentData()
+        current_mode = PingMode(str(mode_data)) if mode_data is not None else PingMode.ICMP
+        has_port = current_mode in (PingMode.TCP, PingMode.UDP)
+        if has_port:
+            return f'{self.target_ip}:{self._port_spinbox.value()}'
+        return self.target_ip
 
     @property
     def is_running(self) -> bool:
@@ -413,6 +428,15 @@ class PingTabWidget(QWidget):
         else:  # PingMode.WEB
             self._hint_label.setText('Multi-vantage distributed HTTP ping via Check-Host.net (does not require a port).')
 
+        self._on_target_or_port_changed()
+
+    def _on_target_or_port_changed(self) -> None:
+        """Update tab label in parent tab widget when target or port changes."""
+        if self._tab_widget is not None:
+            tab_index = self._tab_widget.indexOf(self)
+            if tab_index >= 0:
+                self._tab_widget.setTabText(tab_index, self.tab_label)
+
     def _on_probe_result(self, result_object: object) -> None:
         """Process and display a received probe result."""
         result = ensure_instance(result_object, PingProbeResult)
@@ -490,7 +514,7 @@ class PingWindow(QWidget):
 
     def __init__(
         self,
-        targets: str | list[str],
+        targets: str | list[str] | None = None,
         *,
         mode: PingMode = PingMode.ICMP,
         port: int | None = None,
@@ -541,14 +565,21 @@ class PingWindow(QWidget):
 
         main_layout.addLayout(footer_layout)
 
-        target_list = [targets] if isinstance(targets, str) else targets
+        if targets is None:
+            target_list: list[str | None] = [None]
+        elif isinstance(targets, str):
+            target_list = [targets]
+        else:
+            target_list = list(targets)
+
         for target in target_list:
-            self.add_target_tab(target, mode=mode, port=port, auto_start=True)
+            should_auto_start = target is not None and target.strip() != _DEFAULT_TARGET
+            self.add_target_tab(target, mode=mode, port=port, auto_start=should_auto_start)
 
     @classmethod
     def open_window(
         cls,
-        targets: str | list[str],
+        targets: str | list[str] | None = None,
         *,
         mode: PingMode = PingMode.ICMP,
         port: int | None = None,
@@ -556,10 +587,11 @@ class PingWindow(QWidget):
         """Open or reuse the active PingWindow and activate it."""
         if cls._instance is None:
             cls._instance = cls(targets, mode=mode, port=port)
-        else:
-            target_list = [targets] if isinstance(targets, str) else targets
+        elif targets is not None:
+            target_list = [targets] if isinstance(targets, str) else list(targets)
             for target in target_list:
-                cls._instance.add_target_tab(target, mode=mode, port=port, auto_start=True)
+                should_auto_start = target.strip() != _DEFAULT_TARGET
+                cls._instance.add_target_tab(target, mode=mode, port=port, auto_start=should_auto_start)
 
         cls._instance.show()
         cls._instance.raise_()
@@ -574,28 +606,26 @@ class PingWindow(QWidget):
 
     def add_target_tab(
         self,
-        target_ip: str,
+        target_ip: str | None = None,
         *,
         mode: PingMode = PingMode.ICMP,
         port: int | None = None,
         auto_start: bool = True,
     ) -> None:
         """Add a new target tab or focus existing tab for this IP."""
-        normalized_ip = target_ip.strip()
-        if not normalized_ip:
-            return
+        normalized_ip = target_ip.strip() if target_ip is not None else ''
+        effective_ip = normalized_ip if normalized_ip and normalized_ip != _DEFAULT_TARGET else _DEFAULT_TARGET
 
         for i in range(self._tab_widget.count()):
             tab = self._tab_widget.widget(i)
-            if isinstance(tab, PingTabWidget) and tab.target_ip == normalized_ip:
+            if isinstance(tab, PingTabWidget) and tab.target_ip == effective_ip:
                 self._tab_widget.setCurrentIndex(i)
                 if auto_start and not tab.is_running:
                     tab.start_ping()
                 return
 
-        tab_page = PingTabWidget(normalized_ip, mode=mode, port=port, parent=self._tab_widget)
-        tab_label = f'{normalized_ip}' if port is None or mode not in (PingMode.TCP, PingMode.UDP) else f'{normalized_ip}:{port}'
-        new_index = self._tab_widget.addTab(tab_page, tab_label)
+        tab_page = PingTabWidget(normalized_ip or None, mode=mode, port=port, tab_widget=self._tab_widget, parent=self._tab_widget)
+        new_index = self._tab_widget.addTab(tab_page, tab_page.tab_label)
         self._tab_widget.setCurrentIndex(new_index)
 
         if auto_start:
@@ -632,7 +662,9 @@ class PingWindow(QWidget):
             'Enter target IPv4 address or hostname to ping:',
         )
         if success and new_target.strip():
-            self.add_target_tab(new_target.strip(), auto_start=True)
+            target_str = new_target.strip()
+            should_auto_start = target_str != _DEFAULT_TARGET
+            self.add_target_tab(target_str, auto_start=should_auto_start)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

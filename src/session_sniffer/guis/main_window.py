@@ -228,12 +228,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         port_scanner_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Port Scanner', self)
         port_scanner_action.setToolTip('Perform multi-threaded TCP and UDP port scanning with service banner detection')
-        port_scanner_action.triggered.connect(lambda: PortScannerWindow.open_window('127.0.0.1'))
+        port_scanner_action.triggered.connect(self._open_port_scanner)
         tools_menu.addAction(port_scanner_action)
 
         ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Ping Diagnostics', self)
         ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
-        ping_action.triggered.connect(lambda: PingWindow.open_window('127.0.0.1'))
+        ping_action.triggered.connect(self._open_ping_diagnostics)
         tools_menu.addAction(ping_action)
 
         statistics_menu = menu_bar.addMenu('Statistics')
@@ -623,6 +623,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
+
+    def _open_port_scanner(self) -> None:
+        """Open the Port Scanner tool window."""
+        PortScannerWindow.open_window()
+
+    def _open_ping_diagnostics(self) -> None:
+        """Open the Ping Diagnostics tool window."""
+        PingWindow.open_window()
 
     def _update_gui(self, payload: GUIUpdatePayload) -> None:
         self._sync_capture_toggle_action()
