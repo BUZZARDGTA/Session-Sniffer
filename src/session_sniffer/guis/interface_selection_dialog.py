@@ -321,9 +321,8 @@ class InterfaceSelectionDialog(QDialog):
 
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
-        self.table.setHorizontalHeaderLabels(
-            ['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'],
-        )
+        self.table.setHorizontalHeaderLabels(['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'])
+
         self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
         self.table.setWordWrap(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -489,13 +488,8 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setMinimumSize(scale(330), scale(56))
         _play_pad = scale(10)
         _play_w, _play_h = scale(46), scale(28)
-        select_button.setIcon(
-            make_padded_icon(
-                QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
-                (_play_w, _play_h),
-                _play_pad,
-            ),
-        )
+        select_button.setIcon(make_padded_icon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), (_play_w, _play_h), _play_pad))
+
         select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
         select_button.clicked.connect(self.select_interface)
 
@@ -569,7 +563,8 @@ class InterfaceSelectionDialog(QDialog):
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Adjust column widths when the interface selection dialog is resized."""
         super().resizeEvent(event)
-        self._reset_column_sizes()
+        if not self._stacked_widget.currentIndex():
+            self._reset_column_sizes()
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
@@ -914,6 +909,7 @@ class InterfaceSelectionDialog(QDialog):
         """Handle switching between Network Interfaces and Hotspot & Sharing pages."""
         if checked:
             self._stacked_widget.setCurrentIndex(0)
+            self._reset_column_sizes()
         else:
             self._stacked_widget.setCurrentIndex(1)
             self._hotspot_widget.start_refresh()
@@ -995,4 +991,5 @@ class InterfaceSelectionDialog(QDialog):
         if self.property('_should_maximize_on_show') is True:
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
-        self._reset_column_sizes()
+        if not self._stacked_widget.currentIndex():
+            self._reset_column_sizes()
