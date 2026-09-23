@@ -82,7 +82,7 @@ class HotspotActionWorker(CrashingQThread):
 
     def __init__(self, task_name: str, **kwargs: object) -> None:
         """Initialize the HotspotActionWorker."""
-        super().__init__()
+        super().__init__(name=f'HotspotWorker-{task_name}')
         self._task_name = task_name
         self._kwargs = kwargs
 

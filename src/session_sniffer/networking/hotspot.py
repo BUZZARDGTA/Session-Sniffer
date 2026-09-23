@@ -10,6 +10,7 @@ import json
 import logging
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from typing import Final, cast
 
@@ -290,21 +291,27 @@ def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, objec
 
     creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     try:
-        process_result = subprocess.run(
-            command_args,
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
-            creationflags=creation_flags,
-            check=False,
-        )
+        with (
+            tempfile.TemporaryFile(mode='w+', encoding='utf-8') as stdout_file,
+            tempfile.TemporaryFile(mode='w+', encoding='utf-8') as stderr_file,
+        ):
+            subprocess.run(
+                command_args,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+                creationflags=creation_flags,
+                check=False,
+            )
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            stdout_text = stdout_file.read().strip()
+            stderr_text = stderr_file.read().strip()
     except (subprocess.TimeoutExpired, OSError) as e:
         logger.warning('PowerShell script execution failed: %s', e)
         return {'Success': False, 'Error': str(e)}
 
-    stdout_text = process_result.stdout.strip()
     if not stdout_text:
-        stderr_text = process_result.stderr.strip()
         logger.warning('PowerShell returned empty stdout. Stderr: %s', stderr_text)
         return {'Success': False, 'Error': stderr_text or 'Empty output from PowerShell'}
 
