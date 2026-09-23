@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -40,38 +39,33 @@ from session_sniffer.networking.ping import (
     CheckHostPingEngine,
     IcmpEchoEngine,
     PingMode,
+    PingProbeConfiguration,
     PingProbeResult,
     PingStatistics,
     TcpPortProbeEngine,
+    UdpPortProbeEngine,
 )
 
 _RTT_HIGH_THRESHOLD_MS: Final[float] = 120.0
 _DEFAULT_PORT: Final[int] = 80
 _MIN_PORT: Final[int] = 1
 _MAX_PORT: Final[int] = 65535
+_DEFAULT_COUNT: Final[int] = 4
+_DEFAULT_INTERVAL_MS: Final[int] = 250
+_DEFAULT_TIMEOUT_MS: Final[int] = 1000
+_DEFAULT_PAYLOAD_BYTES: Final[int] = 32
 
 
 class PingWorkerThread(CrashingQThread):
-    """Background worker thread executing continuous ping probes."""
+    """Background worker thread executing ping probes."""
 
     result_received = Signal(object)
     finished_signal = Signal()
 
-    def __init__(
-        self,
-        target_host: str,
-        mode: PingMode,
-        port: int | None,
-        interval_seconds: float,
-        timeout_seconds: float,
-    ) -> None:
+    def __init__(self, configuration: PingProbeConfiguration) -> None:
         """Initialize the ping worker thread."""
         super().__init__()
-        self._target_host = target_host
-        self._mode = mode
-        self._port = port
-        self._interval_seconds = interval_seconds
-        self._timeout_seconds = timeout_seconds
+        self._configuration = configuration
         self._cancel_event = Event()
 
     def cancel(self) -> None:
@@ -82,44 +76,69 @@ class PingWorkerThread(CrashingQThread):
     def _run(self) -> None:
         """Worker loop executing periodic ping requests."""
         sequence_number = 1
+        config = self._configuration
 
-        if self._mode == PingMode.ICMP:
+        if config.mode == PingMode.ICMP:
             icmp_engine = IcmpEchoEngine()
             try:
                 while not self._cancel_event.is_set():
                     result = icmp_engine.ping(
-                        self._target_host,
-                        timeout_seconds=self._timeout_seconds,
+                        config.target_host,
+                        timeout_seconds=config.timeout_seconds,
                         sequence=sequence_number,
+                        payload_size=config.payload_size,
                     )
                     self.result_received.emit(result)
+                    if config.count > 0 and sequence_number >= config.count:
+                        break
                     sequence_number += 1
-                    if self._cancel_event.wait(self._interval_seconds):
+                    if self._cancel_event.wait(config.interval_seconds):
                         break
             finally:
                 icmp_engine.close()
 
-        elif self._mode == PingMode.TCP:
-            port_to_probe = self._port if self._port is not None else _DEFAULT_PORT
+        elif config.mode == PingMode.TCP:
+            port_to_probe = config.port if config.port is not None else _DEFAULT_PORT
             while not self._cancel_event.is_set():
                 result = TcpPortProbeEngine.probe(
-                    self._target_host,
+                    config.target_host,
                     port_to_probe,
-                    timeout_seconds=self._timeout_seconds,
+                    timeout_seconds=config.timeout_seconds,
                     sequence=sequence_number,
                 )
                 self.result_received.emit(result)
+                if config.count > 0 and sequence_number >= config.count:
+                    break
                 sequence_number += 1
-                if self._cancel_event.wait(self._interval_seconds):
+                if self._cancel_event.wait(config.interval_seconds):
+                    break
+
+        elif config.mode == PingMode.UDP:
+            port_to_probe = config.port if config.port is not None else _DEFAULT_PORT
+            while not self._cancel_event.is_set():
+                result = UdpPortProbeEngine.probe(
+                    config.target_host,
+                    port_to_probe,
+                    timeout_seconds=config.timeout_seconds,
+                    sequence=sequence_number,
+                    payload_size=config.payload_size,
+                )
+                self.result_received.emit(result)
+                if config.count > 0 and sequence_number >= config.count:
+                    break
+                sequence_number += 1
+                if self._cancel_event.wait(config.interval_seconds):
                     break
 
         else:  # PingMode.WEB
             while not self._cancel_event.is_set():
-                results = CheckHostPingEngine.probe(self._target_host, sequence=sequence_number)
+                results = CheckHostPingEngine.probe(config.target_host, sequence=sequence_number)
                 for probe_result in results:
                     self.result_received.emit(probe_result)
+                if config.count > 0 and sequence_number >= config.count:
+                    break
                 sequence_number += 1
-                web_interval = max(self._interval_seconds, 10.0)
+                web_interval = max(config.interval_seconds, 10.0)
                 if self._cancel_event.wait(web_interval):
                     break
 
@@ -149,60 +168,94 @@ class PingTabWidget(QWidget):
 
         # --- Controls Bar ---
         controls_group = QGroupBox('Probe Configuration')
-        controls_layout = QHBoxLayout(controls_group)
+        controls_layout = QVBoxLayout(controls_group)
         controls_layout.setContentsMargins(8, 8, 8, 8)
-        controls_layout.setSpacing(8)
+        controls_layout.setSpacing(6)
+
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(8)
 
         target_label = QLabel('Target:')
         self._target_input = QLineEdit(target_ip)
-        self._target_input.setPlaceholderText('Host or IPv4 address')
+        self._target_input.setPlaceholderText('e.g. 1.1.1.1 or example.com')
         self._target_input.setMinimumWidth(scale_by_ui(160))
 
-        mode_label = QLabel('Mode:')
+        mode_label = QLabel('Protocol:')
         self._mode_combo = QComboBox()
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'ICMP (Standard)', PingMode.ICMP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port', PingMode.TCP)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port', PingMode.TCP)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port', PingMode.UDP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), 'Web (Check-Host)', PingMode.WEB)
         if mode == PingMode.TCP:
             self._mode_combo.setCurrentIndex(1)
-        elif mode == PingMode.WEB:
+        elif mode == PingMode.UDP:
             self._mode_combo.setCurrentIndex(2)
+        elif mode == PingMode.WEB:
+            self._mode_combo.setCurrentIndex(3)
 
         self._port_label = QLabel('Port:')
         self._port_spinbox = QSpinBox()
         self._port_spinbox.setRange(_MIN_PORT, _MAX_PORT)
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
 
-        interval_label = QLabel('Interval:')
-        self._interval_spinbox = QDoubleSpinBox()
-        self._interval_spinbox.setRange(0.2, 10.0)
-        self._interval_spinbox.setSingleStep(0.5)
-        self._interval_spinbox.setValue(1.0)
-        self._interval_spinbox.setSuffix(' s')
-
-        timeout_label = QLabel('Timeout:')
-        self._timeout_spinbox = QDoubleSpinBox()
-        self._timeout_spinbox.setRange(0.5, 10.0)
-        self._timeout_spinbox.setSingleStep(0.5)
-        self._timeout_spinbox.setValue(2.0)
-        self._timeout_spinbox.setSuffix(' s')
-
         self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start')
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
-        controls_layout.addWidget(target_label)
-        controls_layout.addWidget(self._target_input)
-        controls_layout.addWidget(mode_label)
-        controls_layout.addWidget(self._mode_combo)
-        controls_layout.addWidget(self._port_label)
-        controls_layout.addWidget(self._port_spinbox)
-        controls_layout.addWidget(interval_label)
-        controls_layout.addWidget(self._interval_spinbox)
-        controls_layout.addWidget(timeout_label)
-        controls_layout.addWidget(self._timeout_spinbox)
-        controls_layout.addStretch()
-        controls_layout.addWidget(self._start_stop_button)
+        row1_layout.addWidget(target_label)
+        row1_layout.addWidget(self._target_input, stretch=2)
+        row1_layout.addWidget(mode_label)
+        row1_layout.addWidget(self._mode_combo, stretch=1)
+        row1_layout.addWidget(self._port_label)
+        row1_layout.addWidget(self._port_spinbox)
+        row1_layout.addWidget(self._start_stop_button)
+
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(8)
+
+        count_label = QLabel('Count:')
+        self._count_spinbox = QSpinBox()
+        self._count_spinbox.setRange(0, 10000)
+        self._count_spinbox.setSpecialValueText('Continuous (0)')
+        self._count_spinbox.setValue(_DEFAULT_COUNT)
+
+        interval_label = QLabel('Interval:')
+        self._interval_spinbox = QSpinBox()
+        self._interval_spinbox.setRange(50, 10000)
+        self._interval_spinbox.setSingleStep(50)
+        self._interval_spinbox.setValue(_DEFAULT_INTERVAL_MS)
+        self._interval_spinbox.setSuffix(' ms')
+
+        timeout_label = QLabel('Timeout:')
+        self._timeout_spinbox = QSpinBox()
+        self._timeout_spinbox.setRange(100, 10000)
+        self._timeout_spinbox.setSingleStep(100)
+        self._timeout_spinbox.setValue(_DEFAULT_TIMEOUT_MS)
+        self._timeout_spinbox.setSuffix(' ms')
+
+        self._payload_label = QLabel('Payload:')
+        self._payload_spinbox = QSpinBox()
+        self._payload_spinbox.setRange(0, 65500)
+        self._payload_spinbox.setSingleStep(32)
+        self._payload_spinbox.setValue(_DEFAULT_PAYLOAD_BYTES)
+        self._payload_spinbox.setSuffix(' bytes')
+
+        row2_layout.addWidget(count_label)
+        row2_layout.addWidget(self._count_spinbox)
+        row2_layout.addWidget(interval_label)
+        row2_layout.addWidget(self._interval_spinbox)
+        row2_layout.addWidget(timeout_label)
+        row2_layout.addWidget(self._timeout_spinbox)
+        row2_layout.addWidget(self._payload_label)
+        row2_layout.addWidget(self._payload_spinbox)
+        row2_layout.addStretch()
+
+        self._hint_label = QLabel()
+        self._hint_label.setStyleSheet('color: #8c9ba8; font-size: 8.5pt;')
+
+        controls_layout.addLayout(row1_layout)
+        controls_layout.addLayout(row2_layout)
+        controls_layout.addWidget(self._hint_label)
 
         main_layout.addWidget(controls_group)
 
@@ -269,9 +322,12 @@ class PingTabWidget(QWidget):
 
         mode_data = self._mode_combo.currentData()
         current_mode = PingMode(str(mode_data))
-        port_value = self._port_spinbox.value() if current_mode == PingMode.TCP else None
-        interval_value = self._interval_spinbox.value()
-        timeout_value = self._timeout_spinbox.value()
+        has_port = current_mode in (PingMode.TCP, PingMode.UDP)
+        port_value = self._port_spinbox.value() if has_port else None
+        interval_seconds = self._interval_spinbox.value() / 1000.0
+        timeout_seconds = self._timeout_spinbox.value() / 1000.0
+        count_value = self._count_spinbox.value()
+        payload_size_value = self._payload_spinbox.value()
 
         self._start_stop_button.setText(' Stop')
         self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
@@ -279,19 +335,28 @@ class PingTabWidget(QWidget):
         self._target_input.setEnabled(False)
         self._mode_combo.setEnabled(False)
         self._port_spinbox.setEnabled(False)
+        self._count_spinbox.setEnabled(False)
+        self._interval_spinbox.setEnabled(False)
+        self._timeout_spinbox.setEnabled(False)
+        self._payload_spinbox.setEnabled(False)
 
         header_message = f'Starting {current_mode.value} ping to {target_host}'
         if port_value is not None:
             header_message += f':{port_value}'
+        if count_value > 0:
+            header_message += f' (count={count_value})'
         self._append_log_line(f'<span style="color: #3a96dd; font-weight: bold;">{html.escape(header_message)}…</span>')
 
-        self._worker_thread = PingWorkerThread(
+        configuration = PingProbeConfiguration(
             target_host=target_host,
             mode=current_mode,
             port=port_value,
-            interval_seconds=interval_value,
-            timeout_seconds=timeout_value,
+            interval_seconds=interval_seconds,
+            timeout_seconds=timeout_seconds,
+            count=count_value,
+            payload_size=payload_size_value,
         )
+        self._worker_thread = PingWorkerThread(configuration)
         self._worker_thread.result_received.connect(self._on_probe_result)
         self._worker_thread.finished_signal.connect(self._on_worker_finished)
         self._worker_thread.start()
@@ -319,16 +384,34 @@ class PingTabWidget(QWidget):
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
         self._mode_combo.setEnabled(True)
+        self._count_spinbox.setEnabled(True)
+        self._interval_spinbox.setEnabled(True)
+        self._timeout_spinbox.setEnabled(True)
+        self._payload_spinbox.setEnabled(True)
         self._on_mode_changed()
 
     def _on_mode_changed(self) -> None:
-        """Update port input visibility based on current mode."""
+        """Update port, payload, and helper hint visibility based on current mode."""
         mode_data = self._mode_combo.currentData()
         current_mode = PingMode(str(mode_data))
-        is_tcp = current_mode == PingMode.TCP
-        self._port_label.setVisible(is_tcp)
-        self._port_spinbox.setVisible(is_tcp)
-        self._port_spinbox.setEnabled(is_tcp and not self.is_running)
+        is_port_required = current_mode in (PingMode.TCP, PingMode.UDP)
+        is_payload_applicable = current_mode in (PingMode.ICMP, PingMode.UDP)
+        is_active = self.is_running
+
+        self._port_label.setEnabled(is_port_required)
+        self._port_spinbox.setEnabled(is_port_required and not is_active)
+
+        self._payload_label.setEnabled(is_payload_applicable)
+        self._payload_spinbox.setEnabled(is_payload_applicable and not is_active)
+
+        if current_mode == PingMode.ICMP:
+            self._hint_label.setText('ICMP does not require a port. ICMP may require Administrator privileges on some systems.')
+        elif current_mode == PingMode.TCP:
+            self._hint_label.setText('TCP port connectivity probe (SYN/ACK).')
+        elif current_mode == PingMode.UDP:
+            self._hint_label.setText('UDP reachability & latency probe (Response or ICMP Port Unreachable detection).')
+        else:  # PingMode.WEB
+            self._hint_label.setText('Multi-vantage distributed HTTP ping via Check-Host.net (does not require a port).')
 
     def _on_probe_result(self, result_object: object) -> None:
         """Process and display a received probe result."""
@@ -344,15 +427,18 @@ class PingTabWidget(QWidget):
             rtt_color = '#f1c40f' if round_trip_time > _RTT_HIGH_THRESHOLD_MS else '#2ecc71'
 
             if result.port is not None:
-                message = f'Connected to {result.target_ip}:{result.port} — time={round_trip_time:.2f}ms'
+                message = f'Reply from {result.target_ip}:{result.port} ({result.status_message}): time={round_trip_time:.2f}ms'
             elif result.time_to_live is not None:
-                message = f'Reply from {result.target_ip}: bytes=32 time={round_trip_time:.1f}ms TTL={result.time_to_live}'
+                message = f'Reply from {result.target_ip}: bytes={result.payload_bytes} time={round_trip_time:.1f}ms TTL={result.time_to_live}'
             else:
                 message = f'Reply from {result.target_host} ({result.target_ip}): time={round_trip_time:.2f}ms'
 
             html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: {rtt_color}; font-weight: 500;">{html.escape(message)}</span>'
         else:
-            failure_message = f'Target {result.target_ip}: {result.status_message}'
+            failure_message = f'Target {result.target_ip}'
+            if result.port is not None:
+                failure_message += f':{result.port}'
+            failure_message += f': {result.status_message}'
             html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: #e74c3c; font-weight: bold;">{html.escape(failure_message)}</span>'
 
         self._append_log_line(html_line)
@@ -480,6 +566,12 @@ class PingWindow(QWidget):
         cls._instance.activateWindow()
         return cls._instance
 
+    @classmethod
+    def close_window(cls) -> None:
+        """Close the active PingWindow if one is open."""
+        if cls._instance is not None:
+            cls._instance.close()
+
     def add_target_tab(
         self,
         target_ip: str,
@@ -502,7 +594,7 @@ class PingWindow(QWidget):
                 return
 
         tab_page = PingTabWidget(normalized_ip, mode=mode, port=port, parent=self._tab_widget)
-        tab_label = f'{normalized_ip}' if port is None or mode != PingMode.TCP else f'{normalized_ip}:{port}'
+        tab_label = f'{normalized_ip}' if port is None or mode not in (PingMode.TCP, PingMode.UDP) else f'{normalized_ip}:{port}'
         new_index = self._tab_widget.addTab(tab_page, tab_label)
         self._tab_widget.setCurrentIndex(new_index)
 

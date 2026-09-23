@@ -63,7 +63,15 @@ from session_sniffer.guis._player_leaderboard_workers import (
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
-from session_sniffer.guis.tables_player_actions import create_multi_tcp_ping_menu, ping_ip, show_detailed_ip_lookup, tcp_port_ping
+from session_sniffer.guis.tables_player_actions import (
+    create_multi_tcp_ping_menu,
+    create_multi_udp_ping_menu,
+    ping_ip,
+    show_detailed_ip_lookup,
+    tcp_port_ping,
+    udp_port_ping,
+    web_ping,
+)
 from session_sniffer.guis.utils import (
     HEADER_SORT_PADDING,
     ElidedTextTooltipDelegate,
@@ -1329,19 +1337,29 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             menu.addAction(lookup_action)
 
             ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu.setToolTipsVisible(True)
 
-            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
             normal_action.setToolTip('Checks if selected IP address responds to pings.')
             normal_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: ping_ip(ip_address))
             ping_menu.addAction(normal_action)
 
-            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'TCP Port Ping', self)
+            tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port Ping', self)
             tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
             tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: tcp_port_ping(self, ip_address))
             ping_menu.addAction(tcp_ping_action)
+
+            udp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port Ping', self)
+            udp_ping_action.setToolTip('Checks if selected IP address responds to UDP pings on a given port.')
+            udp_ping_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: udp_port_ping(self, ip_address))
+            ping_menu.addAction(udp_ping_action)
+
+            web_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
+            web_ping_action.setToolTip('Checks if selected IP address responds via Check-Host.net distributed nodes.')
+            web_ping_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: web_ping(ip_address))
+            ping_menu.addAction(web_ping_action)
 
             menu.addMenu(ping_menu)
 
@@ -1356,11 +1374,11 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
             ip_list = list(all_ips)
             ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
             ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             ping_menu.setToolTipsVisible(True)
 
-            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), 'Normal (ICMP)', self)
+            normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
             normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
 
             def _ping_all_leaderboard() -> None:
@@ -1370,6 +1388,16 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             ping_menu.addAction(normal_action)
 
             create_multi_tcp_ping_menu(self, ip_list, ping_menu)
+            create_multi_udp_ping_menu(self, ip_list, ping_menu)
+
+            web_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
+            web_ping_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')
+
+            def _web_ping_all_leaderboard() -> None:
+                web_ping(ip_list)
+
+            web_ping_action.triggered.connect(_web_ping_all_leaderboard)
+            ping_menu.addAction(web_ping_action)
             menu.addMenu(ping_menu)
 
         popup_menu_at_table(menu, self._table, pos)

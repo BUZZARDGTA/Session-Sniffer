@@ -74,6 +74,7 @@ class PingMode(enum.StrEnum):
 
     ICMP = 'ICMP'
     TCP = 'TCP'
+    UDP = 'UDP'
     WEB = 'Web (Check-Host)'
 
 
@@ -89,7 +90,21 @@ class PingProbeResult:
     round_trip_time_ms: float | None
     time_to_live: int | None
     status_message: str
+    payload_bytes: int = 32
     timestamp: float = field(default_factory=time.time)
+
+
+@dataclass(slots=True)
+class PingProbeConfiguration:
+    """Configuration parameters for executing ping probes."""
+
+    target_host: str
+    mode: PingMode = PingMode.ICMP
+    port: int | None = None
+    interval_seconds: float = 0.25
+    timeout_seconds: float = 1.0
+    count: int = 0
+    payload_size: int = 32
 
 
 @dataclass(slots=True)
@@ -211,6 +226,7 @@ class IcmpEchoEngine:
         sequence: int,
         payload_data: bytes,
     ) -> PingProbeResult:
+        payload_bytes = len(payload_data)
         if self._linux_socket is None:
             return PingProbeResult(
                 sequence=sequence,
@@ -221,6 +237,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=None,
                 time_to_live=None,
                 status_message='ICMP socket unavailable',
+                payload_bytes=payload_bytes,
             )
 
         try:
@@ -235,6 +252,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=None,
                 time_to_live=None,
                 status_message=f'Invalid host or IP address: {e}',
+                payload_bytes=payload_bytes,
             )
 
         identifier = sequence & 0xFFFF
@@ -263,6 +281,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=round_trip_time_ms,
                 time_to_live=time_to_live,
                 status_message='Success',
+                payload_bytes=payload_bytes,
             )
         except TimeoutError:
             return PingProbeResult(
@@ -274,6 +293,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=None,
                 time_to_live=None,
                 status_message='Request timed out',
+                payload_bytes=payload_bytes,
             )
         except OSError as e:
             return PingProbeResult(
@@ -285,6 +305,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=None,
                 time_to_live=None,
                 status_message=str(e),
+                payload_bytes=payload_bytes,
             )
 
     def ping(
@@ -293,9 +314,12 @@ class IcmpEchoEngine:
         *,
         timeout_seconds: float = 2.0,
         sequence: int = 1,
-        payload_data: bytes = b'SessionSnifferEcho',
+        payload_size: int = 32,
     ) -> PingProbeResult:
         """Send a single ICMP echo probe to target_ip."""
+        payload_data = b'x' * max(0, payload_size)
+        payload_bytes = len(payload_data)
+
         if not self._is_windows:
             return self._ping_linux(
                 target_ip,
@@ -314,6 +338,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=None,
                 time_to_live=None,
                 status_message='Win32 ICMP handle unavailable',
+                payload_bytes=payload_bytes,
             )
 
         try:
@@ -332,6 +357,7 @@ class IcmpEchoEngine:
                     round_trip_time_ms=None,
                     time_to_live=None,
                     status_message=f'Invalid host or IP address: {e}',
+                    payload_bytes=payload_bytes,
                 )
 
         reply_buffer_size = ctypes.sizeof(_IcmpEchoReply) + len(payload_data) + 16
@@ -363,6 +389,7 @@ class IcmpEchoEngine:
                 round_trip_time_ms=float(reply.RoundTripTime),
                 time_to_live=int(reply.Options.Ttl),
                 status_message=status_description,
+                payload_bytes=payload_bytes,
             )
 
         return PingProbeResult(
@@ -374,6 +401,7 @@ class IcmpEchoEngine:
             round_trip_time_ms=None,
             time_to_live=None,
             status_message=status_description,
+            payload_bytes=payload_bytes,
         )
 
 
@@ -441,6 +469,82 @@ class TcpPortProbeEngine:  # pylint: disable=too-few-public-methods
             )
         finally:
             tcp_socket.close()
+
+
+class UdpPortProbeEngine:  # pylint: disable=too-few-public-methods
+    """UDP port reachability and latency probe using connected datagram sockets."""
+
+    @staticmethod
+    def probe(
+        target_ip: str,
+        port: int,
+        *,
+        timeout_seconds: float = 2.0,
+        sequence: int = 1,
+        payload_size: int = 32,
+    ) -> PingProbeResult:
+        """Attempt a single UDP probe to target_ip:port."""
+        payload_data = b'x' * max(0, payload_size)
+        payload_bytes = len(payload_data)
+        start_time = time.perf_counter()
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.settimeout(timeout_seconds)
+
+        try:
+            udp_socket.connect((target_ip, port))
+            udp_socket.send(payload_data)
+            data, _ = udp_socket.recvfrom(1024)
+            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+            return PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=port,
+                is_successful=True,
+                round_trip_time_ms=round_trip_time_ms,
+                time_to_live=None,
+                status_message=f'Reply received ({len(data)} bytes)',
+                payload_bytes=payload_bytes,
+            )
+        except (ConnectionResetError, ConnectionRefusedError):
+            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+            return PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=port,
+                is_successful=True,
+                round_trip_time_ms=round_trip_time_ms,
+                time_to_live=None,
+                status_message='Port closed (Host reached)',
+                payload_bytes=payload_bytes,
+            )
+        except TimeoutError:
+            return PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=port,
+                is_successful=False,
+                round_trip_time_ms=None,
+                time_to_live=None,
+                status_message='Request timed out (Open/filtered)',
+                payload_bytes=payload_bytes,
+            )
+        except OSError as e:
+            return PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=port,
+                is_successful=False,
+                round_trip_time_ms=None,
+                time_to_live=None,
+                status_message=str(e),
+                payload_bytes=payload_bytes,
+            )
+        finally:
+            udp_socket.close()
 
 
 class CheckHostPingEngine:  # pylint: disable=too-few-public-methods
@@ -564,13 +668,19 @@ def ping_locally(
     count: int = 3,
     timeout_seconds: float = 1.0,
     interval_seconds: float = 0.05,
+    payload_size: int = 32,
 ) -> PingResult:
     """Send local ICMP echo requests to target_ip and return a structured PingResult."""
     ping_times: list[float] = []
 
     with IcmpEchoEngine() as engine:
         for sequence_number in range(1, count + 1):
-            probe_result = engine.ping(target_ip, timeout_seconds=timeout_seconds, sequence=sequence_number)
+            probe_result = engine.ping(
+                target_ip,
+                timeout_seconds=timeout_seconds,
+                sequence=sequence_number,
+                payload_size=payload_size,
+            )
             if probe_result.is_successful and probe_result.round_trip_time_ms is not None:
                 ping_times.append(probe_result.round_trip_time_ms)
             if sequence_number < count and interval_seconds > 0:

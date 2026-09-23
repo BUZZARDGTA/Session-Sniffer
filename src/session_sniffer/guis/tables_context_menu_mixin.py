@@ -521,19 +521,26 @@ class TableContextMenuMixin(QTableView):
                     'TCP Port Ping',
                     tooltip='Checks if selected IP address responds to TCP pings on a given port.',
                     handler=lambda: tcp_port_ping(self, ip_addresses[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
+                )
+                add_action(
+                    ping_menu,
+                    'UDP Port Ping',
+                    tooltip='Checks if selected IP address responds to UDP pings on a given port.',
+                    handler=lambda: udp_port_ping(self, ip_addresses[0]),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
+                )
+                add_action(
+                    ping_menu,
+                    'Web (Check-Host)',
+                    tooltip='Checks if selected IP address responds via Check-Host.net distributed nodes.',
+                    handler=lambda: web_ping(ip_addresses[0]),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
                 )
                 return
 
             def _ping_all() -> None:
                 ping_ip(ip_addresses)
-
-            def _tcp_ping_all_one_port() -> None:
-                tcp_port_ping_multi(self, ip_addresses)
-
-            def _tcp_ping_all_diff_ports() -> None:
-                for ip in ip_addresses:
-                    tcp_port_ping(self, ip)
 
             add_action(
                 ping_menu,
@@ -542,20 +549,14 @@ class TableContextMenuMixin(QTableView):
                 handler=_ping_all,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
             )
-            tcp_menu = add_menu(ping_menu, 'TCP Port Ping', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')))
+            create_multi_tcp_ping_menu(self, ip_addresses, ping_menu)
+            create_multi_udp_ping_menu(self, ip_addresses, ping_menu)
             add_action(
-                tcp_menu,
-                'One Port for All',
-                tooltip='Ask for a port once, then TCP ping all selected IPs on that port.',
-                handler=_tcp_ping_all_one_port,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')),
-            )
-            add_action(
-                tcp_menu,
-                'Individual Port per IP',
-                tooltip='Ask for a separate port for each selected IP.',
-                handler=_tcp_ping_all_diff_ports,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')),
+                ping_menu,
+                'Web (Check-Host)',
+                tooltip='Checks if selected IP addresses respond via Check-Host.net distributed nodes.',
+                handler=lambda: web_ping(ip_addresses),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
             )
 
         def get_script_candidates(directory: Path) -> list[Path]:

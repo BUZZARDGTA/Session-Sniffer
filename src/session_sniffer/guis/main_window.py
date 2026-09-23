@@ -211,6 +211,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
 
+        ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Ping Diagnostics', self)
+        ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
+        ping_action.triggered.connect(lambda: PingWindow.open_window('127.0.0.1'))
+        tools_menu.addAction(ping_action)
+
         statistics_menu = menu_bar.addMenu('Statistics')
         if not statistics_menu:
             message = 'Failed to create Statistics menu'
@@ -576,6 +581,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._detections_manager_window.close()
         if self._leaderboard_window is not None:
             self._leaderboard_window.close()
+        PingWindow.close_window()
         close_all_crawler_dialogs()
         close_all_lookup_dialogs()
         if self.capture.is_running():

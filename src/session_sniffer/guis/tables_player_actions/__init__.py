@@ -6,10 +6,14 @@ from session_sniffer.guis.tables_player_actions._actions import (
     copy_player_info_for_discord,
     copy_players_info_for_discord,
     create_multi_tcp_ping_menu,
+    create_multi_udp_ping_menu,
     filter_player_isp,
     ping_ip,
     tcp_port_ping,
     tcp_port_ping_multi,
+    udp_port_ping,
+    udp_port_ping_multi,
+    web_ping,
 )
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationDialog,
@@ -65,6 +69,7 @@ __all__ = [
     'copy_player_info_for_discord',
     'copy_players_info_for_discord',
     'create_multi_tcp_ping_menu',
+    'create_multi_udp_ping_menu',
     'filter_player_isp',
     'looky_refresh_userip_entries',
     'ping_ip',
@@ -78,4 +83,7 @@ __all__ = [
     'show_userip_detected_dialog',
     'tcp_port_ping',
     'tcp_port_ping_multi',
+    'udp_port_ping',
+    'udp_port_ping_multi',
+    'web_ping',
 ]

@@ -124,6 +124,11 @@ def ping_ip(target: str | list[str]) -> None:
     PingWindow.open_window(target, mode=PingMode.ICMP)
 
 
+def web_ping(target: str | list[str]) -> None:
+    """Run a multi-vantage distributed HTTP ping via Check-Host.net in the Ping Diagnostics window."""
+    PingWindow.open_window(target, mode=PingMode.WEB)
+
+
 def tcp_port_ping(parent: QWidget, ip: str) -> None:
     """Run a TCP port connectivity check to a host on a user-specified port indefinitely."""
     port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
@@ -173,7 +178,7 @@ def create_multi_tcp_ping_menu(
     ip_addresses: list[str],
     ping_menu: QMenu,
     *,
-    icon_name: str = 'settings.svg',
+    icon_name: str = 'ping.svg',
 ) -> QMenu:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     tcp_menu = QMenu('TCP Port Ping', ping_menu)
@@ -203,6 +208,87 @@ def create_multi_tcp_ping_menu(
 
     ping_menu.addMenu(tcp_menu)
     return tcp_menu
+
+
+def udp_port_ping(parent: QWidget, ip: str) -> None:
+    """Run a UDP port reachability check to a host on a user-specified port."""
+    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check UDP reachability:')
+
+    if not success:
+        return
+
+    port_string = port_string.strip()
+
+    if not port_string.isdigit():
+        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
+        return
+
+    port = int(port_string)
+
+    if not MIN_PORT <= port <= MAX_PORT:
+        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
+        return
+
+    PingWindow.open_window(ip, mode=PingMode.UDP, port=port)
+
+
+def udp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
+    """Ask for a port once, then run a UDP port reachability check for each IP on that same port."""
+    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check UDP reachability:')
+
+    if not success:
+        return
+
+    port_string = port_string.strip()
+
+    if not port_string.isdigit():
+        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
+        return
+
+    port = int(port_string)
+
+    if not MIN_PORT <= port <= MAX_PORT:
+        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
+        return
+
+    PingWindow.open_window(ip_addresses, mode=PingMode.UDP, port=port)
+
+
+def create_multi_udp_ping_menu(
+    parent: QWidget,
+    ip_addresses: list[str],
+    ping_menu: QMenu,
+    *,
+    icon_name: str = 'ping.svg',
+) -> QMenu:
+    """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
+    udp_menu = QMenu('UDP Port Ping', ping_menu)
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+    udp_menu.setIcon(icon)
+    udp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+    udp_menu.setToolTipsVisible(True)
+
+    udp_one_action = QAction(icon, 'One Port for All', udp_menu)
+    udp_one_action.setToolTip('Ask for a port once, then UDP ping all selected IPs on that port.')
+
+    def _do_udp_ping_multi() -> None:
+        udp_port_ping_multi(parent, ip_addresses)
+
+    udp_one_action.triggered.connect(_do_udp_ping_multi)
+    udp_menu.addAction(udp_one_action)
+
+    udp_individual_action = QAction(icon, 'Individual Port per IP', udp_menu)
+    udp_individual_action.setToolTip('Ask for a separate port for each selected IP.')
+
+    def _do_udp_ping_individual() -> None:
+        for ip_address in ip_addresses:
+            udp_port_ping(parent, ip_address)
+
+    udp_individual_action.triggered.connect(_do_udp_ping_individual)
+    udp_menu.addAction(udp_individual_action)
+
+    ping_menu.addMenu(udp_menu)
+    return udp_menu
 
 
 def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:
