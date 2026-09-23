@@ -291,15 +291,15 @@
             "type": "shell",
             "windows": {
                 "command": "powershell.exe",
-                "args": ["-Command", "& \"${workspaceFolder}/.venv/Scripts/Activate.ps1\"; snyk test"]
+                "args": ["-Command", "& \"${workspaceFolder}/.venv/Scripts/Activate.ps1\"; uv export --no-hashes --no-emit-project -o .requirements-snyk.tmp.txt; try { snyk test --file=.requirements-snyk.tmp.txt --package-manager=pip --command=\"${workspaceFolder}/.venv/Scripts/python.exe\" } finally { Remove-Item -ErrorAction SilentlyContinue .requirements-snyk.tmp.txt }"]
             },
             "linux": {
                 "command": "bash",
-                "args": ["-c", "source \"${workspaceFolder}/.venv/bin/activate\" && snyk test"]
+                "args": ["-c", "source \"${workspaceFolder}/.venv/bin/activate\" && uv export --no-hashes --no-emit-project -o .requirements-snyk.tmp.txt && { snyk test --file=.requirements-snyk.tmp.txt --package-manager=pip --command=\"${workspaceFolder}/.venv/bin/python\"; status=$?; rm -f .requirements-snyk.tmp.txt; exit $status; }"]
             },
             "osx": {
                 "command": "bash",
-                "args": ["-c", "source \"${workspaceFolder}/.venv/bin/activate\" && snyk test"]
+                "args": ["-c", "source \"${workspaceFolder}/.venv/bin/activate\" && uv export --no-hashes --no-emit-project -o .requirements-snyk.tmp.txt && { snyk test --file=.requirements-snyk.tmp.txt --package-manager=pip --command=\"${workspaceFolder}/.venv/bin/python\"; status=$?; rm -f .requirements-snyk.tmp.txt; exit $status; }"]
             },
             "group": "test",
             "presentation": {

@@ -141,7 +141,7 @@ def show_footer() -> None:
     print(f'{GREEN}==================================={RESET}')
 
 
-def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int) -> bool:
+def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int, repo_root: Path) -> bool:
     """Execute a single quality tool, print output, and return True if successful."""
     print()
     print(f'{CYAN}[{step_number}/{total_steps}] {tool.category} - {tool.name} ({tool.description}){RESET}')
@@ -153,7 +153,36 @@ def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int) -
         return True
 
     start_time = time.perf_counter()
-    process = subprocess.run(tool.command, shell=True, check=False)
+    if tool.name == 'snyk':
+        temp_requirements = repo_root / '.requirements-snyk.tmp.txt'
+        try:
+            if shutil.which('uv') is not None:
+                export_command = f'uv export --no-hashes --no-emit-project -o "{temp_requirements.name}"'
+            else:
+                export_command = f'"{sys.executable}" -m pip freeze > "{temp_requirements.name}"'
+
+            export_process = subprocess.run(
+                export_command,
+                shell=True,
+                check=False,
+                cwd=repo_root,
+                capture_output=True,
+            )
+            if export_process.returncode:
+                print(f'{DARK_YELLOW}[FAIL] Failed to generate requirements manifest for {tool.name}.{RESET}')
+                return False
+
+            snyk_command = (
+                f'snyk test --file="{temp_requirements.name}" --package-manager=pip '
+                f'--command="{sys.executable}"'
+            )
+            process = subprocess.run(snyk_command, shell=True, check=False, cwd=repo_root)
+        finally:
+            if temp_requirements.is_file():
+                temp_requirements.unlink()
+    else:
+        process = subprocess.run(tool.command, shell=True, check=False)
+
     elapsed_seconds = round(time.perf_counter() - start_time, 1)
 
     if not process.returncode:
@@ -164,6 +193,8 @@ def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int) -
         f'{DARK_YELLOW}[FAIL] {tool.name} completed with errors '
         f'(exit code {process.returncode}) in {elapsed_seconds} seconds{RESET}'
     )
+    if tool.name == 'snyk':
+        print(f'{GRAY}   Tip: Snyk authentication may be required or expired. Run `snyk auth` to authenticate.{RESET}')
     return False
 
 
@@ -207,7 +238,7 @@ def main() -> int:
     total_steps = len(active_tools)
 
     for i, tool in enumerate(active_tools, start=1):
-        if not invoke_quality_tool(tool, i, total_steps):
+        if not invoke_quality_tool(tool, i, total_steps, repo_root):
             all_passed = False
 
     show_footer()
