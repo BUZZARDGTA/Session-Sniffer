@@ -38,7 +38,8 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 
    `build: bump version to <new-version>`
 
-14. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
+14. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
+15. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
 
 ## Version Format
 

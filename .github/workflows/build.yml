@@ -49,6 +49,18 @@ jobs:
         working-directory: .github/workflows
         run: python -m venv --upgrade-deps '.venv'
 
+      - name: Validate release tag matches pyproject.toml
+        working-directory: .github/workflows
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          committed_version=$(${{ matrix.venv_python }} -c "import tomllib; print(tomllib.loads(open('../../pyproject.toml', encoding='utf-8').read())['project']['version'])")
+          if [ "$committed_version" != "$RELEASE_TAG" ]; then
+            echo "::error::pyproject.toml version ('$committed_version') does not match release tag ('$RELEASE_TAG')!" >&2
+            echo "::error::You must commit the updated version in pyproject.toml before publishing the release." >&2
+            exit 1
+          fi
+
       - name: Install build dependencies
         working-directory: .github/workflows
         run: |
