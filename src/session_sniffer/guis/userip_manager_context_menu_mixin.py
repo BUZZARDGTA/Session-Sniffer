@@ -339,6 +339,12 @@ class EntriesContextMenuMixin(QDialog):
 
             menu.addMenu(ping_menu)
 
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_target = list(selected_ips) if len(selected_ips) > 1 else ip_or_range
+            scan_ports_action.triggered.connect(lambda _checked=False, target=scan_target: scan_ports_ip(target))
+            menu.addAction(scan_ports_action)
+
         # Looky System refresh (only for single IPs in GTA5 feature set)
         if ip_or_range and self._current_path is not None and Settings.is_gta5_feature_set() and is_single_ip:
             menu.addSeparator()
@@ -556,6 +562,12 @@ class EntriesContextMenuMixin(QDialog):
                 ping_menu_gs.addAction(web_ping_gs_action)
 
             menu.addMenu(ping_menu_gs)
+
+            scan_ports_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
+            scan_ports_gs_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_target_gs = list(selected_ips_gs) if len(selected_ips_gs) > 1 else ip_or_range
+            scan_ports_gs_action.triggered.connect(lambda _checked=False, target=scan_target_gs: scan_ports_ip(target))
+            menu.addAction(scan_ports_gs_action)
 
         # Looky System refresh (only for single IPs in GTA5 feature set)
         if db_path_str and username and ip_or_range and Settings.is_gta5_feature_set() and is_single_ip_gs:

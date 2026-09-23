@@ -16,6 +16,7 @@ from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
 from session_sniffer.guis.ping_window import PingWindow
+from session_sniffer.guis.port_scanner_window import PortScannerWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import (
     format_bool,
@@ -127,6 +128,11 @@ def ping_ip(target: str | list[str]) -> None:
 def web_ping(target: str | list[str]) -> None:
     """Run a multi-vantage distributed HTTP ping via Check-Host.net in the Ping Diagnostics window."""
     PingWindow.open_window(target, mode=PingMode.WEB)
+
+
+def scan_ports_ip(target: str | list[str]) -> None:
+    """Open the Port Scanner window pre-configured for the target host(s)."""
+    PortScannerWindow.open_window(target)
 
 
 def tcp_port_ping(parent: QWidget, ip: str) -> None:

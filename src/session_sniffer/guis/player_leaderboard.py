@@ -67,6 +67,7 @@ from session_sniffer.guis.tables_player_actions import (
     create_multi_tcp_ping_menu,
     create_multi_udp_ping_menu,
     ping_ip,
+    scan_ports_ip,
     show_detailed_ip_lookup,
     tcp_port_ping,
     udp_port_ping,
@@ -1399,6 +1400,15 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             web_ping_action.triggered.connect(_web_ping_all_leaderboard)
             ping_menu.addAction(web_ping_action)
             menu.addMenu(ping_menu)
+
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+
+            def _scan_all_leaderboard() -> None:
+                scan_ports_ip(ip_list)
+
+            scan_ports_action.triggered.connect(_scan_all_leaderboard)
+            menu.addAction(scan_ports_action)
 
         popup_menu_at_table(menu, self._table, pos)
 

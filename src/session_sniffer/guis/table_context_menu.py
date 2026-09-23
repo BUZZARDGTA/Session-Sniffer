@@ -216,6 +216,15 @@ class TableContextMenuManager:
 
             menu.addMenu(ping_menu)
 
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', menu)
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+
+            def _scan_selected_ports() -> None:
+                scan_ports_ip(selected_ip_addresses)
+
+            scan_ports_action.triggered.connect(_scan_selected_ports)
+            menu.addAction(scan_ports_action)
+
         popup_menu_at_table_widget(menu, self._table, pos)
 
         self._is_open = True

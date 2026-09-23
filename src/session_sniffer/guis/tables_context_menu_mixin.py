@@ -20,6 +20,7 @@ from session_sniffer.guis.tables_player_actions import (
     copy_players_info_for_discord,
     looky_refresh_userip_entries,
     ping_ip,
+    scan_ports_ip,
     show_crawler_request,
     show_detailed_ip_lookup,
     show_looky_lookup,
@@ -559,6 +560,17 @@ class TableContextMenuMixin(QTableView):
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')),
             )
 
+        def add_scan_ports_action(ip_addresses: list[str]) -> None:
+            if not ip_addresses:
+                return
+            add_action(
+                context_menu,
+                'Scan Ports…',
+                tooltip='Scan TCP and UDP ports on the selected host(s).',
+                handler=lambda: scan_ports_ip(ip_addresses),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')),
+            )
+
         def get_script_candidates(directory: Path) -> list[Path]:
             allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
             return [script for script in directory.glob('*') if (script.is_file() and not script.name.startswith(('_', '.')) and script.suffix.casefold() in allowed_suffixes)]
@@ -914,6 +926,7 @@ class TableContextMenuMixin(QTableView):
             context_menu.addSeparator()
             add_looky_system_menu(context_menu, players)
             add_ping_menu(ip_addresses)
+            add_scan_ports_action(ip_addresses)
             add_detections_menu(players)
             add_user_scripts_menu(ip_addresses)
 

@@ -211,6 +211,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
 
+        port_scanner_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Port Scanner', self)
+        port_scanner_action.setToolTip('Perform multi-threaded TCP and UDP port scanning with service banner detection')
+        port_scanner_action.triggered.connect(lambda: PortScannerWindow.open_window('127.0.0.1'))
+        tools_menu.addAction(port_scanner_action)
+
         ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Ping Diagnostics', self)
         ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
         ping_action.triggered.connect(lambda: PingWindow.open_window('127.0.0.1'))
@@ -582,6 +587,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         if self._leaderboard_window is not None:
             self._leaderboard_window.close()
         PingWindow.close_window()
+        PortScannerWindow.close_window()
         close_all_crawler_dialogs()
         close_all_lookup_dialogs()
         if self.capture.is_running():
