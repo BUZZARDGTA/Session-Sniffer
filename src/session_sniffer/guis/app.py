@@ -5,11 +5,23 @@ This module ensures there's only one QApplication instance throughout the applic
 
 import os
 import sys
+from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent, QMessageLogContext, QObject, QtMsgType, qInstallMessageHandler
+from PySide6.QtWidgets import (
+    QAbstractScrollArea,
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
+    QDial,
+    QSlider,
+    QWidget,
+)
 
 from session_sniffer.guis.theme import get_dark_palette
+
+if TYPE_CHECKING:
+    from PySide6.QtGui import QWheelEvent
 
 
 def _qt_message_handler(message_type: QtMsgType, _context: QMessageLogContext, message: str) -> None:
@@ -33,6 +45,40 @@ def _configure_platform_qt_environment() -> None:
     qInstallMessageHandler(_qt_message_handler)
 
 
+class _DisableScrollValueChangeFilter(QObject):
+    """Filter out mouse wheel events on input widgets so scrolling does not change values."""
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Wheel:
+            is_target, target = self._is_scroll_value_change_widget(watched)
+            if is_target and target is not None:
+                event.ignore()
+                ancestor = target.parentWidget()
+                while ancestor is not None:
+                    ancestor.wheelEvent(cast('QWheelEvent', event))
+                    if event.isAccepted():
+                        return True
+                    ancestor = ancestor.parentWidget()
+                return True
+        return super().eventFilter(watched, event)
+
+    @staticmethod
+    def _is_scroll_value_change_widget(watched: QObject) -> tuple[bool, QWidget | None]:
+        if not isinstance(watched, QWidget):
+            return False, None
+        if isinstance(watched, QAbstractScrollArea):
+            return False, None
+        parent_widget = watched.parentWidget()
+        if isinstance(parent_widget, QAbstractScrollArea):
+            return False, None
+        if isinstance(watched, (QComboBox, QAbstractSpinBox, QSlider, QDial)):
+            return True, watched
+        if isinstance(parent_widget, (QComboBox, QAbstractSpinBox, QSlider, QDial)):
+            return True, parent_widget
+        return False, None
+
+
 _configure_platform_qt_environment()
 
 # Create the single QApplication instance for the entire application.
@@ -40,3 +86,6 @@ _configure_platform_qt_environment()
 # factor are resolved, so fonts and sizes are correct for every display tier.
 app = QApplication([])  # Passing an empty list for application arguments
 app.setPalette(get_dark_palette())
+
+_wheel_filter = _DisableScrollValueChangeFilter(app)
+app.installEventFilter(_wheel_filter)
