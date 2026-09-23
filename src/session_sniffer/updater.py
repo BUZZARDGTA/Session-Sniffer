@@ -305,12 +305,6 @@ def _handle_update_decision(
     versions: GithubVersionsResponse,
 ) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
     """Compare versions and schedule update download if a newer version is available."""
-    if CURRENT_VERSION.is_prerelease:
-        return _handle_prerelease_update_decision(
-            latest_stable_info=versions.latest_stable,
-            latest_prerelease_info=versions.latest_prerelease,
-        )
-
     is_prerelease_channel = updater_channel == 'Pre-release'
     if is_prerelease_channel:
         latest_stable = Version(versions.latest_stable.version)
@@ -334,54 +328,6 @@ def _handle_update_decision(
     is_candidate_prerelease = candidate.is_prerelease or candidate_info.is_prerelease
     logger.info(
         'Update available (%s): %s -> %s',
-        'pre-release' if is_candidate_prerelease else 'stable release',
-        format_project_version(CURRENT_VERSION),
-        format_project_version(candidate),
-    )
-
-    version_str = format_project_version(candidate)
-    pending = functools.partial(_download_and_apply, candidate_info, version_str, is_prerelease=is_candidate_prerelease)
-    return (UpdateCheckOutcome.PROCEED, pending)
-
-
-def _handle_prerelease_update_decision(
-    *,
-    latest_stable_info: VersionInfo,
-    latest_prerelease_info: VersionInfo,
-) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
-    """Check for available updates when running a pre-release build.
-
-    Checks both the latest stable and latest pre-release candidates independently.
-    Any candidate strictly above CURRENT_VERSION is selected, preferring the higher version.
-    """
-    latest_stable = Version(latest_stable_info.version)
-    latest_prerelease = Version(latest_prerelease_info.version)
-
-    stable_newer = latest_stable > CURRENT_VERSION
-    prerelease_newer = latest_prerelease > CURRENT_VERSION and latest_prerelease != latest_stable
-
-    if not stable_newer and not prerelease_newer:
-        return (UpdateCheckOutcome.PROCEED, None)
-
-    if stable_newer and prerelease_newer:
-        candidate_info = latest_prerelease_info if latest_prerelease > latest_stable else latest_stable_info
-    elif stable_newer:
-        candidate_info = latest_stable_info
-    else:
-        candidate_info = latest_prerelease_info
-
-    candidate = Version(candidate_info.version)
-    if sys.platform.startswith('linux') and not candidate_info.linux_download_url:
-        logger.info('Pre-release build found newer %s but no Linux binary was published; skipping update.', format_project_version(candidate))
-        return (UpdateCheckOutcome.PROCEED, None)
-
-    if _is_running_executable_identical(candidate_info):
-        logger.info('Running executable SHA-256 matches candidate release (%s); already up to date.', candidate_info.platform_sha256)
-        return (UpdateCheckOutcome.PROCEED, None)
-
-    is_candidate_prerelease = candidate.is_prerelease or candidate_info.is_prerelease
-    logger.info(
-        'Pre-release build found newer %s: %s -> %s',
         'pre-release' if is_candidate_prerelease else 'stable release',
         format_project_version(CURRENT_VERSION),
         format_project_version(candidate),
