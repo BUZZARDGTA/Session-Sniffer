@@ -47,6 +47,7 @@ class Settings:
     capture_arp_spoofing: bool = SETTING_DEFAULTS['capture_arp_spoofing']
     capture_block_third_party_servers: tuple[str, ...] = SETTING_DEFAULTS['capture_block_third_party_servers']
     capture_blocked_ips: tuple[str, ...] = SETTING_DEFAULTS['capture_blocked_ips']
+    capture_filtered_isps: tuple[str, ...] = SETTING_DEFAULTS['capture_filtered_isps']
     capture_feature_set: str | None = SETTING_DEFAULTS['capture_feature_set']
     capture_filter_process_pid: int = SETTING_DEFAULTS['capture_filter_process_pid']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
@@ -143,6 +144,7 @@ class Settings:
         'CAPTURE_ARP_SPOOFING',
         'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
         'CAPTURE_BLOCKED_IPS',
+        'CAPTURE_FILTERED_ISPS',
         'CAPTURE_FEATURE_SET',
         'CAPTURE_FILTER_PROCESS_PID',
         'CAPTURE_OVERFLOW_TIMER',

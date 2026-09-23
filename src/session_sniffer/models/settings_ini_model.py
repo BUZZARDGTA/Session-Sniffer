@@ -81,6 +81,7 @@ class SettingsIniModel(BaseModel):
     CAPTURE_PS3_NAME_RESOLVER: bool
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
     CAPTURE_BLOCKED_IPS: tuple[str, ...]
+    CAPTURE_FILTERED_ISPS: tuple[str, ...]
     CAPTURE_FILTER_BLOCK_RTCP: bool
     CAPTURE_FILTER_BLOCK_SSDP: bool
     CAPTURE_FILTER_BLOCK_RAKNET: bool
@@ -366,6 +367,35 @@ class SettingsIniModel(BaseModel):
                     parse_ip_range(item)
                     valid_items.append(item)
                 except ValueError:
+                    need_rewrite = True
+            if need_rewrite:
+                cls._set_flag(info, 'should_rewrite', value=True)
+            return tuple(valid_items)
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return ()
+
+    @field_validator('CAPTURE_FILTERED_ISPS', mode='before')
+    @classmethod
+    def _parse_filtered_isps(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
+        if isinstance(value, tuple):
+            return cast('tuple[str, ...]', value)
+        if isinstance(value, str):
+            try:
+                parsed: object = ast.literal_eval(value)
+            except ValueError, SyntaxError, RecursionError, MemoryError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return ()
+            if not isinstance(parsed, tuple):
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return ()
+            valid_items: list[str] = []
+            need_rewrite = False
+            for item in cast('tuple[object, ...]', parsed):
+                if isinstance(item, str) and (stripped := item.strip()):
+                    if stripped != item:
+                        need_rewrite = True
+                    valid_items.append(stripped)
+                else:
                     need_rewrite = True
             if need_rewrite:
                 cls._set_flag(info, 'should_rewrite', value=True)

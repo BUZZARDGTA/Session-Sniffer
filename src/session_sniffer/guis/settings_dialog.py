@@ -59,6 +59,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_setting_label,
     create_standard_form_layout,
     create_standard_vbox_layout,
+    create_string_tuple_widget,
     create_text_widget,
     create_third_party_servers_split_widget,
     get_line_edit,
@@ -379,9 +380,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             widget.setMaximumWidth(meta.max_width)
         self._widgets[key] = widget
 
-        # COLUMN_TUPLE, IP_RANGE_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
+        # COLUMN_TUPLE, IP_RANGE_TUPLE, STRING_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
         # as a full-width spanning row so the widget gets all available horizontal space.
-        if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.IP_RANGE_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
+        if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
             form.addRow(widget)
             return
 
@@ -466,6 +467,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             SettingType.COLOR: partial(create_color_widget, meta),
             SettingType.THIRD_PARTY_SERVERS_TUPLE: partial(create_third_party_servers_split_widget, key, meta),
             SettingType.IP_RANGE_TUPLE: partial(create_ip_range_tuple_widget, meta, self),
+            SettingType.STRING_TUPLE: partial(create_string_tuple_widget, meta, self),
         }
         factory = dispatch.get(meta.setting_type)
         return factory() if factory is not None else QLineEdit()
@@ -520,7 +522,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 for checkbox in widget.findChildren(QCheckBox):
                     checkbox.setChecked(checkbox.objectName() in shown_set)
 
-            case SettingType.IP_RANGE_TUPLE:
+            case SettingType.IP_RANGE_TUPLE | SettingType.STRING_TUPLE:
                 entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)
                 if list_widget is not None:
@@ -570,7 +572,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 value = False if text == 'Disabled' else text
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
                 value = self._read_column_tuple(meta, widget)
-            case SettingType.IP_RANGE_TUPLE:
+            case SettingType.IP_RANGE_TUPLE | SettingType.STRING_TUPLE:
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)
                 value = () if not list_widget else tuple(item.text() for i in range(list_widget.count()) if (item := list_widget.item(i)))
 
@@ -787,7 +789,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                             checkbox.toggled.connect(self._update_restart_notice)
                             if key in ('gui_columns_connected_shown', 'gui_columns_disconnected_shown'):
                                 checkbox.toggled.connect(self._update_sort_column_options)
-                    elif meta.setting_type == SettingType.IP_RANGE_TUPLE:
+                    elif meta.setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
                         list_widget = next(iter(widget.findChildren(QListWidget)), None)
                         if list_widget is not None:
                             list_widget.model().rowsInserted.connect(self._on_list_rows_changed)
@@ -844,7 +846,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 continue
             current_value = self._read_widget_value(key, widget)
             original_value = self._old_values.get(key)
-            if SETTING_METADATA[key].setting_type == SettingType.IP_RANGE_TUPLE:
+            if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
                 if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
                     return True
             elif current_value != original_value:
@@ -856,7 +858,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for key, widget in self._widgets.items():
             current_value = self._read_widget_value(key, widget)
             original_value = self._old_values.get(key)
-            if SETTING_METADATA[key].setting_type == SettingType.IP_RANGE_TUPLE:
+            if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
                 if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
                     return True
             elif current_value != original_value:

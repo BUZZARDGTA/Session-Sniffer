@@ -35,6 +35,7 @@ class SettingType(Enum):
     MAC_ADDRESS = auto()
     COLUMN_TUPLE = auto()
     IP_RANGE_TUPLE = auto()
+    STRING_TUPLE = auto()
     THIRD_PARTY_SERVERS_TUPLE = auto()
     COLOR = auto()
 
@@ -197,6 +198,17 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.IP_RANGE_TUPLE,
         tooltip='IP addresses and ranges blocked from appearing in the session. Add entries here or via the right-click context menu on any player.',
         requires_capture_restart=True,
+    ),
+    'capture_filtered_isps': SettingMeta(
+        category='Capture',
+        group='IP Filters',
+        display_label='Filtered ISPs / ASNs',
+        setting_type=SettingType.STRING_TUPLE,
+        tooltip=(
+            'Exclude players whose ISP or ASN matches any entry in this list. Enter full or partial ISP or ASN names'
+            ' (e.g. Take-Two, Amazon, Hetzner, AS15169). Add entries here or via the right-click context menu on any player.'
+        ),
+        requires_capture_restart=False,
     ),
     'capture_prepend_custom_capture_filter': SettingMeta(
         category='Capture',
@@ -912,6 +924,7 @@ class SettingDefaults(TypedDict):
     capture_ps3_name_resolver: bool
     capture_prepend_custom_capture_filter: str | None
     capture_blocked_ips: tuple[str, ...]
+    capture_filtered_isps: tuple[str, ...]
     capture_filter_block_rtcp: bool
     capture_filter_block_ssdp: bool
     capture_filter_block_raknet: bool
@@ -1005,6 +1018,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_ps3_name_resolver': False,
     'capture_prepend_custom_capture_filter': None,
     'capture_blocked_ips': (),
+    'capture_filtered_isps': (),
     'capture_filter_block_rtcp': True,
     'capture_filter_block_ssdp': True,
     'capture_filter_block_raknet': True,

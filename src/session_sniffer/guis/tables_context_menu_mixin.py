@@ -43,6 +43,7 @@ from session_sniffer.guis.tables_userip_mixin import (
 )
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.networking.ip_range import check_ip_against_ranges
+from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
@@ -306,6 +307,59 @@ class TableContextMenuMixin(QTableView):
                 handler=_do_block_multi_ips,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')),
             )
+
+        def remove_isp_filtered_players_from_tables() -> None:
+            main_window = cast('MainWindow', self.window())
+            for player in PlayersRegistry.get_default_sorted_players():
+                if is_player_isp_filtered(player, Settings.capture_filtered_isps):
+                    if not PlayersRegistry.is_player_connected(player):
+                        main_window.remove_player_from_disconnected(player.ip)
+                    else:
+                        main_window.remove_player_from_connected(player.ip)
+
+        def create_filter_isp_handler(target_isp: str) -> Callable[[], None]:
+            def _filter() -> None:
+                if filter_player_isp(self, target_isp) is None:
+                    return
+                remove_isp_filtered_players_from_tables()
+
+            return _filter
+
+        def add_filter_isp_action(players: list[Player]) -> None:
+            if not players:
+                return
+
+            unique_isps: list[str] = dedup_preserve_order([
+                isp_name for player in players if (isp_name := get_player_primary_isp(player)) is not None
+            ])
+            if not unique_isps:
+                return
+
+            if len(unique_isps) == 1:
+                isp_name = unique_isps[0]
+                add_action(
+                    context_menu,
+                    f"Filter ISP '{isp_name}'",
+                    tooltip=f"Exclude players whose ISP or ASN matches '{isp_name}'. Persisted to settings.",
+                    handler=create_filter_isp_handler(isp_name),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                )
+                return
+
+            filter_isps_menu = add_menu(
+                context_menu,
+                'Filter ISPs',
+                tooltip='Exclude players belonging to the selected ISP or ASN. Persisted to settings.',
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+            )
+            for isp_name in unique_isps:
+                add_action(
+                    filter_isps_menu,
+                    f"'{isp_name}'",
+                    tooltip=f"Exclude players whose ISP or ASN matches '{isp_name}'.",
+                    handler=create_filter_isp_handler(isp_name),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                )
 
         def add_ip_lookup_action(players: list[Player]) -> None:
             if not players:
@@ -852,6 +906,7 @@ class TableContextMenuMixin(QTableView):
 
         def add_shared_selected_players_actions(ip_addresses: list[str], players: list[Player]) -> None:
             add_exclude_ips_action(ip_addresses)
+            add_filter_isp_action(players)
             add_ip_lookup_action(players)
             add_rate_graph_action(ip_addresses)
             add_seen_stats_action(players)

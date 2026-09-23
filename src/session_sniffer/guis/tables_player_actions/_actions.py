@@ -224,3 +224,28 @@ def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:
         Settings.rebuild_blocked_ip_ranges()
 
     return entry
+
+
+def filter_player_isp(parent: QWidget, isp_name: str) -> str | None:
+    """Prompt to add *isp_name* to the filtered ISPs setting.
+
+    Returns the ISP string that was added, or `None` if the user cancelled or the entry already exists.
+    """
+    cleaned_name, success = QInputDialog.getText(
+        parent,
+        'Filter ISP / ASN',
+        'Exclude players whose ISP or ASN matches this name from the session:\n(Case-insensitive substring match)',
+        text=isp_name,
+    )
+    if not success:
+        return None
+
+    entry = cleaned_name.strip()
+    if not entry:
+        return None
+
+    if entry not in Settings.capture_filtered_isps:
+        Settings.capture_filtered_isps = (*Settings.capture_filtered_isps, entry)
+        Settings.rewrite_settings_file()
+
+    return entry

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -830,6 +831,72 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
             return
         entry = dialog.result_entry()
         if not entry:
+            return
+        existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}
+        if entry not in existing:
+            list_widget.addItem(entry)
+
+    def _remove_entries() -> None:
+        for item in list_widget.selectedItems():
+            list_widget.takeItem(list_widget.row(item))
+
+    add_button.clicked.connect(_add_entry)
+    remove_button.clicked.connect(_remove_entries)
+
+    button_row = QHBoxLayout()
+    button_row.setContentsMargins(0, 0, 0, 0)
+    button_row.setSpacing(6)
+    button_row.addWidget(add_button)
+    button_row.addWidget(remove_button)
+    button_row.addStretch()
+
+    outer_layout = QVBoxLayout(group)
+    outer_layout.setSpacing(4)
+    outer_layout.addLayout(button_row)
+    outer_layout.addWidget(list_widget, 1)
+    return group
+
+
+def create_string_tuple_widget(
+    meta: SettingMeta,
+    parent: QWidget,
+    *,
+    input_dialog_title: str = 'Add Filtered ISP / ASN',
+    input_dialog_label: str = 'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):',
+) -> QGroupBox:
+    """Create an add/remove list widget for managing a tuple of strings."""
+    group = QGroupBox(meta.display_label.replace('&', '&&'))
+    tooltip = format_setting_tooltip(meta)
+    if tooltip:
+        group.setToolTip(tooltip)
+
+    list_widget = _AutoFitListWidget()
+    list_widget.setSizeAdjustPolicy(QListWidget.SizeAdjustPolicy.AdjustToContents)
+    list_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    list_widget.setMaximumHeight(250)
+    list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
+    list_widget.setWordWrap(False)
+    list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+    list_widget.setSortingEnabled(True)
+
+    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add')
+    add_button.setToolTip('Add a new entry to the list')
+    add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+    add_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
+    remove_button.setToolTip('Remove the selected entries')
+    remove_button.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
+    remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    remove_button.setEnabled(False)
+    list_widget.itemSelectionChanged.connect(lambda: remove_button.setEnabled(bool(list_widget.selectedItems())))
+
+    def _add_entry() -> None:
+        text, success = QInputDialog.getText(parent, input_dialog_title, input_dialog_label)
+        if not success or not (entry := text.strip()):
             return
         existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}
         if entry not in existing:

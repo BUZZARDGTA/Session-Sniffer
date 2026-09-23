@@ -10,6 +10,7 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
 from session_sniffer.models.player import Player, PlayerBandwidth
+from session_sniffer.networking.isp_filter import is_player_isp_filtered
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.rendering_core.types import CellColor, SessionTableSnapshot
 from session_sniffer.settings import Settings
@@ -172,6 +173,9 @@ def build_session_table_snapshot(
     _base_connected_row_colors = [_base_connected_cell] * context.connected_num_columns
 
     for player in context.session_connected:
+        if Settings.capture_filtered_isps and is_player_isp_filtered(player, Settings.capture_filtered_isps):
+            continue
+
         if player.userip and player.userip.usernames:
             row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.connected_num_columns
@@ -328,6 +332,9 @@ def build_session_table_snapshot(
     _base_disconnected_row_colors = [_base_disconnected_cell] * context.disconnected_num_columns
 
     for player in context.session_disconnected:
+        if Settings.capture_filtered_isps and is_player_isp_filtered(player, Settings.capture_filtered_isps):
+            continue
+
         if player.userip and player.userip.usernames:
             row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR
             row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.disconnected_num_columns
