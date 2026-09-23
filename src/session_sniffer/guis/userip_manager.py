@@ -424,7 +424,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Edit IP/Range…')
+        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Edit IP/Range…')
         self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
         self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)

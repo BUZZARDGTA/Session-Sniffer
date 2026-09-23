@@ -221,7 +221,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         tools_menu.addSeparator()
 
-        leaderboard_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Most Seen Players', self)
+        leaderboard_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trophy.svg')), 'Most Seen Players', self)
         leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
@@ -266,17 +266,17 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         country_breakdown_action.triggered.connect(self._open_country_breakdown)
         statistics_menu.addAction(country_breakdown_action)
 
-        reconnect_frequency_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reconnect Frequency', self)
+        reconnect_frequency_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'frequency.svg')), 'Reconnect Frequency', self)
         reconnect_frequency_action.setToolTip('List players sorted by reconnect count')
         reconnect_frequency_action.triggered.connect(self._open_reconnect_frequency)
         statistics_menu.addAction(reconnect_frequency_action)
 
-        avg_session_duration_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')), 'Session Duration', self)
+        avg_session_duration_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), 'Session Duration', self)
         avg_session_duration_action.setToolTip('Disconnected players ranked by their session duration')
         avg_session_duration_action.triggered.connect(self._open_session_duration)
         statistics_menu.addAction(avg_session_duration_action)
 
-        port_heatmap_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')), 'Port Heatmap', self)
+        port_heatmap_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'heatmap.svg')), 'Port Heatmap', self)
         port_heatmap_action.setToolTip('Rank observed ports by frequency across all players')
         port_heatmap_action.triggered.connect(self._open_port_heatmap)
         statistics_menu.addAction(port_heatmap_action)
@@ -371,7 +371,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         data_menu.addSeparator()
 
-        open_settings_ini_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Open Settings.ini', self)
+        open_settings_ini_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file_settings.svg')), 'Open Settings.ini', self)
         open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
         open_settings_ini_action.triggered.connect(self._open_settings_file)
         data_menu.addAction(open_settings_ini_action)
@@ -393,7 +393,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             raise RuntimeError(message)
         help_menu.setToolTipsVisible(True)
 
-        repo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Project Repository', self)
+        repo_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'github.svg')), 'Project Repository', self)
         repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
         repo_action.triggered.connect(self._open_project_repo)
         help_menu.addAction(repo_action)

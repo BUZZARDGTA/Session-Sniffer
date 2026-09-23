@@ -73,7 +73,7 @@ class LogsManager(QDialog):
                 column_min_widths={0: 220, 5: 160},
             ),
         )
-        tabs.addTab(self._detection_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Detection Logging')
+        tabs.addTab(self._detection_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bell.svg')), 'Detection Logging')
         self._protection_tab = CsvLogTab(
             CsvLogTabConfig(
                 file_path=PROTECTION_LOGGING_PATH,

@@ -5,9 +5,10 @@ This module ensures there's only one QApplication instance throughout the applic
 
 import os
 import sys
-from typing import TYPE_CHECKING, cast, override
+from typing import override
 
 from PySide6.QtCore import QEvent, QMessageLogContext, QObject, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QAbstractSpinBox,
@@ -19,9 +20,6 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.theme import get_dark_palette
-
-if TYPE_CHECKING:
-    from PySide6.QtGui import QWheelEvent
 
 
 def _qt_message_handler(message_type: QtMsgType, _context: QMessageLogContext, message: str) -> None:
@@ -66,7 +64,7 @@ class _DisableScrollValueChangeFilter(QObject):
             if (parent := watched.parentWidget()) is not None and parent.focusPolicy() == Qt.FocusPolicy.WheelFocus:
                 parent.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        if event.type() == QEvent.Type.Wheel:
+        if event.type() == QEvent.Type.Wheel and isinstance(event, QWheelEvent):
             is_target, target = self._is_scroll_value_change_widget(watched)
             if is_target and target is not None:
                 if target.focusPolicy() == Qt.FocusPolicy.WheelFocus:
@@ -74,7 +72,7 @@ class _DisableScrollValueChangeFilter(QObject):
                 event.ignore()
                 ancestor = target.parentWidget()
                 while ancestor is not None:
-                    ancestor.wheelEvent(cast('QWheelEvent', event))
+                    ancestor.wheelEvent(event)
                     if event.isAccepted():
                         return True
                     ancestor = ancestor.parentWidget()

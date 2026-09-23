@@ -56,7 +56,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
         # Tab 2: Player Identifier
         self.player_identifier = PlayerIdentifierWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.player_identifier, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')), 'Player Identifier')
+        self._tabs.addTab(self.player_identifier, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'player_identifier.svg')), 'Player Identifier')
 
         # Always on top checkbox (shared across tabs)
         always_on_top_checkbox = QCheckBox('Always on Top')

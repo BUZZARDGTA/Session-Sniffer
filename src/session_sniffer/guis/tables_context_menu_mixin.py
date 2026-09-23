@@ -1,5 +1,7 @@
 """Context menu mixin for SessionTableView right-click interactions."""
 
+# pylint: disable=too-many-lines
+
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QItemSelectionModel, QUrl
@@ -18,6 +20,9 @@ from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
     copy_player_info_for_discord,
     copy_players_info_for_discord,
+    create_multi_tcp_ping_menu,
+    create_multi_udp_ping_menu,
+    filter_player_isp,
     looky_refresh_userip_entries,
     ping_ip,
     scan_ports_ip,
@@ -26,7 +31,8 @@ from session_sniffer.guis.tables_player_actions import (
     show_looky_lookup,
     show_seen_stats,
     tcp_port_ping,
-    tcp_port_ping_multi,
+    udp_port_ping,
+    web_ping,
 )
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
@@ -597,7 +603,7 @@ class TableContextMenuMixin(QTableView):
             add_scripts_to_menu(menu, user_scripts, ip_addresses, per_ip=per_ip)
 
         def add_user_scripts_menu(ip_addresses: list[str]) -> None:
-            scripts_menu = add_menu(context_menu, 'User Scripts', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')))
+            scripts_menu = add_menu(context_menu, 'User Scripts', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'code.svg')))
             builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
             user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
