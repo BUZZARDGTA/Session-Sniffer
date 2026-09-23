@@ -44,16 +44,42 @@ from session_sniffer.constants.standalone import (
     LOOKY_BASE_HOST,
     TITLE,
 )
-from session_sniffer.guis.utils import set_clipboard_text
+from session_sniffer.guis.detections_manager import DetectionsManagerDialog
+from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.utils import activate_window, set_clipboard_text
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 
 class FilesMixin(QMainWindow):
     """File, folder, and URL open helpers mixin for `MainWindow`."""
+
+    _detections_manager_window: DetectionsManagerDialog | None
+    _on_open_hotspot: Callable[[], None]
+
+    def _open_detections_manager(self) -> None:
+        """Open the Detections Manager window, or focus the existing one."""
+        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
+            self._detections_manager_window.raise_()
+            self._detections_manager_window.activateWindow()
+            return
+        window = DetectionsManagerDialog(None)
+        window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None) if self._detections_manager_window is window else None)
+        self._detections_manager_window = window
+        self._detections_manager_window.show()
+
+    def _open_hotspot_manager(self) -> None:
+        """Open the Hotspot & Connection Sharing window, or focus the existing one."""
+        active_interface_dialog = InterfaceSelectionDialog.get_active_instance()
+        if active_interface_dialog is not None:
+            active_interface_dialog.select_hotspot_tab()
+            activate_window(active_interface_dialog)
+            return
+        self._on_open_hotspot()
 
     def _open_looky_website(self) -> None:
         """Open the Looky System website in the default browser."""

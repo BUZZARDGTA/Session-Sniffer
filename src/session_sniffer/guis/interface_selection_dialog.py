@@ -9,11 +9,12 @@ enabled/disabled adapters appear and disappear in real time.
 import logging
 from dataclasses import dataclass, field
 from threading import Thread
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QIcon, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QFont, QIcon, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QDialog,
     QFrame,
@@ -21,27 +22,32 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
+from shiboken6 import isValid
 
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
+from session_sniffer.guis.hotspot_manager import HotspotManagerWidget
 from session_sniffer.guis.stylesheets import (
     INTERFACE_BOTTOM_CONTAINER_STYLESHEET,
     INTERFACE_BOTTOM_SEPARATOR_STYLESHEET,
     INTERFACE_TABLE_CONTAINER_STYLESHEET,
     format_interface_refresh_arp_progress_style,
     interface_checkbox_stylesheet,
-    interface_header_label_stylesheet,
     interface_instruction_label_stylesheet,
-    interface_refresh_arp_button_disabled_style,
-    interface_refresh_arp_button_enabled_style,
+    interface_secondary_button_disabled_style,
+    interface_secondary_button_enabled_style,
     interface_select_button_disabled_style,
     interface_select_button_enabled_style,
+    interface_tab_button_stylesheet,
+    interface_tab_container_stylesheet,
     interface_table_stylesheet,
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
@@ -206,16 +212,35 @@ class InterfaceSelectionDialog(QDialog):
     """
 
     _REFRESH_INTERVAL_MS = 3_000
+    _instance: ClassVar[InterfaceSelectionDialog | None] = None
 
     # Bridges background ARP-refresh worker -> GUI thread (queued connection).
     _arp_refresh_progress_signal = Signal(int, int, str)
     _arp_refresh_done_signal = Signal()
+
+    @classmethod
+    def get_active_instance(cls) -> InterfaceSelectionDialog | None:
+        """Return the active InterfaceSelectionDialog instance if valid, else None."""
+        if cls._instance is not None and isValid(cls._instance):
+            return cls._instance
+        return None
+
+    @classmethod
+    def _on_dialog_destroyed(cls, _obj: object = None) -> None:
+        """Reset the singleton active instance when destroyed."""
+        cls._instance = None
+
+    def select_hotspot_tab(self) -> None:
+        """Switch to the Hotspot & Connection Sharing navigation tab."""
+        self._tab_hotspot_btn.setChecked(True)
 
     def __init__(
         self,
         screen_size: tuple[int, int],
         interfaces: list[Interface],
         filter_defaults: tuple[bool, bool, bool],
+        *,
+        initial_tab: int = 0,
     ) -> None:
         """Initialize the interface selection dialog.
 
@@ -223,9 +248,12 @@ class InterfaceSelectionDialog(QDialog):
             screen_size: Screen dimensions as (width, height) in pixels.
             interfaces: Available Interface objects to display.
             filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
+            initial_tab: Initial tab index (0 for Network Interfaces, 1 for Hotspot & Connection Sharing).
         """
         super().__init__()
         self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.destroyed.connect(InterfaceSelectionDialog._on_dialog_destroyed)
+        InterfaceSelectionDialog._instance = self
 
         hide_inactive_default, hide_neighbours_default, arp_spoofing_default = filter_defaults
 
@@ -256,12 +284,40 @@ class InterfaceSelectionDialog(QDialog):
         layout.setContentsMargins(scale(12), scale(16), scale(12), scale(12))
         layout.setSpacing(scale(16))
 
-        # Header above the table
-        header_label = QLabel('Available Network Interfaces for Packet Capture')
-        header_label.setObjectName('dialogTitleLabel')
-        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_label.setStyleSheet(interface_header_label_stylesheet(ui_scale))
-        layout.addWidget(header_label)
+        # Segmented navigation tab bar at the top of the dialog
+        tab_container = QFrame()
+        tab_container.setObjectName('interfaceTabContainer')
+        tab_container.setStyleSheet(interface_tab_container_stylesheet(ui_scale))
+        tab_layout = QHBoxLayout(tab_container)
+        tab_layout.setContentsMargins(scale(4), scale(4), scale(4), scale(4))
+        tab_layout.setSpacing(scale(8))
+
+        self._tab_group = QButtonGroup(self)
+        self._tab_group.setExclusive(True)
+
+        self._tab_interfaces_btn = QPushButton('Network Interfaces')
+        self._tab_interfaces_btn.setObjectName('tabInterfacesButton')
+        self._tab_interfaces_btn.setStyleSheet(interface_tab_button_stylesheet(ui_scale))
+        self._tab_interfaces_btn.setCheckable(True)
+        self._tab_interfaces_btn.setChecked(True)
+        self._tab_interfaces_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._tab_interfaces_btn.setIcon(QIcon(render_svg_pixmap_from_resource('monitor.svg', scale(20), scale(20))))
+        self._tab_interfaces_btn.setIconSize(QSize(scale(20), scale(20)))
+        self._tab_group.addButton(self._tab_interfaces_btn, 0)
+        tab_layout.addWidget(self._tab_interfaces_btn, 1)
+
+        self._tab_hotspot_btn = QPushButton('Hotspot && Connection Sharing')
+        self._tab_hotspot_btn.setObjectName('tabHotspotButton')
+        self._tab_hotspot_btn.setStyleSheet(interface_tab_button_stylesheet(ui_scale))
+        self._tab_hotspot_btn.setCheckable(True)
+        self._tab_hotspot_btn.setChecked(False)
+        self._tab_hotspot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._tab_hotspot_btn.setIcon(QIcon(render_svg_pixmap_from_resource('wifi.svg', scale(20), scale(20))))
+        self._tab_hotspot_btn.setIconSize(QSize(scale(20), scale(20)))
+        self._tab_group.addButton(self._tab_hotspot_btn, 1)
+        tab_layout.addWidget(self._tab_hotspot_btn, 1)
+
+        layout.addWidget(tab_container)
 
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
@@ -303,9 +359,6 @@ class InterfaceSelectionDialog(QDialog):
         table_container_layout.setSpacing(0)
         table_container_layout.addWidget(self.table)
 
-        # Add widgets to layout
-        layout.addWidget(table_container)
-
         # Filter controls layout
         options_layout = QHBoxLayout()
         options_layout.setSpacing(scale(16))
@@ -313,7 +366,7 @@ class InterfaceSelectionDialog(QDialog):
 
         refresh_arp_button = RefreshARPButton('Refresh ARP Table')
         refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
-        refresh_arp_button.setStyleSheet(interface_refresh_arp_button_enabled_style(self._ui_scale))
+        refresh_arp_button.setStyleSheet(interface_secondary_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(scale(52))
         refresh_arp_button.setFixedWidth(scale(220))
@@ -459,7 +512,26 @@ class InterfaceSelectionDialog(QDialog):
         action_layout.addSpacing(scale(50))
         container_layout.addLayout(action_layout)
 
-        layout.addWidget(bottom_container)
+        # Stacked layout for switching between Interface Selection and Hotspot Management
+        self._stacked_widget = QStackedWidget()
+
+        # Page 0: Network interfaces table and filter controls
+        interfaces_page = QWidget()
+        interfaces_page_layout = QVBoxLayout(interfaces_page)
+        interfaces_page_layout.setContentsMargins(0, 0, 0, 0)
+        interfaces_page_layout.setSpacing(scale(16))
+        interfaces_page_layout.addWidget(table_container, 1)
+        interfaces_page_layout.addWidget(bottom_container, 0)
+        self._stacked_widget.addWidget(interfaces_page)
+
+        # Page 1: Hotspot & Connection Sharing manager
+        self._hotspot_widget = HotspotManagerWidget(self)
+        self._hotspot_widget.status_changed.connect(self._live_refresh_interfaces)
+        self._stacked_widget.addWidget(self._hotspot_widget)
+
+        layout.addWidget(self._stacked_widget, 1)
+
+        self._tab_interfaces_btn.toggled.connect(self._on_navigation_tab_toggled)
 
         # Connect selection change signal to enable/disable Select button
         selection_model = self.table.selectionModel()
@@ -490,6 +562,8 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
         self.setLayout(layout)
+        if initial_tab == 1:
+            self._tab_hotspot_btn.setChecked(True)
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
@@ -833,8 +907,16 @@ class InterfaceSelectionDialog(QDialog):
             self._controls.refresh_arp_button.setEnabled(arp_enabled)
             self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
             self._controls.refresh_arp_button.setStyleSheet(
-                interface_refresh_arp_button_enabled_style(self._ui_scale) if arp_enabled else interface_refresh_arp_button_disabled_style(self._ui_scale),
+                interface_secondary_button_enabled_style(self._ui_scale) if arp_enabled else interface_secondary_button_disabled_style(self._ui_scale),
             )
+
+    def _on_navigation_tab_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        """Handle switching between Network Interfaces and Hotspot & Sharing pages."""
+        if checked:
+            self._stacked_widget.setCurrentIndex(0)
+        else:
+            self._stacked_widget.setCurrentIndex(1)
+            self._hotspot_widget.start_refresh()
 
     def on_cell_double_clicked(self, row: int, _column: int) -> None:
         """Handle double-click on table cell - simulates clicking the Start button."""
@@ -881,6 +963,9 @@ class InterfaceSelectionDialog(QDialog):
         self._refresh_timer.stop()
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
+        self._hotspot_widget.cleanup()
+        if InterfaceSelectionDialog._instance is self:
+            InterfaceSelectionDialog._instance = None
         super().accept()
 
     @override
@@ -890,7 +975,18 @@ class InterfaceSelectionDialog(QDialog):
         self._refresh_timer.stop()
         if self._arp_refresh_progress_timer is not None:
             self._arp_refresh_progress_timer.stop()
+        self._hotspot_widget.cleanup()
+        if InterfaceSelectionDialog._instance is self:
+            InterfaceSelectionDialog._instance = None
         super().reject()
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Clean up background workers and timers on close."""
+        self._hotspot_widget.cleanup()
+        if InterfaceSelectionDialog._instance is self:
+            InterfaceSelectionDialog._instance = None
+        super().closeEvent(event)
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:

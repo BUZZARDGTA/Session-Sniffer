@@ -430,7 +430,7 @@ def main() -> None:
     )
     rendering_core__thread.start()
 
-    def _switch_interface() -> None:
+    def _switch_interface(*, initial_tab: int = 0) -> None:
         window.set_change_interface_button_enabled(enabled=False)
 
         # Build interface list from the existing registry without calling
@@ -448,6 +448,7 @@ def main() -> None:
             new_available_interfaces,
             screen_size,
             force_dialog=True,
+            initial_tab=initial_tab,
         )
 
         if new_interface is None:
@@ -578,7 +579,12 @@ def main() -> None:
         window.on_interface_switched()
         window.set_interface_switching_mode(switching=False)
 
-    window = MainWindow(screen_size, capture_holder, on_change_interface=_switch_interface)
+    window = MainWindow(
+        screen_size,
+        capture_holder,
+        on_change_interface=_switch_interface,
+        on_open_hotspot=lambda: _switch_interface(initial_tab=1),
+    )
 
     # Re-entry guard: adapter-lost and ARP-failed pollers can fire concurrently; non-blocking acquire skips the second.
     _capture_lost_lock = Lock()

@@ -26,11 +26,12 @@ from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
-from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.guis.logs_manager import LogsManager
+from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
+from session_sniffer.guis.port_scanner_window import PortScannerWindow
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.capture.packet_capture import CaptureHolder
+    from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.table_model import SessionTableModel
 
 
@@ -117,18 +119,26 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                     half_height = total_height // 2
                     self._tables_splitter.setSizes([half_height, total_height - half_height])
 
-    def __init__(self, screen_size: tuple[int, int], capture_holder: CaptureHolder, on_change_interface: Callable[[], None]) -> None:
+    def __init__(
+        self,
+        screen_size: tuple[int, int],
+        capture_holder: CaptureHolder,
+        on_change_interface: Callable[[], None],
+        on_open_hotspot: Callable[[], None],
+    ) -> None:
         """Initialize the main application window.
 
         Args:
             screen_size: Primary screen dimensions as (width, height) in pixels.
             capture_holder: Mutable reference to the active packet capture instance.
             on_change_interface: Callback invoked when the user requests an interface switch.
+            on_open_hotspot: Callback invoked when the user requests the hotspot manager.
         """
         super().__init__()
 
         self.capture = capture_holder
         self._on_change_interface = on_change_interface
+        self._on_open_hotspot = on_open_hotspot
         self._player_resolver_window = PlayerResolverWindow(self._select_connected_ips, self._deselect_connected_ips)
         self._detections_manager_window: DetectionsManagerDialog | None = None
         self._logs_manager_window: LogsManager | None = None
@@ -179,6 +189,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
         change_interface_action.triggered.connect(on_change_interface)
         capture_menu.addAction(change_interface_action)
+
+        hotspot_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')), 'Hotspot && Sharing', self)
+        hotspot_action.setToolTip('Create a Wi-Fi hotspot or configure Internet Connection Sharing (ICS) to capture console traffic')
+        hotspot_action.triggered.connect(self._open_hotspot_manager)
+        capture_menu.addAction(hotspot_action)
 
         self._build_game_menu(menu_bar)
         self._update_game_toolbar_visibility()
@@ -586,8 +601,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._detections_manager_window.close()
         if self._leaderboard_window is not None:
             self._leaderboard_window.close()
+
         PingWindow.close_window()
         PortScannerWindow.close_window()
+
         close_all_crawler_dialogs()
         close_all_lookup_dialogs()
         if self.capture.is_running():
@@ -853,17 +870,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._logs_manager_window.raise_()
             self._logs_manager_window.activateWindow()
         self._logs_manager_window.search_in_sessions_logging(text)
-
-    def _open_detections_manager(self) -> None:
-        """Open the Detections Manager window, or focus the existing one."""
-        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
-            self._detections_manager_window.raise_()
-            self._detections_manager_window.activateWindow()
-            return
-        window = DetectionsManagerDialog(None)
-        window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None) if self._detections_manager_window is window else None)
-        self._detections_manager_window = window
-        self._detections_manager_window.show()
 
     @override
     def _open_player_resolver(self) -> None:

@@ -76,6 +76,12 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     QDialog#InterfaceSelectionDialog {
         background-color: #0b141f;
     }
+    QDialog#InterfaceSelectionDialog QStackedWidget,
+    QDialog#InterfaceSelectionDialog QStackedWidget > QWidget,
+    QDialog#InterfaceSelectionDialog QWidget#HotspotManagerWidget {
+        background: transparent;
+        background-color: transparent;
+    }
 
     /* Tooltips */
     QToolTip {

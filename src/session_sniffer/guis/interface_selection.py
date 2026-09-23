@@ -22,6 +22,8 @@ def show_interface_selection_dialog(
     interfaces: list[Interface],
     filter_defaults: tuple[bool, bool, bool],
     saved_selection: tuple[str | None, str | None, str | None] = (None, None, None),
+    *,
+    initial_tab: int = 0,
 ) -> tuple[SelectedInterfaceRow | None, bool, bool, bool, bool]:
     """Show the interface selection dialog and return the chosen interface and toggles.
 
@@ -30,6 +32,7 @@ def show_interface_selection_dialog(
         interfaces: Available Interface objects to display.
         filter_defaults: Default states as (hide_inactive, hide_neighbours, arp_spoofing).
         saved_selection: Previously saved (interface_name, ip_address, mac_address).
+        initial_tab: Initial tab index (0 for Network Interfaces, 1 for Hotspot & Connection Sharing).
 
     Returns:
         Tuple of (selected_interface, arp_spoofing_enabled, hide_inactive_enabled, hide_neighbours_enabled, remember_interface_enabled).
@@ -40,6 +43,7 @@ def show_interface_selection_dialog(
         screen_size,
         interfaces,
         filter_defaults,
+        initial_tab=initial_tab,
     )
     dialog.restore_saved_interface_selection(saved_interface_name, saved_ip_address, saved_mac_address)
 
@@ -60,6 +64,7 @@ def select_interface(
     *,
     force_dialog: bool = False,
     before_dialog: Callable[[], None] | None = None,
+    initial_tab: int = 0,
 ) -> SelectedInterfaceRow | None:
     """Select the best matching interface based on current settings.
 
@@ -71,6 +76,7 @@ def select_interface(
         screen_size: Screen dimensions as (width, height) in pixels.
         force_dialog: If True, always show the selection dialog even when auto-connect would succeed.
         before_dialog: Optional callback invoked once, right before the dialog is shown (skipped on auto-select).
+        initial_tab: Initial tab index (0 for Network Interfaces, 1 for Hotspot & Connection Sharing).
 
     Returns:
         A SelectedInterfaceRow referencing the live Interface, or None if cancelled.
@@ -139,7 +145,7 @@ def select_interface(
 
         return None
 
-    if not force_dialog:
+    if not force_dialog and not initial_tab:
         auto_selected = _auto_select_best_interface()
         if auto_selected is not None:
             return auto_selected
@@ -159,6 +165,7 @@ def select_interface(
         interfaces,
         (Settings.gui_interface_selection_hide_inactive, Settings.gui_interface_selection_hide_neighbours, Settings.capture_arp_spoofing),
         (Settings.capture_interface_name, Settings.capture_ip_address, Settings.capture_mac_address),
+        initial_tab=initial_tab,
     )
 
     if selected_interface is None:

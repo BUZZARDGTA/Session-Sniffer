@@ -120,8 +120,8 @@ def interface_select_button_enabled_style(scale: float) -> str:
     )
 
 
-def interface_refresh_arp_button_enabled_style(scale: float) -> str:
-    """Return the QSS for the Refresh ARP button in its enabled state at the given UI `scale`."""
+def interface_secondary_button_enabled_style(scale: float) -> str:
+    """Return the QSS for a secondary action button in the interface selection dialog in its enabled state at the given UI `scale`."""
     font_size = max(1, round(14 * scale))
     padding_v = max(1, round(4 * scale))
     padding_h = max(1, round(10 * scale))
@@ -141,8 +141,8 @@ def interface_refresh_arp_button_enabled_style(scale: float) -> str:
     )
 
 
-def interface_refresh_arp_button_disabled_style(scale: float) -> str:
-    """Return the QSS for the Refresh ARP button in its disabled (greyed-out) state at the given UI `scale`."""
+def interface_secondary_button_disabled_style(scale: float) -> str:
+    """Return the QSS for a secondary action button in the interface selection dialog in its disabled (greyed-out) state at the given UI `scale`."""
     font_size = max(1, round(14 * scale))
     padding_v = max(1, round(4 * scale))
     padding_h = max(1, round(10 * scale))
@@ -199,4 +199,49 @@ def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float
         ' border-radius: 8px;'
         f' padding: {padding_v}px {padding_h}px;'
         ' }'
+    )
+
+
+def interface_tab_container_stylesheet(ui_scale: float) -> str:
+    """Return the QSS for the segmented navigation tab bar container at the given UI `scale`."""
+
+    def scale(value: int) -> int:
+        return max(1, round(value * ui_scale))
+
+    return f'QFrame#interfaceTabContainer {{ background-color: #0b1420; border: 1px solid #1a2c42; border-radius: {scale(8)}px; padding: {scale(4)}px;}}'
+
+
+def interface_tab_button_stylesheet(ui_scale: float) -> str:
+    """Return the QSS for segmented navigation tab buttons at the given UI `scale`."""
+
+    def scale(value: int) -> int:
+        return max(1, round(value * ui_scale))
+
+    return (
+        'QPushButton#tabInterfacesButton, QPushButton#tabHotspotButton {'
+        f' font-size: {scale(10)}pt;'
+        ' font-weight: 600;'
+        ' color: #7e95ab;'
+        ' background-color: transparent;'
+        ' border: 1px solid transparent;'
+        f' border-radius: {scale(6)}px;'
+        f' padding: {scale(8)}px {scale(20)}px;'
+        f' min-height: {scale(34)}px;'
+        ' text-align: center;'
+        '}'
+        'QPushButton#tabInterfacesButton:hover:!checked, QPushButton#tabHotspotButton:hover:!checked {'
+        ' background-color: rgba(255, 255, 255, 0.04);'
+        ' color: #cbe0f5;'
+        '}'
+        'QPushButton#tabInterfacesButton:checked, QPushButton#tabHotspotButton:checked {'
+        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0, 180, 216, 0.22), stop:1 rgba(0, 180, 216, 0.06));'
+        ' border: 1px solid #00b4d8;'
+        ' color: #ffffff;'
+        ' font-weight: 700;'
+        '}'
+        'QPushButton#tabInterfacesButton:checked:hover, QPushButton#tabHotspotButton:checked:hover {'
+        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(56, 189, 248, 0.28), stop:1 rgba(56, 189, 248, 0.10));'
+        ' border: 1px solid #38bdf8;'
+        ' color: #ffffff;'
+        '}'
     )
