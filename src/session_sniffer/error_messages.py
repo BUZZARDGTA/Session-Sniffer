@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from session_sniffer.networking.interface import SelectedInterfaceRow
-    from session_sniffer.player.userip import UserIP
+    from session_sniffer.player.userip import UserIPConflict
 
 
 def format_type_error(
@@ -182,29 +182,84 @@ def format_outdated_packages_message(
 
 def format_userip_ip_conflict_message(
     *,
-    existing_userip: UserIP,
-    conflicting_database_path: Path,
-    conflicting_username: str,
+    conflicts: Sequence[UserIPConflict],
     userip_databases_dir: Path,
-) -> str:
-    """Format the error shown when the same IP exists in multiple UserIP databases."""
-    return f"""
+) -> tuple[str, str | None]:
+    """Format the error shown when one or more IPs exist in multiple UserIP databases.
+
+    Returns:
+        A tuple of (summary_message, detailed_text). If detailed_text is None, no details section is needed.
+    """
+    count = len(conflicts)
+    if count == 1:
+        conflict = conflicts[0]
+        db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
+        db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
+        usernames1 = ', '.join(conflict.existing_userip.usernames)
+        msg = f"""
+            ERROR:
+                UserIP databases IP conflict
+
+            INFOS:
+                The same IP cannot be assigned to multiple
+                databases.
+                Users assigned to this IP will be ignored until
+                the conflict is resolved.
+
+            DEBUG:
+                "{db1_name}":
+                {usernames1}={conflict.existing_userip.ip}
+
+                "{db2_name}":
+                {conflict.conflicting_username}={conflict.existing_userip.ip}
+        """
+        return msg, None
+
+    preview_lines: list[str] = []
+    preview_count = min(count, 5)
+    for conflict in conflicts[:preview_count]:
+        db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
+        db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
+        usernames1 = ', '.join(conflict.existing_userip.usernames)
+        preview_lines.append(
+            f'            "{db1_name}" ({usernames1}={conflict.existing_userip.ip})\n'
+            f'            "{db2_name}" ({conflict.conflicting_username}={conflict.existing_userip.ip})',
+        )
+
+    preview_block = '\n\n'.join(preview_lines)
+    remaining_count = count - preview_count
+    remaining_suffix = f'\n\n            ... and {remaining_count} more conflicts (see "Show Details...").' if remaining_count > 0 else ''
+
+    summary = f"""
         ERROR:
-            UserIP databases IP conflict
+            UserIP databases IP conflicts ({count} conflicts detected)
 
         INFOS:
             The same IP cannot be assigned to multiple
             databases.
-            Users assigned to this IP will be ignored until
-            the conflict is resolved.
+            Users assigned to conflicting IPs will be ignored until
+            conflicts are resolved.
 
         DEBUG:
-            "{existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')}":
-            {', '.join(existing_userip.usernames)}={existing_userip.ip}
-
-            "{conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')}":
-            {conflicting_username}={existing_userip.ip}
+{preview_block}{remaining_suffix}
     """
+
+    detailed_lines: list[str] = []
+    max_detailed = min(count, 1000)
+    for i, conflict in enumerate(conflicts[:max_detailed], start=1):
+        db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
+        db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
+        usernames1 = ', '.join(conflict.existing_userip.usernames)
+        detailed_lines.append(
+            f'[{i}] IP: {conflict.existing_userip.ip}\n'
+            f'    "{db1_name}": {usernames1}\n'
+            f'    "{db2_name}": {conflict.conflicting_username}\n',
+        )
+    if count > max_detailed:
+        detailed_lines.append(f'... and {count - max_detailed} more conflicts (see application logs).\n')
+
+    detailed_text = '\n'.join(detailed_lines)
+    return summary, detailed_text
 
 
 def format_arp_spoofing_failed_message(

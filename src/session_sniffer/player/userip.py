@@ -18,7 +18,7 @@ from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.text_utils import format_triple_quoted_text
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from PySide6.QtWidgets import QMessageBox
 
@@ -74,6 +74,14 @@ class UserIP(NamedTuple):
     usernames: list[str]
 
 
+class UserIPConflict(NamedTuple):
+    """Represents a conflict where an IP is assigned to multiple databases."""
+
+    existing_userip: UserIP
+    conflicting_database_path: Path
+    conflicting_username: str
+
+
 class _RangeEntry(NamedTuple):
     """A parsed IP range entry associated with a specific UserIP database."""
 
@@ -99,6 +107,7 @@ class _BuildState:
     ips_set: set[str]
     ip_to_userip: dict[str, UserIP]
     unresolved_conflicts: set[str]
+    new_conflicts: list[UserIPConflict]
 
 
 class UserIPDatabases:
@@ -111,44 +120,57 @@ class UserIPDatabases:
     _ip_to_userip: ClassVar[dict[str, UserIP]] = {}
     _range_entries: ClassVar[list[_RangeEntry]] = []
     notified_ip_conflicts: ClassVar[set[str]] = set()
-    _open_conflict_dialogs: ClassVar[dict[str, QMessageBox]] = {}
+    _open_conflict_dialog: ClassVar[QMessageBox | None] = None
     build_version: ClassVar[int] = 0
 
-    @staticmethod
-    def _notify_ip_conflict(
-        *,
-        existing_userip: UserIP,
-        conflicting_database_path: Path,
-        conflicting_username: str,
-    ) -> None:
-        text = format_triple_quoted_text(
-            format_userip_ip_conflict_message(
-                existing_userip=existing_userip,
-                conflicting_database_path=conflicting_database_path,
-                conflicting_username=conflicting_username,
-                userip_databases_dir=USERIP_DATABASES_DIR_PATH,
-            ),
+    @classmethod
+    def _notify_ip_conflicts(cls, conflicts: Sequence[UserIPConflict]) -> None:
+        if not conflicts:
+            return
+
+        summary_template, detailed_text = format_userip_ip_conflict_message(
+            conflicts=conflicts,
+            userip_databases_dir=USERIP_DATABASES_DIR_PATH,
         )
+        text = format_triple_quoted_text(summary_template)
+
+        for conflict in conflicts:
+            logger.warning(
+                'UserIP IP conflict for %s: "%s" (%s) vs "%s" (%s)',
+                conflict.existing_userip.ip,
+                conflict.existing_userip.db_path.name,
+                ', '.join(conflict.existing_userip.usernames),
+                conflict.conflicting_database_path.name,
+                conflict.conflicting_username,
+            )
 
         def _show_on_gui() -> None:
             parent = find_main_window()
             if parent is None:
                 QTimer.singleShot(500, _show_on_gui)
                 return
+
+            if UserIPDatabases._open_conflict_dialog is not None:
+                UserIPDatabases._open_conflict_dialog.accept()
+                UserIPDatabases._open_conflict_dialog = None
+
             dlg = create_nonmodal_warning(parent, text)
+            if detailed_text is not None:
+                dlg.setDetailedText(detailed_text)
 
             def _on_finished(_result: int) -> None:
-                UserIPDatabases._open_conflict_dialogs.pop(existing_userip.ip, None)
+                UserIPDatabases._open_conflict_dialog = None
 
             dlg.finished.connect(_on_finished)
-            UserIPDatabases._open_conflict_dialogs[existing_userip.ip] = dlg
+            UserIPDatabases._open_conflict_dialog = dlg
             dlg.show()
 
         gui_dispatcher.invoke(_show_on_gui)
 
     @classmethod
-    def _close_conflict_dialog(cls, ip: str) -> None:
-        dlg = cls._open_conflict_dialogs.pop(ip, None)
+    def _close_conflict_dialog(cls) -> None:
+        dlg = cls._open_conflict_dialog
+        cls._open_conflict_dialog = None
         if dlg is not None:
             dlg.accept()
 
@@ -193,13 +215,14 @@ class UserIPDatabases:
     ) -> None:
         """Process a single IP entry during build."""
         if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
-            if entry not in cls.notified_ip_conflicts:
-                cls._notify_ip_conflict(
-                    existing_userip=build_state.ip_to_userip[entry],
-                    conflicting_database_path=db_entry.db_path,
-                    conflicting_username=username,
+            if entry not in build_state.unresolved_conflicts and entry not in cls.notified_ip_conflicts:
+                build_state.new_conflicts.append(
+                    UserIPConflict(
+                        existing_userip=build_state.ip_to_userip[entry],
+                        conflicting_database_path=db_entry.db_path,
+                        conflicting_username=username,
+                    ),
                 )
-                cls.notified_ip_conflicts.add(entry)
             build_state.unresolved_conflicts.add(entry)
             return
 
@@ -262,8 +285,14 @@ class UserIPDatabases:
         ip_to_userip: dict[str, UserIP] = {}
         range_entries: list[_RangeEntry] = []
         unresolved_conflicts: set[str] = set()
+        new_conflicts: list[UserIPConflict] = []
 
-        build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, unresolved_conflicts=unresolved_conflicts)
+        build_state = _BuildState(
+            ips_set=ips_set,
+            ip_to_userip=ip_to_userip,
+            unresolved_conflicts=unresolved_conflicts,
+            new_conflicts=new_conflicts,
+        )
 
         for db_entry in current_databases:
             for username, ip_addresses in db_entry.single_ips.items():
@@ -298,22 +327,20 @@ class UserIPDatabases:
                 player.userip_detection = None
 
         with cls._update_userip_database_lock:
-            # Remove resolved conflicts and auto-close their dialogs
-            resolved_conflicts = cls.notified_ip_conflicts - unresolved_conflicts
-            cls.notified_ip_conflicts -= resolved_conflicts
-            if resolved_conflicts:
-                _to_close = frozenset(resolved_conflicts)
+            # Auto-close the open dialog when all conflicts are resolved
+            if not unresolved_conflicts and cls._open_conflict_dialog is not None:
+                gui_dispatcher.invoke(cls._close_conflict_dialog)
 
-                def _close_resolved() -> None:
-                    for _ip in _to_close:
-                        UserIPDatabases._close_conflict_dialog(_ip)
-
-                gui_dispatcher.invoke(_close_resolved)
+            # Record all currently active conflicts
+            cls.notified_ip_conflicts = set(unresolved_conflicts)
 
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
             cls.build_version += 1
+
+        if new_conflicts:
+            cls._notify_ip_conflicts(new_conflicts)
 
     @classmethod
     def is_known_ip(cls, ip: str) -> bool:
