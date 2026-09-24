@@ -678,7 +678,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._connected.table_view.adjust_username_column_width()
             self._connected.table_view.adjust_ip_column_width()
             self._connected.table_view.adjust_ports_column_width()
-            self._connected.table_view.check_initial_data_column_sizing()
 
         if disconnected_count_changed:
             self._disconnected.update_current_count(payload.disconnected_count)
@@ -705,7 +704,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._disconnected.table_view.adjust_username_column_width()
             self._disconnected.table_view.adjust_ip_column_width()
             self._disconnected.table_view.adjust_ports_column_width()
-            self._disconnected.table_view.check_initial_data_column_sizing()
 
         self._connected.table_view.restore_selection()
         self._disconnected.table_view.restore_selection()

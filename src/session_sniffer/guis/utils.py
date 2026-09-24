@@ -740,7 +740,6 @@ def setup_static_table_column_resizing(
     total_base_width = 0
     flex_count = 0
     last_visible_column: int | None = None
-    column_base_widths: dict[int, int] = {}
 
     for column in range(table_model.columnCount()):
         if horizontal_header.isSectionHidden(column):
@@ -748,14 +747,6 @@ def setup_static_table_column_resizing(
         last_visible_column = column
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
         base_width = compute_base_width(font_metrics, header_label) if compute_base_width is not None else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-        if isinstance(table, QTableView) and table_model.rowCount() > 0:
-            content_hint = table.sizeHintForColumn(column)
-            if content_hint > 0:
-                header_min = font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-                if header_label == 'IP Address' and compute_base_width is not None:
-                    header_min = compute_base_width(font_metrics, header_label)
-                base_width = max(header_min, content_hint + 4)
-        column_base_widths[column] = base_width
         total_base_width += base_width
         if header_label in target_flexible_columns:
             flex_count += 1
@@ -771,7 +762,7 @@ def setup_static_table_column_resizing(
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
         horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
-        base_width = column_base_widths.get(column, font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING)
+        base_width = compute_base_width(font_metrics, header_label) if compute_base_width is not None else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
 
         if header_label in target_flexible_columns:
             current_flex_index += 1
