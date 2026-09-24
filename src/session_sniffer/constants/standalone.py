@@ -127,17 +127,9 @@ FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',
     'Username',
     'Hostname',
-    'Country',
-    'Region',
-    'City',
-    'District',
-    'Continent',
     'Organization',
     'ISP',
     'ASN / ISP',
-    'AS',
-    'ASN',
-    'Time Zone',
 )
 
 

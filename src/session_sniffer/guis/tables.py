@@ -74,6 +74,18 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ('Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
 
+_COLUMN_SAMPLE_TEXTS: dict[str, str] = {
+    'ASN / ISP': 'Take-Two Interactive Software, Inc.',
+    'Organization': 'Take-Two Interactive Software, Inc.',
+    'ISP': 'Take-Two Interactive Software, Inc.',
+    'Country': 'United States (US)',
+    'Region': 'Transbaikal Territory',
+    'Hostname': '90-188-59-94.elisa-mobile.fi',
+    'First Seen': '00d 00h 00m 00s',
+    'Last Rejoin': '00d 00h 00m 00s',
+    'Last Seen': '00d 00h 00m 00s',
+}
+
 
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
@@ -106,6 +118,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._saved_v_scroll: int | None = None
         self._max_ip_icons: int = 0
         self._has_multiple_ports: bool = False
+        self._has_auto_sized_with_data: bool = False
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -294,14 +307,25 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
         if header_label == 'Time Zone':
             sample_time_zone = (
-                'America/Indiana/Indianapolis · 00:00'
+                'Europe/Amsterdam · 00:00'
                 if Settings.gui_columns_timezone_display == 'Both'
-                else 'America/Indiana/Indianapolis'
+                else 'Europe/Amsterdam'
                 if Settings.gui_columns_timezone_display == 'Timezone'
                 else '00:00'
             )
             return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + HEADER_SORT_PADDING)
+        if sample_text := _COLUMN_SAMPLE_TEXTS.get(header_label):
+            extra_padding = 22 if header_label == 'Country' else 0
+            return max(base_width, font_metrics.horizontalAdvance(sample_text) + HEADER_SORT_PADDING + extra_padding)
         return base_width
+
+    def check_initial_data_column_sizing(self) -> None:
+        """Perform initial content-aware column sizing once when row data is first populated."""
+        if not self._has_auto_sized_with_data and self.model().rowCount() > 0:
+            self._has_auto_sized_with_data = True
+            self.setup_static_column_resizing()
+        elif self._has_auto_sized_with_data and self.model().rowCount() == 0:
+            self._has_auto_sized_with_data = False
 
     def setup_static_column_resizing(self) -> None:
         """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
