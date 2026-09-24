@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
@@ -107,7 +108,7 @@ class _BuildState:
     ips_set: set[str]
     ip_to_userip: dict[str, UserIP]
     unresolved_conflicts: set[str]
-    new_conflicts: list[UserIPConflict]
+    conflicts: list[UserIPConflict]
 
 
 class UserIPDatabases:
@@ -124,7 +125,7 @@ class UserIPDatabases:
     build_version: ClassVar[int] = 0
 
     @classmethod
-    def _notify_ip_conflicts(cls, conflicts: Sequence[UserIPConflict]) -> None:
+    def _notify_ip_conflicts(cls, conflicts: Sequence[UserIPConflict], *, newly_detected_ips: set[str] | None = None) -> None:
         if not conflicts:
             return
 
@@ -135,14 +136,15 @@ class UserIPDatabases:
         text = format_triple_quoted_text(summary_template)
 
         for conflict in conflicts:
-            logger.warning(
-                'UserIP IP conflict for %s: "%s" (%s) vs "%s" (%s)',
-                conflict.existing_userip.ip,
-                conflict.existing_userip.db_path.name,
-                ', '.join(conflict.existing_userip.usernames),
-                conflict.conflicting_database_path.name,
-                conflict.conflicting_username,
-            )
+            if newly_detected_ips is None or conflict.existing_userip.ip in newly_detected_ips:
+                logger.warning(
+                    'UserIP IP conflict for %s: "%s" (%s) vs "%s" (%s)',
+                    conflict.existing_userip.ip,
+                    conflict.existing_userip.db_path.name,
+                    ', '.join(conflict.existing_userip.usernames),
+                    conflict.conflicting_database_path.name,
+                    conflict.conflicting_username,
+                )
 
         def _show_on_gui() -> None:
             parent = find_main_window()
@@ -151,8 +153,15 @@ class UserIPDatabases:
                 return
 
             if UserIPDatabases._open_conflict_dialog is not None:
-                UserIPDatabases._open_conflict_dialog.accept()
-                UserIPDatabases._open_conflict_dialog = None
+                dlg = UserIPDatabases._open_conflict_dialog
+                dlg.setText(text)
+                dlg.setDetailedText(detailed_text or '')
+                dlg.show()
+                dlg.raise_()
+                dlg.activateWindow()
+                if newly_detected_ips:
+                    QApplication.beep()
+                return
 
             dlg = create_nonmodal_warning(parent, text)
             if detailed_text is not None:
@@ -215,8 +224,8 @@ class UserIPDatabases:
     ) -> None:
         """Process a single IP entry during build."""
         if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
-            if entry not in build_state.unresolved_conflicts and entry not in cls.notified_ip_conflicts:
-                build_state.new_conflicts.append(
+            if entry not in build_state.unresolved_conflicts:
+                build_state.conflicts.append(
                     UserIPConflict(
                         existing_userip=build_state.ip_to_userip[entry],
                         conflicting_database_path=db_entry.db_path,
@@ -285,13 +294,13 @@ class UserIPDatabases:
         ip_to_userip: dict[str, UserIP] = {}
         range_entries: list[_RangeEntry] = []
         unresolved_conflicts: set[str] = set()
-        new_conflicts: list[UserIPConflict] = []
+        conflicts: list[UserIPConflict] = []
 
         build_state = _BuildState(
             ips_set=ips_set,
             ip_to_userip=ip_to_userip,
             unresolved_conflicts=unresolved_conflicts,
-            new_conflicts=new_conflicts,
+            conflicts=conflicts,
         )
 
         for db_entry in current_databases:
@@ -326,6 +335,10 @@ class UserIPDatabases:
             if player.userip is None:
                 player.userip_detection = None
 
+        has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
+        conflicts_changed = unresolved_conflicts != cls.notified_ip_conflicts
+        newly_detected_ips = unresolved_conflicts - cls.notified_ip_conflicts
+
         with cls._update_userip_database_lock:
             # Auto-close the open dialog when all conflicts are resolved
             if not unresolved_conflicts and cls._open_conflict_dialog is not None:
@@ -339,8 +352,8 @@ class UserIPDatabases:
             cls._range_entries = range_entries
             cls.build_version += 1
 
-        if new_conflicts:
-            cls._notify_ip_conflicts(new_conflicts)
+        if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
+            cls._notify_ip_conflicts(conflicts, newly_detected_ips=newly_detected_ips)
 
     @classmethod
     def is_known_ip(cls, ip: str) -> bool:
