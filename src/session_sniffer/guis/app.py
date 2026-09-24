@@ -7,7 +7,7 @@ import os
 import sys
 from typing import override
 
-from PySide6.QtCore import QEvent, QMessageLogContext, QObject, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QCoreApplication, QEvent, QMessageLogContext, QObject, Qt, QtMsgType, qInstallMessageHandler
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
@@ -69,11 +69,15 @@ class _DisableScrollValueChangeFilter(QObject):
             if is_target and target is not None:
                 if target.focusPolicy() == Qt.FocusPolicy.WheelFocus:
                     target.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                # If a combo box popup view is open and active, let the user scroll through the popup list
+                if isinstance(target, QComboBox) and target.view().isVisible():
+                    return super().eventFilter(watched, event)
+
                 event.ignore()
                 ancestor = target.parentWidget()
                 while ancestor is not None:
-                    ancestor.wheelEvent(event)
-                    if event.isAccepted():
+                    if isinstance(ancestor, QAbstractScrollArea):
+                        QCoreApplication.sendEvent(ancestor.viewport(), event)
                         return True
                     ancestor = ancestor.parentWidget()
                 return True
@@ -83,15 +87,13 @@ class _DisableScrollValueChangeFilter(QObject):
     def _is_scroll_value_change_widget(watched: QObject) -> tuple[bool, QWidget | None]:
         if not isinstance(watched, QWidget):
             return False, None
-        if isinstance(watched, QAbstractScrollArea):
-            return False, None
-        parent_widget = watched.parentWidget()
-        if isinstance(parent_widget, QAbstractScrollArea):
-            return False, None
-        if isinstance(watched, (QComboBox, QAbstractSpinBox, QSlider, QDial)):
-            return True, watched
-        if isinstance(parent_widget, (QComboBox, QAbstractSpinBox, QSlider, QDial)):
-            return True, parent_widget
+        current_widget: QWidget | None = watched
+        while current_widget is not None:
+            if isinstance(current_widget, QAbstractScrollArea):
+                return False, None
+            if isinstance(current_widget, (QComboBox, QAbstractSpinBox, QSlider, QDial)):
+                return True, current_widget
+            current_widget = current_widget.parentWidget()
         return False, None
 
 
