@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
@@ -159,8 +158,6 @@ class UserIPDatabases:
                 dlg.show()
                 dlg.raise_()
                 dlg.activateWindow()
-                if newly_detected_ips:
-                    QApplication.beep()
                 return
 
             dlg = create_nonmodal_warning(parent, text)
