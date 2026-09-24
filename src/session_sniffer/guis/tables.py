@@ -292,6 +292,15 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             return base_width
         if header_label == 'Ports' and self.model().has_multiple_ports():
             return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
+        if header_label == 'Time Zone':
+            sample_time_zone = (
+                'America/Indiana/Indianapolis · 00:00'
+                if Settings.gui_columns_timezone_display == 'Both'
+                else 'America/Indiana/Indianapolis'
+                if Settings.gui_columns_timezone_display == 'Timezone'
+                else '00:00'
+            )
+            return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + HEADER_SORT_PADDING)
         return base_width
 
     def setup_static_column_resizing(self) -> None:

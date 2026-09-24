@@ -118,7 +118,6 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
         'Lon',
         'Offset',
         'Currency',
-        'Time Zone',
     },
 )
 
@@ -138,6 +137,7 @@ FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'ASN / ISP',
     'AS',
     'ASN',
+    'Time Zone',
 )
 
 
