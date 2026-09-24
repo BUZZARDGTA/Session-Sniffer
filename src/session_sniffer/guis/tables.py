@@ -87,6 +87,17 @@ _COLUMN_SAMPLE_TEXTS: dict[str, str] = {
 }
 
 
+def _get_column_sample_text(header_label: str) -> str | None:
+    """Return the representative sample text used to compute initial column widths."""
+    if header_label == 'Time Zone':
+        if Settings.gui_columns_timezone_display == 'Both':
+            return 'America/Indiana/Indianapolis · 00:00'
+        if Settings.gui_columns_timezone_display == 'Timezone':
+            return 'America/Indiana/Indianapolis'
+        return '00:00'
+    return _COLUMN_SAMPLE_TEXTS.get(header_label)
+
+
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
 
@@ -305,18 +316,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             return base_width
         if header_label == 'Ports' and self.model().has_multiple_ports():
             return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
-        if header_label == 'Time Zone':
-            sample_time_zone = (
-                'Europe/Amsterdam · 00:00'
-                if Settings.gui_columns_timezone_display == 'Both'
-                else 'Europe/Amsterdam'
-                if Settings.gui_columns_timezone_display == 'Timezone'
-                else '00:00'
-            )
-            return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + HEADER_SORT_PADDING)
-        if sample_text := _COLUMN_SAMPLE_TEXTS.get(header_label):
-            extra_padding = 22 if header_label == 'Country' else 0
-            return max(base_width, font_metrics.horizontalAdvance(sample_text) + HEADER_SORT_PADDING + extra_padding)
+        if sample_text := _get_column_sample_text(header_label):
+            return max(base_width, font_metrics.horizontalAdvance(sample_text) + HEADER_SORT_PADDING)
         return base_width
 
     def check_initial_data_column_sizing(self) -> None:
