@@ -498,18 +498,22 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
     def _sync_dirty_state(self) -> None:
         """Recompute the aggregate dirty flag from the tracked sources and update the Save button."""
-        self._dirty = self._entries_dirty or self._settings_dirty
-        self._save_button.setEnabled(self._dirty and self._current_path is not None and not self._global_search_active)
+        self._dirty = (self._entries_dirty or self._settings_dirty) and self._current_path is not None and not self._global_search_active
+        self._save_button.setEnabled(self._dirty)
 
     @override
     def _mark_entries_dirty(self) -> None:
         """Mark entry edits as dirty and refresh the aggregate state."""
+        if self._global_search_active or self._current_path is None:
+            return
         self._entries_dirty = True
         self._sync_dirty_state()
 
     @override
     def _mark_settings_dirty(self) -> None:
         """Re-evaluate settings dirtiness against the loaded snapshot."""
+        if self._global_search_active or self._current_path is None:
+            return
         self._settings_dirty = self.read_settings_from_widgets() != self._settings_snapshot
         self._sync_dirty_state()
 
@@ -652,11 +656,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
                 self._global_search_checkbox.setChecked(False)
                 self._global_search_checkbox.blockSignals(False)  # noqa: FBT003
                 return
-            self._dirty = False
+            self._clear_dirty_state()
             self._global_search_active = True
             self._update_file_info(None)
             self._load_all_databases()
         else:
+            self._clear_dirty_state()
             self._global_search_active = False
             if self._current_path is not None:
                 self._load_database(self._current_path)
@@ -698,6 +703,8 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
     def _on_data_changed(self, _top_left: QModelIndex, _bottom_right: QModelIndex, _roles: list[int]) -> None:
         """Mark the current database as having unsaved changes."""
+        if self._global_search_active or self._current_path is None:
+            return
         self._mark_entries_dirty()
         self._highlight_duplicates()
 
@@ -954,11 +961,12 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
             for username, ip_or_range, is_looky, row in entries_to_move:
                 db_item = self._model.item(row, DATABASE_COLUMN)
                 db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
-                if db_path_str:
-                    src_db_path = Path(db_path_str)
-                    if src_db_path == target_db_path:
-                        continue
-                    entries_by_src[src_db_path].add((username, ip_or_range))
+                if not db_path_str:
+                    continue
+                src_db_path = Path(db_path_str)
+                if src_db_path == target_db_path:
+                    continue
+                entries_by_src[src_db_path].add((username, ip_or_range))
                 valid_moves.append((username, ip_or_range, is_looky, row))
 
             if not valid_moves:
@@ -1003,7 +1011,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
     def _save_database(self) -> None:
         """Validate entries and write the database file back to disk."""
-        if self._current_path is None:
+        if self._current_path is None or self._global_search_active:
             return
 
         # --- Validate all entries ---
@@ -1219,11 +1227,13 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are dirty (unsaved) changes."""
-        return self._dirty
+        return self._dirty and self._current_path is not None and not self._global_search_active
 
     @override
     def _save_on_close(self) -> bool:
         """Save the database; return `True` if the save succeeded (no longer dirty)."""
+        if self._current_path is None or self._global_search_active:
+            return True
         self._save_database()
         return not self._dirty
 
