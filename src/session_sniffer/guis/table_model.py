@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import (
     QAbstractTableModel,
-    QItemSelection,
-    QItemSelectionModel,
     QModelIndex,
     QPersistentModelIndex,
     Qt,
@@ -658,49 +656,18 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     def delete_row(self, row_index: int) -> None:
         """Delete a row from the model along with its associated colors.
 
-        If any items are selected under this row, their selection moves one row up.
-
         Args:
             row_index: The index of the row to delete.
         """
         if 0 <= row_index < self.rowCount():
-            selection_model = self.view.selectionModel()
-
-            # Adjust selection for the deleted row
-            for model_index in selection_model.selection().indexes():
-                if model_index.row() == row_index:  # Row to be deleted
-                    # Deselect the row because it's about to be deleted
-                    # Select the row to be deleted
-                    selection = QItemSelection(
-                        self.index(model_index.row(), model_index.column()),
-                        self.index(model_index.row(), model_index.column()),
-                    )
-                    selection_model.select(selection, QItemSelectionModel.SelectionFlag.Deselect)
-
             # Notify the view that rows are about to be removed
             self.beginRemoveRows(QModelIndex(), row_index, row_index)
 
             # Remove the data and compiled colors at the specified index
             self._data.pop(row_index)
-            self._compiled_colors.pop(row_index)
+            if row_index < len(self._compiled_colors):
+                self._compiled_colors.pop(row_index)
             self._rebuild_ip_index()
-
-            # Adjust selection for rows below the deleted one
-            for model_index in selection_model.selection().indexes():
-                if model_index.row() > row_index:  # Items below the deleted row
-                    # Deselect the original row
-                    selection_to_deselect = QItemSelection(
-                        self.index(model_index.row(), model_index.column()),  # Original row
-                        self.index(model_index.row(), model_index.column()),
-                    )
-                    selection_model.select(selection_to_deselect, QItemSelectionModel.SelectionFlag.Deselect)
-
-                    # Move the selection up by one row
-                    selection_to_select = QItemSelection(
-                        self.index(model_index.row() - 1, model_index.column()),  # New row after deletion
-                        self.index(model_index.row() - 1, model_index.column()),
-                    )
-                    selection_model.select(selection_to_select, QItemSelectionModel.SelectionFlag.Select)
 
             # Notify the view that the rows have been removed
             self.endRemoveRows()
@@ -714,10 +681,6 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 self._ip_to_row_index.clear()
                 # End reset and notify the view that the model has been reset
                 self.endResetModel()
-
-            # Ensure the view resizes properly after a row is removed
-            # view.resizeRowsToContents()
-            # view.viewport().update()
 
     def reset_columns(self, headers: list[str] | None = None) -> None:
         """Replace column headers and clear all data.
@@ -750,16 +713,8 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             ip: The IP address of the player to remove.
         """
         row_index = self._ip_to_row_index.get(ip)
-        if row_index is None:
-            return
-
-        # Remove the row
-        self.beginRemoveRows(QModelIndex(), row_index, row_index)
-        self._data.pop(row_index)
-        if row_index < len(self._compiled_colors):
-            self._compiled_colors.pop(row_index)
-        self._rebuild_ip_index()
-        self.endRemoveRows()
+        if row_index is not None:
+            self.delete_row(row_index)
 
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""
