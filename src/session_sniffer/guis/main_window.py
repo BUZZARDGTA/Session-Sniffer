@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Main window implementation for Session Sniffer."""
 
 import sys
@@ -38,11 +39,11 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import (
-    activate_window,
     apply_always_on_top,
     resize_window_for_screen,
     scale_by_ui,
     show_detailed_message,
+    show_or_focus_window,
 )
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.models import GUIState
@@ -551,11 +552,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def show_discord_intro(self) -> None:
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
-        # Parentless: an owned Qt.Tool/Dialog window disables the owner's native close (X) button.
-        # Retain the reference so the dialog isn't garbage-collected; WA_DeleteOnClose cleans it up.
-        window = DiscordIntro()
-        window.destroyed.connect(lambda: setattr(self, '_discord_intro_window', None) if self._discord_intro_window is window else None)
-        self._discord_intro_window = window
+        show_or_focus_window(self, '_discord_intro_window', DiscordIntro)
 
     @override
     def eventFilter(self, a0: QObject, a1: QEvent) -> bool:
@@ -857,72 +854,40 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
-        if self._settings_dialog_window is not None:
-            activate_window(self._settings_dialog_window)
-            return
-        window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
-        window.accepted.connect(self._update_game_toolbar_visibility)
-        window.accepted.connect(self._apply_always_on_top)
-        window.accepted.connect(self._update_splitter_visibility)
-        window.accepted.connect(self._apply_table_sort_from_settings)
-        window.accepted.connect(self._apply_table_pagination_from_settings)
-        window.accepted.connect(self._sync_player_resolver_settings)
-        window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
-        self._settings_dialog_window = window
-        self._settings_dialog_window.show()
+        def _factory() -> SettingsDialog:
+            window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
+            for callback in (
+                self._update_game_toolbar_visibility,
+                self._apply_always_on_top,
+                self._update_splitter_visibility,
+                self._apply_table_sort_from_settings,
+                self._apply_table_pagination_from_settings,
+                self._sync_player_resolver_settings,
+            ):
+                window.accepted.connect(callback)
+            return window
 
-    def _open_userip_manager(self) -> None:
+        show_or_focus_window(self, '_settings_dialog_window', _factory)
+
+    def _open_userip_manager(self) -> UserIPDatabasesManager:
         """Open the UserIP Databases Manager window, or focus the existing one."""
-        if self._userip_manager_window is not None:
-            activate_window(self._userip_manager_window)
-            return
-        window = UserIPDatabasesManager(None)
-        window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None) if self._userip_manager_window is window else None)
-        self._userip_manager_window = window
-        self._userip_manager_window.show()
+        return show_or_focus_window(self, '_userip_manager_window', lambda: UserIPDatabasesManager(None))
 
     def open_userip_manager_and_search(self, text: str) -> None:
         """Open the UserIP Databases Manager, activate global search, and populate the search field with `text`."""
-        if self._userip_manager_window is None:
-            window = UserIPDatabasesManager(None)
-            window.destroyed.connect(lambda: setattr(self, '_userip_manager_window', None) if self._userip_manager_window is window else None)
-            self._userip_manager_window = window
-            self._userip_manager_window.show()
-        else:
-            activate_window(self._userip_manager_window)
-        self._userip_manager_window.search_global(text)
+        self._open_userip_manager().search_global(text)
 
-    def _open_logs_manager(self) -> None:
+    def _open_logs_manager(self) -> LogsManager:
         """Open the Logs Manager window, or focus the existing one."""
-        if self._logs_manager_window is not None:
-            activate_window(self._logs_manager_window)
-            return
-        window = LogsManager(None)
-        window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
-        self._logs_manager_window = window
-        self._logs_manager_window.show()
+        return show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))
 
     def open_logs_manager_and_search_userip(self, text: str) -> None:
         """Open the Logs Manager on the UserIP Logging tab and filter by `text`."""
-        if self._logs_manager_window is None:
-            window = LogsManager(None)
-            window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
-            self._logs_manager_window = window
-            self._logs_manager_window.show()
-        else:
-            activate_window(self._logs_manager_window)
-        self._logs_manager_window.search_in_userip_logging(text)
+        self._open_logs_manager().search_in_userip_logging(text)
 
     def open_logs_manager_and_search_sessions(self, text: str) -> None:
         """Open the Logs Manager on the Sessions Logging tab and start a global search for `text`."""
-        if self._logs_manager_window is None:
-            window = LogsManager(None)
-            window.destroyed.connect(lambda: setattr(self, '_logs_manager_window', None) if self._logs_manager_window is window else None)
-            self._logs_manager_window = window
-            self._logs_manager_window.show()
-        else:
-            activate_window(self._logs_manager_window)
-        self._logs_manager_window.search_in_sessions_logging(text)
+        self._open_logs_manager().search_in_sessions_logging(text)
 
     @override
     def _open_player_resolver(self) -> None:

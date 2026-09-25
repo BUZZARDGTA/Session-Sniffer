@@ -221,12 +221,12 @@ def get_screen_size() -> tuple[int, int]:
     return screen_width, screen_height
 
 
-def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> None:
+def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int] | None = None) -> None:
     """Resize a window based on the screen resolution.
 
     Args:
         window: The window to resize.
-        screen_size: Screen dimensions as (width, height) in pixels.
+        screen_size: Screen dimensions as (width, height) in pixels. Defaults to `get_screen_size()`.
     """
     screen = window.screen() or QApplication.primaryScreen()
     if screen:
@@ -234,7 +234,7 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int]) -> N
         avail_width = avail.width()
         avail_height = avail.height()
     else:
-        avail_width, avail_height = screen_size
+        avail_width, avail_height = screen_size if screen_size is not None else get_screen_size()
 
     min_size = window.minimumSize()
     pad_width = 40
@@ -425,6 +425,90 @@ def activate_window(widget: QWidget) -> None:
         widget.show()
     widget.raise_()
     widget.activateWindow()
+
+
+def apply_adaptive_window_size(
+    window: QWidget,
+    *,
+    min_size: tuple[int, int],
+    size_1080p: tuple[int, int],
+    size_720p: tuple[int, int],
+) -> None:
+    """Apply a scaled minimum size and an adaptive resize based on the available screen resolution."""
+    min_w = scale_by_ui(min_size[0])
+    min_h = scale_by_ui(min_size[1])
+    window.setMinimumSize(min_w, min_h)
+
+    screen_size = get_screen_size()
+    if screen_size >= (1920, 1080):
+        window.resize(scale_by_ui(size_1080p[0]), scale_by_ui(size_1080p[1]))
+    elif screen_size >= (1280, 720):
+        window.resize(scale_by_ui(size_720p[0]), scale_by_ui(size_720p[1]))
+    else:
+        resize_window_for_screen(window, screen_size)
+        window.resize(
+            min(window.width(), max(min_w, screen_size[0] - 80)),
+            min(window.height(), max(min_h, screen_size[1] - 80)),
+        )
+
+
+def show_or_focus_window[T: QWidget](
+    owner: object,
+    attr_name: str,
+    factory: Callable[[], T],
+    *,
+    show_fn: Callable[[T], None] = activate_window,
+) -> T:
+    """Focus an existing window referenced by `getattr(owner, attr_name)`, or instantiate, track, and show a new one."""
+    current = getattr(owner, attr_name, None)
+    if current is not None:
+        activate_window(current)
+        return cast('T', current)
+
+    window = factory()
+    window.destroyed.connect(lambda: setattr(owner, attr_name, None) if getattr(owner, attr_name, None) is window else None)
+    setattr(owner, attr_name, window)
+    show_fn(window)
+    return window
+
+
+class ActiveDialogRegistry[K, V: QWidget]:
+    """Registry retaining open secondary dialogs by key and focusing existing instances."""
+
+    def __init__(self) -> None:
+        """Initialize an empty dialog registry."""
+        self._dialogs: dict[K, V] = {}
+
+    def get(self, key: K) -> V | None:
+        """Return the active dialog for *key*, if one exists."""
+        return self._dialogs.get(key)
+
+    def focus(self, key: K) -> bool:
+        """Focus the active dialog for *key* if one exists. Return True if focused, False otherwise."""
+        existing = self._dialogs.get(key)
+        if existing is not None:
+            activate_window(existing)
+            return True
+        return False
+
+    def close_all(self) -> None:
+        """Close all tracked dialogs."""
+        for dialog in list(self._dialogs.values()):
+            dialog.close()
+
+    def show_or_focus(self, key: K, factory: Callable[[], V]) -> V:
+        """Focus the active dialog for *key*, or instantiate, retain, and show a new one."""
+        existing = self._dialogs.get(key)
+        if existing is not None:
+            activate_window(existing)
+            return existing
+
+        dialog = factory()
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._dialogs[key] = dialog
+        dialog.destroyed.connect(lambda: self._dialogs.pop(key, None))
+        activate_window(dialog)
+        return dialog
 
 
 _STANDARD_ICON_SIZE = 16

@@ -21,7 +21,7 @@ from session_sniffer.guis.stylesheets import (
     player_info_group_stylesheet,
     player_info_header_stylesheet,
 )
-from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, scale_by_ui
+from session_sniffer.guis.utils import apply_adaptive_window_size
 
 
 class PlayerInfoDialogMixin(QDialog):
@@ -92,15 +92,7 @@ class PlayerInfoDialogMixin(QDialog):
 
     def _apply_standard_dialog_size(self) -> None:
         """Apply a scaled minimum size and an adaptive resize based on the available screen resolution."""
-        self.setMinimumSize(scale_by_ui(560), scale_by_ui(420))
-        screen_size = get_screen_size()
-        if screen_size >= (1920, 1080):
-            self.resize(scale_by_ui(700), scale_by_ui(560))
-        elif screen_size >= (1280, 720):
-            self.resize(scale_by_ui(620), scale_by_ui(500))
-        else:
-            resize_window_for_screen(self, screen_size)
-            self.resize(min(self.width(), max(scale_by_ui(560), screen_size[0] - 80)), min(self.height(), max(scale_by_ui(420), screen_size[1] - 80)))
+        apply_adaptive_window_size(self, min_size=(560, 420), size_1080p=(700, 560), size_720p=(620, 500))
 
     def _add_header_label(self, outer_layout: QVBoxLayout, text: str, grad_stop0: str, grad_stop1: str) -> QLabel:
         """Create a gradient header label, add it to *outer_layout*, and return it."""

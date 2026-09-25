@@ -27,7 +27,7 @@ from session_sniffer.guis.logs_manager._helpers import backup_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
 from session_sniffer.utils import cleanup_session_logs
@@ -45,8 +45,7 @@ class LogsManager(QDialog):
         self.setWindowTitle(f'Logs Manager - {TITLE}')
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(880), scale_by_ui(520))
-        screen_size = get_screen_size()
-        resize_window_for_screen(self, screen_size)
+        resize_window_for_screen(self)
 
         root_layout = QVBoxLayout(self)
 

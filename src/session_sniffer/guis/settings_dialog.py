@@ -77,7 +77,6 @@ from session_sniffer.guis.stylesheets import (
     SETTINGS_RESTART_BANNER_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
-    get_screen_size,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
@@ -118,8 +117,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self.setWindowTitle(f'Settings - {TITLE}')
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(950), scale_by_ui(750))
-        screen_size = get_screen_size()
-        resize_window_for_screen(self, screen_size)
+        resize_window_for_screen(self)
 
         self._capture = capture
         self._on_change_interface = on_change_interface

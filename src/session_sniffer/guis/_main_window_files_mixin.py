@@ -46,7 +46,7 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
-from session_sniffer.guis.utils import activate_window, set_clipboard_text
+from session_sniffer.guis.utils import activate_window, set_clipboard_text, show_or_focus_window
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -63,13 +63,7 @@ class FilesMixin(QMainWindow):
 
     def _open_detections_manager(self) -> None:
         """Open the Detections Manager window, or focus the existing one."""
-        if self._detections_manager_window is not None:
-            activate_window(self._detections_manager_window)
-            return
-        window = DetectionsManagerDialog(None)
-        window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None) if self._detections_manager_window is window else None)
-        self._detections_manager_window = window
-        self._detections_manager_window.show()
+        show_or_focus_window(self, '_detections_manager_window', lambda: DetectionsManagerDialog(None))
 
     def _open_hotspot_manager(self) -> None:
         """Open the Hotspot & Connection Sharing window, or focus the existing one."""

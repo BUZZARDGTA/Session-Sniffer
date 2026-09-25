@@ -17,7 +17,7 @@ from session_sniffer.guis.session_duration import SessionDurationWindow
 from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
-from session_sniffer.guis.utils import activate_window
+from session_sniffer.guis.utils import show_or_focus_window
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureStats
@@ -128,13 +128,7 @@ class StatsMixin(QMainWindow):
 
     def _open_player_leaderboard(self) -> None:
         """Open the Most Seen Players leaderboard, or focus the existing one."""
-        if self._leaderboard_window is not None:
-            activate_window(self._leaderboard_window)
-            return
-        window = PlayerLeaderboardWindow()
-        window.destroyed.connect(lambda: setattr(self, '_leaderboard_window', None) if self._leaderboard_window is window else None)
-        self._leaderboard_window = window
-        self._leaderboard_window.load_and_show()
+        show_or_focus_window(self, '_leaderboard_window', PlayerLeaderboardWindow, show_fn=lambda window: window.load_and_show())
 
     def reset_session_graph(self) -> None:
         """Reset graph history for all open statistics windows (called on capture restart)."""
@@ -151,14 +145,7 @@ class StatsMixin(QMainWindow):
 
     def _open_session_rate_graph(self) -> None:
         """Open or focus the session-wide rate graph window."""
-        if self._session_rate_graph_window is not None:
-            activate_window(self._session_rate_graph_window)
-            return
-
-        window = SessionRateGraphWindow()
-        window.destroyed.connect(lambda: setattr(self, '_session_rate_graph_window', None) if self._session_rate_graph_window is window else None)
-        self._session_rate_graph_window = window
-        self._session_rate_graph_window.show()
+        show_or_focus_window(self, '_session_rate_graph_window', SessionRateGraphWindow)
 
     def _tick_stats(self) -> None:
         """Tick all open statistics windows with the latest data."""
@@ -197,105 +184,46 @@ class StatsMixin(QMainWindow):
 
     def _open_session_pps_graph(self) -> None:
         """Open or focus the session-wide PPS graph window."""
-        if self._session_pps_graph_window is not None:
-            activate_window(self._session_pps_graph_window)
-            return
-
-        window = SessionPpsGraphWindow()
-        window.destroyed.connect(lambda: setattr(self, '_session_pps_graph_window', None) if self._session_pps_graph_window is window else None)
-        self._session_pps_graph_window = window
-        self._session_pps_graph_window.show()
+        show_or_focus_window(self, '_session_pps_graph_window', SessionPpsGraphWindow)
 
     def _open_session_bps_graph(self) -> None:
         """Open or focus the session-wide BPS graph window."""
-        if self._session_bps_graph_window is not None:
-            activate_window(self._session_bps_graph_window)
-            return
-
-        window = SessionBpsGraphWindow()
-        window.destroyed.connect(lambda: setattr(self, '_session_bps_graph_window', None) if self._session_bps_graph_window is window else None)
-        self._session_bps_graph_window = window
-        self._session_bps_graph_window.show()
+        show_or_focus_window(self, '_session_bps_graph_window', SessionBpsGraphWindow)
 
     def _open_packets_latency_graph(self) -> None:
         """Open or focus the packets latency graph window."""
-        if self._packets_latency_graph_window is not None:
-            activate_window(self._packets_latency_graph_window)
-            return
-
-        window = PacketsLatencyGraphWindow()
-        window.destroyed.connect(lambda: setattr(self, '_packets_latency_graph_window', None) if self._packets_latency_graph_window is window else None)
-        self._packets_latency_graph_window = window
-        self._packets_latency_graph_window.show()
+        show_or_focus_window(self, '_packets_latency_graph_window', PacketsLatencyGraphWindow)
 
     def _open_country_breakdown(self) -> None:
         """Open or focus the country breakdown window."""
-        if self._country_breakdown_window is not None:
-            activate_window(self._country_breakdown_window)
-            return
-
-        window = CountryBreakdownWindow(always_on_top=True)
-        window.destroyed.connect(lambda: setattr(self, '_country_breakdown_window', None) if self._country_breakdown_window is window else None)
-        self._country_breakdown_window = window
-        self._country_breakdown_window.show()
+        show_or_focus_window(self, '_country_breakdown_window', lambda: CountryBreakdownWindow(always_on_top=True))
 
     def _open_reconnect_frequency(self) -> None:
         """Open or focus the reconnect frequency window."""
-        if self._reconnect_frequency_window is not None:
-            activate_window(self._reconnect_frequency_window)
-            return
-
-        window = ReconnectFrequencyWindow(always_on_top=True)
-        window.destroyed.connect(lambda: setattr(self, '_reconnect_frequency_window', None) if self._reconnect_frequency_window is window else None)
-        self._reconnect_frequency_window = window
-        self._reconnect_frequency_window.show()
+        show_or_focus_window(self, '_reconnect_frequency_window', lambda: ReconnectFrequencyWindow(always_on_top=True))
 
     def _open_session_timeline(self) -> None:
         """Open or focus the session timeline window."""
-        if self._session_timeline_window is not None:
-            activate_window(self._session_timeline_window)
-            return
-
-        window = SessionTimelineWindow(always_on_top=True)
-        window.destroyed.connect(lambda: setattr(self, '_session_timeline_window', None) if self._session_timeline_window is window else None)
-        self._session_timeline_window = window
-        self._session_timeline_window.show()
+        show_or_focus_window(self, '_session_timeline_window', lambda: SessionTimelineWindow(always_on_top=True))
 
     def _open_port_heatmap(self) -> None:
         """Open or focus the port heatmap window."""
-        if self._port_heatmap_window is not None:
-            activate_window(self._port_heatmap_window)
-            return
-
-        window = PortHeatmapWindow(always_on_top=True)
-        window.destroyed.connect(lambda: setattr(self, '_port_heatmap_window', None) if self._port_heatmap_window is window else None)
-        self._port_heatmap_window = window
-        self._port_heatmap_window.show()
+        show_or_focus_window(self, '_port_heatmap_window', lambda: PortHeatmapWindow(always_on_top=True))
 
     def _open_session_duration(self) -> None:
         """Open or focus the session duration window."""
-        if self._session_duration_window is not None:
-            activate_window(self._session_duration_window)
-            return
-
-        window = SessionDurationWindow(always_on_top=True)
-        window.destroyed.connect(lambda: setattr(self, '_session_duration_window', None) if self._session_duration_window is window else None)
-        self._session_duration_window = window
-        self._session_duration_window.show()
+        show_or_focus_window(self, '_session_duration_window', lambda: SessionDurationWindow(always_on_top=True))
 
     def _open_capture_health(self) -> None:
         """Open or focus the capture statistics window."""
-        if self._capture_statistics_window is not None:
-            activate_window(self._capture_statistics_window)
-            return
+        def _factory() -> CaptureStatisticsWindow:
+            window = CaptureStatisticsWindow()
+            window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
+            window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
+            window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)
+            return window
 
-        window = CaptureStatisticsWindow()
-        window.open_session_pps_graph_requested.connect(self._open_session_pps_graph)
-        window.open_session_bps_graph_requested.connect(self._open_session_bps_graph)
-        window.open_packets_latency_graph_requested.connect(self._open_packets_latency_graph)
-        window.destroyed.connect(lambda: setattr(self, '_capture_statistics_window', None) if self._capture_statistics_window is window else None)
-        self._capture_statistics_window = window
-        self._capture_statistics_window.show()
+        show_or_focus_window(self, '_capture_statistics_window', _factory)
 
     def remove_player_from_connected(self, ip: str) -> None:
         """Remove a single player from connected table and registry by IP address."""

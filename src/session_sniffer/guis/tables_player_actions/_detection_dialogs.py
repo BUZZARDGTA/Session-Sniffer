@@ -14,7 +14,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import activate_window, format_player_display, set_dialog_window_flags
+from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -112,7 +112,7 @@ class DetectionNotificationDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
-_active_notification_dialogs: dict[tuple[str, str], DetectionNotificationDialog] = {}
+_active_notification_dialogs: ActiveDialogRegistry[tuple[str, str], DetectionNotificationDialog] = ActiveDialogRegistry()
 
 
 def show_detection_notification_dialog(
@@ -121,17 +121,7 @@ def show_detection_notification_dialog(
     info: DetectionNotificationInfo,
 ) -> None:
     """Open or focus the Detection Notification dialog for *player*."""
-    key = (player.ip, info.display_title)
-    existing_dialog = _active_notification_dialogs.get(key)
-    if existing_dialog is not None:
-        activate_window(existing_dialog)
-        return
-
-    dialog = DetectionNotificationDialog(parent, player, info)
-    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    _active_notification_dialogs[key] = dialog
-    dialog.destroyed.connect(lambda: _active_notification_dialogs.pop(key, None))
-    activate_window(dialog)
+    _active_notification_dialogs.show_or_focus((player.ip, info.display_title), lambda: DetectionNotificationDialog(parent, player, info))
 
 
 @dataclass(slots=True, kw_only=True)
@@ -253,7 +243,7 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
-_active_player_detection_dialogs: dict[tuple[str, NotificationType], PlayerDetectionDialog] = {}
+_active_player_detection_dialogs: ActiveDialogRegistry[tuple[str, NotificationType], PlayerDetectionDialog] = ActiveDialogRegistry()
 
 
 def show_player_detection_dialog(
@@ -262,14 +252,4 @@ def show_player_detection_dialog(
     info: PlayerDetectionInfo,
 ) -> None:
     """Open or focus the Player Detection dialog for *player*."""
-    key = (player.ip, info.event_type)
-    existing_dialog = _active_player_detection_dialogs.get(key)
-    if existing_dialog is not None:
-        activate_window(existing_dialog)
-        return
-
-    dialog = PlayerDetectionDialog(parent, player, info)
-    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    _active_player_detection_dialogs[key] = dialog
-    dialog.destroyed.connect(lambda: _active_player_detection_dialogs.pop(key, None))
-    activate_window(dialog)
+    _active_player_detection_dialogs.show_or_focus((player.ip, info.event_type), lambda: PlayerDetectionDialog(parent, player, info))

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -34,7 +34,12 @@ from session_sniffer.guis.tables_player_actions._format import (
     format_userip_database,
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import (
+    ActiveDialogRegistry,
+    apply_adaptive_window_size,
+    format_player_display,
+    set_dialog_window_flags,
+)
 from session_sniffer.models import IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
@@ -177,17 +182,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._closed_event = Event()
 
         self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(self._target.ip, self._target.usernames)})')
-        self.setMinimumSize(scale_by_ui(560), scale_by_ui(420))
-
-        screen_size = get_screen_size()
-
-        if screen_size >= (1920, 1080):
-            self.resize(scale_by_ui(820), scale_by_ui(680))
-        elif screen_size >= (1280, 720):
-            self.resize(scale_by_ui(720), scale_by_ui(600))
-        else:
-            resize_window_for_screen(self, screen_size)
-            self.resize(min(self.width(), max(scale_by_ui(560), screen_size[0] - 80)), min(self.height(), max(scale_by_ui(420), screen_size[1] - 80)))
+        apply_adaptive_window_size(self, min_size=(560, 420), size_1080p=(820, 680), size_720p=(720, 600))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
@@ -346,18 +341,21 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         super().closeEvent(event)
 
 
+_active_dialogs: ActiveDialogRegistry[str, IPLookupDetailsDialog] = ActiveDialogRegistry()
+
+
 def show_detailed_ip_lookup(_parent: QWidget | None, target: Player | StandaloneIPLookup | str) -> None:
     """Open the live IP Lookup Details dialog for a player or IP address."""
-    if isinstance(target, str):
-        matched_player = PlayersRegistry.get_player_by_ip(target)
-        if matched_player is not None:
-            dialog = IPLookupDetailsDialog(None, matched_player)
-        else:
+    ip = target if isinstance(target, str) else target.ip
+
+    def _factory() -> IPLookupDetailsDialog:
+        if isinstance(target, str):
+            matched_player = PlayersRegistry.get_player_by_ip(target)
+            if matched_player is not None:
+                return IPLookupDetailsDialog(None, matched_player)
             standalone_lookup = StandaloneIPLookup(ip=target)
             _start_standalone_lookup(standalone_lookup)
-            dialog = IPLookupDetailsDialog(None, standalone_lookup)
-    else:
-        dialog = IPLookupDetailsDialog(None, target)
+            return IPLookupDetailsDialog(None, standalone_lookup)
+        return IPLookupDetailsDialog(None, target)
 
-    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    dialog.show()
+    _active_dialogs.show_or_focus(ip, _factory)

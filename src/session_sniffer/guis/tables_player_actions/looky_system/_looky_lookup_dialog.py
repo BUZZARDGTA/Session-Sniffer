@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import UTC
 from http import HTTPStatus
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
@@ -25,7 +25,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -35,8 +35,6 @@ from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QCloseEvent
-
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
 
@@ -88,8 +86,6 @@ class _LookyFetchWorker(CrashingQThread):
 class LookyLookupDialog(PlayerInfoDialogMixin):
     """Non-modal dialog that renders pre-fetched Looky System player results."""
 
-    _open_dialogs: ClassVar[dict[str, LookyLookupDialog]] = {}
-
     def __init__(self, parent: QWidget | None, player: Player, results: list[LookyPlayer]) -> None:
         """Render *results* for *player*."""
         super().__init__(parent)
@@ -137,57 +133,19 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         outer_layout.addWidget(button_box)
 
-        LookyLookupDialog._open_dialogs[self._ip] = self
-
-    @classmethod
-    def restore_existing(cls, ip: str) -> bool:
-        """If a dialog for *ip* is already open, raise it, un-minimize it, and activate it."""
-        existing = cls._open_dialogs.get(ip)
-        if existing is not None and isValid(existing):
-            existing.setWindowState(existing.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
-            existing.show()
-            existing.raise_()
-            existing.activateWindow()
-            return True
-        return False
-
-    @classmethod
-    def close_all_open_dialogs(cls) -> None:
-        """Close all open Looky lookup dialogs."""
-        for dialog in list(cls._open_dialogs.values()):
-            if isValid(dialog):
-                dialog.close()
-
-    @override
-    def closeEvent(self, event: QCloseEvent) -> None:
-        """Clean up references and close the dialog."""
-        LookyLookupDialog._open_dialogs.pop(self._ip, None)
-        super().closeEvent(event)
-
-    @override
-    def reject(self) -> None:
-        """Clean up references and reject the dialog."""
-        LookyLookupDialog._open_dialogs.pop(self._ip, None)
-        super().reject()
-
-    @override
-    def accept(self) -> None:
-        """Clean up references and accept the dialog."""
-        LookyLookupDialog._open_dialogs.pop(self._ip, None)
-        super().accept()
-
 
 _active_lookup_workers: set[_LookyFetchWorker] = set()
+_active_dialogs: ActiveDialogRegistry[str, LookyLookupDialog] = ActiveDialogRegistry()
 
 
 def close_all_lookup_dialogs() -> None:
     """Close and cleanly cancel all open Looky lookup dialogs."""
-    LookyLookupDialog.close_all_open_dialogs()
+    _active_dialogs.close_all()
 
 
 def show_looky_lookup(parent: QWidget, player: Player) -> None:
     """Validate and fetch Looky System IP lookup results for *player*; open a results dialog or show an error."""
-    if LookyLookupDialog.restore_existing(player.ip):
+    if _active_dialogs.focus(player.ip):
         return
 
     api_key = check_looky_prerequisites(parent, player=player)
@@ -214,8 +172,7 @@ def show_looky_lookup(parent: QWidget, player: Player) -> None:
             QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')
             return
 
-        dialog = LookyLookupDialog(None, player, worker.results)
-        dialog.show()
+        _active_dialogs.show_or_focus(player.ip, lambda: LookyLookupDialog(None, player, worker.results))
 
     def _on_fetch_not_found() -> None:
         if isValid(parent):

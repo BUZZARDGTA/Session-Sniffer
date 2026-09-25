@@ -35,7 +35,6 @@ from session_sniffer.guis._dialog_mixins import (
 )
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
-    get_screen_size,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
@@ -62,8 +61,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self.setWindowTitle(f'{TITLE} - Detections Manager')
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
-        screen_size = get_screen_size()
-        resize_window_for_screen(self, screen_size)
+        resize_window_for_screen(self)
 
         # Widget references (populated by tab builders)
         # -- Network-based (mobile, vpn, hosting) --
