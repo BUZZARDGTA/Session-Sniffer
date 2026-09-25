@@ -65,6 +65,7 @@ class TreeOperationsMixin(QDialog):
     _settings_snapshot: dict[str, str]
 
     # pylint: disable=unused-argument
+    def _clear_dirty_state(self) -> None: ...
     def _mark_entries_dirty(self) -> None: ...
     def _mark_settings_dirty(self) -> None: ...
     def _refresh_protection_visibility(self) -> None: ...
@@ -426,7 +427,7 @@ class TreeOperationsMixin(QDialog):
             self._open_db_button.setEnabled(False)
             if self._export_selected_action is not None:
                 self._export_selected_action.setEnabled(False)
-            self._dirty = False
+            self._clear_dirty_state()
             self._update_file_info(None)
 
         self._set_status(f'Deleted: {path.name}')
@@ -659,7 +660,7 @@ class TreeOperationsMixin(QDialog):
 
         if deleted > 0:
             self._current_path = None
-            self._dirty = False
+            self._clear_dirty_state()
             self._model.removeRows(0, self._model.rowCount())
             self._update_file_info(None)
             self._settings_container.setVisible(False)

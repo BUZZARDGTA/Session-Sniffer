@@ -124,6 +124,7 @@ class SettingsPanelMixin(QDialog):
         row_cln.addWidget(color_lbl)
 
         self._current_color = QColor()
+        self._current_color_name = ''
         self._setting_color = QPushButton()
         self._setting_color.setObjectName('DatabaseColorButton')
         self._setting_color.setFixedSize(52, 26)
