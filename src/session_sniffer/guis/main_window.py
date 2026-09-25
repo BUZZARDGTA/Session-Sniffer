@@ -792,6 +792,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.apply_sort_from_settings()
         self._disconnected.apply_sort_from_settings()
 
+    def _apply_table_pagination_from_settings(self) -> None:
+        """Apply configured table pagination rows per page to connected and disconnected tables."""
+        self._connected.apply_pagination_from_settings()
+        self._disconnected.apply_pagination_from_settings()
+
     def _sync_player_resolver_settings(self) -> None:
         """Synchronize Player Resolver background monitoring and refresh session table icons."""
         self._player_resolver_window.high_rate_monitor.apply_settings()
@@ -816,6 +821,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         window.accepted.connect(self._apply_always_on_top)
         window.accepted.connect(self._update_splitter_visibility)
         window.accepted.connect(self._apply_table_sort_from_settings)
+        window.accepted.connect(self._apply_table_pagination_from_settings)
         window.accepted.connect(self._sync_player_resolver_settings)
         window.destroyed.connect(lambda: setattr(self, '_settings_dialog_window', None) if self._settings_dialog_window is window else None)
         self._settings_dialog_window = window

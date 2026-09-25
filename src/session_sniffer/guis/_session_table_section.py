@@ -232,6 +232,7 @@ class SessionTableSection(QWidget):
         initial_rpp = Settings.gui_connected_table_rows_per_page if is_connected else Settings.gui_disconnected_table_rows_per_page
 
         self._rows_per_page_spinbox = QSpinBox()
+        self._rows_per_page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rows_per_page_spinbox.setRange(0, 5000)
         self._rows_per_page_spinbox.setMinimumWidth(95)
         self._rows_per_page_spinbox.setSpecialValueText('All')
@@ -256,10 +257,12 @@ class SessionTableSection(QWidget):
         page_label.setToolTip('Current page when rows are limited.')
 
         self._page_spinbox = QSpinBox()
+        self._page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._page_spinbox.setRange(1, 1)
         self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
         self._page_spinbox.setSuffix(' / 1')
         self._page_spinbox.valueChanged.connect(self._handle_page_changed)
+        self._install_spinbox_input_filter(self._page_spinbox)
 
         page_pair = QHBoxLayout()
         page_pair.setSpacing(3)
@@ -692,6 +695,23 @@ class SessionTableSection(QWidget):
         self._push_pagination_state()
         self._update_header_label()
 
+    def apply_pagination_from_settings(self) -> None:
+        """Apply configured rows per page from Settings to this table section."""
+        configured_rows = Settings.gui_connected_table_rows_per_page if self._is_connected else Settings.gui_disconnected_table_rows_per_page
+        if self._rows_per_page == configured_rows:
+            return
+        self._rows_per_page = max(configured_rows, 0)
+        self._rows_per_page_spinbox.blockSignals(True)  # noqa: FBT003
+        self._rows_per_page_spinbox.setValue(self._rows_per_page)
+        self._rows_per_page_spinbox.blockSignals(False)  # noqa: FBT003
+        self._current_page, self._total_pages = self._sync_paging_controls(
+            total_rows=max(self.last_count, 0),
+            rows_per_page=self._rows_per_page,
+            requested_page=1,
+        )
+        self._push_pagination_state()
+        self._update_header_label()
+
     def _handle_page_changed(self, value: int) -> None:
         self._current_page = max(value, 1)
         self._push_pagination_state()
@@ -744,6 +764,10 @@ class SessionTableSection(QWidget):
 
         if not self._rows_keyboard_editing:
             self._rows_per_page_spinbox.setRange(0, 5000)
+            if self._rows_per_page_spinbox.value() != self._rows_per_page:
+                self._rows_per_page_spinbox.blockSignals(True)  # noqa: FBT003
+                self._rows_per_page_spinbox.setValue(self._rows_per_page)
+                self._rows_per_page_spinbox.blockSignals(False)  # noqa: FBT003
             if self._rows_per_page > 0:
                 self._rows_per_page_spinbox.setPrefix(f'{total_count} / ')
                 self._rows_per_page_spinbox.setSuffix('')
@@ -764,7 +788,7 @@ class SessionTableSection(QWidget):
             self._page_spinbox.setSuffix(f' / {self._total_pages}')
 
     def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
-        """Attach an event filter that tracks keyboard vs. wheel editing."""
+        """Attach an event filter that tracks keyboard vs. wheel editing and ignores unfocused wheels."""
         line_edit = spinbox.lineEdit()
         if not line_edit:
             return
@@ -778,18 +802,23 @@ class SessionTableSection(QWidget):
                 _ = a0
                 if a1 is None:
                     return False
-                et = a1.type()
-                if et == QEvent.Type.KeyPress:
+                event_type = a1.type()
+                if event_type == QEvent.Type.KeyPress:
                     section.set_keyboard_editing(is_editing=True)
-                elif et in (QEvent.Type.FocusOut, QEvent.Type.Hide, QEvent.Type.Wheel):
+                elif event_type in (QEvent.Type.FocusOut, QEvent.Type.Hide):
                     section.set_keyboard_editing(is_editing=False)
+                elif event_type == QEvent.Type.Wheel:
+                    section.set_keyboard_editing(is_editing=False)
+                    if not spinbox.hasFocus():
+                        return True
                 return False
 
         guard = _SpinboxInputGuard(self)
         spinbox.installEventFilter(guard)
         line_edit.installEventFilter(guard)
-        # prevent GC
-        self._spinbox_guard = guard
+        if not hasattr(self, '_spinbox_guards'):
+            self._spinbox_guards: list[QObject] = []
+        self._spinbox_guards.append(guard)
 
     def set_keyboard_editing(self, *, is_editing: bool) -> None:
         """Set the keyboard editing state for the rows-per-page spinbox."""
